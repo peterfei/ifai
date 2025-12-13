@@ -10,7 +10,29 @@
     "opener:default",
     "fs:default",
     "dialog:default",
-    "fs:allow-home-read-recursive",
-    "fs:allow-home-write-recursive"
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$HOME/**/.*" }, { "path": "$HOME/**/.*/**" }]
+    }
   ]
 }
