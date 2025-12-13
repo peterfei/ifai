@@ -53,7 +53,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
         });
       } catch (e) {
         console.error("Failed to read file", e);
-        toast.error("Failed to read file");
+        toast.error(`Failed to read file: ${String(e)}`);
       }
     }
   };
