@@ -33,18 +33,23 @@ export const openDirectory = async (): Promise<FileNode | null> => {
 // Here we implement a lazy-ready structure helper.
 export const readDirectory = async (path: string): Promise<FileNode[]> => {
   try {
+    console.log(`Reading directory: ${path}`);
     const entries = await readDir(path);
-    const nodes: FileNode[] = entries.map(entry => ({
-        id: uuidv4(), // Client-side ID
-        name: entry.name,
-        path: `${path}/${entry.name}`, // Simplistic path join, might need normalization
-        kind: (entry.isDirectory ? 'directory' : 'file') as 'file' | 'directory',
-        children: undefined // Lazy load
-    }));
+    const nodes: FileNode[] = entries.map(entry => {
+        // Normalize path joining
+        const cleanPath = path.endsWith('/') ? path.slice(0, -1) : path;
+        return {
+            id: uuidv4(), // Client-side ID
+            name: entry.name,
+            path: `${cleanPath}/${entry.name}`, 
+            kind: (entry.isDirectory ? 'directory' : 'file') as 'file' | 'directory',
+            children: undefined // Lazy load
+        };
+    });
     return nodes.sort(sortFiles);
   } catch (error) {
     console.error(`Failed to read directory ${path}:`, error);
-    return [];
+    throw error; // Re-throw to let caller handle/toast
   }
 };
 

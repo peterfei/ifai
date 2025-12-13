@@ -28,6 +28,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
         node.children = loadedChildren; // Update store ref mostly for persistence if we had it
     } catch (e) {
         console.error("Failed to load children", e);
+        toast.error(`Failed to open ${node.name}: ${String(e)}`);
     }
   };
 
