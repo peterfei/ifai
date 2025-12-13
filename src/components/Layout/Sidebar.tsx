@@ -1,11 +1,35 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
-import { openDirectory } from '../../utils/fileSystem';
+import { openDirectory, readDirectory } from '../../utils/fileSystem';
 import { FolderOpen } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 export const Sidebar = () => {
-  const { setFileTree } = useFileStore();
+  const { setFileTree, rootPath, fileTree } = useFileStore();
+
+  useEffect(() => {
+    // Restore file tree from rootPath if exists
+    if (rootPath && !fileTree) {
+      const loadRoot = async () => {
+        try {
+          const name = rootPath.split('/').pop() || 'Project';
+          // We manually reconstruct the root node to trigger lazy loading logic in FileTree or load first level
+          const children = await readDirectory(rootPath);
+          setFileTree({
+            id: uuidv4(),
+            name,
+            path: rootPath,
+            kind: 'directory',
+            children
+          });
+        } catch (e) {
+          console.error("Failed to restore project:", e);
+        }
+      };
+      loadRoot();
+    }
+  }, [rootPath, fileTree, setFileTree]);
 
   const handleOpenFolder = async () => {
     const tree = await openDirectory();
