@@ -1,18 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Settings, User, Bot, Loader2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Send, Settings, Bot } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useFileStore } from '../../stores/fileStore';
+import { readFileContent } from '../../utils/fileSystem';
+import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
+import { MessageItem } from './MessageItem';
 
-export const AIChat = () => {
+interface AIChatProps {
+  width?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
+}
+
+export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { t } = useTranslation();
-  const { messages, isLoading, sendMessage } = useChatStore();
+  const { messages, isLoading, sendMessage, approveToolCall, rejectToolCall } = useChatStore();
   const { aiApiKey } = useSettingsStore();
   const { setSettingsOpen } = useLayoutStore();
+  const { openFile } = useFileStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,9 +45,34 @@ export const AIChat = () => {
     }
   };
 
+  const handleOpenFile = async (path: string) => {
+    try {
+        const content = await readFileContent(path);
+        openFile({
+            id: uuidv4(),
+            path,
+            name: path.split('/').pop() || 'file',
+            content,
+            isDirty: false,
+            language: 'plaintext'
+        });
+    } catch (e) {
+        console.error("Failed to open file:", e);
+    }
+  };
+
   if (!aiApiKey) {
     return (
-      <div className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 p-4 items-center justify-center text-center">
+      <div 
+        className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 p-4 items-center justify-center text-center flex-shrink-0 relative"
+        style={{ width: width ? `${width}px` : '384px' }}
+      >
+        {onResizeStart && (
+            <div 
+                className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
+                onMouseDown={onResizeStart}
+            />
+        )}
         <Bot size={48} className="text-gray-500 mb-4" />
         <p className="text-gray-400 mb-4">{t('chat.errorNoKey')}</p>
         <button 
@@ -54,82 +86,53 @@ export const AIChat = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 w-80">
+    <div 
+        className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative"
+        style={{ width: width ? `${width}px` : '384px' }}
+    >
+      {onResizeStart && (
+        <div 
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
+            onMouseDown={onResizeStart}
+        />
+      )}
       <div className="flex items-center justify-between p-3 border-b border-gray-700 bg-[#252526]">
         <span className="font-bold text-gray-300 flex items-center"><Bot size={18} className="mr-2"/> {t('chat.title')}</span>
         <button onClick={() => setSettingsOpen(true)} className="text-gray-400 hover:text-white">
             <Settings size={16} />
         </button>
       </div>
-// ... (rest is same)
-
+      
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-lg p-3 text-sm ${
-                msg.role === 'user' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-[#2d2d2d] text-gray-200'
-            }`}>
-                <div className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        code({node, className, children, ...props}) {
-                          const match = /language-(\w+)/.exec(className || '')
-                          return match ? (
-                            <SyntaxHighlighter
-                              // @ts-ignore
-                              style={vscDarkPlus}
-                              language={match[1]}
-                              PreTag="div"
-                              {...props}
-                            >
-                              {String(children).replace(/\n$/, '')}
-                            </SyntaxHighlighter>
-                          ) : (
-                            <code className={className} {...props}>
-                              {children}
-                            </code>
-                          )
-                        }
-                      }}
-                    >
-                        {msg.content}
-                    </ReactMarkdown>
-                </div>
-            </div>
-          </div>
+        {messages.map((message) => (
+          <MessageItem 
+            key={message.id} 
+            message={message} 
+            onApprove={approveToolCall} 
+            onReject={rejectToolCall}
+            onOpenFile={handleOpenFile}
+          />
         ))}
-        {isLoading && (
-            <div className="flex justify-start">
-                <div className="bg-[#2d2d2d] rounded-lg p-3">
-                    <Loader2 size={16} className="animate-spin text-gray-400" />
-                </div>
-            </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 border-t border-gray-700 bg-[#252526]">
-        <div className="relative">
-            <textarea
-                className="w-full bg-[#3c3c3c] text-white rounded p-2 pr-10 text-sm focus:outline-none resize-none h-20"
-                placeholder={t('chat.placeholder')}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isLoading}
-            />
-            <button 
-                className={`absolute bottom-2 right-2 p-1 rounded ${
-                    input.trim() && !isLoading ? 'text-blue-400 hover:text-blue-300' : 'text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-            >
-                <Send size={18} />
-            </button>
-        </div>
+      <div className="border-t border-gray-700 p-3 bg-[#252526] flex items-center">
+        <input
+          type="text"
+          className="flex-1 bg-transparent outline-none text-white text-sm placeholder-gray-500 mr-2"
+          placeholder={t('chat.placeholder')}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isLoading}
+        />
+        <button
+          onClick={handleSend}
+          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors disabled:opacity-50"
+          disabled={!input.trim() || isLoading}
+        >
+          <Send size={16} />
+        </button>
       </div>
     </div>
   );

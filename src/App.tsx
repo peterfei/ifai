@@ -20,7 +20,37 @@ function App() {
   const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, openFile, fetchGitStatuses } = useFileStore();
   const { editorInstance } = useEditorStore();
-  const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal } = useLayoutStore();
+  const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal, chatWidth, setChatWidth } = useLayoutStore();
+  const [isResizingChat, setIsResizingChat] = React.useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingChat) {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth > 250 && newWidth < 1000) {
+            setChatWidth(newWidth);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingChat(false);
+    };
+
+    if (isResizingChat) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ew-resize';
+    } else {
+      document.body.style.cursor = 'default';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+  }, [isResizingChat, setChatWidth]);
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -69,7 +99,7 @@ function App() {
         content: content,
         isDirty: false,
         language: 'plaintext', 
-        initialLine: 1 // Default to line 1 for now, search results have specific line.
+        initialLine: 1 
       });
       setCommandPaletteOpen(false);
     } catch (e) {
@@ -96,13 +126,12 @@ function App() {
               <TerminalPanel onClose={toggleTerminal} />
             </div>
           )}
+          <Statusbar />
         </div>
 
-        {isChatOpen && <AIChat />}
+        {isChatOpen && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
       </div>
       
-      <Statusbar /> 
-
       {/* Floating modals and toaster, they are mounted as direct children of the root app div. */}
       {/* React Fragment is used to group them without adding an extra DOM node to the layout flow. */}
       <Fragment>

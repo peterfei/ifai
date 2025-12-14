@@ -6,15 +6,12 @@ import { FolderOpen, Files, Search as SearchIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core'; // Moved to top
 
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { setFileTree, rootPath, fileTree } = useFileStore();
   const [activeTab, setActiveTab] = useState<'explorer' | 'search'>('explorer');
-
-import { invoke } from '@tauri-apps/api/core';
-
-// ...
 
   useEffect(() => {
     // Restore file tree from rootPath if exists
@@ -47,7 +44,9 @@ import { invoke } from '@tauri-apps/api/core';
       invoke('init_rag_index', { rootPath: tree.path });
     }
   };
-// ...
+
+  return (
+    <div className="flex h-full border-r border-gray-700 bg-gray-900">
       {/* Activity Bar */}
       <div className="w-12 flex flex-col items-center py-2 border-r border-gray-700 bg-[#1e1e1e]">
         <button 

@@ -10,12 +10,13 @@ import { openDirectory, readFileContent } from '../../utils/fileSystem';
 import { open } from '@tauri-apps/plugin-dialog';
 import { InlineEditWidget } from './InlineEditWidget';
 import { useTranslation } from 'react-i18next';
-import { useLsp } from '../../hooks/useLsp';
+import { invoke } from '@tauri-apps/api/core';
+// import { useLsp } from '../../hooks/useLsp';
 
 export const MonacoEditor = () => {
   const { t } = useTranslation();
   // Initialize LSP for TypeScript (requires 'npm i -g typescript-language-server typescript')
-  useLsp('typescript', 'typescript-language-server', ['--stdio']);
+  // useLsp('typescript', 'typescript-language-server', ['--stdio']);
   
   const { editorInstance, setEditorInstance, theme, setInlineEdit } = useEditorStore();
   const { activeFileId, openedFiles, updateFileContent, openFile, setFileTree, reloadFileContent } = useFileStore();

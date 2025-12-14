@@ -5,6 +5,7 @@ mod search;
 mod git;
 mod lsp;
 mod rag; // Added rag module
+mod agent; // Added agent module
 use ai::Message;
 use terminal::TerminalManager;
 use lsp::LspManager;
@@ -47,7 +48,10 @@ pub fn run() {
             rag::init_rag_index, 
             rag::search_semantic,
             rag::search_hybrid,
-            rag::build_context
+            rag::build_context,
+            agent::agent_write_file, // Added commands
+            agent::agent_read_file,
+            agent::agent_list_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
