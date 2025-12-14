@@ -20,13 +20,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const { t } = useTranslation();
     const isUser = message.role === 'user';
 
-    // Use robust parser to clean content visually
-    // This ensures that even if store hasn't updated yet (streaming), we hide the JSON block
-    const displayContent = React.useMemo(() => {
-        // If message already has toolCalls, we assume store handled it, but let's be safe and clean it again
-        const { cleanContent } = parseToolCalls(message.content);
-        return cleanContent;
+    const segments = React.useMemo(() => {
+        const { segments } = parseToolCalls(message.content);
+        return segments;
     }, [message.content]);
+
+    let toolCallIndex = 0;
 
     return (
         <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
@@ -44,16 +43,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                     )}
                     
                     <div className="flex-1 min-w-0">
-                        {/* Tool Calls */}
-                        {message.toolCalls && message.toolCalls.map(tc => (
-                            <ToolApproval 
-                                key={tc.id} 
-                                toolCall={tc} 
-                                onApprove={() => onApprove(message.id, tc.id)}
-                                onReject={() => onReject(message.id, tc.id)}
-                            />
-                        ))}
-
                         {/* References */}
                         {message.references && message.references.length > 0 && (
                             <div className="mb-3 p-2 bg-gray-800 rounded border border-gray-600">
@@ -76,48 +65,74 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* Content */}
-                        {displayContent ? (
-                            message.content.startsWith('Indexing...') ? (
-                                <p className="text-sm whitespace-pre-wrap text-gray-400">{displayContent}</p>
-                            ) : (
-                                <ReactMarkdown
-                                    children={displayContent}
-                                    components={{
-                                        code({ node, className, children, ...rest }) {
-                                            const match = /language-(\w+)/.exec(className || '');
-                                            const { ref, ...propsToPass } = rest;
-                                            const isInline = (rest as any).inline;
+                        {/* Segments (Text and Tools interleaved) */}
+                        {segments.map((segment, index) => {
+                            if (segment.type === 'tool') {
+                                // Try to match with stored tool call
+                                const storedToolCall = message.toolCalls && message.toolCalls[toolCallIndex];
+                                toolCallIndex++;
+                                
+                                // Fallback to parsed (ephemeral) tool call if not in store yet
+                                const displayToolCall = storedToolCall || segment.toolCall;
+                                
+                                if (!displayToolCall) return null;
 
-                                            if (!isInline && isStreaming) {
-                                                return (
-                                                    <pre className="whitespace-pre-wrap break-word bg-[#1e1e1e] p-2 rounded my-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                                return (
+                                    <ToolApproval 
+                                        key={displayToolCall.id} 
+                                        toolCall={displayToolCall} 
+                                        onApprove={() => onApprove(message.id, displayToolCall.id)}
+                                        onReject={() => onReject(message.id, displayToolCall.id)}
+                                    />
+                                );
+                            } else {
+                                const content = segment.content;
+                                if (!content) return null;
+                                
+                                if (content.startsWith('Indexing...')) {
+                                    return <p key={index} className="text-sm whitespace-pre-wrap text-gray-400">{content}</p>;
+                                }
+
+                                return (
+                                    <ReactMarkdown
+                                        key={index}
+                                        children={content}
+                                        components={{
+                                            code({ node, className, children, ...rest }) {
+                                                const match = /language-(\w+)/.exec(className || '');
+                                                const { ref, ...propsToPass } = rest;
+                                                const isInline = (rest as any).inline;
+
+                                                if (!isInline && isStreaming) {
+                                                    return (
+                                                        <pre className="whitespace-pre-wrap break-word bg-[#1e1e1e] p-2 rounded my-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                                                            {children}
+                                                        </pre>
+                                                    );
+                                                }
+
+                                                return !isInline && match ? (
+                                                    <SyntaxHighlighter
+                                                        {...propsToPass}
+                                                        children={String(children).replace(/\n$/, '')}
+                                                        style={vscDarkPlus}
+                                                        language={match[1]}
+                                                        PreTag="div"
+                                                        wrapLines={true}
+                                                        wrapLongLines={true}
+                                                        customStyle={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                                                    />
+                                                ) : (
+                                                    <code {...rest} className={className}>
                                                         {children}
-                                                    </pre>
+                                                    </code>
                                                 );
-                                            }
-
-                                            return !isInline && match ? (
-                                                <SyntaxHighlighter
-                                                    {...propsToPass}
-                                                    children={String(children).replace(/\n$/, '')}
-                                                    style={vscDarkPlus}
-                                                    language={match[1]}
-                                                    PreTag="div"
-                                                    wrapLines={true}
-                                                    wrapLongLines={true}
-                                                    customStyle={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                                                />
-                                            ) : (
-                                                <code {...rest} className={className}>
-                                                    {children}
-                                                </code>
-                                            );
-                                        },
-                                    }}
-                                />
-                            )
-                        ) : null}
+                                            },
+                                        }}
+                                    />
+                                );
+                            }
+                        })}
                     </div>
                 </div>
             </div>

@@ -10,9 +10,16 @@ export interface ParsedToolCall {
     status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed';
 }
 
+export interface ContentSegment {
+    type: 'text' | 'tool';
+    content?: string;
+    toolCall?: ParsedToolCall;
+}
+
 export interface ParseResult {
     toolCalls: ParsedToolCall[];
     cleanContent: string;
+    segments: ContentSegment[];
 }
 
 export function parseToolCalls(content: string): ParseResult {
@@ -21,7 +28,7 @@ export function parseToolCalls(content: string): ParseResult {
     
     // We maintain a list of ranges that have been identified as tool calls
     // to avoid double-processing and to remove them later.
-    const replacements: {start: number, end: number}[] = [];
+    const replacements: {start: number, end: number, toolCall: ParsedToolCall}[] = [];
 
     // Helper to add tool call
     const addToolCall = (jsonStr: string, start: number, end: number) => {
@@ -42,7 +49,7 @@ export function parseToolCalls(content: string): ParseResult {
                 );
                 
                 if (!isOverlap) {
-                    toolCalls.push({
+                    const toolCall: ParsedToolCall = {
                         id: uuidv4(),
                         tool: String(parsed.tool).trim(),
                         args: parsed.args,
@@ -50,8 +57,9 @@ export function parseToolCalls(content: string): ParseResult {
                         startIndex: start,
                         endIndex: end,
                         status: 'pending'
-                    });
-                    replacements.push({ start, end });
+                    };
+                    toolCalls.push(toolCall);
+                    replacements.push({ start, end, toolCall });
                     return true;
                 }
             }
@@ -125,6 +133,31 @@ export function parseToolCalls(content: string): ParseResult {
         }
     }
 
+    // Generate segments based on sorted replacements
+    const segments: ContentSegment[] = [];
+    const sortedReplacements = [...replacements].sort((a, b) => a.start - b.start);
+    
+    let currentIndex = 0;
+    for (const { start, end, toolCall } of sortedReplacements) {
+        // Add text before the tool call if any
+        if (start > currentIndex) {
+            const text = content.substring(currentIndex, start);
+            if (text) { // Keep whitespace? Yes, markdown needs it.
+                segments.push({ type: 'text', content: text });
+            }
+        }
+        
+        // Add the tool call
+        segments.push({ type: 'tool', toolCall });
+        
+        currentIndex = end;
+    }
+    
+    // Add remaining text
+    if (currentIndex < content.length) {
+        segments.push({ type: 'text', content: content.substring(currentIndex) });
+    }
+
     // Perform removal of tool call text from content
     // Sort descending by start index to keep indices valid during slicing
     replacements.sort((a, b) => b.start - a.start);
@@ -138,7 +171,8 @@ export function parseToolCalls(content: string): ParseResult {
 
     return {
         toolCalls,
-        cleanContent: cleanContent.trim()
+        cleanContent: cleanContent.trim(),
+        segments
     };
 }
 

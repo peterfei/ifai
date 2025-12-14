@@ -179,14 +179,14 @@ export const useChatStore = create<ChatState>()(
                 // Parse Tool Calls from full response
                 const toolCall = parseToolCall(fullResponse);
                 if (toolCall) {
-                    // Aggressively strip the JSON block using the same robust regex
-                    const cleanContent = fullResponse.replace(/(?:```(?:json)?\s*)?(\{[\s\S]*?"tool"[\s\S]*?\})(\s*```)?/gi, '').trim();
+                    // We DO NOT strip the JSON anymore. We keep the full content
+                    // so the UI parser can determine the correct order of text/tools.
                     
                     set((state) => ({
                         messages: state.messages.map(msg => 
                             msg.id === assistantMsgId ? { 
                                 ...msg, 
-                                content: cleanContent,
+                                content: fullResponse, // Keep original content
                                 toolCalls: [toolCall] 
                             } : msg
                         )
