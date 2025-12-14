@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Fragment } from 'react';
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Statusbar } from './components/Layout/Statusbar';
@@ -7,14 +7,17 @@ import { TabBar } from './components/Editor/TabBar';
 import { AIChat } from './components/AIChat/AIChat';
 import { CommandPalette } from './components/CommandPalette/CommandPalette';
 import { TerminalPanel } from './components/Terminal/TerminalPanel';
+import { SettingsModal } from './components/Settings/SettingsModal';
 import { useFileStore } from './stores/fileStore';
 import { useEditorStore } from './stores/editorStore';
 import { useLayoutStore } from './stores/layoutStore';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
 import { Toaster, toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { useTranslation } from 'react-i18next';
 
 function App() {
+  const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, openFile, fetchGitStatuses } = useFileStore();
   const { editorInstance } = useEditorStore();
   const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal } = useLayoutStore();
@@ -28,11 +31,11 @@ function App() {
           try {
             await writeFileContent(activeFile.path, activeFile.content);
             setFileDirty(activeFile.id, false);
-            toast.success('File saved');
-            fetchGitStatuses(); // Refresh git status
+            toast.success(t('common.fileSaved'));
+            fetchGitStatuses();
           } catch (error) {
             console.error('Failed to save file:', error);
-            toast.error('Failed to save file');
+            toast.error(t('common.fileSaveFailed'));
           }
         }
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
@@ -54,7 +57,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFileId, openedFiles, setFileDirty, editorInstance, toggleChat, toggleCommandPalette, toggleTerminal]);
+  }, [activeFileId, openedFiles, setFileDirty, editorInstance, toggleChat, toggleCommandPalette, toggleTerminal, fetchGitStatuses, t]);
 
   const handleSelectFileFromPalette = async (path: string) => {
     try {
@@ -62,23 +65,24 @@ function App() {
       openFile({
         id: uuidv4(),
         path: path,
-        name: path.split('/').pop() || 'Untitled',
+        name: path.split('/').pop() || t('common.untitled'),
         content: content,
         isDirty: false,
-        language: 'plaintext', // Simplification
+        language: 'plaintext', 
+        initialLine: 1 // Default to line 1 for now, search results have specific line.
       });
       setCommandPaletteOpen(false);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to open file from palette');
+      toast.error(t('common.fileOpenFailed'));
     }
   };
 
   return (
     <div className="flex flex-col h-screen bg-[#1e1e1e] text-white overflow-hidden">
-      <Toaster position="bottom-right" theme="dark" />
       <Titlebar onToggleChat={toggleChat} isChatOpen={isChatOpen} onToggleTerminal={toggleTerminal} isTerminalOpen={isTerminalOpen} />
       
+      {/* Main content area: Sidebar + Editor/Terminal + AIChat */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         
@@ -97,8 +101,15 @@ function App() {
         {isChatOpen && <AIChat />}
       </div>
       
-      <Statusbar />
-      <CommandPalette onSelect={handleSelectFileFromPalette} />
+      <Statusbar /> 
+
+      {/* Floating modals and toaster, they are mounted as direct children of the root app div. */}
+      {/* React Fragment is used to group them without adding an extra DOM node to the layout flow. */}
+      <Fragment>
+        <CommandPalette onSelect={handleSelectFileFromPalette} />
+        <SettingsModal />
+        <Toaster position="bottom-right" theme="dark" />
+      </Fragment>
     </div>
   );
 }

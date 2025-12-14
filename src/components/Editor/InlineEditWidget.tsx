@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useEditorStore } from '../../stores/editorStore';
 import { useChatStore } from '../../stores/useChatStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { Sparkles, X, Loader2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -11,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 export const InlineEditWidget = () => {
   const { t } = useTranslation();
   const { editorInstance, inlineEdit, closeInlineEdit } = useEditorStore();
-  const { apiKey } = useChatStore();
+  const { aiApiKey } = useSettingsStore(); // Use aiApiKey from settingsStore
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +38,7 @@ export const InlineEditWidget = () => {
   const handleSubmit = async () => {
     if (!input.trim()) return;
     
-    if (!apiKey) {
+    if (!aiApiKey) {
         toast.error(t('chat.errorNoKey'));
         return;
     }
@@ -106,7 +107,7 @@ ${input}`;
 
         const history = [{ role: 'user', content: prompt }];
         await invoke('ai_chat', { 
-            apiKey, 
+            apiKey: aiApiKey, 
             messages: history, 
             eventId 
         });
