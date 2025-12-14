@@ -4,9 +4,11 @@ mod terminal;
 mod search;
 mod git;
 mod lsp;
+mod rag; // Added rag module
 use ai::Message;
 use terminal::TerminalManager;
 use lsp::LspManager;
+use rag::RagState; // Added RagState
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -24,6 +26,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(TerminalManager::new())
         .manage(LspManager::new())
+        .manage(RagState::new()) // Added RagState management
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -40,7 +43,9 @@ pub fn run() {
             git::get_git_statuses,
             lsp::start_lsp,
             lsp::send_lsp_message,
-            lsp::kill_lsp
+            lsp::kill_lsp,
+            rag::init_rag_index, // Added command
+            rag::search_semantic // Added command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
