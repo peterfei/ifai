@@ -15,7 +15,7 @@ import { Toaster, toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 
 function App() {
-  const { activeFileId, openedFiles, setFileDirty, openFile } = useFileStore();
+  const { activeFileId, openedFiles, setFileDirty, openFile, fetchGitStatuses } = useFileStore();
   const { editorInstance } = useEditorStore();
   const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal } = useLayoutStore();
 
@@ -29,6 +29,7 @@ function App() {
             await writeFileContent(activeFile.path, activeFile.content);
             setFileDirty(activeFile.id, false);
             toast.success('File saved');
+            fetchGitStatuses(); // Refresh git status
           } catch (error) {
             console.error('Failed to save file:', error);
             toast.error('Failed to save file');

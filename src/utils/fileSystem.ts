@@ -67,7 +67,9 @@ const readDirectoryRecursively = async (path: string, name: string): Promise<Fil
 };
 
 export const readFileContent = async (path: string): Promise<string> => {
-  return await readTextFile(path);
+  const content = await readTextFile(path);
+  console.log(`Read file ${path}, content length: ${content.length}`);
+  return content;
 };
 
 export const writeFileContent = async (path: string, content: string): Promise<void> => {

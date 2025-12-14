@@ -2,13 +2,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { FileNode, OpenedFile, GitStatus } from './types';
+import { invoke } from '@tauri-apps/api/core';
 
 interface FileState {
   fileTree: FileNode | null;
   rootPath: string | null;
   openedFiles: OpenedFile[];
   activeFileId: string | null;
-  gitStatuses: Map<string, GitStatus>; // Map from file path to GitStatus
+  gitStatuses: Map<string, GitStatus>;
   
   setFileTree: (tree: FileNode) => void;
   setRootPath: (path: string | null) => void;
@@ -18,6 +19,7 @@ interface FileState {
   updateFileContent: (id: string, content: string) => void;
   setFileDirty: (id: string, isDirty: boolean) => void;
   setGitStatuses: (statuses: Map<string, GitStatus>) => void;
+  fetchGitStatuses: () => Promise<void>;
 }
 
 // Helper to recursively update git status in file tree
@@ -42,6 +44,7 @@ export const useFileStore = create<FileState>()(
         const treeWithStatus = tree ? updateGitStatusRecursive(tree, state.gitStatuses) : null;
         return { fileTree: treeWithStatus, rootPath: tree ? tree.path : null };
       }),
+      
       setRootPath: (path) => set({ rootPath: path }),
 
       openFile: (file) => set((state) => {
@@ -83,24 +86,31 @@ export const useFileStore = create<FileState>()(
           f.id === id ? { ...f, isDirty } : f
         ),
       })),
-      
+
       setGitStatuses: (statuses) => set((state) => {
-        // Re-apply statuses to existing fileTree if any
         const updatedTree = state.fileTree ? updateGitStatusRecursive(state.fileTree, statuses) : null;
         return { gitStatuses: statuses, fileTree: updatedTree };
       }),
 
+      fetchGitStatuses: async () => {
+        const { rootPath } = get();
+        if (!rootPath) return;
+        try {
+            const statuses = await invoke<Record<string, GitStatus>>('get_git_statuses', { repoPath: rootPath });
+            const statusMap = new Map(Object.entries(statuses));
+            get().setGitStatuses(statusMap);
+        } catch (e) {
+            console.error("Failed to fetch Git status:", e);
+        }
+      },
     }),
     {
       name: 'file-storage',
       partialize: (state) => ({ 
-        openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })), // Don't persist content
+        openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })), 
         activeFileId: state.activeFileId,
         rootPath: state.rootPath 
       }),
-      // Custom merge function for deep merge on hydration if needed. For now default is fine.
-      // Since we reconstruct fileTree from rootPath, we don't really need to persist fileTree.
-      // And openedFiles content will be re-read anyway. So partialize above is good.
     }
   )
 );

@@ -16,7 +16,7 @@ interface TitlebarProps {
 
 export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTerminalOpen }: TitlebarProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty } = useFileStore();
+  const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty, fetchGitStatuses } = useFileStore();
   const { theme, setTheme } = useEditorStore();
 
   const handleNewFile = () => {
@@ -64,6 +64,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
           await writeFileContent(activeFile.path, activeFile.content);
           setFileDirty(activeFile.id, false);
           toast.success('File saved');
+          fetchGitStatuses();
         } else {
           // If it's a new untitled file, use Save As
           await handleSaveFileAs();
@@ -93,6 +94,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
           });
           setFileDirty(activeFile.id, false);
           toast.success('File saved');
+          fetchGitStatuses();
         }
       } catch (error) {
         console.error('Failed to save file as:', error);
