@@ -90,6 +90,13 @@ ${input}`;
                     text: generatedCode,
                     forceMoveMarkers: true
                 }]);
+                
+                // Trigger format selection to fix indentation
+                setTimeout(() => {
+                    editorInstance.setSelection(selection); // Ensure selection matches replaced range
+                    editorInstance.getAction('editor.action.formatSelection')?.run();
+                }, 100);
+
                 toast.success('Code updated by AI');
             }
             cleanup();
