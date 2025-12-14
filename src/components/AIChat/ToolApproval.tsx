@@ -96,11 +96,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
         : contentLines.slice(0, PREVIEW_LINES).join('\n');
 
     return (
-        <div className="mt-2 mb-2 bg-gray-800 rounded-lg border border-gray-600 overflow-hidden w-full">
-            <div className="p-1 text-[10px] text-red-400 bg-black/50">
-                DEBUG: Tool="{toolCall.tool}" IsWrite={String(isWriteFile)}
-            </div>
-            {/* Header */}
+        <div className="mt-2 mb-2 bg-gray-800 rounded-lg border border-gray-600 overflow-hidden w-full max-w-full">
             <div className="flex items-center justify-between p-2 bg-gray-900 border-b border-gray-700">
                 <div className="flex items-center gap-2 text-xs font-medium text-gray-200 min-w-0">
                     <span className={`flex-shrink-0 ${getToolColor(toolCall.tool)}`}>

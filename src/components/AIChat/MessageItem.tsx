@@ -13,9 +13,10 @@ interface MessageItemProps {
     onApprove: (messageId: string, toolCallId: string) => void;
     onReject: (messageId: string, toolCallId: string) => void;
     onOpenFile: (path: string) => void;
+    isStreaming?: boolean;
 }
 
-export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile }: MessageItemProps) => {
+export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
     const isUser = message.role === 'user';
 
@@ -87,6 +88,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             const match = /language-(\w+)/.exec(className || '');
                                             const { ref, ...propsToPass } = rest;
                                             const isInline = (rest as any).inline;
+
+                                            if (!isInline && isStreaming) {
+                                                return (
+                                                    <pre className="whitespace-pre-wrap break-word bg-[#1e1e1e] p-2 rounded my-2 text-xs font-mono text-gray-300 overflow-x-auto">
+                                                        {children}
+                                                    </pre>
+                                                );
+                                            }
+
                                             return !isInline && match ? (
                                                 <SyntaxHighlighter
                                                     {...propsToPass}
@@ -114,5 +124,5 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         </div>
     );
 }, (prev, next) => {
-    return prev.message === next.message; 
+    return prev.message === next.message && prev.isStreaming === next.isStreaming; 
 })

@@ -6,14 +6,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useFileStore } from './fileStore';
 
-// Safe backtick construction to avoid build errors
-const TICK = "`";
-const JSON_BLOCK_START = TICK + TICK + TICK + "json";
-const JS_BLOCK_START = TICK + TICK + TICK + "javascript";
-const BLOCK_END = TICK + TICK + TICK;
+// Simplified Prompt definition to avoid construction errors
+const BASE_SYSTEM_PROMPT = "You are IfAI, an expert coding assistant.";
 
-const SYSTEM_PROMPT = `
-You are IfAI, an expert coding assistant.
+const TOOL_INSTRUCTIONS = `
 You have access to the following tools:
 
 1. agent_write_file(rel_path: string, content: string): Create or overwrite a file.
@@ -26,11 +22,11 @@ IMPORTANT: To create or edit a file, follow these steps STRICTLY:
 
 Example:
 Here is the code for Demo.js:
-${JS_BLOCK_START}
+\`\`\`javascript
 console.log("Hello");
-${BLOCK_END}
+\`\`\`
 
-${JSON_BLOCK_START}
+\`\`\`json
 {
   "tool": "agent_write_file",
   "args": {
@@ -38,26 +34,32 @@ ${JSON_BLOCK_START}
     "content": "<<FILE_CONTENT>>"
   }
 }
-${BLOCK_END}
+\`\`\`
 
 ONLY output ONE tool call per response. Wait for user approval.
 `;
 
 const parseToolCall = (content: string): ToolCall | null => {
-    // 1. Find JSON block
-    let startIndex = content.lastIndexOf('```json'); // Look for the LAST json block (usually at end)
-    if (startIndex === -1) {
-        startIndex = content.lastIndexOf('{'); // Fallback
-    } else {
+    // Basic regex failed on nested braces. We need to manually find the JSON block.
+    // 1. Find start of JSON
+    let startIndex = content.lastIndexOf('```json');
+    if (startIndex !== -1) {
         startIndex += 7;
+    } else {
+        startIndex = content.lastIndexOf('{');
+        // Check if it looks like a tool call
+        if (startIndex !== -1) {
+            // naive check
+        }
     }
 
     if (startIndex === -1) return null;
 
-    // ... (Use existing brace counting logic)
+    // Scan for opening brace
     let openBraceIndex = content.indexOf('{', startIndex);
     if (openBraceIndex === -1) return null;
 
+    // Count braces to find the matching closer
     let braceCount = 0;
     let endIndex = -1;
     let inString = false;
@@ -65,12 +67,21 @@ const parseToolCall = (content: string): ToolCall | null => {
 
     for (let i = openBraceIndex; i < content.length; i++) {
         const char = content[i];
-        if (!escape && char === '"') inString = !inString;
-        if (!escape && char === '\\') escape = true; else escape = false;
+        
+        if (!escape && char === '"') {
+            inString = !inString;
+        }
+        
+        if (!escape && char === '\\') {
+            escape = true;
+        } else {
+            escape = false;
+        }
 
         if (!inString) {
-            if (char === '{') braceCount++;
-            else if (char === '}') {
+            if (char === '{') {
+                braceCount++;
+            } else if (char === '}') {
                 braceCount--;
                 if (braceCount === 0) {
                     endIndex = i + 1;
@@ -87,8 +98,8 @@ const parseToolCall = (content: string): ToolCall | null => {
             const json = JSON.parse(jsonStr);
             
             if (json.tool && json.args) {
-                // Handle <<FILE_CONTENT>> replacement
-                if (json.args.content === '<<FILE_CONTENT>>') {
+                 // Handle <<FILE_CONTENT>> replacement
+                 if (json.args.content === '<<FILE_CONTENT>>') {
                     // Search backwards for the last code block
                     // We look for ```lang ... ``` before the tool call
                     const beforeTool = content.substring(0, startIndex);
@@ -151,39 +162,25 @@ export const useChatStore = create<ChatState>()(
               setLoading(true);
       
               try {
-                  let messageBuffer = "";
-                  let lastUpdate = Date.now();
-                  let fullResponse = "";
-      
-                  const unlistenData = await listen<string>(eventId, (event) => {
-                      messageBuffer += event.payload;
-                      fullResponse += event.payload;
-                      const now = Date.now();
-                      if (now - lastUpdate > 50) {
-                          const { messages } = get();
-                          const msg = messages.find(m => m.id === assistantMsgId);
-                          if (msg) {
-                              updateMessageContent(assistantMsgId, msg.content + messageBuffer);
-                              messageBuffer = "";
-                              lastUpdate = now;
-                          }
-                      }
-                  });
-      
-                  const cleanup = () => {
-                      if (messageBuffer) {
-                          const { messages } = get();
-                          const msg = messages.find(m => m.id === assistantMsgId);
-                          if (msg) {
-                              updateMessageContent(assistantMsgId, msg.content + messageBuffer);
-                          }
-                      }
-                      
+            let fullResponse = "";
+
+            const unlistenData = await listen<string>(eventId, (event) => {
+                const chunk = event.payload;
+                fullResponse += chunk;
+                
+                const { messages } = get();
+                const msg = messages.find(m => m.id === assistantMsgId);
+                if (msg) {
+                    updateMessageContent(assistantMsgId, msg.content + chunk);
+                }
+            });
+
+            const cleanup = () => {
                 // Parse Tool Calls from full response
                 const toolCall = parseToolCall(fullResponse);
                 if (toolCall) {
                     // Aggressively strip the JSON block using the same robust regex
-                    const cleanContent = fullResponse.replace(/(?:```(?:json)?\s*)?(\{[\s\S]*?"tool"[\s\S]*?\}\s*)(?:\s*```)?/gi, '').trim();
+                    const cleanContent = fullResponse.replace(/(?:```(?:json)?\s*)?(\{[\s\S]*?"tool"[\s\S]*?\})(\s*```)?/gi, '').trim();
                     
                     set((state) => ({
                         messages: state.messages.map(msg => 
@@ -285,7 +282,7 @@ export const useChatStore = create<ChatState>()(
                 });
                 
                 // Prepend System Prompt (hacky but needed since we don't persist it)
-                history.unshift({ role: 'system', content: SYSTEM_PROMPT });
+                history.unshift({ role: 'system', content: BASE_SYSTEM_PROMPT + "\n\n" + TOOL_INSTRUCTIONS });
       
                 await generateResponse(history);
             },
@@ -311,7 +308,7 @@ export const useChatStore = create<ChatState>()(
               addMessage({ id: userMsgId, role: 'user', content: input });
               
               // RAG & System Prompt Construction
-              let finalSystemPrompt = SYSTEM_PROMPT;
+              let finalSystemPrompt = BASE_SYSTEM_PROMPT;
               const rootPath = useFileStore.getState().rootPath;
               
               if (rootPath) {
@@ -319,9 +316,27 @@ export const useChatStore = create<ChatState>()(
                        const ragResult = await invoke<{context: string, references: string[]}>('build_context', { query: input, rootPath });
                        if (ragResult && ragResult.context) {
                            finalSystemPrompt += `\n\nProject Context:\n${ragResult.context}`;
+                           
+                           set((state) => ({
+                               messages: state.messages.map(msg => 
+                                   msg.id === userMsgId ? { ...msg, references: ragResult.references } : msg // Attach refs to USER message now? No, to assistant?
+                                   // Wait, we don't have assistant msg yet.
+                                   // Actually, attaching to User message is cleaner for "User asked X with context Y".
+                                   // But our UI renders refs on Assistant message usually.
+                                   // Let's attach to the next Assistant message?
+                                   // generateResponse creates the assistant message. We can't attach here easily.
+                                   // Let's ignore references in UI for now or pass them to generateResponse?
+                               )
+                           }));
+                           // Wait, if we update state here, generateResponse will pick it up?
+                           // generateResponse uses `get().messages`.
+                           // So if we update userMsgId with references, it will be in history.
                        }
                    } catch (e) {}
               }
+
+              // Append Tool Instructions LAST
+              finalSystemPrompt += `\n\n${TOOL_INSTRUCTIONS}`;
       
               const history = [
                   { role: 'system', content: finalSystemPrompt },

@@ -104,13 +104,14 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       </div>
       
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <MessageItem 
             key={message.id} 
             message={message} 
             onApprove={approveToolCall} 
             onReject={rejectToolCall}
             onOpenFile={handleOpenFile}
+            isStreaming={isLoading && index === messages.length - 1 && message.role === 'assistant'}
           />
         ))}
         <div ref={messagesEndRef} />
