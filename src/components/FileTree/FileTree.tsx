@@ -4,6 +4,7 @@ import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
 import { FileNode, GitStatus } from '../../stores/types';
 import { readFileContent, readDirectory, renameFile, deleteFile } from '../../utils/fileSystem';
 import { toast } from 'sonner';
+import { invoke } from '@tauri-apps/api/core';
 
 interface ContextMenuState {
   x: number;
@@ -19,13 +20,13 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<FileNode[] | undefined>(node.children);
-  const { openFile } = useFileStore();
+  const { openFile, gitStatuses } = useFileStore(); 
 
   const loadChildren = async () => {
     try {
         const loadedChildren = await readDirectory(node.path);
         setChildren(loadedChildren);
-        node.children = loadedChildren; // Update store ref mostly for persistence if we had it
+        node.children = loadedChildren; 
     } catch (e) {
         console.error("Failed to load children", e);
         toast.error(`Failed to open ${node.name}: ${String(e)}`);
@@ -59,15 +60,13 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
   };
 
   useEffect(() => {
-    // If external reload is requested (e.g. after rename/delete in sibling), 
-    // we might need a way to trigger reload. 
-    // For MVP, simplistic reload: if expanded, re-fetch.
     if (expanded && node.kind === 'directory') {
         loadChildren();
     }
-  }, [expanded]); // simplistic dependency
+  }, [expanded]); 
 
-  const getStatusColorClass = (status?: GitStatus) => {
+  const getStatusColorClass = (path: string) => {
+    const status = gitStatuses.get(path);
     switch (status) {
       case GitStatus.Added:
       case GitStatus.Untracked:
@@ -80,8 +79,10 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
       case GitStatus.Renamed:
       case GitStatus.TypeChange:
         return 'text-blue-400';
+      case GitStatus.Ignored:
+        return 'text-gray-500 opacity-50';
       default:
-        return 'text-gray-300'; // Unmodified or Unknown
+        return 'text-gray-300'; 
     }
   };
 
@@ -98,7 +99,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
           {node.kind === 'file' && <File size={14} />}
         </span>
         {node.kind === 'directory' && !expanded && <Folder size={14} className="mr-1" />}
-        <span className={`truncate ${getStatusColorClass(node.gitStatus)}`}>{node.name}</span>
+        <span className={`truncate ${getStatusColorClass(node.path)}`}>{node.name}</span>
       </div>
       {expanded && children && (
         <div>
@@ -129,10 +130,27 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, setFileTree } = useFileStore();
+  const { fileTree, setFileTree, rootPath, setGitStatuses } = useFileStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
   const [renamingNode, setRenamingNode] = useState<FileNode | null>(null);
   const [renameInput, setRenameInput] = useState('');
+
+  // Load Git Status when rootPath changes
+  useEffect(() => {
+    if (rootPath) {
+        const fetchGitStatus = async () => {
+            try {
+                // Backend returns Record<string, GitStatus>, convert to Map
+                const statuses = await invoke<Record<string, GitStatus>>('get_git_statuses', { repoPath: rootPath });
+                setGitStatuses(new Map(Object.entries(statuses)));
+            } catch (e) {
+                console.error("Failed to fetch Git status:", e);
+                // toast.error("Failed to fetch Git status"); // Suppress error for non-git repos
+            }
+        };
+        fetchGitStatus();
+    }
+  }, [rootPath, setGitStatuses]);
 
   // Close context menu on click elsewhere
   useEffect(() => {
@@ -216,4 +234,3 @@ export const FileTree = () => {
     </div>
   );
 };
-
