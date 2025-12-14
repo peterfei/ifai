@@ -11,6 +11,7 @@ export const useChatStore = create<ChatState>()(
       messages: [],
       isLoading: false,
       apiKey: '',
+      isAutocompleteEnabled: true, // Default to true for now
       setApiKey: (key) => set({ apiKey: key }),
       addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
       updateMessageContent: (id, content) => set((state) => ({
@@ -19,6 +20,9 @@ export const useChatStore = create<ChatState>()(
         ),
       })),
       setLoading: (loading) => set({ isLoading: loading }),
+      toggleAutocomplete: () => set((state) => ({
+        isAutocompleteEnabled: !state.isAutocompleteEnabled
+      })),
       sendMessage: async (input: string) => {
         const { apiKey, messages, isLoading, addMessage, setLoading, updateMessageContent } = get();
         if (!input.trim() || !apiKey || isLoading) return;
@@ -74,7 +78,7 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: 'chat-storage',
-      partialize: (state) => ({ apiKey: state.apiKey }), // Only persist API Key
+      partialize: (state) => ({ apiKey: state.apiKey, isAutocompleteEnabled: state.isAutocompleteEnabled }),
     }
   )
 );

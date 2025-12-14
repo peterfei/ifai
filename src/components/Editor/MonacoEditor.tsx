@@ -114,8 +114,8 @@ export const MonacoEditor = () => {
     // Register Inline Completion Provider
     const completionProvider = monaco.languages.registerInlineCompletionsProvider({ pattern: '**' }, {
         provideInlineCompletions: async (model, position, context, token) => {
-            const apiKey = useChatStore.getState().apiKey;
-            if (!apiKey) return { items: [] };
+            const { apiKey, isAutocompleteEnabled } = useChatStore.getState();
+            if (!apiKey || !isAutocompleteEnabled) return { items: [] };
 
             // Debounce or context check? Monaco handles debounce somewhat, 
             // but we might want to ensure we don't spam.

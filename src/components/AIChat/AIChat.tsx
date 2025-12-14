@@ -49,6 +49,20 @@ export const AIChat = () => {
                 placeholder="sk-..."
             />
         </div>
+        <div className="flex items-center justify-between mb-4">
+            <label htmlFor="autocomplete-toggle" className="block text-sm font-medium text-gray-400">AI Autocomplete</label>
+            <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                    type="checkbox" 
+                    value="" 
+                    id="autocomplete-toggle" 
+                    className="sr-only peer"
+                    checked={isAutocompleteEnabled}
+                    onChange={toggleAutocomplete}
+                />
+                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+        </div>
         <button 
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
             onClick={() => setShowSettings(false)}
