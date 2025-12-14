@@ -27,9 +27,26 @@ export const TerminalPanel = ({ onClose }: TerminalPanelProps) => {
         fontSize: 14,
         theme: {
           background: '#1e1e1e',
-          foreground: '#d4d4d4',
-          cursor: '#d4d4d4',
+          foreground: '#cccccc',
+          cursor: '#cccccc',
           selectionBackground: '#5f78ee',
+          // ANSI colors from VSCode Dark+ theme
+          black: '#000000',
+          red: '#cd3131',
+          green: '#0d810d',
+          yellow: '#e5e510',
+          blue: '#2472c8',
+          magenta: '#bc3fbc',
+          cyan: '#0598bc',
+          white: '#e5e5e5',
+          brightBlack: '#666666',
+          brightRed: '#f14c4c',
+          brightGreen: '#17a317',
+          brightYellow: '#f5f543',
+          brightBlue: '#3b8eed',
+          brightMagenta: '#d670d6',
+          brightCyan: '#07b6e9',
+          brightWhite: '#ffffff',
         },
       });
 
