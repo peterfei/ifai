@@ -6,6 +6,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message } from '../../stores/chatStore';
 import { ToolApproval } from './ToolApproval';
 import { useTranslation } from 'react-i18next';
+import { parseToolCalls } from '../../utils/toolCallParser';
 
 interface MessageItemProps {
     message: Message;
@@ -18,15 +19,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const { t } = useTranslation();
     const isUser = message.role === 'user';
 
+    // Use robust parser to clean content visually
+    // This ensures that even if store hasn't updated yet (streaming), we hide the JSON block
     const displayContent = React.useMemo(() => {
-        // If there are tool calls, strip out the JSON block to avoid duplication/ugliness
-        if (message.toolCalls && message.toolCalls.length > 0) {
-            // Regex matches ```json (optional) { ... "tool" ... } ```
-            // Uses [\s\S] to match across newlines
-            return message.content.replace(/```(?:json)?\s*\{[\s\S]*?"tool"[\s\S]*?}\s*```/gi, '').trim();
-        }
-        return message.content;
-    }, [message.content, message.toolCalls]);
+        // If message already has toolCalls, we assume store handled it, but let's be safe and clean it again
+        const { cleanContent } = parseToolCalls(message.content);
+        return cleanContent;
+    }, [message.content]);
 
     return (
         <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
@@ -59,7 +58,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <div className="mb-3 p-2 bg-gray-800 rounded border border-gray-600">
                                 <div className="flex items-center text-xs text-gray-400 mb-2">
                                     <FileCode size={12} className="mr-1" />
-                                    <span className="font-semibold">{t('chat.references') || 'References'}:</span>
+                                    <span className="font-semibold">{t('chat.references') || 'References'}</span>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {message.references.map((ref, idx) => (
@@ -97,6 +96,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     PreTag="div"
                                                     wrapLines={true}
                                                     wrapLongLines={true}
+                                                    customStyle={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                                                 />
                                             ) : (
                                                 <code {...rest} className={className}>
@@ -115,4 +115,4 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     );
 }, (prev, next) => {
     return prev.message === next.message; 
-});
+})

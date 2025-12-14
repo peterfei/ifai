@@ -24,5 +24,8 @@ export interface ChatState {
   updateMessageContent: (id: string, content: string) => void;
   setLoading: (loading: boolean) => void;
   sendMessage: (content: string) => Promise<void>;
-  toggleAutocomplete: () => void; // New action
+  toggleAutocomplete: () => void;
+  approveToolCall: (messageId: string, toolCallId: string) => Promise<void>;
+  rejectToolCall: (messageId: string, toolCallId: string) => Promise<void>;
+  generateResponse: (history: any[]) => Promise<void>;
 }

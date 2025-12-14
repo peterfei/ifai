@@ -8,8 +8,9 @@ import { useFileStore } from './fileStore';
 
 // Safe backtick construction to avoid build errors
 const TICK = "`";
-const CODE_BLOCK_START = TICK + TICK + TICK + "json";
-const CODE_BLOCK_END = TICK + TICK + TICK;
+const JSON_BLOCK_START = TICK + TICK + TICK + "json";
+const JS_BLOCK_START = TICK + TICK + TICK + "javascript";
+const BLOCK_END = TICK + TICK + TICK;
 
 const SYSTEM_PROMPT = `
 You are IfAI, an expert coding assistant.
@@ -19,29 +20,94 @@ You have access to the following tools:
 2. agent_read_file(rel_path: string): Read file content.
 3. agent_list_dir(rel_path: string): List directory contents.
 
-To use a tool, you MUST output a JSON block STRICTLY in this format at the end of your response:
+IMPORTANT: To create or edit a file, follow these steps STRICTLY:
+1. First, output the full file content in a standard markdown code block.
+2. Then, immediately output a JSON tool call block using the placeholder "<<FILE_CONTENT>>" for the content field.
 
-${CODE_BLOCK_START}
+Example:
+Here is the code for Demo.js:
+${JS_BLOCK_START}
+console.log("Hello");
+${BLOCK_END}
+
+${JSON_BLOCK_START}
 {
   "tool": "agent_write_file",
   "args": {
-    "rel_path": "src/components/Demo.tsx",
-    "content": "..."
+    "rel_path": "Demo.js",
+    "content": "<<FILE_CONTENT>>"
   }
 }
-${CODE_BLOCK_END}
+${BLOCK_END}
 
 ONLY output ONE tool call per response. Wait for user approval.
 `;
 
 const parseToolCall = (content: string): ToolCall | null => {
-    // Regex matches ```json ... ``` blocks
-    const regex = /```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/;
-    const match = content.match(regex);
-    if (match) {
+    // 1. Find JSON block
+    let startIndex = content.lastIndexOf('```json'); // Look for the LAST json block (usually at end)
+    if (startIndex === -1) {
+        startIndex = content.lastIndexOf('{'); // Fallback
+    } else {
+        startIndex += 7;
+    }
+
+    if (startIndex === -1) return null;
+
+    // ... (Use existing brace counting logic)
+    let openBraceIndex = content.indexOf('{', startIndex);
+    if (openBraceIndex === -1) return null;
+
+    let braceCount = 0;
+    let endIndex = -1;
+    let inString = false;
+    let escape = false;
+
+    for (let i = openBraceIndex; i < content.length; i++) {
+        const char = content[i];
+        if (!escape && char === '"') inString = !inString;
+        if (!escape && char === '\\') escape = true; else escape = false;
+
+        if (!inString) {
+            if (char === '{') braceCount++;
+            else if (char === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                    endIndex = i + 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (endIndex !== -1) {
+        const jsonStr = content.substring(openBraceIndex, endIndex);
         try {
-            const json = JSON.parse(match[1]);
+            console.log("Parsing JSON:", jsonStr);
+            const json = JSON.parse(jsonStr);
+            
             if (json.tool && json.args) {
+                // Handle <<FILE_CONTENT>> replacement
+                if (json.args.content === '<<FILE_CONTENT>>') {
+                    // Search backwards for the last code block
+                    // We look for ```lang ... ``` before the tool call
+                    const beforeTool = content.substring(0, startIndex);
+                    const lastCodeBlockEnd = beforeTool.lastIndexOf('```');
+                    if (lastCodeBlockEnd !== -1) {
+                        const lastCodeBlockStart = beforeTool.lastIndexOf('```', lastCodeBlockEnd - 1);
+                        if (lastCodeBlockStart !== -1) {
+                            // Extract content
+                            let codeBlock = beforeTool.substring(lastCodeBlockStart, lastCodeBlockEnd);
+                            // Remove first line (```lang)
+                            const firstLineBreak = codeBlock.indexOf('\n');
+                            if (firstLineBreak !== -1) {
+                                codeBlock = codeBlock.substring(firstLineBreak + 1);
+                            }
+                            json.args.content = codeBlock.trim();
+                        }
+                    }
+                }
+
                 return {
                     id: uuidv4(),
                     tool: String(json.tool).trim(),
@@ -116,13 +182,8 @@ export const useChatStore = create<ChatState>()(
                 // Parse Tool Calls from full response
                 const toolCall = parseToolCall(fullResponse);
                 if (toolCall) {
-                    // Aggressively strip everything starting from the first code block
-                    // This ensures no JSON remains in the UI text
-                    const codeBlockIndex = fullResponse.indexOf('```');
-                    let cleanContent = fullResponse;
-                    if (codeBlockIndex !== -1) {
-                        cleanContent = fullResponse.substring(0, codeBlockIndex).trim();
-                    }
+                    // Aggressively strip the JSON block using the same robust regex
+                    const cleanContent = fullResponse.replace(/(?:```(?:json)?\s*)?(\{[\s\S]*?"tool"[\s\S]*?\}\s*)(?:\s*```)?/gi, '').trim();
                     
                     set((state) => ({
                         messages: state.messages.map(msg => 
@@ -136,9 +197,9 @@ export const useChatStore = create<ChatState>()(
                 }
       
                       setLoading(false);
-                      unlistenData.then(f => f());
-                      unlistenError.then(f => f());
-                      unlistenFinish.then(f => f());
+                      unlistenData();
+                      unlistenError();
+                      unlistenFinish();
                   };
                   
                   const unlistenError = await listen<string>(`${eventId}_error`, (event) => {
@@ -151,7 +212,7 @@ export const useChatStore = create<ChatState>()(
                   });
       
                   await invoke('ai_chat', { 
-                      apiKey, 
+                      apiKey,
                       messages: history, 
                       eventId 
                   });
@@ -215,18 +276,6 @@ export const useChatStore = create<ChatState>()(
       
                 // Continue Loop
                 // Construct history up to this message, plus the tool output
-                // IMPORTANT: We need to include the SYSTEM prompt somewhere.
-                // Since we don't store system prompt in messages array usually, we need to reconstruct it.
-                // Or better, `sendMessage` constructs it.
-                
-                // Let's grab the history construction logic from sendMessage basically.
-                // But wait, we need the *entire* conversation history context.
-                
-                // Simplified:
-                // 1. messages[0...msgIndex] (Previous convo)
-                // 2. msg (Assistant response with tool call)
-                // 3. User (Tool Result)
-                
                 const history = messages.slice(0, msgIndex + 1).map(m => ({ role: m.role, content: m.content }));
                 
                 // Add Tool Result as User Message (simulating feedback)
@@ -265,23 +314,11 @@ export const useChatStore = create<ChatState>()(
               let finalSystemPrompt = SYSTEM_PROMPT;
               const rootPath = useFileStore.getState().rootPath;
               
-              // ... (RAG Logic - same as before, simplified for brevity in replace block)
-              // Note: I will copy the RAG logic here to keep it working
-              
-              // For brevity in this replace block, assuming RAG logic is handled or we need to copy it.
-              // Actually, since I am replacing the whole block, I must include RAG.
-              
               if (rootPath) {
                    try {
                        const ragResult = await invoke<{context: string, references: string[]}>('build_context', { query: input, rootPath });
                        if (ragResult && ragResult.context) {
                            finalSystemPrompt += `\n\nProject Context:\n${ragResult.context}`;
-                           // Note: We can't update the *user* message references easily here without ID.
-                           // But we can update the *next* assistant message. 
-                           // Actually, previous implementation updated assistant message.
-                           // Here we haven't created assistant message yet.
-                           // Let's just update the user message? Or store it to pass to generateResponse?
-                           // Let's pass references to generateResponse? No, generateResponse creates assistant msg.
                        }
                    } catch (e) {}
               }
@@ -293,7 +330,8 @@ export const useChatStore = create<ChatState>()(
               ];
       
               await generateResponse(history);
-            }    }),
+            }
+    }),
     {
       name: 'chat-storage',
       partialize: (state) => ({ apiKey: state.apiKey, isAutocompleteEnabled: state.isAutocompleteEnabled }),
