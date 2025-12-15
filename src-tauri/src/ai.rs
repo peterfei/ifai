@@ -19,7 +19,9 @@ pub struct AIProviderConfig {
     pub id: String,
     pub name: String,
     pub protocol: AIProtocol,
+    #[serde(rename = "baseUrl")]
     pub base_url: String,
+    #[serde(rename = "apiKey")]
     pub api_key: String,
     pub models: Vec<String>,
     pub enabled: bool,
