@@ -355,11 +355,18 @@ export const useChatStore = create<ChatState>()(
       
         // Construct history to be sent to backend (backend expects ai::Message format)
         const history: BackendMessage[] = messages.slice(0, msgIndex + 1).map(m => {
-          return { 
-              role: m.role,
-              // For backend, content is always ContentPart[]
-              content: m.multiModalContent || [{ type: 'text', text: m.content }] 
-          };
+          let contentParts: BackendContentPart[];
+          if (m.multiModalContent && m.multiModalContent.length > 0) {
+              contentParts = m.multiModalContent.map(p => {
+                  if (p.type === 'text' && (!p.text || p.text.length === 0)) {
+                      return { ...p, text: " " };
+                  }
+                  return p;
+              });
+          } else {
+              contentParts = [{ type: 'text', text: m.content || " " }];
+          }
+          return { role: m.role, content: contentParts };
         });
         
         // Add Tool Result as User Message (simulating feedback)
@@ -459,10 +466,18 @@ export const useChatStore = create<ChatState>()(
         const history: BackendMessage[] = [
             { role: 'system', content: [{ type: 'text', text: finalSystemPrompt }] },
             ...messages.map(m => {
-                return { 
-                    role: m.role, 
-                    content: m.multiModalContent || [{ type: 'text', text: m.content }] 
-                };
+                let contentParts: BackendContentPart[];
+                if (m.multiModalContent && m.multiModalContent.length > 0) {
+                    contentParts = m.multiModalContent.map(p => {
+                        if (p.type === 'text' && (!p.text || p.text.length === 0)) {
+                            return { ...p, text: " " };
+                        }
+                        return p;
+                    });
+                } else {
+                    contentParts = [{ type: 'text', text: m.content || " " }];
+                }
+                return { role: m.role, content: contentParts };
             }),
             { role: 'user', content: multiModalContentToSend }
         ];
