@@ -71,19 +71,21 @@ struct ChatRequest {
 }
 
 #[derive(Deserialize, Debug)]
-struct DeepSeekResponse {
-    choices: Vec<Choice>,
+struct OpenAIStreamResponse {
+    choices: Vec<StreamChoice>,
 }
 
 #[derive(Deserialize, Debug)]
-struct Choice {
-    delta: Delta,
+struct StreamChoice {
+    delta: StreamDelta,
     finish_reason: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
-struct Delta {
+struct StreamDelta {
     content: Option<String>,
+    // role is optional, usually only in the first chunk
+    role: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -139,7 +141,9 @@ pub async fn stream_chat(
             messages: current_messages.clone(),
             stream: true,
             thinking: None,
-            stop: Some(vec!["User:".to_string(), "Model:".to_string(), "用户:".to_string(), "模型:".to_string()]),
+            // Removed hardcoded stop sequences which can interfere with some providers (like Zhipu)
+            // and are generally not needed for Chat Completion APIs.
+            stop: None,
         };
 
         println!("Sending request to {} (Step {})...", completions_url, continuation_count + 1);
@@ -174,7 +178,7 @@ pub async fn stream_chat(
                     if event.data == "[DONE]" {
                         break;
                     }
-                    if let Ok(response) = serde_json::from_str::<DeepSeekResponse>(&event.data) {
+                    if let Ok(response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
                         if let Some(choice) = response.choices.first() {
                             if let Some(content) = &choice.delta.content {
                                 app.emit(&event_id, content).unwrap_or(());
@@ -230,6 +234,38 @@ pub async fn stream_chat(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_deepseek_style_response() {
+        // DeepSeek often sends minimal delta updates
+        let json = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}"#;
+        let res: OpenAIStreamResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(res.choices[0].delta.content.as_deref(), Some("Hello"));
+    }
+
+    #[test]
+    fn test_parse_zhipu_style_response() {
+        // Zhipu/GLM might include extra fields like 'created', 'model', 'role' in delta
+        let json = r#"{"id":"123","created":1700000000,"model":"glm-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}"#;
+        let res: OpenAIStreamResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(res.choices[0].delta.content.as_deref(), Some("Hi"));
+        assert_eq!(res.choices[0].delta.role.as_deref(), Some("assistant"));
+    }
+    
+    #[test]
+    fn test_parse_empty_content_response() {
+        // Sometimes delta is empty or just role
+        let json = r#"{"id":"123","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}"#;
+        let res: OpenAIStreamResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(res.choices[0].delta.content, None);
+        assert_eq!(res.choices[0].delta.role.as_deref(), Some("assistant"));
+    }
+}
+
 
 pub async fn complete_code(
     provider_config: AIProviderConfig,
