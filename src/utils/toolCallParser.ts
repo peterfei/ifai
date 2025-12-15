@@ -196,3 +196,21 @@ export function getToolColor(toolName: string): string {
     if (name.includes('delete_file')) return 'text-red-400';
     return 'text-gray-400';
 }
+
+// Helper to check if content contains at least one complete markdown code block
+// Used for simple content integrity checks before file writes.
+export function isCodeBlockComplete(content: string): boolean {
+    // Check for triple backticks
+    const tripleBacktickCount = (content.match(/```/g) || []).length;
+    if (tripleBacktickCount >= 2 && tripleBacktickCount % 2 === 0) {
+        return true;
+    }
+
+    // // Check for single backticks (inline code, less relevant for file content)
+    // const singleBacktickCount = (content.match(/`/g) || []).length;
+    // if (singleBacktickCount >= 2 && singleBacktickCount % 2 === 0) {
+    //     return true;
+    // }
+
+    return false;
+}

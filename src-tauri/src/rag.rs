@@ -351,12 +351,22 @@ pub async fn build_context(
     
     let mut context_xml = String::from("<context>\n");
     let mut references = Vec::new();
-    
+    let mut current_context_len = 0;
+    const MAX_CONTEXT_CHARS: usize = 4000;
+
     for chunk in chunks.iter().take(10) {
-        context_xml.push_str(&format!(
+        let formatted_chunk = format!(
             "  <file path=\"{}\">\n    {}\n  </file>\n", 
             chunk.path, chunk.content.trim()
-        ));
+        );
+
+        if current_context_len + formatted_chunk.len() > MAX_CONTEXT_CHARS {
+            break; // Stop adding chunks if context becomes too large
+        }
+
+        context_xml.push_str(&formatted_chunk);
+        current_context_len += formatted_chunk.len();
+
         if !references.contains(&chunk.path) {
             references.push(chunk.path.clone());
         }
