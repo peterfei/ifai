@@ -167,7 +167,7 @@ export const useChatStore = create<ChatState>()(
             await fileStore.refreshFileTree();
             fileStore.fetchGitStatuses();
 
-            const fullPath = `${fileStore.rootPath}/${toolCall.args.rel_path}`.replace(/\/\///g, '/');
+            const fullPath = `${fileStore.rootPath}/${toolCall.args.rel_path}`.replace(/\/\//g, '/');
             const fileName = toolCall.args.rel_path.split('/').pop() || 'file';
             const ext = fileName.split('.').pop() || '';
             let language = 'plaintext';

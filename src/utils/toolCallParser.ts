@@ -42,6 +42,75 @@ export function parseToolCalls(content: string): ParseResult {
             
             // Validate basic structure
             if (parsed.tool && parsed.args) {
+                 // Handle <<FILE_CONTENT>> replacement
+                 if (parsed.args.content === '<<FILE_CONTENT>>') {
+                    const beforeTool = content.substring(0, start);
+                    
+                    // Robust extraction strategy:
+                    // 1. Find all code blocks
+                    // 2. Merge adjacent blocks (handling AI continuation artifacts)
+                    // 3. Pick the longest block
+                    
+                    const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
+                    const blocks: {start: number, end: number, lang: string, content: string}[] = [];
+                    let match;
+                    while ((match = codeBlockRegex.exec(beforeTool)) !== null) {
+                        blocks.push({
+                            start: match.index,
+                            end: match.index + match[0].length,
+                            lang: match[1] || '',
+                            content: match[2]
+                        });
+                    }
+
+                    const mergedBlocks: typeof blocks = [];
+                    if (blocks.length > 0) {
+                        let current = blocks[0];
+                        for (let i = 1; i < blocks.length; i++) {
+                            const next = blocks[i];
+                            const gap = beforeTool.substring(current.end, next.start);
+                            
+                            // Merge if gap is empty/whitespace, assuming it's a split artifact
+                            if (!gap.trim()) {
+                                current.content += next.content;
+                                current.end = next.end;
+                            } else {
+                                mergedBlocks.push(current);
+                                current = next;
+                            }
+                        }
+                        mergedBlocks.push(current);
+                    }
+
+                    // Find longest block
+                    let bestBlock = null;
+                    let maxLength = -1;
+                    for (const block of mergedBlocks) {
+                        if (block.content.length > maxLength) {
+                            maxLength = block.content.length;
+                            bestBlock = block;
+                        }
+                    }
+
+                    if (bestBlock) {
+                         parsed.args.content = bestBlock.content.trim();
+                    } else {
+                        // Fallback to old logic
+                        const lastCodeBlockEnd = beforeTool.lastIndexOf('```');
+                        if (lastCodeBlockEnd !== -1) {
+                            const lastCodeBlockStart = beforeTool.lastIndexOf('```', lastCodeBlockEnd - 1);
+                            if (lastCodeBlockStart !== -1) {
+                                let codeBlock = beforeTool.substring(lastCodeBlockStart, lastCodeBlockEnd);
+                                const firstLineBreak = codeBlock.indexOf('\n');
+                                if (firstLineBreak !== -1) {
+                                    codeBlock = codeBlock.substring(firstLineBreak + 1);
+                                }
+                                parsed.args.content = codeBlock.trim();
+                            }
+                        }
+                    }
+                 }
+
                 // Check if this range overlaps with existing ones
                 const isOverlap = replacements.some(r => 
                     (start >= r.start && start < r.end) ||
