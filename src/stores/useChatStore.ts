@@ -76,21 +76,23 @@ export const useChatStore = create<ChatState>()(
       
         try {
           let fullResponse = "";
+          let lastUpdate = 0;
 
           const unlistenData = await listen<string>(eventId, (event) => {
-            const chunk = event.payload;
-            fullResponse += chunk;
+            fullResponse += event.payload;
             
-            const { messages } = get();
-            const msg = messages.find(m => m.id === assistantMsgId);
-            if (msg) {
-              updateMessageContent(assistantMsgId, msg.content + chunk);
+            const now = Date.now();
+            if (now - lastUpdate > 100) {
+                updateMessageContent(assistantMsgId, fullResponse);
+                lastUpdate = now;
             }
           });
 
           const cleanup = () => {
-            // Use robust parser from utils
-            const { toolCalls: parsedToolCalls } = parseToolCalls(fullResponse);
+            // Ensure final content is updated
+            updateMessageContent(assistantMsgId, fullResponse);
+
+            const { toolCalls } = parseToolCalls(fullResponse);
             
             if (parsedToolCalls && parsedToolCalls.length > 0) {
                 // Map ParsedToolCall to ToolCall

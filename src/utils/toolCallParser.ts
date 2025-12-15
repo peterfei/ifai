@@ -44,17 +44,20 @@ export function parseToolCalls(content: string): ParseResult {
             if (parsed.tool && parsed.args) {
                  // Handle <<FILE_CONTENT>> replacement
                  if (parsed.args.content === '<<FILE_CONTENT>>') {
-                    const beforeTool = content.substring(0, start);
-                    
                     // Robust extraction strategy:
-                    // 1. Find all code blocks
-                    // 2. Merge adjacent blocks (handling AI continuation artifacts)
-                    // 3. Pick the longest block
+                    // 1. Search ENTIRE content for code blocks
+                    // 2. Exclude blocks that look like tool calls
+                    // 3. Merge adjacent blocks
+                    // 4. Pick the longest block
                     
                     const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
                     const blocks: {start: number, end: number, lang: string, content: string}[] = [];
                     let match;
-                    while ((match = codeBlockRegex.exec(beforeTool)) !== null) {
+                    while ((match = codeBlockRegex.exec(content)) !== null) {
+                        // Skip if this block is likely the tool call itself
+                        if (match[2].includes('"tool":') && match[2].includes('agent_write_file')) {
+                            continue;
+                        }
                         blocks.push({
                             start: match.index,
                             end: match.index + match[0].length,
@@ -68,9 +71,9 @@ export function parseToolCalls(content: string): ParseResult {
                         let current = blocks[0];
                         for (let i = 1; i < blocks.length; i++) {
                             const next = blocks[i];
-                            const gap = beforeTool.substring(current.end, next.start);
+                            const gap = content.substring(current.end, next.start);
                             
-                            // Merge if gap is empty/whitespace, assuming it's a split artifact
+                            // Merge if gap is empty/whitespace
                             if (!gap.trim()) {
                                 current.content += next.content;
                                 current.end = next.end;
@@ -94,21 +97,8 @@ export function parseToolCalls(content: string): ParseResult {
 
                     if (bestBlock) {
                          parsed.args.content = bestBlock.content.trim();
-                    } else {
-                        // Fallback to old logic
-                        const lastCodeBlockEnd = beforeTool.lastIndexOf('```');
-                        if (lastCodeBlockEnd !== -1) {
-                            const lastCodeBlockStart = beforeTool.lastIndexOf('```', lastCodeBlockEnd - 1);
-                            if (lastCodeBlockStart !== -1) {
-                                let codeBlock = beforeTool.substring(lastCodeBlockStart, lastCodeBlockEnd);
-                                const firstLineBreak = codeBlock.indexOf('\n');
-                                if (firstLineBreak !== -1) {
-                                    codeBlock = codeBlock.substring(firstLineBreak + 1);
-                                }
-                                parsed.args.content = codeBlock.trim();
-                            }
-                        }
                     }
+                    // If no block found, leave as <<FILE_CONTENT>> (will fail check later)
                  }
 
                 // Check if this range overlaps with existing ones
