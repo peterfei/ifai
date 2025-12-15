@@ -37,6 +37,10 @@ console.log("Hello");
 \`\`\`
 
 ONLY output ONE tool call per response. Wait for user approval.
+
+RULES:
+1. ONLY output ONE tool call per response. Wait for user approval.
+2. DO NOT proactively update other files (like App.js, routes, or indices) to integrate new files unless explicitly asked. Only perform the specific task requested by the user.
 `;
 
 const parseToolCall = (content: string): ToolCall | null => {
