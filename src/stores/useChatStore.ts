@@ -358,13 +358,14 @@ export const useChatStore = create<ChatState>()(
           let contentParts: BackendContentPart[];
           if (m.multiModalContent && m.multiModalContent.length > 0) {
               contentParts = m.multiModalContent.map(p => {
-                  if (p.type === 'text' && (!p.text || p.text.length === 0)) {
-                      return { ...p, text: " " };
+                  if (p.type === 'text' && (!p.text || p.text.trim().length === 0)) {
+                      return { ...p, text: "." };
                   }
                   return p;
               });
           } else {
-              contentParts = [{ type: 'text', text: m.content || " " }];
+              const textContent = (m.content && m.content.trim().length > 0) ? m.content : ".";
+              contentParts = [{ type: 'text', text: textContent }];
           }
           return { role: m.role, content: contentParts };
         });
@@ -469,13 +470,14 @@ export const useChatStore = create<ChatState>()(
                 let contentParts: BackendContentPart[];
                 if (m.multiModalContent && m.multiModalContent.length > 0) {
                     contentParts = m.multiModalContent.map(p => {
-                        if (p.type === 'text' && (!p.text || p.text.length === 0)) {
-                            return { ...p, text: " " };
+                        if (p.type === 'text' && (!p.text || p.text.trim().length === 0)) {
+                            return { ...p, text: "." };
                         }
                         return p;
                     });
                 } else {
-                    contentParts = [{ type: 'text', text: m.content || " " }];
+                    const textContent = (m.content && m.content.trim().length > 0) ? m.content : ".";
+                    contentParts = [{ type: 'text', text: textContent }];
                 }
                 return { role: m.role, content: contentParts };
             }),
@@ -499,6 +501,7 @@ export const useChatStore = create<ChatState>()(
             tool: tc.tool,
             args: tc.args,
             status: tc.status,
+            // Do NOT persist tc.result as it can be very large (file content)
           }))
         })),
       }),
