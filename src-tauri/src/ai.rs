@@ -1,6 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, command};
+use tauri::{AppHandle, Emitter}; 
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
 
@@ -66,6 +66,8 @@ struct ChatRequest {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<ThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -101,6 +103,8 @@ struct CompletionRequest {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<ThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
 }
 
 pub async fn stream_chat(
@@ -135,6 +139,7 @@ pub async fn stream_chat(
             messages: current_messages.clone(),
             stream: true,
             thinking: None,
+            stop: Some(vec!["User:".to_string(), "Model:".to_string(), "用户:".to_string(), "模型:".to_string()]),
         };
 
         println!("Sending request to {} (Step {})...", completions_url, continuation_count + 1);
@@ -242,8 +247,9 @@ pub async fn complete_code(
     let request = CompletionRequest {
         model: model_name, 
         messages,
-        stream: false,
+        stream: false, 
         thinking: None,
+        stop: Some(vec!["User:".to_string(), "Model:".to_string(), "用户:".to_string(), "模型:".to_string()]),
     };
 
     let response = client
@@ -265,7 +271,6 @@ pub async fn complete_code(
     let body = response.json::<NonStreamResponse>().await.map_err(|e| e.to_string())?;
     
     if let Some(choice) = body.choices.first() {
-        // Extract text from multi-modal content
         let text_content = choice.message.content.iter()
             .filter_map(|part| match part {
                 ContentPart::Text { text, .. } => Some(text.clone()),
