@@ -141,9 +141,8 @@ pub async fn stream_chat(
             messages: current_messages.clone(),
             stream: true,
             thinking: None,
-            // Removed hardcoded stop sequences which can interfere with some providers (like Zhipu)
-            // and are generally not needed for Chat Completion APIs.
-            stop: None,
+            // Add stop sequences to prevent the model from continuing to generate the user's next turn
+            stop: Some(vec!["User:".to_string(), "user:".to_string()]),
         };
 
         println!("Sending request to {} (Step {})...", completions_url, continuation_count + 1);
