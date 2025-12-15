@@ -65,6 +65,11 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
     }
   }, [expanded]); 
 
+  // Sync children from props when node changes (e.g. store refresh)
+  useEffect(() => {
+    setChildren(node.children);
+  }, [node]);
+
   const getStatusColorClass = (path: string) => {
     const status = gitStatuses.get(path);
     switch (status) {
