@@ -53,11 +53,19 @@ pub struct Message {
     pub content: Vec<ContentPart>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ThinkingConfig {
+    #[serde(rename = "type")]
+    pub thinking_type: String, 
+}
+
 #[derive(Serialize, Debug)]
 struct ChatRequest {
     model: String,
     messages: Vec<Message>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ThinkingConfig>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,7 +103,7 @@ struct CompletionRequest {
 
 pub async fn stream_chat(
     app: AppHandle,
-    provider_config: AIProviderConfig, // New parameter
+    provider_config: AIProviderConfig, 
     messages: Vec<Message>,
     event_id: String,
 ) -> Result<(), String> {
@@ -109,11 +117,8 @@ pub async fn stream_chat(
 
     let (completions_url, api_key, model_name) = match provider_config.protocol {
         AIProtocol::OpenAI => {
-            // For OpenAI compatible APIs, the base_url from config should be the full endpoint
-            // e.g., https://api.deepseek.com/chat/completions or https://api.openai.com/v1/chat/completions
-            (provider_config.base_url, provider_config.api_key, provider_config.models[0].clone()) // Assuming models[0] is the selected model from frontend
+            (provider_config.base_url, provider_config.api_key, provider_config.models[0].clone()) 
         },
-        // Future: Handle other protocols here
         _ => return Err("Unsupported AI protocol".to_string()),
     };
 
@@ -124,14 +129,15 @@ pub async fn stream_chat(
         }
 
         let request = ChatRequest {
-            model: model_name.clone(), // Use dynamic model_name
+            model: model_name.clone(), 
             messages: current_messages.clone(),
             stream: true,
+            thinking: None,
         };
 
         println!("Sending request to {} (Step {})...", completions_url, continuation_count + 1);
         let response = client
-            .post(&completions_url) // Use dynamic completions_url
+            .post(&completions_url) 
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&request)
@@ -164,16 +170,15 @@ pub async fn stream_chat(
                     if let Ok(response) = serde_json::from_str::<DeepSeekResponse>(&event.data) {
                         if let Some(choice) = response.choices.first() {
                             if let Some(content) = &choice.delta.content {
-                                // Emit to frontend immediately
                                 app.emit(&event_id, content).unwrap_or(());
-                                // Accumulate for history
                                 full_response_content.push_str(content);
                             }
-                            // Capture finish reason
                             if let Some(reason) = &choice.finish_reason {
                                 step_finish_reason = Some(reason.clone());
                             }
                         }
+                    } else {
+                        println!("Failed to parse JSON: {}", event.data);
                     }
                 }
                 Err(e) => {
@@ -184,12 +189,10 @@ pub async fn stream_chat(
             }
         }
 
-        // Check if we need to continue
         if let Some(reason) = step_finish_reason {
             if reason == "length" {
                 println!("Generation truncated (length). Continuing...");
                 
-                // Update history with what we have so far
                 if continuation_count == 0 {
                     current_messages.push(Message {
                         role: "assistant".to_string(),
@@ -199,7 +202,6 @@ pub async fn stream_chat(
                         }],
                     });
                 } else {
-                    // Update the last assistant message
                     if let Some(last_msg) = current_messages.last_mut() {
                         last_msg.content = vec![ContentPart::Text {
                             part_type: "text".to_string(),
@@ -213,7 +215,6 @@ pub async fn stream_chat(
             }
         }
 
-        // If we get here, it means finish_reason is not "length" (e.g. "stop" or null), so we are done.
         break;
     }
     
@@ -239,7 +240,8 @@ pub async fn complete_code(
     let request = CompletionRequest {
         model: model_name, 
         messages,
-        stream: false, // Non-streaming
+        stream: false,
+        thinking: None,
     };
 
     let response = client
@@ -251,7 +253,7 @@ pub async fn complete_code(
         .await
         .map_err(|e| e.to_string())?;
 
-    let status = response.status(); // Get status before consuming response body
+    let status = response.status();
     if !status.is_success() {
         let text = response.text().await.unwrap_or_default();
         println!("API Error: Status={}, Body={}", status, text);
@@ -261,7 +263,15 @@ pub async fn complete_code(
     let body = response.json::<NonStreamResponse>().await.map_err(|e| e.to_string())?;
     
     if let Some(choice) = body.choices.first() {
-        Ok(choice.message.content.clone())
+        // Extract text from multi-modal content
+        let text_content = choice.message.content.iter()
+            .filter_map(|part| match part {
+                ContentPart::Text { text, .. } => Some(text.clone()),
+                _ => None,
+            })
+            .collect::<Vec<String>>()
+            .join("");
+        Ok(text_content)
     } else {
         Err("No choices returned".to_string())
     }
