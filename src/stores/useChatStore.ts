@@ -102,11 +102,25 @@ const parseToolCall = (content: string): ToolCall | null => {
 
     if (endIndex !== -1) {
         const jsonStr = content.substring(openBraceIndex, endIndex);
-        try {
-            console.log("Parsing JSON:", jsonStr);
-            const json = JSON.parse(jsonStr);
-            
-            if (json.tool && json.args) {
+        
+        const tryParse = (str: string) => {
+            try {
+                console.log("Parsing JSON:", str);
+                return JSON.parse(str);
+            } catch (e) {
+                return null;
+            }
+        };
+
+        let json = tryParse(jsonStr);
+        
+        if (!json) {
+            // Attempt repair: remove trailing commas
+            const fixedStr = jsonStr.replace(/,\s*([\]}])/g, '$1');
+            json = tryParse(fixedStr);
+        }
+
+        if (json && json.tool && json.args) {
                  // Handle <<FILE_CONTENT>> replacement
                  if (json.args.content === '<<FILE_CONTENT>>') {
                     // Search backwards for the last code block
@@ -184,9 +198,8 @@ const parseToolCall = (content: string): ToolCall | null => {
                     args: json.args,
                     status: 'pending'
                 };
-            }
-        } catch (e) {
-            console.error("Failed to parse tool call:", e);
+        } else {
+             console.error("Failed to parse tool call JSON");
         }
     }
     return null;
