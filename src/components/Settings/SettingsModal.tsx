@@ -110,28 +110,54 @@ export const SettingsModal = () => {
             )}
 
             {activeTab === 'ai' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">DeepSeek API Key</label>
-                  <input 
-                    type="password"
-                    value={settings.aiApiKey}
-                    onChange={(e) => settings.updateSettings({ aiApiKey: e.target.value })}
-                    className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    placeholder="sk-..."
-                  />
+              <div className="space-y-6">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-gray-300">AI Providers</h3>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">API Base URL</label>
-                  <input 
-                    type="text"
-                    value={settings.aiBaseUrl}
-                    onChange={(e) => settings.updateSettings({ aiBaseUrl: e.target.value })}
-                    className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    placeholder="https://api.deepseek.com/chat/completions"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
+                
+                {settings.providers.map(provider => (
+                    <div key={provider.id} className="border border-gray-600 rounded p-3 bg-[#2d2d2d]">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-gray-200">{provider.name}</span>
+                            <div className="flex items-center">
+                                <span className="text-xs text-gray-400 mr-2">{provider.enabled ? 'On' : 'Off'}</span>
+                                <input 
+                                    type="checkbox"
+                                    checked={provider.enabled}
+                                    onChange={(e) => settings.updateProviderConfig(provider.id, { enabled: e.target.checked })}
+                                    className="cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                        
+                        {provider.enabled && (
+                            <div className="space-y-3 mt-2">
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-1">API Key</label>
+                                    <input 
+                                        type="password"
+                                        value={provider.apiKey}
+                                        onChange={(e) => settings.updateProviderConfig(provider.id, { apiKey: e.target.value })}
+                                        className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
+                                        placeholder={`API Key for ${provider.name}`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-1">Base URL</label>
+                                    <input 
+                                        type="text"
+                                        value={provider.baseUrl}
+                                        onChange={(e) => settings.updateProviderConfig(provider.id, { baseUrl: e.target.value })}
+                                        className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-4 border-t border-gray-600">
                   <span className="text-sm font-medium text-gray-300">Enable Autocomplete</span>
                   <input 
                     type="checkbox"

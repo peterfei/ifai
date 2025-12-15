@@ -17,7 +17,8 @@ interface AIChatProps {
 export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { t } = useTranslation();
   const { messages, isLoading, sendMessage, approveToolCall, rejectToolCall } = useChatStore();
-  const { providers, currentProviderId, currentModel, setCurrentProviderAndModel, setSettingsOpen } = useSettingsStore();
+  const { providers, currentProviderId, currentModel, setCurrentProviderAndModel } = useSettingsStore();
+  const { setSettingsOpen } = useLayoutStore();
   const { openFile } = useFileStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);

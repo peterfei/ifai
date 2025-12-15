@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useFileStore } from './fileStore';
+import { useSettingsStore, AIProviderConfig } from './settingsStore';
 
 // Simplified Prompt definition to avoid construction errors
 const BASE_SYSTEM_PROMPT = "You are IfAI, an expert coding assistant.";
@@ -22,11 +23,11 @@ IMPORTANT: To create or edit a file, follow these steps STRICTLY:
 
 Example:
 Here is the code for Demo.js:
-\`\`\`javascript
+\
 console.log("Hello");
-\`\`\`
+\
 
-\`\`\`json
+\
 {
   "tool": "agent_write_file",
   "args": {
@@ -34,7 +35,7 @@ console.log("Hello");
     "content": "<<FILE_CONTENT>>"
   }
 }
-\`\`\`
+\
 
 ONLY output ONE tool call per response. Wait for user approval.
 
@@ -196,9 +197,8 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       messages: [],
       isLoading: false,
-      apiKey: '',
-      isAutocompleteEnabled: true,
-      setApiKey: (key) => set({ apiKey: key }),
+      // apiKey and isAutocompleteEnabled are now managed by settingsStore
+
       addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
       updateMessageContent: (id, content) => set((state) => ({
         messages: state.messages.map((msg) =>
@@ -206,13 +206,15 @@ export const useChatStore = create<ChatState>()(
         ),
       })),
       setLoading: (loading) => set({ isLoading: loading }),
-      toggleAutocomplete: () => set((state) => ({
-        isAutocompleteEnabled: !state.isAutocompleteEnabled
-      })),
+      
+      toggleAutocomplete: () => {
+        const settingsStore = useSettingsStore.getState();
+        settingsStore.updateSettings({ enableAutocomplete: !settingsStore.enableAutocomplete });
+      },
       
             // Helper to continue conversation
-            generateResponse: async (history: any[]) => {
-              const { apiKey, addMessage, setLoading, updateMessageContent } = get();
+            generateResponse: async (history: any[], providerConfig: AIProviderConfig) => {
+              const { addMessage, setLoading, updateMessageContent } = get();
               const assistantMsgId = uuidv4();
               const eventId = `chat_${assistantMsgId}`;
       
@@ -267,7 +269,7 @@ export const useChatStore = create<ChatState>()(
                   });
       
                   await invoke('ai_chat', { 
-                      apiKey,
+                      providerConfig,
                       messages: history, 
                       eventId 
                   });
@@ -364,17 +366,18 @@ export const useChatStore = create<ChatState>()(
                 // Add Tool Result as User Message (simulating feedback)
                 history.push({
                     role: 'user',
-                    content: `[System] Tool '${toolCall.tool}' executed successfully.
-Result:
-${result}
-
-INSTRUCTION: You have received the tool output. Do NOT repeat this action. Proceed immediately to the next step.`
+                    content: `[System] Tool '${toolCall.tool}' executed successfully.\nResult:\n${result}\n\nINSTRUCTION: You have received the tool output. Do NOT repeat this action. Proceed immediately to the next step.`
                 });
                 
                 // Prepend System Prompt (hacky but needed since we don't persist it)
                 history.unshift({ role: 'system', content: BASE_SYSTEM_PROMPT + "\n\n" + TOOL_INSTRUCTIONS });
       
-                await generateResponse(history);
+                // Get current provider config for continuation
+                const settingsStore = useSettingsStore.getState();
+                const currentProviderConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
+                if (currentProviderConfig) {
+                    await generateResponse(history, currentProviderConfig);
+                }
             },
       
             rejectToolCall: async (messageId: string, toolCallId: string) => {
@@ -390,10 +393,27 @@ INSTRUCTION: You have received the tool output. Do NOT repeat this action. Proce
                 }));
             },
       
-            sendMessage: async (input: string) => {
-              const { apiKey, messages, isLoading, addMessage, setLoading, generateResponse } = get();
-              if (!input.trim() || !apiKey || isLoading) return;
+            sendMessage: async (input: string, providerId: string, modelName: string) => {
+              const { messages, isLoading, addMessage, setLoading, generateResponse } = get();
+              if (!input.trim() || isLoading) return;
       
+              // Get provider config
+              const settingsStore = useSettingsStore.getState();
+              const providerConfig = settingsStore.providers.find(p => p.id === providerId);
+
+              if (!providerConfig || !providerConfig.enabled || !providerConfig.apiKey) {
+                setLoading(false);
+                // TODO: Emit an error to the UI for the user
+                console.error("AI Provider not configured or enabled.");
+                return;
+              }
+
+              // Override model if specific modelName is provided
+              const currentProviderConfig: AIProviderConfig = { 
+                ...providerConfig, 
+                models: [modelName] // Temporarily override models with the selected one
+              };
+
               const userMsgId = uuidv4();
               addMessage({ id: userMsgId, role: 'user', content: input });
               
@@ -434,7 +454,7 @@ INSTRUCTION: You have received the tool output. Do NOT repeat this action. Proce
                   { role: 'user', content: input }
               ];
       
-              await generateResponse(history);
+              await generateResponse(history, currentProviderConfig); // Pass providerConfig here
             }
     }),
     {

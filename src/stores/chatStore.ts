@@ -1,3 +1,5 @@
+import { AIProviderConfig } from './settingsStore';
+
 export interface ToolCall {
   id: string;
   tool: string;
@@ -17,15 +19,12 @@ export interface Message {
 export interface ChatState {
   messages: Message[];
   isLoading: boolean;
-  apiKey: string;
-  isAutocompleteEnabled: boolean; // New state
-  setApiKey: (key: string) => void;
   addMessage: (message: Message) => void;
   updateMessageContent: (id: string, content: string) => void;
   setLoading: (loading: boolean) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, providerId: string, modelName: string) => Promise<void>;
   toggleAutocomplete: () => void;
   approveToolCall: (messageId: string, toolCallId: string) => Promise<void>;
   rejectToolCall: (messageId: string, toolCallId: string) => Promise<void>;
-  generateResponse: (history: any[]) => Promise<void>;
+  generateResponse: (history: any[], providerConfig: AIProviderConfig) => Promise<void>;
 }

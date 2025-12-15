@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 export const InlineEditWidget = () => {
   const { t } = useTranslation();
   const { editorInstance, inlineEdit, closeInlineEdit } = useEditorStore();
-  const { aiApiKey } = useSettingsStore(); // Use aiApiKey from settingsStore
+  const { providers, currentProviderId } = useSettingsStore();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +38,8 @@ export const InlineEditWidget = () => {
   const handleSubmit = async () => {
     if (!input.trim()) return;
     
-    if (!aiApiKey) {
+    const currentProvider = providers.find(p => p.id === currentProviderId);
+    if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) {
         toast.error(t('chat.errorNoKey'));
         return;
     }
@@ -107,7 +108,7 @@ ${input}`;
 
         const history = [{ role: 'user', content: prompt }];
         await invoke('ai_chat', { 
-            apiKey: aiApiKey, 
+            providerConfig: currentProvider, 
             messages: history, 
             eventId 
         });

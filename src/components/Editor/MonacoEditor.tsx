@@ -4,6 +4,7 @@ import { useEditorStore } from '../../stores/editorStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useSettingsStore } from '../../stores/settingsStore'; // Import settings store
 import { FilePlus, FolderOpen, MessageSquare } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { openDirectory, readFileContent } from '../../utils/fileSystem';
@@ -96,7 +97,8 @@ export const MonacoEditor = () => {
             if (text && text.trim().length > 0) {
                 setChatOpen(true);
                 const prompt = `Explain the following code:\n\n\`\`\`${activeFile?.language || ''}\n${text}\n\`\`\``;
-                await sendMessage(prompt);
+                const { currentProviderId, currentModel } = useSettingsStore.getState();
+                await sendMessage(prompt, currentProviderId, currentModel);
             }
         }
     });
@@ -113,7 +115,8 @@ export const MonacoEditor = () => {
             if (text && text.trim().length > 0) {
                 setChatOpen(true);
                 const prompt = `Refactor the following code to be more efficient and readable:\n\n\`\`\`${activeFile?.language || ''}\n${text}\n\`\`\``;
-                await sendMessage(prompt);
+                const { currentProviderId, currentModel } = useSettingsStore.getState();
+                await sendMessage(prompt, currentProviderId, currentModel);
             }
         }
     });
@@ -121,8 +124,11 @@ export const MonacoEditor = () => {
     // Register Inline Completion Provider
     const completionProvider = monaco.languages.registerInlineCompletionsProvider({ pattern: '**' }, {
         provideInlineCompletions: async (model, position, context, token) => {
-            const { apiKey, isAutocompleteEnabled } = useChatStore.getState();
-            if (!apiKey || !isAutocompleteEnabled) return { items: [] };
+            const { providers, currentProviderId, enableAutocomplete } = useSettingsStore.getState();
+            if (!enableAutocomplete) return { items: [] };
+
+            const currentProvider = providers.find(p => p.id === currentProviderId);
+            if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) return { items: [] };
 
             // Debounce or context check? Monaco handles debounce somewhat, 
             // but we might want to ensure we don't spam.
@@ -154,7 +160,7 @@ ${textBefore}[CURSOR]${textAfter}
                 // But invoke is async.
                 const messages = [{ role: 'user', content: prompt }];
                 const result = await invoke<string>('ai_completion', { 
-                    apiKey, 
+                    providerConfig: currentProvider, 
                     messages 
                 });
 

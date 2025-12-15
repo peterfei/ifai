@@ -196,25 +196,33 @@ pub async fn stream_chat(
 
 #[command]
 pub async fn ai_completion(
-    api_key: String,
+    provider_config: AIProviderConfig,
     messages: Vec<Message>,
 ) -> Result<String, String> {
-    complete_code(api_key, messages).await
+    complete_code(provider_config, messages).await
 }
 
 pub async fn complete_code(
-    api_key: String,
+    provider_config: AIProviderConfig,
     messages: Vec<Message>,
 ) -> Result<String, String> {
     let client = Client::new();
+    
+    let (completions_url, api_key, model_name) = match provider_config.protocol {
+        AIProtocol::OpenAI => {
+            (provider_config.base_url, provider_config.api_key, provider_config.models[0].clone())
+        },
+        _ => return Err("Unsupported AI protocol".to_string()),
+    };
+
     let request = CompletionRequest {
-        model: "deepseek-chat".to_string(), 
+        model: model_name, 
         messages,
         stream: false, // Non-streaming
     };
 
     let response = client
-        .post("https://api.deepseek.com/chat/completions")
+        .post(&completions_url)
         .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&request)
