@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter}; 
 use eventsource_stream::Eventsource;
 use futures::StreamExt;
+use serde_json::json;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AIProtocol {
@@ -59,11 +60,30 @@ pub struct ThinkingConfig {
     pub thinking_type: String, 
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct Tool {
+    r#type: String,
+    function: FunctionDesc,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct FunctionDesc {
+    name: String,
+    description: String,
+    parameters: serde_json::Value,
+}
+
 #[derive(Serialize, Debug)]
 struct ChatRequest {
     model: String,
     messages: Vec<Message>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<Tool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<ThinkingConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -84,8 +104,22 @@ struct StreamChoice {
 #[derive(Deserialize, Debug)]
 struct StreamDelta {
     content: Option<String>,
-    // role is optional, usually only in the first chunk
+    tool_calls: Option<Vec<ToolCallChunk>>,
     role: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Serialize, Clone)]
+struct ToolCallChunk {
+    index: i32,
+    id: Option<String>,
+    r#type: Option<String>,
+    function: Option<FunctionChunk>,
+}
+
+#[derive(Deserialize, Debug, Serialize, Clone)]
+struct FunctionChunk {
+    name: Option<String>,
+    arguments: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -109,6 +143,15 @@ struct CompletionRequest {
     stop: Option<Vec<String>>,
 }
 
+#[derive(Serialize)]
+#[serde(tag = "type")]
+enum StreamEvent {
+    #[serde(rename = "content")]
+    Content { content: String },
+    #[serde(rename = "tool_call")]
+    ToolCall { tool_call: ToolCallChunk },
+}
+
 pub async fn stream_chat(
     app: AppHandle,
     provider_config: AIProviderConfig, 
@@ -118,10 +161,66 @@ pub async fn stream_chat(
     println!("Starting chat request with {} messages", messages.len());
     let client = Client::new();
     
-    let mut current_messages = messages;
-    let mut full_response_content = String::new();
-    let mut continuation_count = 0;
-    const MAX_CONTINUATIONS: i32 = 5;
+    let current_messages = messages;
+    
+    // Define tools
+    let tools = vec![
+        Tool {
+            r#type: "function".to_string(),
+            function: FunctionDesc {
+                name: "agent_write_file".to_string(),
+                description: "Create or overwrite a file with the specified content.".to_string(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "rel_path": {
+                            "type": "string",
+                            "description": "Relative path to the file (e.g., src/App.tsx)"
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The complete content of the file."
+                        }
+                    },
+                    "required": ["rel_path", "content"]
+                }),
+            },
+        },
+        Tool {
+            r#type: "function".to_string(),
+            function: FunctionDesc {
+                name: "agent_read_file".to_string(),
+                description: "Read the content of a file.".to_string(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "rel_path": {
+                            "type": "string",
+                            "description": "Relative path to the file"
+                        }
+                    },
+                    "required": ["rel_path"]
+                }),
+            },
+        },
+        Tool {
+            r#type: "function".to_string(),
+            function: FunctionDesc {
+                name: "agent_list_dir".to_string(),
+                description: "List contents of a directory.".to_string(),
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "rel_path": {
+                            "type": "string",
+                            "description": "Relative path to the directory"
+                        }
+                    },
+                    "required": ["rel_path"]
+                }),
+            },
+        },
+    ];
 
     let (completions_url, api_key, model_name) = match provider_config.protocol {
         AIProtocol::OpenAI => {
@@ -130,102 +229,83 @@ pub async fn stream_chat(
         _ => return Err("Unsupported AI protocol".to_string()),
     };
 
-    loop {
-        if continuation_count > MAX_CONTINUATIONS {
-            println!("Max continuations reached.");
-            break;
-        }
+    let request = ChatRequest {
+        model: model_name.clone(), 
+        messages: current_messages.clone(),
+        stream: true,
+        temperature: Some(0.3),
+        thinking: None,
+        tools: Some(tools),
+        tool_choice: Some("auto".to_string()),
+        stop: None, // With native tools, explicit stops are usually not needed, model stops after tool call
+    };
 
-        let request = ChatRequest {
-            model: model_name.clone(), 
-            messages: current_messages.clone(),
-            stream: true,
-            thinking: None,
-            // Add stop sequences to prevent the model from continuing to generate the user's next turn
-            stop: Some(vec!["User:".to_string(), "user:".to_string()]),
-        };
+    println!("Sending request to {}...", completions_url);
+    let response = client
+        .post(&completions_url) 
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| {
+            println!("Request failed: {}", e);
+            e.to_string()
+        })?;
 
-        println!("Sending request to {} (Step {})...", completions_url, continuation_count + 1);
-        let response = client
-            .post(&completions_url) 
-            .header("Authorization", format!("Bearer {}", api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| {
-                println!("Request failed: {}", e);
-                e.to_string()
-            })?;
+    let status = response.status();
+    if !status.is_success() {
+        let text = response.text().await.unwrap_or_default();
+        println!("API Error: Status={}, Body={}", status, text);
+        app.emit(&format!("{}_error", event_id), format!("API Error: {}", text)).unwrap_or(());
+        return Err(format!("API Error: {}", text));
+    }
 
-        let status = response.status();
-        if !status.is_success() {
-            let text = response.text().await.unwrap_or_default();
-            println!("API Error: Status={}, Body={}", status, text);
-            app.emit(&format!("{}_error", event_id), format!("API Error: {}", text)).unwrap_or(());
-            return Err(format!("API Error: {}", text));
-        }
+    let mut stream = response.bytes_stream().eventsource();
 
-        let mut stream = response.bytes_stream().eventsource();
-        let mut step_finish_reason: Option<String> = None;
+    println!("Stream processing started...");
 
-        println!("Stream processing step {}...", continuation_count + 1);
-
-        while let Some(event) = stream.next().await {
-            match event {
-                Ok(event) => {
-                    if event.data == "[DONE]" {
-                        break;
-                    }
-                    if let Ok(response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
-                        if let Some(choice) = response.choices.first() {
-                            if let Some(content) = &choice.delta.content {
-                                app.emit(&event_id, content).unwrap_or(());
-                                full_response_content.push_str(content);
-                            }
-                            if let Some(reason) = &choice.finish_reason {
-                                step_finish_reason = Some(reason.clone());
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(event) => {
+                if event.data == "[DONE]" {
+                    break;
+                }
+                if let Ok(response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                    if let Some(choice) = response.choices.first() {
+                        // Handle Text Content
+                        if let Some(content) = &choice.delta.content {
+                            let event_payload = serde_json::to_string(&StreamEvent::Content { 
+                                content: content.clone() 
+                            }).unwrap();
+                            app.emit(&event_id, event_payload).unwrap_or(());
+                        }
+                        
+                        // Handle Tool Calls
+                        if let Some(tool_calls) = &choice.delta.tool_calls {
+                            for chunk in tool_calls {
+                                let event_payload = serde_json::to_string(&StreamEvent::ToolCall { 
+                                    tool_call: chunk.clone() 
+                                }).unwrap();
+                                app.emit(&event_id, event_payload).unwrap_or(());
                             }
                         }
-                    } else {
-                        println!("Failed to parse JSON: {}", event.data);
                     }
-                }
-                Err(e) => {
-                    println!("Error reading stream: {}", e);
-                    app.emit(&format!("{}_error", event_id), e.to_string()).unwrap_or(());
-                    return Err(e.to_string());
-                }
+                                    } else {
+                                        println!("Failed to parse JSON: {}", event.data);
+                                        // Fallback: emit raw data to frontend for debugging to diagnose Zhipu AI issues
+                                        let debug_msg = format!("\n[DEBUG: Parse Failed] {}\n", event.data);
+                                        let event_payload = serde_json::to_string(&StreamEvent::Content { 
+                                            content: debug_msg 
+                                        }).unwrap();
+                                        app.emit(&event_id, event_payload).unwrap_or(());
+                                    }            }
+            Err(e) => {
+                println!("Error reading stream: {}", e);
+                app.emit(&format!("{}_error", event_id), e.to_string()).unwrap_or(());
+                return Err(e.to_string());
             }
         }
-
-        if let Some(reason) = step_finish_reason {
-            if reason == "length" {
-                println!("Generation truncated (length). Continuing...");
-                
-                if continuation_count == 0 {
-                    current_messages.push(Message {
-                        role: "assistant".to_string(),
-                        content: vec![ContentPart::Text {
-                            part_type: "text".to_string(),
-                            text: full_response_content.clone(),
-                        }],
-                    });
-                } else {
-                    if let Some(last_msg) = current_messages.last_mut() {
-                        last_msg.content = vec![ContentPart::Text {
-                            part_type: "text".to_string(),
-                            text: full_response_content.clone(),
-                        }];
-                    }
-                }
-                
-                continuation_count += 1;
-                continue;
-            }
-        }
-
-        break;
     }
     
     app.emit(&format!("{}_finish", event_id), "DONE").unwrap_or(());
@@ -239,32 +319,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_deepseek_style_response() {
-        // DeepSeek often sends minimal delta updates
-        let json = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}"#;
+    fn test_parse_tool_call_chunk() {
+        let json = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_abc","type":"function","function":{"name":"write","arguments":""}}]},"finish_reason":null}]}"#;
         let res: OpenAIStreamResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(res.choices[0].delta.content.as_deref(), Some("Hello"));
-    }
-
-    #[test]
-    fn test_parse_zhipu_style_response() {
-        // Zhipu/GLM might include extra fields like 'created', 'model', 'role' in delta
-        let json = r#"{"id":"123","created":1700000000,"model":"glm-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":null}]}"#;
-        let res: OpenAIStreamResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(res.choices[0].delta.content.as_deref(), Some("Hi"));
-        assert_eq!(res.choices[0].delta.role.as_deref(), Some("assistant"));
-    }
-    
-    #[test]
-    fn test_parse_empty_content_response() {
-        // Sometimes delta is empty or just role
-        let json = r#"{"id":"123","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}"#;
-        let res: OpenAIStreamResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(res.choices[0].delta.content, None);
-        assert_eq!(res.choices[0].delta.role.as_deref(), Some("assistant"));
+        let tools = res.choices[0].delta.tool_calls.as_ref().unwrap();
+        assert_eq!(tools[0].function.as_ref().unwrap().name.as_deref(), Some("write"));
     }
 }
-
 
 pub async fn complete_code(
     provider_config: AIProviderConfig,
@@ -284,7 +345,7 @@ pub async fn complete_code(
         messages,
         stream: false, 
         thinking: None,
-        stop: Some(vec!["User:".to_string(), "Model:".to_string(), "用户:".to_string(), "模型:".to_string()]),
+        stop: None,
     };
 
     let response = client

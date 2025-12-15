@@ -150,6 +150,16 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 }
                             })
                         )}
+                        
+                        {/* Render remaining Native Tool Calls not interleaved in text */}
+                        {message.toolCalls && message.toolCalls.slice(toolCallIndex).map(toolCall => (
+                            <ToolApproval 
+                                key={toolCall.id} 
+                                toolCall={toolCall} 
+                                onApprove={() => onApprove(message.id, toolCall.id)}
+                                onReject={() => onReject(message.id, toolCall.id)}
+                            />
+                        ))}
                     </div>
                 </div>
             </div>
