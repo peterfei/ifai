@@ -246,17 +246,14 @@ export const useChatStore = create<ChatState>()(
             content: contentParts, 
             tool_calls: m.toolCalls && m.toolCalls.length > 0 ? m.toolCalls.map(tc => ({
                 id: tc.id,
-                function: { name: tc.tool, arguments: JSON.stringify(tc.args) },
-                index: 0,
-                type: 'function'
-            })) : undefined,
-            tool_call_id: m.role === 'tool' ? (m as any).tool_call_id : undefined
+                                                  function: { name: tc.tool, arguments: JSON.stringify(tc.args) },
+                                                  type: 'function' as const                              })) : undefined,            tool_call_id: m.role === 'tool' ? (m as any).tool_call_id : undefined
           }; 
         });
         
         history.push({
           role: 'tool',
-          content: [{ type: 'text', text: result }],
+          content: result,
           tool_call_id: toolCall.id
         });
         
@@ -363,11 +360,8 @@ export const useChatStore = create<ChatState>()(
                   content: contentParts, 
                   tool_calls: m.toolCalls && m.toolCalls.length > 0 ? m.toolCalls.map(tc => ({
                       id: tc.id,
-                      function: { name: tc.tool, arguments: JSON.stringify(tc.args) },
-                      index: 0,
-                      type: 'function'
-                  })) : undefined,
-                  tool_call_id: m.role === 'tool' ? (m as any).tool_call_id : undefined
+                                                        function: { name: tc.tool, arguments: JSON.stringify(tc.args) },
+                                                        type: 'function' as const                                    })) : undefined,                  tool_call_id: m.role === 'tool' ? (m as any).tool_call_id : undefined
                 }; 
             }),
             { role: 'user', content: multiModalContentToSend }

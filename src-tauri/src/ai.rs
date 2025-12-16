@@ -49,9 +49,33 @@ pub enum ContentPart {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum Content {
+    Text(String),
+    Parts(Vec<ContentPart>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FunctionCall {
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ToolCall {
+    pub id: String,
+    pub r#type: String,
+    pub function: FunctionCall,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     pub role: String,
-    pub content: Vec<ContentPart>,
+    pub content: Content,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -157,6 +181,7 @@ pub async fn stream_chat(
     provider_config: AIProviderConfig, 
     messages: Vec<Message>,
     event_id: String,
+    enable_tools: bool,
 ) -> Result<(), String> {
     println!("Starting chat request with {} messages", messages.len());
     let client = Client::new();
@@ -235,8 +260,8 @@ pub async fn stream_chat(
         stream: true,
         temperature: Some(0.3),
         thinking: None,
-        tools: Some(tools),
-        tool_choice: Some("auto".to_string()),
+        tools: if enable_tools { Some(tools) } else { None },
+        tool_choice: if enable_tools { Some("auto".to_string()) } else { None },
         stop: None, // With native tools, explicit stops are usually not needed, model stops after tool call
     };
 
@@ -367,13 +392,16 @@ pub async fn complete_code(
     let body = response.json::<NonStreamResponse>().await.map_err(|e| e.to_string())?;
     
     if let Some(choice) = body.choices.first() {
-        let text_content = choice.message.content.iter()
-            .filter_map(|part| match part {
-                ContentPart::Text { text, .. } => Some(text.clone()),
-                _ => None,
-            })
-            .collect::<Vec<String>>()
-            .join("");
+        let text_content = match &choice.message.content {
+            Content::Text(text) => text.clone(),
+            Content::Parts(parts) => parts.iter()
+                .filter_map(|part| match part {
+                    ContentPart::Text { text, .. } => Some(text.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<String>>()
+                .join(""),
+        };
         Ok(text_content)
     } else {
         Err("No choices returned".to_string())
