@@ -151,116 +151,77 @@ export const useChatStore = create<ChatState>()(
       approveToolCall: async (messageId: string, toolCallId: string) => {
         const fileStore = useFileStore.getState();
         if (!fileStore.rootPath) return;
-      
+
+        const originalMessage = get().messages.find(m => m.id === messageId);
+        const toolCall = originalMessage?.toolCalls?.find(tc => tc.id === toolCallId);
+        if (!toolCall) return;
+
+        let result = "";
+        let status: ToolCall['status'] = 'completed';
+        try {
+            if (toolCall.tool === 'agent_write_file') {
+                result = await invoke('agent_write_file', { rootPath: fileStore.rootPath, relPath: toolCall.args.rel_path, content: toolCall.args.content || "" });
+                await fileStore.refreshFileTree();
+                fileStore.fetchGitStatuses();
+                const fullPath = `${fileStore.rootPath}/${toolCall.args.rel_path}`.replace(/\/\//g, '/');
+                const fileName = toolCall.args.rel_path.split('/').pop() || 'file';
+                fileStore.openFile({ id: uuidv4(), path: fullPath, name: fileName, content: toolCall.args.content || "", isDirty: false });
+            } else if (toolCall.tool === 'agent_read_file') {
+                result = await invoke('agent_read_file', { rootPath: fileStore.rootPath, relPath: toolCall.args.rel_path });
+            } else if (toolCall.tool === 'agent_list_dir') {
+                const items = await invoke<string[]>('agent_list_dir', { rootPath: fileStore.rootPath, relPath: toolCall.args.rel_path });
+                result = items.join('\n');
+            }
+        } catch (e) {
+            status = 'failed';
+            result = String(e);
+        }
+
+        let updatedMessage: Message | undefined;
+        set(state => {
+            const newMessages = state.messages.map(m => {
+                if (m.id === messageId) {
+                    const newToolCalls = m.toolCalls?.map(tc => 
+                        tc.id === toolCallId ? { ...tc, status, result } : tc
+                    );
+                    updatedMessage = { ...m, toolCalls: newToolCalls };
+                    return updatedMessage;
+                }
+                return m;
+            });
+            return { messages: newMessages };
+        });
+
+        if (!updatedMessage) return;
+
+        const allToolsCompleted = updatedMessage.toolCalls?.every(tc => tc.status === 'completed' || tc.status === 'failed' || tc.status === 'rejected');
+
+        if (!allToolsCompleted) {
+            return;
+        }
+        
         const { messages, generateResponse } = get();
         const msgIndex = messages.findIndex(m => m.id === messageId);
         if (msgIndex === -1) return;
-        
-        const msg = messages[msgIndex];
-        const toolCall = msg.toolCalls?.find(tc => tc.id === toolCallId);
-        if (!toolCall) return;
-      
-        let result = "";
-        let status: ToolCall['status'] = 'completed';
-        
-        try {
-          if (toolCall.tool === 'agent_write_file') {
-            if (!toolCall.args.content || toolCall.args.content.trim().length === 0) {
-                // Native tools won't have placeholder, check empty content
-                // But creating empty file is valid.
-                // Let's just allow it or warn.
-            }
-            
-            result = await invoke('agent_write_file', {
-                rootPath: fileStore.rootPath,
-                relPath: toolCall.args.rel_path,
-                content: toolCall.args.content || ""
-            });
-            await fileStore.refreshFileTree();
-            fileStore.fetchGitStatuses();
 
-            const fullPath = `${fileStore.rootPath}/${toolCall.args.rel_path}`.replace(new RegExp('//', 'g'), '/');
-            const fileName = toolCall.args.rel_path.split('/').pop() || 'file';
-            const ext = fileName.split('.').pop() || '';
-            let language = 'plaintext';
-            if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) language = 'javascript';
-            if (ext === 'ts' || ext === 'tsx') language = 'typescript';
-            if (ext === 'json') language = 'json';
-            if (ext === 'html') language = 'html';
-            if (ext === 'css') language = 'css';
-            if (ext === 'rs') language = 'rust';
-            if (ext === 'py') language = 'python';
-            if (ext === 'md') language = 'markdown';
-
-            fileStore.openFile({
-                id: uuidv4(),
-                path: fullPath,
-                name: fileName,
-                content: toolCall.args.content || "",
-                isDirty: false,
-                language
-            });
-          } else if (toolCall.tool === 'agent_read_file') {
-            result = await invoke('agent_read_file', {
-                rootPath: fileStore.rootPath,
-                relPath: toolCall.args.rel_path
-            });
-          } else if (toolCall.tool === 'agent_list_dir') {
-            const items = await invoke<string[]>('agent_list_dir', {
-                rootPath: fileStore.rootPath,
-                relPath: toolCall.args.rel_path
-            });
-            result = items.join('\n');
-          }
-        } catch (e) {
-          status = 'failed';
-          result = String(e);
-        }
-      
-        set((state) => ({
-          messages: state.messages.map(m => 
-            m.id === messageId ? {
-              ...m,
-              toolCalls: m.toolCalls?.map(tc => 
-                tc.id === toolCallId ? { ...tc, status, result } : tc
-              )
-            } : m
-          )
-        }));
-      
         const history: BackendMessage[] = messages.slice(0, msgIndex + 1).map(m => {
-          let contentParts: BackendContentPart[];
-          if (m.multiModalContent && m.multiModalContent.length > 0) {
-              contentParts = m.multiModalContent.map(p => {
-                  if (p.type === 'text' && (!p.text || p.text.trim().length === 0)) {
-                      return { ...p, text: "." };
-                  }
-                  return p;
-              });
-          } else {
-              const textContent = (m.content && m.content.trim().length > 0) ? m.content : ".";
-              contentParts = [{ type: 'text', text: textContent }];
-          }
-          return { 
-            role: m.role, 
-            content: contentParts, 
-            tool_calls: m.toolCalls && m.toolCalls.length > 0 ? m.toolCalls.map(tc => ({
-                id: tc.id,
-                                                  function: { name: tc.tool, arguments: JSON.stringify(tc.args) },
-                                                  type: 'function' as const                              })) : undefined,            tool_call_id: m.role === 'tool' ? (m as any).tool_call_id : undefined
-          }; 
+            const textContent = (m.content && m.content.trim().length > 0) ? m.content : "";
+            return {
+                role: m.role,
+                content: textContent,
+                tool_calls: m.toolCalls?.map(tc => ({ id: tc.id, function: { name: tc.tool, arguments: JSON.stringify(tc.args) }, type: 'function' as const })),
+            };
         });
-        
-        history.push({
-          role: 'tool',
-          content: result,
-          tool_call_id: toolCall.id
-        });
+
+        const completedToolCalls = updatedMessage.toolCalls?.filter(tc => tc.status === 'completed' || tc.status === 'failed') || [];
+        for (const completedCall of completedToolCalls) {
+            history.push({ role: 'tool', content: completedCall.result || "", tool_call_id: completedCall.id });
+        }
         
         const settingsStore = useSettingsStore.getState();
         const currentProviderConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
         if (currentProviderConfig) {
-            await generateResponse(history, currentProviderConfig, { enableTools: false });
+            await generateResponse(history, currentProviderConfig, { enableTools: true });
         }
       },
       
