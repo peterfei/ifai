@@ -53,9 +53,23 @@ export const useFileStore = create<FileState>()(
       openFile: (file) => set((state) => {
         const existing = state.openedFiles.find(f => f.path === file.path);
         if (existing) {
-          const updatedFiles = state.openedFiles.map(f => 
-            f.id === existing.id ? { ...f, initialLine: file.initialLine } : f
-          );
+          // If file is already open, update it if:
+          // 1. New content is provided AND
+          // 2. Either the file is not dirty (clean state) OR the new file is explicitly marked as clean
+          const shouldUpdateContent = file.content !== undefined &&
+                                     (!existing.isDirty || !file.isDirty);
+
+          const updatedFiles = state.openedFiles.map(f => {
+            if (f.id === existing.id) {
+              return {
+                ...f,
+                initialLine: file.initialLine,
+                // Update content if conditions are met
+                ...(shouldUpdateContent ? { content: file.content, isDirty: file.isDirty } : {})
+              };
+            }
+            return f;
+          });
           return { activeFileId: existing.id, openedFiles: updatedFiles };
         }
         return {
