@@ -220,9 +220,10 @@ export const useChatStore = create<ChatState>()(
         });
         
         // Add all completed tool results to the history
-        const completedToolCalls = finalMessageState.toolCalls?.filter(tc => tc.status === 'completed' || tc.status === 'failed') || [];
+        const completedToolCalls = finalMessageState.toolCalls?.filter(tc => tc.status === 'completed' || tc.status === 'failed' || tc.status === 'rejected') || [];
         for (const completedCall of completedToolCalls) {
-            history.push({ role: 'tool', content: completedCall.result || "", tool_call_id: completedCall.id });
+            const content = completedCall.status === 'rejected' ? "Tool call rejected by user." : completedCall.result || "";
+            history.push({ role: 'tool', content: content, tool_call_id: completedCall.id });
         }
         
         const settingsStore = useSettingsStore.getState();

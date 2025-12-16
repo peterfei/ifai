@@ -9,7 +9,7 @@ function buildHistoryForMultiToolApproval(messages, msgIndex) {
     const assistantMessage = messages[msgIndex];
 
     const history = historySoFar.map(m => {
-        const textContent = (m.content && m.content.trim().length > 0) ? m.content : ""; // Changed from null to ""
+        const textContent = (m.content && m.content.trim().length > 0) ? m.content : "";
         
         return {
             role: m.role,
@@ -23,11 +23,14 @@ function buildHistoryForMultiToolApproval(messages, msgIndex) {
         };
     });
 
-    const completedToolCalls = assistantMessage.toolCalls.filter(tc => tc.status === 'completed' || tc.status === 'failed');
+    // Modified to include 'rejected' status
+    const completedToolCalls = assistantMessage.toolCalls.filter(tc => tc.status === 'completed' || tc.status === 'failed' || tc.status === 'rejected');
     for (const completedCall of completedToolCalls) {
+        // Provide specific content for rejected calls
+        const content = completedCall.status === 'rejected' ? "Tool call rejected by user." : completedCall.result;
         history.push({
             role: 'tool',
-            content: completedCall.result,
+            content: content,
             tool_call_id: completedCall.id,
         });
     }
@@ -50,7 +53,7 @@ const initialMessages = [
     { id: "msg_user_1", role: 'user', content: USER_PROMPT },
 ];
 
-// 2. AI responds with two tool calls. We simulate that both have been approved and now have a status and result.
+// 2. AI responds with two tool calls. Simulate one completed and one rejected.
 const assistantMessageWithToolCalls = {
     id: "msg_asst_1",
     role: 'assistant',
@@ -67,8 +70,8 @@ const assistantMessageWithToolCalls = {
             id: TOOL_ID_2,
             tool: 'agent_list_dir',
             args: { rel_path: "src" },
-            status: 'completed',
-            result: FAKE_TOOL_RESULT_2
+            status: 'rejected', // One tool is rejected
+            result: undefined // No result for rejected
         }
     ]
 };
@@ -82,9 +85,10 @@ const historyForNextTurn = buildHistoryForMultiToolApproval(
 
 // --- Verification ---
 try {
-    console.log("Verifying history payload for multi-tool scenario...");
+    console.log("Verifying history payload for multi-tool scenario (with rejected tool)...");
     
-    assert.strictEqual(historyForNextTurn.length, 4, "History should have 4 messages (user, assistant, tool, tool).");
+    // History should still have 4 messages (user, assistant, tool_completed, tool_rejected)
+    assert.strictEqual(historyForNextTurn.length, 4, "History should have 4 messages (user, assistant, tool_completed, tool_rejected).");
     
     const asstMsg = historyForNextTurn[1];
     const toolMsg1 = historyForNextTurn[2];
@@ -97,17 +101,17 @@ try {
     assert.strictEqual(asstMsg.tool_calls[0].id, TOOL_ID_1, "Assistant's first tool_call ID does not match.");
     assert.strictEqual(asstMsg.tool_calls[1].id, TOOL_ID_2, "Assistant's second tool_call ID does not match.");
 
-    // Verify First Tool Message
+    // Verify First Tool Message (Completed)
     assert.strictEqual(toolMsg1.role, 'tool', "The third message must have role 'tool'.");
     assert.strictEqual(toolMsg1.tool_call_id, TOOL_ID_1, "First tool message's 'tool_call_id' is incorrect.");
     assert.strictEqual(toolMsg1.content, FAKE_TOOL_RESULT_1, "First tool message content is incorrect.");
 
-    // Verify Second Tool Message
+    // Verify Second Tool Message (Rejected)
     assert.strictEqual(toolMsg2.role, 'tool', "The fourth message must have role 'tool'.");
     assert.strictEqual(toolMsg2.tool_call_id, TOOL_ID_2, "Second tool message's 'tool_call_id' is incorrect.");
-    assert.strictEqual(toolMsg2.content, FAKE_TOOL_RESULT_2, "Second tool message content is incorrect.");
+    assert.strictEqual(toolMsg2.content, "Tool call rejected by user.", "Rejected tool message content is incorrect."); // Assert specific content for rejected
 
-    console.log("✅ Spec Test Passed: History construction for multi-tool feedback is correct.");
+    console.log("✅ Spec Test Passed: History construction for multi-tool feedback (with rejected) is correct.");
 
 } catch (e) {
     console.error("❌ Spec Test Failed:");
