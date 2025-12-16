@@ -177,34 +177,40 @@ export const useChatStore = create<ChatState>()(
             result = String(e);
         }
 
-        let updatedMessage: Message | undefined;
+        // Use a temporary variable to hold the updated message
+        let finalMessageState: Message | undefined;
+
         set(state => {
             const newMessages = state.messages.map(m => {
                 if (m.id === messageId) {
                     const newToolCalls = m.toolCalls?.map(tc => 
                         tc.id === toolCallId ? { ...tc, status, result } : tc
                     );
-                    updatedMessage = { ...m, toolCalls: newToolCalls };
-                    return updatedMessage;
+                    finalMessageState = { ...m, toolCalls: newToolCalls };
+                    return finalMessageState;
                 }
                 return m;
             });
             return { messages: newMessages };
         });
 
-        if (!updatedMessage) return;
-
-        const allToolsCompleted = updatedMessage.toolCalls?.every(tc => tc.status === 'completed' || tc.status === 'failed' || tc.status === 'rejected');
+        // Use the updated message from the set-operation to check for completion
+        if (!finalMessageState) return;
+        const allToolsCompleted = finalMessageState.toolCalls?.every(tc => tc.status === 'completed' || tc.status === 'failed' || tc.status === 'rejected');
 
         if (!allToolsCompleted) {
-            return;
+            return; // Exit if there are still pending tool calls
         }
         
-        const { messages, generateResponse } = get();
-        const msgIndex = messages.findIndex(m => m.id === messageId);
+        // --- All tools are now complete, proceed to call the AI ---
+        
+        // IMPORTANT: Get the LATEST state again to build the history
+        const { messages: latestMessages, generateResponse } = get();
+        const msgIndex = latestMessages.findIndex(m => m.id === messageId);
         if (msgIndex === -1) return;
 
-        const history: BackendMessage[] = messages.slice(0, msgIndex + 1).map(m => {
+        // Build history from the latest state
+        const history: BackendMessage[] = latestMessages.slice(0, msgIndex + 1).map(m => {
             const textContent = (m.content && m.content.trim().length > 0) ? m.content : "";
             return {
                 role: m.role,
@@ -212,8 +218,9 @@ export const useChatStore = create<ChatState>()(
                 tool_calls: m.toolCalls?.map(tc => ({ id: tc.id, function: { name: tc.tool, arguments: JSON.stringify(tc.args) }, type: 'function' as const })),
             };
         });
-
-        const completedToolCalls = updatedMessage.toolCalls?.filter(tc => tc.status === 'completed' || tc.status === 'failed') || [];
+        
+        // Add all completed tool results to the history
+        const completedToolCalls = finalMessageState.toolCalls?.filter(tc => tc.status === 'completed' || tc.status === 'failed') || [];
         for (const completedCall of completedToolCalls) {
             history.push({ role: 'tool', content: completedCall.result || "", tool_call_id: completedCall.id });
         }

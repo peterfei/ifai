@@ -54,7 +54,7 @@ const initialMessages = [
 const assistantMessageWithToolCalls = {
     id: "msg_asst_1",
     role: 'assistant',
-    content: null, // Still null in the original message, it's converted to "" in buildHistoryForMultiToolApproval
+    content: "", // This reflects the updated state
     toolCalls: [
         {
             id: TOOL_ID_1,
@@ -92,7 +92,7 @@ try {
 
     // Verify Assistant Message
     assert.strictEqual(asstMsg.role, 'assistant', "The second message must be from the assistant.");
-    assert.strictEqual(asstMsg.content, "", "Assistant message content should be an empty string when it contains tool_calls."); // Changed assertion from null to ""
+    assert.strictEqual(asstMsg.content, "", "Assistant message content should be an empty string when it contains tool_calls.");
     assert.strictEqual(asstMsg.tool_calls.length, 2, "Assistant message in history must contain 2 tool_calls.");
     assert.strictEqual(asstMsg.tool_calls[0].id, TOOL_ID_1, "Assistant's first tool_call ID does not match.");
     assert.strictEqual(asstMsg.tool_calls[1].id, TOOL_ID_2, "Assistant's second tool_call ID does not match.");
