@@ -47,6 +47,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Install Core Frontend Dependencies
+        run: |
+          cd ../ifainew-core/typescript
+          npm install
+
       - name: Install frontend dependencies
         run: npm install
 
