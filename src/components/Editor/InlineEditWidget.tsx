@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 
 export const InlineEditWidget = () => {
   const { t } = useTranslation();
-  const { editorInstance, inlineEdit, closeInlineEdit } = useEditorStore();
+  const { inlineEdit, closeInlineEdit, getActiveEditor } = useEditorStore();
   const { providers, currentProviderId } = useSettingsStore();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +20,7 @@ export const InlineEditWidget = () => {
   const [style, setStyle] = useState<React.CSSProperties>({ display: 'none' });
 
   useEffect(() => {
+    const editorInstance = getActiveEditor();
     if (inlineEdit.isVisible && editorInstance && inlineEdit.position) {
       const coords = editorInstance.getScrolledVisiblePosition(inlineEdit.position);
       if (coords) {
@@ -34,17 +35,18 @@ export const InlineEditWidget = () => {
       setStyle({ display: 'none' });
       setInput('');
     }
-  }, [inlineEdit.isVisible, inlineEdit.position, editorInstance]);
+  }, [inlineEdit.isVisible, inlineEdit.position, getActiveEditor]);
 
   const handleSubmit = async () => {
     if (!input.trim()) return;
-    
+
     const currentProvider = providers.find(p => p.id === currentProviderId);
     if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) {
         toast.error(t('chat.errorNoKey'));
         return;
     }
 
+    const editorInstance = getActiveEditor();
     if (!editorInstance || !inlineEdit.selection) return;
     
     setIsLoading(true);
@@ -87,15 +89,16 @@ ${input}`;
         });
 
         const unlistenFinish = await listen<string>(`${eventId}_finish`, () => {
+            const editorInstance = getActiveEditor();
             // Apply edit
-            if (generatedCode) {
+            if (generatedCode && editorInstance) {
                 // Ensure we replace the correct range
                 editorInstance.executeEdits('inline-ai', [{
                     range: selection,
                     text: generatedCode,
                     forceMoveMarkers: true
                 }]);
-                
+
                 // Trigger format selection to fix indentation
                 setTimeout(() => {
                     editorInstance.setSelection(selection); // Ensure selection matches replaced range

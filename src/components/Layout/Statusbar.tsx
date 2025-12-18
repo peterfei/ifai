@@ -17,10 +17,10 @@ export const Statusbar = () => {
   }, []);
 
   return (
-    <div className="h-6 bg-blue-600 flex items-center px-4 text-xs text-white select-none justify-between">
-      <div className="flex items-center space-x-4">
-        <span>{activeFile ? activeFile.path : 'No file open'}</span>
-        {ragStatus && <span className="opacity-80">| {ragStatus}</span>}
+    <div className="h-6 bg-blue-600 flex items-center px-4 text-xs text-white select-none justify-between overflow-hidden">
+      <div className="flex items-center space-x-4 min-w-0 flex-1 mr-4">
+        <span className="truncate block">{activeFile ? activeFile.path : 'No file open'}</span>
+        {ragStatus && <span className="opacity-80 whitespace-nowrap">| {ragStatus}</span>}
       </div>
       <div className="flex items-center space-x-4">
         <span>UTF-8</span>

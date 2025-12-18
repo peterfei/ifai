@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useFileStore } from '../../stores/fileStore';
+import { useLayoutStore } from '../../stores/layoutStore';
 import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
 import { FileNode, GitStatus } from '../../stores/types';
 import { readFileContent, readDirectory, renameFile, deleteFile } from '../../utils/fileSystem';
@@ -21,6 +22,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<FileNode[] | undefined>(node.children);
   const { openFile, gitStatuses } = useFileStore(); 
+  const { activePaneId, assignFileToPane } = useLayoutStore();
 
   const loadChildren = async () => {
     try {
@@ -52,6 +54,10 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
           isDirty: false,
           language: getLanguageFromPath(node.path)
         });
+        
+        if (activePaneId) {
+            assignFileToPane(activePaneId, node.id);
+        }
       } catch (e) {
         console.error("Failed to read file", e);
         toast.error(`Failed to read file: ${String(e)}`);

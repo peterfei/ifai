@@ -2,7 +2,7 @@ import React, { useEffect, Fragment } from 'react';
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Statusbar } from './components/Layout/Statusbar';
-import { MonacoEditor } from './components/Editor/MonacoEditor';
+import { SplitPaneContainer } from './components/Layout/SplitPaneContainer';
 import { TabBar } from './components/Editor/TabBar';
 import { AIChat } from './components/AIChat/AIChat';
 import { CommandPalette } from './components/CommandPalette/CommandPalette';
@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next';
 function App() {
   const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, openFile, fetchGitStatuses } = useFileStore();
-  const { editorInstance } = useEditorStore();
   const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal, chatWidth, setChatWidth } = useLayoutStore();
   const [isResizingChat, setIsResizingChat] = React.useState(false);
 
@@ -70,8 +69,9 @@ function App() {
         }
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
-        if (editorInstance) {
-          editorInstance.getAction('actions.find')?.run();
+        const activeEditor = useEditorStore.getState().getActiveEditor();
+        if (activeEditor) {
+          activeEditor.getAction('actions.find')?.run();
         }
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
         e.preventDefault();
@@ -82,12 +82,36 @@ function App() {
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'j') { // Cmd+J for Terminal
         e.preventDefault();
         toggleTerminal();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '\\') { // Cmd+\ for Split Pane
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Cmd+Shift+\ - Vertical split
+          useLayoutStore.getState().splitPane('vertical');
+        } else {
+          // Cmd+\ - Horizontal split
+          useLayoutStore.getState().splitPane('horizontal');
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '4') {
+        // Cmd+1/2/3/4 - Focus pane by number
+        e.preventDefault();
+        const paneIndex = parseInt(e.key) - 1;
+        const { panes } = useLayoutStore.getState();
+        if (paneIndex < panes.length) {
+          useLayoutStore.getState().setActivePane(panes[paneIndex].id);
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+        // Cmd+W - Close active pane (if more than one)
+        e.preventDefault();
+        const { panes, activePaneId } = useLayoutStore.getState();
+        if (panes.length > 1 && activePaneId) {
+          useLayoutStore.getState().closePane(activePaneId);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFileId, openedFiles, setFileDirty, editorInstance, toggleChat, toggleCommandPalette, toggleTerminal, fetchGitStatuses, t]);
+  }, [activeFileId, openedFiles, setFileDirty, toggleChat, toggleCommandPalette, toggleTerminal, fetchGitStatuses, t]);
 
   const handleSelectFileFromPalette = async (path: string) => {
     try {
@@ -115,11 +139,11 @@ function App() {
       {/* Main content area: Sidebar + Editor/Terminal + AIChat */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        
+
         <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
           <TabBar />
           <div className="flex-1 relative overflow-hidden">
-            <MonacoEditor />
+            <SplitPaneContainer className="split-pane-container" />
           </div>
           {isTerminalOpen && (
             <div className="h-64 border-t border-gray-700 relative">
