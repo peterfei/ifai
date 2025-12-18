@@ -8,6 +8,8 @@ export interface Pane {
   position: { x: number; y: number };
 }
 
+import { useFileStore } from './fileStore'; // Import fileStore
+
 export interface LayoutState {
   // 现有 UI 状态
   isChatOpen: boolean;
@@ -39,6 +41,7 @@ export interface LayoutState {
   resizePane: (paneId: string, newSize: number) => void;
   assignFileToPane: (paneId: string, fileId: string) => void;
   resetLayout: () => void;
+  validateLayout: () => void; // New action
 }
 
 const MAX_PANES = 4;
@@ -204,6 +207,24 @@ export const useLayoutStore = create<LayoutState>()(
           activePaneId: 'pane-1',
           splitDirection: 'horizontal',
         });
+      },
+
+      validateLayout: () => {
+        const state = get();
+        const { openedFiles } = useFileStore.getState();
+        const validFileIds = new Set(openedFiles.map(f => f.id));
+
+        const validatedPanes = state.panes.map(pane => {
+          if (pane.fileId && !validFileIds.has(pane.fileId)) {
+            return { ...pane, fileId: undefined };
+          }
+          return pane;
+        });
+
+        // Only update if changes were made
+        if (JSON.stringify(validatedPanes) !== JSON.stringify(state.panes)) {
+            set({ panes: validatedPanes });
+        }
       },
     }),
     {

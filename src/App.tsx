@@ -24,6 +24,11 @@ function App() {
   const [isResizingChat, setIsResizingChat] = React.useState(false);
 
   useEffect(() => {
+    // Validate layout on startup to ensure panes reference valid files
+    useLayoutStore.getState().validateLayout();
+  }, []);
+
+  useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingChat) {
         const newWidth = window.innerWidth - e.clientX;
