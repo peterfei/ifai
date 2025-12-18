@@ -43,4 +43,5 @@ uuid = "1.19.0"
 notify = "8.2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 ifainew-core = { path = "../../ifainew-core/rust" }
+tauri-plugin-window-state = "2"
 

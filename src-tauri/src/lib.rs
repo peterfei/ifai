@@ -1,4 +1,4 @@
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use ifainew_core;
 
 mod file_walker;
@@ -49,10 +49,16 @@ async fn create_window(app: tauri::AppHandle, label: String, title: String, url:
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(TerminalManager::new())
         .manage(LspManager::new())
                 .on_window_event(|window, event| {
                     match event {
+                        tauri::WindowEvent::CloseRequested { api, .. } => {
+                            if window.label() == "main" {
+                                window.app_handle().exit(0);
+                            }
+                        }
                         tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) => {
                             let _ = window.emit("tauri://file-drop", paths.clone());
                         }

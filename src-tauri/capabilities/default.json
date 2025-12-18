@@ -5,15 +5,11 @@
   "windows": [
     "*"
   ],
-  "permissions": [
-    "core:window:default",
-    "core:window:allow-create",
-    "core:event:default",
-    "core:event:allow-listen",
-    "core:event:allow-emit",
-    "core:event:allow-emit-to",
-    "opener:default",
-    "fs:default",
+      "permissions": [
+          "core:window:default",
+          "core:event:default",
+          "window-state:default",
+          "opener:default",    "fs:default",
     "dialog:default",
     {
       "identifier": "fs:allow-read-dir",
