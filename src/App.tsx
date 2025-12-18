@@ -1,5 +1,4 @@
 import React, { useEffect, Fragment } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Statusbar } from './components/Layout/Statusbar';
@@ -17,31 +16,31 @@ import { Toaster, toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import { useShortcuts } from './hooks/useShortcuts';
+import { initializeSync } from './utils/sync';
+import { openFileFromPath } from './utils/fileActions';
 
 function App() {
   const { t } = useTranslation();
-  const { activeFileId, openedFiles, setFileDirty, openFile, fetchGitStatuses } = useFileStore();
+  const { activeFileId, openedFiles, setFileDirty, fetchGitStatuses } = useFileStore();
   const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal, chatWidth, setChatWidth } = useLayoutStore();
   const [isResizingChat, setIsResizingChat] = React.useState(false);
 
   useEffect(() => {
-    // Validate layout on startup to ensure panes reference valid files
-    useLayoutStore.getState().validateLayout();
-  }, []);
-
-  // File drop listener
-  useEffect(() => {
-    const unlisten = listen<string[]>('tauri://file-drop', async (event) => {
-      console.log('File drop event received!', event.payload);
-      for (const path of event.payload) {
-        console.log('Attempting to open file:', path);
-        await openFileFromPath(path);
-      }
-    });
+    let cleanup: (() => void) | undefined;
+    
+    // Defer initialization to ensure DOM and Vite preamble are settled
+    const timer = setTimeout(() => {
+        initializeSync().then(c => cleanup = c);
+    }, 100);
 
     return () => {
-      unlisten.then(f => f());
+      clearTimeout(timer);
+      cleanup?.();
     };
+  }, []);
+
+  useEffect(() => {
+    useLayoutStore.getState().validateLayout();
   }, []);
 
   useEffect(() => {
@@ -147,31 +146,6 @@ function App() {
   };
 
   useShortcuts(shortcutHandlers);
-
-  const openFileFromPath = async (path: string) => {
-    try {
-      const content = await readFileContent(path);
-      const openedFileId = openFile({
-        id: uuidv4(),
-        path: path,
-        name: path.split('/').pop() || t('common.untitled'),
-        content: content,
-        isDirty: false,
-        language: 'plaintext', 
-        initialLine: 1 
-      });
-      
-      const { activePaneId, assignFileToPane } = useLayoutStore.getState();
-      if (activePaneId) {
-          assignFileToPane(activePaneId, openedFileId);
-      }
-      return true;
-    } catch (e) {
-      console.error(e);
-      toast.error(t('common.fileOpenFailed'));
-      return false;
-    }
-  };
 
   const handleSelectFileFromPalette = async (path: string) => {
     const success = await openFileFromPath(path);

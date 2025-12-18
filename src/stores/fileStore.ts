@@ -23,6 +23,7 @@ interface FileState {
   fetchGitStatuses: () => Promise<void>;
   reloadFileContent: (id: string) => Promise<void>;
   refreshFileTree: () => Promise<void>;
+  syncState: (state: Partial<FileState>) => void;
 }
 
 // Helper to recursively update git status in file tree
@@ -42,6 +43,8 @@ export const useFileStore = create<FileState>()(
       openedFiles: [],
       activeFileId: null,
       gitStatuses: new Map(),
+
+      syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
       setFileTree: (tree) => set((state) => {
         const treeWithStatus = tree ? updateGitStatusRecursive(tree, state.gitStatuses) : null;
@@ -164,12 +167,13 @@ export const useFileStore = create<FileState>()(
     }),
     {
       name: 'file-storage',
-      partialize: (state) => ({ 
-        openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })), 
+      partialize: (state) => ({
+        openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })),
         activeFileId: state.activeFileId,
-        rootPath: state.rootPath 
+        rootPath: state.rootPath
       }),
       onRehydrateStorage: () => (state) => {
+        // Reload file contents after rehydration from localStorage
         if (state) {
             state.openedFiles.forEach(file => {
                 if (file.path) {

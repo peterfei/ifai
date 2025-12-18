@@ -34,6 +34,18 @@ async fn ai_completion(
     ifainew_core::ai::complete_code(provider_config, messages).await
 }
 
+#[tauri::command]
+async fn create_window(app: tauri::AppHandle, label: String, title: String, url: String) -> Result<(), String> {
+    let window_builder = tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
+        .title(title)
+        .inner_size(1000.0, 800.0);
+    
+    match window_builder.build() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -55,6 +67,7 @@ pub fn run() {
             greet,
             ai_chat,
             ai_completion,
+            create_window,
             file_walker::get_all_file_paths,
             terminal::create_pty,
             terminal::write_pty,

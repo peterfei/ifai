@@ -2,6 +2,7 @@
   "menu": {
     "file": "File",
     "newFile": "New File",
+    "newWindow": "New Window",
     "openFile": "Open File",
     "save": "Save",
     "saveAs": "Save As"

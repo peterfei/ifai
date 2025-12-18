@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useRef } from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import Editor, { OnMount, loader } from '@monaco-editor/react';
 import { useEditorStore } from '../../stores/editorStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useChatStore } from '../../stores/useChatStore';
@@ -9,6 +9,10 @@ import { InlineEditWidget } from './InlineEditWidget';
 import { WelcomeScreen } from './WelcomeScreen';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import * as monaco from 'monaco-editor';
+
+// Configure monaco-editor to use local files instead of CDN to avoid 404 errors
+loader.config({ monaco });
 
 interface MonacoEditorProps {
   paneId: string;

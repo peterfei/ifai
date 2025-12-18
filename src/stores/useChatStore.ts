@@ -50,10 +50,38 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
     useFileStore.getState().refreshFileTree();
 };
 
+const approveAllToolCalls = async (messageId: string) => {
+    const state = coreUseChatStore.getState();
+    const message = state.messages.find(m => m.id === messageId);
+    if (!message || !message.toolCalls) return;
+
+    for (const toolCall of message.toolCalls) {
+        if (toolCall.status === 'pending' && !toolCall.isPartial) {
+            await coreUseChatStore.getState().approveToolCall(messageId, toolCall.id);
+        }
+    }
+};
+
+const rejectAllToolCalls = async (messageId: string) => {
+    const state = coreUseChatStore.getState();
+    const message = state.messages.find(m => m.id === messageId);
+    if (!message || !message.toolCalls) return;
+
+    for (const toolCall of message.toolCalls) {
+        if (toolCall.status === 'pending' && !toolCall.isPartial) {
+            await coreUseChatStore.getState().rejectToolCall(messageId, toolCall.id);
+        }
+    }
+};
+
 // Apply patches to the store
 coreUseChatStore.setState({
     sendMessage: patchedSendMessage,
-    approveToolCall: patchedApproveToolCall
+    approveToolCall: patchedApproveToolCall,
+    // @ts-ignore - adding new methods to store
+    approveAllToolCalls,
+    // @ts-ignore - adding new methods to store
+    rejectAllToolCalls
 });
 
 // ----------------------------------

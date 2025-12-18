@@ -1,13 +1,13 @@
 import React from 'react';
-import { User, FileCode, Image } from 'lucide-react'; // Removed Bot icon
+import { User, FileCode, CheckCheck, XCircle } from 'lucide-react'; // Added icons
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Message, ContentPart, ImageUrl } from '../../stores/chatStore'; // Import ContentPart, ImageUrl
+import { Message, ContentPart, useChatStore } from '../../stores/useChatStore'; // Changed imports
 import { ToolApproval } from './ToolApproval';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
-import ifaiLogo from '../../../imgs/ifai.png'; // Import IfAI logo
+import ifaiLogo from '../../../imgs/ifai.png';
 
 interface MessageItemProps {
     message: Message;
@@ -20,6 +20,27 @@ interface MessageItemProps {
 export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
     const isUser = message.role === 'user';
+
+    // Count pending tool calls for batch actions
+    const pendingCount = React.useMemo(() => {
+        if (!message.toolCalls) return 0;
+        return message.toolCalls.filter(tc => tc.status === 'pending' && !tc.isPartial).length;
+    }, [message.toolCalls]);
+
+    const handleApproveAll = () => {
+        const store = useChatStore.getState() as any;
+        if (store.approveAllToolCalls) {
+            store.approveAllToolCalls(message.id);
+        }
+    };
+
+    const handleRejectAll = () => {
+        const store = useChatStore.getState() as any;
+        if (store.rejectAllToolCalls) {
+            store.rejectAllToolCalls(message.id);
+        }
+    };
+//...
 
     // Parse segments from string content (for non-multi-modal or fallback)
     const stringSegments = React.useMemo(() => {
@@ -109,6 +130,31 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                     )}
                     
                     <div className="flex-1 min-w-0">
+                        {/* Batch Review Panel */}
+                        {pendingCount > 1 && (
+                            <div className="mb-3 p-2 bg-blue-900/20 rounded border border-blue-700/50 flex items-center justify-between">
+                                <div className="text-xs font-medium text-blue-300">
+                                    有 {pendingCount} 个待处理的操作
+                                </div>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={handleApproveAll}
+                                        className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] rounded transition-colors"
+                                    >
+                                        <CheckCheck size={12} />
+                                        全部批准
+                                    </button>
+                                    <button 
+                                        onClick={handleRejectAll}
+                                        className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors"
+                                    >
+                                        <XCircle size={12} />
+                                        全部拒绝
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* References */}
                         {message.references && message.references.length > 0 && (
                             <div className="mb-3 p-2 bg-gray-800 rounded border border-gray-600">

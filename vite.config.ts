@@ -29,4 +29,14 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  // Configure worker handling
+  worker: {
+    format: 'es',
+    plugins: () => [react()],
+  },
+  // Optimize dependencies
+  optimizeDeps: {
+    exclude: ['@tauri-apps/api'],
+    include: ['monaco-editor'],
+  },
 }));

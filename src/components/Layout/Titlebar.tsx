@@ -8,6 +8,7 @@ import { openDirectory, readFileContent, writeFileContent, saveFileAs } from '..
 import { toast } from 'sonner';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 
 interface TitlebarProps {
   onToggleChat?: () => void;
@@ -33,6 +34,20 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       isDirty: true,
       language: 'plaintext',
     });
+  };
+
+  const handleNewWindow = async () => {
+    setIsMenuOpen(false);
+    try {
+      await invoke('create_window', {
+        label: `window-${uuidv4()}`,
+        title: 'IfAI Editor',
+        url: 'index.html'
+      });
+    } catch (error) {
+      console.error('Failed to create new window:', error);
+      toast.error('Failed to create new window');
+    }
   };
 
   const handleOpenFile = async () => {
@@ -141,6 +156,12 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
                 onClick={handleNewFile}
               >
                 {t('menu.newFile')}
+              </div>
+              <div 
+                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
+                onClick={handleNewWindow}
+              >
+                {t('menu.newWindow')}
               </div>
               <div 
                 className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"

@@ -42,6 +42,7 @@ export interface LayoutState {
   assignFileToPane: (paneId: string, fileId: string) => void;
   resetLayout: () => void;
   validateLayout: () => void; // New action
+  syncState: (state: Partial<LayoutState>) => void;
 }
 
 const MAX_PANES = 4;
@@ -68,6 +69,8 @@ export const useLayoutStore = create<LayoutState>()(
       ],
       activePaneId: 'pane-1',
       splitDirection: 'horizontal',
+
+      syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
       // 现有操作函数
       setChatOpen: (isOpen) => set({ isChatOpen: isOpen }),
