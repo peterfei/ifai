@@ -125,6 +125,18 @@ function App() {
         language: 'plaintext', 
         initialLine: 1 
       });
+      
+      const { activePaneId, assignFileToPane } = useLayoutStore.getState();
+      if (activePaneId) {
+          // Use the newly created file ID. 
+          // Note: Ideally openFile should return the ID, but for now we find it from openedFiles or generate it deterministically.
+          // Since openFile uses uuidv4(), we need to find the file we just opened.
+          const { openedFiles } = useFileStore.getState();
+          const justOpened = openedFiles.find(f => f.path === path);
+          if (justOpened) {
+              assignFileToPane(activePaneId, justOpened.id);
+          }
+      }
       setCommandPaletteOpen(false);
     } catch (e) {
       console.error(e);

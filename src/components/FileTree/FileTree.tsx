@@ -46,7 +46,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
     } else {
       try {
         const content = await readFileContent(node.path);
-        openFile({
+        const openedId = openFile({
           id: node.id,
           path: node.path,
           name: node.name,
@@ -56,7 +56,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
         });
         
         if (activePaneId) {
-            assignFileToPane(activePaneId, node.id);
+            assignFileToPane(activePaneId, openedId);
         }
       } catch (e) {
         console.error("Failed to read file", e);

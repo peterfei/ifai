@@ -14,7 +14,7 @@ interface FileState {
   
   setFileTree: (tree: FileNode) => void;
   setRootPath: (path: string | null) => void;
-  openFile: (file: OpenedFile) => void;
+  openFile: (file: OpenedFile) => string;
   closeFile: (id: string) => void;
   setActiveFile: (id: string) => void;
   updateFileContent: (id: string, content: string) => void;
@@ -50,33 +50,37 @@ export const useFileStore = create<FileState>()(
       
       setRootPath: (path) => set({ rootPath: path }),
 
-      openFile: (file) => set((state) => {
+      openFile: (file) => {
+        const state = get();
         const existing = state.openedFiles.find(f => f.path === file.path);
+
         if (existing) {
-          // If file is already open, update it if:
-          // 1. New content is provided AND
-          // 2. Either the file is not dirty (clean state) OR the new file is explicitly marked as clean
+          // If file is already open, update it if needed
           const shouldUpdateContent = file.content !== undefined &&
                                      (!existing.isDirty || !file.isDirty);
 
-          const updatedFiles = state.openedFiles.map(f => {
-            if (f.id === existing.id) {
-              return {
-                ...f,
-                initialLine: file.initialLine,
-                // Update content if conditions are met
-                ...(shouldUpdateContent ? { content: file.content, isDirty: file.isDirty } : {})
-              };
-            }
-            return f;
+          set((state) => {
+             const updatedFiles = state.openedFiles.map(f => {
+                if (f.id === existing.id) {
+                  return {
+                    ...f,
+                    initialLine: file.initialLine,
+                    ...(shouldUpdateContent ? { content: file.content, isDirty: file.isDirty } : {})
+                  };
+                }
+                return f;
+              });
+              return { activeFileId: existing.id, openedFiles: updatedFiles };
           });
-          return { activeFileId: existing.id, openedFiles: updatedFiles };
+          return existing.id;
         }
-        return {
+
+        set((state) => ({
           openedFiles: [...state.openedFiles, file],
           activeFileId: file.id,
-        };
-      }),
+        }));
+        return file.id;
+      },
 
       closeFile: (id) => set((state) => {
         const newFiles = state.openedFiles.filter(f => f.id !== id);
