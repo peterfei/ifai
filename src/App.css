@@ -11,3 +11,30 @@ html, body, #root {
   background-color: #1e1e1e; /* Prevent white flash */
   color: #ffffff;
 }
+
+/* Custom Scrollbar for horizontal scrolling containers like TabBar */
+.horizontal-scrollbar::-webkit-scrollbar {
+  height: 2px; /* Ultra thin */
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+.horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #5f5f5f;
+}
+
+/* Hide scrollbar for cleaner look if preferred, but allow scrolling */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}

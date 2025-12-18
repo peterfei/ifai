@@ -153,6 +153,19 @@ ${textBefore}[CURSOR]${textAfter}
 
   const theme = useEditorStore(state => state.theme);
 
+  // Force update editor content when file changes (fix for tab switching issue)
+  useEffect(() => {
+    const editor = getEditorInstance(paneId);
+    if (editor && file) {
+        const currentContent = editor.getValue();
+        if (currentContent !== file.content) {
+            // Use executeEdits to preserve undo stack if needed, or setValue for full replacement
+            // For tab switching, setValue is safer to ensure exact state match
+            editor.setValue(file.content || '');
+        }
+    }
+  }, [file?.id, file?.content, paneId, getEditorInstance]);
+
   if (!file) {
     return <WelcomeScreen />;
   }
