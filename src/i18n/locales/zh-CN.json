@@ -21,7 +21,11 @@
       "goToFile": "前往文件",
       "findInFiles": "全局搜索",
       "toggleChat": "切换 AI 助手",
-      "inlineEdit": "内联 AI 编辑"
+      "inlineEdit": "内联 AI 编辑",
+      "addCursorAbove": "向上添加光标",
+      "addCursorBelow": "向下添加光标",
+      "addCursorToNextFindMatch": "添加下一个匹配",
+      "selectAllOccurrences": "选择所有匹配"
     },
     "contextMenu": {
       "explain": "AI: 解释代码",

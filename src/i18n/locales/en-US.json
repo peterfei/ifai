@@ -21,7 +21,11 @@
       "goToFile": "Go to File",
       "findInFiles": "Find in Files",
       "toggleChat": "Toggle AI Chat",
-      "inlineEdit": "Inline AI Edit"
+      "inlineEdit": "Inline AI Edit",
+      "addCursorAbove": "Add Cursor Above",
+      "addCursorBelow": "Add Cursor Below",
+      "addCursorToNextFindMatch": "Add Next Occurrence",
+      "selectAllOccurrences": "Select All Occurrences"
     },
     "contextMenu": {
       "explain": "AI: Explain Code",

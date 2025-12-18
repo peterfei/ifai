@@ -242,13 +242,21 @@ ${textBefore}[CURSOR]${textAfter}
           </button>
         </div>
 
-        <div className="mt-12 text-xs text-gray-600">
-          <div className="grid grid-cols-2 gap-x-8 gap-y-2">
-            <span>Show All Commands</span> <span>Cmd+Shift+P</span>
-            <span>Go to File</span> <span>Cmd+P</span>
-            <span>Find in Files</span> <span>Cmd+Shift+F</span>
-            <span>Toggle AI Chat</span> <span>Cmd+L</span>
-            <span>Inline AI Edit</span> <span>Cmd+K</span>
+        <div className="mt-8 text-xs text-gray-600">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2 max-w-md">
+            <span>{t('editor.shortcuts.showCommands')}</span> <span>Cmd+Shift+P</span>
+            <span>{t('editor.shortcuts.goToFile')}</span> <span>Cmd+P</span>
+            <span>{t('editor.shortcuts.findInFiles')}</span> <span>Cmd+Shift+F</span>
+            <span>{t('editor.shortcuts.toggleChat')}</span> <span>Cmd+L</span>
+            <span>{t('editor.shortcuts.inlineEdit')}</span> <span>Cmd+K</span>
+          </div>
+        </div>
+        <div className="mt-4 text-xs text-gray-600 border-t border-gray-700 pt-4">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2 max-w-md">
+            <span>{t('editor.shortcuts.addCursorAbove')}</span> <span>Cmd+Alt+↑</span>
+            <span>{t('editor.shortcuts.addCursorBelow')}</span> <span>Cmd+Alt+↓</span>
+            <span>{t('editor.shortcuts.addCursorToNextFindMatch')}</span> <span>Cmd+D</span>
+            <span>{t('editor.shortcuts.selectAllOccurrences')}</span> <span>Cmd+Shift+L</span>
           </div>
         </div>
       </div>
@@ -271,6 +279,10 @@ ${textBefore}[CURSOR]${textAfter}
           fontSize: 14,
           scrollBeyondLastLine: false,
           automaticLayout: true,
+          multiCursorModifier: 'ctrlCmd',
+          multiCursorPaste: 'spread',
+          selectionClipboard: true,
+          columnSelection: true,
         }}
       />
       <InlineEditWidget />
