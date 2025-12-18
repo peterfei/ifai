@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MonacoEditor } from '../Editor/MonacoEditor';
 import { Pane, useLayoutStore } from '../../stores/layoutStore';
+import { useFileStore } from '../../stores/fileStore'; // Import useFileStore
 import { useTranslation } from 'react-i18next';
 
 interface PaneViewProps {
@@ -26,7 +27,11 @@ export const PaneView: React.FC<PaneViewProps> = ({
 }) => {
   const { t } = useTranslation();
   const { splitPane, closePane, panes } = useLayoutStore();
+  const { openedFiles } = useFileStore(); // Get openedFiles from useFileStore
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, visible: false });
+
+  // Find the file associated with this pane
+  const associatedFile = pane.fileId ? openedFiles.find(f => f.id === pane.fileId) : null;
 
   // Only show active border if there are multiple panes
   const showActiveBorder = isActive && panes.length > 1;
@@ -76,7 +81,7 @@ export const PaneView: React.FC<PaneViewProps> = ({
         onContextMenu={handleContextMenu}
       >
         <div className="pane-title text-xs truncate flex-1">
-          {pane.fileId ? `File ${index + 1}` : t('common.emptyPane')}
+          {associatedFile ? associatedFile.name : t('common.emptyPane')}
         </div>
         
         {/* Buttons: Hidden by default, visible on hover */}

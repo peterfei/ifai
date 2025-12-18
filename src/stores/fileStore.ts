@@ -165,6 +165,15 @@ export const useFileStore = create<FileState>()(
         activeFileId: state.activeFileId,
         rootPath: state.rootPath 
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+            state.openedFiles.forEach(file => {
+                if (file.path) {
+                    state.reloadFileContent(file.id);
+                }
+            });
+        }
+      },
     }
   )
 );

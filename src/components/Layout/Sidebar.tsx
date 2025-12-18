@@ -46,7 +46,7 @@ export const Sidebar = () => {
   };
 
   return (
-    <div className="flex h-full border-r border-gray-700 bg-gray-900">
+    <div className="flex h-full border-r border-gray-700 bg-gray-900 flex-shrink-0">
       {/* Activity Bar */}
       <div className="w-12 flex flex-col items-center py-2 border-r border-gray-700 bg-[#1e1e1e]">
         <button 
