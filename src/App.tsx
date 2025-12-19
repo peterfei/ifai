@@ -9,6 +9,7 @@ import { CommandPalette } from './components/CommandPalette/CommandPalette';
 import { TerminalPanel } from './components/Terminal/TerminalPanel';
 import { PromptManager } from './components/PromptManager/PromptManager';
 import { SettingsModal } from './components/Settings/SettingsModal';
+import { GlobalAgentMonitor } from './components/AIChat/GlobalAgentMonitor';
 import { useFileStore } from './stores/fileStore';
 import { useEditorStore } from './stores/editorStore';
 import { useLayoutStore } from './stores/layoutStore';
@@ -188,6 +189,7 @@ function App() {
       <Fragment>
         <CommandPalette onSelect={handleSelectFileFromPalette} />
         <SettingsModal />
+        <GlobalAgentMonitor />
         <Toaster position="bottom-right" theme="dark" />
       </Fragment>
     </div>
