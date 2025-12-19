@@ -1,7 +1,12 @@
 use serde::{Deserialize, Serialize};
+use rust_embed::RustEmbed;
 
 pub mod storage;
 pub mod template;
+
+#[derive(RustEmbed)]
+#[folder = "../.ifai/prompts/"]
+pub struct BuiltinPrompts;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AccessTier {

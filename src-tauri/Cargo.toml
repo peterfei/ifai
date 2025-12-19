@@ -47,4 +47,5 @@ tauri-plugin-window-state = "2"
 handlebars = "6.3.2"
 async-trait = "0.1.89"
 serde_yaml = "0.9.34"
+rust-embed = "8.9.0"
 
