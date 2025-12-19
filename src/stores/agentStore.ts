@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { Agent } from '../types/agent';
 import { useFileStore } from './fileStore';
+import { useSettingsStore } from './settingsStore';
 
 interface AgentState {
   runningAgents: Agent[];
@@ -16,10 +17,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const projectRoot = useFileStore.getState().rootPath;
     if (!projectRoot) throw new Error("No project root available");
 
+    const settingsStore = useSettingsStore.getState();
+    const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
+    if (!providerConfig) throw new Error("No AI provider configured");
+
     const id = await invoke<string>('launch_agent', {
         agentType,
         task,
-        projectRoot
+        projectRoot,
+        providerConfig
     });
 
     // Add to local list

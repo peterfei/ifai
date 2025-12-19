@@ -40,6 +40,30 @@ pub fn get_main_system_prompt(project_root: &str) -> String {
     }
 }
 
+pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: &str) -> String {
+    let mut variables = variables::collect_system_variables(project_root);
+    variables.insert("TASK_DESCRIPTION".to_string(), task_description.to_string());
+    
+    let template_name = format!("agents/{}.md", agent_type.to_lowercase().replace(' ', "-"));
+    
+    let template = {
+        let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(&template_name);
+        if local_path.exists() {
+            storage::load_prompt(&local_path).ok()
+        } else if let Some(content_file) = BuiltinPrompts::get(&template_name) {
+            let content = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
+            storage::load_prompt_from_str(content, None).ok()
+        } else {
+            None
+        }
+    };
+
+    match template {
+        Some(t) => template::render_template(&t.content, &variables).unwrap_or_else(|_| t.content),
+        None => format!("You are a specialized {} agent. Task: {}", agent_type, task_description),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptMetadata {
     pub name: String,

@@ -20,6 +20,7 @@ pub struct AgentContext {
     pub task_description: String,
     pub initial_prompt: String,
     pub variables: HashMap<String, String>,
+    pub provider_config: ifainew_core::ai::AIProviderConfig,
 }
 
 #[async_trait]

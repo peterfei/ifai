@@ -1,7 +1,8 @@
 use tauri::{AppHandle, Emitter};
 use crate::agent_system::base::{AgentStatus, AgentContext};
 use crate::agent_system::supervisor::Supervisor;
-use std::sync::Arc;
+use crate::prompt_manager;
+use ifainew_core::ai::{Message, Content};
 
 pub async fn run_agent_task(
     app: AppHandle,
@@ -10,9 +11,9 @@ pub async fn run_agent_task(
     agent_type: String,
     context: AgentContext,
 ) {
-    println!("[AgentRunner] Starting task for agent: {} type: {}", id, agent_type);
+    println!("[AgentRunner] Starting AI task for agent: {} ({})", id, agent_type);
     
-    // Update status to running
+    // 1. Update status to running
     supervisor.update_status(&id, AgentStatus::Running).await;
     let _ = app.emit("agent:status", serde_json::json!({
         "id": id,
@@ -20,27 +21,56 @@ pub async fn run_agent_task(
         "progress": 0.1
     }));
 
-    // Simulate work for now
-    // In next step, we will integrate ifainew_core::ai::complete_code
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-    let _ = app.emit("agent:log", serde_json::json!({
-        "id": id,
-        "message": format!("Analyzing task: {}", context.task_description)
-    }));
-
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-    // Mark as completed
-    supervisor.update_status(&id, AgentStatus::Completed).await;
-    let _ = app.emit("agent:status", serde_json::json!({
-        "id": id,
-        "status": "completed",
-        "progress": 1.0
-    }));
+    // 2. Prepare System Prompt
+    let system_content = prompt_manager::get_agent_prompt(&agent_type, &context.project_root, &context.task_description);
     
-    let _ = app.emit("agent:result", serde_json::json!({
-        "id": id,
-        "output": format!("Agent {} has finished processing the request.", agent_type)
-    }));
+    let messages = vec![
+        Message {
+            role: "system".to_string(),
+            content: Content::Text(system_content),
+            tool_calls: None,
+            tool_call_id: None,
+        },
+        Message {
+            role: "user".to_string(),
+            content: Content::Text(context.task_description.clone()),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    ];
+
+    let event_id = format!("agent_{}", id);
+    println!("[AgentRunner] Dispatching AI stream with event_id: {}", event_id);
+
+    // 3. Call AI
+    // We use the core library's stream_chat which will emit events to the frontend
+    let result = ifainew_core::ai::stream_chat(
+        app.clone(), 
+        context.provider_config, 
+        messages, 
+        event_id.clone(), 
+        true
+    ).await;
+
+    // 4. Handle Final State
+    match result {
+        Ok(_) => {
+            println!("[AgentRunner] Agent {} task completed via AI.", id);
+            supervisor.update_status(&id, AgentStatus::Completed).await;
+            let _ = app.emit("agent:status", serde_json::json!({
+                "id": id,
+                "status": "completed",
+                "progress": 1.0
+            }));
+        },
+        Err(e) => {
+            eprintln!("[AgentRunner] Agent {} failed: {}", id, e);
+            supervisor.update_status(&id, AgentStatus::Failed(e.clone())).await;
+            let _ = app.emit("agent:status", serde_json::json!({
+                "id": id,
+                "status": "failed",
+                "error": e
+            }));
+        }
+    }
 }

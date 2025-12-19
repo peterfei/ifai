@@ -18,6 +18,7 @@ pub async fn launch_agent(
     agent_type: String,
     task: String,
     project_root: String,
+    provider_config: ifainew_core::ai::AIProviderConfig,
 ) -> Result<String, String> {
     let id = Uuid::new_v4().to_string();
     
@@ -30,6 +31,7 @@ pub async fn launch_agent(
         task_description: task,
         initial_prompt: String::new(),
         variables: HashMap::new(),
+        provider_config,
     };
 
     // 3. Spawn Task
