@@ -39,7 +39,7 @@ fastembed = "5.4.0"
 text-splitter = "0.28.0"
 anyhow = "1.0.100"
 once_cell = "1.21.3"
-uuid = "1.19.0"
+uuid = { version = "1.19.0", features = ["v4"] }
 notify = "8.2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 ifainew-core = { path = "../../ifainew-core/rust" }

@@ -7,9 +7,11 @@ mod search;
 mod git;
 mod lsp;
 mod prompt_manager;
+mod agent_system;
 mod commands;
 use terminal::TerminalManager;
 use lsp::LspManager;
+use agent_system::Supervisor;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -117,6 +119,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(TerminalManager::new())
         .manage(LspManager::new())
+        .manage(Supervisor::new())
                 .on_window_event(|window, event| {
                     match event {
                         tauri::WindowEvent::CloseRequested { api, .. } => {
@@ -159,7 +162,9 @@ pub fn run() {
             commands::prompt_commands::list_prompts,
             commands::prompt_commands::get_prompt,
             commands::prompt_commands::update_prompt,
-            commands::prompt_commands::render_prompt_template
+            commands::prompt_commands::render_prompt_template,
+            commands::agent_commands::launch_agent,
+            commands::agent_commands::list_running_agents
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
