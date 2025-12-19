@@ -59,13 +59,17 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             });
 
             try {
-                await useAgentStore.getState().launchAgent(agentName, args || "No specific task provided");
+                const agentId = await useAgentStore.getState().launchAgent(agentName, args || "No specific task provided");
                 
-                // System feedback
+                // System feedback - LINKED to agentId
                 addMessage({
                     id: crypto.randomUUID(),
                     role: 'assistant',
-                    content: `🚀 **${agentName}** Launched\n\nI have started a background agent to handle this task:\n> ${args || "Analysis"}\n\nYou can monitor its progress in the floating card at the bottom right.`
+                    content: ``, // Start empty, will be filled by stream
+                    // @ts-ignore - custom property
+                    agentId: agentId,
+                    // Indicate this is a live agent message
+                    isAgentLive: true 
                 });
             } catch (e) {
                 addMessage({

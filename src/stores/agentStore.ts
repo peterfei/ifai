@@ -48,18 +48,23 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const unlisten = await listen<any>(eventId, (event) => {
         const payload = event.payload;
         if (payload && typeof payload === 'object' && payload.type === 'content') {
+            const chunk = payload.content || "";
+            // Update Agent Card
             set(state => ({
                 runningAgents: state.runningAgents.map(a => 
-                    a.id === id ? { ...a, content: (a.content || "") + (payload.content || "") } : a
+                    a.id === id ? { ...a, content: (a.content || "") + chunk } : a
                 )
             }));
-        } else if (typeof payload === 'string') {
-            set(state => ({
-                runningAgents: state.runningAgents.map(a => 
-                    a.id === id ? { ...a, content: (a.content || "") + payload } : a
-                )
-            }));
-        }
+
+            // Sync to Main Chat Message
+            const { updateMessageContent, messages } = coreUseChatStore.getState();
+            const linkedMsg = messages.find(m => (m as any).agentId === id);
+            if (linkedMsg) {
+                const newContent = (linkedMsg.content || "") + chunk;
+                updateMessageContent(linkedMsg.id, newContent);
+            }
+        } 
+        // ... (rest handle raw string if needed)
     });
 
     set(state => ({

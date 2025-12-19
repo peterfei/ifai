@@ -1,7 +1,11 @@
-use ifainew_core::ai::{Message, Content, AIProtocol, ToolCall, AIProviderConfig};
+use ifainew_core::ai::{Message, Content, AIProtocol, ToolCall, AIProviderConfig, FunctionCall};
 use serde_json::{json, Value};
 use reqwest::Client;
 use std::time::Duration;
+use std::collections::HashMap;
+use tauri::{AppHandle, Emitter};
+use futures::stream::StreamExt;
+use eventsource_stream::Eventsource;
 
 pub fn sanitize_messages(messages: &mut Vec<Message>) {
     let mut i = 0;
@@ -46,7 +50,10 @@ pub async fn fetch_ai_completion(
     sanitize_messages(&mut messages);
 
     let client = Client::builder()
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(120)) // Increase timeout to 2 minutes
+        .pool_max_idle_per_host(0) // Disable connection pooling
+        .http1_only() // Force HTTP/1.1 to avoid HTTP/2 chunking issues
+        .http1_title_case_headers() // Better compatibility
         .build()
         .map_err(|e| e.to_string())?;
     
@@ -67,16 +74,59 @@ pub async fn fetch_ai_completion(
         .await
         .map_err(|e| format!("Network/Request error: {}", e))?;
 
-    if !response.status().is_success() {
-        let status = response.status();
+    let status = response.status();
+    let headers = response.headers().clone();
+
+    // Log response details
+    eprintln!("[AIUtils] Response status: {}", status);
+    if let Some(content_type) = headers.get("content-type") {
+        eprintln!("[AIUtils] Content-Type: {:?}", content_type);
+    }
+    if let Some(content_length) = headers.get("content-length") {
+        eprintln!("[AIUtils] Content-Length: {:?}", content_length);
+    }
+
+    if !status.is_success() {
         let err_body = response.text().await.unwrap_or_default();
         eprintln!("[AIUtils] API HTTP Error {}: {}", status, err_body);
         return Err(format!("AI API Error ({}): {}", status, err_body));
     }
 
-    let res_json: Value = response.json().await.map_err(|e| {
+    // Try to read response as bytes first, then convert to string
+    eprintln!("[AIUtils] Attempting to read response body...");
+    let response_bytes = match response.bytes().await {
+        Ok(bytes) => {
+            eprintln!("[AIUtils] Successfully read {} bytes", bytes.len());
+            bytes
+        }
+        Err(e) => {
+            eprintln!("[AIUtils] Failed to read response bytes: {}", e);
+            eprintln!("[AIUtils] Error kind: {:?}", e);
+            eprintln!("[AIUtils] Is timeout: {}", e.is_timeout());
+            eprintln!("[AIUtils] Is connect: {}", e.is_connect());
+            return Err(format!("Failed to read response bytes: {} (timeout: {}, connect: {})",
+                e, e.is_timeout(), e.is_connect()));
+        }
+    };
+
+    let response_text = String::from_utf8(response_bytes.to_vec()).map_err(|e| {
+        eprintln!("[AIUtils] Failed to decode response as UTF-8: {}", e);
+        eprintln!("[AIUtils] First 100 bytes (as hex): {:02x?}",
+            &response_bytes[..response_bytes.len().min(100)]);
+        format!("Response is not valid UTF-8: {}", e)
+    })?;
+
+    // Try to parse as JSON
+    let res_json: Value = serde_json::from_str(&response_text).map_err(|e| {
         eprintln!("[AIUtils] JSON Parse Error: {}", e);
-        format!("Failed to parse AI response: {}", e)
+        eprintln!("[AIUtils] Response body (first 500 chars): {}",
+            if response_text.len() > 500 {
+                format!("{}...", &response_text[..500])
+            } else {
+                response_text.clone()
+            }
+        );
+        format!("Failed to parse AI response as JSON: {}", e)
     })?;
     
     let choice = &res_json["choices"][0]["message"];
@@ -107,6 +157,199 @@ pub async fn fetch_ai_completion(
     Ok(Message {
         role,
         content: Content::Text(content_text),
+        tool_calls,
+        tool_call_id: None,
+    })
+}
+
+// Streaming response data structures
+#[derive(serde::Deserialize, Debug)]
+struct OpenAIStreamResponse {
+    choices: Vec<StreamChoice>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct StreamChoice {
+    delta: StreamDelta,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct StreamDelta {
+    content: Option<String>,
+    tool_calls: Option<Vec<ToolCallChunk>>,
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+struct ToolCallChunk {
+    index: i32,
+    id: Option<String>,
+    function: Option<FunctionChunk>,
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+struct FunctionChunk {
+    name: Option<String>,
+    arguments: Option<String>,
+}
+
+struct StreamingToolCall {
+    id: String,
+    name: String,
+    arguments: String,
+}
+
+/// Agent-specific streaming chat that returns a Message (unlike stream_chat which only emits events)
+pub async fn agent_stream_chat(
+    app: &AppHandle,
+    config: &AIProviderConfig,
+    messages: Vec<Message>,
+    agent_id: &str,
+    tools: Option<Vec<Value>>,
+) -> Result<Message, String> {
+    // 1. Sanitize messages
+    let mut clean_messages = messages.clone();
+    sanitize_messages(&mut clean_messages);
+
+    // 2. Build request
+    let client = Client::builder()
+        .timeout(Duration::from_secs(180))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let mut request_body = json!({
+        "model": config.models[0],
+        "messages": clean_messages,
+        "stream": true  // Enable streaming
+    });
+
+    if let Some(t) = tools {
+        request_body["tools"] = json!(t);
+    }
+
+    eprintln!("[AgentStream] Sending streaming request for agent {}", agent_id);
+
+    // 3. Send HTTP request
+    let response = client
+        .post(&config.base_url)
+        .header("Authorization", format!("Bearer {}", config.api_key))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        eprintln!("[AgentStream] API Error: {}: {}", status, error_text);
+        return Err(format!("AI API Error ({}): {}", status, error_text));
+    }
+
+    // 4. Process SSE stream
+    eprintln!("[AgentStream] Creating event stream...");
+    let mut stream = response.bytes_stream().eventsource();
+    let mut accumulated_content = String::new();
+    let mut accumulated_tool_calls: HashMap<i32, StreamingToolCall> = HashMap::new();
+    let mut event_count = 0;
+
+    eprintln!("[AgentStream] Starting stream iteration...");
+
+    while let Some(event) = stream.next().await {
+        event_count += 1;
+        eprintln!("[AgentStream] Event #{}", event_count);
+        match event {
+            Ok(event) => {
+                eprintln!("[AgentStream] Received event, data length: {}", event.data.len());
+
+                if event.data == "[DONE]" {
+                    eprintln!("[AgentStream] Received [DONE] signal");
+                    break;
+                }
+
+                if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                    if let Some(choice) = stream_response.choices.first() {
+                        // Handle text content
+                        if let Some(content) = &choice.delta.content {
+                            eprintln!("[AgentStream] Got content chunk: {} chars", content.len());
+                            accumulated_content.push_str(content);
+
+                            // Send to frontend in real-time
+                            let _ = app.emit(
+                                &format!("agent_{}", agent_id),
+                                json!({ "type": "content", "content": content })
+                            );
+                        }
+
+                        // Handle tool call chunks
+                        if let Some(tool_chunks) = &choice.delta.tool_calls {
+                            for chunk in tool_chunks {
+                                let idx = chunk.index;
+
+                                if !accumulated_tool_calls.contains_key(&idx) {
+                                    accumulated_tool_calls.insert(idx, StreamingToolCall {
+                                        id: String::new(),
+                                        name: String::new(),
+                                        arguments: String::new(),
+                                    });
+                                }
+
+                                let st = accumulated_tool_calls.get_mut(&idx).unwrap();
+                                if let Some(id) = &chunk.id {
+                                    st.id = id.clone();
+                                }
+                                if let Some(func) = &chunk.function {
+                                    if let Some(name) = &func.name {
+                                        st.name.push_str(name);
+                                    }
+                                    if let Some(args) = &func.arguments {
+                                        st.arguments.push_str(args);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    eprintln!("[AgentStream] Failed to parse JSON. First 200 chars: {}",
+                        if event.data.len() > 200 {
+                            format!("{}...", &event.data[..200])
+                        } else {
+                            event.data.clone()
+                        }
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("[AgentStream] Stream error: {}", e);
+                return Err(format!("Stream error: {}", e));
+            }
+        }
+    }
+
+    eprintln!("[AgentStream] Stream completed. Content length: {}, Tools: {}",
+        accumulated_content.len(), accumulated_tool_calls.len());
+
+    // 5. Build final Message
+    let tool_calls = if accumulated_tool_calls.is_empty() {
+        None
+    } else {
+        Some(
+            accumulated_tool_calls
+                .values()
+                .map(|st| ToolCall {
+                    id: st.id.clone(),
+                    r#type: "function".to_string(),
+                    function: FunctionCall {
+                        name: st.name.clone(),
+                        arguments: st.arguments.clone(),
+                    },
+                })
+                .collect()
+        )
+    };
+
+    Ok(Message {
+        role: "assistant".to_string(),
+        content: Content::Text(accumulated_content),
         tool_calls,
         tool_call_id: None,
     })

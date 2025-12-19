@@ -93,13 +93,12 @@ pub async fn run_agent_task(
         let _ = app.emit("agent:status", json!({ "id": id, "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
         let _ = app.emit("agent:log", json!({ "id": id, "message": "AI is thinking..." }));
 
-        match ai_utils::fetch_ai_completion(&context.provider_config, history.clone(), Some(tools.clone())).await {
+        match ai_utils::agent_stream_chat(&app, &context.provider_config, history.clone(), &id, Some(tools.clone())).await {
             Ok(ai_message) => {
+                // Content is already streamed to frontend by agent_stream_chat
                 if let Content::Text(ref text) = ai_message.content {
                     if !text.is_empty() {
                          final_ai_summary = text.clone();
-                         let event_name = format!("agent_{}", id);
-                         let _ = app.emit(&event_name, json!({ "type": "content", "content": text }));
                     }
                 }
 
