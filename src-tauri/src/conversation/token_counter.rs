@@ -15,7 +15,7 @@ pub fn count_messages_tokens(messages: &[Message]) -> usize {
         match &msg.content {
             Content::Text(text) => total_tokens += bpe.encode_with_special_tokens(text).len(),
             Content::Parts(parts) => {
-                for part in parts {
+                for _part in parts {
                     // Simple estimate for parts
                     total_tokens += 2;
                 }

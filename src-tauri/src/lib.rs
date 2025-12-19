@@ -88,7 +88,7 @@ pub fn run() {
         .manage(Supervisor::new())
                 .on_window_event(|window, event| {
                     match event {
-                        tauri::WindowEvent::CloseRequested { api, .. } => {
+                        tauri::WindowEvent::CloseRequested { .. } => {
                             if window.label() == "main" {
                                 window.app_handle().exit(0);
                             }
