@@ -120,7 +120,8 @@ pub async fn run_agent_task(
                                     "toolCall": {
                                         "id": tool_call.id.clone(),
                                         "tool": tool_name,
-                                        "args": args
+                                        "args": args,
+                                        "isPartial": false
                                     }
                                 }));
                                 

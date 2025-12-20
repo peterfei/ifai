@@ -34,6 +34,7 @@ export interface AgentEventPayload {
     id: string;
     tool: string;
     args: any;
+    isPartial?: boolean;
   };
   result?: string;
   error?: string;

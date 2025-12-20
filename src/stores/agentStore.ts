@@ -114,51 +114,59 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     tool: toolCall.tool,
                     args: unescapeToolArguments(toolCall.args),
                     status: 'pending' as const,
+                    isPartial: toolCall.isPartial,
                     agentId: id  // Mark this tool call as coming from an Agent
                 };
 
-                // Check if this is a new tool call
-                let isNewToolCall = false;
+                let messageUpdated = false;
                 const updatedMessages = chatState.messages.map(m => {
                     if (m.id === msgId) {
                         const existing = m.toolCalls || [];
-                        const isDuplicate = existing.some(tc =>
-                            tc.id === liveToolCall.id ||
-                            (tc.tool === liveToolCall.tool && JSON.stringify(tc.args) === JSON.stringify(liveToolCall.args))
-                        );
-                        if (!isDuplicate) {
-                            isNewToolCall = true;
+                        const index = existing.findIndex(tc => tc.id === liveToolCall.id);
+                        
+                        if (index !== -1) {
+                            // Update existing tool call
+                            const newToolCalls = [...existing];
+                            newToolCalls[index] = {
+                                ...newToolCalls[index],
+                                ...liveToolCall,
+                                // If it was already approved/completed, don't revert status
+                                status: (newToolCalls[index].status !== 'pending' && !liveToolCall.isPartial) 
+                                    ? newToolCalls[index].status 
+                                    : liveToolCall.status
+                            };
+                            messageUpdated = true;
+                            return { ...m, toolCalls: newToolCalls };
+                        } else {
+                            // Add new tool call
+                            messageUpdated = true;
                             return { ...m, toolCalls: [...existing, liveToolCall] };
                         }
                     }
                     return m;
                 });
 
-                // Only update state and trigger auto-approve if this is a new tool call
-                if (isNewToolCall) {
+                if (messageUpdated) {
                     coreUseChatStore.setState({ messages: updatedMessages });
 
-                    // Check auto-approve setting
-                    const settings = useSettingsStore.getState();
-                    console.log(`[AgentStore] Tool call ${toolCall.id} (${toolCall.tool}) - Auto-approve: ${settings.agentAutoApprove}`);
+                    // Only trigger auto-approve and logs if it's NOT partial and NEWLY completed
+                    const isNewlyCompleted = !liveToolCall.isPartial;
+                    const wasAlreadyHandled = chatState.messages.find(m => m.id === msgId)?.toolCalls?.find(tc => tc.id === liveToolCall.id)?.isPartial === false;
 
-                    if (settings.agentAutoApprove) {
-                        // Auto-approve: immediately call approval logic
-                        // Use setTimeout to ensure state is updated before executing
-                        setTimeout(async () => {
-                            console.log(`[AgentStore] Auto-approving tool call ${toolCall.id} for agent ${id}`);
-                            const approveToolCall = coreUseChatStore.getState().approveToolCall;
-                            if (approveToolCall) {
-                                try {
-                                    await approveToolCall(msgId, toolCall.id);
-                                    console.log(`[AgentStore] Auto-approve succeeded for ${toolCall.id}`);
-                                } catch (error) {
-                                    console.error(`[AgentStore] Auto-approve failed for ${toolCall.id}:`, error);
+                    if (isNewlyCompleted && !wasAlreadyHandled) {
+                        const settings = useSettingsStore.getState();
+                        if (settings.agentAutoApprove) {
+                            setTimeout(async () => {
+                                const approveToolCall = coreUseChatStore.getState().approveToolCall;
+                                if (approveToolCall) {
+                                    try {
+                                        await approveToolCall(msgId, toolCall.id);
+                                    } catch (error) {
+                                        console.error(`[AgentStore] Auto-approve failed:`, error);
+                                    }
                                 }
-                            } else {
-                                console.warn(`[AgentStore] approveToolCall function not available`);
-                            }
-                        }, 200);
+                            }, 200);
+                        }
                     }
                 }
             }

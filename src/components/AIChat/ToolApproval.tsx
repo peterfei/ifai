@@ -166,7 +166,10 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                                             <>
                                                 <div className="max-h-80 overflow-auto rounded border border-gray-700 bg-gray-900">
                                                     <pre className="p-3 text-xs text-gray-300 font-mono whitespace-pre-wrap">
-                                                        <code>{displayContent || '正在生成代码...'}</code>
+                                                        <code>
+                                                            {displayContent || '正在生成代码...'}
+                                                            <span className="inline-block w-1.5 h-3 bg-blue-500 ml-0.5 animate-pulse" />
+                                                        </code>
                                                     </pre>
                                                 </div>
                                                 {/* Expand/Collapse during streaming */}

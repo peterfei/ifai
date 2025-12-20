@@ -198,6 +198,20 @@ struct StreamingToolCall {
     arguments: String,
 }
 
+fn extract_partial_value(json_str: &str, key: &str) -> Option<String> {
+    // Robust regex to find a string value in partial JSON: "key": "value...
+    let pattern = format!("\"{}\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)", key);
+    if let Ok(re) = regex::Regex::new(&pattern) {
+        if let Some(caps) = re.captures(json_str) {
+            let mut val = caps[1].to_string();
+            // Basic unescaping for display purposes
+            val = val.replace("\\n", "\n").replace("\\\"", "\"").replace("\\t", "\t");
+            return Some(val);
+        }
+    }
+    None
+}
+
 /// Agent-specific streaming chat that returns a Message (unlike stream_chat which only emits events)
 pub async fn agent_stream_chat(
     app: &AppHandle,
@@ -206,6 +220,7 @@ pub async fn agent_stream_chat(
     agent_id: &str,
     tools: Option<Vec<Value>>,
 ) -> Result<Message, String> {
+    // ... (rest of implementation)
     // 1. Sanitize messages
     let mut clean_messages = messages.clone();
     sanitize_messages(&mut clean_messages);
@@ -304,6 +319,35 @@ pub async fn agent_stream_chat(
                                     if let Some(args) = &func.arguments {
                                         st.arguments.push_str(args);
                                     }
+                                }
+
+                                // Emit partial tool call to frontend
+                                if !st.name.is_empty() {
+                                    // Try full parse first
+                                    let mut args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
+                                        // If not valid JSON, try to extract fields manually for better progressive UI
+                                        let mut map = serde_json::Map::new();
+                                        if let Some(path) = extract_partial_value(&st.arguments, "rel_path") {
+                                            map.insert("rel_path".to_string(), json!(path));
+                                        }
+                                        if let Some(content) = extract_partial_value(&st.arguments, "content") {
+                                            map.insert("content".to_string(), json!(content));
+                                        }
+                                        Value::Object(map)
+                                    });
+
+                                    let _ = app.emit(
+                                        &format!("agent_{}", agent_id),
+                                        json!({
+                                            "type": "tool_call",
+                                            "toolCall": {
+                                                "id": if st.id.is_empty() { format!("{}_{}", agent_id, idx) } else { st.id.clone() },
+                                                "tool": st.name,
+                                                "args": args_val,
+                                                "isPartial": true
+                                            }
+                                        })
+                                    );
                                 }
                             }
                         }

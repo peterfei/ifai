@@ -191,40 +191,66 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         ) : (
                             /* Fallback to String Content + Segments (Text and Tools interleaved) */
-                            stringSegments.map((segment, index) => {
-                                if (segment.type === 'tool') {
-                                    const storedToolCall = message.toolCalls && message.toolCalls[toolCallIndex];
-                                    toolCallIndex++;
-                                    const displayToolCall = storedToolCall || segment.toolCall;
-                                    if (!displayToolCall) return null;
-                                    return (
-                                        <ToolApproval 
-                                            key={displayToolCall.id} 
-                                            toolCall={displayToolCall} 
-                                            onApprove={() => onApprove(message.id, displayToolCall.id)}
-                                            onReject={() => onReject(message.id, displayToolCall.id)}
-                                        />
-                                    );
-                                } else {
-                                    const content = segment.content;
-                                    if (!content) return null;
-                                    if (content.startsWith('Indexing...')) {
-                                        return <p key={index} className="text-sm whitespace-pre-wrap text-gray-400">{content}</p>;
-                                    }
-                                    return renderContentPart({ type: 'text', text: content }, index); // Use renderContentPart for text
-                                }
-                            })
+                            (() => {
+                                // 1. Pre-calculate tool indexing to support both interleaved and native tools
+                                let currentToolIndex = 0;
+                                
+                                // 2. Determine which tool calls are "native" (not interleaved in text)
+                                // If parseToolCalls found tool segments, we interleave. 
+                                // Otherwise, we treat them as native and show them at the top.
+                                const hasInterleavedTools = stringSegments.some(s => s.type === 'tool');
+
+                                return (
+                                    <>
+                                        {/* Render Native Tool Calls first if they are not interleaved in text 
+                                            This puts tools ABOVE the summary text for Agents. */}
+                                        {!hasInterleavedTools && message.toolCalls && message.toolCalls.map(toolCall => (
+                                            <ToolApproval 
+                                                key={toolCall.id} 
+                                                toolCall={toolCall} 
+                                                onApprove={() => onApprove(message.id, toolCall.id)}
+                                                onReject={() => onReject(message.id, toolCall.id)}
+                                            />
+                                        ))}
+
+                                        {/* Render Segments (Text and potentially interleaved tools) */}
+                                        {stringSegments.map((segment, index) => {
+                                            if (segment.type === 'tool') {
+                                                const storedToolCall = message.toolCalls && message.toolCalls[currentToolIndex];
+                                                currentToolIndex++;
+                                                const displayToolCall = storedToolCall || segment.toolCall;
+                                                if (!displayToolCall) return null;
+                                                return (
+                                                    <ToolApproval 
+                                                        key={displayToolCall.id} 
+                                                        toolCall={displayToolCall} 
+                                                        onApprove={() => onApprove(message.id, displayToolCall.id)}
+                                                        onReject={() => onReject(message.id, displayToolCall.id)}
+                                                    />
+                                                );
+                                            } else {
+                                                const content = segment.content;
+                                                if (!content) return null;
+                                                if (content.startsWith('Indexing...')) {
+                                                    return <p key={index} className="text-sm whitespace-pre-wrap text-gray-400">{content}</p>;
+                                                }
+                                                return renderContentPart({ type: 'text', text: content }, index);
+                                            }
+                                        })}
+
+                                        {/* Render remaining Native Tool Calls (if any were missed in interleaved mode) */}
+                                        {hasInterleavedTools && message.toolCalls && message.toolCalls.slice(currentToolIndex).map(toolCall => (
+                                            <ToolApproval 
+                                                key={toolCall.id} 
+                                                toolCall={toolCall} 
+                                                onApprove={() => onApprove(message.id, toolCall.id)}
+                                                onReject={() => onReject(message.id, toolCall.id)}
+                                            />
+                                        ))}
+                                    </>
+                                );
+                            })()
                         )}
-                        
-                        {/* Render remaining Native Tool Calls not interleaved in text */}
-                        {message.toolCalls && message.toolCalls.slice(toolCallIndex).map(toolCall => (
-                            <ToolApproval 
-                                key={toolCall.id} 
-                                toolCall={toolCall} 
-                                onApprove={() => onApprove(message.id, toolCall.id)}
-                                onReject={() => onReject(message.id, toolCall.id)}
-                            />
-                        ))}
                     </div>
                 </div>
             </div>
