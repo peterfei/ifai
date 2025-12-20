@@ -24,6 +24,7 @@ registerStores(useFileStore.getState, useSettingsStore.getState);
 
 const originalSendMessage = coreUseChatStore.getState().sendMessage;
 const originalApproveToolCall = coreUseChatStore.getState().approveToolCall;
+const originalRejectToolCall = coreUseChatStore.getState().rejectToolCall;
 
 const patchedSendMessage = async (content: string | any[], providerId: string, modelName: string) => {
     // Slash Command Interception
@@ -102,8 +103,73 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 };
 
 const patchedApproveToolCall = async (messageId: string, toolCallId: string) => {
-    // Message sanitization now happens in Rust backend before API call
-    await originalApproveToolCall(messageId, toolCallId);
+    console.log(`[useChatStore] patchedApproveToolCall called - messageId: ${messageId}, toolCallId: ${toolCallId}`);
+
+    // Check if this is an Agent tool call
+    const message = coreUseChatStore.getState().messages.find(m => m.id === messageId);
+    const toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
+
+    console.log(`[useChatStore] Found message: ${!!message}, Found toolCall: ${!!toolCall}`);
+    if (toolCall) {
+        console.log(`[useChatStore] ToolCall agentId: ${(toolCall as any).agentId}, tool: ${toolCall.tool}`);
+    }
+
+    if (toolCall && (toolCall as any).agentId) {
+        // Agent tool call: use Agent approval flow
+        const agentId = (toolCall as any).agentId;
+        console.log(`[useChatStore] Using Agent approval flow for agent ${agentId}`);
+
+        // Update tool call status to approved
+        coreUseChatStore.setState(state => ({
+            messages: state.messages.map(m =>
+                m.id === messageId ? {
+                    ...m,
+                    toolCalls: m.toolCalls?.map(tc =>
+                        tc.id === toolCallId ? { ...tc, status: 'approved' as const } : tc
+                    )
+                } : m
+            )
+        }));
+
+        console.log(`[useChatStore] Calling approveAction for agent ${agentId}`);
+        await useAgentStore.getState().approveAction(agentId, true);
+        console.log(`[useChatStore] approveAction completed for agent ${agentId}`);
+    } else {
+        // Regular tool call: use original flow
+        console.log(`[useChatStore] Using original approval flow`);
+        await originalApproveToolCall(messageId, toolCallId);
+    }
+
+    // Refresh file tree after tool execution
+    useFileStore.getState().refreshFileTree();
+};
+
+const patchedRejectToolCall = async (messageId: string, toolCallId: string) => {
+    // Check if this is an Agent tool call
+    const message = coreUseChatStore.getState().messages.find(m => m.id === messageId);
+    const toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
+
+    if (toolCall && (toolCall as any).agentId) {
+        // Agent tool call: use Agent rejection flow
+        const agentId = (toolCall as any).agentId;
+
+        // Update tool call status to rejected
+        coreUseChatStore.setState(state => ({
+            messages: state.messages.map(m =>
+                m.id === messageId ? {
+                    ...m,
+                    toolCalls: m.toolCalls?.map(tc =>
+                        tc.id === toolCallId ? { ...tc, status: 'rejected' as const } : tc
+                    )
+                } : m
+            )
+        }));
+
+        await useAgentStore.getState().approveAction(agentId, false);
+    } else {
+        // Regular tool call: use original flow
+        await originalRejectToolCall(messageId, toolCallId);
+    }
 
     // Refresh file tree after tool execution
     useFileStore.getState().refreshFileTree();
@@ -137,6 +203,7 @@ const rejectAllToolCalls = async (messageId: string) => {
 coreUseChatStore.setState({
     sendMessage: patchedSendMessage,
     approveToolCall: patchedApproveToolCall,
+    rejectToolCall: patchedRejectToolCall,
     // @ts-ignore - adding new methods to store
     approveAllToolCalls,
     // @ts-ignore - adding new methods to store

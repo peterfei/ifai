@@ -130,7 +130,8 @@ pub fn run() {
             commands::prompt_commands::update_prompt,
             commands::prompt_commands::render_prompt_template,
             commands::agent_commands::launch_agent,
-            commands::agent_commands::list_running_agents
+            commands::agent_commands::list_running_agents,
+            commands::agent_commands::approve_agent_action
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

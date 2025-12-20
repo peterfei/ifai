@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
 import { MonacoDiffView } from '../Editor/MonacoDiffView';
 import { getToolLabel, getToolColor } from 'ifainew-core';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface ToolApprovalProps {
     toolCall: ToolCall;
@@ -27,6 +28,7 @@ const PREVIEW_LINES = 8;
 
 export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProps) => {
     const { t } = useTranslation();
+    const settings = useSettingsStore();
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
     const [isLoadingOld, setIsLoadingOld] = useState(false);
@@ -234,8 +236,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                 )}
             </div>
 
-            {/* Approve/Reject Buttons - Hide when partial */}
-            {isPending && !isPartial && (
+            {/* Approve/Reject Buttons - Hide when partial or auto-approve is enabled */}
+            {isPending && !isPartial && !settings.agentAutoApprove && (
                 <div className="flex border-t border-gray-700">
                     <button
                         onClick={() => onApprove(toolCall.id)}
@@ -251,6 +253,15 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                         <X size={14} />
                         拒绝
                     </button>
+                </div>
+            )}
+
+            {/* Auto-approve indicator */}
+            {isPending && !isPartial && settings.agentAutoApprove && (
+                <div className="border-t border-gray-700 px-4 py-2 bg-blue-600/10">
+                    <p className="text-xs text-blue-400">
+                        ⚡ 自动批准已启用，工具调用将自动执行
+                    </p>
                 </div>
             )}
 

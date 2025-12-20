@@ -95,7 +95,11 @@
     "apiKey": "API Key",
     "baseUrl": "Base URL",
     "enableAutocomplete": "Enable Autocomplete",
-    "apiKeyFor": "{{providerName}} API Key"
+    "apiKeyFor": "{{providerName}} API Key",
+    "agent": "Agent",
+    "agentSettings": "Agent Settings",
+    "agentAutoApprove": "Auto-approve Tool Calls",
+    "agentAutoApproveDesc": "Automatically execute agent tool calls without manual approval"
   },
   "shortcuts": {
     "updatedSuccessfully": "Shortcut updated successfully",

@@ -91,7 +91,11 @@
     "apiKey": "API 密钥",
     "baseUrl": "基础 URL",
     "enableAutocomplete": "启用自动补全",
-    "apiKeyFor": "{{providerName}} 的 API 密钥"
+    "apiKeyFor": "{{providerName}} 的 API 密钥",
+    "agent": "智能体",
+    "agentSettings": "智能体设置",
+    "agentAutoApprove": "自动批准工具调用",
+    "agentAutoApproveDesc": "自动执行智能体的工具调用，无需手动批准"
   },
   "shortcuts": {
     "updatedSuccessfully": "快捷键更新成功",

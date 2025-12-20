@@ -30,6 +30,9 @@ export interface SettingsState {
   currentModel: string;
   enableAutocomplete: boolean;
 
+  // Agent
+  agentAutoApprove: boolean;
+
   // Actions
   setTheme: (theme: 'vs-dark' | 'light') => void;
   updateSettings: (settings: Partial<SettingsState>) => void;
@@ -99,6 +102,7 @@ export const useSettingsStore = create<SettingsState>()(
       currentProviderId: 'deepseek',
       currentModel: 'deepseek-chat',
       enableAutocomplete: true,
+      agentAutoApprove: false,
 
       setTheme: (theme) => set({ theme }),
       updateSettings: (settings) => set((state) => ({ ...state, ...settings })),
@@ -145,6 +149,7 @@ export const useSettingsStore = create<SettingsState>()(
         currentProviderId: state.currentProviderId,
         currentModel: state.currentModel,
         enableAutocomplete: state.enableAutocomplete,
+        agentAutoApprove: state.agentAutoApprove,
       }),
     }
   )

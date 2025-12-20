@@ -165,12 +165,38 @@ export const SettingsModal = () => {
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-600">
                   <span className="text-sm font-medium text-gray-300">{t('settings.enableAutocomplete')}</span>
-                  <input 
+                  <input
                     type="checkbox"
                     checked={settings.enableAutocomplete}
                     onChange={(e) => settings.updateSettings({ enableAutocomplete: e.target.checked })}
                     className="toggle"
                   />
+                </div>
+
+                {/* Agent Settings */}
+                <div className="border-t border-gray-600 pt-6 mt-6">
+                  <h3 className="text-sm font-bold text-gray-300 mb-4">
+                    {t('settings.agentSettings')}
+                  </h3>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-300">
+                        {t('settings.agentAutoApprove')}
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {t('settings.agentAutoApproveDesc')}
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={settings.agentAutoApprove || false}
+                      onChange={(e) => settings.updateSettings({
+                        agentAutoApprove: e.target.checked
+                      })}
+                      className="ml-4 h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
             )}
