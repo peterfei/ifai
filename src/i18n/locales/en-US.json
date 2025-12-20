@@ -14,15 +14,11 @@
   },
   "editor": {
     "welcome": "IfAI Editor",
-    "newFile": "New File",
-    "openFile": "Open File...",
-    "openFolder": "Open Folder...",
-    "toggleChat": "Toggle AI Chat",
     "shortcuts": {
       "showCommands": "Show All Commands",
       "goToFile": "Go to File",
       "findInFiles": "Find in Files",
-      "toggleChat": "Toggle AI Chat",
+      "toggleChat": "Toggle IfAI Chat",
       "inlineEdit": "Inline AI Edit",
       "addCursorAbove": "Add Cursor Above",
       "addCursorBelow": "Add Cursor Below",
@@ -30,13 +26,13 @@
       "selectAllOccurrences": "Select All Occurrences"
     },
     "contextMenu": {
-      "explain": "AI: Explain Code",
-      "refactor": "AI: Refactor Code"
+      "explain": "IfAI: Explain Code",
+      "refactor": "IfAI: Refactor Code"
     },
     "inlineWidget": {
-        "placeholder": "Edit with AI (e.g. 'Add comments')...",
-        "success": "Code updated by AI",
-        "error": "Failed to request AI"
+        "placeholder": "Edit with IfAI (e.g., 'add comments')...",
+        "success": "Code updated by IfAI",
+        "error": "Failed to request IfAI"
     },
     "splitPane": "Split Pane",
     "closePane": "Close Pane",
@@ -44,27 +40,22 @@
     "splitDown": "Split Down"
   },
   "chat": {
-    "title": "AI Assistant",
+    "title": "IfAI Chat",
     "settings": "Settings",
     "apiKeyLabel": "DeepSeek API Key",
     "autocompleteLabel": "AI Autocomplete",
-    "saveAndStart": "Save & Start Chatting",
+    "saveAndStart": "Save and Start",
     "placeholder": "Ask DeepSeek...",
-    "errorNoKey": "Please set DeepSeek API Key in the Chat panel first"
+    "errorNoKey": "Please set DeepSeek API Key in Chat Panel first"
   },
   "search": {
     "title": "Search",
     "placeholder": "Search",
-    "noResults": "No results found",
-    "openFolder": "Open a folder to search files"
+    "noResults": "No results",
+    "openFolder": "Please open a folder to search files"
   },
   "terminal": {
     "title": "Terminal"
-  },
-  "commandPalette": {
-    "placeholder": "Go to file, symbol, or run command...",
-    "noResults": "No results.",
-    "openFolder": "Open a folder to search files."
   },
   "common": {
     "untitled": "Untitled",
@@ -73,8 +64,13 @@
     "fileSaveFailed": "Failed to save file",
     "fileOpenFailed": "Failed to open file",
     "folderOpenFailed": "Failed to open folder",
-    "on": "On",
-    "off": "Off",
+    "emptyPane": "Empty Pane",
+    "newFile": "New File",
+    "openFile": "Open File...",
+    "openFolder": "Open Folder...",
+    "toggleChat": "Toggle IfAI Chat",
+    "on": "ON",
+    "off": "OFF",
     "rename": "Rename",
     "delete": "Delete",
     "confirmDeleteFile": "Delete {{fileName}}?",
@@ -95,14 +91,28 @@
     "apiKey": "API Key",
     "baseUrl": "Base URL",
     "enableAutocomplete": "Enable Autocomplete",
-    "apiKeyFor": "{{providerName}} API Key",
+    "apiKeyFor": "API Key for {{providerName}}",
     "agent": "Agent",
     "agentSettings": "Agent Settings",
     "agentAutoApprove": "Auto-approve Tool Calls",
     "agentAutoApproveDesc": "Automatically execute agent tool calls without manual approval"
   },
+  "agent_monitor_title": "Agent Monitor",
+  "agent_monitor_activeTasks": "{{count}} Active Tasks",
+  "agent_monitor_allTasksCompleted": "All Tasks Completed",
+  "agent_monitor_totalTasks": "{{count}} total",
+  "agent_monitor_clearDone": "Clear Done",
+  "agent_monitor_initializing": "Initializing task...",
+  "agent_monitor_stopRemove": "Stop/Remove Task",
+  "agent_status_idle": "Idle",
+  "agent_status_running": "Running",
+  "agent_status_waitingfortool": "Waiting for Approval",
+  "agent_status_stopped": "Stopped",
+  "agent_status_failed": "Failed",
+  "agent_status_completed": "Completed",
+  "agent_status_initializing": "Initializing",
   "shortcuts": {
-    "updatedSuccessfully": "Shortcut updated successfully",
+    "updatedSuccessfully": "Shortcuts updated successfully",
     "conflict": "Conflict: {{keys}} already assigned to {{command}}",
     "resetDefaults": "Reset to Defaults",
     "keyboardShortcuts": "Keyboard Shortcuts",
@@ -119,16 +129,16 @@
     "schemeChanged": "Scheme changed to {{scheme}}",
     "import": "Import",
     "export": "Export",
-    "importSuccess": "Keyboard shortcuts imported successfully",
-    "importError": "Failed to import shortcuts: invalid format",
-    "exportSuccess": "Keyboard shortcuts exported successfully"
+    "importSuccess": "Shortcuts imported successfully",
+    "importError": "Import failed: Invalid format",
+    "exportSuccess": "Shortcuts exported successfully"
   },
   "commands": {
     "title": "System Commands",
-    "explore": { "label": "Explore Agent", "description": "Deep codebase search & context gathering" },
-    "review": { "label": "Review Agent", "description": "Code review, security audit & best practices" },
-    "test": { "label": "Test Agent", "description": "Generate unit tests & integration scenarios" },
-    "doc": { "label": "Doc Agent", "description": "Generate documentation & comments" },
-    "refactor": { "label": "Refactor Agent", "description": "Code improvement & architectural changes" }
+    "explore": { "label": "Explore", "description": "Deep codebase search and analysis" },
+    "review": { "label": "Review", "description": "Review code quality and security" },
+    "test": { "label": "Test", "description": "Generate unit and integration tests" },
+    "doc": { "label": "Document", "description": "Write documentation and READMEs" },
+    "refactor": { "label": "Refactor", "description": "Suggest code improvements" }
   }
 }
