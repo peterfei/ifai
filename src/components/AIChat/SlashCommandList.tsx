@@ -16,7 +16,11 @@ interface Props {
   onClose: () => void;
 }
 
-export const SlashCommandList: React.FC<Props> = ({ filter, onSelect, onClose }) => {
+export interface SlashCommandListHandle {
+  handleKeyDown: (e: React.KeyboardEvent | KeyboardEvent) => boolean;
+}
+
+export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(({ filter, onSelect, onClose }, ref) => {
   const { t } = useTranslation();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -49,29 +53,33 @@ export const SlashCommandList: React.FC<Props> = ({ filter, onSelect, onClose })
     }
   }, [selectedIndex]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (filteredCommands.length === 0) return;
+  React.useImperativeHandle(ref, () => ({
+    handleKeyDown: (e: React.KeyboardEvent | KeyboardEvent) => {
+      if (filteredCommands.length === 0) return false;
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex(prev => (prev - 1 + filteredCommands.length) % filteredCommands.length);
+        return true;
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex(prev => (prev + 1) % filteredCommands.length);
+        return true;
       } else if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        e.stopPropagation();
-        onSelect(filteredCommands[selectedIndex].id);
+        if (filteredCommands[selectedIndex]) {
+          e.preventDefault();
+          e.stopPropagation();
+          onSelect(filteredCommands[selectedIndex].id);
+          return true;
+        }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
+        return true;
       }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [filteredCommands, selectedIndex, onSelect, onClose]);
+      return false;
+    }
+  }));
 
   if (filteredCommands.length === 0) return null;
 
@@ -100,7 +108,11 @@ export const SlashCommandList: React.FC<Props> = ({ filter, onSelect, onClose })
           >
             {/* Icon Box */}
             <div className={`flex items-center justify-center w-8 h-8 rounded-lg shadow-sm ${cmd.color} text-white`}>
-                {React.cloneElement(cmd.icon, { size: 16, strokeWidth: 2.5 } as any)}
+                {React.cloneElement(cmd.icon, { 
+                  // @ts-ignore
+                  size: 16, 
+                  strokeWidth: 2.5 
+                })}
             </div>
             
             {/* Content */}
@@ -129,4 +141,4 @@ export const SlashCommandList: React.FC<Props> = ({ filter, onSelect, onClose })
       </div>
     </div>
   );
-};
+});

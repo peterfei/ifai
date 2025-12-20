@@ -207,7 +207,11 @@ coreUseChatStore.setState({
     // @ts-ignore - adding new methods to store
     approveAllToolCalls,
     // @ts-ignore - adding new methods to store
-    rejectAllToolCalls
+    rejectAllToolCalls,
+    // @ts-ignore - adding history state
+    inputHistory: [],
+    // @ts-ignore
+    historyIndex: -1
 });
 
 // ----------------------------------

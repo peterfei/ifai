@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Settings } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
-import { useSettingsStore, AIProviderConfig } from '../../stores/settingsStore';
+import { useChatUIStore } from '../../stores/chatUIStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
 import { readFileContent } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import { MessageItem } from './MessageItem';
-import { SlashCommandList } from './SlashCommandList';
+import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 
 interface AIChatProps {
@@ -26,6 +27,13 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const approveToolCall = useChatStore(state => state.approveToolCall);
   const rejectToolCall = useChatStore(state => state.rejectToolCall);
   
+  // New Chat UI Store for history
+  const inputHistory = useChatUIStore(state => state.inputHistory);
+  const historyIndex = useChatUIStore(state => state.historyIndex);
+  const addToHistory = useChatUIStore(state => state.addToHistory);
+  const setHistoryIndex = useChatUIStore(state => state.setHistoryIndex);
+  const resetHistoryIndex = useChatUIStore(state => state.resetHistoryIndex);
+
   const providers = useSettingsStore(state => state.providers);
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
@@ -75,6 +83,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [showCommands, setShowCommands] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const commandListRef = useRef<SlashCommandListHandle>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,6 +99,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const handleSend = async () => {
     if (!input.trim() || !isProviderConfigured) return;
     const msg = input;
+    
+    addToHistory(msg);
     setInput('');
     setShowCommands(false);
     await sendMessage(msg, currentProviderId, currentModel);
@@ -98,6 +109,14 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInput(val);
+    
+    // Only reset history if the change came from user typing/pasting, 
+    // not from our setInput call during history navigation.
+    const isUserTyping = (e.nativeEvent as any).inputType !== undefined;
+    if (isUserTyping && historyIndex !== -1) {
+      resetHistoryIndex();
+    }
+    
     // Show commands if input starts with / and doesn't have spaces yet (or is just /)
     setShowCommands(val.startsWith('/') && !val.includes(' '));
   };
@@ -105,12 +124,14 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const handleSelectCommand = (cmd: string) => {
       setInput(cmd + ' ');
       setShowCommands(false);
+      resetHistoryIndex();
       inputRef.current?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (showCommands && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter')) {
-        return;
+    if (showCommands && commandListRef.current) {
+      const handled = commandListRef.current.handleKeyDown(e);
+      if (handled) return;
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -118,6 +139,25 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       handleSend();
     } else if (e.key === 'Escape' && showCommands) {
         setShowCommands(false);
+    } else if (e.key === 'ArrowUp' && !showCommands) {
+        // Navigation through history
+        if (inputHistory.length > 0) {
+          const nextIndex = Math.min(historyIndex + 1, inputHistory.length - 1);
+          // Always allow Up to update if there's history, even if index doesn't change 
+          // (it might have been cleared or we want to re-fill current input)
+          e.preventDefault();
+          setHistoryIndex(nextIndex);
+          setInput(inputHistory[nextIndex]);
+        }
+    } else if (e.key === 'ArrowDown' && !showCommands && historyIndex !== -1) {
+        e.preventDefault();
+        const nextIndex = historyIndex - 1;
+        setHistoryIndex(nextIndex);
+        if (nextIndex === -1) {
+          setInput('');
+        } else {
+          setInput(inputHistory[nextIndex]);
+        }
     }
   };
 
@@ -232,6 +272,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       <div className="border-t border-gray-700 p-3 bg-[#252526] flex items-center relative">
         {showCommands && (
             <SlashCommandList 
+                ref={commandListRef}
                 filter={input} 
                 onSelect={handleSelectCommand}
                 onClose={() => setShowCommands(false)}

@@ -22,39 +22,42 @@
 
 ### 📈 Project Status
 
-- **🎉 v0.2.0 Major Update** - Dec 20, 2025 (Interactivity Breakthrough)
+- **🎉 v0.2.0 Major Update** - Dec 20, 2025 (Interactivity & Performance Milestone)
 - **🎉 v0.1.2 Stable** - Dec 19, 2025
+- **⚡ Rendering** - 120 FPS High Frame Rate + GPU Acceleration
 - **🌊 Interaction** - Claude-style progressive streaming
-- **⚡ Startup Time** - < 1.5s (25% faster)
 - **💾 Memory Usage** - ~80MB (20% lower than v0.1.0)
 
 <img src="imgs/ifai.gif" alt="IfAI Demo" width="600" height="auto"/>
 
 ---
 
-## ✨ v0.2.0 Interaction Revolution - Smooth like Claude Code
+## ✨ v0.2.0 Interaction & Performance Revolution
 
 ### 🌊 Claude-style Streaming System
-- **Typewriter Effect** - AI tool operations (like file writing) are no longer instant jumps, but appear with a **typewriter-like** line-by-line generation, allowing you to observe code as it's born.
-- **Progressive Parsing** - The Rust backend now features **heuristic JSON parsing**, extracting arguments from incomplete AI responses for real-time UI updates.
-- **Streaming Cursor Feedback** - Added a dynamic **pulsing cursor** to tool previews, providing excellent real-time visual confirmation and psychological feedback.
+- **Typewriter Effect** - AI tool operations present a smooth line-by-line generation effect.
+- **Progressive Parsing** - The Rust backend features heuristic parsing, extracting code content before the response ends.
+- **Streaming Cursor Feedback** - Added a dynamic pulsing cursor to tool previews for real-time visual confirmation.
+
+### 🚀 GPU Hardware Acceleration Pipeline
+- **120 FPS Support** - Optimized rendering for high-refresh-rate monitors, ensuring ultra-smooth scrolls and animations.
+- **Zero-Lag Generation** - 150ms rendering throttling and dynamic scaling eliminate editor lag during AI generation.
+- **Performance Monitor** - Toggle a real-time FPS panel with `Mod+Alt+p`.
+
+### ⌨️ Advanced UX & Keyboard Navigation
+- **Persistent Command History** - Call back your previous prompts with the **Up Arrow**, even after restarting the app. Experience terminal-like input efficiency.
+- **Seamless Global Control** - Re-engineered keyboard logic for Slash Commands and Project Search, supporting smooth up/down navigation and instant selection.
+- **Intelligent Indexing** - Precisely distinguishes between manual edits and history refills, ensuring continuous interaction remains intuitive.
 
 ### 🛡️ Smart Agent Monitor
-- **Drag & Snap** - The monitor widget is no longer static. You can drag it anywhere, and it **intelligently snaps** to the nearest screen corner.
-- **Adaptive Layout** - The panel automatically adjusts its expansion direction based on its snap position (expands up when at bottom, down when at top).
-- **Personalized Editor Settings** - Sync your favorite **VS Code preferences**:
-  - Support for **Fira Code** with **Font Ligatures**.
-  - **Smooth Caret Animation** and **Smooth Scrolling** for a premium feel.
-  - **Bracket Pair Colorization** and customizable whitespace rendering.
-- **Full Internationalization** - Task status, real-time logs, and initialization prompts fully support EN/CN switching.
+- **Drag & Snap** - The monitor widget can be dragged anywhere and intelligently snaps to corners.
+- **Adaptive Layout** - The panel automatically adjusts its expansion direction based on its snap position.
+- **Full Internationalization** - Task status and real-time logs fully support EN/CN switching.
 
 ### 📐 Intelligent Rendering Logic
-- **Summary at Bottom** - Re-engineered the rendering engine so tool boxes (like file writes) stay on top, while the final AI **Summary** naturally lands at the bottom of the message.
-- **Pure UI Upgrade** - Removed redundant titles from the chat panel header, using a minimalist logo to maximize space for code communication.
+- **Summary at Bottom** - Re-engineered the engine so tool boxes stay on top, while the AI **Summary** naturally lands at the bottom.
+- **Pure UI Upgrade** - Minimalist logo design to maximize space for code communication.
 
----
-
-## ✨ Features
 
 ### 🎨 Modern Editor
 
