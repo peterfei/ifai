@@ -19,6 +19,7 @@ use agent_system::Supervisor;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
+    println!(">>> RUST GREET CALLED WITH: {}", name);
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
@@ -32,6 +33,8 @@ async fn ai_chat(
     enable_tools: Option<bool>,
     project_root: Option<String>,
 ) -> Result<(), String> {
+    println!("[AI Chat] Entry - project_root: {:?}, event_id: {}", project_root, event_id);
+
     if let Some(root) = project_root {
         let root_clone = root.clone();
         let provider_clone = provider_config.clone();
@@ -39,11 +42,26 @@ async fn ai_chat(
         // 1. Detect @codebase query
         let mut codebase_query = None;
         if let Some(last_msg) = messages.iter().filter(|m| m.role == "user").last() {
-            if let ifainew_core::ai::Content::Text(text) = &last_msg.content {
+            // Extract text from either Content::Text or Content::Parts
+            let text_content = match &last_msg.content {
+                ifainew_core::ai::Content::Text(text) => Some(text.clone()),
+                ifainew_core::ai::Content::Parts(parts) => {
+                    let combined_text = parts.iter()
+                        .filter_map(|p| match p {
+                            ifainew_core::ai::ContentPart::Text { text, .. } => Some(text.clone()),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    Some(combined_text)
+                }
+            };
+
+            if let Some(text) = text_content {
                 let lower_text = text.to_lowercase();
                 if lower_text.contains("@codebase") {
                     if let Ok(re) = regex::Regex::new("(?i)@codebase") {
-                        let temp = re.replace_all(text, "").to_string();
+                        let temp = re.replace_all(&text, "").to_string();
                         let final_query = temp.trim().to_string();
                         codebase_query = Some(if final_query.is_empty() { "overview of the project structure and main logic".to_string() } else { final_query });
                     }
@@ -54,8 +72,8 @@ async fn ai_chat(
         // 2. Parallel Tasks: RAG Context Building & Auto Summarization
         let app_handle = app.clone();
         let rag_state = state.clone();
-        let root_for_rag = root_clone.clone();
-        let event_id_for_rag = event_id.clone(); // Clone for rag_task
+        let root_for_rag = root.clone();
+        let event_id_for_rag = event_id.clone();
         
         // Clone messages for summarization to avoid move
         let mut messages_for_summarize = messages.clone();

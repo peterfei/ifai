@@ -27,6 +27,7 @@ const originalApproveToolCall = coreUseChatStore.getState().approveToolCall;
 const originalRejectToolCall = coreUseChatStore.getState().rejectToolCall;
 
 const patchedSendMessage = async (content: string | any[], providerId: string, modelName: string) => {
+    console.log(">>> patchedSendMessage called with:", content);
     // Slash Command Interception
     let textInput = "";
     if (typeof content === 'string') {

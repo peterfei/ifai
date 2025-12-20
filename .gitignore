@@ -40,6 +40,6 @@ CURSOR_ARCHITECTURE_ANALYSIS.md
 CLAUDE.md
 AGENTS.md
 .claude/*
-#openspec/*
+openspec/*
 RELEASE_NOTE_MEDIA.md
 RELEASE_NOTE_TECH.md
