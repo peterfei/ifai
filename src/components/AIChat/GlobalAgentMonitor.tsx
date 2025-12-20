@@ -35,6 +35,88 @@ export const GlobalAgentMonitor: React.FC = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
+  // Position and Dragging State
+  const [position, setPosition] = useState({ x: window.innerWidth - 420, y: window.innerHeight - 80 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const mouseStartPos = useRef({ x: 0, y: 0 });
+  const dragStartTime = useRef(0);
+
+  // Snapping Logic
+  const snapToCorner = (x: number, y: number) => {
+    const margin = 24;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const fabWidth = 160; // Approximate width of the FAB
+    
+    // Nearest horizontal edge - ensures it stays on screen but at the edge
+    const nx = x < screenW / 2 ? margin : screenW - fabWidth - margin;
+    // Nearest vertical edge
+    const ny = y < screenH / 2 ? margin : screenH - 64 - margin;
+    
+    return { x: nx, y: ny };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    dragStartTime.current = Date.now();
+    mouseStartPos.current = { x: e.clientX, y: e.clientY };
+    dragStartPos.current = { x: position.x, y: position.y };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const dx = e.clientX - mouseStartPos.current.x;
+      const dy = e.clientY - mouseStartPos.current.y;
+      
+      setPosition({
+        x: dragStartPos.current.x + dx,
+        y: dragStartPos.current.y + dy
+      });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      setIsDragging(false);
+      
+      // Determine if it was a click or a drag (less than 5px movement and short time)
+      const dx = Math.abs(e.clientX - mouseStartPos.current.x);
+      const dy = Math.abs(e.clientY - mouseStartPos.current.y);
+      const dt = Date.now() - dragStartTime.current;
+      
+      if (dx < 5 && dy < 5 && dt < 200) {
+        setIsMinimized(prev => !prev);
+      } else {
+        // Snap to corner
+        const snapped = snapToCorner(position.x, position.y);
+        setPosition(snapped);
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, position]);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+        setPosition(prev => snapToCorner(prev.x, prev.y));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Auto-expand latest agent if list was empty
   const prevCount = useRef(0);
   useEffect(() => {
@@ -59,12 +141,27 @@ export const GlobalAgentMonitor: React.FC = () => {
 
   const activeCount = runningAgents.filter(a => a.status !== 'completed' && a.status !== 'failed').length;
 
+  // Determine alignment based on screen position
+  const isAtBottom = position.y > window.innerHeight - 150;
+  const isAtRight = position.x > window.innerWidth / 2;
+
+  const margin = 24;
+
   return createPortal(
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-2 font-sans">
+    <div 
+        className={`fixed z-[9999] flex flex-col gap-2 font-sans transition-all duration-300 ease-out ${isDragging ? 'transition-none opacity-80 scale-95' : ''}`}
+        style={{ 
+            left: isAtRight && !isDragging ? 'auto' : position.x,
+            right: isAtRight && !isDragging ? margin : 'auto',
+            top: isAtBottom && !isMinimized ? 'auto' : position.y,
+            bottom: isAtBottom && !isMinimized ? window.innerHeight - position.y - 48 : 'auto',
+            alignItems: isAtRight ? 'flex-end' : 'flex-start'
+        }}
+    >
         {/* Main Floating Action Button / Status Indicator */}
         <div 
-            className="flex items-center gap-3 bg-[#1e1e1e] border border-[#333] shadow-2xl rounded-lg p-2 pr-4 cursor-pointer hover:border-[#444] transition-all group select-none"
-            onClick={() => setIsMinimized(!isMinimized)}
+            className="flex items-center gap-3 bg-[#1e1e1e] border border-[#333] shadow-2xl rounded-lg p-2 pr-4 cursor-move hover:border-[#444] transition-all group select-none"
+            onMouseDown={handleMouseDown}
         >
             <div className={`p-2 rounded-md transition-colors ${activeCount > 0 ? 'bg-blue-600' : 'bg-green-600'}`}>
                 {activeCount > 0 ? <Loader2 size={18} className="text-white animate-spin" /> : <Terminal size={18} className="text-white" />}
@@ -84,7 +181,14 @@ export const GlobalAgentMonitor: React.FC = () => {
 
         {/* Task List Panel */}
         {!isMinimized && (
-            <div className="w-96 bg-[#1e1e1e] border border-[#333] rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-2 duration-200 flex flex-col max-h-[600px]">
+            <div 
+                className={`w-96 bg-[#1e1e1e] border border-[#333] rounded-xl shadow-2xl overflow-hidden animate-in duration-200 flex flex-col max-h-[600px] ${
+                    isAtBottom ? 'slide-in-from-bottom-2 mb-2' : 'slide-in-from-top-2 mt-2'
+                }`}
+                style={{ 
+                    order: isAtBottom ? -1 : 1 
+                }}
+            >
                 {/* Header */}
                 <div className="flex justify-between items-center p-3 border-b border-[#333] bg-[#252526] select-none">
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('agent_monitor_title')}</span>
