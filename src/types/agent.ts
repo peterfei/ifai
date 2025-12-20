@@ -1,10 +1,12 @@
-export type AgentStatus = 'idle' | 'running' | 'waitingfortool' | 'stopped' | 'failed' | 'completed';
+export type AgentStatus = 'idle' | 'running' | 'waitingfortool' | 'stopped' | 'failed' | 'completed' | 'initializing';
 
 export type AgentEventType = 
   | 'thinking'     // Analysis, reasoning, explanations
   | 'tool_call'    // Requesting to use a tool
   | 'tool_result'  // Result of a tool execution
   | 'result'       // Final task result
+  | 'status'       // Status updates
+  | 'log'          // Activity logs
   | 'error';       // Error during execution
 
 export interface Agent {
@@ -16,6 +18,7 @@ export interface Agent {
   logs: string[];
   content?: string; // The accumulated "thinking" content
   expiresAt?: number;
+  startTime?: number;
   pendingApproval?: {
     tool: string;
     path: string;

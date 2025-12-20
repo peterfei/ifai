@@ -90,7 +90,8 @@ pub async fn run_agent_task(
     while loop_count < MAX_LOOPS {
         loop_count += 1;
         let _ = app.emit("agent:status", json!({ "id": id, "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
-        let _ = app.emit("agent:log", json!({ "id": id, "message": "Thinking..." }));
+        let _ = app.emit(&event_id, json!({ "type": "status", "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
+        let _ = app.emit(&event_id, json!({ "type": "log", "message": "Thinking..." }));
 
         match ai_utils::agent_stream_chat(&app, &context.provider_config, history.clone(), &id, Some(tools.clone())).await {
             Ok(ai_message) => {
@@ -108,7 +109,7 @@ pub async fn run_agent_task(
                         let tool_name = &tool_call.function.name;
                         let args_res: Result<Value, _> = serde_json::from_str(&tool_call.function.arguments);
                         
-                        let _ = app.emit("agent:log", json!({ "id": id, "message": format!("Processing tool: {}", tool_name) }));
+                        let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("Processing tool: {}", tool_name) }));
 
                         let (tool_result, _success) = match args_res {
                             Ok(args) => {
@@ -124,8 +125,19 @@ pub async fn run_agent_task(
                                 }));
                                 
                                 let _ = supervisor.update_status(&id, AgentStatus::WaitingForTool).await;
+                                // Send waitingfortool status event to frontend
+                                let _ = app.emit("agent:status", json!({ "id": id.clone(), "status": "waitingfortool" }));
+                                let _ = app.emit(&event_id, json!({ "type": "status", "status": "waitingfortool" }));
+
                                 let approved = supervisor.wait_for_approval(id.clone()).await;
-                                let _ = supervisor.update_status(&id, AgentStatus::Running).await;
+                                
+                                if approved {
+                                    let _ = app.emit("agent:status", json!({ "id": id, "status": "running" }));
+                                    let _ = app.emit(&event_id, json!({ "type": "status", "status": "running" }));
+                                    let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("🚀 Executing {}...", tool_name) }));
+                                }
+
+                                let _ = supervisor.update_status(&id, if approved { AgentStatus::Running } else { AgentStatus::Stopped }).await;
 
                                 if !approved {
                                     ("User rejected the operation.".to_string(), false)
@@ -176,6 +188,7 @@ pub async fn run_agent_task(
 
     let _ = supervisor.update_status(&id, AgentStatus::Completed).await;
     let _ = app.emit("agent:status", json!({ "id": id, "status": "completed", "progress": 1.0 }));
+    let _ = app.emit(&event_id, json!({ "type": "status", "status": "completed", "progress": 1.0 }));
 
     // Send final result through unified stream
     let _ = app.emit(&event_id, json!({

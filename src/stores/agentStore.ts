@@ -5,16 +5,17 @@ import { Agent, AgentEventPayload } from '../types/agent';
 import { useFileStore } from './fileStore';
 import { useSettingsStore } from './settingsStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
+import { v4 as uuidv4 } from 'uuid';
 
 interface AgentState {
   runningAgents: Agent[];
   activeListeners: Record<string, UnlistenFn>;
   agentToMessageMap: Record<string, string>;
-  pendingStatusUpdates: Record<string, { status: string, progress: number }>; // Buffer for early events
   launchAgent: (agentType: string, task: string, chatMsgId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;
   approveAction: (id: string, approved: boolean) => Promise<void>;
+  clearCompletedAgents: () => void;
 }
 
 function unescapeToolArguments(args: any): any {
@@ -24,18 +25,16 @@ function unescapeToolArguments(args: any): any {
     return args;
 }
 
-// Remove module-level lock to ensure fresh listeners on every mount (React Strict Mode compatible)
-// let initListenerPromise: Promise<() => void> | null = null; 
-
 export const useAgentStore = create<AgentState>((set, get) => ({
   runningAgents: [],
   activeListeners: {},
   agentToMessageMap: {},
-  pendingStatusUpdates: {},
   
-  // ... (keep launchAgent and removeAgent as is) ...
   launchAgent: async (agentType: string, task: string, chatMsgId?: string) => {
-    // ... (same as before) ...
+    // 1. Pre-generate ID
+    const id = uuidv4();
+    const eventId = `agent_${id}`;
+    
     const projectRoot = useFileStore.getState().rootPath;
     if (!projectRoot) throw new Error("No project root available");
 
@@ -43,58 +42,54 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
     if (!providerConfig) throw new Error("No AI provider configured");
 
-    const id = await invoke<string>('launch_agent', {
-        agentType,
-        task,
-        projectRoot,
-        providerConfig
-    });
-
+    // 2. Setup message mapping if needed
     if (chatMsgId) {
         set(state => ({ agentToMessageMap: { ...state.agentToMessageMap, [id]: chatMsgId } }));
     }
 
-    // Check for buffered status updates (race condition fix)
-    const pendingUpdate = get().pendingStatusUpdates[id];
-    
-    const newAgent: Agent = {
-        id,
-        name: `${agentType} Task`,
-        type: agentType,
-        status: pendingUpdate ? pendingUpdate.status : 'idle',
-        progress: pendingUpdate ? pendingUpdate.progress : 0,
-        logs: [],
-        content: ""
-    };
-
-    set(state => {
-        // Clear consumed pending update
-        const { [id]: _, ...remainingUpdates } = state.pendingStatusUpdates;
-        return { 
-            runningAgents: [newAgent, ...state.runningAgents],
-            pendingStatusUpdates: remainingUpdates
-        };
-    });
-
-    const eventId = `agent_${id}`;
+    // 3. Setup Listener FIRST - This is critical for industrial grade reliability
+    // We register the listener BEFORE calling the backend to catch the very first event.
     let thinkingBuffer = "";
     let lastFlush = 0;
-    
-    // ... (rest of launchAgent logic) ...
 
     const unlisten = await listen<AgentEventPayload>(eventId, (event) => {
         const payload = event.payload;
         if (!payload || typeof payload !== 'object') return;
 
+        console.log(`[AgentStore] Scoped event for ${id}:`, payload.type, payload);
+
         const chatState = coreUseChatStore.getState();
         const msgId = get().agentToMessageMap[id];
-        if (!msgId) {
-            console.error(`[AgentStore] No message ID mapping for agent ${id}! This will cause events to be ignored.`);
-            return;
-        }
-        console.log(`[AgentStore] Received event for agent ${id}, type: ${payload.type}`);
 
-        if (payload.type === 'thinking' || (payload as any).type === 'content') {
+        if (!msgId && payload.type === 'tool_call') {
+            console.warn(`[AgentStore] No msgId found for agent ${id} - cannot process tool calls`);
+        }
+        
+        // --- Status Update ---
+        if (payload.type === 'status' && (payload as any).status) {
+            const { status, progress } = (payload as any);
+            set(state => ({
+                runningAgents: state.runningAgents.map(a => 
+                    a.id === id ? { ...a, status: status as any, progress } : a
+                )
+            }));
+        }
+        // --- Log Update ---
+        else if (payload.type === 'log' && (payload as any).message) {
+            const message = (payload as any).message;
+            set(state => ({
+                runningAgents: state.runningAgents.map(a => {
+                    if (a.id !== id) return a;
+                    const newLogs = [...a.logs, message].slice(-100);
+                    // Defensive status fix: if we get logs, the agent is definitely active.
+                    // Only fix initializing and idle states, preserve waitingfortool (valid state)
+                    const needsStatusFix = a.status === 'initializing' || a.status === 'idle';
+                    return { ...a, logs: newLogs, status: needsStatusFix ? 'running' : a.status };
+                })
+            }));
+        }
+        // --- Content Streaming ---
+        else if (payload.type === 'thinking' || (payload as any).type === 'content') {
             const chunk = (payload.content || (payload as any).content) || "";
             thinkingBuffer += chunk;
 
@@ -110,44 +105,119 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 lastFlush = now;
             }
         } 
+        // --- Tool Calls ---
         else if (payload.type === 'tool_call') {
             const toolCall = payload.toolCall;
-            if (!toolCall) return;
+            if (toolCall && msgId) {
+                const liveToolCall = {
+                    id: toolCall.id,
+                    tool: toolCall.tool,
+                    args: unescapeToolArguments(toolCall.args),
+                    status: 'pending' as const,
+                    agentId: id  // Mark this tool call as coming from an Agent
+                };
 
-            const liveToolCall = {
-                id: toolCall.id,
-                tool: toolCall.tool,
-                args: unescapeToolArguments(toolCall.args),
-                status: 'pending' as const
-            };
+                // Check if this is a new tool call
+                let isNewToolCall = false;
+                const updatedMessages = chatState.messages.map(m => {
+                    if (m.id === msgId) {
+                        const existing = m.toolCalls || [];
+                        const isDuplicate = existing.some(tc =>
+                            tc.id === liveToolCall.id ||
+                            (tc.tool === liveToolCall.tool && JSON.stringify(tc.args) === JSON.stringify(liveToolCall.args))
+                        );
+                        if (!isDuplicate) {
+                            isNewToolCall = true;
+                            return { ...m, toolCalls: [...existing, liveToolCall] };
+                        }
+                    }
+                    return m;
+                });
 
-            const updatedMessages = chatState.messages.map(m => {
-                if (m.id === msgId) {
-                    const existing = m.toolCalls || [];
-                    const isDuplicate = existing.some(tc => 
-                        tc.id === liveToolCall.id || 
-                        (tc.tool === liveToolCall.tool && JSON.stringify(tc.args) === JSON.stringify(liveToolCall.args))
-                    );
+                // Only update state and trigger auto-approve if this is a new tool call
+                if (isNewToolCall) {
+                    coreUseChatStore.setState({ messages: updatedMessages });
 
-                    if (!isDuplicate) {
-                        return { ...m, toolCalls: [...existing, liveToolCall] };
+                    // Check auto-approve setting
+                    const settings = useSettingsStore.getState();
+                    console.log(`[AgentStore] Tool call ${toolCall.id} (${toolCall.tool}) - Auto-approve: ${settings.agentAutoApprove}`);
+
+                    if (settings.agentAutoApprove) {
+                        // Auto-approve: immediately call approval logic
+                        // Use setTimeout to ensure state is updated before executing
+                        setTimeout(async () => {
+                            console.log(`[AgentStore] Auto-approving tool call ${toolCall.id} for agent ${id}`);
+                            const approveToolCall = coreUseChatStore.getState().approveToolCall;
+                            if (approveToolCall) {
+                                try {
+                                    await approveToolCall(msgId, toolCall.id);
+                                    console.log(`[AgentStore] Auto-approve succeeded for ${toolCall.id}`);
+                                } catch (error) {
+                                    console.error(`[AgentStore] Auto-approve failed for ${toolCall.id}:`, error);
+                                }
+                            } else {
+                                console.warn(`[AgentStore] approveToolCall function not available`);
+                            }
+                        }, 200);
                     }
                 }
-                return m;
-            });
-
-            coreUseChatStore.setState({ messages: updatedMessages });
+            }
         }
+        // --- Final Result ---
         else if (payload.type === 'result') {
             const result = payload.result || "";
-            chatState.updateMessageContent(msgId, result);
+            if (msgId) chatState.updateMessageContent(msgId, result);
+            set(state => ({
+                runningAgents: state.runningAgents.map(a => 
+                    a.id === id ? { ...a, status: 'completed', progress: 1.0, expiresAt: Date.now() + 60000 } : a
+                )
+            }));
         }
+        // --- Error ---
         else if (payload.type === 'error') {
-            chatState.updateMessageContent(msgId, `❌ Agent Error: ${payload.error}`);
+            if (msgId) chatState.updateMessageContent(msgId, `❌ Agent Error: ${payload.error}`);
+            set(state => ({
+                runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: 'failed' } : a)
+            }));
         }
     });
 
+    // Store listener cleanup
     set(state => ({ activeListeners: { ...state.activeListeners, [id]: unlisten } }));
+
+    // 4. Create Agent entry in Store
+    const newAgent: Agent = {
+        id,
+        name: `${agentType} Task`,
+        type: agentType,
+        status: 'initializing', 
+        progress: 0,
+        logs: [`🚀 Task registered...`],
+        content: "",
+        startTime: Date.now()
+    };
+    set(state => ({ runningAgents: [newAgent, ...state.runningAgents] }));
+
+    // 5. Invoke Backend FINALLY
+    // By now, the listener is active and the agent entry exists in state.
+    try {
+        await invoke('launch_agent', {
+            id,
+            agentType,
+            task,
+            projectRoot,
+            providerConfig
+        });
+    } catch (error) {
+        console.error("Failed to launch agent:", error);
+        set(state => ({
+            runningAgents: state.runningAgents.map(a => 
+                a.id === id ? { ...a, status: 'failed', logs: [...a.logs, `❌ Launch failed: ${error}`] } : a
+            )
+        }));
+        if (unlisten) unlisten();
+    }
+
     return id;
   },
 
@@ -174,85 +244,37 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       });
   },
 
+  clearCompletedAgents: () => {
+      set(state => {
+          const running = [];
+          const completed = [];
+          state.runningAgents.forEach(a => {
+              if (a.status === 'completed' || a.status === 'failed') completed.push(a);
+              else running.push(a);
+          });
+          completed.forEach(a => { if (state.activeListeners[a.id]) state.activeListeners[a.id](); });
+          const newListeners = { ...state.activeListeners };
+          completed.forEach(a => delete newListeners[a.id]);
+          return { runningAgents: running, activeListeners: newListeners };
+      });
+  },
+
   initEventListeners: async () => {
-      console.log('[AgentStore] 🎯 Starting global event listeners initialization...');
-      
+      console.log('[AgentStore] 🎯 Global event listeners initialized');
       const unlisteners: UnlistenFn[] = [];
 
+      // We still keep global status listener as a fallback or for other UI parts
       const unlistenStatus = await listen('agent:status', (event: any) => {
         const { id, status, progress } = event.payload;
-        console.log('[AgentStore] 📊 agent:status event:', { id, status, progress });
-        
         useAgentStore.setState(state => {
             const agent = state.runningAgents.find(a => a.id === id);
-            if (agent) {
-                if (agent.status === status && agent.progress === progress) return state;
-                return {
-                    runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status, progress } : a)
-                };
-            } else {
-                console.log(`[AgentStore] Buffering status for unknown agent ${id}: ${status}`);
-                return {
-                    pendingStatusUpdates: {
-                        ...state.pendingStatusUpdates,
-                        [id]: { status, progress }
-                    }
-                };
+            if (agent && (agent.status !== status || agent.progress !== progress)) {
+                return { runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: status as any, progress } : a) };
             }
+            return state;
         });
       });
       unlisteners.push(unlistenStatus);
-
-      const unlistenLog = await listen('agent:log', (event: any) => {
-        const { id, message } = event.payload;
-        useAgentStore.setState(state => {
-            const agent = state.runningAgents.find(a => a.id === id);
-            if (!agent) return state;
-
-            const needsStatusFix = agent.status === 'idle';
-            if (!needsStatusFix && agent.logs[agent.logs.length - 1] === message) return state;
-
-            return {
-                runningAgents: state.runningAgents.map(a => a.id === id ? { 
-                    ...a, 
-                    logs: [...a.logs, message],
-                    status: needsStatusFix ? 'running' : a.status 
-                } : a)
-            };
-        });
-      });
-      unlisteners.push(unlistenLog);
-
-      const unlistenApproval = await listen('agent:approval_required', (event: any) => {
-          const { id, tool, path, content } = event.payload;
-          useAgentStore.setState(state => ({
-              runningAgents: state.runningAgents.map(a => 
-                a.id === id ? { ...a, status: 'waitingfortool', pendingApproval: { tool, path, content } } : a
-              )
-          }));
-      });
-      unlisteners.push(unlistenApproval);
-
-      const unlistenResult = await listen('agent:result', (event: any) => {
-        console.log('[AgentStore] 🎉 agent:result event RECEIVED!', event);
-        const { id, output } = event.payload;
-        
-        useAgentStore.setState(state => ({
-            runningAgents: state.runningAgents.map(a =>
-                a.id === id ? { ...a, status: 'completed', progress: 1.0, expiresAt: Date.now() + 10000 } : a)
-        }));
-
-        setTimeout(() => {
-            const agent = useAgentStore.getState().runningAgents.find(a => a.id === id);
-            if (agent) {
-                console.log('[AgentStore] 🗑️ Auto-closing agent:', id);
-                useAgentStore.getState().removeAgent(id);
-            }
-        }, 10000);
-      });
-      unlisteners.push(unlistenResult);
-
-      console.log('[AgentStore] ✅ All global event listeners initialized!');
 
       return () => {
           console.log('[AgentStore] 🛑 Cleaning up global event listeners...');

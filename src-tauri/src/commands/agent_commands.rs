@@ -15,12 +15,14 @@ pub struct AgentInfo {
 pub async fn launch_agent(
     app: tauri::AppHandle,
     supervisor: State<'_, Supervisor>,
+    id: String,
     agent_type: String,
     task: String,
     project_root: String,
     provider_config: ifainew_core::ai::AIProviderConfig,
 ) -> Result<String, String> {
-    let id = Uuid::new_v4().to_string();
+    // ID is now provided by frontend to prevent race conditions
+    // let id = Uuid::new_v4().to_string(); 
     
     // 1. Register the agent
     supervisor.register_agent(id.clone(), agent_type.clone()).await;
@@ -58,4 +60,14 @@ pub async fn list_running_agents(
         agent_type,
         status
     }).collect())
+}
+
+#[tauri::command]
+pub async fn approve_agent_action(
+    supervisor: State<'_, Supervisor>,
+    id: String,
+    approved: bool,
+) -> Result<(), String> {
+    supervisor.notify_approval(&id, approved).await;
+    Ok(())
 }
