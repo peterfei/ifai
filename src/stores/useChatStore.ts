@@ -92,7 +92,28 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     // Set up a one-time listener for references before sending
     const { listen } = await import('@tauri-apps/api/event');
-    const unlisten = await listen<string[]>("codebase-references", (event) => {
+    
+    // Listen for Status Updates (e.g. "Indexing...")
+    const eventId = crypto.randomUUID(); // We need to pass this or use a consistent one
+    const unlistenStatus = await listen<string>(`${eventId}_status`, (event) => {
+        const { messages, setMessages } = coreUseChatStore.getState();
+        // Find the current assistant message (the last one)
+        const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+        if (lastAssistantMsg) {
+            // Prepend status message or handle as needed
+            // For now, let's just log it or we could append to content
+            console.log(`[Chat] Status update: ${event.payload}`);
+            // If the content is empty, show the status as a placeholder
+            if (!lastAssistantMsg.content) {
+                const updatedMessages = messages.map(m => 
+                    m.id === lastAssistantMsg.id ? { ...m, content: `_(${event.payload})_ \n\n` } : m
+                );
+                coreUseChatStore.setState({ messages: updatedMessages });
+            }
+        }
+    });
+
+    const unlistenRefs = await listen<string[]>("codebase-references", (event) => {
         // Find the last user message and attach references
         const messages = coreUseChatStore.getState().messages;
         const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');

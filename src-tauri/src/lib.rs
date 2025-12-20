@@ -32,21 +32,18 @@ async fn ai_chat(
     enable_tools: Option<bool>,
     project_root: Option<String>,
 ) -> Result<(), String> {
-    // =============================================================================
-    // RAG & @codebase Explicit Handling
-    // =============================================================================
-    if let Some(root) = &project_root {
-        // Find the last user message to check for @codebase
+    if let Some(root) = project_root {
+        let root_clone = root.clone();
+        let provider_clone = provider_config.clone();
+        
+        // 1. Detect @codebase query
         let mut codebase_query = None;
         if let Some(last_msg) = messages.iter().filter(|m| m.role == "user").last() {
             if let ifainew_core::ai::Content::Text(text) = &last_msg.content {
                 let lower_text = text.to_lowercase();
                 if lower_text.contains("@codebase") {
-                    // Extract query by stripping @codebase (case-insensitive)
-                    let clean_query = text.to_string();
-                    // Use regex for robust replacement
                     if let Ok(re) = regex::Regex::new("(?i)@codebase") {
-                        let temp = re.replace_all(&clean_query, "").to_string();
+                        let temp = re.replace_all(text, "").to_string();
                         let final_query = temp.trim().to_string();
                         codebase_query = Some(if final_query.is_empty() { "overview of the project structure and main logic".to_string() } else { final_query });
                     }
@@ -54,69 +51,106 @@ async fn ai_chat(
             }
         }
 
-        let mut final_system_prompt = prompt_manager::get_main_system_prompt(root);
+        // 2. Parallel Tasks: RAG Context Building & Auto Summarization
+        let app_handle = app.clone();
+        let rag_state = state.clone();
+        let root_for_rag = root_clone.clone();
+        let event_id_for_rag = event_id.clone(); // Clone for rag_task
+        
+        // Clone messages for summarization to avoid move
+        let mut messages_for_summarize = messages.clone();
 
-        // If @codebase was triggered, perform RAG and inject context
-        if let Some(query) = codebase_query {
-            println!("[AI Chat] @codebase detected. Checking RAG index state...");
-            
-            let is_initialized = {
-                let guard = state.index.lock().unwrap();
-                guard.is_some()
-            };
+        let rag_task = async move {
+            if let Some(query) = codebase_query {
+                println!("[AI Chat] Parallel RAG: Starting context build...");
+                
+                // Ensure RAG is initialized (Non-blocking check)
+                let is_initialized = {
+                    let guard = rag_state.index.lock().unwrap();
+                    guard.is_some()
+                };
 
-            if !is_initialized {
-                println!("[AI Chat] RAG index NOT initialized. Attempting automatic init...");
-                let _ = ifainew_core::rag::init_rag_index(app.clone(), state.clone(), root.clone()).await;
-            }
+                if !is_initialized {
+                    println!("[AI Chat] Parallel RAG: Index NOT initialized. Starting background init...");
+                    let app_clone = app_handle.clone();
+                    let root_clone = root_for_rag.clone();
+                    let event_id_clone = event_id_for_rag.clone();
 
-            match ifainew_core::rag::build_context(state, query, root.clone()).await {
-                Ok(rag_result) => {
-                    if !rag_result.context.is_empty() {
-                        // Safety: Limit context size to avoid exceeding token limits
-                        let truncated_context = if rag_result.context.len() > 12000 {
-                            format!("{}... [Context Truncated]", &rag_result.context[..12000])
-                        } else {
-                            rag_result.context
-                        };
+                    // Notify frontend that indexing is starting
+                    let _ = app_handle.emit(&format!("{}_status", event_id_for_rag), "Indexing project codebase... (This may take a moment)");
 
-                        println!("[AI Chat] RAG context successfully built ({} chars)", truncated_context.len());
-                        final_system_prompt.push_str("\n\nProject Context (Use this to answer codebase questions):\n");
-                        final_system_prompt.push_str(&truncated_context);
-                        
-                        let _ = app.emit(&format!("{}_references", event_id), &rag_result.references);
-                        let _ = app.emit("codebase-references", rag_result.references);
+                    // Spawn init in background, DO NOT await here
+                    tokio::spawn(async move {
+                        // Re-acquire state from app handle to avoid lifetime issues in spawn
+                        let state_in_spawn = app_clone.state::<ifainew_core::RagState>();
+                        match ifainew_core::rag::init_rag_index(app_clone.clone(), state_in_spawn, root_clone).await {
+                            Ok(_) => {
+                                println!("[AI Chat] Background RAG init successful.");
+                                let _ = app_clone.emit(&format!("{}_status", event_id_clone), "Indexing complete. Future queries will have full context.");
+                            },
+                            Err(e) => eprintln!("[AI Chat] Background RAG init failed: {}", e),
+                        }
+                    });
+
+                    // Return None immediately so the chat can proceed without context
+                    return None;
+                }
+
+                match ifainew_core::rag::build_context(rag_state, query, root_for_rag).await {
+                    Ok(rag_result) => {
+                        let _ = app_handle.emit(&format!("{}_references", event_id_for_rag), &rag_result.references);
+                        let _ = app_handle.emit("codebase-references", rag_result.references);
+                        Some(rag_result.context)
+                    },
+                    Err(e) => {
+                        eprintln!("[AI Chat] Parallel RAG: Search failed: {}", e);
+                        None
                     }
-                },
-                Err(e) => eprintln!("[AI Chat] RAG search failed: {}", e),
+                }
+            } else {
+                None
+            }
+        };
+
+        let summarize_task = async move {
+            if let Err(e) = conversation::auto_summarize(&root_clone, &provider_clone, &mut messages_for_summarize).await {
+                eprintln!("[AI Chat] Parallel Summarize: Error: {}", e);
+            }
+            messages_for_summarize
+        };
+
+        // Execute tasks in parallel
+        let (rag_context, updated_messages) = tokio::join!(rag_task, summarize_task);
+        
+        // Update messages with summarized version
+        messages = updated_messages;
+
+        // 3. Assemble Final System Prompt
+        let mut final_system_prompt = prompt_manager::get_main_system_prompt(&root);
+        if let Some(context) = rag_context {
+            if !context.is_empty() {
+                let truncated_context = if context.len() > 12000 {
+                    format!("{}... [Context Truncated]", &context[..12000])
+                } else {
+                    context
+                };
+                println!("[AI Chat] Parallel RAG: Context injected ({} chars)", truncated_context.len());
+                final_system_prompt.push_str("\n\nProject Context (Use this to answer codebase questions):\n");
+                final_system_prompt.push_str(&truncated_context);
             }
         }
 
-        // DEDUPLICATION STRATEGY: 
-        // 1. Remove ALL existing system messages from the list
+        // 4. Update System Message (Deduplication)
         messages.retain(|m| m.role != "system");
-        // 2. Insert our unified enriched system message at the very top
         messages.insert(0, ifainew_core::ai::Message {
             role: "system".to_string(),
             content: ifainew_core::ai::Content::Text(final_system_prompt),
             tool_calls: None,
             tool_call_id: None,
         });
-
-        // =============================================================================
-        // Conversation Management: Auto Summarization
-        // =============================================================================
-        if let Err(e) = conversation::auto_summarize(root, &provider_config, &mut messages).await {
-            eprintln!("[Conversation] Summarization error: {}", e);
-        }
     }
         
-    // =============================================================================
-    // Message Sanitization Logic (Shared Utility)
-    // =============================================================================
     ai_utils::sanitize_messages(&mut messages);
-    // =============================================================================
-
     ifainew_core::ai::stream_chat(app, provider_config, messages, event_id, enable_tools.unwrap_or(true)).await
 }
 

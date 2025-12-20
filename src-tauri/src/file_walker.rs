@@ -1,6 +1,6 @@
 use tauri::command;
 use std::path::PathBuf;
-use walkdir::WalkDir;
+use ignore::WalkBuilder;
 
 #[command]
 pub async fn get_all_file_paths(root_dir: String) -> Result<Vec<String>, String> {
@@ -10,16 +10,19 @@ pub async fn get_all_file_paths(root_dir: String) -> Result<Vec<String>, String>
     }
 
     let mut file_paths = Vec::new();
-    for entry in WalkDir::new(&root_path)
-        .into_iter()
+    
+    // Use ignore::WalkBuilder for high-performance, .gitignore-aware scanning
+    for entry in WalkBuilder::new(&root_path)
+        .standard_filters(true) // Respect .gitignore, .ignore, etc.
+        .hidden(true)           // Skip hidden files (.git, etc.)
+        .build()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
     {
         if let Some(path_str) = entry.path().to_str() {
-            // Make path relative to root for cleaner display, or keep absolute
-            // For now, keep absolute to match file system API.
             file_paths.push(path_str.to_string());
         }
     }
+    
     Ok(file_paths)
 }
