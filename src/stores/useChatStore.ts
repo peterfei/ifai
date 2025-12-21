@@ -97,7 +97,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     // Listen for Status Updates (e.g. "Indexing...")
     const eventId = crypto.randomUUID(); // We need to pass this or use a consistent one
     const unlistenStatus = await listen<string>(`${eventId}_status`, (event) => {
-        const { messages, setMessages } = coreUseChatStore.getState();
+        const { messages } = coreUseChatStore.getState();
         // Find the current assistant message (the last one)
         const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
         if (lastAssistantMsg) {
@@ -125,11 +125,15 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 )
             }));
         }
-        unlisten(); // Clean up after first receipt
+        unlistenRefs(); // Clean up after first receipt
+        unlistenStatus(); // Also clean up status listener
     });
     
     // Auto cleanup after 10 seconds if nothing received
-    setTimeout(() => unlisten(), 10000);
+    setTimeout(() => {
+        unlistenRefs();
+        unlistenStatus();
+    }, 10000);
 
     return originalSendMessage(content, providerId, modelName);
 };
