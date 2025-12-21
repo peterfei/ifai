@@ -29,7 +29,10 @@
       "icons/128x128.png",
       "icons/icon.png",
       "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon_256x256.png",
+      "icons/Square128x128Logo.png",
+      "icons/Square64x64Logo.png"
     ],
     "resources": [
       ".fastembed_cache/"

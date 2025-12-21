@@ -43,3 +43,5 @@ AGENTS.md
 openspec/*
 RELEASE_NOTE_MEDIA.md
 RELEASE_NOTE_TECH.md
+finetune_smollm_coder.py
+PROMOTION_v0.2.0.md
