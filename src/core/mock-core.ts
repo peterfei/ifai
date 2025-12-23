@@ -165,3 +165,12 @@ export const getToolColor = (name: string) => {
         default: return 'text-gray-500';
     }
 };
+
+export const parseToolCalls = (content: any) => {
+    if (typeof content !== 'string') {
+        return { segments: [] };
+    }
+    return {
+        segments: [{ type: 'text', content }]
+    };
+};
