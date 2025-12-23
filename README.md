@@ -396,12 +396,28 @@ ifainew/
 
 ### 构建发布版本
 
+IfAI 提供两个版本：**社区版**（完全开源）和 **商业版**（包含高级功能）。
+
+**构建社区版 (Community Edition):**
+
 ```bash
 # 构建前端
-npm run build
+npm run build:community
 
 # 构建 Tauri 应用
-npm run tauri build
+npm run tauri:community
+```
+
+**构建商业版 (Commercial Edition):**
+
+*注：需要 `ifainew-core` 访问权限*
+
+```bash
+# 构建前端
+npm run build:commercial
+
+# 构建 Tauri 应用
+npm run tauri:commercial
 ```
 
 构建产物位于 `src-tauri/target/release/bundle/`。
