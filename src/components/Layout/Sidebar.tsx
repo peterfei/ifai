@@ -30,7 +30,7 @@ export const Sidebar = () => {
             children
           });
           // Init RAG
-          invoke('init_rag_index', { rootPath });
+          invoke('init_rag_index', { rootPath }).catch(e => console.warn('RAG init warning:', e));
         } catch (e) {
           console.error("Failed to restore project:", e);
         }
@@ -43,7 +43,7 @@ export const Sidebar = () => {
     const tree = await openDirectory();
     if (tree) {
       setFileTree(tree);
-      invoke('init_rag_index', { rootPath: tree.path });
+      invoke('init_rag_index', { rootPath: tree.path }).catch(e => console.warn('RAG init warning:', e));
     }
   };
 
