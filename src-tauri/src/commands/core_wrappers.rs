@@ -5,9 +5,9 @@ use crate::core_traits::rag::RagResult;
 pub async fn init_rag_index(
     _app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
-    project_root: String
+    root_path: String
 ) -> Result<(), String> {
-    state.rag_service.index_project(&project_root).await
+    state.rag_service.index_project(&root_path).await
 }
 
 #[tauri::command]
@@ -32,9 +32,9 @@ pub async fn search_hybrid(
 pub async fn build_context(
     state: tauri::State<'_, AppState>,
     query: String,
-    project_root: String
+    root_path: String
 ) -> Result<RagResult, String> {
-    state.rag_service.retrieve_context(&query, &project_root).await
+    state.rag_service.retrieve_context(&query, &root_path).await
 }
 
 // FS / Agent Tools Wrappers
