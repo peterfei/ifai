@@ -102,7 +102,7 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
           apiKey: '',
-          models: ['glm-4', 'glm-4v', 'glm-3-turbo'],
+          models: ['glm-4.7', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'],
           enabled: false,
         },
         {
@@ -114,18 +114,9 @@ export const useSettingsStore = create<SettingsState>()(
           models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
           enabled: false,
         },
-        {
-          id: 'minimax',
-          name: 'Minimax',
-          protocol: 'openai',
-          baseUrl: 'https://api.minimax.chat/v1/text/chatcompletion_v2', // Minimax specific
-          apiKey: '',
-          models: ['abab6-chat', 'abab5.5-chat', 'abab5.5-chat-pro'],
-          enabled: false,
-        },
       ],
-      currentProviderId: 'deepseek',
-      currentModel: 'deepseek-chat',
+      currentProviderId: 'zhipu',
+      currentModel: 'glm-4.7',
       enableAutocomplete: true,
       agentAutoApprove: false,
       
