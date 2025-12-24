@@ -3,9 +3,10 @@
  */
 
 // 判断是否为商业版
+// 通过 Vite define 注入或通过 mode 判断
 export const IS_COMMERCIAL = 
-    import.meta.env.MODE === 'commercial' || 
-    (import.meta.env as any).APP_EDITION === 'commercial';
+    (process.env as any).APP_EDITION === 'commercial' || 
+    import.meta.env.MODE === 'commercial';
 
 export const EDITION_NAME = IS_COMMERCIAL ? 'Commercial' : 'Community';
 

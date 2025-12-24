@@ -12,6 +12,9 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      'process.env.APP_EDITION': JSON.stringify(process.env.APP_EDITION || mode)
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
