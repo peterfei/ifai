@@ -29,16 +29,11 @@ pub mod impls {
             event_id: &str,
             _callback: Box<dyn Fn(String) + Send>,
         ) -> Result<(), String> {
-            let config_json = serde_json::to_value(config).map_err(|e| e.to_string())?;
-            let core_config: ifainew_core::ai::AIProviderConfig = serde_json::from_value(config_json).map_err(|e| e.to_string())?;
-            
-            let msgs_json = serde_json::to_value(messages).map_err(|e| e.to_string())?;
-            let core_msgs: Vec<ifainew_core::ai::Message> = serde_json::from_value(msgs_json).map_err(|e| e.to_string())?;
-
+            // 直接透传，无需序列化转换
             ifainew_core::ai::stream_chat(
                 self.app.clone(),
-                core_config,
-                core_msgs,
+                config.clone(),
+                messages,
                 event_id.to_string(),
                 true
             ).await
@@ -64,19 +59,19 @@ pub mod impls {
 
         async fn search(&self, query: &str, _top_k: usize) -> Result<Vec<String>, String> {
              let state = self.app.state::<ifainew_core::RagState>();
-             // ifainew_core::rag::search_semantic returns Result<Vec<Chunk>, String>
-             // We map Chunk to String (assuming Chunk has content field)
              let chunks = ifainew_core::rag::search_semantic(state, query.to_string()).await?;
              Ok(chunks.into_iter().map(|c| c.content).collect())
         }
 
         async fn retrieve_context(&self, query: &str, root: &str) -> Result<RagResult, String> {
             let state = self.app.state::<ifainew_core::RagState>();
-            let res = ifainew_core::rag::build_context(state, query.to_string(), root.to_string()).await?;
+            // ifainew_core::rag::build_context returns its own result type
+            let core_res = ifainew_core::rag::build_context(state, query.to_string(), root.to_string()).await?;
             
-            let json = serde_json::to_value(res).map_err(|e| e.to_string())?;
-            let my_res: RagResult = serde_json::from_value(json).map_err(|e| e.to_string())?;
-            Ok(my_res)
+            // Convert to local RagResult via JSON
+            let json = serde_json::to_value(core_res).map_err(|e| e.to_string())?;
+            let res: RagResult = serde_json::from_value(json).map_err(|e| e.to_string())?;
+            Ok(res)
         }
     }
 

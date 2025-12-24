@@ -24,8 +24,7 @@ pub async fn generate_summary(
         role: "user".to_string(),
         content: Content::Text(summary_instruction),
         tool_calls: None,
-        tool_call_id: String::new(),
-        id: String::new(),
+        tool_call_id: None,
     });
 
     // 3. Call AI

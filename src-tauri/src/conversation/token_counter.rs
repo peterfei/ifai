@@ -17,7 +17,7 @@ pub fn count_messages_tokens(messages: &[Message]) -> usize {
             Content::Parts(parts) => {
                 for part in parts {
                     match part {
-                        ContentPart::Text { text } => {
+                        ContentPart::Text { text, .. } => {
                              total_tokens += bpe.encode_with_special_tokens(text).len();
                         }
                         _ => {
@@ -36,8 +36,8 @@ pub fn count_messages_tokens(messages: &[Message]) -> usize {
             }
         }
         
-        if !msg.tool_call_id.is_empty() {
-            total_tokens += bpe.encode_with_special_tokens(&msg.tool_call_id).len();
+        if let Some(id) = &msg.tool_call_id {
+            total_tokens += bpe.encode_with_special_tokens(id).len();
         }
     }
     

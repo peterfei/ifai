@@ -3,112 +3,101 @@ use serde::{Deserialize, Serialize};
 pub mod ai {
     use super::*;
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct ImageUrl {
-        pub url: String,
-    }
+    #[cfg(feature = "commercial")]
+    pub use ifainew_core::ai::{Message, Content, ContentPart, ToolCall, FunctionCall, AIProviderConfig, ImageUrl, AIProtocol};
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    #[serde(tag = "type", rename_all = "snake_case")]
-    pub enum ContentPart {
-        Text { text: String },
-        ImageUrl { image_url: ImageUrl },
-    }
+    #[cfg(not(feature = "commercial"))]
+    mod community_types {
+        use super::*;
+        
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        #[serde(rename_all = "lowercase")]
+        pub enum AIProtocol { #[default] Openai, Anthropic, Gemini }
 
-    impl Default for ContentPart {
-        fn default() -> Self {
-            Self::Text { text: String::new() }
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        pub struct ImageUrl { pub url: String }
+
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        pub enum ContentPart {
+            Text { 
+                text: String,
+                #[serde(default)]
+                part_type: String,
+            },
+            ImageUrl { image_url: ImageUrl },
+        }
+
+        impl Default for ContentPart {
+            fn default() -> Self { Self::Text { text: String::new(), part_type: "text".to_string() } }
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[serde(untagged)]
+        pub enum Content {
+            Text(String),
+            Parts(Vec<ContentPart>),
+        }
+
+        impl Default for Content {
+            fn default() -> Self { Self::Text(String::new()) }
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        pub struct FunctionCall { 
+            #[serde(default)] pub name: String, 
+            #[serde(default)] pub arguments: String 
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        pub struct ToolCall {
+            #[serde(default)] pub id: String,
+            #[serde(default, rename = "type")] pub r#type: String,
+            #[serde(default)] pub function: FunctionCall,
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        pub struct Message {
+            #[serde(default)] pub role: String,
+            pub content: Content,
+            #[serde(default)] pub tool_calls: Option<Vec<ToolCall>>,
+            #[serde(default)] pub tool_call_id: Option<String>,
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        pub struct AIProviderConfig {
+            #[serde(default)] pub id: String,
+            #[serde(default)] pub api_key: String,
+            #[serde(default)] pub base_url: String,
+            #[serde(default)] pub models: Vec<String>,
+            #[serde(default)] pub protocol: AIProtocol,
         }
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    #[serde(untagged)]
-    pub enum Content {
-        Text(String),
-        Parts(Vec<ContentPart>),
-    }
-
-    impl Default for Content {
-        fn default() -> Self {
-            Self::Text(String::new())
-        }
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-    pub struct FunctionCall {
-        #[serde(default)]
-        pub name: String,
-        #[serde(default)]
-        pub arguments: String,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-    pub struct ToolCall {
-        #[serde(default)]
-        pub id: String,
-        #[serde(default, rename = "type")]
-        pub r#type: String,
-        #[serde(default)]
-        pub function: FunctionCall,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-    pub struct Message {
-        #[serde(default)]
-        pub id: String,
-        #[serde(default)]
-        pub role: String,
-        pub content: Content,
-        #[serde(default, alias = "toolCalls", alias = "tool_calls")]
-        pub tool_calls: Option<Vec<ToolCall>>,
-        #[serde(default, alias = "toolCallId", alias = "tool_call_id")]
-        pub tool_call_id: String,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-    pub struct AIProviderConfig {
-        #[serde(default, rename = "id", alias = "provider", alias = "provider_id", alias = "providerId")]
-        pub provider: String,
-        #[serde(default, alias = "apiKey", alias = "api_key")]
-        pub api_key: String,
-        #[serde(default, alias = "baseUrl", alias = "base_url")]
-        pub base_url: String,
-        #[serde(default)]
-        pub models: Vec<String>,
-    }
+    #[cfg(not(feature = "commercial"))]
+    pub use community_types::*;
 
     #[async_trait::async_trait]
     pub trait AIService: Send + Sync {
-        async fn chat(
-            &self,
-            config: &AIProviderConfig,
-            messages: Vec<Message>,
-        ) -> Result<Message, String>;
-
-        async fn stream_chat(
-            &self,
-            config: &AIProviderConfig,
-            messages: Vec<Message>,
-            event_id: &str,
-            callback: Box<dyn Fn(String) + Send>,
-        ) -> Result<(), String>;
+        async fn chat(&self, config: &AIProviderConfig, messages: Vec<Message>) -> Result<Message, String>;
+        async fn stream_chat(&self, config: &AIProviderConfig, messages: Vec<Message>, event_id: &str, callback: Box<dyn Fn(String) + Send>) -> Result<(), String>;
     }
 }
 
 pub mod rag {
     use super::*;
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct RagReference {
-        pub file_path: String,
-        pub line_start: usize,
-        pub content: String,
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct RagReference { 
+        #[serde(default)] pub file_path: String, 
+        #[serde(default)] pub line_start: usize, 
+        #[serde(default)] pub content: String 
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub struct RagResult {
-        pub context: String,
-        pub references: Vec<RagReference>,
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    pub struct RagResult { 
+        #[serde(default)] pub context: String, 
+        #[serde(default)] pub references: Vec<RagReference> 
     }
 
     #[async_trait::async_trait]
@@ -122,13 +111,10 @@ pub mod rag {
 pub mod agent {
     use super::*;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+    #[serde(rename_all = "lowercase")]
     pub enum AgentStatus {
-        Running,
-        Paused(String), // Reason
-        Completed,
-        Failed(String),
-        Idle,
+        #[default] Idle, Running, WaitingForTool, Completed, Failed(String), Stopped,
     }
 
     #[async_trait::async_trait]
