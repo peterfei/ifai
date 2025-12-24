@@ -46,6 +46,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const backendProviderConfig = {
       id: providerConfig.protocol,
       provider: providerConfig.protocol,
+      name: providerConfig.name || providerConfig.id || "Unknown Provider", // Add name field
       api_key: providerConfig.apiKey,
       apiKey: providerConfig.apiKey,
       base_url: providerConfig.baseUrl,

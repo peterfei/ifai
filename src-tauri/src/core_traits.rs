@@ -67,6 +67,7 @@ pub mod ai {
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         pub struct AIProviderConfig {
             #[serde(default)] pub id: String,
+            #[serde(default)] pub name: String,
             #[serde(default)] pub api_key: String,
             #[serde(default)] pub base_url: String,
             #[serde(default)] pub models: Vec<String>,
