@@ -42,17 +42,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
     if (!providerConfig) throw new Error("No AI provider configured");
 
-    // Convert frontend providerConfig to backend format with redundant fields for maximum compatibility
+    // Convert frontend providerConfig to backend format
+    // We spread the original config first to include all fields (like 'enabled', 'name', 'id')
+    // Then add compatibility aliases (snake_case, provider/id)
     const backendProviderConfig = {
-      id: providerConfig.protocol,
-      provider: providerConfig.protocol,
-      name: providerConfig.name || providerConfig.id || "Unknown Provider", // Add name field
-      protocol: providerConfig.protocol, // Add missing protocol field
-      api_key: providerConfig.apiKey,
-      apiKey: providerConfig.apiKey,
-      base_url: providerConfig.baseUrl,
-      baseUrl: providerConfig.baseUrl,
-      models: providerConfig.models,
+      ...providerConfig,
+      provider: providerConfig.protocol, // Alias for backend compatibility
+      api_key: providerConfig.apiKey,    // snake_case alias
+      base_url: providerConfig.baseUrl,  // snake_case alias
     };
 
     // 2. Setup message mapping if needed

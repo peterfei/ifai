@@ -113,15 +113,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const providerData = settings.providers.find((p: any) => p.id === providerId);
         
         const providerConfig = {
+            ...providerData, // Spread all fields from settings store (includes enabled, name, id, etc.)
+            provider: providerId, // Explicitly set provider/id based on argument if needed
             id: providerId,
-            provider: providerId,
-            name: providerData?.name || providerId,
-            protocol: providerData?.protocol || "openai", // Add protocol
-            apiKey: providerData?.apiKey || "",
-            api_key: providerData?.apiKey || "",
-            baseUrl: providerData?.baseUrl || "",
+            api_key: providerData?.apiKey || "", // Snake case aliases
             base_url: providerData?.baseUrl || "",
-            models: [modelName]
+            // Ensure essential fields have defaults if missing in providerData
+            apiKey: providerData?.apiKey || "",
+            baseUrl: providerData?.baseUrl || "",
+            models: [modelName],
+            protocol: providerData?.protocol || "openai"
         };
 
         set({ isLoading: true });
