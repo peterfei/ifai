@@ -4,7 +4,7 @@ use crate::agent_system::supervisor::Supervisor;
 use crate::agent_system::tools;
 use crate::prompt_manager;
 use crate::ai_utils;
-use ifainew_core::ai::{Message, Content};
+use crate::core_traits::ai::{Message, Content};
 use serde_json::{json, Value};
 
 pub async fn run_agent_task(
@@ -27,6 +27,7 @@ pub async fn run_agent_task(
         content: Content::Text(system_content_with_tools(&system_prompt)),
         tool_calls: None,
         tool_call_id: None,
+        id: None,
     });
 
     history.push(Message {
@@ -34,6 +35,7 @@ pub async fn run_agent_task(
         content: Content::Text(context.task_description.clone()),
         tool_calls: None,
         tool_call_id: None,
+        id: None,
     });
 
     let _ = supervisor.update_status(&id, AgentStatus::Running).await;
@@ -162,6 +164,7 @@ pub async fn run_agent_task(
                             content: Content::Text(tool_result),
                             tool_calls: None,
                             tool_call_id: Some(tool_call.id.clone()),
+                            id: None,
                         });
                     }
                 } else { break; }

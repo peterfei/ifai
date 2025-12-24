@@ -46,6 +46,14 @@ export const InlineEditWidget = () => {
         return;
     }
 
+    // Convert to backend format
+    const backendProviderConfig = {
+      provider: currentProvider.protocol,
+      api_key: currentProvider.apiKey,
+      base_url: currentProvider.baseUrl,
+      models: currentProvider.models,
+    };
+
     const editorInstance = getActiveEditor();
     if (!editorInstance || !inlineEdit.selection) return;
     
@@ -111,10 +119,10 @@ ${input}`;
         });
 
         const history = [{ role: 'user', content: prompt }];
-        await invoke('ai_chat', { 
-            providerConfig: currentProvider, 
-            messages: history, 
-            eventId 
+        await invoke('ai_chat', {
+            providerConfig: backendProviderConfig,
+            messages: history,
+            eventId
         });
 
     } catch (e) {

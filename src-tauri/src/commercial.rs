@@ -59,7 +59,7 @@ pub mod impls {
     impl RagService for CommercialRagService {
         async fn index_project(&self, root: &str) -> Result<(), String> {
             let state = self.app.state::<ifainew_core::RagState>();
-            ifainew_core::rag::init_rag_index(self.app.clone(), state, root.to_string()).await
+            ifainew_core::rag::init_rag_index(self.app.clone(), state, root.to_string()).await.map(|_| ())
         }
 
         async fn search(&self, query: &str, _top_k: usize) -> Result<Vec<String>, String> {

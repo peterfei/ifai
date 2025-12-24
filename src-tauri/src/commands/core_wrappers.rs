@@ -46,7 +46,7 @@ pub async fn agent_write_file(root_path: String, rel_path: String, content: Stri
     {
         return ifainew_core::agent::agent_write_file(root_path, rel_path, content).await;
     }
-    #[cfg(feature = "community")]
+    #[cfg(not(feature = "commercial"))]
     {
         let path = std::path::Path::new(&root_path).join(&rel_path);
         if let Some(parent) = path.parent() {
@@ -63,7 +63,7 @@ pub async fn agent_read_file(root_path: String, rel_path: String) -> Result<Stri
     {
         return ifainew_core::agent::agent_read_file(root_path, rel_path).await;
     }
-    #[cfg(feature = "community")]
+    #[cfg(not(feature = "commercial"))]
     {
         let path = std::path::Path::new(&root_path).join(&rel_path);
         tokio::fs::read_to_string(&path).await.map_err(|e| e.to_string())
@@ -76,7 +76,7 @@ pub async fn agent_list_dir(root_path: String, rel_path: String) -> Result<Vec<S
     {
         return ifainew_core::agent::agent_list_dir(root_path, rel_path).await;
     }
-    #[cfg(feature = "community")]
+    #[cfg(not(feature = "commercial"))]
     {
         let path = std::path::Path::new(&root_path).join(&rel_path);
         let mut entries = Vec::new();

@@ -84,6 +84,14 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         const currentProvider = providers.find(p => p.id === currentProviderId);
         if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) return { items: [] };
 
+        // Convert to backend format
+        const backendProviderConfig = {
+          provider: currentProvider.protocol,
+          api_key: currentProvider.apiKey,
+          base_url: currentProvider.baseUrl,
+          models: currentProvider.models,
+        };
+
         // Get Context
         const textBefore = model.getValueInRange({
           startLineNumber: Math.max(1, position.lineNumber - 50),
@@ -107,7 +115,7 @@ ${textBefore}[CURSOR]${textAfter}
         try {
           const messages = [{ role: 'user', content: prompt }];
           const result = await invoke<string>('ai_completion', {
-            providerConfig: currentProvider,
+            providerConfig: backendProviderConfig,
             messages
           });
 

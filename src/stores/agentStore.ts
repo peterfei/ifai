@@ -42,6 +42,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
     if (!providerConfig) throw new Error("No AI provider configured");
 
+    // Convert frontend providerConfig to backend format
+    const backendProviderConfig = {
+      provider: providerConfig.protocol,
+      api_key: providerConfig.apiKey,
+      base_url: providerConfig.baseUrl,
+      models: providerConfig.models,
+    };
+
     // 2. Setup message mapping if needed
     if (chatMsgId) {
         set(state => ({ agentToMessageMap: { ...state.agentToMessageMap, [id]: chatMsgId } }));
@@ -214,7 +222,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             agentType,
             task,
             projectRoot,
-            providerConfig
+            providerConfig: backendProviderConfig
         });
     } catch (error) {
         console.error("Failed to launch agent:", error);

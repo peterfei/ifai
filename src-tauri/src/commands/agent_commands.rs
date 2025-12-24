@@ -26,11 +26,6 @@ pub async fn launch_agent(
 ) -> Result<String, String> {
     #[cfg(feature = "commercial")]
     {
-        // Convert config
-        let core_config: ifainew_core::ai::AIProviderConfig = serde_json::from_value(
-            serde_json::to_value(provider_config).unwrap()
-        ).map_err(|e| e.to_string())?;
-
         supervisor.register_agent(id.clone(), agent_type.clone()).await;
         
         let context = AgentContext {
@@ -38,7 +33,7 @@ pub async fn launch_agent(
             task_description: task,
             initial_prompt: String::new(),
             variables: HashMap::new(),
-            provider_config: core_config,
+            provider_config,
         };
 
         let supervisor_inner = supervisor.inner().clone();
