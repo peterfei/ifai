@@ -237,7 +237,9 @@ pub fn run() {
         });
         
         #[cfg(feature = "commercial")]
-        app.manage(ifainew_core::RagState::new());
+        {
+            app.manage(ifainew_core::RagState::new());
+        }
         
         Ok(())
     });

@@ -19,7 +19,7 @@ export default defineConfig(async ({ mode }) => {
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "ifainew-core": isCommercial
-          ? path.resolve(__dirname, "../ifainew-core/typescript")
+          ? path.resolve(__dirname, process.env.APP_CORE_PATH || "../ifainew-core/typescript")
           : path.resolve(__dirname, "./src/core/mock-core")
       }
     },
