@@ -80,11 +80,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     sendMessage: async (content, providerId, modelName) => {
         const settings = getSettingsStore();
+        const providerData = settings.providers.find((p: any) => p.id === providerId);
         
         const providerConfig = {
             provider: providerId,
-            api_key: settings.providers?.[providerId]?.apiKey || "",
-            base_url: settings.providers?.[providerId]?.baseUrl || "",
+            apiKey: providerData?.apiKey || "",
+            baseUrl: providerData?.baseUrl || "",
             models: [modelName]
         };
 
@@ -112,8 +113,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             return {
                 role: m.role,
                 content: m.content, 
-                tool_calls: m.toolCalls,
-                tool_call_id: m.tool_call_id
+                toolCalls: m.toolCalls,
+                toolCallId: m.tool_call_id
             };
         });
         
