@@ -26,16 +26,16 @@ pub async fn run_agent_task(
         role: "system".to_string(),
         content: Content::Text(system_content_with_tools(&system_prompt)),
         tool_calls: None,
-        tool_call_id: None,
-        id: None,
+        tool_call_id: String::new(),
+        id: String::new(),
     });
 
     history.push(Message {
         role: "user".to_string(),
         content: Content::Text(context.task_description.clone()),
         tool_calls: None,
-        tool_call_id: None,
-        id: None,
+        tool_call_id: String::new(),
+        id: String::new(),
     });
 
     let _ = supervisor.update_status(&id, AgentStatus::Running).await;
@@ -163,8 +163,8 @@ pub async fn run_agent_task(
                             role: "tool".to_string(),
                             content: Content::Text(tool_result),
                             tool_calls: None,
-                            tool_call_id: Some(tool_call.id.clone()),
-                            id: None,
+                            tool_call_id: tool_call.id.clone(),
+                            id: String::new(),
                         });
                     }
                 } else { break; }

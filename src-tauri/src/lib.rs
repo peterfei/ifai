@@ -48,6 +48,13 @@ async fn ai_chat(
 ) -> Result<(), String> {
     println!("[AI Chat] Entry - project_root: {:?}, event_id: {}", project_root, event_id);
 
+    // Ensure all messages have unique IDs
+    for msg in &mut messages {
+        if msg.id.is_empty() {
+            msg.id = uuid::Uuid::new_v4().to_string();
+        }
+    }
+
     if let Some(root) = project_root {
         let root_clone = root.clone();
         
@@ -153,8 +160,8 @@ async fn ai_chat(
             role: "system".to_string(),
             content: core_traits::ai::Content::Text(final_system_prompt),
             tool_calls: None,
-            tool_call_id: None,
-            id: None
+            tool_call_id: String::new(),
+            id: String::new()
         });
     }
 
@@ -178,9 +185,17 @@ async fn ai_chat(
 async fn ai_completion(
     state: tauri::State<'_, AppState>,
     provider_config: core_traits::ai::AIProviderConfig,
-    messages: Vec<core_traits::ai::Message>,
+    mut messages: Vec<core_traits::ai::Message>,
 ) -> Result<String, String> {
     println!("[AI Completion] Entry - provider: {}", provider_config.provider);
+
+    // Ensure all messages have unique IDs
+    for msg in &mut messages {
+        if msg.id.is_empty() {
+            msg.id = uuid::Uuid::new_v4().to_string();
+        }
+    }
+
     let response = state.ai_service.chat(&provider_config, messages).await?;
     match response.content {
         core_traits::ai::Content::Text(t) => Ok(t),

@@ -18,8 +18,8 @@ pub fn sanitize_messages(messages: &mut Vec<Message>) {
             // Scan forward to find all tool response messages
             let mut j = i + 1;
             while j < messages.len() && messages[j].role == "tool" {
-                if let Some(id) = &messages[j].tool_call_id {
-                    completed_ids.insert(id.clone());
+                if !messages[j].tool_call_id.is_empty() {
+                    completed_ids.insert(messages[j].tool_call_id.clone());
                 }
                 j += 1;
             }
@@ -158,8 +158,8 @@ pub async fn fetch_ai_completion(
         role,
         content: Content::Text(content_text),
         tool_calls,
-        tool_call_id: None,
-        id: None,
+        tool_call_id: String::new(),
+        id: String::new(),
     })
 }
 
@@ -396,7 +396,7 @@ pub async fn agent_stream_chat(
         role: "assistant".to_string(),
         content: Content::Text(accumulated_content),
         tool_calls,
-        tool_call_id: None,
-        id: None,
+        tool_call_id: String::new(),
+        id: String::new(),
     })
 }

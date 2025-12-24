@@ -36,8 +36,8 @@ pub fn count_messages_tokens(messages: &[Message]) -> usize {
             }
         }
         
-        if let Some(id) = &msg.tool_call_id {
-            total_tokens += bpe.encode_with_special_tokens(id).len();
+        if !msg.tool_call_id.is_empty() {
+            total_tokens += bpe.encode_with_special_tokens(&msg.tool_call_id).len();
         }
     }
     

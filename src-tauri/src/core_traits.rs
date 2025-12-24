@@ -55,19 +55,19 @@ pub mod ai {
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
     pub struct Message {
         #[serde(default)]
-        pub id: Option<String>,
+        pub id: String,
         #[serde(default)]
         pub role: String,
         pub content: Content,
         #[serde(default, alias = "toolCalls", alias = "tool_calls")]
         pub tool_calls: Option<Vec<ToolCall>>,
         #[serde(default, alias = "toolCallId", alias = "tool_call_id")]
-        pub tool_call_id: Option<String>,
+        pub tool_call_id: String,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
     pub struct AIProviderConfig {
-        #[serde(default, alias = "id", alias = "provider_id", alias = "providerId")]
+        #[serde(default, rename = "id", alias = "provider", alias = "provider_id", alias = "providerId")]
         pub provider: String,
         #[serde(default, alias = "apiKey", alias = "api_key")]
         pub api_key: String,

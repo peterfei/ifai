@@ -42,8 +42,8 @@ pub async fn auto_summarize(
         role: "system".to_string(),
         content: Content::Text(format!("## CONVERSATION SUMMARY\n\n{}\n\n=== End of Summary ===", summary)),
         tool_calls: None,
-        tool_call_id: None,
-        id: None,
+        tool_call_id: String::new(),
+        id: String::new(),
     });
 
     // Keep the last 10 messages for context
