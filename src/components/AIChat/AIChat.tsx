@@ -325,7 +325,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         <div className="flex items-center">
           <img src={ifaiLogo} alt="IfAI Logo" className="w-4 h-4 mr-2 opacity-70" />
           <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 tracking-tighter">
-            V0.2.0
+            V0.2.1
           </span>
         </div>
         
