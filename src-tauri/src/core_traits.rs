@@ -47,14 +47,15 @@ pub mod ai {
         pub tool_call_id: Option<String>,
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
     pub struct AIProviderConfig {
-        #[serde(alias = "id")]
+        #[serde(default, alias = "id", alias = "provider_id", alias = "providerId")]
         pub provider: String,
-        #[serde(alias = "apiKey")]
+        #[serde(default, alias = "apiKey", alias = "api_key")]
         pub api_key: String,
-        #[serde(alias = "baseUrl")]
+        #[serde(default, alias = "baseUrl", alias = "base_url")]
         pub base_url: String,
+        #[serde(default)]
         pub models: Vec<String>,
     }
 

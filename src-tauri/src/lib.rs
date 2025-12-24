@@ -180,6 +180,7 @@ async fn ai_completion(
     provider_config: core_traits::ai::AIProviderConfig,
     messages: Vec<core_traits::ai::Message>,
 ) -> Result<String, String> {
+    println!("[AI Completion] Entry - provider: {}", provider_config.provider);
     let response = state.ai_service.chat(&provider_config, messages).await?;
     match response.content {
         core_traits::ai::Content::Text(t) => Ok(t),
