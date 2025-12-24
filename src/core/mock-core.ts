@@ -20,9 +20,10 @@ export interface ToolCall {
         name: string;
         arguments: string;
     };
-    status?: 'pending' | 'approved' | 'rejected';
+    status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed';
     isPartial?: boolean;
-    agentId?: string; // 添加 agentId 字段，解决 agentStore 类型不匹配
+    agentId?: string;
+    result?: string;
 }
 
 export interface Message {

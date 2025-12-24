@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { ToolCall } from '../../stores/chatStore';
+import { ToolCall } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
 import { MonacoDiffView } from '../Editor/MonacoDiffView';

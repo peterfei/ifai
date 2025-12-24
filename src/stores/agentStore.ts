@@ -119,11 +119,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (toolCall && msgId) {
                 const liveToolCall = {
                     id: toolCall.id,
+                    type: 'function' as const,
                     tool: toolCall.tool,
                     args: unescapeToolArguments(toolCall.args),
+                    function: {
+                        name: toolCall.tool,
+                        arguments: JSON.stringify(toolCall.args)
+                    },
                     status: 'pending' as const,
                     isPartial: toolCall.isPartial,
-                    agentId: id  // Mark this tool call as coming from an Agent
+                    agentId: id
                 };
 
                 let messageUpdated = false;
