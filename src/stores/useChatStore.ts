@@ -208,23 +208,33 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
                             // Typewriter effect: concatenate arguments string
                             const updatedArgsString = ((existingCall as any).function?.arguments || '') + newArgsChunk;
-                            
-                            // Try to parse partial JSON to get updated 'content' or other fields for UI
+
+                            // Try to parse JSON (handles escaping automatically)
                             let parsedArgs: any;
                             try {
                                 parsedArgs = JSON.parse(updatedArgsString);
+                                console.log('[Stream] JSON parse success:', parsedArgs);
                             } catch (e) {
-                                // If partial, we can try to extract content via regex for immediate display
-                                // or just use the string. But standard ToolApproval expects an object.
-                                // We'll try a relaxed parse or keep the last successful object + new string.
-                                parsedArgs = { ...existingCall.args }; // Fallback to last known args
-                                
-                                // Simple extraction for content field to show typing
-                                const contentMatch = updatedArgsString.match(/"content"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"?/);
+                                // Partial JSON: extract fields via regex and manually unescape
+                                parsedArgs = { ...existingCall.args }; // Keep previous values
+
+                                // Extract content field with proper unescaping
+                                const contentMatch = updatedArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
                                 if (contentMatch) {
-                                    parsedArgs.content = contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                                    // Manually unescape JSON string
+                                    let content = contentMatch[1];
+                                    content = content
+                                        .replace(/\\n/g, '\n')
+                                        .replace(/\\r/g, '\r')
+                                        .replace(/\\t/g, '\t')
+                                        .replace(/\\"/g, '"')
+                                        .replace(/\\\\/g, '\\');
+                                    parsedArgs.content = content;
+                                    console.log('[Stream] Regex extracted content (unescaped):', content.substring(0, 50));
                                 }
-                                const relPathMatch = updatedArgsString.match(/"rel_path"\s*:\s*"([^"]*)"?/);
+
+                                // Extract rel_path field
+                                const relPathMatch = updatedArgsString.match(/"rel_path"\s*:\s*"([^"]*)"/);
                                 if (relPathMatch) {
                                     parsedArgs.rel_path = relPathMatch[1];
                                 }
@@ -450,9 +460,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                     if (textChunk) newMsg.content = (newMsg.content || '') + textChunk;
                     if (toolCallUpdate) {
                         const toolName = toolCallUpdate.function?.name || toolCallUpdate.tool;
-                        const argsString = toolCallUpdate.function?.arguments || '';
-                        let toolArgs: any;
-                        try { toolArgs = argsString ? JSON.parse(argsString) : {}; } catch (e) { toolArgs = argsString; }
+                        const newArgsChunk = toolCallUpdate.function?.arguments || '';
 
                         const existingCalls = newMsg.toolCalls || [];
                         const existingIndex = existingCalls.findIndex(tc => tc.id === toolCallUpdate.id);
@@ -460,27 +468,57 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                         if (existingIndex !== -1) {
                             const existingCall = existingCalls[existingIndex];
                             const prevArgsString = (existingCall as any).function?.arguments || '';
-                            const newArgsString = prevArgsString + (toolCallUpdate.function?.arguments || '');
-                             let mergedArgs: any;
-                            try { mergedArgs = newArgsString ? JSON.parse(newArgsString) : {}; } catch (e) { mergedArgs = newArgsString; }
+                            const updatedArgsString = prevArgsString + newArgsChunk;
+
+                            let parsedArgs: any;
+                            try {
+                                parsedArgs = JSON.parse(updatedArgsString);
+                            } catch (e) {
+                                parsedArgs = { ...existingCall.args };
+
+                                const contentMatch = updatedArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                                if (contentMatch) {
+                                    let content = contentMatch[1];
+                                    content = content
+                                        .replace(/\\n/g, '\n')
+                                        .replace(/\\r/g, '\r')
+                                        .replace(/\\t/g, '\t')
+                                        .replace(/\\"/g, '"')
+                                        .replace(/\\\\/g, '\\');
+                                    parsedArgs.content = content;
+                                }
+
+                                const relPathMatch = updatedArgsString.match(/"rel_path"\s*:\s*"([^"]*)"/);
+                                if (relPathMatch) {
+                                    parsedArgs.rel_path = relPathMatch[1];
+                                }
+                            }
 
                             const updatedCalls = [...existingCalls];
                             updatedCalls[existingIndex] = {
                                 ...existingCall,
                                 id: toolCallUpdate.id || existingCall.id,
-                                args: mergedArgs,
-                                function: { name: toolName || (existingCall as any).function?.name, arguments: newArgsString },
+                                tool: toolName || existingCall.tool,
+                                args: parsedArgs,
+                                function: { name: toolName || (existingCall as any).function?.name, arguments: updatedArgsString },
                                 isPartial: true
                             };
                             newMsg.toolCalls = updatedCalls;
                         } else {
                             // New tool call
-                             const newToolCall = {
+                            let initialArgs: any;
+                            try {
+                                initialArgs = newArgsChunk ? JSON.parse(newArgsChunk) : {};
+                            } catch (e) {
+                                initialArgs = {};
+                            }
+
+                            const newToolCall = {
                                 id: toolCallUpdate.id || crypto.randomUUID(),
                                 type: 'function' as const,
                                 tool: toolName || 'unknown',
-                                args: toolArgs,
-                                function: { name: toolName || 'unknown', arguments: argsString },
+                                args: initialArgs,
+                                function: { name: toolName || 'unknown', arguments: newArgsChunk },
                                 status: 'pending' as const,
                                 isPartial: true
                             };
@@ -769,6 +807,7 @@ const rejectAllToolCalls = async (messageId: string) => {
 // Apply patches to the store
 coreUseChatStore.setState({
     sendMessage: patchedSendMessage,
+    // @ts-ignore - patching generateResponse
     generateResponse: patchedGenerateResponse,
     approveToolCall: patchedApproveToolCall,
     rejectToolCall: patchedRejectToolCall,
