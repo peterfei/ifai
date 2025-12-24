@@ -8,6 +8,15 @@ import { useAgentStore } from './agentStore';
 import { invoke } from '@tauri-apps/api/core';
 import { recognizeIntent, shouldTriggerAgent, formatAgentName } from '../utils/intentRecognizer';
 
+// Content segment interface for tracking stream reception order
+export interface ContentSegment {
+  type: 'text' | 'tool';
+  order: number;
+  timestamp: number;
+  content?: string;
+  toolCallId?: string;  // Reference to toolCall by ID
+}
+
 // Register stores on first import
 // Pass getState functions so core library can access current state
 registerStores(useFileStore.getState, useSettingsStore.getState);
@@ -199,7 +208,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     const assistantMsgPlaceholder = {
         id: assistantMsgId,
         role: 'assistant' as const,
-        content: ''
+        content: '',
+        // @ts-ignore - custom property for tracking stream order
+        contentSegments: [] as ContentSegment[]
     };
     // @ts-ignore
     coreUseChatStore.getState().addMessage(assistantMsgPlaceholder);
@@ -263,7 +274,14 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             const updatedMessages = messages.map(m => {
                 if (m.id === assistantMsgId) {
                     const newMsg = { ...m };
-                    
+
+                    // Initialize contentSegments if not exists
+                    // @ts-ignore
+                    if (!newMsg.contentSegments) {
+                        // @ts-ignore
+                        newMsg.contentSegments = [];
+                    }
+
                     if (textChunk) {
                         // Debug logging for code formatting issue
                         console.log('[Stream] Chunk preview:', textChunk.substring(0, 100));
@@ -276,6 +294,17 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                         if (newMsg.content.length % 500 < 50) {
                             console.log('[Stream] Total content length:', newMsg.content.length);
                         }
+
+                        // Track text segment in order
+                        // @ts-ignore
+                        const order = newMsg.contentSegments.length;
+                        // @ts-ignore
+                        newMsg.contentSegments.push({
+                            type: 'text' as const,
+                            order,
+                            timestamp: Date.now(),
+                            content: textChunk
+                        });
                     }
                     
                     if (toolCallUpdate) {
@@ -344,8 +373,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                                 initialArgs = {};
                             }
 
+                            const newToolCallId = toolCallUpdate.id || crypto.randomUUID();
                             const newToolCall = {
-                                id: toolCallUpdate.id || crypto.randomUUID(),
+                                id: newToolCallId,
                                 type: 'function' as const,
                                 tool: toolName || 'unknown',
                                 args: initialArgs,
@@ -358,6 +388,17 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                             };
                             // @ts-ignore
                             newMsg.toolCalls = [...existingCalls, newToolCall];
+
+                            // Track tool call segment in order
+                            // @ts-ignore
+                            const order = newMsg.contentSegments.length;
+                            // @ts-ignore
+                            newMsg.contentSegments.push({
+                                type: 'tool' as const,
+                                order,
+                                timestamp: Date.now(),
+                                toolCallId: newToolCallId
+                            });
                         }
                     }
                     
