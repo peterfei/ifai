@@ -15,11 +15,23 @@ pub mod ai {
         ImageUrl { image_url: ImageUrl },
     }
 
+    impl Default for ContentPart {
+        fn default() -> Self {
+            Self::Text { text: String::new() }
+        }
+    }
+
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(untagged)]
     pub enum Content {
         Text(String),
         Parts(Vec<ContentPart>),
+    }
+
+    impl Default for Content {
+        fn default() -> Self {
+            Self::Text(String::new())
+        }
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
