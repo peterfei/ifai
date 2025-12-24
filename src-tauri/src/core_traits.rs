@@ -41,16 +41,19 @@ pub mod ai {
         pub id: Option<String>,
         pub role: String,
         pub content: Content,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "Option::is_none", alias = "toolCalls")]
         pub tool_calls: Option<Vec<ToolCall>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "Option::is_none", alias = "toolCallId")]
         pub tool_call_id: Option<String>,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct AIProviderConfig {
+        #[serde(alias = "id")]
         pub provider: String,
+        #[serde(alias = "apiKey")]
         pub api_key: String,
+        #[serde(alias = "baseUrl")]
         pub base_url: String,
         pub models: Vec<String>,
     }
