@@ -189,7 +189,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // --- Final Result ---
         else if (payload.type === 'result') {
             const result = payload.result || "";
-            if (msgId) chatState.updateMessageContent(msgId, result);
+            if (msgId) {
+                const { messages } = coreUseChatStore.getState();
+                coreUseChatStore.setState({
+                    messages: messages.map(m => m.id === msgId ? { ...m, content: result } : m)
+                });
+            }
             set(state => ({
                 runningAgents: state.runningAgents.map(a => 
                     a.id === id ? { ...a, status: 'completed', progress: 1.0, expiresAt: Date.now() + 60000 } : a
@@ -198,7 +203,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         // --- Error ---
         else if (payload.type === 'error') {
-            if (msgId) chatState.updateMessageContent(msgId, `❌ Agent Error: ${payload.error}`);
+            if (msgId) {
+                const { messages } = coreUseChatStore.getState();
+                coreUseChatStore.setState({
+                    messages: messages.map(m => m.id === msgId ? { ...m, content: `❌ Agent Error: ${payload.error}` } : m)
+                });
+            }
             set(state => ({
                 runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: 'failed' } : a)
             }));

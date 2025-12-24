@@ -125,8 +125,11 @@ async fn ai_chat(
         // For now, simple summarization without auto_summarize if it's too complex to port
         // But we ported conversation/mod.rs so we can try.
         let provider_clone = provider_config.clone();
+        let app_handle_summ = app.clone();
+        let event_id_summ = event_id.clone();
+        
         let summarize_task = async move {
-            if let Err(e) = conversation::auto_summarize(&root_clone, &provider_clone, &mut messages_for_summarize).await {
+            if let Err(e) = conversation::auto_summarize(&app_handle_summ, &event_id_summ, &root_clone, &provider_clone, &mut messages_for_summarize).await {
                 eprintln!("[AI Chat] Parallel Summarize: Error: {}", e);
             }
             messages_for_summarize
@@ -152,13 +155,41 @@ async fn ai_chat(
              }
         }
 
+        // Extract existing summary if present (from auto_summarize)
+        let mut summary_message = None;
+        for msg in &messages {
+            if msg.role == "system" {
+                match &msg.content {
+                    core_traits::ai::Content::Text(text) => {
+                        if text.contains("## CONVERSATION SUMMARY") {
+                            summary_message = Some(msg.clone());
+                            break;
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+
         messages.retain(|m| m.role != "system");
+        
+        // Insert Main System Prompt
         messages.insert(0, core_traits::ai::Message {
             role: "system".to_string(),
             content: core_traits::ai::Content::Text(final_system_prompt),
             tool_calls: None,
             tool_call_id: None,
         });
+
+        // Re-insert Summary if found
+        if let Some(summary) = summary_message {
+            // Insert after the main system prompt
+            if messages.len() > 0 {
+                messages.insert(1, summary);
+            } else {
+                messages.push(summary);
+            }
+        }
     }
 
     ai_utils::sanitize_messages(&mut messages);

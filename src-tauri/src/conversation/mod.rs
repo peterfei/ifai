@@ -16,7 +16,11 @@ pub async fn should_summarize(messages: &[Message]) -> bool {
     token_count > 150_000 || messages.len() > 100
 }
 
+use tauri::{AppHandle, Emitter};
+
 pub async fn auto_summarize(
+    app: &AppHandle,
+    event_id: &str,
     project_root: &str,
     provider_config: &AIProviderConfig,
     messages: &mut Vec<Message>,
@@ -59,7 +63,11 @@ pub async fn auto_summarize(
         new_history.push(messages[i].clone());
     }
 
-    *messages = new_history;
+    *messages = new_history.clone();
+    
+    // Notify frontend to update its history
+    let _ = app.emit(&format!("{}_compacted", event_id), new_history);
+    
     println!("[Conversation] History compacted successfully.");
 
     Ok(())

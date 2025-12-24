@@ -5,6 +5,7 @@ import { useChatStore as coreUseChatStore, registerStores, type Message } from '
 import { useFileStore } from './fileStore';
 import { useSettingsStore } from './settingsStore';
 import { useAgentStore } from './agentStore';
+import { invoke } from '@tauri-apps/api/core';
 
 // Register stores on first import
 // Pass getState functions so core library can access current state
@@ -91,51 +92,149 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         }
     }
 
-    // Set up a one-time listener for references before sending
+    // --- Direct Backend Invocation Logic ---
+    
+    // 1. Prepare Provider Config
+    const settings = useSettingsStore.getState();
+    const providerData = settings.providers.find((p: any) => p.id === providerId);
+    
+    const providerConfig = {
+        ...providerData,
+        provider: providerId, 
+        id: providerId,
+        api_key: providerData?.apiKey || "",
+        base_url: providerData?.baseUrl || "",
+        apiKey: providerData?.apiKey || "",
+        baseUrl: providerData?.baseUrl || "",
+        models: [modelName],
+        protocol: providerData?.protocol || "openai"
+    };
+
+    coreUseChatStore.setState({ isLoading: true });
+    
+    // 2. Add User Message
+    const userMsg = {
+        id: crypto.randomUUID(),
+        role: 'user' as const,
+        content: content
+    };
+    // @ts-ignore
+    coreUseChatStore.getState().addMessage(userMsg);
+    
+    // 3. Add Assistant Placeholder
+    const assistantMsgId = crypto.randomUUID();
+    const assistantMsgPlaceholder = {
+        id: assistantMsgId,
+        role: 'assistant' as const,
+        content: ''
+    };
+    // @ts-ignore
+    coreUseChatStore.getState().addMessage(assistantMsgPlaceholder);
+
+    // 4. Prepare History
+    const messages = coreUseChatStore.getState().messages;
+    const msgHistory = messages.slice(0, -1).map(m => ({
+        role: m.role,
+        content: m.content, 
+        tool_calls: m.toolCalls ? m.toolCalls.map(tc => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+                name: tc.tool || (tc as any).function?.name,
+                arguments: typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args)
+            }
+        })) : undefined,
+        tool_call_id: m.tool_call_id
+    }));
+
+    // 5. Setup Listeners
     const { listen } = await import('@tauri-apps/api/event');
     
-    // Listen for Status Updates (e.g. "Indexing...")
-    const eventId = crypto.randomUUID(); // We need to pass this or use a consistent one
-    const unlistenStatus = await listen<string>(`${eventId}_status`, (event) => {
+    // Status Listener
+    const unlistenStatus = await listen<string>(`${assistantMsgId}_status`, (event) => {
         const { messages } = coreUseChatStore.getState();
-        // Find the current assistant message (the last one)
-        const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+        const lastAssistantMsg = messages.find(m => m.id === assistantMsgId);
         if (lastAssistantMsg) {
-            // Prepend status message or handle as needed
-            // For now, let's just log it or we could append to content
             console.log(`[Chat] Status update: ${event.payload}`);
-            // If the content is empty, show the status as a placeholder
             if (!lastAssistantMsg.content) {
                 const updatedMessages = messages.map(m => 
-                    m.id === lastAssistantMsg.id ? { ...m, content: `_(${event.payload})_ \n\n` } : m
+                    m.id === assistantMsgId ? { ...m, content: `_(${event.payload})_ \n\n` } : m
                 );
                 coreUseChatStore.setState({ messages: updatedMessages });
             }
         }
     });
 
-    const unlistenRefs = await listen<string[]>("codebase-references", (event) => {
-        // Find the last user message and attach references
-        const messages = coreUseChatStore.getState().messages;
-        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-        if (lastUserMsg) {
-            coreUseChatStore.setState(state => ({
-                messages: state.messages.map(m => 
-                    m.id === lastUserMsg.id ? { ...m, references: event.payload } : m
-                )
-            }));
+    // Stream Content Listener - 接收流式消息内容
+    const unlistenStream = await listen<string>(assistantMsgId, (event) => {
+        const { messages } = coreUseChatStore.getState();
+        let textChunk = '';
+
+        try {
+            // Parse JSON format: {"type":"content","content":"文本"}
+            const payload = JSON.parse(event.payload);
+            if (payload.type === 'content' && payload.content) {
+                textChunk = payload.content;
+            }
+        } catch (e) {
+            // Fallback: treat as plain text
+            textChunk = event.payload;
         }
-        unlistenRefs(); // Clean up after first receipt
-        unlistenStatus(); // Also clean up status listener
+
+        if (textChunk) {
+            const updatedMessages = messages.map(m =>
+                m.id === assistantMsgId ? { ...m, content: (m.content || '') + textChunk } : m
+            );
+
+            coreUseChatStore.setState({ messages: updatedMessages });
+        }
+    });
+
+    // References Listener (RAG)
+    const unlistenRefs = await listen<string[]>("codebase-references", (event) => {
+        coreUseChatStore.setState(state => ({
+            messages: state.messages.map(m => 
+                m.id === userMsg.id ? { ...m, references: event.payload } : m
+            )
+        }));
     });
     
-    // Auto cleanup after 10 seconds if nothing received
-    setTimeout(() => {
-        unlistenRefs();
-        unlistenStatus();
-    }, 10000);
+    // History Compaction Listener (Auto-summarization Fix)
+    const unlistenCompacted = await listen<any[]>(`${assistantMsgId}_compacted`, (event) => {
+        console.log("[Chat] History compacted event received", event.payload);
+        const compactedMessages = event.payload.map(m => ({
+            id: crypto.randomUUID(),
+            role: m.role,
+            content: m.content,
+            toolCalls: m.tool_calls, // Note: snake_case from Rust
+            tool_call_id: m.tool_call_id
+        }));
+        
+        // Replace history but keep the currently streaming assistant message
+        coreUseChatStore.setState({ messages: [...compactedMessages, assistantMsgPlaceholder] });
+    });
 
-    return originalSendMessage(content, providerId, modelName);
+    // 6. Invoke Backend
+    try {
+        await invoke('ai_chat', {
+            providerConfig,
+            messages: msgHistory,
+            eventId: assistantMsgId,
+            projectRoot: useFileStore.getState().rootPath,
+            enableTools: true
+        });
+    } catch (e) {
+        const { messages } = coreUseChatStore.getState();
+        coreUseChatStore.setState({
+            messages: messages.map(m => m.id === assistantMsgId ? { ...m, content: `Error: ${e}` } : m)
+        });
+    } finally {
+        coreUseChatStore.setState({ isLoading: false });
+        unlistenStatus();
+        unlistenStream();
+        unlistenRefs();
+        unlistenCompacted();
+    }
 };
 
 const patchedApproveToolCall = async (messageId: string, toolCallId: string) => {
