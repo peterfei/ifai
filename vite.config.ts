@@ -7,7 +7,8 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => {
-  const isCommercial = mode === 'commercial';
+  // 同时检查 Vite mode 和环境变量 APP_EDITION
+  const isCommercial = mode === 'commercial' || process.env.APP_EDITION === 'commercial';
 
   return {
     plugins: [react()],
