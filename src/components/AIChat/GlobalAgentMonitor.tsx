@@ -33,6 +33,7 @@ export const GlobalAgentMonitor: React.FC = () => {
   const { runningAgents, removeAgent, clearCompletedAgents } = useAgentStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Position and Dragging State
@@ -137,6 +138,24 @@ export const GlobalAgentMonitor: React.FC = () => {
     }
   }, [runningAgents, expandedId]);
 
+  // Auto-remove expired agents
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      runningAgents.forEach(agent => {
+        // Skip if agent is being hovered
+        if (agent.id === hoveredAgentId) return;
+
+        // Check if agent has expired
+        if (agent.expiresAt && agent.expiresAt <= now) {
+          removeAgent(agent.id);
+        }
+      });
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [runningAgents, hoveredAgentId, removeAgent]);
+
   if (runningAgents.length === 0) return null;
 
   const activeCount = runningAgents.filter(a => a.status !== 'completed' && a.status !== 'failed').length;
@@ -205,9 +224,14 @@ export const GlobalAgentMonitor: React.FC = () => {
                 {/* List */}
                 <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 p-2 gap-2 flex flex-col">
                     {runningAgents.map(agent => (
-                        <div key={agent.id} className="flex flex-col gap-0 bg-[#2d2d2d] rounded-lg border border-[#333] overflow-hidden transition-all hover:border-[#555]">
+                        <div
+                            key={agent.id}
+                            className="flex flex-col gap-0 bg-[#2d2d2d] rounded-lg border border-[#333] overflow-hidden transition-all hover:border-[#555]"
+                            onMouseEnter={() => setHoveredAgentId(agent.id)}
+                            onMouseLeave={() => setHoveredAgentId(null)}
+                        >
                             {/* Agent Header */}
-                            <div 
+                            <div
                                 className="flex justify-between items-center p-3 cursor-pointer hover:bg-[#333] transition-colors"
                                 onClick={() => setExpandedId(expandedId === agent.id ? null : agent.id)}
                             >
@@ -221,7 +245,15 @@ export const GlobalAgentMonitor: React.FC = () => {
                                             <span className="text-[10px] text-gray-500 truncate capitalize font-mono">
                                                 {t(`agent_status_${agent.status}`, { defaultValue: agent.status })}
                                             </span>
-                                            {agent.startTime && (
+                                            {agent.expiresAt && (agent.status === 'completed' || agent.status === 'failed') ? (
+                                                <span className={`text-[9px] border-l border-gray-600 pl-2 ${
+                                                    Math.ceil((agent.expiresAt - Date.now()) / 1000) <= 3
+                                                        ? 'text-red-400 animate-pulse'
+                                                        : 'text-gray-400'
+                                                }`}>
+                                                    {Math.ceil((agent.expiresAt - Date.now()) / 1000)}s后关闭
+                                                </span>
+                                            ) : agent.startTime && (
                                                 <span className="text-[9px] text-gray-600 border-l border-gray-600 pl-2">
                                                     {Math.round((Date.now() - agent.startTime) / 1000)}s
                                                 </span>

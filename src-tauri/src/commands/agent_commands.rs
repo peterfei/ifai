@@ -26,8 +26,9 @@ pub async fn launch_agent(
 ) -> Result<String, String> {
     #[cfg(feature = "commercial")]
     {
+        println!("[AgentSystem] launch_agent called with id: {}, agent_type: {}", id, agent_type);
         supervisor.register_agent(id.clone(), agent_type.clone()).await;
-        
+
         let context = AgentContext {
             project_root,
             task_description: task,

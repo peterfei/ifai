@@ -57,12 +57,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         set(state => ({ agentToMessageMap: { ...state.agentToMessageMap, [id]: chatMsgId } }));
     }
 
+    console.log(`[AgentStore] launchAgent - id: ${id}, eventId: ${eventId}, chatMsgId: ${chatMsgId || 'NONE'}`);
+
     // 3. Setup Listener FIRST - This is critical for industrial grade reliability
     // We register the listener BEFORE calling the backend to catch the very first event.
     let thinkingBuffer = "";
     let lastFlush = 0;
 
     const unlisten = await listen<AgentEventPayload>(eventId, (event) => {
+        console.log(`[AgentStore] 🎯 Listener triggered! eventId: ${eventId}, agentId: ${id}`);
         const payload = event.payload;
         if (!payload || typeof payload !== 'object') return;
 
@@ -70,6 +73,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
         const chatState = coreUseChatStore.getState();
         const msgId = get().agentToMessageMap[id];
+
+        // DEBUG: Log msgId status for all events
+        console.log(`[AgentStore] DEBUG - Event type: ${payload.type}, msgId: ${msgId || 'UNDEFINED'}, agentId: ${id}`);
+        console.log(`[AgentStore] DEBUG - agentToMessageMap:`, get().agentToMessageMap);
 
         if (!msgId && payload.type === 'tool_call') {
             console.warn(`[AgentStore] No msgId found for agent ${id} - cannot process tool calls`);
@@ -104,13 +111,29 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             thinkingBuffer += chunk;
 
             const now = Date.now();
-            if (now - lastFlush > 100) {
+            if (now - lastFlush > 10) {  // Reduced from 100ms to 10ms for faster streaming
                 const currentBuffer = thinkingBuffer;
+
+                // Update runningAgents (for GlobalAgentMonitor display)
                 set(state => ({
-                    runningAgents: state.runningAgents.map(a => 
+                    runningAgents: state.runningAgents.map(a =>
                         a.id === id ? { ...a, content: (a.content || "") + currentBuffer } : a
                     )
                 }));
+
+                // ✅ FIX: Also sync to coreUseChatStore.messages for chat display
+                const msgId = get().agentToMessageMap[id];
+                if (msgId) {
+                    const { messages } = coreUseChatStore.getState();
+                    const updatedMessages = messages.map(m => {
+                        if (m.id === msgId) {
+                            return { ...m, content: (m.content || "") + currentBuffer };
+                        }
+                        return m;
+                    });
+                    coreUseChatStore.setState({ messages: updatedMessages });
+                }
+
                 thinkingBuffer = "";
                 lastFlush = now;
             }
@@ -118,6 +141,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // --- Tool Calls ---
         else if (payload.type === 'tool_call') {
             const toolCall = payload.toolCall;
+            // Debug log for tool call events
+            console.log(`[AgentStore] Received tool_call: tool=${toolCall?.tool}, partial=${toolCall?.isPartial}, content_len=${toolCall?.args?.content?.length || 0}`);
             if (toolCall && msgId) {
                 const liveToolCall = {
                     id: toolCall.id,
@@ -140,14 +165,26 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         const index = existing.findIndex(tc => tc.id === liveToolCall.id);
                         
                         if (index !== -1) {
+                            // Check if content actually changed (deduplication for streaming updates)
+                            const prevContent = (existing[index] as any).args?.content || '';
+                            const nextContent = liveToolCall.args?.content || '';
+
+                            // If content hasn't changed and both are in partial state, skip this update
+                            if (prevContent === nextContent &&
+                                liveToolCall.isPartial &&
+                                (existing[index] as any).isPartial) {
+                                // Content unchanged, skip update to avoid unnecessary re-renders
+                                return m;
+                            }
+
                             // Update existing tool call
                             const newToolCalls = [...existing];
                             newToolCalls[index] = {
                                 ...newToolCalls[index],
                                 ...liveToolCall,
                                 // If it was already approved/completed, don't revert status
-                                status: (newToolCalls[index].status !== 'pending' && !liveToolCall.isPartial) 
-                                    ? newToolCalls[index].status 
+                                status: (newToolCalls[index].status !== 'pending' && !liveToolCall.isPartial)
+                                    ? newToolCalls[index].status
                                     : liveToolCall.status
                             };
                             messageUpdated = true;
@@ -196,8 +233,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 });
             }
             set(state => ({
-                runningAgents: state.runningAgents.map(a => 
-                    a.id === id ? { ...a, status: 'completed', progress: 1.0, expiresAt: Date.now() + 60000 } : a
+                runningAgents: state.runningAgents.map(a =>
+                    a.id === id ? { ...a, status: 'completed', progress: 1.0, expiresAt: Date.now() + 10000 } : a
                 )
             }));
         }
@@ -210,13 +247,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 });
             }
             set(state => ({
-                runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: 'failed' } : a)
+                runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: 'failed', expiresAt: Date.now() + 10000 } : a)
             }));
         }
     });
 
     // Store listener cleanup
     set(state => ({ activeListeners: { ...state.activeListeners, [id]: unlisten } }));
+
+    console.log(`[AgentStore] ✅ Listener registered for eventId: ${eventId}`);
 
     // 4. Create Agent entry in Store
     const newAgent: Agent = {
@@ -234,6 +273,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     // 5. Invoke Backend FINALLY
     // By now, the listener is active and the agent entry exists in state.
     try {
+        console.log(`[AgentStore] 🚀 About to invoke backend launch_agent with id: ${id}, eventId: agent_${id}`);
         await invoke('launch_agent', {
             id,
             agentType,

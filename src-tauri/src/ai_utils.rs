@@ -199,13 +199,18 @@ struct StreamingToolCall {
 }
 
 fn extract_partial_value(json_str: &str, key: &str) -> Option<String> {
-    // Robust regex to find a string value in partial JSON: "key": "value...
-    let pattern = format!("\"{}\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)", key);
+    // Enhanced regex to find string values in partial JSON, including multiline content
+    // Matches: "key": "value..." where value can contain escaped quotes and newlines
+    let pattern = format!(r#""{}"\s*:\s*"((?:[^"\\]|\\.|[\n\r])*)"#, key);
     if let Ok(re) = regex::Regex::new(&pattern) {
         if let Some(caps) = re.captures(json_str) {
             let mut val = caps[1].to_string();
-            // Basic unescaping for display purposes
-            val = val.replace("\\n", "\n").replace("\\\"", "\"").replace("\\t", "\t");
+            // Enhanced unescaping for display purposes
+            val = val.replace("\\n", "\n")
+                     .replace("\\r", "\r")
+                     .replace("\\t", "\t")
+                     .replace("\\\"", "\"")
+                     .replace("\\\\", "\\");
             return Some(val);
         }
     }
@@ -220,6 +225,7 @@ pub async fn agent_stream_chat(
     agent_id: &str,
     tools: Option<Vec<Value>>,
 ) -> Result<Message, String> {
+    eprintln!("[AgentStream] agent_stream_chat called with agent_id: {}, event_name: agent_{}", agent_id, agent_id);
     // ... (rest of implementation)
     // 1. Sanitize messages
     let mut clean_messages = messages.clone();
@@ -321,33 +327,51 @@ pub async fn agent_stream_chat(
                                     }
                                 }
 
-                                // Emit partial tool call to frontend
-                                if !st.name.is_empty() {
-                                    // Try full parse first
-                                    let mut args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
-                                        // If not valid JSON, try to extract fields manually for better progressive UI
-                                        let mut map = serde_json::Map::new();
-                                        if let Some(path) = extract_partial_value(&st.arguments, "rel_path") {
-                                            map.insert("rel_path".to_string(), json!(path));
-                                        }
-                                        if let Some(content) = extract_partial_value(&st.arguments, "content") {
-                                            map.insert("content".to_string(), json!(content));
-                                        }
-                                        Value::Object(map)
-                                    });
+                                // Emit partial tool call to frontend immediately after each chunk
+                                // (Removed the if !st.name.is_empty() guard to enable streaming from the start)
+                                let tool_name = if st.name.is_empty() { "unknown" } else { &st.name };
+                                let tool_id = if st.id.is_empty() {
+                                    format!("{}_{}", agent_id, idx)
+                                } else {
+                                    st.id.clone()
+                                };
 
-                                    let _ = app.emit(
-                                        &format!("agent_{}", agent_id),
-                                        json!({
-                                            "type": "tool_call",
-                                            "toolCall": {
-                                                "id": if st.id.is_empty() { format!("{}_{}", agent_id, idx) } else { st.id.clone() },
-                                                "tool": st.name,
-                                                "args": args_val,
-                                                "isPartial": true
-                                            }
-                                        })
-                                    );
+                                // Try full parse first
+                                let args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
+                                    // If not valid JSON, try to extract fields manually for better progressive UI
+                                    let mut map = serde_json::Map::new();
+                                    if let Some(path) = extract_partial_value(&st.arguments, "rel_path") {
+                                        map.insert("rel_path".to_string(), json!(path));
+                                    }
+                                    if let Some(content) = extract_partial_value(&st.arguments, "content") {
+                                        map.insert("content".to_string(), json!(content));
+                                    }
+                                    Value::Object(map)
+                                });
+
+                                // Debug log for streaming tool call
+                                let event_name = format!("agent_{}", agent_id);
+                                eprintln!("[AgentStream] Streaming: tool={}, args_len={}, isPartial=true, event_name={}",
+                                    tool_name,
+                                    st.arguments.len(),
+                                    event_name);
+
+                                let emit_result = app.emit(
+                                    &event_name,
+                                    json!({
+                                        "type": "tool_call",
+                                        "toolCall": {
+                                            "id": tool_id,
+                                            "tool": tool_name,
+                                            "args": args_val,
+                                            "isPartial": true
+                                        }
+                                    })
+                                );
+                                if let Err(e) = emit_result {
+                                    eprintln!("[AgentStream] ERROR emitting event: {}", e);
+                                } else {
+                                    eprintln!("[AgentStream] Event emitted successfully");
                                 }
                             }
                         }

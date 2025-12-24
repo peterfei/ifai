@@ -14,7 +14,8 @@ pub async fn run_agent_task(
     agent_type: String,
     context: AgentContext,
 ) {
-    println!("[AgentRunner] Starting task for: {} ({})", id, agent_type);
+    let event_id = format!("agent_{}", id);
+    println!("[AgentRunner] Starting task for: {} ({}), event_id: {}", id, agent_type, event_id);
     
     let mut history: Vec<Message> = Vec::new();
     let mut created_files: Vec<String> = Vec::new();
@@ -85,7 +86,6 @@ pub async fn run_agent_task(
 
     let mut loop_count = 0;
     const MAX_LOOPS: usize = 12;
-    let event_id = format!("agent_{}", id);
 
     while loop_count < MAX_LOOPS {
         loop_count += 1;
@@ -113,9 +113,10 @@ pub async fn run_agent_task(
 
                         let (tool_result, _success) = match args_res {
                             Ok(args) => {
-                                // Unified event stream for approval requirements
-                                println!("[AgentRunner] Requesting authorization for: {}", tool_name);
-                                let _ = app.emit(&event_id, json!({
+                                // Send final tool_call event with complete arguments (isPartial: false)
+                                // This marks the end of streaming and requests user approval
+                                println!("[AgentRunner] Requesting authorization for: {}, event_id={}", tool_name, event_id);
+                                let emit_result = app.emit(&event_id, json!({
                                     "type": "tool_call",
                                     "toolCall": {
                                         "id": tool_call.id.clone(),
@@ -124,7 +125,12 @@ pub async fn run_agent_task(
                                         "isPartial": false
                                     }
                                 }));
-                                
+                                if let Err(e) = emit_result {
+                                    eprintln!("[AgentRunner] ERROR emitting event: {}", e);
+                                } else {
+                                    eprintln!("[AgentRunner] Event emitted successfully");
+                                }
+
                                 let _ = supervisor.update_status(&id, AgentStatus::WaitingForTool).await;
                                 // Send waitingfortool status event to frontend
                                 let _ = app.emit("agent:status", json!({ "id": id.clone(), "status": "waitingfortool" }));

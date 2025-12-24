@@ -62,9 +62,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       return;
     }
 
-    // If streaming, throttle updates (e.g., every 150ms)
+    // If streaming, throttle updates (e.g., every 50ms for better responsiveness)
     const timeSinceLastUpdate = now - lastUpdateTime.current;
-    const throttleMs = 150;
+    const throttleMs = isLastMessageStreaming ? 50 : 150;
 
     if (timeSinceLastUpdate >= throttleMs) {
       setDisplayMessages(rawMessages);
@@ -86,13 +86,16 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (instant = false) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'instant' : 'smooth' });
   };
 
+  // Auto-scroll to bottom when messages update, use instant scroll during streaming
   useEffect(() => {
-    scrollToBottom();
-  }, [displayMessages]);
+    const isStreaming = isLoading && displayMessages.length > 0 &&
+                        displayMessages[displayMessages.length - 1].role === 'assistant';
+    scrollToBottom(isStreaming);
+  }, [displayMessages, isLoading]);
 
   const currentProvider = providers.find(p => p.id === currentProviderId);
   const isProviderConfigured = currentProvider && currentProvider.apiKey && currentProvider.enabled;
@@ -392,13 +395,13 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {displayMessages.map((message, index) => (
-          <MessageItem 
-            key={message.id} 
-            message={message} 
-            onApprove={handleApprove} 
+          <MessageItem
+            key={message.id}
+            message={message}
+            onApprove={handleApprove}
             onReject={handleReject}
             onOpenFile={handleOpenFile}
-            isStreaming={isLoading && index === displayMessages.length - 1 && message.role === 'assistant'}
+            isStreaming={isLoading && message.role === 'assistant' && message.isAgentLive !== true}
           />
         ))}
         <div ref={messagesEndRef} />
