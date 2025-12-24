@@ -42,11 +42,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
     if (!providerConfig) throw new Error("No AI provider configured");
 
-    // Convert frontend providerConfig to backend format
+    // Convert frontend providerConfig to backend format with redundant fields for maximum compatibility
     const backendProviderConfig = {
+      id: providerConfig.protocol,
       provider: providerConfig.protocol,
       api_key: providerConfig.apiKey,
+      apiKey: providerConfig.apiKey,
       base_url: providerConfig.baseUrl,
+      baseUrl: providerConfig.baseUrl,
       models: providerConfig.models,
     };
 

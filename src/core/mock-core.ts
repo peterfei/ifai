@@ -114,8 +114,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         
         const providerConfig = {
             id: providerId,
+            provider: providerId,
             apiKey: providerData?.apiKey || "",
+            api_key: providerData?.apiKey || "",
             baseUrl: providerData?.baseUrl || "",
+            base_url: providerData?.baseUrl || "",
             models: [modelName]
         };
 
