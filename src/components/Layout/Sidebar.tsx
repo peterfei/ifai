@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
 import { openDirectory, readDirectory } from '../../utils/fileSystem';
-import { FolderOpen, Files, Search as SearchIcon, Cpu } from 'lucide-react';
+import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
 import { useTranslation } from 'react-i18next';
