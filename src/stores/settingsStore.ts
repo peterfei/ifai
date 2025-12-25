@@ -38,6 +38,9 @@ export interface SettingsState {
   currentProviderId: string;
   currentModel: string;
   enableAutocomplete: boolean;
+  maxContextMessages: number;           // 最大上下文消息数
+  enableSmartContextSelection: boolean;  // 是否启用智能上下文选择
+  maxContextTokens?: number;            // 可选的token限制（未来扩展）
 
   // Agent
   agentAutoApprove: boolean;
@@ -125,6 +128,9 @@ export const useSettingsStore = create<SettingsState>()(
       currentProviderId: 'zhipu',
       currentModel: 'glm-4.6',
       enableAutocomplete: true,
+      maxContextMessages: 15,
+      enableSmartContextSelection: true,
+      maxContextTokens: undefined,
       agentAutoApprove: false,
       enableNaturalLanguageAgentTrigger: true,
       agentTriggerConfidenceThreshold: 0.6,  // 降低阈值以提高触发敏感度
@@ -203,6 +209,9 @@ export const useSettingsStore = create<SettingsState>()(
         enableGPUAcceleration: state.enableGPUAcceleration,
         showPerformanceMonitor: state.showPerformanceMonitor,
         enableAutoDowngrade: state.enableAutoDowngrade,
+        maxContextMessages: state.maxContextMessages,
+        enableSmartContextSelection: state.enableSmartContextSelection,
+        maxContextTokens: state.maxContextTokens,
       }),
     }
   )

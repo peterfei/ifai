@@ -53,6 +53,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const lastContentLengthRef = useRef(message.content.length);
     const isActivelyStreamingRef = useRef(false);
 
+    // NEW: Detect agent streaming state (agent doesn't set global isLoading)
+    const isAgentStreaming = Boolean(
+        message.agentId ||
+        (message as any).isAgentLive ||
+        (message.toolCalls && message.toolCalls.some(tc => tc.status === 'pending'))
+    );
+
     // Update streaming status based on content growth
     React.useEffect(() => {
         const currentLength = message.content.length;
@@ -382,7 +389,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 /* New Logic: Render based on streaming state */
                                 (() => {
                                     // Check if actively streaming to prevent incremental highlighting
-                                    const currentIsStreaming = isStreamingRef.current || isActivelyStreamingRef.current;
+                                    const currentIsStreaming = isStreamingRef.current ||
+                                                              isActivelyStreamingRef.current ||
+                                                              isAgentStreaming;
 
                                     if (currentIsStreaming) {
                                         /* === STREAMING MODE: Render ALL segments (text + tools) in order as plain text === */
@@ -542,6 +551,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     if (!content) return null;
                                                     if (content.startsWith('Indexing...')) {
                                                         return <p key={index} className="text-sm whitespace-pre-wrap text-gray-400">{content}</p>;
+                                                    }
+                                                    // NEW: Check if agent is streaming - use plain text to avoid performance issues
+                                                    if (isAgentStreaming) {
+                                                        return (
+                                                            <pre key={index} className="whitespace-pre-wrap break-word text-[13px] font-mono text-gray-300 bg-[#1e1e1e] p-3 rounded border border-gray-700 my-2">
+                                                                {content}
+                                                            </pre>
+                                                        );
                                                     }
                                                     return renderContentPart({ type: 'text', text: content }, index);
                                                 }

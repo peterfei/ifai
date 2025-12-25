@@ -39,8 +39,126 @@ const originalSendMessage = coreUseChatStore.getState().sendMessage;
 const originalApproveToolCall = coreUseChatStore.getState().approveToolCall;
 const originalRejectToolCall = coreUseChatStore.getState().rejectToolCall;
 
+/**
+ * 智能消息上下文选择
+ * 保留系统消息、最近消息、以及包含关键内容（tool_calls、references等）的历史消息
+ *
+ * @param messages - 所有历史消息
+ * @param maxMessages - 最大保留消息数
+ * @returns - 过滤后的消息（保持原始顺序）
+ */
+function selectMessagesForContext(
+    messages: Message[],
+    maxMessages: number
+): Message[] {
+    // 1. 如果消息总数小于限制，直接返回
+    if (messages.length <= maxMessages) {
+        return messages;
+    }
+
+    // 2. 为每条消息计算优先级分数
+    interface ScoredMessage {
+        message: Message;
+        score: number;
+        index: number;  // 原始索引
+    }
+
+    const scored: ScoredMessage[] = messages.map((msg, idx) => {
+        let score = 0;
+        const positionFromEnd = messages.length - 1 - idx;
+
+        // 规则1: 系统消息 - 最高优先级
+        if (msg.role === 'system') {
+            score = 1000;
+        }
+        // 规则2: 有 tool_calls 的消息
+        else if (msg.toolCalls && msg.toolCalls.length > 0) {
+            score = 500;
+        }
+        // 规则3: Tool 响应消息
+        else if (msg.tool_call_id) {
+            score = 450;
+        }
+        // 规则4: 有 RAG references 的消息
+        else if ((msg as any).references && (msg as any).references.length > 0) {
+            score = 300;
+        }
+        // 规则5: 用户消息
+        else if (msg.role === 'user') {
+            score = 100;
+        }
+        // 规则6: 助手消息
+        else if (msg.role === 'assistant') {
+            score = 50;
+        }
+
+        // 应用时间衰减：越近的消息权重越高
+        const decayFactor = Math.pow(1.1, positionFromEnd);
+        score = score * decayFactor;
+
+        return { message: msg, score, index: idx };
+    });
+
+    // 3. 按分数降序排序，取前 maxMessages 条
+    scored.sort((a, b) => b.score - a.score);
+    let selected = scored.slice(0, maxMessages);
+
+    // 4. 完整性检查：确保 tool_calls 和 tool_call_id 配对
+    const selectedIndices = new Set(selected.map(s => s.index));
+
+    // 4a. 检查 tool_calls 是否有对应的响应
+    selected.forEach(s => {
+        if (s.message.toolCalls && s.message.toolCalls.length > 0) {
+            // 找到这条消息之后的所有 tool 响应
+            for (let i = s.index + 1; i < messages.length; i++) {
+                const responseMsg = messages[i];
+                if (responseMsg.tool_call_id) {
+                    // 检查这个响应是否属于当前的 tool_calls
+                    const belongsToCurrent = s.message.toolCalls?.some(tc => tc.id === responseMsg.tool_call_id);
+                    if (belongsToCurrent && !selectedIndices.has(i)) {
+                        selectedIndices.add(i);
+                        selected.push({
+                            message: responseMsg,
+                            score: 450,  // tool响应分数
+                            index: i
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    // 4b. 检查 tool 响应是否有对应的 tool_calls
+    selected.forEach(s => {
+        if (s.message.tool_call_id) {
+            // 向前查找对应的 tool_calls
+            for (let i = s.index - 1; i >= 0; i--) {
+                const requestMsg = messages[i];
+                if (requestMsg.toolCalls && requestMsg.toolCalls.some(tc => tc.id === s.message.tool_call_id)) {
+                    if (!selectedIndices.has(i)) {
+                        selectedIndices.add(i);
+                        selected.push({
+                            message: requestMsg,
+                            score: 500,  // tool_call分数
+                            index: i
+                        });
+                    }
+                    break;
+                }
+            }
+        }
+    });
+
+    // 5. 按原始索引排序，保持时间顺序
+    selected.sort((a, b) => a.index - b.index);
+
+    // 6. 返回消息（去重后的）
+    return selected.map(s => s.message);
+}
+
 const patchedSendMessage = async (content: string | any[], providerId: string, modelName: string) => {
-    console.log(">>> patchedSendMessage called with:", content);
+    const callId = crypto.randomUUID().slice(0, 8);
+    console.log(`>>> [${callId}] patchedSendMessage called:`, typeof content === 'string' ? content.slice(0, 50) : 'array');
 
     // Get settings at the beginning (needed for both intent recognition and provider config)
     const settings = useSettingsStore.getState();
@@ -217,9 +335,36 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     // @ts-ignore
     coreUseChatStore.getState().addMessage(assistantMsgPlaceholder);
 
-    // 4. Prepare History
-    const messages = coreUseChatStore.getState().messages;
-    const msgHistory = messages.slice(0, -1).map(m => ({
+    // 4. Prepare History with Smart Context Selection
+    const allMessages = coreUseChatStore.getState().messages;
+    const assistantPlaceholder = allMessages[allMessages.length - 1];  // 刚添加的占位符
+
+    // 获取上下文配置
+    const { maxContextMessages, enableSmartContextSelection } = useSettingsStore.getState();
+
+    // 选择要发送的消息
+    let messagesToSend: Message[];
+    if (enableSmartContextSelection) {
+        // 智能选择：保留系统消息、关键消息、最近消息
+        const messagesWithoutPlaceholder = allMessages.slice(0, -1);
+        messagesToSend = selectMessagesForContext(messagesWithoutPlaceholder, maxContextMessages);
+
+        // 调试日志：简化输出避免刷屏
+        const selectedSummary = {
+            total: messagesToSend.length,
+            system: messagesToSend.filter(m => m.role === 'system').length,
+            user: messagesToSend.filter(m => m.role === 'user').length,
+            assistant: messagesToSend.filter(m => m.role === 'assistant').length,
+            tools: messagesToSend.filter(m => m.toolCalls?.length).length,
+        };
+        console.log(`[Context] Selected ${messagesToSend.length}/${messagesWithoutPlaceholder.length} messages:`, selectedSummary);
+    } else {
+        // 传统模式：发送所有消息
+        messagesToSend = allMessages.slice(0, -1);
+    }
+
+    // 转换为API格式
+    const msgHistory = messagesToSend.map(m => ({
         role: m.role,
         content: m.content,
         tool_calls: m.toolCalls ? m.toolCalls.map(tc => ({
