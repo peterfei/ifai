@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp } from 'lucide-react'; // Added icons
+import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -87,6 +87,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         if (part.type === 'text' && part.text) {
             // PERFORMANCE OPTIMIZATION: During streaming, skip ALL Markdown parsing
             // to maximize performance and eliminate stuttering. Apply formatting only after completion.
+            // Debug: Log streaming state to diagnose highlighting issues
+            if (process.env.NODE_ENV === 'development' && part.text.length > 100) {
+                console.log('[MessageItem] renderContentPart:', { index, isStreaming, textLength: part.text.length });
+            }
+
+            // Only skip highlighting during active streaming
             if (isStreaming === true) {
                 return (
                     <pre key={index} className="whitespace-pre-wrap break-word text-[13px] font-mono text-gray-300 bg-[#1e1e1e] p-3 rounded border border-gray-700 my-2">
@@ -109,16 +115,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                     : lines.slice(0, MAX_LINES_BEFORE_COLLAPSE).join('\n') + '\n... (展开查看全部)';
 
                 return (
-                    <div key={index} className="relative">
-                        {isExpanded && (
-                            <button
-                                onClick={() => toggleBlock(index)}
-                                className="absolute top-2 right-2 z-10 px-2 py-1 text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-gray-900/90 backdrop-blur rounded border border-gray-700 hover:bg-gray-800 transition-colors shadow-lg"
-                            >
-                                <ChevronUp size={12} />
-                                收起
-                            </button>
-                        )}
+                    <div key={index} className="flex flex-col">
                         <ReactMarkdown
                             children={displayText}
                             components={{
@@ -130,22 +127,24 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                     if (!isInline) {
                                         return (
-                                            <SyntaxHighlighter
-                                                {...propsToPass}
-                                                children={String(children)}
-                                                style={vscDarkPlus}
-                                                language={match ? match[1] : 'text'}
-                                                PreTag="div"
-                                                wrapLines={true}
-                                                customStyle={{
-                                                    margin: 0,
-                                                    borderRadius: '0.375rem',
-                                                    fontSize: '0.75rem',
-                                                    whiteSpace: 'pre-wrap',
-                                                    wordBreak: 'break-word',
-                                                    display: 'block'
-                                                }}
-                                            />
+                                            <div className="my-2">
+                                                <SyntaxHighlighter
+                                                    {...propsToPass}
+                                                    children={String(children)}
+                                                    style={vscDarkPlus}
+                                                    language={match ? match[1] : 'text'}
+                                                    PreTag="div"
+                                                    wrapLines={true}
+                                                    customStyle={{
+                                                        margin: 0,
+                                                        borderRadius: '0.375rem',
+                                                        fontSize: '0.75rem',
+                                                        whiteSpace: 'pre-wrap',
+                                                        wordBreak: 'break-word',
+                                                        display: 'block'
+                                                    }}
+                                                />
+                                            </div>
                                         );
                                     }
 
@@ -157,15 +156,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 },
                             }}
                         />
-                        {!isExpanded && (
-                            <button
-                                onClick={() => toggleBlock(index)}
-                                className="w-full mt-1 py-1 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1 bg-gray-900 rounded border border-gray-700 hover:bg-gray-800 transition-colors"
-                            >
-                                <ChevronDown size={12} />
-                                展开全部 ({lines.length} 行)
-                            </button>
-                        )}
+                        <button
+                            onClick={() => toggleBlock(index)}
+                            className="self-start mt-1 px-3 py-1 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1 bg-gray-900 rounded border border-gray-700 hover:bg-gray-800 transition-colors"
+                        >
+                            {isExpanded ? (
+                                <>
+                                    <ChevronUp size={12} />
+                                    收起 ({lines.length} 行)
+                                </>
+                            ) : (
+                                <>
+                                    <ChevronDown size={12} />
+                                    展开全部 ({lines.length} 行)
+                                </>
+                            )}
+                        </button>
                     </div>
                 );
             }

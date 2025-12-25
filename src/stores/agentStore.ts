@@ -111,6 +111,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             thinkingBuffer += chunk;
 
             const now = Date.now();
+            const timeSinceLast = now - lastFlush;
+
+            // DEBUG: Log timing to diagnose 1-3s delays
+            if (chunk.length > 0) {
+                console.log(`[AgentStore] Content chunk: ${chunk.length} chars, time since last: ${timeSinceLast}ms`);
+            }
+
             if (now - lastFlush > 10) {  // Reduced from 100ms to 10ms for faster streaming
                 const currentBuffer = thinkingBuffer;
 
@@ -229,7 +236,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (msgId) {
                 const { messages } = coreUseChatStore.getState();
                 coreUseChatStore.setState({
-                    messages: messages.map(m => m.id === msgId ? { ...m, content: result } : m)
+                    messages: messages.map(m => m.id === msgId ? { ...m, content: result } : m),
+                    isLoading: false  // ✅ FIX: Clear loading state so highlighting appears after stream completes
                 });
             }
             set(state => ({
@@ -243,7 +251,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (msgId) {
                 const { messages } = coreUseChatStore.getState();
                 coreUseChatStore.setState({
-                    messages: messages.map(m => m.id === msgId ? { ...m, content: `❌ Agent Error: ${payload.error}` } : m)
+                    messages: messages.map(m => m.id === msgId ? { ...m, content: `❌ Agent Error: ${payload.error}` } : m),
+                    isLoading: false  // ✅ FIX: Clear loading state on error too
                 });
             }
             set(state => ({
