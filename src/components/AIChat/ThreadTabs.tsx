@@ -2,6 +2,7 @@
  * ThreadTabs Component
  *
  * Displays and manages chat thread tabs:
+ * - Search and filter bar
  * - Horizontal scrolling tab list
  * - New thread button
  * - Active thread highlighting
@@ -14,6 +15,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { useThreadStore } from '../../stores/threadStore';
 import { switchThread } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
+import { ThreadSearchBar } from './ThreadSearchBar';
 
 // ============================================================================
 // Types
@@ -130,21 +132,26 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
   // No threads state
   if (filteredThreads.length === 0) {
     return (
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-        <span className="text-sm text-gray-500">{t('threads.noThreads', '暂无对话')}</span>
-        <button
-          onClick={handleNewThread}
-          className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-          title={t('threads.newThread', '新建对话')}
-        >
-          + {t('threads.new', '新对话')}
-        </button>
-      </div>
+      <>
+        <ThreadSearchBar />
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
+          <span className="text-sm text-gray-500">{t('threads.noThreads', '暂无对话')}</span>
+          <button
+            onClick={handleNewThread}
+            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            title={t('threads.newThread', '新建对话')}
+          >
+            + {t('threads.new', '新对话')}
+          </button>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="flex items-center bg-gray-900 border-b border-gray-800">
+    <>
+      <ThreadSearchBar />
+      <div className="flex items-center bg-gray-900 border-b border-gray-800">
       {/* Scrollable tab list */}
       <div
         ref={scrollContainerRef}
@@ -252,6 +259,7 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
         <span className="text-sm font-medium">{t('threads.new', '新对话')}</span>
       </button>
     </div>
+    </>
   );
 };
 

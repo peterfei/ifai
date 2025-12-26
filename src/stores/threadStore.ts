@@ -110,6 +110,8 @@ interface ThreadActions {
   setTagFilter: (tag: string | null) => void;
   /** Clear all deleted threads permanently */
   clearDeletedThreads: () => void;
+  /** Auto-archive threads older than specified days */
+  autoArchiveOldThreads: (daysOld: number) => number;
   /** Reset thread store (for testing/debugging) */
   reset: () => void;
 }
@@ -562,6 +564,46 @@ export const useThreadStore = create<ThreadStore>()(
         );
 
         set({ threads: newThreads });
+      },
+
+      autoArchiveOldThreads: (daysOld: number) => {
+        const state = get();
+        const now = Date.now();
+        const cutoffTime = now - (daysOld * 24 * 60 * 60 * 1000);
+
+        let archivedCount = 0;
+
+        // Find threads to archive (not pinned, active status, older than cutoff)
+        const threadsToArchive = Object.entries(state.threads)
+          .filter(([id, thread]) => {
+            return (
+              thread.status === 'active' &&
+              !thread.pinned &&
+              thread.lastActiveAt < cutoffTime
+            );
+          })
+          .map(([id]) => id);
+
+        // Archive the threads
+        if (threadsToArchive.length > 0) {
+          const updatedThreads = { ...state.threads };
+
+          threadsToArchive.forEach(threadId => {
+            if (updatedThreads[threadId]) {
+              updatedThreads[threadId] = {
+                ...updatedThreads[threadId],
+                status: 'archived' as const,
+              };
+              archivedCount++;
+            }
+          });
+
+          set({ threads: updatedThreads });
+        }
+
+        console.log(`[ThreadStore] Auto-archived ${archivedCount} threads older than ${daysOld} days`);
+
+        return archivedCount;
       },
 
       reset: () => {
