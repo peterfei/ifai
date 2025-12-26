@@ -5,13 +5,15 @@ import { Agent, AgentEventPayload } from '../types/agent';
 import { useFileStore } from './fileStore';
 import { useSettingsStore } from './settingsStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
+import { useThreadStore } from './threadStore';
 import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
 
 interface AgentState {
   runningAgents: Agent[];
   activeListeners: Record<string, UnlistenFn>;
   agentToMessageMap: Record<string, string>;
-  launchAgent: (agentType: string, task: string, chatMsgId?: string) => Promise<string>;
+  launchAgent: (agentType: string, task: string, chatMsgId?: string, threadId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;
   approveAction: (id: string, approved: boolean) => Promise<void>;
@@ -30,11 +32,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   activeListeners: {},
   agentToMessageMap: {},
   
-  launchAgent: async (agentType: string, task: string, chatMsgId?: string) => {
+  launchAgent: async (agentType: string, task: string, chatMsgId?: string, threadId?: string) => {
     // 1. Pre-generate ID
     const id = uuidv4();
     const eventId = `agent_${id}`;
-    
+
+    // Get current thread ID if not provided
+    const currentThreadId = threadId || useThreadStore.getState().activeThreadId;
+
     const projectRoot = useFileStore.getState().rootPath;
     if (!projectRoot) throw new Error("No project root available");
 
@@ -57,7 +62,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         set(state => ({ agentToMessageMap: { ...state.agentToMessageMap, [id]: chatMsgId } }));
     }
 
-    console.log(`[AgentStore] launchAgent - id: ${id}, eventId: ${eventId}, chatMsgId: ${chatMsgId || 'NONE'}`);
+    console.log(`[AgentStore] launchAgent - id: ${id}, eventId: ${eventId}, chatMsgId: ${chatMsgId || 'NONE'}, threadId: ${currentThreadId || 'NONE'}`);
 
     // 3. Setup Listener FIRST - This is critical for industrial grade reliability
     // We register the listener BEFORE calling the backend to catch the very first event.
@@ -248,11 +253,36 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 });
                 console.log(`[AgentStore] After setState: isLoading=${coreUseChatStore.getState().isLoading}`);
             }
+
+            // Get the agent before updating status to check thread info
+            const agent = get().runningAgents.find(a => a.id === id);
+            const activeThreadId = useThreadStore.getState().activeThreadId;
+
             set(state => ({
                 runningAgents: state.runningAgents.map(a =>
                     a.id === id ? { ...a, status: 'completed', progress: 1.0, expiresAt: Date.now() + 10000 } : a
                 )
             }));
+
+            // Show notification if agent completed in background thread
+            if (agent && agent.threadId && agent.threadId !== activeThreadId) {
+                const thread = useThreadStore.getState().getThread(agent.threadId);
+                if (thread) {
+                    // Mark thread as having unread activity
+                    useThreadStore.getState().updateThread(agent.threadId, { hasUnreadActivity: true });
+
+                    // Show toast notification
+                    toast.success('后台任务完成', {
+                        description: `"${agent.type}" 在 "${thread.title}" 中已完成`,
+                        action: {
+                            label: '查看',
+                            onClick: () => {
+                                useThreadStore.getState().setActiveThread(agent.threadId!);
+                            },
+                        },
+                    });
+                }
+            }
         }
         // --- Error ---
         else if (payload.type === 'error') {
@@ -268,9 +298,34 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     isLoading: false
                 });
             }
+
+            // Get the agent before updating status to check thread info
+            const agent = get().runningAgents.find(a => a.id === id);
+            const activeThreadId = useThreadStore.getState().activeThreadId;
+
             set(state => ({
                 runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: 'failed', expiresAt: Date.now() + 10000 } : a)
             }));
+
+            // Show notification if agent failed in background thread
+            if (agent && agent.threadId && agent.threadId !== activeThreadId) {
+                const thread = useThreadStore.getState().getThread(agent.threadId);
+                if (thread) {
+                    // Mark thread as having unread activity
+                    useThreadStore.getState().updateThread(agent.threadId, { hasUnreadActivity: true });
+
+                    // Show toast notification
+                    toast.error('后台任务失败', {
+                        description: `"${agent.type}" 在 "${thread.title}" 中执行失败`,
+                        action: {
+                            label: '查看',
+                            onClick: () => {
+                                useThreadStore.getState().setActiveThread(agent.threadId!);
+                            },
+                        },
+                    });
+                }
+            }
         }
     });
 
@@ -284,13 +339,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         id,
         name: `${agentType} Task`,
         type: agentType,
-        status: 'initializing', 
+        status: 'initializing',
         progress: 0,
         logs: [`🚀 Task registered...`],
         content: "",
-        startTime: Date.now()
+        startTime: Date.now(),
+        threadId: currentThreadId, // Associate with thread
     };
     set(state => ({ runningAgents: [newAgent, ...state.runningAgents] }));
+
+    // 4.5. Add agent task to thread if threadId exists
+    if (currentThreadId) {
+        useThreadStore.getState().addAgentTask(currentThreadId, id);
+        console.log(`[AgentStore] Added agent ${id} to thread ${currentThreadId}`);
+    }
 
     // 5. Invoke Backend FINALLY
     // By now, the listener is active and the agent entry exists in state.
@@ -326,7 +388,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   removeAgent: (id: string) => {
-      const { activeListeners } = get();
+      const { activeListeners, runningAgents } = get();
+      const agent = runningAgents.find(a => a.id === id);
+
+      // Remove from thread store if associated
+      if (agent?.threadId) {
+          useThreadStore.getState().removeAgentTask(agent.threadId, id);
+          console.log(`[AgentStore] Removed agent ${id} from thread ${agent.threadId}`);
+      }
+
       if (activeListeners[id]) activeListeners[id]();
       set(state => {
           const { [id]: _, ...remainingListeners } = state.activeListeners;

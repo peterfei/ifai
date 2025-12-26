@@ -19,6 +19,7 @@ export interface Agent {
   content?: string; // The accumulated "thinking" content
   expiresAt?: number;
   startTime?: number;
+  threadId?: string; // Associated thread ID for background tasks
   pendingApproval?: {
     tool: string;
     path: string;

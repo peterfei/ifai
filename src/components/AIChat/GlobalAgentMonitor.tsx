@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import { 
-  X, CheckCircle, AlertCircle, Loader2, Terminal, 
-  ChevronDown, ChevronUp, Trash2, Clock 
+import { useThreadStore } from '../../stores/threadStore';
+import {
+  X, CheckCircle, AlertCircle, Loader2, Terminal,
+  ChevronDown, ChevronUp, Trash2, Clock, MessageSquare
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -31,10 +32,25 @@ const getStatusIcon = (status: string) => {
 export const GlobalAgentMonitor: React.FC = () => {
   const { t } = useTranslation();
   const { runningAgents, removeAgent, clearCompletedAgents } = useAgentStore();
+  const threads = useThreadStore(state => state.threads);
+  const setActiveThread = useThreadStore(state => state.setActiveThread);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Helper to get thread title by threadId
+  const getThreadTitle = (threadId?: string) => {
+    if (!threadId) return null;
+    const thread = threads[threadId];
+    return thread?.title || null;
+  };
+
+  // Handle click on thread indicator to switch to that thread
+  const handleThreadClick = (threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveThread(threadId);
+  };
 
   // Position and Dragging State
   const [position, setPosition] = useState({ x: window.innerWidth - 420, y: window.innerHeight - 80 });
@@ -240,7 +256,21 @@ export const GlobalAgentMonitor: React.FC = () => {
                                         {getStatusIcon(agent.status)}
                                     </div>
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-xs font-bold text-gray-200 truncate">{agent.type}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-200 truncate">{agent.type}</span>
+                                            {agent.threadId && getThreadTitle(agent.threadId) && (
+                                                <button
+                                                    onClick={(e) => handleThreadClick(agent.threadId!, e)}
+                                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors flex-shrink-0"
+                                                    title={`切换到会话: ${getThreadTitle(agent.threadId)}`}
+                                                >
+                                                    <MessageSquare size={10} />
+                                                    <span className="text-[9px] max-w-[80px] truncate">
+                                                        {getThreadTitle(agent.threadId)}
+                                                    </span>
+                                                </button>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] text-gray-500 truncate capitalize font-mono">
                                                 {t(`agent_status_${agent.status}`, { defaultValue: agent.status })}
