@@ -5,6 +5,7 @@ import { useChatStore as coreUseChatStore, registerStores, type Message } from '
 import { useFileStore } from './fileStore';
 import { useSettingsStore } from './settingsStore';
 import { useAgentStore } from './agentStore';
+import { useThreadStore } from './threadStore';
 import { invoke } from '@tauri-apps/api/core';
 import { recognizeIntent, shouldTriggerAgent, formatAgentName } from '../utils/intentRecognizer';
 
@@ -17,6 +18,85 @@ export interface ContentSegment {
   toolCallId?: string;  // Reference to toolCall by ID
   startPos?: number;    // Character position in full content (for precise tool interleaving)
   endPos?: number;      // End position in full content
+}
+
+// ============================================================================
+// Thread-Aware Message Management
+// ============================================================================
+
+/**
+ * Per-thread message storage.
+ * Messages are stored per thread to enable quick switching between threads.
+ * The core store's messages array is updated when switching threads.
+ */
+const threadMessages: Map<string, Message[]> = new Map();
+
+/**
+ * Get messages for a specific thread
+ */
+export function getThreadMessages(threadId: string): Message[] {
+  return threadMessages.get(threadId) || [];
+}
+
+/**
+ * Set messages for a specific thread
+ */
+export function setThreadMessages(threadId: string, messages: Message[]): void {
+  threadMessages.set(threadId, messages);
+}
+
+/**
+ * Clear all thread messages (for testing/reset)
+ */
+export function clearThreadMessages(): void {
+  threadMessages.clear();
+}
+
+/**
+ * Generate thread title from message content
+ */
+function generateTitleFromMessage(content: string | any[]): string {
+  let textContent = '';
+
+  if (typeof content === 'string') {
+    textContent = content;
+  } else if (Array.isArray(content)) {
+    textContent = content
+      .filter(p => p.type === 'text')
+      .map(p => p.text)
+      .join(' ');
+  }
+
+  // Take first 30 characters as title
+  const maxLength = 30;
+  if (textContent.length > maxLength) {
+    return textContent.slice(0, maxLength) + '...';
+  }
+  return textContent || '新对话';
+}
+
+/**
+ * Switch to a different thread
+ * Saves current messages to thread and loads the target thread's messages
+ */
+export function switchThread(threadId: string): void {
+  const threadStore = useThreadStore.getState();
+  const currentThreadId = threadStore.activeThreadId;
+
+  // Save current thread messages before switching
+  if (currentThreadId) {
+    const currentMessages = coreUseChatStore.getState().messages;
+    setThreadMessages(currentThreadId, [...currentMessages]);
+  }
+
+  // Switch to target thread
+  threadStore.switchThread(threadId);
+
+  // Load target thread messages
+  const targetMessages = getThreadMessages(threadId);
+  coreUseChatStore.setState({ messages: [...targetMessages] });
+
+  console.log(`[Thread] Switched from ${currentThreadId} to ${threadId}, loaded ${targetMessages.length} messages`);
 }
 
 // Register stores on first import
@@ -159,6 +239,24 @@ function selectMessagesForContext(
 const patchedSendMessage = async (content: string | any[], providerId: string, modelName: string) => {
     const callId = crypto.randomUUID().slice(0, 8);
     console.log(`>>> [${callId}] patchedSendMessage called:`, typeof content === 'string' ? content.slice(0, 50) : 'array');
+
+    // ========================================================================
+    // Thread-Aware Message Management
+    // ========================================================================
+    const threadStore = useThreadStore.getState();
+    let activeThreadId = threadStore.activeThreadId;
+
+    // Create a new thread if none exists
+    if (!activeThreadId) {
+      activeThreadId = threadStore.createThread();
+      console.log(`[Thread] Auto-created thread: ${activeThreadId}`);
+    }
+
+    // Load current thread messages into the core store
+    const currentThreadMessages = getThreadMessages(activeThreadId);
+    if (currentThreadMessages.length > 0) {
+      coreUseChatStore.setState({ messages: currentThreadMessages });
+    }
 
     // Get settings at the beginning (needed for both intent recognition and provider config)
     const settings = useSettingsStore.getState();
@@ -665,6 +763,29 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
+
+        // ========================================================================
+        // Save thread messages after completion
+        // ========================================================================
+        const finalMessages = coreUseChatStore.getState().messages;
+        const currentThreadId = useThreadStore.getState().activeThreadId;
+        if (currentThreadId) {
+          setThreadMessages(currentThreadId, [...finalMessages]);
+          useThreadStore.getState().updateThreadTimestamp(currentThreadId);
+          useThreadStore.getState().incrementMessageCount(currentThreadId);
+
+          // Auto-update thread title from first user message if default title
+          const thread = useThreadStore.getState().getThread(currentThreadId);
+          if (thread && thread.title.includes('新对话')) {
+            const firstUserMsg = finalMessages.find(m => m.role === 'user');
+            if (firstUserMsg && finalMessages.filter(m => m.role === 'user').length === 1) {
+              const newTitle = generateTitleFromMessage(firstUserMsg.content);
+              if (newTitle !== '新对话') {
+                useThreadStore.getState().updateThread(currentThreadId, { title: newTitle });
+              }
+            }
+          }
+        }
     }
 };
 
@@ -904,6 +1025,29 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
+
+        // ========================================================================
+        // Save thread messages after completion
+        // ========================================================================
+        const finalMessages = coreUseChatStore.getState().messages;
+        const currentThreadId = useThreadStore.getState().activeThreadId;
+        if (currentThreadId) {
+          setThreadMessages(currentThreadId, [...finalMessages]);
+          useThreadStore.getState().updateThreadTimestamp(currentThreadId);
+          useThreadStore.getState().incrementMessageCount(currentThreadId);
+
+          // Auto-update thread title from first user message if default title
+          const thread = useThreadStore.getState().getThread(currentThreadId);
+          if (thread && thread.title.includes('新对话')) {
+            const firstUserMsg = finalMessages.find(m => m.role === 'user');
+            if (firstUserMsg && finalMessages.filter(m => m.role === 'user').length === 1) {
+              const newTitle = generateTitleFromMessage(firstUserMsg.content);
+              if (newTitle !== '新对话') {
+                useThreadStore.getState().updateThread(currentThreadId, { title: newTitle });
+              }
+            }
+          }
+        }
     }
 };
 

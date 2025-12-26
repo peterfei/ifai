@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { MessageItem } from './MessageItem';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
+import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 
 interface AIChatProps {
@@ -20,14 +21,17 @@ interface AIChatProps {
 
 export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { t } = useTranslation();
-  
+
+  // Thread keyboard shortcuts
+  useThreadKeyboardShortcuts();
+
   // Use specific selectors to avoid subscribing to the entire store
   const rawMessages = useChatStore(state => state.messages);
   const isLoading = useChatStore(state => state.isLoading);
   const sendMessage = useChatStore(state => state.sendMessage);
   const approveToolCall = useChatStore(state => state.approveToolCall);
   const rejectToolCall = useChatStore(state => state.rejectToolCall);
-  
+
   // New Chat UI Store for history
   const inputHistory = useChatUIStore(state => state.inputHistory);
   const historyIndex = useChatUIStore(state => state.historyIndex);
@@ -427,7 +431,10 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
             </button>
         </div>
       </div>
-      
+
+      {/* Thread Tabs */}
+      <ThreadTabs maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {displayMessages.map((message, index) => (
           <MessageItem
