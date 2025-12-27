@@ -46,6 +46,7 @@ interface InputDialogProps {
 }
 
 const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfirm, onCancel }) => {
+  const { t } = useTranslation();
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -72,39 +73,92 @@ const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfir
     }
   };
 
+  // Determine icon and subtitle based on title
+  const getDialogIcon = () => {
+    if (title.includes('Rename') || title.includes('name')) {
+      return <Edit3 size={20} className="text-blue-400" />;
+    }
+    if (title.includes('File')) {
+      return <FilePlus size={20} className="text-green-400" />;
+    }
+    if (title.includes('Folder')) {
+      return <FolderPlus size={20} className="text-yellow-400" />;
+    }
+    return <FileText size={20} className="text-gray-400" />;
+  };
+
+  const getDialogSubtitle = () => {
+    if (title.includes('Rename') || title.includes('name')) {
+      return t('dialog.enterNewName');
+    }
+    return t('dialog.enterName');
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={onCancel}>
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 min-w-96" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-white">
-            <X size={20} />
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-[#252526] border border-gray-600/50 rounded-xl shadow-2xl p-6 min-w-[400px] max-w-[500px] animate-in zoom-in-95 duration-200"
+        onClick={e => e.stopPropagation()}
+        style={{
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3)'
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="p-2 bg-gray-800/50 rounded-lg">
+            {getDialogIcon()}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-white">{title}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {getDialogSubtitle()}
+            </p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+            aria-label={t('common.close')}
+          >
+            <X size={18} />
           </button>
         </div>
+
+        {/* Input Form */}
         <form onSubmit={handleSubmit}>
-          <input
-            ref={inputRef}
-            type="text"
-            value={value}
-            onChange={e => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={title}
-          />
-          <div className="flex justify-end gap-2 mt-4">
+          <div className="relative">
+            <input
+              ref={inputRef}
+              type="text"
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+              placeholder={title}
+            />
+            {/* Character count indicator */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-600">
+              {t('dialog.characterCount', { count: value.length })}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 mt-5">
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded"
+              className="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-all duration-150"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={!value.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-all duration-150 shadow-lg shadow-blue-600/20 disabled:shadow-none"
             >
-              OK
+              {t('common.confirm')}
             </button>
           </div>
         </form>

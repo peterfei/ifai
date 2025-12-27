@@ -22,6 +22,7 @@ interface FileState {
   fetchGitStatuses: () => Promise<void>;
   reloadFileContent: (id: string) => Promise<void>;
   refreshFileTree: () => Promise<void>;
+  refreshFileTreePreserveExpanded: (expandedNodes: Set<string>) => Promise<Set<string>>;
   syncState: (state: Partial<FileState>) => void;
 }
 
@@ -185,6 +186,50 @@ export const useFileStore = create<FileState>()(
                 console.error("Failed to refresh file tree:", e);
             }
         }
+      },
+
+      // Refresh file tree while preserving expanded nodes
+      refreshFileTreePreserveExpanded: async (expandedNodes: Set<string>) => {
+        const { rootPath, gitStatuses } = get();
+        if (rootPath) {
+            try {
+                // Collect paths of expanded directories
+                const expandedPaths = new Set<string>();
+                const collectExpandedPaths = (node: FileNode) => {
+                    if (expandedNodes.has(node.id) && node.kind === 'directory') {
+                        expandedPaths.add(node.path);
+                    }
+                    if (node.children) {
+                        node.children.forEach(collectExpandedPaths);
+                    }
+                };
+
+                const { fileTree } = get();
+                if (fileTree) {
+                    collectExpandedPaths(fileTree);
+                }
+
+                // Refresh the tree
+                const children = await readDirectory(rootPath);
+                const rootName = rootPath.split('/').pop() || 'Project';
+                const newTree: FileNode = {
+                    id: uuidv4(),
+                    name: rootName,
+                    path: rootPath,
+                    kind: 'directory',
+                    children
+                };
+                const treeWithStatus = updateGitStatusRecursive(newTree, gitStatuses);
+                set({ fileTree: treeWithStatus });
+
+                // Return the expanded paths so caller can restore them
+                return expandedPaths;
+            } catch (e) {
+                console.error("Failed to refresh file tree:", e);
+                return new Set();
+            }
+        }
+        return new Set();
       },
     }),
     {

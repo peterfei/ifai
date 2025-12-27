@@ -88,7 +88,15 @@
     "renamedSuccessfully": "{{newName}} 重命名成功",
     "renameFailed": "重命名失败",
     "deletedSuccessfully": "删除成功",
-    "deleteFailed": "删除失败"
+    "deleteFailed": "删除失败",
+    "cancel": "取消",
+    "confirm": "确认",
+    "close": "关闭"
+  },
+  "dialog": {
+    "enterNewName": "输入新名称",
+    "enterName": "输入名称",
+    "characterCount": "{{count}} 个字符"
   },
   "contextMenu": {
     "copy": "复制",

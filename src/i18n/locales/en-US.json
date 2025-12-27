@@ -88,7 +88,15 @@
     "renamedSuccessfully": "{{newName}} renamed successfully",
     "renameFailed": "Failed to rename",
     "deletedSuccessfully": "Deleted successfully",
-    "deleteFailed": "Failed to delete"
+    "deleteFailed": "Failed to delete",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close"
+  },
+  "dialog": {
+    "enterNewName": "Enter a new name",
+    "enterName": "Enter a name",
+    "characterCount": "{{count}} chars"
   },
   "contextMenu": {
     "copy": "Copy",

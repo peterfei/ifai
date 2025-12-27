@@ -188,7 +188,7 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, rootPath, setGitStatuses, openFile } = useFileStore();
+  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, openFile } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -196,6 +196,35 @@ export const FileTree = () => {
   const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Function to refresh file tree while preserving expanded state
+  const handleRefreshPreserveExpanded = useCallback(async () => {
+    const expandedPaths = await refreshFileTreePreserveExpanded(expandedNodes);
+
+    // Wait for tree to update, then restore expanded nodes by path
+    setTimeout(() => {
+      const { fileTree: newTree } = useFileStore.getState();
+      if (!newTree) return;
+
+      const restoreExpandedNodes = (node: FileNode): Set<string> => {
+        const restored = new Set<string>();
+
+        const checkNode = (n: FileNode) => {
+          if (expandedPaths.has(n.path) && n.kind === 'directory') {
+            restored.add(n.id);
+          }
+          if (n.children) {
+            n.children.forEach(checkNode);
+          }
+        };
+
+        checkNode(node);
+        return restored;
+      };
+
+      setExpandedNodes(restoreExpandedNodes(newTree));
+    }, 50);
+  }, [expandedNodes, refreshFileTreePreserveExpanded]);
 
   // Load Git Status when rootPath changes
   useEffect(() => {
@@ -393,6 +422,11 @@ export const FileTree = () => {
     await refreshFileTree();
   }, [refreshFileTree]);
 
+  // Use the preserve-expanded version for context menu actions
+  const handleRefreshForAction = useCallback(async () => {
+    await handleRefreshPreserveExpanded();
+  }, [handleRefreshPreserveExpanded]);
+
   if (!fileTree) return (
     <div className="p-4 text-gray-500 text-sm text-center">
       Click folder icon to open
@@ -425,7 +459,7 @@ export const FileTree = () => {
           y={contextMenu.y}
           node={contextMenu.node}
           onClose={handleCloseContextMenu}
-          onRefresh={handleRefresh}
+          onRefresh={handleRefreshForAction}
           rootPath={rootPath}
         />
       )}

@@ -40,6 +40,16 @@ const useDebounce = <T,>(value: T, delay: number): T => {
   return debouncedValue;
 };
 
+// Format timestamp to human-readable time ago
+const formatTimeAgo = (timestamp: number): string => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+};
+
 // Highlight matching text in result
 const highlightMatch = (text: string, query: string, caseSensitive: boolean, useRegex: boolean): React.ReactNode => {
   if (!query) return text;
@@ -378,37 +388,60 @@ export const SearchPanel = () => {
         {showHistory && (
           <div
             ref={historyRef}
-            className="bg-[#2d2d2d] border border-gray-700 rounded-lg shadow-xl py-1 max-h-60 overflow-y-auto"
+            className="bg-[#252526] border border-gray-600/50 rounded-lg shadow-2xl overflow-hidden max-h-80 overflow-y-auto backdrop-blur-sm"
             style={{
               position: 'fixed',
               top: `${historyPosition.top}px`,
               left: `${historyPosition.left}px`,
-              minWidth: '280px',
-              zIndex: 1000
+              minWidth: '300px',
+              maxWidth: '400px',
+              zIndex: 1000,
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2)'
             }}
           >
             {searchHistory.length > 0 ? (
-              searchHistory.map((item, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    setQuery(item.query);
-                    setShowHistory(false);
-                    performSearch(item.query);
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <span>{item.query}</span>
-                    <span className="text-xs text-gray-500">
-                      {Math.floor((Date.now() - item.timestamp) / 60000)}m ago
-                    </span>
-                  </div>
-                </button>
-              ))
+              <>
+                {/* Header */}
+                <div className="px-4 py-2 border-b border-gray-700/50 bg-gray-800/30">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    Recent Searches
+                  </span>
+                </div>
+                {/* History Items */}
+                {searchHistory.map((item, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setQuery(item.query);
+                      setShowHistory(false);
+                      performSearch(item.query);
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-blue-600/20 hover:text-blue-300 transition-all duration-150 border-b border-gray-700/30 last:border-0 group"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {/* Search Icon */}
+                        <svg className="w-4 h-4 text-gray-500 group-hover:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <span className="truncate text-gray-300 group-hover:text-white font-medium">
+                          {item.query}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500 group-hover:text-gray-400 flex-shrink-0">
+                        {formatTimeAgo(item.timestamp)}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </>
             ) : (
-              <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                No search history yet
+              <div className="px-4 py-8 text-center">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-gray-500">No search history yet</p>
+                <p className="text-xs text-gray-600 mt-1">Start searching to build history</p>
               </div>
             )}
           </div>
