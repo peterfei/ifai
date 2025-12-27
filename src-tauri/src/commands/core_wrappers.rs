@@ -436,7 +436,9 @@ pub async fn agent_scan_directory_with_progress(
                         }
                     }
                 });
+                println!("[DEBUG] [RUST CORE_WRAPPERS:440] Emitting explore_progress: event_id={}, currentFile={}", event_id, &full_rel);
                 let _ = app.emit(event_id, progress);
+                println!("[DEBUG] [RUST CORE_WRAPPERS:441] Event emitted successfully");
             }
         }
 

@@ -75,17 +75,25 @@ const DirectoryItem: React.FC<{
         )}
       </button>
 
-      {isExpanded && dir.keyFiles.length > 0 && (
+      {isExpanded && (
         <div className="border-t border-gray-800 p-2 bg-gray-900/50">
-          <div className="text-xs text-gray-500 mb-2">关键文件</div>
-          <div className="space-y-1">
-            {dir.keyFiles.map((file, index) => (
-              <div key={index} className="flex items-center gap-2 text-xs text-gray-400">
-                <File size={12} className="flex-shrink-0" />
-                <span className="truncate">{file}</span>
+          {dir.keyFiles.length > 0 ? (
+            <>
+              <div className="text-xs text-gray-500 mb-2">关键文件</div>
+              <div className="space-y-1">
+                {dir.keyFiles.map((file, index) => (
+                  <div key={index} className="flex items-center gap-2 text-xs text-gray-400">
+                    <File size={12} className="flex-shrink-0" />
+                    <span className="truncate">{file}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="text-xs text-gray-500 italic">
+              该目录包含 {dir.fileCount} 个文件
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, Loader2, File, Folder } from 'lucide-react';
 import { ToolCall } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
@@ -25,6 +25,66 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 
 // 代码预览行数
 const PREVIEW_LINES = 8;
+
+// Helper to check if result is a file listing (JSON array of file paths)
+const isFileListing = (result: string): string[] | null => {
+    try {
+        const parsed = JSON.parse(result);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            // Check if all items are strings (file paths)
+            if (parsed.every(item => typeof item === 'string')) {
+                return parsed as string[];
+            }
+        }
+    } catch {
+        // Not JSON, return null
+    }
+    return null;
+};
+
+// Component to display file listing nicely
+const FileListingResult: React.FC<{ files: string[] }> = ({ files }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const maxPreview = 8;
+    const shouldCollapse = files.length > maxPreview;
+    const displayFiles = shouldCollapse && !isExpanded ? files.slice(0, maxPreview) : files;
+
+    return (
+        <div className="space-y-1">
+            {displayFiles.map((file, index) => {
+                const fileName = file.split('/').pop() || file;
+                const isDir = file.endsWith('/') || (!fileName.includes('.') && !file.includes('/'));
+                const Icon = isDir ? Folder : File;
+
+                return (
+                    <div key={index} className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-gray-900/50 hover:bg-gray-900 transition-colors">
+                        <Icon size={12} className={isDir ? "text-yellow-500" : "text-gray-400"} />
+                        <span className="flex-1 truncate text-gray-300 font-mono" title={file}>
+                            {fileName}
+                        </span>
+                        {file !== fileName && (
+                            <span className="text-gray-600 text-[10px] truncate ml-auto" title={file}>
+                                {file.substring(0, 30)}{file.length > 30 ? '...' : ''}
+                            </span>
+                        )}
+                    </div>
+                );
+            })}
+            {shouldCollapse && (
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full mt-1 py-1 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1 bg-gray-900 rounded border border-gray-700 hover:bg-gray-800 transition-colors"
+                >
+                    {isExpanded ? (
+                        <><ChevronUp size={12} /> 收起 ({files.length} 个文件)</>
+                    ) : (
+                        <><ChevronDown size={12} /> 展开全部 ({files.length} 个文件)</>
+                    )}
+                </button>
+            )}
+        </div>
+    );
+};
 
 // PERFORMANCE: Large file thresholds to avoid expensive Monaco Diff rendering
 const MAX_DIFF_SIZE = 5000;  // 5000字符阈值 - 超过此大小跳过Monaco Diff
@@ -300,12 +360,81 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                         )}
                     </div>
                 ) : (
-                    // 其他工具类型：显示 JSON 参数
+                    // 其他工具类型：显示参数或摘要
                     <div className="space-y-2">
-                        <div className="text-gray-400">参数:</div>
-                        <pre className="bg-gray-900 p-2 rounded border border-gray-700 overflow-x-auto whitespace-pre-wrap break-words text-gray-300">
-                            {Object.keys(toolCall.args || {}).length > 0 ? JSON.stringify(toolCall.args, null, 2) : (isPartial ? '...' : '{}')}
-                        </pre>
+                        {(() => {
+                            const toolName = toolCall.tool || '';
+                            const args = toolCall.args || {};
+
+                            // Special handling for agent_scan_directory - show clean summary
+                            if (toolName.includes('scan_directory')) {
+                                const relPath = args.rel_path || args.path || '.';
+                                const pattern = args.pattern;
+                                const maxDepth = args.max_depth;
+                                const maxFiles = args.max_files;
+
+                                return (
+                                    <div className="space-y-1">
+                                        <div className="text-gray-400">扫描目录:</div>
+                                        <code className="text-green-400 bg-gray-900 px-2 py-1 rounded text-sm font-mono">
+                                            {relPath}
+                                        </code>
+                                        {(pattern || maxDepth !== undefined || maxFiles !== undefined) && (
+                                            <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-gray-500">
+                                                {pattern && <span className="bg-gray-800 px-1.5 py-0.5 rounded">模式: {pattern}</span>}
+                                                {maxDepth !== undefined && <span className="bg-gray-800 px-1.5 py-0.5 rounded">深度: {maxDepth}</span>}
+                                                {maxFiles !== undefined && <span className="bg-gray-800 px-1.5 py-0.5 rounded">最大文件: {maxFiles}</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            // Special handling for agent_batch_read - show file count
+                            if (toolName.includes('batch_read')) {
+                                const paths = args.paths || [];
+                                return (
+                                    <div className="space-y-1">
+                                        <div className="text-gray-400">批量读取文件:</div>
+                                        <div className="text-green-400 bg-gray-900 px-2 py-1 rounded text-sm">
+                                            {paths.length} 个文件
+                                        </div>
+                                        {paths.length > 0 && paths.length <= 5 && (
+                                            <div className="mt-1 space-y-0.5">
+                                                {paths.map((p: string, i: number) => (
+                                                    <div key={i} className="text-[10px] text-gray-500 truncate font-mono" title={p}>
+                                                        • {p.split('/').pop() || p}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            // Special handling for agent_read_file - show file path
+                            if (toolName.includes('read_file')) {
+                                const relPath = args.rel_path || args.path || '';
+                                return (
+                                    <div className="space-y-1">
+                                        <div className="text-gray-400">读取文件:</div>
+                                        <code className="text-green-400 bg-gray-900 px-2 py-1 rounded text-sm font-mono break-all">
+                                            {relPath}
+                                        </code>
+                                    </div>
+                                );
+                            }
+
+                            // Default: show JSON parameters
+                            return (
+                                <>
+                                    <div className="text-gray-400">参数:</div>
+                                    <pre className="bg-gray-900 p-2 rounded border border-gray-700 overflow-x-auto whitespace-pre-wrap break-words text-gray-300">
+                                        {Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : (isPartial ? '...' : '{}')}
+                                    </pre>
+                                </>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -340,12 +469,25 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
             )}
 
             {/* Result */}
-            {toolCall.status === 'completed' && toolCall.result && (
-                <div className="p-2 border-t border-gray-700 bg-green-900/10 text-xs text-green-300">
-                    <span className="font-medium">结果: </span>
-                    <span className="break-all">{toolCall.result}</span>
-                </div>
-            )}
+            {toolCall.status === 'completed' && toolCall.result && (() => {
+                const fileListing = isFileListing(toolCall.result);
+                if (fileListing) {
+                    return (
+                        <div className="p-2 border-t border-gray-700 bg-green-900/10">
+                            <div className="text-xs text-green-300 font-medium mb-2">
+                                📁 找到 {fileListing.length} 个文件/目录:
+                            </div>
+                            <FileListingResult files={fileListing} />
+                        </div>
+                    );
+                }
+                return (
+                    <div className="p-2 border-t border-gray-700 bg-green-900/10 text-xs text-green-300">
+                        <span className="font-medium">结果: </span>
+                        <span className="break-all">{toolCall.result}</span>
+                    </div>
+                );
+            })()}
             {toolCall.status === 'failed' && toolCall.result && (
                 <div className="p-2 border-t border-gray-700 bg-red-900/10 text-xs text-red-300">
                     <span className="font-medium">错误: </span>

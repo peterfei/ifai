@@ -189,29 +189,6 @@ pub async fn run_agent_task(
                                     let _ = app.emit("agent:status", json!({ "id": id, "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "status", "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("🚀 Executing {}...", tool_name) }));
-
-                                    // Send explore_progress start event for agent_scan_directory
-                                    if tool_name == "agent_scan_directory" {
-                                        let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".");
-                                        let _ = app.emit(&event_id, json!({
-                                            "type": "explore_progress",
-                                            "exploreProgress": {
-                                                "phase": "scanning",
-                                                "currentPath": rel_path,
-                                                "progress": {
-                                                    "total": 1,
-                                                    "scanned": 0,
-                                                    "byDirectory": {
-                                                        rel_path: {
-                                                            "total": 1,
-                                                            "scanned": 0,
-                                                            "status": "scanning"
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }));
-                                    }
                                 }
 
                                 let _ = supervisor.update_status(&id, if approved { AgentStatus::Running } else { AgentStatus::Stopped }).await;
@@ -225,71 +202,98 @@ pub async fn run_agent_task(
                                         }
                                     }
 
-                                    let tool_result = match tools::execute_tool_internal(tool_name, &args, &context.project_root).await {
-                                        Ok(res) => {
-                                            // Send explore_findings event for agent_scan_directory
-                                            if tool_name == "agent_scan_directory" {
-                                                if let Ok(scan_result) = serde_json::from_str::<Value>(&res) {
-                                                    let total_files = scan_result["stats"]["totalFiles"].as_u64().unwrap_or(0);
-                                                    let total_dirs = scan_result["stats"]["totalDirectories"].as_u64().unwrap_or(0);
+                                    // Use recursive scan for agent_scan_directory to enable progress callbacks
+                                    let tool_result = if tool_name == "agent_scan_directory" {
+                                        let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".").to_string();
+                                        let pattern = args["pattern"].as_str().map(|s| s.to_string());
+                                        let max_depth = args["max_depth"].as_u64().map(|v| v as usize);
+                                        let max_files = args["max_files"].as_u64().map(|v| v as usize);
 
-                                                    // Send completed progress event
-                                                    let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".");
-                                                    let _ = app.emit(&event_id, json!({
-                                                        "type": "explore_progress",
-                                                        "exploreProgress": {
-                                                            "phase": "scanning",
-                                                            "currentPath": rel_path,
-                                                            "progress": {
-                                                                "total": 1,
-                                                                "scanned": 1,
-                                                                "byDirectory": {
-                                                                    rel_path: {
-                                                                        "total": 1,
-                                                                        "scanned": 1,
-                                                                        "status": "completed"
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                ));
-
-                                                    // Build directories array from scan result
-                                                    let directories = scan_result["directories"].as_array()
-                                                        .map(|arr| {
-                                                            let files = scan_result["files"].as_array().map(|f| f.len()).unwrap_or(0);
-                                                            let files_per_dir = if arr.len() > 0 { files / arr.len() } else { 0 };
-
-                                                            arr.iter().filter_map(|v| v.as_str()).map(|s| {
-                                                                json!({
-                                                                    "path": s,
-                                                                    "fileCount": files_per_dir,
-                                                                    "keyFiles": []
-                                                                })
-                                                            }).collect::<Vec<_>>()
-                                                        })
-                                                        .unwrap_or_default();
-
-                                                    let summary = format!(
-                                                        "探索完成：发现 {} 个文件和 {} 个目录",
-                                                        total_files,
-                                                        total_dirs
-                                                    );
-
-                                                    let _ = app.emit(&event_id, json!({
-                                                        "type": "explore_findings",
-                                                        "exploreFindings": {
-                                                            "summary": summary,
-                                                            "directories": directories
-                                                        }
-                                                    }));
-                                                }
-                                            }
-                                            res
-                                        },
-                                        Err(e) => format!("Error: {}", e)
+                                        match crate::commands::core_wrappers::agent_scan_directory_with_progress(
+                                            &app, &event_id, context.project_root.clone(), rel_path, pattern, max_depth, max_files
+                                        ).await {
+                                            Ok(res) => res,
+                                            Err(e) => format!("Error: {}", e)
+                                        }
+                                    } else {
+                                        match tools::execute_tool_internal(tool_name, &args, &context.project_root).await {
+                                            Ok(res) => res,
+                                            Err(e) => format!("Error: {}", e)
+                                        }
                                     };
+
+                                    // Send explore_findings event for agent_scan_directory
+                                    if tool_name == "agent_scan_directory" {
+                                        if let Ok(scan_result) = serde_json::from_str::<Value>(&tool_result) {
+                                            let total_files = scan_result["stats"]["totalFiles"].as_u64().unwrap_or(0);
+                                            let total_dirs = scan_result["stats"]["totalDirectories"].as_u64().unwrap_or(0);
+
+                                            // Send analyzing progress event (scanning done, now analyzing findings)
+                                            let _ = app.emit(&event_id, json!({
+                                                "type": "explore_progress",
+                                                "exploreProgress": {
+                                                    "phase": "analyzing",
+                                                    "progress": {
+                                                        "total": 1,
+                                                        "scanned": 1,
+                                                        "byDirectory": {}
+                                                    }
+                                                }
+                                            }));
+
+                                            // Build directories array from scan result with sample files
+                                            let directories = if let (Some(dirs_arr), Some(files_arr)) = (
+                                                scan_result["directories"].as_array(),
+                                                scan_result["files"].as_array()
+                                            ) {
+                                                dirs_arr.iter().filter_map(|dir_value| {
+                                                    let dir_path = dir_value.as_str()?;
+                                                    let dir_prefix = if dir_path == "." {
+                                                        String::new()
+                                                    } else {
+                                                        format!("{}/", dir_path)
+                                                    };
+
+                                                    // Find files in this directory
+                                                    let dir_files: Vec<String> = files_arr.iter()
+                                                        .filter_map(|f| f.as_str())
+                                                        .filter(|f| f.starts_with(&dir_prefix) || dir_path == ".")
+                                                        .filter(|f| {
+                                                            // Only direct children (no more slashes after the directory prefix)
+                                                            let rest = if dir_path == "." { *f } else { f.strip_prefix(&dir_prefix).unwrap_or(f) };
+                                                            !rest.contains('/')
+                                                        })
+                                                        .take(5) // Take up to 5 sample files
+                                                        .map(|f| f.split('/').last().unwrap_or(f).to_string())
+                                                        .collect();
+
+                                                    let file_count = dir_files.len();
+
+                                                    Some(json!({
+                                                        "path": dir_path,
+                                                        "fileCount": file_count,
+                                                        "keyFiles": dir_files
+                                                    }))
+                                                }).collect::<Vec<serde_json::Value>>()
+                                            } else {
+                                                Vec::new()
+                                            };
+
+                                            let summary = format!(
+                                                "探索完成：发现 {} 个文件和 {} 个目录",
+                                                total_files,
+                                                total_dirs
+                                            );
+
+                                            let _ = app.emit(&event_id, json!({
+                                                "type": "explore_findings",
+                                                "exploreFindings": {
+                                                    "summary": summary,
+                                                    "directories": directories
+                                                }
+                                            }));
+                                        }
+                                    }
 
                                     (tool_result, true)
                                 }
