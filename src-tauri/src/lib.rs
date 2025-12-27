@@ -14,6 +14,7 @@ mod ai_utils;
 mod commands;
 mod performance;
 mod core_traits;
+mod project_config;
 mod community;
 #[cfg(feature = "commercial")]
 mod commercial;
@@ -394,7 +395,12 @@ pub fn run() {
             commands::agent_commands::approve_agent_action,
             performance::detect_gpu_info,
             performance::is_on_battery,
-            performance::get_display_refresh_rate
+            performance::get_display_refresh_rate,
+            project_config::load_project_config,
+            project_config::save_project_config,
+            project_config::parse_project_config,
+            project_config::project_config_exists,
+            project_config::delete_project_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

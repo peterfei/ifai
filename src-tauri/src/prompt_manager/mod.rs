@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rust_embed::RustEmbed;
+use crate::project_config;
 
 pub mod storage;
 pub mod template;
@@ -21,7 +22,7 @@ pub enum AccessTier {
 
 pub fn get_main_system_prompt(project_root: &str) -> String {
     let variables = variables::collect_system_variables(project_root);
-    
+
     let template = {
         let local_root = std::path::Path::new(project_root).join(".ifai/prompts/system");
         let override_path = local_root.join("main.override.md");
@@ -39,18 +40,34 @@ pub fn get_main_system_prompt(project_root: &str) -> String {
         }
     };
 
-    match template {
+    let mut prompt = match template {
         Some(t) => template::render_template(&t.content, &variables).unwrap_or_else(|_| t.content),
         None => "You are a helpful AI programming assistant.".to_string(),
+    };
+
+    // 追加 IFAI.md 中的 custom_instructions
+    if let Some(ifai_config) = project_config::load_project_config_sync(project_root) {
+        println!("[PromptManager] Loaded IFAI.md config: {:?}", ifai_config.default_language);
+        if let Some(instructions) = ifai_config.custom_instructions {
+            if !instructions.trim().is_empty() {
+                println!("[PromptManager] Adding custom_instructions: {} chars", instructions.len());
+                prompt.push_str("\n\n# Project-Specific Instructions\n");
+                prompt.push_str(&instructions);
+            }
+        }
+    } else {
+        println!("[PromptManager] No IFAI.md config found or failed to parse");
     }
+
+    prompt
 }
 
 pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: &str) -> String {
     let mut variables = variables::collect_system_variables(project_root);
     variables.insert("TASK_DESCRIPTION".to_string(), task_description.to_string());
-    
+
     let template_name = format!("agents/{}.md", agent_type.to_lowercase().replace(' ', "-"));
-    
+
     let template = {
         let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(&template_name);
         if local_path.exists() {
@@ -63,10 +80,23 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: 
         }
     };
 
-    match template {
+    let mut prompt = match template {
         Some(t) => template::render_template(&t.content, &variables).unwrap_or_else(|_| t.content),
         None => format!("You are a specialized {} agent. Task: {}", agent_type, task_description),
+    };
+
+    // 追加 IFAI.md 中的 custom_instructions (与 main prompt 相同的逻辑)
+    if let Some(ifai_config) = project_config::load_project_config_sync(project_root) {
+        if let Some(instructions) = ifai_config.custom_instructions {
+            if !instructions.trim().is_empty() {
+                println!("[PromptManager] Adding custom_instructions to agent {}: {} chars", agent_type, instructions.len());
+                prompt.push_str("\n\n# Project-Specific Instructions\n");
+                prompt.push_str(&instructions);
+            }
+        }
     }
+
+    prompt
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

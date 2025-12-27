@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { debounce } from 'lodash-es';
 import { FileNode, OpenedFile, GitStatus } from './types';
 import { readFileContent, readDirectory } from '../utils/fileSystem';
+import { useProjectConfigStore } from './projectConfigStore';
 
 interface FileState {
   fileTree: FileNode | null;
@@ -57,6 +58,14 @@ export const useFileStore = create<FileState>()(
 
         // Auto-initialize RAG index when project is opened
         if (path) {
+          // Load project-level configuration
+          try {
+            const projectConfig = await useProjectConfigStore.getState().loadConfig(path);
+            console.log('[FileStore] Loaded project config:', projectConfig);
+          } catch (e) {
+            console.warn('[FileStore] Failed to load project config:', e);
+          }
+
           // Import settingsStore dynamically to avoid circular dependency
           const { useSettingsStore } = await import('./settingsStore');
           const settings = useSettingsStore.getState();
@@ -73,6 +82,9 @@ export const useFileStore = create<FileState>()(
               }
             }, 1000);
           }
+        } else {
+          // Clear project config when project is closed
+          useProjectConfigStore.getState().clearConfig();
         }
       },
 

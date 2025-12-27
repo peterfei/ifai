@@ -52,6 +52,15 @@ function App() {
       } catch (error) {
         console.error('[App] ❌ Failed to initialize thread persistence:', error);
       }
+
+      // Initialize project config language watcher
+      try {
+        const { watchProjectConfigLanguage } = await import('./i18n/config');
+        watchProjectConfigLanguage();
+        console.log('[App] ✅ Project config language watcher initialized');
+      } catch (error) {
+        console.error('[App] ❌ Failed to initialize language watcher:', error);
+      }
     };
 
     init();
