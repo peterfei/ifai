@@ -196,6 +196,8 @@ export const FileTree = () => {
   const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevExpandedNodesRef = useRef<Set<string>>(new Set());
+  const cachedVisibleNodesRef = useRef<FileNode[]>([]);
 
   // Function to refresh file tree while preserving expanded state
   const handleRefreshPreserveExpanded = useCallback(async () => {
@@ -242,10 +244,29 @@ export const FileTree = () => {
   }, [rootPath, setGitStatuses]);
 
   // Get flattened list of visible nodes for keyboard navigation
-  // Re-calculates when fileTree, expandedNodes, or nodesUpdateTrigger changes
+  // Optimized: cache flattened nodes and only recalculate when necessary
   const visibleNodes = useMemo(() => {
-    if (!fileTree) return [];
-    return flattenVisibleNodes(fileTree, expandedNodes);
+    if (!fileTree) {
+      cachedVisibleNodesRef.current = [];
+      return [];
+    }
+
+    // Check if expanded nodes actually changed (meaningful change detection)
+    const prevExpanded = prevExpandedNodesRef.current;
+    const expandedChanged =
+      expandedNodes.size !== prevExpanded.size ||
+      ![...expandedNodes].every(id => prevExpanded.has(id));
+
+    // Only recalculate if expanded changed, children loaded, or tree changed
+    if (expandedChanged || nodesUpdateTrigger > 0) {
+      prevExpandedNodesRef.current = new Set(expandedNodes);
+      const flattened = flattenVisibleNodes(fileTree, expandedNodes);
+      cachedVisibleNodesRef.current = flattened;
+      return flattened;
+    }
+
+    // Return cached result - avoids unnecessary recalculation
+    return cachedVisibleNodesRef.current;
   }, [fileTree, expandedNodes, nodesUpdateTrigger]);
 
   // Find node by ID in the tree

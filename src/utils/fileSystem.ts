@@ -5,6 +5,8 @@ import { FileNode } from '../stores/types';
 import { v4 as uuidv4 } from 'uuid';
 import { platform, Platform } from '@tauri-apps/plugin-os';
 import { invoke } from '@tauri-apps/api/core';
+import { getCachedDir, setCachedDir, invalidateCachePath } from './cache';
+import { perfMonitor } from './performanceMonitor';
 
 /**
  * Normalize path separators for cross-platform compatibility.
@@ -121,11 +123,22 @@ export const openDirectory = async (): Promise<FileNode | null> => {
 
 // Note: Recursive reading might be slow for large projects.
 // For MVP, we'll read only one level or use lazy loading (implemented in UI).
-// Here we implement a lazy-ready structure helper.
+// Here we implement a lazy-ready structure helper with caching.
 export const readDirectory = async (path: string): Promise<FileNode[]> => {
+  const perfId = `readDirectory:${path}`;
+  perfMonitor.start(perfId);
+
   try {
     const normalizedPath = normalizePath(path);
-    console.log(`Reading directory: ${normalizedPath}`);
+
+    // Check cache first
+    const cached = getCachedDir(normalizedPath);
+    if (cached) {
+      perfMonitor.end(perfId);
+      return cached;
+    }
+
+    // Cache miss - read from filesystem
     const entries = await readDir(normalizedPath);
     const nodes: FileNode[] = entries.map(entry => {
         return {
@@ -136,8 +149,15 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
             children: undefined // Lazy load
         };
     });
-    return nodes.sort(sortFiles);
+
+    // Sort and cache the result
+    const sortedNodes = nodes.sort(sortFiles);
+    setCachedDir(normalizedPath, sortedNodes);
+
+    perfMonitor.end(perfId);
+    return sortedNodes;
   } catch (error) {
+    perfMonitor.end(perfId);
     console.error(`Failed to read directory ${path}:`, error);
     throw error; // Re-throw to let caller handle/toast
   }
@@ -185,6 +205,13 @@ export const renameFile = async (oldPath: string, newPath: string): Promise<void
     try {
         await rename(normalizedOld, normalizedNew);
         console.log('[fileSystem] rename successful');
+
+        // Invalidate cache for both old and new parent directories
+        const oldParent = normalizedOld.substring(0, normalizedOld.lastIndexOf('/'));
+        const newParent = normalizedNew.substring(0, normalizedNew.lastIndexOf('/'));
+
+        if (oldParent) invalidateCachePath(oldParent);
+        if (newParent && newParent !== oldParent) invalidateCachePath(newParent);
     } catch (error) {
         console.error('[fileSystem] rename failed:', error);
         throw error;
@@ -198,6 +225,12 @@ export const deleteFile = async (path: string): Promise<void> => {
         // recursive true for directories, false for files (though remove handles both if recursive is true)
         await remove(normalizedPath, { recursive: true });
         console.log('[fileSystem] delete successful');
+
+        // Invalidate parent directory cache since its contents changed
+        const parentPath = normalizedPath.substring(0, normalizedPath.lastIndexOf('/'));
+        if (parentPath) {
+            invalidateCachePath(parentPath);
+        }
     } catch (error) {
         console.error('[fileSystem] delete failed:', error);
         throw error;
@@ -277,6 +310,11 @@ export const copyToClipboard = async (text: string): Promise<void> => {
 export const createFile = async (path: string): Promise<void> => {
   const normalizedPath = normalizePath(path);
   await writeTextFile(normalizedPath, '');
+  // Invalidate parent directory cache since its contents changed
+  const parentPath = normalizedPath.substring(0, normalizedPath.lastIndexOf('/'));
+  if (parentPath) {
+    invalidateCachePath(parentPath);
+  }
 };
 
 /**
@@ -288,6 +326,11 @@ export const createDirectory = async (path: string): Promise<void> => {
     path: normalizedPath,
     recursive: true
   });
+  // Invalidate parent directory cache since its contents changed
+  const parentPath = normalizedPath.substring(0, normalizedPath.lastIndexOf('/'));
+  if (parentPath) {
+    invalidateCachePath(parentPath);
+  }
 };
 
 /**

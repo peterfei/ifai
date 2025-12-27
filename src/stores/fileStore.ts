@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
+import { debounce } from 'lodash-es';
 import { FileNode, OpenedFile, GitStatus } from './types';
 import { readFileContent, readDirectory } from '../utils/fileSystem';
 
@@ -22,17 +23,17 @@ interface FileState {
   fetchGitStatuses: () => Promise<void>;
   reloadFileContent: (id: string) => Promise<void>;
   refreshFileTree: () => Promise<void>;
+  refreshFileTreeDebounced: () => void;
   refreshFileTreePreserveExpanded: (expandedNodes: Set<string>) => Promise<Set<string>>;
   syncState: (state: Partial<FileState>) => void;
 }
 
 // Helper to recursively update git status in file tree
+// NOTE: This is now optimized - we don't traverse the tree since UI uses Map-based O(1) lookup
 const updateGitStatusRecursive = (node: FileNode, statuses: Map<string, GitStatus>): FileNode => {
-    const newNode = { ...node, gitStatus: statuses.get(node.path) };
-    if (newNode.children) {
-        newNode.children = newNode.children.map(child => updateGitStatusRecursive(child, statuses));
-    }
-    return newNode;
+    // Simply return the node as-is - UI will use gitStatuses Map for O(1) lookup
+    // This avoids O(n) tree traversal on every git status update
+    return node;
 };
 
 export const useFileStore = create<FileState>()(
@@ -187,6 +188,23 @@ export const useFileStore = create<FileState>()(
             }
         }
       },
+
+      // Debounced version of refreshFileTree - useful for rapid successive refreshes
+      refreshFileTreeDebounced: (() => {
+        // Create debounced function that will be bound to store instance
+        let debouncedFn: (() => void) | null = null;
+
+        return () => {
+          if (!debouncedFn) {
+            // Initialize on first call with access to store
+            debouncedFn = debounce(async () => {
+              const { refreshFileTree } = get();
+              await refreshFileTree();
+            }, 300);
+          }
+          debouncedFn();
+        };
+      })(),
 
       // Refresh file tree while preserving expanded nodes
       refreshFileTreePreserveExpanded: async (expandedNodes: Set<string>) => {
