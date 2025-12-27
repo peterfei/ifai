@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
@@ -15,36 +15,76 @@ interface ContextMenuState {
   node: FileNode | null;
 }
 
-const FileTreeItem = ({ node, level, onContextMenu, onReload }: { 
-    node: FileNode, 
-    level: number, 
-    onContextMenu: (e: React.MouseEvent, node: FileNode) => void,
-    onReload: () => void 
-}) => {
-  const [expanded, setExpanded] = useState(false);
+interface FileTreeItemProps {
+    node: FileNode;
+    level: number;
+    onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
+    onReload: () => void;
+    selectedNodeId: string | null;
+    onNodeSelect: (nodeId: string) => void;
+    onNodeActivate: (node: FileNode) => void;
+    expandedNodes: Set<string>;
+    onToggleExpand: (nodeId: string) => void;
+    onChildrenLoaded?: () => void;
+}
+
+// Flatten tree to list for keyboard navigation
+const flattenVisibleNodes = (node: FileNode, expandedNodes: Set<string>): FileNode[] => {
+    const nodes: FileNode[] = [node];
+    if (node.kind === 'directory' && expandedNodes.has(node.id) && node.children) {
+        node.children.forEach(child => {
+            nodes.push(...flattenVisibleNodes(child, expandedNodes));
+        });
+    }
+    return nodes;
+};
+
+const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeId, onNodeSelect, onNodeActivate, expandedNodes, onToggleExpand, onChildrenLoaded }: FileTreeItemProps) => {
   const [children, setChildren] = useState<FileNode[] | undefined>(node.children);
-  const { openFile, gitStatuses } = useFileStore(); 
+  const [forceUpdate, setForceUpdate] = useState(0);
+  const { openFile, gitStatuses } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
+  const itemRef = useRef<HTMLDivElement>(null);
+  const isExpanded = expandedNodes.has(node.id);
+  const isSelected = selectedNodeId === node.id;
 
   const loadChildren = async () => {
     try {
         const loadedChildren = await readDirectory(node.path);
         setChildren(loadedChildren);
-        node.children = loadedChildren; 
+        node.children = loadedChildren;
+        // Notify parent that children were loaded
+        onChildrenLoaded?.();
     } catch (e) {
         console.error("Failed to load children", e);
         toast.error(`Failed to open ${node.name}: ${String(e)}`);
     }
   };
 
+  // Sync children from node.children, using forceUpdate to trigger refresh
+  useEffect(() => {
+    if (node.children && node.children !== children) {
+      setChildren(node.children);
+    }
+  }, [node.children, forceUpdate]);
+
+  // Load children when directory is expanded and has no children yet
+  useEffect(() => {
+    if (isExpanded && node.kind === 'directory' && !children) {
+      loadChildren();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded]);
+
   const handleClick = async () => {
+    onNodeSelect(node.id);
     if (node.kind === 'directory') {
-      if (!expanded) {
+      if (!isExpanded) {
         if (!children) {
             await loadChildren();
         }
       }
-      setExpanded(!expanded);
+      onToggleExpand(node.id);
     } else {
       try {
         const content = await readFileContent(node.path);
@@ -56,7 +96,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
           isDirty: false,
           language: getLanguageFromPath(node.path)
         });
-        
+
         if (activePaneId) {
             assignFileToPane(activePaneId, openedId);
         }
@@ -67,16 +107,12 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
     }
   };
 
+  // Auto-scroll to selected item
   useEffect(() => {
-    if (expanded && node.kind === 'directory') {
-        loadChildren();
+    if (isSelected && itemRef.current) {
+      itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [expanded]); 
-
-  // Sync children from props when node changes (e.g. store refresh)
-  useEffect(() => {
-    setChildren(node.children);
-  }, [node]);
+  }, [isSelected]);
 
   const getStatusColorClass = (path: string) => {
     const status = gitStatuses.get(path);
@@ -95,34 +131,43 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload }: {
       case GitStatus.Ignored:
         return 'text-gray-500 opacity-50';
       default:
-        return 'text-gray-300'; 
+        return 'text-gray-300';
     }
   };
 
   return (
     <div>
-      <div 
-        className="flex items-center py-1 px-2 hover:bg-gray-800 cursor-pointer text-sm select-none"
+      <div
+        ref={itemRef}
+        className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
+          isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
+        }`}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, node)}
       >
         <span className="mr-1 text-gray-500">
-          {node.kind === 'directory' && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+          {node.kind === 'directory' && (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
           {node.kind === 'file' && <File size={14} />}
         </span>
-        {node.kind === 'directory' && !expanded && <Folder size={14} className="mr-1" />}
+        {node.kind === 'directory' && !isExpanded && <Folder size={14} className="mr-1" />}
         <span className={`truncate ${getStatusColorClass(node.path)}`}>{node.name}</span>
       </div>
-      {expanded && children && (
+      {isExpanded && children && (
         <div>
           {children.map(child => (
-            <FileTreeItem 
-                key={child.id} 
-                node={child} 
-                level={level + 1} 
-                onContextMenu={onContextMenu} 
+            <FileTreeItem
+                key={child.id}
+                node={child}
+                level={level + 1}
+                onContextMenu={onContextMenu}
                 onReload={loadChildren}
+                selectedNodeId={selectedNodeId}
+                onNodeSelect={onNodeSelect}
+                onNodeActivate={onNodeActivate}
+                expandedNodes={expandedNodes}
+                onToggleExpand={onToggleExpand}
+                onChildrenLoaded={onChildrenLoaded}
             />
           ))}
         </div>
@@ -143,30 +188,200 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, rootPath, setGitStatuses } = useFileStore();
+  const { fileTree, refreshFileTree, rootPath, setGitStatuses, openFile } = useFileStore();
+  const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load Git Status when rootPath changes
   useEffect(() => {
     if (rootPath) {
         const fetchGitStatus = async () => {
             try {
-                // Backend returns Record<string, GitStatus>, convert to Map
                 const statuses = await invoke<Record<string, GitStatus>>('get_git_statuses', { repoPath: rootPath });
                 setGitStatuses(new Map(Object.entries(statuses)));
             } catch (e) {
                 console.error("Failed to fetch Git status:", e);
-                // toast.error("Failed to fetch Git status"); // Suppress error for non-git repos
             }
         };
         fetchGitStatus();
     }
   }, [rootPath, setGitStatuses]);
 
+  // Get flattened list of visible nodes for keyboard navigation
+  // Re-calculates when fileTree, expandedNodes, or nodesUpdateTrigger changes
+  const visibleNodes = useMemo(() => {
+    if (!fileTree) return [];
+    return flattenVisibleNodes(fileTree, expandedNodes);
+  }, [fileTree, expandedNodes, nodesUpdateTrigger]);
+
+  // Find node by ID in the tree
+  const findNodeById = useCallback((node: FileNode, id: string): FileNode | null => {
+    if (node.id === id) return node;
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findNodeById(child, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if context menu is open or input is focused
+      if (contextMenu.node || document.activeElement instanceof HTMLInputElement) {
+        return;
+      }
+
+      if (!fileTree || visibleNodes.length === 0) return;
+
+      const currentIndex = selectedNodeId
+        ? visibleNodes.findIndex(n => n.id === selectedNodeId)
+        : -1;
+
+      switch (e.key) {
+        case 'ArrowDown': {
+          e.preventDefault();
+          const nextIndex = currentIndex + 1;
+          if (nextIndex < visibleNodes.length) {
+            const nextNode = visibleNodes[nextIndex];
+            setSelectedNodeId(nextNode.id);
+          }
+          break;
+        }
+        case 'ArrowUp': {
+          e.preventDefault();
+          const prevIndex = currentIndex - 1;
+          if (prevIndex >= 0) {
+            const prevNode = visibleNodes[prevIndex];
+            setSelectedNodeId(prevNode.id);
+          } else if (selectedNodeId === null && visibleNodes.length > 0) {
+            // Select first item if nothing selected
+            setSelectedNodeId(visibleNodes[0].id);
+          }
+          break;
+        }
+        case 'ArrowRight': {
+          e.preventDefault();
+          if (selectedNodeId && currentIndex >= 0) {
+            const currentNode = visibleNodes[currentIndex];
+            if (currentNode.kind === 'directory') {
+              if (!expandedNodes.has(currentNode.id)) {
+                // Expand directory - FileTreeItem will auto-load children
+                setExpandedNodes(prev => new Set([...prev, currentNode.id]));
+              } else if (currentNode.children && currentNode.children.length > 0) {
+                // Move to first child if already expanded and has children
+                setSelectedNodeId(currentNode.children[0].id);
+              }
+            }
+          }
+          break;
+        }
+        case 'ArrowLeft': {
+          e.preventDefault();
+          if (selectedNodeId && currentIndex >= 0) {
+            const currentNode = visibleNodes[currentIndex];
+            if (currentNode.kind === 'directory' && expandedNodes.has(currentNode.id)) {
+              // Collapse directory
+              setExpandedNodes(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(currentNode.id);
+                return newSet;
+              });
+            } else {
+              // Move to parent
+              const parentPath = currentNode.path.substring(0, currentNode.path.lastIndexOf('/'));
+              const parentNode = visibleNodes.find(n => n.path === parentPath);
+              if (parentNode) {
+                setSelectedNodeId(parentNode.id);
+              }
+            }
+          }
+          break;
+        }
+        case 'Enter': {
+          e.preventDefault();
+          if (selectedNodeId && currentIndex >= 0) {
+            const currentNode = visibleNodes[currentIndex];
+            activateNode(currentNode);
+          }
+          break;
+        }
+        case 'Escape': {
+          e.preventDefault();
+          setSelectedNodeId(null);
+          break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [fileTree, visibleNodes, selectedNodeId, expandedNodes, contextMenu]);
+
+  const activateNode = async (node: FileNode) => {
+    if (node.kind === 'directory') {
+      if (!expandedNodes.has(node.id)) {
+        setExpandedNodes(prev => new Set([...prev, node.id]));
+      } else {
+        setExpandedNodes(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(node.id);
+          return newSet;
+        });
+      }
+    } else {
+      try {
+        const content = await readFileContent(node.path);
+        const openedId = openFile({
+          id: node.id,
+          path: node.path,
+          name: node.name,
+          content: content,
+          isDirty: false,
+          language: getLanguageFromPath(node.path)
+        });
+        if (activePaneId) {
+          assignFileToPane(activePaneId, openedId);
+        }
+      } catch (e) {
+        console.error("Failed to read file", e);
+        toast.error(`Failed to read file: ${String(e)}`);
+      }
+    }
+  };
+
+  const handleNodeSelect = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+  }, []);
+
+  const handleToggleExpand = useCallback((nodeId: string) => {
+    setExpandedNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(nodeId)) {
+        newSet.delete(nodeId);
+      } else {
+        newSet.add(nodeId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleChildrenLoaded = useCallback(() => {
+    // Trigger re-calculation of visibleNodes when children are loaded
+    setNodesUpdateTrigger(prev => prev + 1);
+  }, []);
+
   const handleContextMenu = (e: React.MouseEvent, node: FileNode) => {
     e.preventDefault();
     e.stopPropagation();
+    setSelectedNodeId(node.id);
     setContextMenu({ x: e.clientX, y: e.clientY, node });
   };
 
@@ -185,8 +400,24 @@ export const FileTree = () => {
   );
 
   return (
-    <div className="py-2 h-full" onContextMenu={(e) => e.preventDefault()}>
-      <FileTreeItem node={fileTree} level={0} onContextMenu={handleContextMenu} onReload={() => {}} />
+    <div
+      ref={containerRef}
+      className="py-2 h-full focus:outline-none"
+      onContextMenu={(e) => e.preventDefault()}
+      tabIndex={0}
+    >
+      <FileTreeItem
+        node={fileTree}
+        level={0}
+        onContextMenu={handleContextMenu}
+        onReload={() => {}}
+        selectedNodeId={selectedNodeId}
+        onNodeSelect={handleNodeSelect}
+        onNodeActivate={activateNode}
+        expandedNodes={expandedNodes}
+        onToggleExpand={handleToggleExpand}
+        onChildrenLoaded={handleChildrenLoaded}
+      />
 
       {contextMenu.node && (
         <ContextMenu
