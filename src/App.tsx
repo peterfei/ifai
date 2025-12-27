@@ -1,4 +1,4 @@
-import React, { useEffect, Fragment } from 'react';
+import React, { useEffect, Fragment, useState } from 'react';
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Statusbar } from './components/Layout/Statusbar';
@@ -11,6 +11,7 @@ import { PromptManager } from './components/PromptManager/PromptManager';
 import { SettingsModal } from './components/Settings/SettingsModal';
 import { GlobalAgentMonitor } from './components/AIChat/GlobalAgentMonitor';
 import { PerformanceMonitor } from './components/PerformanceMonitor/PerformanceMonitor';
+import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel';
 import { useFileStore } from './stores/fileStore';
 import { useEditorStore } from './stores/editorStore';
 import { useLayoutStore } from './stores/layoutStore';
@@ -30,6 +31,7 @@ function App() {
   const { activeFileId, openedFiles, setFileDirty, fetchGitStatuses } = useFileStore();
   const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal, chatWidth, setChatWidth, isPromptManagerOpen } = useLayoutStore();
   const [isResizingChat, setIsResizingChat] = React.useState(false);
+  const [showCacheStats, setShowCacheStats] = useState(false);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -189,6 +191,10 @@ function App() {
       if (panes.length > 1 && activePaneId) {
         useLayoutStore.getState().closePane(activePaneId);
       }
+    },
+    'perf.toggleCacheStats': (e: KeyboardEvent) => {
+      e.preventDefault();
+      setShowCacheStats(prev => !prev);
     }
   };
 
@@ -234,6 +240,7 @@ function App() {
         <SettingsModal />
         <GlobalAgentMonitor />
         <PerformanceMonitor />
+        {showCacheStats && <CacheStatsPanel onClose={() => setShowCacheStats(false)} />}
         <Toaster position="bottom-right" theme="dark" />
       </Fragment>
     </div>

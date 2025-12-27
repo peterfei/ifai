@@ -33,6 +33,7 @@ const IFAI_DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { id: 'view.commandPalette', commandId: 'view.commandPalette', keys: 'Mod+p', label: 'Command Palette', category: 'View', scheme: 'ifai' },
   { id: 'view.toggleTerminal', commandId: 'view.toggleTerminal', keys: 'Mod+j', label: 'Toggle Terminal', category: 'View', scheme: 'ifai' },
   { id: 'view.togglePerformanceMonitor', commandId: 'view.togglePerformanceMonitor', keys: 'Mod+Alt+p', label: 'Toggle Performance Monitor', category: 'View', scheme: 'ifai' },
+  { id: 'perf.toggleCacheStats', commandId: 'perf.toggleCacheStats', keys: 'Mod+Shift+c', label: 'Toggle Cache Stats', category: 'Developer', scheme: 'ifai' },
   { id: 'layout.splitVertical', commandId: 'layout.splitVertical', keys: 'Mod+Shift+\\', label: 'Split Vertical', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.splitHorizontal', commandId: 'layout.splitHorizontal', keys: 'Mod+\\', label: 'Split Horizontal', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.closePane', commandId: 'layout.closePane', keys: 'Mod+w', label: 'Close Pane', category: 'Layout', scheme: 'ifai' },
@@ -49,6 +50,7 @@ const VSCODE_KEYBINDINGS: KeyBinding[] = [
   { id: 'view.commandPalette', commandId: 'view.commandPalette', keys: 'Mod+Shift+p', label: 'Command Palette', category: 'View', scheme: 'vscode' }, // Different binding
   { id: 'view.toggleTerminal', commandId: 'view.toggleTerminal', keys: 'Ctrl+`', label: 'Toggle Terminal', category: 'View', scheme: 'vscode' }, // Different binding
   { id: 'view.togglePerformanceMonitor', commandId: 'view.togglePerformanceMonitor', keys: 'Mod+Alt+p', label: 'Toggle Performance Monitor', category: 'View', scheme: 'vscode' },
+  { id: 'perf.toggleCacheStats', commandId: 'perf.toggleCacheStats', keys: 'Mod+Shift+c', label: 'Toggle Cache Stats', category: 'Developer', scheme: 'vscode' },
   { id: 'layout.splitVertical', commandId: 'layout.splitVertical', keys: 'Mod+Shift+\\', label: 'Split Vertical', category: 'Layout', scheme: 'vscode' },
   { id: 'layout.splitHorizontal', commandId: 'layout.splitHorizontal', keys: 'Mod+`', label: 'Split Horizontal', category: 'Layout', scheme: 'vscode' }, // Different binding
   { id: 'layout.closePane', commandId: 'layout.closePane', keys: 'Mod+w', label: 'Close Pane', category: 'Layout', scheme: 'vscode' },
