@@ -1,6 +1,9 @@
 use crate::AppState;
 use crate::core_traits::rag::RagResult;
 
+// For optimized directory scanning
+use walkdir::WalkDir;
+
 #[tauri::command]
 pub async fn init_rag_index(
     _app: tauri::AppHandle,
@@ -232,6 +235,7 @@ pub async fn agent_scan_directory(
 
 /// Scan directory recursively with progress callback
 /// Sends explore_progress events as each directory is scanned
+/// Uses walkdir for high performance
 pub async fn agent_scan_directory_with_progress(
     app: &tauri::AppHandle,
     event_id: &str,
@@ -257,252 +261,164 @@ pub async fn agent_scan_directory_with_progress(
     let max_files = max_files.unwrap_or(500);
     let max_depth = max_depth.unwrap_or(10);
 
-    // Common ignore directories
+    // Hardcoded ignore directories (simple and reliable)
     let ignore_dirs = [
         ".git", ".github", ".vscode", ".idea",
         "node_modules", ".next", ".nuxt",
         "dist", "build", "target", "out",
         ".cache", "coverage", ".tsbuildinfo",
-        "vendor", "bower_components"
+        "vendor", "bower_components",
+        "__pycache__", "node_modules", ".venv", "venv"
     ];
 
+    println!("[core_wrappers] Scan setup: depth={}, max_files={}", max_depth, max_files);
+
+    // STEP 1: First pass - count total directories for progress
+    let total_directories = WalkDir::new(&base_path)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let ft = e.file_type();
+            ft.is_dir() && !ft.is_symlink()
+        })
+        .filter(|e| {
+            // Filter out ignored directories
+            e.path().file_name()
+                .and_then(|n| n.to_str())
+                .map_or(false, |name| !ignore_dirs.contains(&name))
+        })
+        .count();
+
+    let total_estimate = total_directories.max(1);
+    println!("[core_wrappers] Total directories: {}", total_estimate);
+
+    // STEP 2: Scan with progress events and manual filtering
     let mut files: Vec<String> = Vec::new();
     let mut directories: Vec<String> = Vec::new();
-    let mut scanned_count = 0;
     let mut by_directory: HashMap<String, ScanStatus> = HashMap::new();
+    let mut dirs_scanned = 0;
+    let mut current_dir_path: Option<String> = None;
 
-    // First pass: count total directories to calculate progress
-    fn count_directories(path: &Path, max_depth: usize, current_depth: usize, ignore_dirs: &[&str]) -> usize {
-        if current_depth > max_depth {
-            return 0;
+    for entry in WalkDir::new(&base_path)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+        let depth = entry.depth();
+
+        // Skip if in ignored directory
+        let is_ignored = path.ancestors()
+            .any(|ancestor| {
+                ancestor.file_name()
+                    .and_then(|n| n.to_str())
+                    .map_or(false, |name| ignore_dirs.contains(&name))
+            });
+
+        if is_ignored {
+            continue;
         }
 
-        let mut count = 0;
-        if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
-                if entry_path.is_symlink() {
-                    continue;
-                }
-                if entry_path.is_dir() {
-                    // Check if directory should be ignored
-                    let dir_name = entry_path.file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("");
-
-                    if ignore_dirs.contains(&dir_name) {
-                        continue;
-                    }
-
-                    count += 1;
-                    count += count_directories(&entry_path, max_depth, current_depth + 1, ignore_dirs);
-                }
-            }
-        }
-        count
-    }
-
-    let total_directories = count_directories(&base_path, max_depth, 0, &ignore_dirs);
-    // Add 1 for the root directory itself
-    let total_estimate = if total_directories > 0 { total_directories + 1 } else { 1 };
-
-    // Recursive scan function
-    fn scan_recursive(
-        app: &tauri::AppHandle,
-        event_id: &str,
-        root_path: &Path,
-        current_path: &Path,
-        base_rel: &str,
-        current_depth: usize,
-        max_depth: usize,
-        max_files: usize,
-        files: &mut Vec<String>,
-        directories: &mut Vec<String>,
-        scanned_count: &mut usize,
-        by_directory: &mut HashMap<String, ScanStatus>,
-        total_estimate: usize,
-        dirs_scanned: &mut usize,
-        ignore_dirs: &[&str],
-    ) -> Result<(), String> {
-        // Check depth limit
-        if current_depth > max_depth {
-            return Ok(());
-        }
-
-        // Check file count limit
-        if files.len() >= max_files {
-            return Ok(());
-        }
-
-        // Read directory entries
-        let entries = std::fs::read_dir(current_path)
-            .map_err(|e| format!("Failed to read directory: {}", e))?;
-
-        // Get relative path for this directory
-        let rel_path = current_path.strip_prefix(root_path)
-            .unwrap_or(current_path)
+        // Get relative path
+        let rel = path.strip_prefix(&base_path)
+            .unwrap_or(path)
             .to_string_lossy()
             .to_string();
-        let display_path = if rel_path.is_empty() { base_rel.to_string() } else { format!("{}/{}", base_rel, rel_path) };
+        let full_rel = if rel.is_empty() { rel_path.clone() } else { format!("{}/{}", rel_path, rel) };
 
-        // Update directory status to "scanning" and send initial event
-        by_directory.insert(display_path.clone(), ScanStatus {
-            total: total_estimate,
-            scanned: *dirs_scanned,
-            status: "scanning".to_string(),
-        });
+        // Get directory path for this entry
+        let file_dir = if let Some(pos) = full_rel.rfind('/') {
+            &full_rel[..pos]
+        } else {
+            ""
+        };
+        let file_dir = if file_dir.is_empty() { &rel_path } else { file_dir };
 
-        // Collect subdirectories to scan after processing files
-        let mut subdirs_to_scan: Vec<(String, std::path::PathBuf)> = Vec::new();
-
-        // Scan entries
-        for entry in entries {
-            if files.len() >= max_files {
-                break;
-            }
-
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let path = entry.path();
-
-            // Skip symlinks to avoid infinite loops
-            if path.is_symlink() {
-                continue;
-            }
-
-            // Get relative path
-            let rel = path.strip_prefix(root_path)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .to_string();
-            let full_rel = if rel.is_empty() { base_rel.to_string() } else { format!("{}/{}", base_rel, rel) };
-
-            if path.is_dir() {
-                // Check if directory should be ignored
-                let dir_name = path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("");
-
-                if ignore_dirs.contains(&dir_name) {
-                    continue; // Skip ignored directories
-                }
-
-                // Add to directories list
+        // Process directory entry
+        if path.is_dir() {
+            if !directories.contains(&full_rel) {
                 directories.push(full_rel.clone());
+            }
 
-                // Mark as pending for now, will be updated to "scanning" when we process it
-                by_directory.insert(full_rel.clone(), ScanStatus {
+            by_directory.entry(full_rel.clone()).or_insert_with(|| ScanStatus {
+                total: total_estimate,
+                scanned: dirs_scanned,
+                status: "scanning".to_string(),
+            });
+
+            continue;
+        }
+
+        // Check if we entered a new directory (for files)
+        if current_dir_path.as_deref() != Some(file_dir) {
+            if let Some(prev_dir) = &current_dir_path {
+                by_directory.insert(prev_dir.clone(), ScanStatus {
                     total: total_estimate,
-                    scanned: *dirs_scanned,
-                    status: "pending".to_string(),
+                    scanned: dirs_scanned,
+                    status: "completed".to_string(),
                 });
 
-                // Collect for recursive scan later
-                subdirs_to_scan.push((full_rel, path));
-            } else {
-                // Add file and send progress event for this file
-                files.push(full_rel.clone());
-                *scanned_count += 1;
+                dirs_scanned += 1;
+            }
 
-                // Send progress event for this file (dynamic effect)
-                // Use the current directory path as currentPath, file as currentFile
-                let by_dir_serializable: HashMap<String, serde_json::Value> = by_directory
-                    .iter()
-                    .map(|(k, v)| {
-                        (k.clone(), json!({
-                            "total": v.total,
-                            "scanned": v.scanned,
-                            "status": v.status
-                        }))
-                    })
-                    .collect();
+            by_directory.insert(file_dir.to_string(), ScanStatus {
+                total: total_estimate,
+                scanned: dirs_scanned,
+                status: "scanning".to_string(),
+            });
 
-                // Extract directory from file path for currentPath
-                let file_dir = if let Some(pos) = full_rel.rfind('/') {
-                    &full_rel[..pos]
-                } else {
-                    "."
-                };
+            current_dir_path = Some(file_dir.to_string());
+        }
 
-                let progress = json!({
-                    "type": "explore_progress",
-                    "exploreProgress": {
-                        "phase": "scanning",
-                        "currentPath": file_dir,
-                        "currentFile": &full_rel,
-                        "progress": {
-                            "total": total_estimate,
-                            "scanned": *dirs_scanned,
-                            "byDirectory": by_dir_serializable
-                        }
+        // Process file
+        if path.is_file() {
+            files.push(full_rel.clone());
+
+            // Emit per-file progress
+            let by_dir_serializable: HashMap<String, serde_json::Value> = by_directory
+                .iter()
+                .map(|(k, v)| {
+                    (k.clone(), json!({
+                        "total": v.total,
+                        "scanned": v.scanned,
+                        "status": v.status
+                    }))
+                })
+                .collect();
+
+            let progress = json!({
+                "type": "explore_progress",
+                "exploreProgress": {
+                    "phase": "scanning",
+                    "currentPath": file_dir,
+                    "currentFile": &full_rel,
+                    "progress": {
+                        "total": total_estimate,
+                        "scanned": dirs_scanned,
+                        "byDirectory": by_dir_serializable
                     }
-                });
-                println!("[DEBUG] [RUST CORE_WRAPPERS:440] Emitting explore_progress: event_id={}, currentFile={}", event_id, &full_rel);
-                let _ = app.emit(event_id, progress);
-                println!("[DEBUG] [RUST CORE_WRAPPERS:441] Event emitted successfully");
-            }
-        }
-
-        // Send progress event showing current directory with subdirectories
-        let by_dir_serializable: HashMap<String, serde_json::Value> = by_directory
-            .iter()
-            .map(|(k, v)| {
-                (k.clone(), json!({
-                    "total": v.total,
-                    "scanned": v.scanned,
-                    "status": v.status
-                }))
-            })
-            .collect();
-
-        // Get the last scanned file to show as currentFile
-        let last_file = files.last().map(|s| s.as_str());
-
-        let progress = json!({
-            "type": "explore_progress",
-            "exploreProgress": {
-                "phase": "scanning",
-                "currentPath": &display_path,
-                "currentFile": last_file,
-                "progress": {
-                    "total": total_estimate,
-                    "scanned": *dirs_scanned,
-                    "byDirectory": by_dir_serializable
                 }
-            }
-        });
-        let _ = app.emit(event_id, progress);
-
-        // Now recursively scan subdirectories
-        for (subdir_rel, subdir_path) in subdirs_to_scan {
-            scan_recursive(
-                app, event_id, root_path, &subdir_path, base_rel,
-                current_depth + 1, max_depth, max_files,
-                files, directories, scanned_count, by_directory,
-                total_estimate, dirs_scanned, ignore_dirs,
-            )?;
+            });
+            let _ = app.emit(event_id, progress);
         }
 
-        // Increment directory counter after scanning this directory
-        *dirs_scanned += 1;
-
-        // Mark current directory as completed
-        by_directory.insert(display_path.clone(), ScanStatus {
-            total: total_estimate,
-            scanned: *dirs_scanned,
-            status: "completed".to_string(),
-        });
-
-        Ok(())
+        if files.len() >= max_files {
+            println!("[core_wrappers] Max files limit reached: {}", max_files);
+            break;
+        }
     }
 
-    let mut dirs_scanned = 0;
+    // Mark final directory as completed
+    if let Some(last_dir) = &current_dir_path {
+        by_directory.insert(last_dir.clone(), ScanStatus {
+            total: total_estimate,
+            scanned: dirs_scanned + 1,
+            status: "completed".to_string(),
+        });
+    }
 
-    // Start recursive scan
-    scan_recursive(
-        app, event_id, &base_path, &base_path, &rel_path, 0, max_depth, max_files,
-        &mut files, &mut directories, &mut scanned_count, &mut by_directory, total_estimate,
-        &mut dirs_scanned, &ignore_dirs,
-    )?;
+    println!("[core_wrappers] Scan complete: {} files, {} directories", files.len(), directories.len());
 
     // Sort results
     files.sort();
