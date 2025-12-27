@@ -284,6 +284,65 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 }
             }
         }
+        // --- Explore Progress ---
+        else if (payload.type === 'explore_progress') {
+            const progress = payload.exploreProgress;
+            if (progress) {
+                console.log(`[AgentStore] Explore progress: ${progress.phase}, ${progress.progress.scanned}/${progress.progress.total}`);
+
+                // Update agent with explore progress data
+                set(state => ({
+                    runningAgents: state.runningAgents.map(a => {
+                        if (a.id !== id) return a;
+                        return {
+                            ...a,
+                            exploreProgress: progress, // Store full progress data
+                            currentStep: `${progress.phase}: ${progress.progress.scanned}/${progress.progress.total}`,
+                            progress: progress.progress.total > 0
+                                ? progress.progress.scanned / progress.progress.total
+                                : a.progress
+                        };
+                    })
+                }));
+
+                // Sync to message for UI display
+                if (msgId) {
+                    const { messages } = coreUseChatStore.getState();
+                    coreUseChatStore.setState({
+                        messages: messages.map(m => m.id === msgId ? {
+                            ...m,
+                            exploreProgress: progress
+                        } : m)
+                    });
+                }
+            }
+        }
+        // --- Explore Findings ---
+        else if (payload.type === 'explore_findings') {
+            const findings = payload.exploreFindings;
+            if (findings) {
+                console.log(`[AgentStore] Explore findings:`, findings.summary);
+
+                // Store findings in agent
+                set(state => ({
+                    runningAgents: state.runningAgents.map(a => {
+                        if (a.id !== id) return a;
+                        return { ...a, exploreFindings: findings };
+                    })
+                }));
+
+                // Sync findings to message for UI display
+                if (msgId) {
+                    const { messages } = coreUseChatStore.getState();
+                    coreUseChatStore.setState({
+                        messages: messages.map(m => m.id === msgId ? {
+                            ...m,
+                            exploreFindings: findings
+                        } : m)
+                    });
+                }
+            }
+        }
         // --- Error ---
         else if (payload.type === 'error') {
             if (msgId) {

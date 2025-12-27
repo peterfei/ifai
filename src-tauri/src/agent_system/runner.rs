@@ -70,6 +70,53 @@ pub async fn run_agent_task(
         json!({
             "type": "function",
             "function": {
+                "name": "agent_batch_read",
+                "description": "Read multiple files in parallel for efficiency. Use this when you need to read 3-10 files at once. Returns JSON array with results for each file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "paths": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Array of relative file paths to read (recommended: 3-10 files per batch)"
+                        }
+                    },
+                    "required": ["paths"]
+                }
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
+                "name": "agent_scan_directory",
+                "description": "Scan a directory and return structured file tree with statistics. Supports glob patterns (e.g., '*.ts') and limits. Use this for quick project overview before deep scanning.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "rel_path": {
+                            "type": "string",
+                            "description": "Relative path to directory to scan (default: '.' for current directory)"
+                        },
+                        "pattern": {
+                            "type": "string",
+                            "description": "Optional glob pattern to filter files (e.g., '*.ts', '**/*.tsx', '**/*.rs')"
+                        },
+                        "max_depth": {
+                            "type": "number",
+                            "description": "Maximum directory depth to scan (default: 10)"
+                        },
+                        "max_files": {
+                            "type": "number",
+                            "description": "Maximum number of files to return (default: 500)"
+                        }
+                    },
+                    "required": []
+                }
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
                 "name": "agent_write_file",
                 "description": "Write content to a file",
                 "parameters": {
@@ -142,6 +189,29 @@ pub async fn run_agent_task(
                                     let _ = app.emit("agent:status", json!({ "id": id, "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "status", "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("🚀 Executing {}...", tool_name) }));
+
+                                    // Send explore_progress start event for agent_scan_directory
+                                    if tool_name == "agent_scan_directory" {
+                                        let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".");
+                                        let _ = app.emit(&event_id, json!({
+                                            "type": "explore_progress",
+                                            "exploreProgress": {
+                                                "phase": "scanning",
+                                                "currentPath": rel_path,
+                                                "progress": {
+                                                    "total": 1,
+                                                    "scanned": 0,
+                                                    "byDirectory": {
+                                                        rel_path: {
+                                                            "total": 1,
+                                                            "scanned": 0,
+                                                            "status": "scanning"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }));
+                                    }
                                 }
 
                                 let _ = supervisor.update_status(&id, if approved { AgentStatus::Running } else { AgentStatus::Stopped }).await;
@@ -154,10 +224,74 @@ pub async fn run_agent_task(
                                             created_files.push(path.to_string());
                                         }
                                     }
-                                    match tools::execute_tool_internal(tool_name, &args, &context.project_root).await {
-                                        Ok(res) => (res, true),
-                                        Err(e) => (format!("Error: {}", e), false)
-                                    }
+
+                                    let tool_result = match tools::execute_tool_internal(tool_name, &args, &context.project_root).await {
+                                        Ok(res) => {
+                                            // Send explore_findings event for agent_scan_directory
+                                            if tool_name == "agent_scan_directory" {
+                                                if let Ok(scan_result) = serde_json::from_str::<Value>(&res) {
+                                                    let total_files = scan_result["stats"]["totalFiles"].as_u64().unwrap_or(0);
+                                                    let total_dirs = scan_result["stats"]["totalDirectories"].as_u64().unwrap_or(0);
+
+                                                    // Send completed progress event
+                                                    let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".");
+                                                    let _ = app.emit(&event_id, json!({
+                                                        "type": "explore_progress",
+                                                        "exploreProgress": {
+                                                            "phase": "scanning",
+                                                            "currentPath": rel_path,
+                                                            "progress": {
+                                                                "total": 1,
+                                                                "scanned": 1,
+                                                                "byDirectory": {
+                                                                    rel_path: {
+                                                                        "total": 1,
+                                                                        "scanned": 1,
+                                                                        "status": "completed"
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                ));
+
+                                                    // Build directories array from scan result
+                                                    let directories = scan_result["directories"].as_array()
+                                                        .map(|arr| {
+                                                            let files = scan_result["files"].as_array().map(|f| f.len()).unwrap_or(0);
+                                                            let files_per_dir = if arr.len() > 0 { files / arr.len() } else { 0 };
+
+                                                            arr.iter().filter_map(|v| v.as_str()).map(|s| {
+                                                                json!({
+                                                                    "path": s,
+                                                                    "fileCount": files_per_dir,
+                                                                    "keyFiles": []
+                                                                })
+                                                            }).collect::<Vec<_>>()
+                                                        })
+                                                        .unwrap_or_default();
+
+                                                    let summary = format!(
+                                                        "探索完成：发现 {} 个文件和 {} 个目录",
+                                                        total_files,
+                                                        total_dirs
+                                                    );
+
+                                                    let _ = app.emit(&event_id, json!({
+                                                        "type": "explore_findings",
+                                                        "exploreFindings": {
+                                                            "summary": summary,
+                                                            "directories": directories
+                                                        }
+                                                    }));
+                                                }
+                                            }
+                                            res
+                                        },
+                                        Err(e) => format!("Error: {}", e)
+                                    };
+
+                                    (tool_result, true)
                                 }
                             },
                             Err(e) => (format!("Failed to parse arguments: {}", e), false)

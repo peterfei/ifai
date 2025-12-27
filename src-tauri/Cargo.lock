@@ -2543,6 +2543,7 @@ dependencies = [
  "fastembed",
  "futures",
  "git2",
+ "glob",
  "grep",
  "handlebars",
  "ifainew-core",

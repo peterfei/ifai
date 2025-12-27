@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { ExploreProgress } from './ExploreProgress';
+import { ExploreFindings } from './ExploreFindings';
 
 // Utility for status colors
 const getStatusColor = (status: string) => {
@@ -312,26 +314,59 @@ export const GlobalAgentMonitor: React.FC = () => {
 
                             {/* Expanded Logs */}
                             {expandedId === agent.id && (
-                                <div className="bg-[#1e1e1e] p-3 border-t border-[#333] max-h-[300px] overflow-y-auto font-mono text-[10px] text-gray-400 shadow-inner">
-                                    {agent.logs.length === 0 ? (
-                                        <span className="opacity-30 italic">{t('agent_monitor_initializing')}</span>
-                                    ) : (
-                                        agent.logs.map((log, i) => (
-                                            <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-blue-500/50 pl-2 leading-relaxed">
-                                                <span className="text-gray-600 select-none mr-2 opacity-50">❯</span>
-                                                {log}
-                                            </div>
-                                        ))
+                                <div className="bg-[#1e1e1e]">
+                                    {/* Explore Agent Progress - Hierarchical Display */}
+                                    {agent.exploreProgress && (
+                                        <div className="p-3 border-b border-[#333]">
+                                            <ExploreProgress progress={agent.exploreProgress} compact={true} />
+                                        </div>
                                     )}
-                                    <div ref={logsEndRef} />
+
+                                    {/* Explore Agent Findings */}
+                                    {agent.exploreFindings && (
+                                        <div className="p-3 border-b border-[#333]">
+                                            <ExploreFindings findings={agent.exploreFindings} compact={true} />
+                                        </div>
+                                    )}
+
+                                    {/* Regular Logs */}
+                                    <div className="p-3 max-h-[300px] overflow-y-auto font-mono text-[10px] text-gray-400 shadow-inner">
+                                        {agent.logs.length === 0 ? (
+                                            <span className="opacity-30 italic">{t('agent_monitor_initializing')}</span>
+                                        ) : (
+                                            agent.logs.map((log, i) => (
+                                                <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-blue-500/50 pl-2 leading-relaxed">
+                                                    <span className="text-gray-600 select-none mr-2 opacity-50">❯</span>
+                                                    {log}
+                                                </div>
+                                            ))
+                                        )}
+                                        <div ref={logsEndRef} />
+                                    </div>
                                 </div>
                             )}
                             
                             {/* Latest Log Preview (if not expanded) */}
-                            {expandedId !== agent.id && agent.logs.length > 0 && (
-                                <div className="px-3 pb-2 text-[10px] text-gray-500 truncate font-mono opacity-70">
-                                    <span className="text-blue-500 mr-1">❯</span>
-                                    {agent.logs[agent.logs.length - 1]}
+                            {expandedId !== agent.id && (
+                                <div className="px-3 pb-2">
+                                    {/* Explore Progress Preview */}
+                                    {agent.exploreProgress && (
+                                        <div className="mb-2 flex items-center gap-2 text-[10px] text-gray-400">
+                                            <span className="text-blue-500">🔍</span>
+                                            <span className="capitalize">{agent.exploreProgress.phase}</span>
+                                            <span className="text-gray-600">
+                                                {agent.exploreProgress.progress.scanned}/{agent.exploreProgress.progress.total}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Regular Log Preview */}
+                                    {!agent.exploreProgress && agent.logs.length > 0 && (
+                                        <div className="text-[10px] text-gray-500 truncate font-mono opacity-70">
+                                            <span className="text-blue-500 mr-1">❯</span>
+                                            {agent.logs[agent.logs.length - 1]}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

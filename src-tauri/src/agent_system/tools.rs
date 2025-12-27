@@ -46,7 +46,7 @@ pub async fn execute_tool_internal(
     project_root: &str,
 ) -> Result<String, String> {
     println!("[AgentTools] Executing tool: {} with args: {}", tool_name, args);
-    
+
     match tool_name {
         "agent_read_file" => {
             let rel_path = args["rel_path"].as_str()
@@ -75,6 +75,41 @@ pub async fn execute_tool_internal(
 
             println!("[AgentTools] Writing file: {} (content length: {})", rel_path, unescaped_content.len());
             agent::agent_write_file(project_root.to_string(), rel_path, unescaped_content).await
+        },
+        "agent_batch_read" => {
+            // Extract paths array from arguments
+            let paths_array = args["paths"].as_array()
+                .ok_or("Missing 'paths' array in arguments")?;
+
+            let paths: Vec<String> = paths_array.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect();
+
+            if paths.is_empty() {
+                return Err("No paths provided for batch read".to_string());
+            }
+
+            println!("[AgentTools] Batch reading {} files", paths.len());
+
+            // Call the batch_read function
+            crate::commands::core_wrappers::agent_batch_read(project_root.to_string(), paths).await
+        },
+        "agent_scan_directory" => {
+            let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".").to_string();
+            let pattern = args["pattern"].as_str().map(|s| s.to_string());
+            let max_depth = args["max_depth"].as_u64().map(|v| v as usize);
+            let max_files = args["max_files"].as_u64().map(|v| v as usize);
+
+            println!("[AgentTools] Scanning directory: {} (pattern: {:?})", rel_path, pattern);
+
+            crate::commands::core_wrappers::agent_scan_directory(
+                project_root.to_string(),
+                rel_path,
+                pattern,
+                max_depth,
+                max_files
+            ).await
         },
         _ => Err(format!("Tool {} not implemented or allowed in Agent System", tool_name))
     }
