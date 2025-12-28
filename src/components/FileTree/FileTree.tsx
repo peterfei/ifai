@@ -485,17 +485,17 @@ export const FileTree = () => {
     <div className="p-4 text-gray-500 text-sm text-center flex flex-col items-center gap-4">
       <p className="text-gray-400">No folder open</p>
       <button
-        onClick={async () => {
-          try {
-            const { openDirectory } = await import('../../utils/fileSystem');
-            const tree = await openDirectory();
+        onClick={() => {
+          import('../../utils/fileSystem').then(({ openDirectory }) => {
+            return openDirectory();
+          }).then((tree) => {
             if (tree) {
               setFileTree(tree);
               invoke('init_rag_index', { rootPath: tree.path }).catch(e => console.warn('RAG init warning:', e));
             }
-          } catch (e) {
+          }).catch((e) => {
             console.error('[FileTree] Failed to open directory:', e);
-          }
+          });
         }}
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors"
       >
