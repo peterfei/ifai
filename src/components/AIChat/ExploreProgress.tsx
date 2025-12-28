@@ -1,15 +1,19 @@
 /**
  * ExploreProgress Component
  *
- * Displays real-time progress for explore agent operations:
+ * Displays real-time progress for explore agent operations with a
+ * VS Code-inspired compact design:
+ *
+ * - Compact single-line progress indicator with scan rate
  * - Phase indicator (scanning/analyzing)
- * - Overall progress bar
- * - Directory tree progress with hierarchical structure
+ * - Collapsible directory tree (default collapsed)
  * - Current path being scanned
+ * - Recent scanned files stream
  */
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Folder, FolderOpen, File, CheckCircle2, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
+import { useExploreStore } from '../../stores/exploreStore';
 
 // ============================================================================
 // Types
@@ -28,56 +32,126 @@ export interface ExploreProgressData {
       status: 'pending' | 'scanning' | 'completed';
     }>;
   };
-  scannedFiles?: string[]; // Track recently scanned files for animation
+  scannedFiles?: string[];
 }
 
 interface ExploreProgressProps {
   progress: ExploreProgressData;
-  mode?: 'full' | 'compact' | 'minimal'; // Display mode
+  mode?: 'full' | 'compact' | 'minimal';
+  onOpenFile?: (path: string) => void;
 }
 
 // ============================================================================
 // Helper Components
 // ============================================================================
 
-const PhaseIndicator: React.FC<{ phase: 'scanning' | 'analyzing' | 'completed' }> = ({ phase }) => {
-  const phases = [
-    { key: 'scanning', label: '扫描', icon: Search },
-    { key: 'analyzing', label: '分析', icon: File },
+/**
+ * VS Code-style compact status bar
+ */
+const StatusBar: React.FC<{
+  progress: ExploreProgressData;
+  scanRate: number;
+}> = ({ progress, scanRate }) => {
+  const { phase, currentFile } = progress;
+  const { total, scanned } = progress.progress;
+  const percentage = total > 0 ? Math.min(100, Math.round((scanned / total) * 100)) : 0;
+  const isComplete = scanned >= total && total > 0;
+
+  const phaseText = {
+    'scanning': '扫描中',
+    'analyzing': '分析中',
+    'completed': '已完成'
+  }[phase];
+
+  return (
+    <div className="explore-status-bar">
+      {/* Phase and percentage */}
+      <div className="flex items-center gap-2">
+        {isComplete ? (
+          <CheckCircle2 size={12} className="text-[#4ec9b0]" />
+        ) : phase === 'scanning' ? (
+          <Loader2 size={12} className="text-[#569cd6] animate-spin" />
+        ) : (
+          <Search size={12} className="text-[#dcdcaa]" />
+        )}
+        <span className="text-[#cccccc]">{phaseText}</span>
+        <span className="text-[#858585]">{percentage}%</span>
+      </div>
+
+      {/* Separator */}
+      <span className="text-[#3c3c3c]">|</span>
+
+      {/* Directory progress */}
+      <span className="text-[#cccccc] font-mono text-[11px]">
+        {scanned}/{total} 目录
+      </span>
+
+      {/* Separator */}
+      <span className="text-[#3c3c3c]">|</span>
+
+      {/* File count and scan rate */}
+      <span className="text-[#cccccc] font-mono text-[11px]">
+        {progress.scannedFiles?.length || 0} 文件
+      </span>
+
+      {scanRate > 0 && !isComplete && (
+        <>
+          <span className="text-[#3c3c3c]">|</span>
+          <span className="text-[#4ec9b0] font-mono text-[11px]">
+            ⚡ {scanRate} 文件/秒
+          </span>
+        </>
+      )}
+
+      {/* Current file (truncated) */}
+      {currentFile && !isComplete && (
+        <>
+          <span className="text-[#3c3c3c]">|</span>
+          <span
+            className="text-[#569cd6] font-mono text-[11px] truncate max-w-[200px]"
+            title={currentFile}
+          >
+            {currentFile.split('/').pop()}
+          </span>
+        </>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Compact phase stepper
+ */
+const PhaseStepper: React.FC<{ phase: 'scanning' | 'analyzing' | 'completed' }> = ({ phase }) => {
+  const steps = [
+    { key: 'scanning', label: '扫描' },
+    { key: 'analyzing', label: '分析' },
   ];
 
-  const currentIndex = phase === 'completed' ? phases.length : phases.findIndex(p => p.key === phase);
+  const currentIndex = phase === 'completed' ? steps.length : steps.findIndex(s => s.key === phase);
   const isComplete = phase === 'completed';
 
   return (
-    <div className="flex items-center gap-2 mb-3">
-      {phases.map((p, index) => {
-        const Icon = p.icon;
-        const isActive = phase === p.key && !isComplete;
-        const isCompleted = index < currentIndex || (isComplete && index <= currentIndex);
+    <div className="flex items-center gap-2 py-2">
+      {steps.map((step, index) => {
+        const isActive = phase === step.key && !isComplete;
+        const isCompletedStep = index < currentIndex || (isComplete && index <= currentIndex);
 
         return (
-          <React.Fragment key={p.key}>
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${
+          <React.Fragment key={step.key}>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-all ${
               isActive
-                ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                : isCompleted
-                ? 'bg-green-600/20 border-green-500 text-green-400'
-                : 'bg-gray-800 border-gray-700 text-gray-500'
+                ? 'bg-[#569cd6]/20 border border-[#569cd6] text-[#569cd6]'
+                : isCompletedStep
+                ? 'bg-[#4ec9b0]/20 border border-[#4ec9b0] text-[#4ec9b0]'
+                : 'bg-[#252526] border border-[#3c3c3c] text-[#858585]'
             }`}>
-              <Icon size={14} />
-              <span className="text-xs font-medium">{p.label}</span>
-              {isActive && (
-                <Loader2 size={12} className="animate-spin ml-1" />
-              )}
-              {isCompleted && !isActive && (
-                <CheckCircle2 size={12} className="ml-1" />
-              )}
+              <span>{step.label}</span>
+              {isActive && <Loader2 size={8} className="animate-spin ml-1" />}
+              {isCompletedStep && !isActive && <CheckCircle2 size={8} className="ml-1" />}
             </div>
-            {index < phases.length - 1 && (
-              <div className={`w-8 h-0.5 ${
-                index < currentIndex || isComplete ? 'bg-green-500' : 'bg-gray-700'
-              }`} />
+            {index < steps.length - 1 && (
+              <div className={`w-6 h-px ${index < currentIndex || isComplete ? 'bg-[#4ec9b0]' : 'bg-[#3c3c3c]'}`} />
             )}
           </React.Fragment>
         );
@@ -86,145 +160,60 @@ const PhaseIndicator: React.FC<{ phase: 'scanning' | 'analyzing' | 'completed' }
   );
 };
 
-const ProgressBar: React.FC<{ current: number; total: number; isComplete?: boolean }> = ({ current, total, isComplete }) => {
+/**
+ * Compact progress bar
+ */
+const CompactProgressBar: React.FC<{
+  current: number;
+  total: number;
+  isComplete: boolean;
+}> = ({ current, total, isComplete }) => {
   const percentage = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
 
   return (
-    <div className="mb-3">
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-xs text-gray-400">
-          {isComplete ? '扫描完成' : '总体进度'}
-        </span>
-        <span className={`text-xs font-medium ${
-          isComplete ? 'text-green-400' : 'text-gray-300'
-        }`}>{percentage}%</span>
-      </div>
-      <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+    <div className="py-1">
+      <div className="h-1 bg-[#2d2d2d] rounded-full overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ease-out ${
-            isComplete ? 'bg-green-500' : 'bg-gradient-to-r from-blue-600 to-blue-400'
+            isComplete ? 'bg-[#4ec9b0]' : 'bg-[#569cd6]'
           }`}
           style={{ width: `${percentage}%` }}
         />
       </div>
-      <div className="text-xs text-gray-500 mt-1">
-        {current} / {total} 个目录
-      </div>
     </div>
   );
 };
 
-// Dynamic file scan list - shows recently scanned files
-const ScannedFileList: React.FC<{
-  currentFile?: string;
-  isComplete?: boolean;
-}> = ({ currentFile, isComplete }) => {
-  const [scannedFiles, setScannedFiles] = React.useState<string[]>([]);
-
-  React.useEffect(() => {
-    if (currentFile && !scannedFiles.includes(currentFile)) {
-      setScannedFiles(prev => [currentFile, ...prev].slice(0, 8)); // Keep last 8 files
-    }
-  }, [currentFile]);
-
-  // Extract file name from path for display
-  const getFileName = (filePath: string): string => {
-    const parts = filePath.split('/');
-    return parts[parts.length - 1] || filePath;
-  };
-
-  // Get directory name for context
-  const getDirName = (filePath: string): string | undefined => {
-    const lastSlash = filePath.lastIndexOf('/');
-    if (lastSlash > 0) {
-      const dirPath = filePath.substring(0, lastSlash);
-      const dirParts = dirPath.split('/');
-      return dirParts[dirParts.length - 1];
-    }
-    return undefined;
-  };
-
-  if (scannedFiles.length === 0 && !isComplete && !currentFile) {
-    return null;
-  }
-
-  return (
-    <div className="mt-3">
-      <div className="text-xs text-gray-400 font-medium mb-2">最近扫描</div>
-      <div className="bg-gray-800/50 rounded-lg p-2 max-h-[120px] overflow-hidden">
-        <div className="space-y-1">
-          {scannedFiles.map((file, index) => {
-            const fileName = getFileName(file);
-            const dirName = getDirName(file);
-            return (
-              <div
-                key={file}
-                className="flex items-center gap-2 text-xs py-1 px-2 rounded animate-in slide-in-from-right-2"
-                style={{ animationDuration: `${200 + index * 50}ms` }}
-              >
-                <File size={12} className="text-gray-500 flex-shrink-0" />
-                <span className="flex-1 truncate text-gray-400">{fileName}</span>
-                {dirName && (
-                  <span className="text-[9px] text-gray-600 truncate max-w-[60px]" title={file}>
-                    {dirName}/
-                  </span>
-                )}
-                <CheckCircle2 size={10} className="text-green-500 flex-shrink-0" />
-              </div>
-            );
-          })}
-          {currentFile && !scannedFiles.includes(currentFile) && (
-            <div className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-blue-900/20">
-              <File size={12} className="text-blue-400 flex-shrink-0" />
-              <span className="flex-1 truncate text-blue-300">
-                {getFileName(currentFile)}
-              </span>
-              {getDirName(currentFile) && (
-                <span className="text-[9px] text-blue-500/70 truncate max-w-[60px]" title={currentFile}>
-                  {getDirName(currentFile)}/
-                </span>
-              )}
-              <Loader2 size={10} className="text-blue-500 animate-spin flex-shrink-0" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Streaming file list - new files flow from top, old files scroll down
+/**
+ * Streaming file list - shows recently scanned files
+ */
 interface FileStreamItem {
   path: string;
   status: 'scanning' | 'completed';
   timestamp: number;
 }
 
-export interface ScannedFileStreamProps {
+export const ScannedFileStream: React.FC<{
   currentFile?: string;
   isComplete?: boolean;
   compact?: boolean;
   scannedCount?: number;
   totalCount?: number;
   scannedFiles?: string[];
-}
-
-export const ScannedFileStream: React.FC<ScannedFileStreamProps> = ({
+}> = ({
   currentFile,
   isComplete,
   compact = false,
-  scannedCount = 0,
-  totalCount = 0,
   scannedFiles: externalFiles = []
 }) => {
   const MAX_FILES = compact ? 5 : 6;
-  const fileStreamRef = React.useRef<Set<string>>(new Set());
-  const [fileStream, setFileStream] = React.useState<FileStreamItem[]>([]);
+  const fileStreamRef = useRef<Set<string>>(new Set());
+  const [fileStream, setFileStream] = useState<FileStreamItem[]>([]);
+  const [scanningFile, setScanningFile] = useState<string | undefined>(currentFile);
 
   // Initialize from external scannedFiles list
-  React.useEffect(() => {
+  useEffect(() => {
     if (externalFiles.length > 0 && fileStream.length === 0) {
-      console.log('[ScannedFileStream] Initializing from scannedFiles:', externalFiles);
       const newStream: FileStreamItem[] = externalFiles.slice(0, MAX_FILES).map(path => ({
         path,
         status: 'completed' as const,
@@ -233,57 +222,44 @@ export const ScannedFileStream: React.FC<ScannedFileStreamProps> = ({
       newStream.forEach(f => fileStreamRef.current.add(f.path));
       setFileStream(newStream);
     }
-  }, [externalFiles, MAX_FILES]);
+  }, [externalFiles, MAX_FILES, fileStream.length]);
 
-  // Debug log to track currentFile changes
-  React.useEffect(() => {
-    console.log('[ScannedFileStream] State:', {
-      currentFile,
-      isComplete,
-      fileStreamLength: fileStream.length,
-      scannedCount,
-      totalCount,
-      externalFilesLength: externalFiles.length
-    });
-  }, [currentFile, isComplete, fileStream.length, scannedCount, totalCount, externalFiles.length]);
-
-  // Add new file at the top when currentFile changes
-  React.useEffect(() => {
-    if (currentFile && !fileStreamRef.current.has(currentFile)) {
-      console.log('[ScannedFileStream] Adding new file to stream:', currentFile);
-      fileStreamRef.current.add(currentFile);
-      const newEntry: FileStreamItem = {
-        path: currentFile,
-        status: 'scanning',
-        timestamp: Date.now()
-      };
-      // Add new file at the beginning, limit total count
-      setFileStream(prev => [newEntry, ...prev].slice(0, MAX_FILES));
+  // Update the scanning file separately (always shown at top)
+  useEffect(() => {
+    if (currentFile && currentFile !== scanningFile) {
+      // Move old scanning file to completed stream
+      if (scanningFile && !fileStreamRef.current.has(scanningFile)) {
+        fileStreamRef.current.add(scanningFile);
+        const completedEntry: FileStreamItem = {
+          path: scanningFile,
+          status: 'completed' as const,
+          timestamp: Date.now()
+        };
+        setFileStream(prev => [completedEntry, ...prev].slice(0, MAX_FILES));
+      }
+      setScanningFile(currentFile);
+    } else if (!currentFile && scanningFile && isComplete) {
+      // Scan complete, move scanning file to stream
+      if (scanningFile && !fileStreamRef.current.has(scanningFile)) {
+        fileStreamRef.current.add(scanningFile);
+        const completedEntry: FileStreamItem = {
+          path: scanningFile,
+          status: 'completed' as const,
+          timestamp: Date.now()
+        };
+        setFileStream(prev => [completedEntry, ...prev].slice(0, MAX_FILES));
+      }
+      setScanningFile(undefined);
     }
-  }, [currentFile, MAX_FILES]);
+  }, [currentFile, scanningFile, isComplete, MAX_FILES]);
 
   // Mark all as completed when scan finishes
-  React.useEffect(() => {
+  useEffect(() => {
     if (isComplete && fileStream.length > 0) {
-      console.log('[ScannedFileStream] Marking all as completed');
       setFileStream(prev => prev.map(f => ({ ...f, status: 'completed' as const })));
     }
   }, [isComplete, fileStream.length]);
 
-  // Update current file status when currentFile changes
-  React.useEffect(() => {
-    if (currentFile) {
-      setFileStream(prev => prev.map(f =>
-        f.path === currentFile && f.status !== 'scanning'
-          ? { ...f, status: 'scanning' as const }
-          : f.path !== currentFile && f.status === 'scanning'
-          ? { ...f, status: 'completed' as const }
-          : f
-      ));
-    }
-  }, [currentFile]);
-
-  // Extract file name from path
   const getFileName = (filePath: string): string => {
     const parts = filePath.split('/');
     return parts[parts.length - 1] || filePath;
@@ -291,96 +267,71 @@ export const ScannedFileStream: React.FC<ScannedFileStreamProps> = ({
 
   if (fileStream.length === 0 && !isComplete) {
     return (
-      <div className={`bg-gray-800/50 rounded-lg p-${compact ? '1.5' : '2'}`}>
-        <div className="flex items-center gap-2 text-[10px] text-gray-500">
-          <Loader2 size={compact ? 8 : 10} className="animate-spin text-blue-500" />
+      <div className="bg-[#252526] rounded p-3">
+        <div className="flex items-center gap-2 text-[12px] text-[#858585]">
+          <Loader2 size={10} className="animate-spin text-[#569cd6]" />
           <span>正在准备扫描...</span>
         </div>
       </div>
     );
   }
 
-  // Show completion summary when scan is done but no files in stream
-  if (fileStream.length === 0 && isComplete) {
-    return (
-      <div className={`bg-gray-800/50 rounded-lg p-${compact ? '1.5' : '2'}`}>
-        <div className="flex items-center gap-2 text-[10px] text-gray-500">
-          <CheckCircle2 size={compact ? 8 : 10} className="text-green-500 flex-shrink-0" />
-          <span>扫描完成: {scannedCount} 个文件</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={compact ? "mt-2" : "mt-3"}>
-      <div className="text-xs text-gray-400 font-medium mb-2">
+    <div className={compact ? "mt-3" : "mt-4"}>
+      <div className="text-[12px] text-[#cccccc] font-medium mb-2">
         {compact ? '扫描文件' : '最近扫描'}
       </div>
-      <div className={`bg-gray-800/50 rounded-lg p-${compact ? '1.5' : '2'} max-h-[${compact ? '100' : '120'}px] overflow-hidden`}>
-        <div className="space-y-0.5">
-          {fileStream.map((file, index) => {
+      <div className={`bg-[#252526] rounded p-${compact ? '2' : '3'} max-h-[${compact ? '100' : '140'}px] overflow-hidden`}>
+        <div className="space-y-1">
+          {/* Show scanning file at top */}
+          {scanningFile && !isComplete && (
+            <div
+              key={`scanning-${scanningFile}`}
+              className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300 bg-[#569cd6]/20 animate-in slide-in-from-top-2 fade-in"
+            >
+              <Loader2 size={10} className="text-[#569cd6] animate-spin flex-shrink-0" />
+              <span className="flex-1 truncate font-mono text-[#569cd6]">
+                {getFileName(scanningFile)}
+              </span>
+            </div>
+          )}
+
+          {/* Show completed files */}
+          {fileStream.map((file) => {
             const fileName = getFileName(file.path);
-            const isScanning = file.status === 'scanning';
 
             return (
               <div
                 key={`${file.path}-${file.timestamp}`}
-                className={`
-                  flex items-center gap-${compact ? '1.5' : '2'} text-${compact ? '[9px]' : '[10px]'} py-${compact ? '0.5' : '1'} px-${compact ? '1.5' : '2'} rounded
-                  transition-all duration-300
-                  ${isScanning
-                    ? 'bg-blue-900/30 animate-in slide-in-from-top-2 fade-in'
-                    : 'animate-in fade-in'}
-                `}
+                className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300"
               >
-                {isScanning ? (
-                  <Loader2 size={compact ? 8 : 10} className="text-blue-500 animate-spin flex-shrink-0" />
-                ) : (
-                  <CheckCircle2 size={compact ? 8 : 10} className="text-green-500 flex-shrink-0" />
-                )}
-                <span className={`flex-1 truncate ${
-                  isScanning ? 'text-blue-400' : 'text-gray-400'
-                }`}>
+                <CheckCircle2 size={10} className="text-[#4ec9b0] flex-shrink-0" />
+                <span className="flex-1 truncate font-mono text-[#cccccc]">
                   {fileName}
                 </span>
               </div>
             );
           })}
-          {currentFile && !fileStream.some(f => f.path === currentFile) && (
-            <div
-              className={`
-                flex items-center gap-${compact ? '1.5' : '2'} text-${compact ? '[9px]' : '[10px]'} py-${compact ? '0.5' : '1'} px-${compact ? '1.5' : '2'} rounded bg-blue-900/30
-                animate-in slide-in-from-top-2 fade-in
-              `}
-            >
-              <Loader2 size={compact ? 8 : 10} className="text-blue-500 animate-spin flex-shrink-0" />
-              <span className="flex-1 truncate text-blue-400">
-                {getFileName(currentFile)}
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 };
 
-// Build tree structure from flat directory list
-interface TreeNode {
+/**
+ * Directory tree component
+ */
+interface DirectoryTreeNode {
   name: string;
   path: string;
   status: 'pending' | 'scanning' | 'completed';
-  children: TreeNode[];
+  children: DirectoryTreeNode[];
   depth: number;
 }
 
-const buildDirectoryTree = (byDirectory: Record<string, any>): TreeNode[] => {
+const buildDirectoryTree = (byDirectory: Record<string, any>): DirectoryTreeNode[] => {
   const paths = Object.keys(byDirectory).sort();
-
-  // Filter out empty paths and normalize
   const validPaths = paths.filter(p => p && p !== '.').map(p => {
-    // Remove "./" prefix if present
     return p.startsWith('./') ? p.substring(2) : p;
   });
 
@@ -388,7 +339,7 @@ const buildDirectoryTree = (byDirectory: Record<string, any>): TreeNode[] => {
     return [];
   }
 
-  const root: TreeNode = { name: '', path: '', status: 'pending', children: [], depth: 0 };
+  const root: DirectoryTreeNode = { name: '', path: '', status: 'pending', children: [], depth: 0 };
 
   validPaths.forEach(fullPath => {
     const status = byDirectory[fullPath]?.status || byDirectory[`./${fullPath}`]?.status || 'pending';
@@ -412,7 +363,6 @@ const buildDirectoryTree = (byDirectory: Record<string, any>): TreeNode[] => {
         current.children.push(child);
       }
 
-      // Update status if this is the actual directory being scanned
       if (index === parts.length - 1) {
         child.status = status;
       }
@@ -425,27 +375,28 @@ const buildDirectoryTree = (byDirectory: Record<string, any>): TreeNode[] => {
 };
 
 const DirectoryTreeNode: React.FC<{
-  node: TreeNode;
+  node: DirectoryTreeNode;
   isExpanded?: boolean;
-}> = ({ node, isExpanded }) => {
-  const [expanded, setExpanded] = React.useState(isExpanded ?? node.depth <= 2);
+  onOpenFile?: (path: string) => void;
+}> = ({ node, isExpanded, onOpenFile }) => {
+  const [expanded, setExpanded] = useState(isExpanded ?? node.depth <= 2);
   const hasChildren = node.children.length > 0;
 
   const getStatusIcon = () => {
     switch (node.status) {
       case 'completed':
-        return <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />;
+        return <CheckCircle2 size={12} className="text-[#4ec9b0] flex-shrink-0" />;
       case 'scanning':
-        return <Loader2 size={14} className="text-blue-500 animate-spin flex-shrink-0" />;
+        return <Loader2 size={12} className="text-[#569cd6] animate-spin flex-shrink-0" />;
       default:
         return hasChildren ? (
           expanded ? (
-            <FolderOpen size={14} className="text-yellow-500 flex-shrink-0" />
+            <FolderOpen size={12} className="text-[#dcdcaa] flex-shrink-0" />
           ) : (
-            <Folder size={14} className="text-yellow-500/50 flex-shrink-0" />
+            <Folder size={12} className="text-[#dcdcaa]/50 flex-shrink-0" />
           )
         ) : (
-          <Folder size={14} className="text-gray-600 flex-shrink-0" />
+          <Folder size={12} className="text-[#858585] flex-shrink-0" />
         );
     }
   };
@@ -453,27 +404,27 @@ const DirectoryTreeNode: React.FC<{
   return (
     <div>
       <div
-        className={`flex items-center gap-1 py-1 hover:bg-gray-800/50 rounded cursor-pointer ${
-          node.status === 'scanning' ? 'bg-blue-900/20' : ''
+        className={`flex items-center gap-1 py-1 hover:bg-[#2a2d2e] rounded cursor-pointer text-[12px] ${
+          node.status === 'scanning' ? 'bg-[#569cd6]/10' : ''
         }`}
         style={{ paddingLeft: `${(node.depth - 1) * 12 + 4}px` }}
         onClick={() => hasChildren && setExpanded(!expanded)}
       >
         {hasChildren && (
-          <span className="text-gray-500">
+          <span className="text-[#858585]">
             {expanded ? (
-              <ChevronDown size={12} />
+              <ChevronDown size={10} />
             ) : (
-              <ChevronRight size={12} />
+              <ChevronRight size={10} />
             )}
           </span>
         )}
-        {!hasChildren && <span className="w-3" />}
+        {!hasChildren && <span className="w-4" />}
         {getStatusIcon()}
-        <span className={`text-xs truncate ${
-          node.status === 'scanning' ? 'text-blue-400 font-medium' :
-          node.status === 'completed' ? 'text-gray-400' :
-          'text-gray-500'
+        <span className={`truncate font-mono ${
+          node.status === 'scanning' ? 'text-[#569cd6]' :
+          node.status === 'completed' ? 'text-[#cccccc]' :
+          'text-[#858585]'
         }`}>
           {node.name}
         </span>
@@ -481,7 +432,11 @@ const DirectoryTreeNode: React.FC<{
       {expanded && hasChildren && (
         <div>
           {node.children.map(child => (
-            <DirectoryTreeNode key={child.path} node={child} />
+            <DirectoryTreeNode
+              key={child.path}
+              node={child}
+              onOpenFile={onOpenFile}
+            />
           ))}
         </div>
       )}
@@ -489,82 +444,48 @@ const DirectoryTreeNode: React.FC<{
   );
 };
 
-const DirectoryTreeProgress: React.FC<{
+/**
+ * Collapsible directory tree section
+ */
+const CollapsibleDirectoryTree: React.FC<{
   byDirectory: ExploreProgressData['progress']['byDirectory'];
-  compact?: boolean;
-}> = ({ byDirectory, compact }) => {
+  isCollapsed: boolean;
+  onToggle: () => void;
+  onOpenFile?: (path: string) => void;
+}> = ({ byDirectory, isCollapsed, onToggle, onOpenFile }) => {
   const tree = useMemo(() => buildDirectoryTree(byDirectory), [byDirectory]);
-  const hasAnyData = Object.keys(byDirectory).length > 0;
+  const hasData = Object.keys(byDirectory).length > 0;
 
-  if (compact) {
-    // Compact mode: show flat list with active directories (scanning/pending)
-    const activePaths = Object.entries(byDirectory)
-      .filter(([_, data]) => data.status === 'scanning' || data.status === 'pending')
-      .sort(([_, a], [__, b]) => {
-        // Scanning directories first, then by path
-        if (a.status === 'scanning' && b.status !== 'scanning') return -1;
-        if (a.status !== 'scanning' && b.status === 'scanning') return 1;
-        return 0;
-      })
-      .map(([path, _]) => path)
-      .filter(p => p && p !== '.')
-      .slice(0, 5);
-
-    if (activePaths.length === 0 && !hasAnyData) {
-      return null;
-    }
-
-    return (
-      <div className="mt-2 space-y-0.5">
-        {activePaths.map(path => {
-          const status = byDirectory[path]?.status;
-          const displayPath = path.startsWith('./') ? path.substring(2) : path;
-          // Show last 2 path segments for better context
-          const parts = displayPath.split('/');
-          const name = parts[parts.length - 1] || displayPath;
-          const parentDir = parts.length > 1 ? parts[parts.length - 2] : null;
-          const displayName = parentDir ? `${parentDir}/${name}` : name;
-
-          return (
-            <div
-              key={path}
-              className={`flex items-center gap-1.5 text-[9px] py-0.5 px-1.5 rounded ${
-                status === 'scanning'
-                  ? 'bg-blue-900/20'
-                  : 'bg-gray-800/30'
-              }`}
-            >
-              {status === 'scanning' ? (
-                <Loader2 size={8} className="text-blue-500 animate-spin flex-shrink-0" />
-              ) : (
-                <Folder size={8} className="text-gray-500 flex-shrink-0" />
-              )}
-              <span className={`flex-1 truncate ${
-                status === 'scanning' ? 'text-blue-400' : 'text-gray-500'
-              }`}>
-                {displayName}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
+  if (!hasData) return null;
 
   return (
-    <div className="mt-3">
-      <div className="text-xs text-gray-400 font-medium mb-2">目录结构</div>
-      <div className="bg-gray-800/50 rounded-lg p-2 max-h-[200px] overflow-y-auto">
-        {!hasAnyData ? (
-          <div className="text-xs text-gray-500 py-2">正在初始化扫描...</div>
-        ) : tree.length === 0 ? (
-          <div className="text-xs text-gray-500 py-2">正在扫描目录...</div>
+    <div className="border-t border-[#3c3c3c] pt-3 mt-3">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-2 text-[12px] text-[#cccccc] font-medium hover:text-[#ffffff] transition-colors mb-2 w-full"
+      >
+        {isCollapsed ? (
+          <ChevronRight size={12} />
         ) : (
-          tree.map(node => (
-            <DirectoryTreeNode key={node.path} node={node} />
-          ))
+          <ChevronDown size={12} />
         )}
-      </div>
+        <span>目录结构 ({Object.keys(byDirectory).length})</span>
+      </button>
+      {!isCollapsed && (
+        <div className="bg-[#252526] rounded p-3 max-h-[180px] overflow-y-auto">
+          {tree.length > 0 ? (
+            tree.map(node => (
+              <DirectoryTreeNode
+                key={node.path}
+                node={node}
+                onOpenFile={onOpenFile}
+              />
+            ))
+          ) : (
+            <div className="text-[12px] text-[#858585] py-3">正在扫描目录...</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -573,188 +494,146 @@ const DirectoryTreeProgress: React.FC<{
 // Main Component
 // ============================================================================
 
-export const ExploreProgress: React.FC<ExploreProgressProps> = ({ progress, mode = 'full' }) => {
-  // Backwards compatibility
-  const compact = mode === 'compact';
-  const { phase, currentPath, currentFile, progress: data } = progress;
+export const ExploreProgress: React.FC<ExploreProgressProps> = ({
+  progress,
+  mode = 'full',
+  onOpenFile,
+}) => {
+  const { toggleSection, collapsedSections } = useExploreStore();
+  const [scanRate, setScanRate] = useState(0);
+  const lastUpdateRef = useRef<number>(Date.now());
+  const lastFileCountRef = useRef(0);
+
+  const { phase, progress: data } = progress;
   const percentage = data.total > 0 ? Math.min(100, Math.round((data.scanned / data.total) * 100)) : 0;
   const isComplete = data.scanned >= data.total && data.total > 0;
 
-  // Debug log to track data flow
-  console.log('[ExploreProgress] Render:', {
-    mode,
-    phase,
-    currentFile,
-    scanned: data.scanned,
-    total: data.total,
-    dirCount: Object.keys(data.byDirectory).length,
-    scannedFilesCount: progress.scannedFiles?.length || 0,
-    scannedFiles: progress.scannedFiles
-  });
+  // Calculate scan rate (files per second)
+  useEffect(() => {
+    const fileCount = progress.scannedFiles?.length || 0;
 
-  // Minimal mode - only progress bar and phase (for top "analysis" area)
+    if (!isComplete && fileCount > 0) {
+      const now = Date.now();
+      const elapsed = (now - lastUpdateRef.current) / 1000; // seconds
+      const filesScanned = fileCount - lastFileCountRef.current;
+
+      if (elapsed > 0.5 && filesScanned > 0) { // Update every 0.5s
+        const rate = Math.round(filesScanned / elapsed);
+        setScanRate(rate);
+        lastUpdateRef.current = now;
+        lastFileCountRef.current = fileCount;
+      }
+    }
+
+    if (isComplete) {
+      setScanRate(0);
+    }
+  }, [progress.scannedFiles, isComplete]);
+
+  // Minimal mode - compact progress bar for top analysis area
   if (mode === 'minimal') {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        {/* Compact Phase Indicator */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {isComplete ? (
-              <CheckCircle2 size={14} className="text-green-500" />
-            ) : phase === 'scanning' ? (
-              <Loader2 size={14} className="text-blue-500 animate-spin" />
-            ) : (
-              <Search size={14} className="text-purple-500" />
-            )}
-            <span className="text-xs font-medium text-gray-300">
-              {isComplete ? '扫描完成' : phase === 'scanning' ? '扫描中' : '分析中'}
-            </span>
+      <div className="bg-[#252526] border border-[#3c3c3c] rounded p-3">
+        <StatusBar progress={progress} scanRate={scanRate} />
+        <CompactProgressBar current={data.scanned} total={data.total} isComplete={isComplete} />
+        {isComplete && (
+          <div className="flex items-center gap-2 mt-2 text-[11px] text-[#4ec9b0]">
+            <CheckCircle2 size={10} />
+            <span>扫描完成 {progress.scannedFiles?.length || 0} 个文件</span>
           </div>
-          <span className={`text-xs font-medium ${
-            isComplete ? 'text-green-400' : 'text-gray-400'
-          }`}>{percentage}%</span>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-300 ${
-              isComplete ? 'bg-green-500' : phase === 'analyzing' ? 'bg-purple-500' : 'bg-blue-500'
-            }`}
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-
-        <div className="flex justify-between mt-1">
-          <span className="text-[10px] text-gray-500">{data.scanned} / {data.total} 目录</span>
-          <span className="text-[10px] text-gray-500">{progress.scannedFiles?.length || 0} 文件</span>
-        </div>
+        )}
       </div>
     );
   }
 
-  if (compact) {
-    const [showDirectories, setShowDirectories] = React.useState(false); // Default collapsed
-    const hasScannedFiles = (progress.scannedFiles && progress.scannedFiles.length > 0);
-    const hasDirectoryData = Object.keys(data.byDirectory).length > 0;
-
+  // Compact mode
+  if (mode === 'compact') {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        {/* DEBUG: Show phase value */}
-        <div className="mb-2 p-1 bg-yellow-900/20 border border-yellow-500/30 rounded text-[9px] text-yellow-400">
-          [调试] phase={phase}, currentFile={currentFile ? currentFile.split('/').pop() : 'null'}, scannedFiles={progress.scannedFiles?.length || 0}
-        </div>
+      <div className="bg-[#252526] border border-[#3c3c3c] rounded p-4">
+        <StatusBar progress={progress} scanRate={scanRate} />
+        <CompactProgressBar current={data.scanned} total={data.total} isComplete={isComplete} />
+        <PhaseStepper phase={phase} />
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {isComplete ? (
-              <CheckCircle2 size={14} className="text-green-500" />
-            ) : phase === 'scanning' ? (
-              <Loader2 size={14} className="text-blue-500 animate-spin" />
-            ) : phase === 'analyzing' ? (
-              <Search size={14} className="text-purple-500" />
-            ) : (
-              <Search size={14} className="text-gray-400" />
-            )}
-            <span className="text-xs font-medium text-gray-300">
-              {isComplete ? '扫描完成' : phase === 'scanning' ? '扫描中' : phase === 'analyzing' ? '分析中' : '探索中'}
-            </span>
-          </div>
-          <span className={`text-xs ${
-            isComplete ? 'text-green-400' : 'text-gray-500'
-          }`}>{percentage}%</span>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mb-3">
-          <div
-            className={`h-full transition-all duration-300 ${
-              isComplete ? 'bg-green-500' : phase === 'analyzing' ? 'bg-purple-500' : 'bg-blue-500'
-            }`}
-            style={{ width: `${percentage}%` }}
+        {/* Collapsible directory tree */}
+        {Object.keys(data.byDirectory).length > 0 && (
+          <CollapsibleDirectoryTree
+            byDirectory={data.byDirectory}
+            isCollapsed={collapsedSections['progress-tree'] ?? true}
+            onToggle={() => toggleSection('progress-tree')}
+            onOpenFile={onOpenFile}
           />
-        </div>
-
-        {/* Collapsible Directories Section - Secondary, Collapsed by default */}
-        {hasDirectoryData && (
-          <div className="mb-2">
-            <button
-              onClick={() => setShowDirectories(!showDirectories)}
-              className="flex items-center gap-1.5 text-[9px] text-gray-500 font-medium hover:text-gray-400 transition-colors mb-1"
-            >
-              {showDirectories ? (
-                <ChevronDown size={10} />
-              ) : (
-                <ChevronRight size={10} />
-              )}
-              <span>目录详情 ({Object.keys(data.byDirectory).length})</span>
-            </button>
-            {showDirectories && (
-              <DirectoryTreeProgress byDirectory={data.byDirectory} compact={true} />
-            )}
-          </div>
         )}
 
-        {/* 📁 Scanned Files Section - BOTTOM ACTIVITY AREA, Always Show when scanning or has files */}
-        {(phase === 'scanning' || phase === 'analyzing' || hasScannedFiles || currentFile) && (
-          <div className="bg-blue-900/10 border border-blue-500/30 rounded-lg p-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <File size={10} className="text-blue-400" />
-                <span className="text-[10px] font-medium text-blue-300">
+        {/* Scanned files stream */}
+        {(phase === 'scanning' || phase === 'analyzing' || (progress.scannedFiles && progress.scannedFiles.length > 0)) && (
+          <div className="mt-3 bg-[#1e1e1e] border border-[#3c3c3c] rounded p-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <File size={12} className="text-[#569cd6]" />
+                <span className="text-[12px] font-medium text-[#cccccc]">
                   {phase === 'scanning' ? '正在扫描' : phase === 'analyzing' ? '分析中' : '扫描文件'}
                 </span>
-                {phase === 'scanning' && (
-                  <Loader2 size={8} className="text-blue-500 animate-spin" />
-                )}
-                {phase === 'analyzing' && (
-                  <Search size={8} className="text-purple-500 animate-pulse" />
-                )}
-                {isComplete && (
-                  <CheckCircle2 size={8} className="text-green-500" />
-                )}
+                {phase === 'scanning' && <Loader2 size={10} className="text-[#569cd6] animate-spin" />}
+                {phase === 'analyzing' && <Search size={10} className="text-[#dcdcaa] animate-pulse" />}
+                {isComplete && <CheckCircle2 size={10} className="text-[#4ec9b0]" />}
               </div>
-              <span className="text-[9px] text-gray-500">
+              <span className="text-[11px] text-[#858585]">
                 {progress.scannedFiles?.length || 0} 文件
               </span>
             </div>
             <ScannedFileStream
-              currentFile={isComplete ? undefined : currentFile}
+              currentFile={isComplete ? undefined : progress.currentFile}
               isComplete={isComplete}
               compact={true}
               scannedCount={data.scanned}
               totalCount={data.total}
               scannedFiles={progress.scannedFiles}
             />
+            {isComplete && (
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#3c3c3c] text-[11px] text-[#4ec9b0]">
+                <CheckCircle2 size={10} />
+                <span>扫描完成，共 {progress.scannedFiles?.length || 0} 个文件</span>
+              </div>
+            )}
           </div>
         )}
       </div>
     );
   }
 
+  // Full mode
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 my-2">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Search size={16} className="text-blue-500" />
-          <span className="text-sm font-medium text-gray-200">
-            {isComplete ? '扫描完成' : '探索中'}
-          </span>
+    <div className="bg-[#252526] border border-[#3c3c3c] rounded p-5 my-3">
+      <StatusBar progress={progress} scanRate={scanRate} />
+      <PhaseStepper phase={phase} />
+      <CompactProgressBar current={data.scanned} total={data.total} isComplete={isComplete} />
+
+      {/* Collapsible directory tree */}
+      {Object.keys(data.byDirectory).length > 0 && (
+        <CollapsibleDirectoryTree
+          byDirectory={data.byDirectory}
+          isCollapsed={collapsedSections['progress-tree'] ?? true}
+          onToggle={() => toggleSection('progress-tree')}
+          onOpenFile={onOpenFile}
+        />
+      )}
+
+      {/* Scanned files stream */}
+      <ScannedFileStream
+        currentFile={isComplete ? undefined : progress.currentFile}
+        isComplete={isComplete}
+        scannedCount={data.scanned}
+        totalCount={data.total}
+        scannedFiles={progress.scannedFiles}
+      />
+
+      {/* Complete message */}
+      {isComplete && (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#3c3c3c] text-[12px] text-[#4ec9b0]">
+          <CheckCircle2 size={12} />
+          <span>扫描完成，共扫描 {progress.scannedFiles?.length || 0} 个文件</span>
         </div>
-        {currentFile && !isComplete && (
-          <div className="text-xs text-gray-500 truncate max-w-[200px]" title={currentFile}>
-            {currentFile.split('/').pop()}
-          </div>
-        )}
-      </div>
-
-      {/* Phase Indicator */}
-      <PhaseIndicator phase={phase} />
-
-      {/* Overall Progress */}
-      <ProgressBar current={data.scanned} total={data.total} isComplete={isComplete} />
+      )}
     </div>
   );
 };

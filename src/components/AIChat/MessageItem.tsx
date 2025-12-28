@@ -6,7 +6,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore'; // Changed imports
 import { ToolApproval } from './ToolApproval';
 import { ExploreProgress } from './ExploreProgress';
-import { ExploreFindings } from './ExploreFindings';
+import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
@@ -612,17 +612,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 })()
                             )
                         )}
+
+                        {/* Explore Agent Progress */}
+                        {(message as any).exploreProgress && (
+                            <ExploreProgressNew progress={(message as any).exploreProgress} mode="minimal" />
+                        )}
                     </div>
-
-                    {/* Explore Agent Progress */}
-                    {(message as any).exploreProgress && (
-                        <ExploreProgress progress={(message as any).exploreProgress} mode="minimal" />
-                    )}
-
-                    {/* Explore Agent Findings */}
-                    {(message as any).exploreFindings && (
-                        <ExploreFindings findings={(message as any).exploreFindings} />
-                    )}
                 </div>
             </div>
         </div>
