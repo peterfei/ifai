@@ -141,10 +141,13 @@ pub fn load_project_config_sync(project_root: &str) -> Option<ProjectConfig> {
 pub async fn load_project_config(project_root: String) -> Result<String, String> {
     let config_path = get_config_path(&project_root)?;
 
+    println!("[ProjectConfig] Loading config from: {:?}", config_path);
+
     // Try to load existing file
     if config_path.exists() {
         match fs::read_to_string(&config_path) {
             Ok(content) => {
+                println!("[ProjectConfig] Successfully loaded existing config");
                 // Return the full content (including markdown notes)
                 return Ok(content);
             }
@@ -153,12 +156,16 @@ pub async fn load_project_config(project_root: String) -> Result<String, String>
                 // Fall through to create default
             }
         }
+    } else {
+        println!("[ProjectConfig] Config file does not exist, will create default");
     }
 
     // Create default config file
+    println!("[ProjectConfig] Creating default config file");
     let default_content = get_default_content();
     save_project_config_internal(&config_path, &default_content)?;
 
+    println!("[ProjectConfig] Default config created successfully");
     Ok(default_content)
 }
 
@@ -179,16 +186,29 @@ fn save_project_config_internal(
     config_path: &PathBuf,
     content: &str,
 ) -> Result<(), String> {
+    println!("[ProjectConfig] Saving config to: {:?}", config_path);
+
     // Ensure .ifai directory exists
     if let Some(parent) = config_path.parent() {
+        println!("[ProjectConfig] Ensuring directory exists: {:?}", parent);
         fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create .ifai directory: {}", e))?;
+            .map_err(|e| {
+                let error = format!("Failed to create .ifai directory: {}", e);
+                eprintln!("[ProjectConfig] {}", error);
+                error
+            })?;
+        println!("[ProjectConfig] Directory ready");
     }
 
     // Write to file
     fs::write(config_path, content)
-        .map_err(|e| format!("Failed to write config file: {}", e))?;
+        .map_err(|e| {
+            let error = format!("Failed to write config file: {}", e);
+            eprintln!("[ProjectConfig] {}", error);
+            error
+        })?;
 
+    println!("[ProjectConfig] Config file saved successfully");
     Ok(())
 }
 

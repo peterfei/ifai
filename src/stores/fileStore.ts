@@ -48,22 +48,43 @@ export const useFileStore = create<FileState>()(
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
-      setFileTree: (tree) => set((state) => {
-        const treeWithStatus = tree ? updateGitStatusRecursive(tree, state.gitStatuses) : null;
-        return { fileTree: treeWithStatus, rootPath: tree ? tree.path : null };
-      }),
+      setFileTree: async (tree) => {
+        const treeWithStatus = tree ? updateGitStatusRecursive(tree, get().gitStatuses) : null;
+        const newRootPath = tree ? tree.path : null;
+
+        set((state) => ({
+          fileTree: treeWithStatus,
+          rootPath: newRootPath,
+        }));
+
+        // Load project config when file tree is set (project opened)
+        if (newRootPath) {
+          console.log('[FileStore] FileTree set, loading config for:', newRootPath);
+          try {
+            await useProjectConfigStore.getState().loadConfig(newRootPath);
+            console.log('[FileStore] ✅ Config loaded from setFileTree');
+          } catch (e) {
+            console.error('[FileStore] ❌ Failed to load config from setFileTree:', e);
+          }
+        } else {
+          console.log('[FileStore] FileTree cleared, clearing config');
+          useProjectConfigStore.getState().clearConfig();
+        }
+      },
       
       setRootPath: async (path) => {
+        console.log('[FileStore] setRootPath called with:', path);
         set({ rootPath: path });
 
         // Auto-initialize RAG index when project is opened
         if (path) {
+          console.log('[FileStore] Project opened, loading config...');
           // Load project-level configuration
           try {
             const projectConfig = await useProjectConfigStore.getState().loadConfig(path);
-            console.log('[FileStore] Loaded project config:', projectConfig);
+            console.log('[FileStore] ✅ Loaded project config successfully');
           } catch (e) {
-            console.warn('[FileStore] Failed to load project config:', e);
+            console.error('[FileStore] ❌ Failed to load project config:', e);
           }
 
           // Import settingsStore dynamically to avoid circular dependency
@@ -83,6 +104,7 @@ export const useFileStore = create<FileState>()(
             }, 1000);
           }
         } else {
+          console.log('[FileStore] Project closed, clearing config');
           // Clear project config when project is closed
           useProjectConfigStore.getState().clearConfig();
         }
