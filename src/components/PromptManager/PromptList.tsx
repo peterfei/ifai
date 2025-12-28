@@ -11,6 +11,7 @@ export const PromptList: React.FC = () => {
     if (rootPath) {
         loadPrompts();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rootPath]);
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePromptStore } from '../../stores/promptStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { Play, X, Save, AlertTriangle, Lock } from 'lucide-react';

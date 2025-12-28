@@ -46,3 +46,7 @@ RELEASE_NOTE_TECH.md
 finetune_smollm_coder.py
 PROMOTION_v0.2.0.md
 TASK*.md
+docs
+BUG_FIX_REPORT.md
+TASK_BREAKDOWN_v0.2.0.md
+
