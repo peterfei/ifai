@@ -54,7 +54,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
     // Track content length to detect active streaming (more reliable than isStreaming prop)
     const lastContentLengthRef = useRef(message.content.length);
-    const isActivelyStreamingRef = useRef(false);
+    // FIXED: Use state instead of ref to ensure re-render when streaming state changes
+    const [isActivelyStreaming, setIsActivelyStreaming] = useState(false);
+    // DELAY HIGHLIGHT: Delay SyntaxHighlighter initialization to reduce flickering
+    const [shouldHighlight, setShouldHighlight] = useState(false);
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
     const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -67,7 +70,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
     // THROTTLE: Throttle content rendering during streaming to prevent flickering
     // Use raw message.content for detection, but throttled content for rendering
-    const shouldThrottle = isStreaming || isAgentStreaming || isActivelyStreamingRef.current;
+    const shouldThrottle = isStreaming || isAgentStreaming || isActivelyStreaming;
     // 100ms throttle (=10fps) significantly reduces layout thrashing on low-end devices
     const displayContent = useThrottle(message.content, shouldThrottle ? 100 : 0);
 
@@ -78,7 +81,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
         if (lengthChanged) {
             // Content is growing - actively streaming
-            isActivelyStreamingRef.current = true;
+            setIsActivelyStreaming(true);
             lastContentLengthRef.current = currentLength;
 
             // Clear previous timeout
@@ -89,10 +92,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             // Set timeout to mark streaming as complete after 300ms of no changes
             // Increased from 150ms to reduce flickering on Windows
             streamingTimeoutRef.current = setTimeout(() => {
-                isActivelyStreamingRef.current = false;
+                setIsActivelyStreaming(false);  // setState triggers re-render
                 streamingTimeoutRef.current = undefined;
-                // Removed forceUpdate to prevent DOM thrashing
-                // The component will re-render naturally on next prop change
             }, 300);
         }
 
@@ -110,17 +111,30 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     React.useEffect(() => {
         const { isLoading: globalIsLoading } = useChatStore.getState();
 
-        if (!globalIsLoading && isActivelyStreamingRef.current) {
-            isActivelyStreamingRef.current = false;
+        if (!globalIsLoading && isActivelyStreaming) {
+            setIsActivelyStreaming(false);  // setState triggers re-render
 
             // Clear any pending timeout
             if (streamingTimeoutRef.current) {
                 clearTimeout(streamingTimeoutRef.current);
                 streamingTimeoutRef.current = undefined;
             }
-            // Removed forceUpdate - rely on isStreaming prop change to trigger re-render
         }
     }, [message.id, isStreaming]); // Also trigger when isStreaming changes (via isLoading)
+
+    // DELAY HIGHLIGHT: Enable syntax highlighting after streaming ends to reduce flickering
+    React.useEffect(() => {
+        // When streaming ends (shouldThrottle becomes false), delay enable highlighting
+        if (!shouldThrottle && !shouldHighlight) {
+            const timer = setTimeout(() => {
+                setShouldHighlight(true);
+            }, 150); // 150ms delay before enabling highlight
+            return () => clearTimeout(timer);
+        } else if (shouldThrottle && shouldHighlight) {
+            // When streaming starts, disable highlighting immediately
+            setShouldHighlight(false);
+        }
+    }, [shouldThrottle, shouldHighlight]);
 
     const toggleBlock = useCallback((index: number) => {
         setExpandedBlocks(prev => {
@@ -441,10 +455,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 (() => {
                                     // Check if actively streaming to prevent incremental highlighting
                                     const currentIsStreaming = isStreamingRef.current ||
-                                                              isActivelyStreamingRef.current ||
+                                                              isActivelyStreaming ||
                                                               isAgentStreaming;
 
-                                    if (currentIsStreaming) {
+                                    // FIXED: Use renderMarkdownWithoutHighlight if streaming OR if highlight is not yet enabled
+                                    // This delays SyntaxHighlighter initialization, reducing flickering
+                                    if (currentIsStreaming || !shouldHighlight) {
                                         /* === STREAMING MODE: Render ALL segments (text + tools) in order as plain text === */
                                         return (
                                             <>
@@ -489,14 +505,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         // Build tool position map: order -> { toolCallId, charPos }
                                         const toolPositions = new Map<number, { toolCallId: string, charPos: number }>();
 
-                                        let charOffset = 0;
-                                        sortedSegments.forEach((segment: ContentSegment) => {
-                                            if (segment.type === 'text') {
-                                                charOffset += segment.content?.length || 0;
-                                            } else if (segment.type === 'tool' && segment.toolCallId) {
+                                        // FIXED: Use endPos (absolute position) instead of accumulating content.length
+                                        // This ensures correct tool placement even when text chunks are split
+                                        sortedSegments.forEach((segment: ContentSegment, index: number) => {
+                                            if (segment.type === 'tool' && segment.toolCallId) {
+                                                // Find the last text segment before this tool
+                                                let charPos = 0;
+                                                for (let i = index - 1; i >= 0; i--) {
+                                                    const prevSeg = sortedSegments[i];
+                                                    if (prevSeg.type === 'text' && prevSeg.endPos !== undefined) {
+                                                        charPos = prevSeg.endPos;
+                                                        break;
+                                                    }
+                                                }
                                                 toolPositions.set(segment.order, {
                                                     toolCallId: segment.toolCallId,
-                                                    charPos: charOffset
+                                                    charPos: charPos
                                                 });
                                             }
                                         });
