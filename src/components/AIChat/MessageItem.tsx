@@ -10,6 +10,7 @@ import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
+import { useThrottle } from '../../hooks/useThrottle';
 
 interface MessageItemProps {
     message: Message;
@@ -61,6 +62,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         (message as any).isAgentLive ||
         (message.toolCalls && message.toolCalls.some(tc => tc.status === 'pending'))
     );
+
+    // THROTTLE: Throttle content rendering during streaming to prevent flickering
+    // Use raw message.content for detection, but throttled content for rendering
+    const shouldThrottle = isStreaming || isAgentStreaming || isActivelyStreamingRef.current;
+    // 100ms throttle (=10fps) significantly reduces layout thrashing on low-end devices
+    const displayContent = useThrottle(message.content, shouldThrottle ? 100 : 0);
 
     // Update streaming status based on content growth
     React.useEffect(() => {
@@ -165,9 +172,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
     // Parse segments from string content (for non-multi-modal or fallback)
     const stringSegments = React.useMemo(() => {
-        const { segments } = parseToolCalls(message.content);
+        // Use displayContent (throttled) instead of raw message.content
+        const { segments } = parseToolCalls(displayContent);
         return segments;
-    }, [message.content]);
+    }, [displayContent]);
 
     // PERFORMANCE: Cache sorted contentSegments to avoid O(n log n) sort on every render
     const sortedSegments = React.useMemo(() => {
@@ -489,7 +497,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             }
                                         });
 
-                                        const fullContent = message.content as string;  // Assert as string for this context
+                                        const fullContent = displayContent as string;  // Use displayContent (throttled)
                                         const parts: Array<{type: 'text', content: string} | {type: 'tool', toolCallId: string}> = [];
                                         let lastPos = 0;
 
