@@ -55,6 +55,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Track content length to detect active streaming (more reliable than isStreaming prop)
     const lastContentLengthRef = useRef(message.content.length);
     const isActivelyStreamingRef = useRef(false);
+    // Component-level timeout to avoid global variable collision between multiple MessageItem instances
+    const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     // NEW: Detect agent streaming state (agent doesn't set global isLoading)
     const isAgentStreaming = Boolean(
@@ -80,14 +82,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             lastContentLengthRef.current = currentLength;
 
             // Clear previous timeout
-            if ((window as any)._streamingTimeout) {
-                clearTimeout((window as any)._streamingTimeout);
+            if (streamingTimeoutRef.current) {
+                clearTimeout(streamingTimeoutRef.current);
             }
 
             // Set timeout to mark streaming as complete after 300ms of no changes
             // Increased from 150ms to reduce flickering on Windows
-            (window as any)._streamingTimeout = setTimeout(() => {
+            streamingTimeoutRef.current = setTimeout(() => {
                 isActivelyStreamingRef.current = false;
+                streamingTimeoutRef.current = undefined;
                 // Removed forceUpdate to prevent DOM thrashing
                 // The component will re-render naturally on next prop change
             }, 300);
@@ -95,8 +98,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
         // Cleanup timeout on unmount
         return () => {
-            if ((window as any)._streamingTimeout) {
-                clearTimeout((window as any)._streamingTimeout);
+            if (streamingTimeoutRef.current) {
+                clearTimeout(streamingTimeoutRef.current);
+                streamingTimeoutRef.current = undefined;
             }
         };
     }, [message.content]);
@@ -110,9 +114,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             isActivelyStreamingRef.current = false;
 
             // Clear any pending timeout
-            if ((window as any)._streamingTimeout) {
-                clearTimeout((window as any)._streamingTimeout);
-                (window as any)._streamingTimeout = undefined;
+            if (streamingTimeoutRef.current) {
+                clearTimeout(streamingTimeoutRef.current);
+                streamingTimeoutRef.current = undefined;
             }
             // Removed forceUpdate - rely on isStreaming prop change to trigger re-render
         }
@@ -497,7 +501,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             }
                                         });
 
-                                        const fullContent = displayContent as string;  // Use displayContent (throttled)
+                                        // IMPORTANT: Use message.content instead of displayContent
+                                        // Position calculation is based on sortedSegments, which aligns with message.content
+                                        // Using displayContent (throttled) can cause misalignment when interval > 0
+                                        const fullContent = message.content as string;
                                         const parts: Array<{type: 'text', content: string} | {type: 'tool', toolCallId: string}> = [];
                                         let lastPos = 0;
 

@@ -10,10 +10,9 @@ export function useThrottle<T>(value: T, interval: number = 500): T {
   const prevIntervalRef = useRef<number>(interval);
 
   useEffect(() => {
-    // Detect transition from throttled mode to immediate mode
-    // When this happens, we need to sync the throttled value immediately
+    // Transition from throttled mode to immediate mode: clear timeout and skip state update
+    // In immediate mode, we return value directly (line 68-70), so no need to sync state
     if (prevIntervalRef.current > 0 && interval <= 0) {
-      setThrottledValue(value);
       prevIntervalRef.current = interval;
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -26,9 +25,8 @@ export function useThrottle<T>(value: T, interval: number = 500): T {
     prevIntervalRef.current = interval;
 
     // For immediate mode (interval <= 0), no further processing needed
+    // Return value directly at line 68-70, no state update required
     if (interval <= 0) {
-      // Still sync throttledValue to keep state consistent
-      setThrottledValue(value);
       return;
     }
 
