@@ -1,0 +1,113 @@
+name: Windows Test Build
+
+on:
+  workflow_dispatch:  # 手动触发
+    inputs:
+      use_main_branch:
+        description: 'Use main branch instead of current branch'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      test_name:
+        description: 'Test build name (for identification)'
+        required: false
+        default: 'windows-test'
+
+jobs:
+  windows-only:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.use_main_branch == 'true' && 'main' || github.ref_name }}
+
+      - name: Checkout Private Core
+        uses: actions/checkout@v4
+        with:
+          repository: peterfei/ifainew-core
+          token: ${{ secrets.GH_PAT }}
+          path: .ifainew-core-temp
+
+      - name: Restore Core Directory Structure
+        shell: bash
+        run: |
+          mv .ifainew-core-temp ../ifainew-core
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Core Frontend Dependencies
+        shell: bash
+        run: |
+          cd ../ifainew-core/typescript
+          npm install
+
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      - name: Build Frontend
+        run: npm run build
+
+      - name: Build Windows Only
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --features commercial
+          beforeBuildCommand: 'npm run build:commercial'
+          includeDebug: false
+
+      - name: Rename and Upload as Draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: test-windows-${{ inputs.test_name }}-${{ github.run_number }}
+          name: Test Windows Build ${{ inputs.test_name }} #${{ github.run_number }}
+          body: |
+            ## Windows 测试构建
+
+            **分支**: ${{ inputs.use_main_branch == 'true' && 'main' || github.ref_name }}
+            **测试名称**: ${{ inputs.test_name }}
+            **构建时间**: ${{ github.event.head_commit.timestamp }}
+
+            ---
+
+
+            ⚠️ **这是测试构建版本，仅供内部测试使用，不代表正式发布。**
+
+
+            ## 下载说明
+
+            - `IfAI_0.2.3_x64-setup.exe` - NSIS 安装包（推荐）
+            - `IfAI_0.2.3_x64_en-US.msi` - MSI 安装包
+
+            ## 测试重点
+
+            - [ ] Windows 下流式代码生成无闪屏
+            - [ ] Agent 工具调用流畅
+            - [ ] 多线程切换正常
+            - [ ] UI 渲染无异常
+
+            ---
+            *由 GitHub Actions 自动生成*
+          draft: true
+          prerelease: true
+          files: |
+            src-tauri/target/release/bundle/nsis/IfAI_*.exe
+            src-tauri/target/release/bundle/msi/IfAI_*.msi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
