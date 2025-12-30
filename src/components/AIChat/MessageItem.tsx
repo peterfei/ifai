@@ -73,8 +73,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         () => isStreaming || isAgentStreaming || isActivelyStreaming,
         [isStreaming, isAgentStreaming, isActivelyStreaming]
     );
-    // 100ms throttle (=10fps) significantly reduces layout thrashing on low-end devices
-    const displayContent = useThrottle(message.content, shouldThrottle ? 100 : 0);
+    // Phase 1: 150ms throttle (~6.7fps) - Increased interval for smoother Windows rendering
+    const displayContent = useThrottle(message.content, shouldThrottle ? 150 : 0);
 
     // Update streaming status based on content growth
     React.useEffect(() => {
@@ -91,12 +91,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 clearTimeout(streamingTimeoutRef.current);
             }
 
-            // Set timeout to mark streaming as complete after 500ms of no changes
-            // Increased from 300ms to 500ms to reduce flickering on Windows
+            // Set timeout to mark streaming as complete after 750ms of no changes
+            // Phase 1: Increased from 500ms to 750ms to add safety margin for Windows
             streamingTimeoutRef.current = setTimeout(() => {
                 setIsActivelyStreaming(false);  // setState triggers re-render
                 streamingTimeoutRef.current = undefined;
-            }, 500);
+            }, 750);
         }
 
         // Cleanup timeout on unmount
@@ -108,21 +108,29 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         };
     }, [message.content]);
 
-    // Sync local streaming state with global isLoading state
-    // This ensures that when the backend clears isLoading, we immediately switch to formatted rendering
+    // Sync local streaming state with global isLoading state (with debounce)
+    // Phase 1: Added 50ms debounce to prevent race conditions
     React.useEffect(() => {
         const { isLoading: globalIsLoading } = useChatStore.getState();
 
         if (!globalIsLoading && isActivelyStreaming) {
-            setIsActivelyStreaming(false);  // setState triggers re-render
+            // Phase 1: Add 50ms debounce to prevent race conditions
+            const debounceTimer = setTimeout(() => {
+                const { isLoading: recheckedIsLoading } = useChatStore.getState();
+                if (!recheckedIsLoading && isActivelyStreaming) {
+                    setIsActivelyStreaming(false);  // setState triggers re-render
+                }
+            }, 50);
 
             // Clear any pending timeout
             if (streamingTimeoutRef.current) {
                 clearTimeout(streamingTimeoutRef.current);
                 streamingTimeoutRef.current = undefined;
             }
+
+            return () => clearTimeout(debounceTimer);
         }
-    }, [message.id, isStreaming]); // Also trigger when isStreaming changes (via isLoading)
+    }, [message.id, isStreaming, isActivelyStreaming]); // Also trigger when isStreaming changes (via isLoading)
 
     const toggleBlock = useCallback((index: number) => {
         setExpandedBlocks(prev => {

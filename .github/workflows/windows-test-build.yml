@@ -1,0 +1,93 @@
+name: Windows Test Build
+
+on:
+  workflow_dispatch:  # 手动触发
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: true
+        default: 'main'
+      reason:
+        description: 'Build reason'
+        required: false
+        default: 'Testing Windows flicker fix'
+
+jobs:
+  windows-test-build:
+    permissions:
+      contents: read
+      packages: read
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || 'main' }}
+
+      - name: Checkout Private Core
+        uses: actions/checkout@v4
+        with:
+          repository: peterfei/ifainew-core
+          token: ${{ secrets.GH_PAT }}
+          path: .ifainew-core-temp
+
+      - name: Restore Core Directory Structure
+        shell: bash
+        run: |
+          mv .ifainew-core-temp ../ifainew-core
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Core Frontend Dependencies
+        shell: bash
+        run: |
+          cd ../ifainew-core/typescript
+          npm install
+
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      - name: Build Frontend
+        run: npm run build
+
+      - name: Build Windows Test Package
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --features commercial
+          beforeBuildCommand: 'npm run build:commercial'
+          includeDebug: true  # 包含 debug 版本用于测试
+
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ifai-windows-test-${{ github.run_number }}
+          path: |
+            src-tauri/target/release/bundle/nsis/IfAI_*.exe
+            src-tauri/target/release/bundle/msi/IfAI_*.msi
+            src-tauri/target/debug/IfAI.exe
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Build Summary
+        run: |
+          echo "## Windows Test Build Summary" >> $env:GITHUB_STEP_SUMMARY
+          echo "" >> $env:GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.event.inputs.branch }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "- **Reason**: ${{ github.event.inputs.reason }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "- **Run Number**: ${{ github.run_number }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "" >> $env:GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $env:GITHUB_STEP_SUMMARY
+          echo "Check the Artifacts section below to download the test packages." >> $env:GITHUB_STEP_SUMMARY
