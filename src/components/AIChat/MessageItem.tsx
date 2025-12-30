@@ -10,7 +10,6 @@ import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
-import { useThrottle } from '../../hooks/useThrottle';
 
 interface MessageItemProps {
     message: Message;
@@ -59,37 +58,19 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
     const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-    // NEW: Lock render mode to ensure single switch from streaming to stable
-    const renderModeRef = useRef<'streaming' | 'stable'>('stable');
-    const hasSwitchedToStableRef = useRef(false);
-
-    // NEW: Detect agent streaming state (agent doesn't set global isLoading)
-    const isAgentStreaming = Boolean(
-        message.agentId ||
-        (message as any).isAgentLive ||
-        (message.toolCalls && message.toolCalls.some(tc => tc.status === 'pending'))
-    );
-
-    // THROTTLE: Use fixed throttle interval to avoid dynamic switching
-    // Removing dynamic interval (150 -> 0) eliminates useThrottle internal state changes
-    const displayContent = useThrottle(message.content, 200); // Fixed 200ms throttle
+    // Use raw content directly - no throttling
+    // Throttling causes displayContent to update with delay, triggering stringSegments recalculation
+    const displayContent = message.content;
 
     // Update streaming status based on content growth
     React.useEffect(() => {
         const currentLength = message.content.length;
-        const lengthChanged = currentLength !== lastContentLengthRef.current;
+        const isGrowing = currentLength > lastContentLengthRef.current;
 
-        if (lengthChanged) {
+        if (isGrowing) {
             // Content is growing - actively streaming
-            const wasNotStreaming = !isActivelyStreaming;
             setIsActivelyStreaming(true);
             lastContentLengthRef.current = currentLength;
-
-            // Lock to streaming mode when streaming starts
-            if (wasNotStreaming) {
-                renderModeRef.current = 'streaming';
-                hasSwitchedToStableRef.current = false;
-            }
 
             // Clear previous timeout
             if (streamingTimeoutRef.current) {
@@ -98,12 +79,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
             // Set timeout to mark streaming as complete after 750ms of no changes
             streamingTimeoutRef.current = setTimeout(() => {
-                // Switch to stable mode only once
-                if (!hasSwitchedToStableRef.current) {
-                    renderModeRef.current = 'stable';
-                    hasSwitchedToStableRef.current = true;
-                }
-                setIsActivelyStreaming(false);  // setState triggers re-render
+                setIsActivelyStreaming(false);
                 streamingTimeoutRef.current = undefined;
             }, 750);
         }
@@ -115,7 +91,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 streamingTimeoutRef.current = undefined;
             }
         };
-    }, [message.content, isActivelyStreaming]);
+    }, [message.content]);
 
     const toggleBlock = useCallback((index: number) => {
         setExpandedBlocks(prev => {
@@ -432,11 +408,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         ) : (
                             /* Check if contentSegments exists for stream-order rendering */
                             sortedSegments ? (
-                                /* Use locked render mode to prevent flickering */
+                                /* Use simple streaming check */
                                 (() => {
-                                    // Use ref-locked render mode instead of real-time state calculation
-                                    // This ensures single switch from streaming to stable
-                                    if (renderModeRef.current === 'streaming') {
+                                    // Simple check: use streaming mode if actively streaming
+                                    if (isActivelyStreaming) {
                                         /* === STREAMING MODE: Render ALL segments (text + tools) in order as plain text === */
                                         return (
                                             <>
@@ -602,8 +577,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     if (content.startsWith('Indexing...')) {
                                                         return <p key={index} className="text-sm whitespace-pre-wrap text-gray-400">{content}</p>;
                                                     }
-                                                    // NEW: Check if agent is streaming - use markdown without highlighting
-                                                    if (isAgentStreaming) {
+                                                    // Use streaming check - use markdown without highlighting
+                                                    if (isActivelyStreaming) {
                                                         return renderMarkdownWithoutHighlight(content, index);
                                                     }
                                                     return renderContentPart({ type: 'text', text: content }, index);
