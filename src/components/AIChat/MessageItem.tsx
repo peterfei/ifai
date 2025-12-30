@@ -59,6 +59,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
     const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+    // NEW: Lock render mode to ensure single switch from streaming to stable
+    const renderModeRef = useRef<'streaming' | 'stable'>('stable');
+    const hasSwitchedToStableRef = useRef(false);
+
     // NEW: Detect agent streaming state (agent doesn't set global isLoading)
     const isAgentStreaming = Boolean(
         message.agentId ||
@@ -66,15 +70,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         (message.toolCalls && message.toolCalls.some(tc => tc.status === 'pending'))
     );
 
-    // THROTTLE: Throttle content rendering during streaming to prevent flickering
-    // Use raw message.content for detection, but throttled content for rendering
-    // Use useMemo to stabilize shouldThrottle and prevent unnecessary re-renders
-    const shouldThrottle = React.useMemo(
-        () => isStreaming || isAgentStreaming || isActivelyStreaming,
-        [isStreaming, isAgentStreaming, isActivelyStreaming]
-    );
-    // Phase 1: 150ms throttle (~6.7fps) - Increased interval for smoother Windows rendering
-    const displayContent = useThrottle(message.content, shouldThrottle ? 150 : 0);
+    // THROTTLE: Use fixed throttle interval to avoid dynamic switching
+    // Removing dynamic interval (150 -> 0) eliminates useThrottle internal state changes
+    const displayContent = useThrottle(message.content, 200); // Fixed 200ms throttle
 
     // Update streaming status based on content growth
     React.useEffect(() => {
@@ -83,8 +81,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
         if (lengthChanged) {
             // Content is growing - actively streaming
+            const wasNotStreaming = !isActivelyStreaming;
             setIsActivelyStreaming(true);
             lastContentLengthRef.current = currentLength;
+
+            // Lock to streaming mode when streaming starts
+            if (wasNotStreaming) {
+                renderModeRef.current = 'streaming';
+                hasSwitchedToStableRef.current = false;
+            }
 
             // Clear previous timeout
             if (streamingTimeoutRef.current) {
@@ -92,8 +97,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             }
 
             // Set timeout to mark streaming as complete after 750ms of no changes
-            // Phase 1: Increased from 500ms to 750ms to add safety margin for Windows
             streamingTimeoutRef.current = setTimeout(() => {
+                // Switch to stable mode only once
+                if (!hasSwitchedToStableRef.current) {
+                    renderModeRef.current = 'stable';
+                    hasSwitchedToStableRef.current = true;
+                }
                 setIsActivelyStreaming(false);  // setState triggers re-render
                 streamingTimeoutRef.current = undefined;
             }, 750);
@@ -106,31 +115,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 streamingTimeoutRef.current = undefined;
             }
         };
-    }, [message.content]);
-
-    // Sync local streaming state with global isLoading state (with debounce)
-    // Phase 1: Added 50ms debounce to prevent race conditions
-    React.useEffect(() => {
-        const { isLoading: globalIsLoading } = useChatStore.getState();
-
-        if (!globalIsLoading && isActivelyStreaming) {
-            // Phase 1: Add 50ms debounce to prevent race conditions
-            const debounceTimer = setTimeout(() => {
-                const { isLoading: recheckedIsLoading } = useChatStore.getState();
-                if (!recheckedIsLoading && isActivelyStreaming) {
-                    setIsActivelyStreaming(false);  // setState triggers re-render
-                }
-            }, 50);
-
-            // Clear any pending timeout
-            if (streamingTimeoutRef.current) {
-                clearTimeout(streamingTimeoutRef.current);
-                streamingTimeoutRef.current = undefined;
-            }
-
-            return () => clearTimeout(debounceTimer);
-        }
-    }, [message.id, isStreaming, isActivelyStreaming]); // Also trigger when isStreaming changes (via isLoading)
+    }, [message.content, isActivelyStreaming]);
 
     const toggleBlock = useCallback((index: number) => {
         setExpandedBlocks(prev => {
@@ -447,16 +432,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         ) : (
                             /* Check if contentSegments exists for stream-order rendering */
                             sortedSegments ? (
-                                /* New Logic: Render based on streaming state */
+                                /* Use locked render mode to prevent flickering */
                                 (() => {
-                                    // Check if actively streaming to prevent incremental highlighting
-                                    const currentIsStreaming = isStreamingRef.current ||
-                                                              isActivelyStreaming ||
-                                                              isAgentStreaming;
-
-                                    // FIXED: Use renderMarkdownWithoutHighlight only when actively streaming
-                                    // This ensures single switch when streaming ends
-                                    if (currentIsStreaming) {
+                                    // Use ref-locked render mode instead of real-time state calculation
+                                    // This ensures single switch from streaming to stable
+                                    if (renderModeRef.current === 'streaming') {
                                         /* === STREAMING MODE: Render ALL segments (text + tools) in order as plain text === */
                                         return (
                                             <>
