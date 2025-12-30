@@ -13,6 +13,8 @@ interface AgentState {
   runningAgents: Agent[];
   activeListeners: Record<string, UnlistenFn>;
   agentToMessageMap: Record<string, string>;
+  // Track tool calls that have been auto-approved to prevent duplicate approvals
+  autoApprovedToolCalls: Set<string>;
   launchAgent: (agentType: string, task: string, chatMsgId?: string, threadId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;
@@ -31,6 +33,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   runningAgents: [],
   activeListeners: {},
   agentToMessageMap: {},
+  autoApprovedToolCalls: new Set<string>(),
   
   launchAgent: async (agentType: string, task: string, chatMsgId?: string, threadId?: string) => {
     // 1. Pre-generate ID
@@ -166,11 +169,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 };
 
                 let messageUpdated = false;
+                let isNewToolCall = false;
                 const updatedMessages = chatState.messages.map(m => {
                     if (m.id === msgId) {
                         const existing = m.toolCalls || [];
                         const index = existing.findIndex(tc => tc.id === liveToolCall.id);
-                        
+
                         if (index !== -1) {
                             // Check if content actually changed (deduplication for streaming updates)
                             const prevContent = (existing[index] as any).args?.content || '';
@@ -198,6 +202,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                             return { ...m, toolCalls: newToolCalls };
                         } else {
                             // Add new tool call
+                            isNewToolCall = true;
                             messageUpdated = true;
                             return { ...m, toolCalls: [...existing, liveToolCall] };
                         }
@@ -208,13 +213,27 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 if (messageUpdated) {
                     coreUseChatStore.setState({ messages: updatedMessages });
 
-                    // Only trigger auto-approve and logs if it's NOT partial and NEWLY completed
-                    const isNewlyCompleted = !liveToolCall.isPartial;
-                    const wasAlreadyHandled = chatState.messages.find(m => m.id === msgId)?.toolCalls?.find(tc => tc.id === liveToolCall.id)?.isPartial === false;
+                    // Clear auto-approved flag for new tool calls to allow auto-approve on retry
+                    if (isNewToolCall) {
+                        const currentState = get();
+                        const newSet = new Set(currentState.autoApprovedToolCalls);
+                        newSet.delete(liveToolCall.id);
+                        set({ autoApprovedToolCalls: newSet });
+                    }
 
-                    if (isNewlyCompleted && !wasAlreadyHandled) {
+                    // Only trigger auto-approve if it's NOT partial and hasn't been auto-approved yet
+                    const isNewlyCompleted = !liveToolCall.isPartial;
+                    const wasAlreadyAutoApproved = get().autoApprovedToolCalls.has(liveToolCall.id);
+
+                    if (isNewlyCompleted && !wasAlreadyAutoApproved) {
                         const settings = useSettingsStore.getState();
                         if (settings.agentAutoApprove) {
+                            // Mark as auto-approved BEFORE calling to prevent race condition
+                            const currentState = get();
+                            const newSet = new Set(currentState.autoApprovedToolCalls);
+                            newSet.add(liveToolCall.id);
+                            set({ autoApprovedToolCalls: newSet });
+
                             setTimeout(async () => {
                                 const approveToolCall = coreUseChatStore.getState().approveToolCall;
                                 if (approveToolCall) {
