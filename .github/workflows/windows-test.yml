@@ -1,20 +1,10 @@
 name: Windows Test Build
 
 on:
-  workflow_dispatch:  # 手动触发
-    inputs:
-      use_main_branch:
-        description: 'Use main branch instead of current branch'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-      test_name:
-        description: 'Test build name (for identification)'
-        required: false
-        default: 'windows-test'
+  push:
+    branches:
+      - 'hotfix/**'  # 推送到 hotfix 前缀的分支时自动触发
+  workflow_dispatch:  # 同时保留手动触发
 
 jobs:
   windows-only:
@@ -25,8 +15,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.use_main_branch == 'true' && 'main' || github.ref_name }}
 
       - name: Checkout Private Core
         uses: actions/checkout@v4
@@ -63,6 +51,16 @@ jobs:
       - name: Build Frontend
         run: npm run build
 
+      - name: Extract Branch Name
+        id: branch_name
+        shell: bash
+        run: |
+          # 提取分支名作为测试标识 (如 hotfix/windows-flicker-phase1 -> windows-flicker-phase1)
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          TEST_NAME="${BRANCH#hotfix/}"
+          echo "test_name=$TEST_NAME" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
       - name: Build Windows Only
         uses: tauri-apps/tauri-action@v0
         env:
@@ -72,17 +70,17 @@ jobs:
           beforeBuildCommand: 'npm run build:commercial'
           includeDebug: false
 
-      - name: Rename and Upload as Draft Release
+      - name: Upload as Draft Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: test-windows-${{ inputs.test_name }}-${{ github.run_number }}
-          name: Test Windows Build ${{ inputs.test_name }} #${{ github.run_number }}
+          tag_name: test-windows-${{ steps.branch_name.outputs.test_name }}-${{ github.run_number }}
+          name: 🧪 Windows Test - ${{ steps.branch_name.outputs.test_name }} #${{ github.run_number }}
           body: |
             ## Windows 测试构建
 
-            **分支**: ${{ inputs.use_main_branch == 'true' && 'main' || github.ref_name }}
-            **测试名称**: ${{ inputs.test_name }}
-            **构建时间**: ${{ github.event.head_commit.timestamp }}
+            - **分支**: `${{ steps.branch_name.outputs.branch }}`
+            - **提交**: `${{ github.sha }}`
+            - **构建时间**: `${{ github.event.head_commit.timestamp }}`
 
             ---
 
@@ -92,8 +90,10 @@ jobs:
 
             ## 下载说明
 
-            - `IfAI_0.2.3_x64-setup.exe` - NSIS 安装包（推荐）
-            - `IfAI_0.2.3_x64_en-US.msi` - MSI 安装包
+            | 文件 | 说明 |
+            |------|------|
+            | `IfAI_0.2.3_x64-setup.exe` | NSIS 安装包（推荐） |
+            | `IfAI_0.2.3_x64_en-US.msi` | MSI 安装包 |
 
             ## 测试重点
 
