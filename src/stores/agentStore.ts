@@ -153,6 +153,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             const toolCall = payload.toolCall;
             // Debug log for tool call events
             console.log(`[AgentStore] Received tool_call: tool=${toolCall?.tool}, partial=${toolCall?.isPartial}, content_len=${toolCall?.args?.content?.length || 0}`);
+
+            // FILTER: Skip invalid/unknown tool calls to prevent cluttering UI
+            // When tool name is empty, undefined, or "unknown", treat as regular conversation
+            const isValidTool = toolCall?.tool &&
+                toolCall.tool !== 'unknown' &&
+                toolCall.tool.trim().length > 0;
+
+            if (!isValidTool) {
+                console.warn(`[AgentStore] Skipping invalid tool call: tool="${toolCall?.tool}", id="${toolCall?.id}"`);
+                // Don't process this tool call at all - it will be handled as regular text content
+                return;
+            }
+
             if (toolCall && msgId) {
                 const liveToolCall = {
                     id: toolCall.id,
