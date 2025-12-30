@@ -626,6 +626,18 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                             newMsg.toolCalls = updatedCalls;
                         } else {
                             // New tool call
+                            // FILTER: Skip invalid tool names (empty, "unknown", whitespace)
+                            // This prevents "unknown" tool calls from cluttering the UI
+                            const isValidToolName = toolName &&
+                                toolName !== 'unknown' &&
+                                toolName.trim().length > 0;
+
+                            if (!isValidToolName) {
+                                console.warn(`[useChatStore] Skipping invalid tool call: tool="${toolName}", chunk="${newArgsChunk?.substring(0, 50)}"`);
+                                // Skip this tool call, don't add it to the message
+                                return newMsg;
+                            }
+
                             let initialArgs: any;
                             try {
                                 initialArgs = newArgsChunk ? JSON.parse(newArgsChunk) : {};
@@ -637,10 +649,10 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                             const newToolCall = {
                                 id: newToolCallId,
                                 type: 'function' as const,
-                                tool: toolName || 'unknown',
+                                tool: toolName,  // Use toolName directly, no default
                                 args: initialArgs,
                                 function: {
-                                    name: toolName || 'unknown',
+                                    name: toolName,  // Use toolName directly, no default
                                     arguments: newArgsChunk
                                 },
                                 status: 'pending' as const,
@@ -928,6 +940,18 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                             newMsg.toolCalls = updatedCalls;
                         } else {
                             // New tool call
+                            // FILTER: Skip invalid tool names (empty, "unknown", whitespace)
+                            // This prevents "unknown" tool calls from cluttering the UI
+                            const isValidToolName = toolName &&
+                                toolName !== 'unknown' &&
+                                toolName.trim().length > 0;
+
+                            if (!isValidToolName) {
+                                console.warn(`[useChatStore] Skipping invalid tool call: tool="${toolName}", chunk="${newArgsChunk?.substring(0, 50)}"`);
+                                // Skip this tool call, don't add it to the message
+                                return newMsg;
+                            }
+
                             let initialArgs: any;
                             try {
                                 initialArgs = newArgsChunk ? JSON.parse(newArgsChunk) : {};
@@ -938,9 +962,9 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                             const newToolCall = {
                                 id: toolCallUpdate.id || crypto.randomUUID(),
                                 type: 'function' as const,
-                                tool: toolName || 'unknown',
+                                tool: toolName,  // Use toolName directly, no default
                                 args: initialArgs,
-                                function: { name: toolName || 'unknown', arguments: newArgsChunk },
+                                function: { name: toolName, arguments: newArgsChunk },  // Use toolName directly, no default
                                 status: 'pending' as const,
                                 isPartial: true
                             };
