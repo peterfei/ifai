@@ -527,9 +527,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
             if (payload.type === 'content' && payload.content) {
                 textChunk = payload.content;
-            } else if (payload.type === 'tool_call' && payload.tool_call) {
-                // Note: Rust backend sends snake_case "tool_call", not camelCase "toolCall"
-                toolCallUpdate = payload.tool_call;
+            } else if (payload.type === 'tool_call' && payload.toolCall) {
+                // Note: Rust backend sends camelCase "toolCall"
+                toolCallUpdate = payload.toolCall;
             }
         } catch (e) {
             // Fallback: treat as plain text
@@ -882,7 +882,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         try {
             const payload = JSON.parse(event.payload);
             if (payload.type === 'content' && payload.content) textChunk = payload.content;
-            else if (payload.type === 'tool_call' && payload.tool_call) toolCallUpdate = payload.tool_call;
+            else if (payload.type === 'tool_call' && payload.toolCall) toolCallUpdate = payload.toolCall;
         } catch (e) { textChunk = event.payload; }
 
         if (textChunk || toolCallUpdate) {
@@ -1116,8 +1116,15 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
             if (!rootPath) throw new Error("No project root opened");
 
             // Fix arguments: snake_case (LLM) -> camelCase (Tauri)
-            const args = toolCall.args;
-            const relPath = args.rel_path || args.relPath;
+            const args = toolCall.args || {};
+
+            // Get default relPath based on tool type
+            const getDefaultRelPath = () => {
+                if (toolName === 'agent_list_dir') return '.';
+                return '';
+            };
+
+            const relPath = args.rel_path || args.relPath || getDefaultRelPath();
             let content = args.content || "";
 
             // Debug: log content before unescaping

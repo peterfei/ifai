@@ -314,14 +314,29 @@ class ThreadPersistenceService {
    */
   async restoreFromStorage(): Promise<void> {
     if (!this.initialized) {
+      console.warn('[ThreadPersistence] Not initialized, skipping restore');
       return;
     }
 
     try {
+      console.log('[ThreadPersistence] Starting restore from storage...');
       const threads = await this.loadAllThreads();
 
       if (threads.length === 0) {
-        console.log('[ThreadPersistence] No threads to restore');
+        console.log('[ThreadPersistence] No threads found, creating default thread');
+        // Create default thread when no threads exist
+        const { useThreadStore } = await import('../threadStore');
+        const uuid = await import('uuid');
+        const uuidv4 = uuid.v4;
+        const defaultThread = {
+          id: uuidv4(),
+          title: '新对话',
+          createdAt: Date.now(),
+          lastActiveAt: Date.now(),
+          messageCount: 0
+        };
+        useThreadStore.getState().createThread(defaultThread);
+        console.log('[ThreadPersistence] Created default thread:', defaultThread.id);
         return;
       }
 
@@ -339,10 +354,12 @@ class ThreadPersistenceService {
       useThreadStore.setState({ threads: threadsMap });
 
       // Restore messages for each thread
+      let totalMessages = 0;
       for (const thread of threads) {
         const messages = await this.loadThreadMessages(thread.id);
         if (messages.length > 0) {
           setThreadMessages(thread.id, messages);
+          totalMessages += messages.length;
         }
       }
 
@@ -350,11 +367,29 @@ class ThreadPersistenceService {
       if (threads.length > 0) {
         const mostRecent = threads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
         useThreadStore.getState().setActiveThread(mostRecent.id);
+        console.log(`[ThreadPersistence] Set active thread to: ${mostRecent.id} (${mostRecent.title})`);
       }
 
-      console.log(`[ThreadPersistence] Restored ${threads.length} threads`);
+      console.log(`[ThreadPersistence] ✅ Restored ${threads.length} threads with ${totalMessages} total messages`);
     } catch (error) {
-      console.error('[ThreadPersistence] Failed to restore from storage:', error);
+      console.error('[ThreadPersistence] ❌ Failed to restore from storage:', error);
+      // Create fallback default thread on error
+      try {
+        const { useThreadStore } = await import('../threadStore');
+        const uuid = await import('uuid');
+        const uuidv4 = uuid.v4;
+        const fallbackThread = {
+          id: uuidv4(),
+          title: '新对话',
+          createdAt: Date.now(),
+          lastActiveAt: Date.now(),
+          messageCount: 0
+        };
+        useThreadStore.getState().createThread(fallbackThread);
+        console.log('[ThreadPersistence] Created fallback thread after restore error');
+      } catch (fallbackError) {
+        console.error('[ThreadPersistence] Failed to create fallback thread:', fallbackError);
+      }
     }
   }
 }

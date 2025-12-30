@@ -71,9 +71,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       return;
     }
 
-    // If streaming, throttle updates to reduce jitter (50ms for smoother experience)
+    // If streaming, throttle updates to reduce flicker during scrolling
     const timeSinceLastUpdate = now - lastUpdateTime.current;
-    const throttleMs = isLastMessageStreaming ? 50 : 150;  // 50ms during streaming for smoother updates
+    const throttleMs = isLastMessageStreaming ? 100 : 150;  // 100ms during streaming to reduce flicker
 
     if (timeSinceLastUpdate >= throttleMs) {
       setDisplayMessages(rawMessages);
@@ -92,11 +92,46 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
 
+  // Track user manual scrolling to disable auto-scroll
+  const isUserScrolling = useRef(false);
+  const scrollTimeoutRef = useRef<number | null>(null);
+
   const scrollToBottom = (instant = false) => {
+    // Skip auto-scroll if user is manually scrolling
+    if (isUserScrolling.current) {
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'instant' : 'smooth' });
+  };
+
+  // Detect user manual scroll
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+
+    const container = scrollContainerRef.current;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+    if (!isNearBottom) {
+      // User scrolled away from bottom - mark as user scrolling
+      isUserScrolling.current = true;
+
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Reset user scrolling flag after 2 seconds of no scroll
+      scrollTimeoutRef.current = window.setTimeout(() => {
+        isUserScrolling.current = false;
+      }, 2000);
+    } else {
+      // User scrolled back to bottom - re-enable auto-scroll
+      isUserScrolling.current = false;
+    }
   };
 
   // Auto-scroll to bottom when messages update, with throttling during streaming
@@ -435,7 +470,18 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       {/* Thread Tabs */}
       <ThreadTabs maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        style={{
+          // Optimize scrolling without aggressive containment
+          // Using 'content' instead of 'strict' to avoid full repaints
+          contain: 'content',
+          // Only use will-change during active streaming
+          ...(isLoading && { willChange: 'scroll-position' }),
+        }}
+      >
         {displayMessages.map((message, index) => (
           <MessageItem
             key={message.id}

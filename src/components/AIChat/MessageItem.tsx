@@ -545,17 +545,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                     return (
                                         <>
-                                            {/* Render Native Tool Calls first if they are not interleaved in text
-                                                This puts tools ABOVE the summary text for Agents. */}
-                                            {!hasInterleavedTools && message.toolCalls && message.toolCalls.map(toolCall => (
-                                                <ToolApproval
-                                                    key={toolCall.id}
-                                                    toolCall={toolCall}
-                                                    onApprove={() => onApprove(message.id, toolCall.id)}
-                                                    onReject={() => onReject(message.id, toolCall.id)}
-                                                />
-                                            ))}
-
                                             {/* Render Segments (Text and potentially interleaved tools) */}
                                             {stringSegments.map((segment, index) => {
                                                 if (segment.type === 'tool') {
@@ -584,6 +573,17 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     return renderContentPart({ type: 'text', text: content }, index);
                                                 }
                                             })}
+
+                                            {/* Render Native Tool Calls AFTER text content
+                                                This puts tools BELOW the text, matching user expectations */}
+                                            {!hasInterleavedTools && message.toolCalls && message.toolCalls.map(toolCall => (
+                                                <ToolApproval
+                                                    key={toolCall.id}
+                                                    toolCall={toolCall}
+                                                    onApprove={() => onApprove(message.id, toolCall.id)}
+                                                    onReject={() => onReject(message.id, toolCall.id)}
+                                                />
+                                            ))}
 
                                             {/* Render remaining Native Tool Calls (if any were missed in interleaved mode) */}
                                             {hasInterleavedTools && message.toolCalls && message.toolCalls.slice(currentToolIndex).map(toolCall => (
