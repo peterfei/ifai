@@ -152,21 +152,23 @@ pub async fn run_agent_task(
                     if tool_calls.is_empty() { break; }
                     history.push(ai_message.clone());
 
-                    for tool_call in tool_calls {
+                    for (idx, tool_call) in tool_calls.iter().enumerate() {
                         let tool_name = &tool_call.function.name;
                         let args_res: Result<Value, _> = serde_json::from_str(&tool_call.function.arguments);
-                        
+
                         let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("Processing tool: {}", tool_name) }));
 
                         let (tool_result, _success) = match args_res {
                             Ok(args) => {
                                 // Send final tool_call event with complete arguments (isPartial: false)
                                 // This marks the end of streaming and requests user approval
-                                println!("[AgentRunner] Requesting authorization for: {}, event_id={}", tool_name, event_id);
+                                // FIX: Use index-based ID to match streaming events (agent_id_idx format)
+                                let tool_id = format!("{}_{}", id, idx);
+                                println!("[AgentRunner] Requesting authorization for: {}, event_id={}, tool_id={}", tool_name, event_id, tool_id);
                                 let emit_result = app.emit(&event_id, json!({
                                     "type": "tool_call",
                                     "toolCall": {
-                                        "id": tool_call.id.clone(),
+                                        "id": tool_id,  // Use consistent index-based ID
                                         "tool": tool_name,
                                         "args": args,
                                         "isPartial": false

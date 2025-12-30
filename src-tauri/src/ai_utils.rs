@@ -354,16 +354,15 @@ pub async fn agent_stream_chat(
                                     }
                                 }
 
-                                // Emit partial tool call to frontend immediately after each chunk
-                                // (Removed the if !st.name.is_empty() guard to enable streaming from the start)
-                                let tool_name = if st.name.is_empty() { "unknown" } else { &st.name };
-                                let tool_id = if st.id.is_empty() {
-                                    format!("{}_{}", agent_id, idx)
-                                } else {
-                                    st.id.clone()
-                                };
+                                // Emit partial tool call to frontend
+                                // FIX: Always use consistent ID (index-based) to prevent duplicate tool calls
+                                // Only emit when we have at least a tool name to avoid "unknown" entries
+                                if !st.name.is_empty() {
+                                    let tool_name = &st.name;
+                                    // Use consistent index-based ID throughout the stream
+                                    let tool_id = format!("{}_{}", agent_id, idx);
 
-                                // Try full parse first
+                                    // Try full parse first
                                 let args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
                                     // If not valid JSON, try to extract fields manually for better progressive UI
                                     let mut map = serde_json::Map::new();
@@ -400,6 +399,7 @@ pub async fn agent_stream_chat(
                                 } else {
                                     eprintln!("[AgentStream] Event emitted successfully");
                                 }
+                                }  // End of if !st.name.is_empty()
                             }
                         }
                     }
