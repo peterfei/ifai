@@ -92,8 +92,8 @@ jobs:
 
             | 文件 | 说明 |
             |------|------|
-            | `IfAI_0.2.3_x64-setup.exe` | NSIS 安装包（推荐） |
-            | `IfAI_0.2.3_x64_en-US.msi` | MSI 安装包 |
+            | `IfAI_{version}_x64-setup.exe` | NSIS 安装包（推荐） |
+            | `IfAI_{version}_x64_en-US.msi` | MSI 安装包 |
 
             ## 测试重点
 
