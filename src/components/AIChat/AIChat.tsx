@@ -43,49 +43,11 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
-  
-  // Throttled messages for smoother rendering
-  const [displayMessages, setDisplayMessages] = useState(rawMessages);
-  const lastUpdateTime = useRef(0);
-  const throttleTimeout = useRef<number | null>(null);
 
   // Scroll throttling to prevent "flickering" during streaming
   const lastScrollTime = useRef(0);
   const rafScrollId = useRef<number>(0);
   const SCROLL_THROTTLE_MS = 200;  // Scroll throttle: 200ms
-
-  useEffect(() => {
-    const now = Date.now();
-    const isLastMessageStreaming = rawMessages.length > 0 && 
-                                   rawMessages[rawMessages.length - 1].role === 'assistant' && 
-                                   isLoading;
-
-    if (!isLastMessageStreaming) {
-      // If not streaming, update immediately
-      setDisplayMessages(rawMessages);
-      lastUpdateTime.current = now;
-      if (throttleTimeout.current) {
-        window.clearTimeout(throttleTimeout.current);
-        throttleTimeout.current = null;
-      }
-      return;
-    }
-
-    // If streaming, throttle updates to reduce flicker during scrolling
-    const timeSinceLastUpdate = now - lastUpdateTime.current;
-    const throttleMs = isLastMessageStreaming ? 100 : 150;  // 100ms during streaming to reduce flicker
-
-    if (timeSinceLastUpdate >= throttleMs) {
-      setDisplayMessages(rawMessages);
-      lastUpdateTime.current = now;
-    } else if (!throttleTimeout.current) {
-      throttleTimeout.current = window.setTimeout(() => {
-        setDisplayMessages(rawMessages);
-        lastUpdateTime.current = Date.now();
-        throttleTimeout.current = null;
-      }, throttleMs - timeSinceLastUpdate);
-    }
-  }, [rawMessages, isLoading]);
 
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
   const openFile = useFileStore(state => state.openFile);
@@ -136,8 +98,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
   // Auto-scroll to bottom when messages update, with throttling during streaming
   useEffect(() => {
-    const isStreaming = isLoading && displayMessages.length > 0 &&
-                        displayMessages[displayMessages.length - 1].role === 'assistant';
+    const isStreaming = isLoading && rawMessages.length > 0 &&
+                        rawMessages[rawMessages.length - 1].role === 'assistant';
 
     if (isStreaming) {
       // Streaming state: throttle + RAF sync
@@ -169,7 +131,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
         cancelAnimationFrame(rafScrollId.current);
       }
     };
-  }, [displayMessages, isLoading]);
+  }, [rawMessages, isLoading]);
 
   const currentProvider = providers.find(p => p.id === currentProviderId);
   const isProviderConfigured = currentProvider && currentProvider.apiKey && currentProvider.enabled;
@@ -482,7 +444,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
           ...(isLoading && { willChange: 'scroll-position' }),
         }}
       >
-        {displayMessages.map((message, index) => (
+        {rawMessages.map((message, index) => (
           <MessageItem
             key={message.id}
             message={message}
