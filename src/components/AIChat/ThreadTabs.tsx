@@ -12,12 +12,13 @@
  * - Optimized with React.memo for ThreadItem
  */
 
-import React, { useRef, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback, memo, useState } from 'react';
 import { useThreadStore } from '../../stores/threadStore';
 import { switchThread, setThreadMessages } from '../../stores/useChatStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
 import { useTranslation } from 'react-i18next';
 import { ThreadSearchBar } from './ThreadSearchBar';
+import { ThreadContextMenu } from './ThreadContextMenu';
 import type { Thread } from '../../stores/threadStore';
 
 // ============================================================================
@@ -31,6 +32,8 @@ interface ThreadTabsProps {
   showMessageCount?: boolean;
   /** Whether to show close buttons */
   showCloseButton?: boolean;
+  /** Callback to show tag manager */
+  onShowTagManager?: () => void;
 }
 
 // ============================================================================
@@ -47,6 +50,9 @@ interface ThreadItemProps {
   onClick: (threadId: string) => void;
   onClose: (e: React.MouseEvent, threadId: string) => void;
   onPin: (e: React.MouseEvent, threadId: string) => void;
+  onContextMenu: (e: React.MouseEvent, threadId: string) => void;
+  /** Signal to start editing from keyboard shortcut (F2) */
+  startEditSignal: string | null;
 }
 
 const ThreadItem: React.FC<ThreadItemProps> = memo(({
@@ -59,8 +65,72 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
   onClick,
   onClose,
   onPin,
+  onContextMenu,
+  startEditSignal,
 }) => {
+  // Edit state for inline rename
+  const [editing, setEditing] = React.useState(false);
+  const [editValue, setEditValue] = React.useState(thread.title);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
   const hasBackgroundTasks = thread.agentTasks.length > 0;
+  const updateThread = useThreadStore(state => state.updateThread);
+
+  // Auto-focus and select all when editing starts
+  React.useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  // Watch for external edit signal (from F2 shortcut)
+  React.useEffect(() => {
+    if (startEditSignal === thread.id && !editing) {
+      handleStartEdit();
+    }
+  }, [startEditSignal]);
+
+  // Sync editValue with thread.title (for external updates)
+  React.useEffect(() => {
+    if (!editing) {
+      setEditValue(thread.title);
+    }
+  }, [thread.title, editing]);
+
+  const handleStartEdit = () => {
+    setEditing(true);
+    setEditValue(thread.title);
+  };
+
+  const handleSaveEdit = () => {
+    const trimmed = editValue.trim();
+    if (!trimmed) {
+      // Don't allow empty titles - revert
+      setEditing(false);
+      setEditValue(thread.title);
+      return;
+    }
+    updateThread(thread.id, { title: trimmed });
+    setEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
+    setEditValue(thread.title);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
+  const handleBlur = () => {
+    handleSaveEdit();
+  };
 
   return (
     <div
@@ -73,12 +143,20 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
           : 'bg-gray-850 text-gray-400 hover:bg-gray-800 hover:text-gray-200'
         }
       `}
-      onClick={() => onClick(thread.id)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onPin(e, thread.id);
+      onClick={() => {
+        // Don't switch thread when editing
+        if (!editing) {
+          onClick(thread.id);
+        }
       }}
-      title={`${thread.title}\n${formatTimestamp(thread.lastActiveAt)}\n${thread.messageCount} 条消息`}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        handleStartEdit();
+      }}
+      onContextMenu={(e) => {
+        onContextMenu(e, thread.id);
+      }}
+      title={`${thread.title}\n${formatTimestamp(thread.lastActiveAt)}\n${thread.messageCount} 条消息\n双击重命名`}
     >
       {/* Pin indicator */}
       {thread.pinned && (
@@ -91,10 +169,24 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
         </svg>
       )}
 
-      {/* Thread title */}
-      <span className="flex-1 truncate text-sm font-medium">
-        {thread.title}
-      </span>
+      {/* Thread title or inline edit input */}
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+          className="flex-1 text-sm font-medium bg-gray-700 text-white px-1.5 py-0.5 rounded outline-none focus:ring-2 focus:ring-blue-500"
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="flex-1 truncate text-sm font-medium">
+          {thread.title}
+        </span>
+      )}
 
       {/* Message count badge */}
       {showMessageCount && thread.messageCount > 0 && (
@@ -152,8 +244,19 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
   maxVisibleTabs = 5,
   showMessageCount = true,
   showCloseButton = true,
+  onShowTagManager,
 }) => {
   const { t } = useTranslation();
+
+  // Edit signal state for F2 shortcut
+  const [startEditSignal, setStartEditSignal] = React.useState<string | null>(null);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = React.useState<{
+    x: number;
+    y: number;
+    threadId: string;
+  } | null>(null);
 
   // Thread store state - use raw state and compute derived values with useMemo
   const threads = useThreadStore(state => state.threads);
@@ -206,6 +309,26 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
     }
   }, [activeThreadId]);
 
+  // F2: Rename active thread (local to this component)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2' && activeThreadId) {
+        // Only handle if not in an input/textarea
+        if (
+          document.activeElement instanceof HTMLInputElement ||
+          document.activeElement instanceof HTMLTextAreaElement
+        ) {
+          return;
+        }
+        e.preventDefault();
+        setStartEditSignal(activeThreadId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeThreadId]);
+
   // Handle new thread creation
   const handleNewThread = useCallback(() => {
     // Save current messages first
@@ -242,6 +365,17 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
     e.stopPropagation();
     toggleThreadPinned(threadId);
   }, [toggleThreadPinned]);
+
+  // Handle thread context menu
+  const handleThreadContextMenu = useCallback((e: React.MouseEvent, threadId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      threadId,
+    });
+  }, []);
 
   // Format timestamp for display
   const formatTimestamp = (timestamp: number): string => {
@@ -297,6 +431,8 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
             onClick={handleThreadClick}
             onClose={handleThreadClose}
             onPin={handleThreadPin}
+            onContextMenu={handleThreadContextMenu}
+            startEditSignal={startEditSignal}
           />
         ))}
       </div>
@@ -317,6 +453,18 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
         <span className="text-sm font-medium">{t('threads.new', '新对话')}</span>
       </button>
     </div>
+
+    {/* Thread Context Menu */}
+    {contextMenu && (
+      <ThreadContextMenu
+        x={contextMenu.x}
+        y={contextMenu.y}
+        thread={threads[contextMenu.threadId] || null}
+        onClose={() => setContextMenu(null)}
+        onStartRename={(threadId) => setStartEditSignal(threadId)}
+        onShowTagManager={onShowTagManager}
+      />
+    )}
     </>
   );
 };
