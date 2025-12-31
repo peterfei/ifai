@@ -53,6 +53,20 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
     }
   };
 
+  // Format timestamp for display
+  const formatThreadTimestamp = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins}分钟前`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}小时前`;
+    if (diffMins < 43200) return `${Math.floor(diffMins / 1440)}天前`;
+    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  };
+
   // Convert threads to search results
   const threadResults = useMemo(() => {
     return Object.values(threads)
@@ -61,7 +75,7 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
         type: 'thread' as const,
         id: thread.id,
         title: thread.title,
-        subtitle: `${thread.messageCount} 条消息`,
+        subtitle: `${thread.messageCount} 条消息 • ${formatThreadTimestamp(thread.lastActiveAt)}`,
         icon: <MessageSquare size={16} />,
         threadId: thread.id,
       }));

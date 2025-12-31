@@ -19,6 +19,7 @@ import { useChatStore as coreUseChatStore } from 'ifainew-core';
 import { useTranslation } from 'react-i18next';
 import { ThreadSearchBar } from './ThreadSearchBar';
 import { ThreadContextMenu } from './ThreadContextMenu';
+import { TagManager } from './TagManager';
 import type { Thread } from '../../stores/threadStore';
 
 // ============================================================================
@@ -32,8 +33,6 @@ interface ThreadTabsProps {
   showMessageCount?: boolean;
   /** Whether to show close buttons */
   showCloseButton?: boolean;
-  /** Callback to show tag manager */
-  onShowTagManager?: () => void;
 }
 
 // ============================================================================
@@ -244,7 +243,6 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
   maxVisibleTabs = 5,
   showMessageCount = true,
   showCloseButton = true,
-  onShowTagManager,
 }) => {
   const { t } = useTranslation();
 
@@ -257,6 +255,9 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
     y: number;
     threadId: string;
   } | null>(null);
+
+  // Tag manager state
+  const [showTagManager, setShowTagManager] = React.useState(false);
 
   // Thread store state - use raw state and compute derived values with useMemo
   const threads = useThreadStore(state => state.threads);
@@ -462,9 +463,12 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
         thread={threads[contextMenu.threadId] || null}
         onClose={() => setContextMenu(null)}
         onStartRename={(threadId) => setStartEditSignal(threadId)}
-        onShowTagManager={onShowTagManager}
+        onShowTagManager={() => setShowTagManager(true)}
       />
     )}
+
+    {/* Tag Manager Dialog */}
+    <TagManager isOpen={showTagManager} onClose={() => setShowTagManager(false)} />
     </>
   );
 };
