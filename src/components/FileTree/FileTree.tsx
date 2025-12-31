@@ -189,11 +189,10 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree } = useFileStore();
+  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, expandedNodes, toggleExpandedNode, setExpandedNodes } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,7 +324,7 @@ export const FileTree = () => {
             if (currentNode.kind === 'directory') {
               if (!expandedNodes.has(currentNode.id)) {
                 // Expand directory - FileTreeItem will auto-load children
-                setExpandedNodes(prev => new Set([...prev, currentNode.id]));
+                toggleExpandedNode(currentNode.id);
               } else if (currentNode.children && currentNode.children.length > 0) {
                 // Move to first child if already expanded and has children
                 setSelectedNodeId(currentNode.children[0].id);
@@ -340,11 +339,7 @@ export const FileTree = () => {
             const currentNode = visibleNodes[currentIndex];
             if (currentNode.kind === 'directory' && expandedNodes.has(currentNode.id)) {
               // Collapse directory
-              setExpandedNodes(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(currentNode.id);
-                return newSet;
-              });
+              toggleExpandedNode(currentNode.id);
             } else {
               // Move to parent
               const parentPath = currentNode.path.substring(0, currentNode.path.lastIndexOf('/'));
@@ -378,15 +373,7 @@ export const FileTree = () => {
 
   const activateNode = async (node: FileNode) => {
     if (node.kind === 'directory') {
-      if (!expandedNodes.has(node.id)) {
-        setExpandedNodes(prev => new Set([...prev, node.id]));
-      } else {
-        setExpandedNodes(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(node.id);
-          return newSet;
-        });
-      }
+      toggleExpandedNode(node.id);
     } else {
       try {
         const content = await readFileContent(node.path);
@@ -413,16 +400,8 @@ export const FileTree = () => {
   }, []);
 
   const handleToggleExpand = useCallback((nodeId: string) => {
-    setExpandedNodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
-      } else {
-        newSet.add(nodeId);
-      }
-      return newSet;
-    });
-  }, []);
+    toggleExpandedNode(nodeId);
+  }, [toggleExpandedNode]);
 
   const handleChildrenLoaded = useCallback(() => {
     // Trigger re-calculation of visibleNodes when children are loaded

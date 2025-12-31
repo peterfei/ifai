@@ -12,6 +12,7 @@ interface FileState {
   openedFiles: OpenedFile[];
   activeFileId: string | null;
   gitStatuses: Map<string, GitStatus>;
+  expandedNodes: Set<string>;
 
   setFileTree: (tree: FileNode) => void;
   setRootPath: (path: string | null) => Promise<void>;
@@ -26,6 +27,8 @@ interface FileState {
   refreshFileTree: () => Promise<void>;
   refreshFileTreeDebounced: () => void;
   refreshFileTreePreserveExpanded: (expandedNodes: Set<string>) => Promise<Set<string>>;
+  toggleExpandedNode: (nodeId: string) => void;
+  setExpandedNodes: (nodes: Set<string>) => void;
   syncState: (state: Partial<FileState>) => void;
 }
 
@@ -45,8 +48,21 @@ export const useFileStore = create<FileState>()(
       openedFiles: [],
       activeFileId: null,
       gitStatuses: new Map(),
+      expandedNodes: new Set(),
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
+
+      toggleExpandedNode: (nodeId: string) => set((state) => {
+        const newExpanded = new Set(state.expandedNodes);
+        if (newExpanded.has(nodeId)) {
+          newExpanded.delete(nodeId);
+        } else {
+          newExpanded.add(nodeId);
+        }
+        return { expandedNodes: newExpanded };
+      }),
+
+      setExpandedNodes: (nodes: Set<string>) => set({ expandedNodes: nodes }),
 
       setFileTree: (tree) => {
         const treeWithStatus = tree ? updateGitStatusRecursive(tree, get().gitStatuses) : null;
@@ -193,24 +209,10 @@ export const useFileStore = create<FileState>()(
       },
 
       refreshFileTree: async () => {
-        const { rootPath, gitStatuses } = get();
-        if (rootPath) {
-            try {
-                const children = await readDirectory(rootPath);
-                const rootName = rootPath.split('/').pop() || 'Project';
-                const newTree: FileNode = {
-                    id: uuidv4(),
-                    name: rootName,
-                    path: rootPath,
-                    kind: 'directory',
-                    children
-                };
-                const treeWithStatus = updateGitStatusRecursive(newTree, gitStatuses);
-                set({ fileTree: treeWithStatus });
-            } catch (e) {
-                console.error("Failed to refresh file tree:", e);
-            }
-        }
+        // Use refreshFileTreePreserveExpanded to maintain expanded state
+        // This prevents file tree from collapsing when refreshing (e.g., after approving file write)
+        const { expandedNodes } = get();
+        await get().refreshFileTreePreserveExpanded(expandedNodes);
       },
 
       // Debounced version of refreshFileTree - useful for rapid successive refreshes
@@ -235,7 +237,7 @@ export const useFileStore = create<FileState>()(
         const { rootPath, gitStatuses } = get();
         if (rootPath) {
             try {
-                // Collect paths of expanded directories
+                // Collect paths of expanded directories BEFORE refreshing
                 const expandedPaths = new Set<string>();
                 const collectExpandedPaths = (node: FileNode) => {
                     if (expandedNodes.has(node.id) && node.kind === 'directory') {
@@ -262,9 +264,22 @@ export const useFileStore = create<FileState>()(
                     children
                 };
                 const treeWithStatus = updateGitStatusRecursive(newTree, gitStatuses);
-                set({ fileTree: treeWithStatus });
 
-                // Return the expanded paths so caller can restore them
+                // Restore expanded nodes by path matching
+                const newExpandedNodes = new Set<string>();
+                const restoreExpandedNodes = (node: FileNode) => {
+                    if (expandedPaths.has(node.path) && node.kind === 'directory') {
+                        newExpandedNodes.add(node.id);
+                    }
+                    if (node.children) {
+                        node.children.forEach(restoreExpandedNodes);
+                    }
+                };
+                restoreExpandedNodes(treeWithStatus);
+
+                // Update both fileTree and expandedNodes atomically
+                set({ fileTree: treeWithStatus, expandedNodes: newExpandedNodes });
+
                 return expandedPaths;
             } catch (e) {
                 console.error("Failed to refresh file tree:", e);
