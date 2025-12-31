@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, Loader2, File, Folder } from 'lucide-react';
 import { ToolCall } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
@@ -95,7 +95,6 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
     const settings = useSettingsStore();
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
-    const [isLoadingOld, setIsLoadingOld] = useState(false);
 
     const isPending = toolCall.status === 'pending';
     const isPartial = toolCall.isPartial;
@@ -163,27 +162,28 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
     const newContent = toolCall.args?.content || '';
 
     // Load original content for diff (only when NOT streaming)
-    useEffect(() => {
+    // CRITICAL FIXES for flicker-free rendering:
+    // 1. Use useLayoutEffect instead of useEffect - runs BEFORE browser paints
+    // 2. Remove isLoadingOld intermediate state - no loading indicator means no visual flicker
+    // 3. Load old content asynchronously and update when ready
+    useLayoutEffect(() => {
         // Only load when:
         // 1. It's a write file operation
         // 2. Generation is complete (!isPartial)
-        // 3. Haven't loaded yet (removed isPending check to allow loading after tool completes)
-        if (isWriteFile && filePath && !isPartial && !oldContent && !isLoadingOld) {
+        // 3. Haven't loaded yet
+        if (isWriteFile && filePath && !isPartial && oldContent === null) {
             const loadOld = async () => {
-                setIsLoadingOld(true);
                 try {
                     const content = await readFileContent(filePath);
                     setOldContent(content || '');
                 } catch (e) {
                     console.warn("[ToolApproval] Failed to load old content:", e);
                     setOldContent(''); // Assume new file if not found or load failed
-                } finally {
-                    setIsLoadingOld(false);
                 }
             };
             loadOld();
         }
-    }, [isWriteFile, filePath, isPartial, oldContent, isLoadingOld]);
+    }, [isWriteFile, filePath, isPartial, oldContent]);
 
     return (
         <div className="mt-2 mb-2 bg-gray-800 rounded-lg border border-gray-600 overflow-hidden w-full max-w-full">
@@ -258,11 +258,6 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                                             </>
                                         );
                                     })()
-                                ) : isLoadingOld ? (
-                                    // Loading original file for diff
-                                    <div className="h-16 bg-gray-900 rounded border border-gray-700 flex items-center justify-center text-gray-500 italic">
-                                        加载当前内容以显示差异...
-                                    </div>
                                 ) : oldContent !== null && newContent ? (
                                     // Show diff when generation complete and old content loaded
                                     (() => {
@@ -322,29 +317,34 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                                         );
                                     })()
                                 ) : (
-                                    // Fallback UI with retry option
-                                    <div className="p-3 bg-gray-800 rounded border border-gray-600">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-sm text-gray-400">
-                                                {toolCall.status === 'completed' ? '文件内容加载失败' : '等待文件内容...'}
-                                            </span>
-                                            {toolCall.status === 'completed' && (
-                                                <button
-                                                    onClick={() => {
-                                                        setOldContent(null);  // 触发重新加载
-                                                    }}
-                                                    className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors"
-                                                >
-                                                    重试加载
-                                                </button>
-                                            )}
+                                    // Fallback: Show new content without diff when old content hasn't loaded yet
+                                    // This prevents flicker by immediately showing content instead of a loading message
+                                    newContent ? (
+                                        <div className="max-h-80 overflow-auto rounded border border-gray-700 bg-gray-900">
+                                            <pre className="p-3 text-xs text-gray-300 font-mono whitespace-pre-wrap">
+                                                <code>{newContent}</code>
+                                            </pre>
                                         </div>
-                                        {toolCall.status === 'completed' && newContent && (
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                文件已生成，但无法显示差异对比。点击"重试加载"或直接查看文件。
+                                    ) : (
+                                        // Edge case: no content available (shouldn't happen in normal flow)
+                                        <div className="p-3 bg-gray-800 rounded border border-gray-600">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-sm text-gray-400">
+                                                    {toolCall.status === 'completed' ? '文件内容加载失败' : '等待文件内容...'}
+                                                </span>
+                                                {toolCall.status === 'completed' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setOldContent(null);  // 触发重新加载
+                                                        }}
+                                                        className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors"
+                                                    >
+                                                        重试加载
+                                                    </button>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )
                                 )}
 
                                 {/* Expand Button (only for diff view) */}
