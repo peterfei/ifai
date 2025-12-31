@@ -366,7 +366,11 @@ class ThreadPersistenceService {
       // Set active thread to most recently used
       if (threads.length > 0) {
         const mostRecent = threads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
-        useThreadStore.getState().setActiveThread(mostRecent.id);
+        // CRITICAL FIX: Use switchThread() to properly load messages into useChatStore.messages
+        // setActiveThread() only sets activeThreadId but doesn't load messages, causing
+        // historical conversations to not display (especially on Windows)
+        const { switchThread } = await import('../useChatStore');
+        switchThread(mostRecent.id);
         console.log(`[ThreadPersistence] Set active thread to: ${mostRecent.id} (${mostRecent.title})`);
       }
 
