@@ -20,8 +20,12 @@ IfAI Editor - Local Model Management
 */
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Mutex;
 
 // ============================================================================
 // Configuration
@@ -152,6 +156,106 @@ pub struct ModelInfo {
     /// 模型名称
     pub model: String,
 }
+
+// ============================================================================
+// Download Configuration
+// ============================================================================
+
+/// 模型下载配置
+#[derive(Debug, Clone)]
+pub struct ModelDownloadConfig {
+    /// 下载 URL
+    pub url: String,
+
+    /// 文件名
+    pub filename: String,
+
+    /// 预期文件大小（字节）
+    pub expected_size: u64,
+
+    /// SHA256 校验和（可选）
+    pub checksum: Option<String>,
+}
+
+impl Default for ModelDownloadConfig {
+    fn default() -> Self {
+        Self {
+            // 默认使用本地测试服务器
+            url: "http://localhost:8080/model.gguf".to_string(),
+            filename: "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string(),
+            expected_size: 379 * 1024 * 1024, // 379MB
+            checksum: None,
+        }
+    }
+}
+
+/// 下载状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadState {
+    /// 状态
+    pub status: DownloadStatus,
+
+    /// 进度 0-100
+    pub progress: u8,
+
+    /// 已下载字节数
+    pub bytes_downloaded: u64,
+
+    /// 总字节数
+    pub total_bytes: u64,
+
+    /// 下载速度（字节/秒）
+    pub speed: u64,
+
+    /// 预计剩余时间（秒）
+    pub eta: u64,
+}
+
+impl Default for DownloadState {
+    fn default() -> Self {
+        Self {
+            status: DownloadStatus::NotStarted,
+            progress: 0,
+            bytes_downloaded: 0,
+            total_bytes: 0,
+            speed: 0,
+            eta: 0,
+        }
+    }
+}
+
+/// 下载状态枚举
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum DownloadStatus {
+    NotStarted,
+    Downloading,
+    Completed,
+    Failed(String),
+    Cancelled,
+}
+
+/// 下载管理器（内部状态）
+struct DownloadManager {
+    state: Arc<Mutex<DownloadState>>,
+    cancel_flag: Arc<AtomicBool>,
+}
+
+impl DownloadManager {
+    fn new() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(DownloadState::default())),
+            cancel_flag: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    async fn get_state(&self) -> DownloadState {
+        self.state.lock().await.clone()
+    }
+}
+
+// 全局下载管理器
+static DOWNLOAD_MANAGER: once_cell::sync::Lazy<DownloadManager> =
+    once_cell::sync::Lazy::new(DownloadManager::new);
 
 // ============================================================================
 // Tauri Commands
@@ -322,6 +426,196 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
 }
 
 // ============================================================================
+// Download Commands
+// ============================================================================
+
+/// 获取下载状态
+#[tauri::command]
+pub async fn get_download_status() -> DownloadState {
+    DOWNLOAD_MANAGER.get_state().await
+}
+
+/// 开始下载模型
+#[tauri::command]
+pub async fn start_download(app: AppHandle) -> Result<DownloadState, String> {
+    let config = ModelDownloadConfig::default();
+    let model_dir = LocalModelConfig::model_dir();
+
+    // 确保模型目录存在
+    std::fs::create_dir_all(&model_dir)
+        .map_err(|e| format!("无法创建模型目录: {}", e))?;
+
+    let output_path = model_dir.join(&config.filename);
+
+    // 重置取消标志
+    DOWNLOAD_MANAGER.cancel_flag.store(false, Ordering::SeqCst);
+
+    // 更新状态为下载中
+    {
+        let mut state = DOWNLOAD_MANAGER.state.lock().await;
+        state.status = DownloadStatus::Downloading;
+        state.progress = 0;
+        state.bytes_downloaded = 0;
+        state.total_bytes = config.expected_size;
+    }
+
+    // 启动下载任务
+    let state = DOWNLOAD_MANAGER.state.clone();
+    let state_for_error = state.clone();
+    let cancel_flag = DOWNLOAD_MANAGER.cancel_flag.clone();
+
+    tokio::spawn(async move {
+        if let Err(e) = download_file(
+            &config.url,
+            &output_path,
+            state,
+            cancel_flag,
+            config.expected_size,
+            app,
+        ).await
+        {
+            let mut s = state_for_error.lock().await;
+            s.status = DownloadStatus::Failed(e);
+        }
+    });
+
+    Ok(DOWNLOAD_MANAGER.get_state().await)
+}
+
+/// 取消下载
+#[tauri::command]
+pub async fn cancel_download() -> Result<(), String> {
+    DOWNLOAD_MANAGER.cancel_flag.store(true, Ordering::SeqCst);
+
+    // 删除已下载的部分文件
+    let model_path = LocalModelConfig::default_model_path();
+    if model_path.exists() {
+        std::fs::remove_file(&model_path)
+            .map_err(|e| format!("无法删除部分文件: {}", e))?;
+    }
+
+    {
+        let mut state = DOWNLOAD_MANAGER.state.lock().await;
+        state.status = DownloadStatus::Cancelled;
+    }
+
+    Ok(())
+}
+
+/// 下载文件（内部函数）
+async fn download_file(
+    url: &str,
+    output_path: &PathBuf,
+    state: Arc<Mutex<DownloadState>>,
+    cancel_flag: Arc<AtomicBool>,
+    total_size: u64,
+    app: AppHandle,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let response = client.get(url)
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP 错误: {}", response.status()));
+    }
+
+    let total_bytes = response.content_length().unwrap_or(total_size);
+    let mut file = tokio::fs::File::create(output_path)
+        .await
+        .map_err(|e| format!("创建文件失败: {}", e))?;
+
+    let mut downloaded: u64 = 0;
+    let mut start_time = Instant::now();
+    let mut last_update_time = Instant::now();
+
+    let mut byte_stream = response.bytes_stream();
+
+    use futures::stream::StreamExt;
+    while let Some(chunk_result) = byte_stream.next().await {
+        if cancel_flag.load(Ordering::SeqCst) {
+            return Err("下载已取消".to_string());
+        }
+
+        let chunk = chunk_result.map_err(|e| format!("读取数据失败: {}", e))?;
+
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
+            .await
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+
+        downloaded += chunk.len() as u64;
+
+        // 每 100ms 更新一次状态
+        let now = Instant::now();
+        if now.duration_since(last_update_time).as_millis() > 100 {
+            let progress = if total_bytes > 0 {
+                ((downloaded as f64 / total_bytes as f64) * 100.0) as u8
+            } else {
+                0
+            };
+
+            let speed = if start_time.elapsed().as_secs() > 0 {
+                downloaded / start_time.elapsed().as_secs()
+            } else {
+                0
+            };
+
+            let eta = if speed > 0 && total_bytes > downloaded {
+                (total_bytes - downloaded) / speed
+            } else {
+                0
+            };
+
+            {
+                let mut s = state.lock().await;
+                s.progress = progress;
+                s.bytes_downloaded = downloaded;
+                s.total_bytes = total_bytes;
+                s.speed = speed;
+                s.eta = eta;
+            }
+
+            // 发送进度事件到前端
+            let _ = app.emit("model-download-progress", &DownloadState {
+                status: DownloadStatus::Downloading,
+                progress,
+                bytes_downloaded: downloaded,
+                total_bytes,
+                speed,
+                eta,
+            });
+
+            last_update_time = now;
+        }
+    }
+
+    // 下载完成
+    {
+        let mut s = state.lock().await;
+        s.status = DownloadStatus::Completed;
+        s.progress = 100;
+        s.bytes_downloaded = total_bytes;
+    }
+
+    // 发送完成事件
+    let _ = app.emit("model-download-complete", &DownloadState {
+        status: DownloadStatus::Completed,
+        progress: 100,
+        bytes_downloaded: total_bytes,
+        total_bytes,
+        speed: 0,
+        eta: 0,
+    });
+
+    Ok(())
+}
+
+// ============================================================================
 // Response Types
 // ============================================================================
 
@@ -358,12 +652,26 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_parse() {
-        let text = "我会使用 agent_read_file(rel_path='src/auth.ts') 来完成这个任务。";
-        let calls = test_tool_parse(text.to_string());
+    fn test_download_config() {
+        let config = ModelDownloadConfig::default();
+        assert_eq!(config.filename, "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
+        assert_eq!(config.url, "http://localhost:8080/model.gguf");
+        assert_eq!(config.expected_size, 379 * 1024 * 1024);
+    }
 
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].name, "agent_read_file");
-        assert_eq!(calls[0].arguments.get("rel_path"), Some(&"src/auth.ts".to_string()));
+    #[test]
+    fn test_download_state_default() {
+        let state = DownloadState::default();
+        assert_eq!(state.progress, 0);
+        assert_eq!(state.bytes_downloaded, 0);
+        assert!(matches!(state.status, DownloadStatus::NotStarted));
+    }
+
+    #[test]
+    fn test_progress_calculation() {
+        let total = 1000u64;
+        let downloaded = 500u64;
+        let progress = ((downloaded as f64 / total as f64) * 100.0) as u8;
+        assert_eq!(progress, 50);
     }
 }

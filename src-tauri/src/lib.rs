@@ -406,7 +406,10 @@ pub fn run() {
             local_model::validate_local_model,
             local_model::get_system_info,
             local_model::local_model_chat,
-            local_model::test_tool_parse
+            local_model::test_tool_parse,
+            local_model::get_download_status,
+            local_model::start_download,
+            local_model::cancel_download
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

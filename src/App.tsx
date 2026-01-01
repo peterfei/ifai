@@ -12,6 +12,7 @@ import { SettingsModal } from './components/Settings/SettingsModal';
 import { GlobalAgentMonitor } from './components/AIChat/GlobalAgentMonitor';
 import { PerformanceMonitor } from './components/PerformanceMonitor/PerformanceMonitor';
 import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel';
+import { WelcomeDialog, LocalModelDownload } from './components/Onboarding';
 import { useFileStore } from './stores/fileStore';
 import { useEditorStore } from './stores/editorStore';
 import { useLayoutStore } from './stores/layoutStore';
@@ -33,6 +34,9 @@ function App() {
   const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal, chatWidth, setChatWidth, isPromptManagerOpen } = useLayoutStore();
   const [isResizingChat, setIsResizingChat] = React.useState(false);
   const [showCacheStats, setShowCacheStats] = useState(false);
+
+  // Onboarding state
+  const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | null>(null);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -225,6 +229,29 @@ function App() {
     }
   };
 
+  // Onboarding handlers
+  const handleWelcomeChoice = (choice: 'download' | 'remind' | 'skip') => {
+    if (choice === 'download') {
+      setOnboardingStep('download');
+    } else {
+      // remind or skip - close onboarding
+      setOnboardingStep(null);
+    }
+  };
+
+  const handleDownloadComplete = () => {
+    setOnboardingStep(null);
+  };
+
+  const handleDownloadCancel = () => {
+    setOnboardingStep(null);
+  };
+
+  const handleDownloadError = (error: string) => {
+    console.error('[App] Download error:', error);
+    setOnboardingStep(null);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#1e1e1e] text-white overflow-hidden">
       <Titlebar onToggleChat={toggleChat} isChatOpen={isChatOpen} onToggleTerminal={toggleTerminal} isTerminalOpen={isTerminalOpen} />
@@ -260,6 +287,19 @@ function App() {
         <PerformanceMonitor />
         {showCacheStats && <CacheStatsPanel onClose={() => setShowCacheStats(false)} />}
         <Toaster position="bottom-right" theme="dark" />
+
+        {/* Onboarding */}
+        <WelcomeDialog
+          onChoice={handleWelcomeChoice}
+          onClose={() => setOnboardingStep(null)}
+        />
+        {onboardingStep === 'download' && (
+          <LocalModelDownload
+            onComplete={handleDownloadComplete}
+            onCancel={handleDownloadCancel}
+            onError={handleDownloadError}
+          />
+        )}
       </Fragment>
     </div>
   );
