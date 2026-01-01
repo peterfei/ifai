@@ -87,10 +87,12 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         // Convert to backend format
         const backendProviderConfig = {
           id: currentProvider.id,
-          provider: currentProvider.protocol,
-          api_key: currentProvider.apiKey,
-          base_url: currentProvider.baseUrl,
+          name: currentProvider.name,
+          protocol: currentProvider.protocol,
+          apiKey: currentProvider.apiKey,
+          baseUrl: currentProvider.baseUrl,
           models: currentProvider.models,
+          enabled: currentProvider.enabled,
         };
 
         // Get Context
