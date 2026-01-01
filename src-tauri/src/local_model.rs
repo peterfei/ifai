@@ -636,6 +636,124 @@ pub struct ParsedToolCall {
     pub arguments: std::collections::HashMap<String, String>,
 }
 
+/// 预处理结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreprocessResult {
+    /// 是否应该使用本地模型
+    pub should_use_local: bool,
+
+    /// 是否解析到工具调用
+    pub has_tool_calls: bool,
+
+    /// 解析到的工具调用列表
+    pub tool_calls: Vec<ParsedToolCall>,
+
+    /// 本地生成的回复（如果没有工具调用）
+    pub local_response: Option<String>,
+
+    /// 路由原因
+    pub route_reason: String,
+}
+
+/// 本地模型预处理 - 智能路由决策
+#[tauri::command]
+pub async fn local_model_preprocess(
+    messages: Vec<crate::core_traits::ai::Message>,
+) -> Result<PreprocessResult, String> {
+    use crate::intelligence_router::{IntelligenceRouter, extract_text_content as router_extract_text};
+
+    // 检查模型是否可用
+    let config = LocalModelConfig::default();
+    let model_exists = config.model_path.exists();
+
+    if !model_exists {
+        return Ok(PreprocessResult {
+            should_use_local: false,
+            has_tool_calls: false,
+            tool_calls: vec![],
+            local_response: None,
+            route_reason: "模型文件不存在".to_string(),
+        });
+    }
+
+    // 创建路由器并决策
+    let router = IntelligenceRouter::new();
+    router.set_local_available(true).await;
+    router.set_local_enabled(config.enabled).await;
+
+    let decision = router.decide_route(&messages).await;
+
+    match decision {
+        crate::intelligence_router::RouteDecision::Local { reason } => {
+            // 使用本地模型
+            process_with_local_model(messages, reason).await
+        }
+        crate::intelligence_router::RouteDecision::Cloud { reason } => {
+            // 转发云端
+            Ok(PreprocessResult {
+                should_use_local: false,
+                has_tool_calls: false,
+                tool_calls: vec![],
+                local_response: None,
+                route_reason: reason,
+            })
+        }
+        crate::intelligence_router::RouteDecision::Hybrid { reason } => {
+            // 混合模式：尝试解析工具调用
+            try_parse_tool_calls(messages, reason).await
+        }
+    }
+}
+
+/// 使用本地模型处理
+async fn process_with_local_model(
+    messages: Vec<crate::core_traits::ai::Message>,
+    reason: String,
+) -> Result<PreprocessResult, String> {
+    // 尝试解析工具调用
+    try_parse_tool_calls(messages, reason).await
+}
+
+/// 尝试解析工具调用
+async fn try_parse_tool_calls(
+    messages: Vec<crate::core_traits::ai::Message>,
+    reason: String,
+) -> Result<PreprocessResult, String> {
+    // 获取最后一条用户消息
+    let user_message = messages
+        .iter()
+        .filter(|m| m.role == "user")
+        .last()
+        .ok_or("No user message found")?;
+
+    let text = extract_text_content(&user_message.content);
+
+    // 使用正则表达式解析工具调用
+    let tool_calls = test_tool_parse(text.clone());
+
+    if !tool_calls.is_empty() {
+        // 解析到工具调用
+        Ok(PreprocessResult {
+            should_use_local: true,
+            has_tool_calls: true,
+            tool_calls: tool_calls.clone(),
+            local_response: None,
+            route_reason: format!("{} - 解析到 {} 个工具调用", reason, tool_calls.len()),
+        })
+    } else {
+        // 没有工具调用，检查是否是简单问答
+        // TODO: 实际调用本地模型生成回复
+        // 目前先返回需要使用云端
+        Ok(PreprocessResult {
+            should_use_local: false,
+            has_tool_calls: false,
+            tool_calls: vec![],
+            local_response: None,
+            route_reason: format!("{} - 无工具调用，转发云端", reason),
+        })
+    }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
