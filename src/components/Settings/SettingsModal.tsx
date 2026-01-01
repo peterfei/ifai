@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database } from 'lucide-react';
+import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { DataManagementPanel } from './DataManagementPanel';
+import { LocalModelSettings } from './LocalModelSettings';
 
 export const SettingsModal = () => {
   const { t } = useTranslation();
   const { isSettingsOpen, setSettingsOpen } = useLayoutStore();
   const settings = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel'>('general');
 
   if (!isSettingsOpen) return null;
 
@@ -22,6 +23,7 @@ export const SettingsModal = () => {
     { id: 'performance', label: t('settings.performance'), icon: Zap },
     { id: 'keybindings', label: t('shortcuts.keyboardShortcuts'), icon: Keyboard },
     { id: 'data', label: '数据管理', icon: Database },
+    { id: 'localModel', label: '本地模型', icon: LocalLLM },
   ] as const;
 
   return (
@@ -307,6 +309,7 @@ export const SettingsModal = () => {
 
             {activeTab === 'keybindings' && <KeyboardShortcuts />}
             {activeTab === 'data' && <DataManagementPanel />}
+            {activeTab === 'localModel' && <LocalModelSettings />}
           </div>
         </div>
       </div>

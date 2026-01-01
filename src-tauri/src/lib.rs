@@ -16,6 +16,7 @@ mod performance;
 mod core_traits;
 mod project_config;
 mod community;
+mod local_model;
 #[cfg(feature = "commercial")]
 mod commercial;
 
@@ -400,7 +401,12 @@ pub fn run() {
             project_config::save_project_config,
             project_config::parse_project_config,
             project_config::project_config_exists,
-            project_config::delete_project_config
+            project_config::delete_project_config,
+            local_model::get_local_model_config,
+            local_model::validate_local_model,
+            local_model::get_system_info,
+            local_model::local_model_chat,
+            local_model::test_tool_parse
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
