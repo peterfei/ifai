@@ -558,80 +558,113 @@ pub async fn agent_stream_chat_with_root(
     let mut messages_with_tools = messages.clone();
     if is_hybrid_agent {
         if let Some(ref root) = project_root {
-            if let Ok(result) = crate::local_model::local_model_preprocess(messages.clone()).await {
-                if result.has_tool_calls && !result.tool_calls.is_empty() {
-                    println!("[AgentStream] Hybrid mode: executing {} tool calls locally", result.tool_calls.len());
+            use crate::file_cache;
+            use std::path::PathBuf;
+            use regex::Regex;
 
-                    use crate::file_cache;
-                    use std::path::PathBuf;
+            println!("[AgentStream] Hybrid mode: checking for file paths in user message");
 
-                    for tool_call in result.tool_calls {
-                        let tool_name = &tool_call.name;
-                        let args_value = serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::json!({}));
+            // 获取最后一条用户消息
+            let user_message = messages.iter()
+                .filter(|m| m.role == "user")
+                .last();
 
-                        println!("[AgentStream] Hybrid: executing tool: {}", tool_name);
+            if let Some(msg) = user_message {
+                let text = if let Content::Text(ref t) = msg.content { t } else { "" };
 
-                        // 执行工具调用 - 使用文件缓存
-                        let tool_result = match tool_name.as_str() {
-                            "agent_read_file" => {
-                                if let Some(rel_path) = args_value["rel_path"].as_str() {
-                                    let full_path = PathBuf::from(root).join(rel_path);
-                                    match file_cache::cached_read_file(&full_path) {
-                                        Ok(content) => {
-                                            println!("[AgentStream] Hybrid: read file from cache: {} ({} bytes)", rel_path, content.len());
-                                            content
-                                        }
-                                        Err(e) => {
-                                            println!("[AgentStream] Hybrid: read file failed: {}", e);
-                                            format!("Error: {}", e)
-                                        }
+                // 智能提取文件路径的正则表达式
+                // 匹配: "review src/lib.rs", "/test components/Header.tsx", "检查 src/main.rs"
+                let file_patterns = [
+                    r"\b(?:review|test|doc|refactor|check|read|审查|测试|文档|重构|检查|读取)\s+([^\s,]+\.[a-z]+)",
+                    r"\b([\w./-]+\.[a-z]{2,4})\b",  // 匹配文件扩展名
+                    r"\b([\w./-]+/[\w./-]*)\b",  // 匹配类路径
+                ];
+
+                let mut extracted_paths = std::collections::HashSet::new();
+
+                for pattern in &file_patterns {
+                    if let Ok(re) = Regex::new(pattern) {
+                        for cap in re.captures_iter(text) {
+                            if let Some(path_match) = cap.get(1) {
+                                let path_str = path_match.as_str();
+                                // 过滤掉明显不是文件路径的匹配
+                                if path_str.contains('.') || path_str.contains('/') {
+                                    // 移除引号
+                                    let clean_path = path_str.trim_matches('"').trim_matches('\'').trim();
+                                    if !clean_path.is_empty() && clean_path.len() < 200 {
+                                        extracted_paths.insert(clean_path.to_string());
                                     }
-                                } else {
-                                    "Error: missing rel_path parameter".to_string()
                                 }
                             }
-                            "agent_batch_read" => {
-                                if let Some(paths) = args_value["paths"].as_array() {
-                                    let full_paths: Vec<PathBuf> = paths.iter()
-                                        .filter_map(|p| p.as_str())
-                                        .map(|p| PathBuf::from(root).join(p))
-                                        .collect();
+                        }
+                    }
+                }
 
-                                    let results = file_cache::cached_read_files(&full_paths);
-                                    let json_results: Vec<serde_json::Value> = results.iter().enumerate().map(|(i, r)| {
-                                        match r {
-                                            Ok(content) => serde_json::json!({
-                                                "path": paths[i],
-                                                "status": "success",
-                                                "content": content
-                                            }),
-                                            Err(e) => serde_json::json!({
-                                                "path": paths[i],
-                                                "status": "error",
-                                                "error": e
-                                            })
-                                        }
-                                    }).collect();
-                                    serde_json::to_string(&json_results).unwrap_or_default()
-                                } else {
-                                    "Error: missing paths parameter".to_string()
-                                }
+                // 将 HashSet 转换为 Vec 并排序
+                let mut paths: Vec<String> = extracted_paths.into_iter().collect();
+                paths.sort();
+
+                if !paths.is_empty() {
+                    let path_count = paths.len();
+                    println!("[AgentStream] Hybrid mode: extracted {} file paths: {:?}", path_count, paths);
+
+                    // 读取所有文件（使用缓存）
+                    // 构建文件内容摘要
+                    let mut file_contents = Vec::new();
+                    for path in paths {
+                        let full_path = PathBuf::from(root).join(&path);
+
+                        // 添加详细路径日志
+                        println!("[AgentStream] Hybrid: project_root={}, rel_path={}, full_path={}",
+                            root, path, full_path.display());
+
+                        match file_cache::cached_read_file(&full_path) {
+                            Ok(content) => {
+                                println!("[AgentStream] Hybrid: read file from cache: {} ({} bytes)", path, content.len());
+                                file_contents.push((path, content));
                             }
-                            _ => format!("Tool {} not supported in hybrid mode", tool_name)
-                        };
-
-                        // 将工具结果添加到消息历史
-                        messages_with_tools.push(Message {
-                            role: "tool".to_string(),
-                            content: Content::Text(tool_result),
-                            tool_calls: None,
-                            tool_call_id: Some(format!("hybrid_{}", uuid::Uuid::new_v4())),
-                        });
-
-                        println!("[AgentStream] Hybrid: tool result added to message history");
+                            Err(e) => {
+                                println!("[AgentStream] Hybrid: file not found or error: {} - {}", path, e);
+                                println!("[AgentStream] Hybrid: tried path: {}", full_path.display());
+                                // 检查文件是否真的存在
+                                if full_path.exists() {
+                                    println!("[AgentStream] Hybrid: file exists but read failed");
+                                } else {
+                                    println!("[AgentStream] Hybrid: file does not exist at path");
+                                }
+                                file_contents.push((path.clone(), format!("Error: File not found at {}", full_path.display())));
+                            }
+                        }
                     }
 
-                    println!("[AgentStream] Hybrid mode: completed local tool execution, forwarding to cloud API");
+                    // 将文件内容作为 system 消息添加（在用户消息之前）
+                    let context_message = format!(
+                        "The following files have been read for context:\n{}",
+                        file_contents.iter()
+                            .map(|(path, content)| {
+                                // 限制每个文件最多 10000 字符
+                                let truncated = if content.len() > 10000 {
+                                    format!("{}...\n[truncated, total {} chars]", content.chars().take(10000).collect::<String>(), content.len())
+                                } else {
+                                    content.clone()
+                                };
+                                format!("File: {}\n```\n{}\n```", path, truncated)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n\n")
+                    );
+
+                    // 在消息历史开头插入 system 消息
+                    messages_with_tools.insert(0, Message {
+                        role: "system".to_string(),
+                        content: Content::Text(context_message),
+                        tool_calls: None,
+                        tool_call_id: None,
+                    });
+
+                    println!("[AgentStream] Hybrid mode: completed local file reading, added {} files as system context", path_count);
+                } else {
+                    println!("[AgentStream] Hybrid mode: no file paths found in message, falling back to cloud-only");
                 }
             }
         }
