@@ -294,71 +294,21 @@ pub fn get_system_info() -> SystemInfo {
     }
 }
 
-/// 本地模型聊天
+/// 本地模型聊天（已弃用 - 直接返回错误提示）
 #[cfg(feature = "commercial")]
 #[tauri::command]
 pub async fn local_model_chat(
-    messages: Vec<crate::core_traits::ai::Message>,
-    event_id: String,
-    app: AppHandle,
+    _messages: Vec<crate::core_traits::ai::Message>,
+    _event_id: String,
+    _app: AppHandle,
 ) -> Result<crate::core_traits::ai::Message, String> {
-    use ifainew_core::local_llm::{LocalLLMEngine, ChatMessage};
-
-    // 转换消息格式
-    let chat_messages: Vec<ChatMessage> = messages
-        .iter()
-        .map(|m| ChatMessage {
-            role: m.role.clone(),
-            content: extract_text_content(&m.content),
-        })
-        .collect();
-
-    // 创建推理引擎（实际应用中应该缓存）
-    let engine = LocalLLMEngine::with_default_config()
-        .map_err(|e| format!("Failed to create LLM engine: {}", e))?;
-
-    // 执行推理
-    let response = engine
-        .generate(&chat_messages)
-        .map_err(|e| format!("Inference failed: {}", e))?;
-
-    // 解析工具调用
-    use ifainew_core::local_llm::ToolCallParser;
-    let tool_calls = ToolCallParser::parse(&response);
-
-    // 构建返回消息
-    let content = if tool_calls.is_empty() {
-        crate::core_traits::ai::Content::Text(response.clone())
-    } else {
-        crate::core_traits::ai::Content::Parts(vec![
-            crate::core_traits::ai::ContentPart::Text {
-                text: response,
-                part_type: "text".to_string(),
-            },
-        ])
-    };
-
-    let message = crate::core_traits::ai::Message {
-        role: "assistant".to_string(),
-        content,
-        tool_calls: if tool_calls.is_empty() {
-            None
-        } else {
-            Some(tool_calls.into_iter().map(|tc| {
-                crate::core_traits::ai::ToolCall {
-                    id: format!("call_{}", uuid::Uuid::new_v4()),
-                    r#type: "function".to_string(),
-                    function: crate::core_traits::ai::FunctionCall {
-                        name: tc.name,
-                        arguments: serde_json::to_string(&tc.arguments).unwrap_or_default(),
-                    },
-                }
-            }).collect())
-        },
-        tool_call_id: None,
-    };
-
-    Ok(message)
+    Err(
+        "本地推理功能已简化。\n\n\
+         当前系统支持：\n\
+         - 工具调用本地解析（agent_read_file 等）\n\
+         - 简单问答转发云端 API\n\n\
+         请使用 'local_model_preprocess' 命令进行智能路由。".to_string()
+    )
 }
 
 /// 社区版：返回提示信息
@@ -370,16 +320,11 @@ pub async fn local_model_chat(
     _app: AppHandle,
 ) -> Result<crate::core_traits::ai::Message, String> {
     Err(
-        "本地推理功能需要商业版授权。\n\n\
-         当前社区版支持：\n\
-         - 模型文件验证\n\
-         - 模型信息查看\n\
-         - 工具调用解析测试\n\n\
-         商业版功能：\n\
-         - 纯 Rust 本地推理（llm crate）\n\
-         - 工具调用自动解析\n\
-         - 流式生成\n\
-         - Agent 集成".to_string()
+        "本地推理功能已简化。\n\n\
+         当前系统支持：\n\
+         - 工具调用本地解析（agent_read_file 等）\n\
+         - 简单问答转发云端 API\n\n\
+         请使用 'local_model_preprocess' 命令进行智能路由。".to_string()
     )
 }
 
@@ -739,11 +684,19 @@ pub async fn local_model_preprocess(
 ) -> Result<PreprocessResult, String> {
     use crate::intelligence_router::{IntelligenceRouter, extract_text_content as router_extract_text};
 
+    println!("[LocalModel] ===== Preprocess Start =====");
+    println!("[LocalModel] Messages count: {}", messages.len());
+
     // 检查模型是否可用
     let config = LocalModelConfig::default();
     let model_exists = config.model_path.exists();
+    let model_enabled = config.enabled;
+
+    println!("[LocalModel] Model exists: {}, enabled: {}", model_exists, model_enabled);
+    println!("[LocalModel] Model path: {}", config.model_path.display());
 
     if !model_exists {
+        println!("[LocalModel] ❌ Model file not found, routing to cloud");
         return Ok(PreprocessResult {
             should_use_local: false,
             has_tool_calls: false,
@@ -756,17 +709,20 @@ pub async fn local_model_preprocess(
     // 创建路由器并决策
     let router = IntelligenceRouter::new();
     router.set_local_available(true).await;
-    router.set_local_enabled(config.enabled).await;
+    router.set_local_enabled(model_enabled).await;
 
     let decision = router.decide_route(&messages).await;
+    println!("[LocalModel] Route decision: {:?}", decision);
 
     match decision {
         crate::intelligence_router::RouteDecision::Local { reason } => {
             // 使用本地模型
+            println!("[LocalModel] ✅ Route: Local - {}", reason);
             process_with_local_model(messages, reason).await
         }
         crate::intelligence_router::RouteDecision::Cloud { reason } => {
             // 转发云端
+            println!("[LocalModel] ☁️ Route: Cloud - {}", reason);
             Ok(PreprocessResult {
                 should_use_local: false,
                 has_tool_calls: false,
@@ -777,17 +733,18 @@ pub async fn local_model_preprocess(
         }
         crate::intelligence_router::RouteDecision::Hybrid { reason } => {
             // 混合模式：尝试解析工具调用
+            println!("[LocalModel] 🔄 Route: Hybrid - {}", reason);
             try_parse_tool_calls(messages, reason).await
         }
     }
 }
 
-/// 使用本地模型处理
+/// 使用本地模型处理（直接调用工具解析）
 async fn process_with_local_model(
     messages: Vec<crate::core_traits::ai::Message>,
     reason: String,
 ) -> Result<PreprocessResult, String> {
-    // 尝试解析工具调用
+    // 直接调用工具解析（无本地推理）
     try_parse_tool_calls(messages, reason).await
 }
 
@@ -804,12 +761,14 @@ async fn try_parse_tool_calls(
         .ok_or("No user message found")?;
 
     let text = extract_text_content(&user_message.content);
+    println!("[LocalModel] User input: '{}'", text.chars().take(50).collect::<String>());
 
     // 使用正则表达式解析工具调用
     let tool_calls = test_tool_parse(text.clone());
 
     if !tool_calls.is_empty() {
-        // 解析到工具调用
+        // 解析到工具调用，直接返回（本地执行）
+        println!("[LocalModel] ✅ Parsed {} tool calls", tool_calls.len());
         Ok(PreprocessResult {
             should_use_local: true,
             has_tool_calls: true,
@@ -818,9 +777,8 @@ async fn try_parse_tool_calls(
             route_reason: format!("{} - 解析到 {} 个工具调用", reason, tool_calls.len()),
         })
     } else {
-        // 没有工具调用，检查是否是简单问答
-        // TODO: 实际调用本地模型生成回复
-        // 目前先返回需要使用云端
+        // 无工具调用，转发到云端 API
+        println!("[LocalModel] No tool calls, routing to cloud API");
         Ok(PreprocessResult {
             should_use_local: false,
             has_tool_calls: false,

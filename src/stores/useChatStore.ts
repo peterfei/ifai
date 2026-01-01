@@ -395,6 +395,104 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         }
     }
 
+    // --- Local Model Preprocessing (Simple Q&A) ---
+    // Check if local model should handle this request
+    // Get current messages for preprocessing
+    const allCurrentMessages = coreUseChatStore.getState().messages;
+
+    try {
+        // Prepare simplified message history for local model (last 10 messages)
+        const messagesForLocal = allCurrentMessages.slice(-10).map(m => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+        }));
+
+        // Add current user message
+        messagesForLocal.push({
+            role: 'user',
+            content: textInput
+        });
+
+        const preprocessResult = await invoke<any>('local_model_preprocess', {
+            messages: messagesForLocal
+        });
+
+        console.log('[LocalModel] Preprocess result:', preprocessResult);
+
+        // If local model can handle this
+        if (preprocessResult.should_use_local) {
+            const { addMessage } = coreUseChatStore.getState();
+
+            // Add user message
+            const userMsgId = crypto.randomUUID();
+            addMessage({
+                id: userMsgId,
+                role: 'user',
+                content: textInput,
+                multiModalContent: typeof content === 'string' ? [{type: 'text', text: content}] : content
+            });
+
+            // If tool calls were parsed locally
+            if (preprocessResult.has_tool_calls && preprocessResult.tool_calls.length > 0) {
+                const assistantMsgId = crypto.randomUUID();
+
+                // Convert local tool calls to our format
+                const toolCalls = preprocessResult.tool_calls.map((tc: any) => ({
+                    id: crypto.randomUUID(),
+                    type: 'function' as const,
+                    tool: tc.name,
+                    args: tc.arguments,
+                    function: {
+                        name: tc.name,
+                        arguments: JSON.stringify(tc.arguments)
+                    },
+                    status: 'pending' as const
+                }));
+
+                addMessage({
+                    id: assistantMsgId,
+                    role: 'assistant',
+                    content: '',
+                    toolCalls
+                });
+
+                // Save thread
+                const finalMessages = coreUseChatStore.getState().messages;
+                const currentThreadId = useThreadStore.getState().activeThreadId;
+                if (currentThreadId) {
+                    setThreadMessages(currentThreadId, [...finalMessages]);
+                }
+
+                // Auto-approve tool calls
+                for (const tc of toolCalls) {
+                    await coreUseChatStore.getState().approveToolCall(assistantMsgId, tc.id);
+                }
+                return;
+            }
+            // If local response available (simple Q&A)
+            else if (preprocessResult.local_response) {
+                addMessage({
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    content: `🤖 **本地模型回复**\n\n${preprocessResult.local_response}`
+                });
+
+                // Save thread messages
+                const finalMessages = coreUseChatStore.getState().messages;
+                const currentThreadId = useThreadStore.getState().activeThreadId;
+                if (currentThreadId) {
+                    setThreadMessages(currentThreadId, [...finalMessages]);
+                    useThreadStore.getState().updateThreadTimestamp(currentThreadId);
+                    useThreadStore.getState().incrementMessageCount(currentThreadId);
+                }
+                return;
+            }
+        }
+    } catch (e) {
+        console.log('[LocalModel] Preprocess failed, falling back to cloud:', e);
+        // Continue to cloud API
+    }
+
     // --- Direct Backend Invocation Logic ---
 
     // 1. Prepare Provider Config

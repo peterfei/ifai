@@ -189,7 +189,7 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, expandedNodes, toggleExpandedNode, setExpandedNodes } = useFileStore();
+  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, expandedNodes, toggleExpandedNode, setExpandedNodes, openedFiles, setActiveFile } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -284,9 +284,24 @@ export const FileTree = () => {
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle if context menu is open or input is focused
-      if (contextMenu.node || document.activeElement instanceof HTMLInputElement) {
+      // Don't handle if context menu is open or input/textarea is focused
+      if (contextMenu.node) {
         return;
+      }
+
+      // Check if focus is in an editable element (Monaco Editor, textarea, input, etc.)
+      const activeElement = document.activeElement;
+      if (activeElement) {
+        const isEditable =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement.getAttribute('contenteditable') === 'true' ||
+          activeElement.classList.contains('monaco-mouse-cursor-text') ||
+          activeElement.closest('.monaco-editor') !== null;
+
+        if (isEditable) {
+          return; // Don't intercept keyboard events when editing
+        }
       }
 
       if (!fileTree || visibleNodes.length === 0) return;
@@ -376,6 +391,19 @@ export const FileTree = () => {
       toggleExpandedNode(node.id);
     } else {
       try {
+        // Check if file is already open and not dirty
+        const existingFile = openedFiles.find(f => f.path === node.path);
+        if (existingFile && !existingFile.isDirty) {
+          // File already open and clean, just activate it
+          const fileId = existingFile.id;
+          setActiveFile(fileId);
+          if (activePaneId) {
+            assignFileToPane(activePaneId, fileId);
+          }
+          return;
+        }
+
+        // File not open or dirty, need to read content
         const content = await readFileContent(node.path);
         const openedId = openFile({
           id: node.id,

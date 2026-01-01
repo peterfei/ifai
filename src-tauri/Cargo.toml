@@ -8,8 +8,8 @@ edition = "2021"
 [features]
 default = ["community"]
 community = []
-commercial = ["ifainew-core"]
-local-llm = ["ifainew-core/llm-inference"]  # Enable local LLM inference
+commercial = ["ifainew-core"]  # Enable ifainew-core integration
+local-llm = ["ifainew-core"]  # Standalone local LLM support (tool parsing only)
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

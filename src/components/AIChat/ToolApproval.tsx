@@ -470,7 +470,12 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
 
             {/* Result */}
             {toolCall.status === 'completed' && toolCall.result && (() => {
-                const fileListing = isFileListing(toolCall.result);
+                // Ensure result is a string for display
+                const resultStr = typeof toolCall.result === 'string'
+                    ? toolCall.result
+                    : JSON.stringify(toolCall.result);
+
+                const fileListing = isFileListing(resultStr);
                 if (fileListing) {
                     return (
                         <div className="p-2 border-t border-gray-700 bg-green-900/10">
@@ -484,14 +489,14 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                 return (
                     <div className="p-2 border-t border-gray-700 bg-green-900/10 text-xs text-green-300">
                         <span className="font-medium">结果: </span>
-                        <span className="break-all">{toolCall.result}</span>
+                        <span className="break-all whitespace-pre-wrap">{resultStr}</span>
                     </div>
                 );
             })()}
             {toolCall.status === 'failed' && toolCall.result && (
                 <div className="p-2 border-t border-gray-700 bg-red-900/10 text-xs text-red-300">
                     <span className="font-medium">错误: </span>
-                    <span className="break-all">{toolCall.result}</span>
+                    <span className="break-all">{typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result)}</span>
                 </div>
             )}
         </div>

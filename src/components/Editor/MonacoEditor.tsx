@@ -86,6 +86,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
         // Convert to backend format
         const backendProviderConfig = {
+          id: currentProvider.id,
           provider: currentProvider.protocol,
           api_key: currentProvider.apiKey,
           base_url: currentProvider.baseUrl,
@@ -140,7 +141,18 @@ ${textBefore}[CURSOR]${textAfter}
           return { items: [] };
         }
       },
-      freeInlineCompletions(completions) {}
+      handleItemDidShow: (completions, item) => {
+        // Called when an inline completion item is shown to the user
+        // Can be used for analytics or tracking
+      },
+      freeInlineCompletions: (completions) => {
+        // Called when completions are no longer needed
+        // Can be used for cleanup
+      },
+      // Additional method for Monaco's internal disposal
+      disposeInlineCompletions: (completions, reason) => {
+        // Handle Monaco's internal disposal
+      }
     });
 
     // Add Inline Edit Command (Cmd+K)
@@ -169,31 +181,53 @@ ${textBefore}[CURSOR]${textAfter}
   };
 
   const theme = useEditorStore(state => state.theme);
-  const settings = useSettingsStore(); // Settings are stable enough, but could also be selected
+  // Select only specific settings to avoid unnecessary re-renders
+  const showMinimap = useSettingsStore(state => state.showMinimap);
+  const fontSize = useSettingsStore(state => state.fontSize);
+  const fontFamily = useSettingsStore(state => state.fontFamily);
+  const lineHeight = useSettingsStore(state => state.lineHeight);
+  const fontLigatures = useSettingsStore(state => state.fontLigatures);
+  const cursorBlinking = useSettingsStore(state => state.cursorBlinking);
+  const cursorSmoothCaretAnimation = useSettingsStore(state => state.cursorSmoothCaretAnimation);
+  const smoothScrolling = useSettingsStore(state => state.smoothScrolling);
+  const bracketPairColorization = useSettingsStore(state => state.bracketPairColorization);
+  const renderWhitespace = useSettingsStore(state => state.renderWhitespace);
+  const showLineNumbers = useSettingsStore(state => state.showLineNumbers);
+  const tabSize = useSettingsStore(state => state.tabSize);
+  const wordWrap = useSettingsStore(state => state.wordWrap);
   const isChatStreaming = useChatStore(state => state.isLoading);
+
+  // Cache file size to avoid re-computing on every keystroke
+  // Only update when file actually changes (not on every character typed)
+  const fileSizeRef = useRef(0);
+  const lastFilePath = useRef(file?.path);
+
+  // Update file size only when file path changes (new file loaded)
+  if (file?.path !== lastFilePath.current) {
+    lastFilePath.current = file?.path;
+    fileSizeRef.current = file?.content?.length || 0;
+  }
 
   // Optimized options based on performance settings and file size
   const getOptimizedOptions = useCallback(() => {
-    const isLargeFile = (file?.content?.length || 0) > 1024 * 1024; // > 1MB as large for optimization
-    const isVeryLargeFile = (file?.content?.length || 0) > 10 * 1024 * 1024; // > 10MB
-    
-    // During chat streaming, we can temporarily disable expensive features to keep the UI responsive
+    const isLargeFile = fileSizeRef.current > 1024 * 1024; // > 1MB as large for optimization
+    const isVeryLargeFile = fileSizeRef.current > 10 * 1024 * 1024; // > 10MB
     const isGenerating = isChatStreaming;
 
     const baseOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
-      minimap: { enabled: settings.showMinimap && !isVeryLargeFile && !isGenerating },
-      fontSize: settings.fontSize,
-      fontFamily: settings.fontFamily,
-      lineHeight: settings.lineHeight,
-      fontLigatures: settings.fontLigatures,
-      cursorBlinking: isGenerating ? 'solid' : settings.cursorBlinking,
-      cursorSmoothCaretAnimation: isGenerating ? 'off' : settings.cursorSmoothCaretAnimation,
-      smoothScrolling: settings.smoothScrolling,
-      bracketPairColorization: { enabled: settings.bracketPairColorization && !isLargeFile && !isGenerating },
-      renderWhitespace: isGenerating ? 'none' : settings.renderWhitespace,
-      lineNumbers: settings.showLineNumbers ? 'on' : 'off',
-      tabSize: settings.tabSize,
-      wordWrap: isVeryLargeFile ? 'off' : settings.wordWrap,
+      minimap: { enabled: showMinimap && !isVeryLargeFile && !isGenerating },
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+      lineHeight: lineHeight,
+      fontLigatures: fontLigatures,
+      cursorBlinking: isGenerating ? 'solid' : cursorBlinking,
+      cursorSmoothCaretAnimation: isGenerating ? 'off' : cursorSmoothCaretAnimation,
+      smoothScrolling: smoothScrolling,
+      bracketPairColorization: { enabled: bracketPairColorization && !isLargeFile && !isGenerating },
+      renderWhitespace: isGenerating ? 'none' : renderWhitespace,
+      lineNumbers: showLineNumbers ? 'on' : 'off',
+      tabSize: tabSize,
+      wordWrap: isVeryLargeFile ? 'off' : wordWrap,
       scrollBeyondLastLine: false,
       automaticLayout: true,
       multiCursorModifier: 'ctrlCmd',
@@ -222,20 +256,19 @@ ${textBefore}[CURSOR]${textAfter}
     };
 
     return baseOptions;
-  }, [settings, file?.content?.length, isChatStreaming]);
+  }, [showMinimap, fontSize, fontFamily, lineHeight, fontLigatures, cursorBlinking, cursorSmoothCaretAnimation, smoothScrolling, bracketPairColorization, renderWhitespace, showLineNumbers, tabSize, wordWrap, isChatStreaming]); // Stable primitive dependencies
 
-  // Force update editor content when file changes (fix for tab switching issue)
+  // Update editor content when file changes (without remounting)
   useEffect(() => {
     const editor = getEditorInstance(paneId);
     if (editor && file) {
-        const currentContent = editor.getValue();
-        if (currentContent !== file.content) {
-            // Use executeEdits to preserve undo stack if needed, or setValue for full replacement
-            // For tab switching, setValue is safer to ensure exact state match
-            editor.setValue(file.content || '');
-        }
+      const currentValue = editor.getValue();
+      // Only update if content is different (avoid overwriting user edits)
+      if (currentValue !== (file.content || '')) {
+        editor.setValue(file.content || '');
+      }
     }
-  }, [file?.id, file?.content, paneId, getEditorInstance]);
+  }, [file?.id]); // Only re-run when file ID changes (file switch), not content changes
 
   // Jump to initial line when specified (for search results, file tree clicks, etc.)
   useEffect(() => {
@@ -261,10 +294,11 @@ ${textBefore}[CURSOR]${textAfter}
     <div className="relative h-full w-full">
       <Editor
         height="100%"
-        path={file?.path || `untitled-${paneId}`} // Unique key for model caching
+        path={file?.path || `untitled-${paneId}`} // Unique path for model caching
         defaultLanguage={file?.language || 'plaintext'}
         language={file?.language || 'plaintext'}
-        value={file?.content || ''}
+        // Use defaultValue instead of value to avoid controlled component issues
+        defaultValue={file?.content || ''}
         theme={theme}
         onChange={handleChange}
         onMount={handleEditorDidMount}
