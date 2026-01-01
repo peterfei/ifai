@@ -225,7 +225,332 @@ pub async fn agent_stream_chat(
     agent_id: &str,
     tools: Option<Vec<Value>>,
 ) -> Result<Message, String> {
-    eprintln!("[AgentStream] agent_stream_chat called with agent_id: {}, event_name: agent_{}", agent_id, agent_id);
+    agent_stream_chat_with_root(app, config, messages, agent_id, tools, None, None).await
+}
+
+/// Agent streaming chat with local model routing support
+pub async fn agent_stream_chat_with_root(
+    app: &AppHandle,
+    config: &AIProviderConfig,
+    messages: Vec<Message>,
+    agent_id: &str,
+    tools: Option<Vec<Value>>,
+    project_root: Option<String>,
+    agent_type: Option<String>,
+) -> Result<Message, String> {
+    eprintln!("[AgentStream] agent_stream_chat called with agent_id: {}, agent_type: {:?}", agent_id, agent_type);
+
+    // 检查是否是 explore 类型 agent - 特殊处理
+    let is_explore_agent = if let Some(ref at) = agent_type {
+        let at_lower = at.to_lowercase();
+        at_lower.contains("explore") || at_lower.contains("scan")
+    } else {
+        false
+    };
+
+    // 本地模型预处理 - 智能路由决策
+    if let Some(ref root) = project_root {
+        println!("[AgentStream] Checking local model routing... (is_explore_agent: {})", is_explore_agent);
+
+        // 对于 explore agent，如果本地模型可用，直接使用本地工具调用
+        if is_explore_agent {
+            println!("[AgentStream] Explore agent detected, using local tool calls");
+
+            // 获取任务描述（最后一条用户消息）
+            let task_path = messages.iter()
+                .filter(|m| m.role == "user")
+                .last()
+                .and_then(|m| {
+                    if let Content::Text(ref text) = m.content {
+                        Some(text.trim())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(".");
+
+            println!("[AgentStream] Task path: {}", task_path);
+
+            // 执行工具调用 - 使用递归扫描以获取完整目录树
+            use crate::commands::core_wrappers;
+            use std::collections::BTreeMap;
+            let start = std::time::Instant::now();
+
+            // 使用递归扫描，限制深度和文件数量
+            let scan_result = core_wrappers::agent_scan_directory(
+                root.to_string(),
+                task_path.to_string(),
+                None,  // pattern
+                Some(3),  // max_depth - 扫描3层深
+                Some(200)  // max_files - 最多200个文件
+            ).await;
+
+            let tool_result = match scan_result {
+                Ok(json_str) => {
+                    let elapsed = start.elapsed().as_millis();
+
+                    // 解析 JSON 结果
+                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                        let files = data["files"].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()).unwrap_or_default();
+                        let directories = data["directories"].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()).unwrap_or_default();
+
+                        println!("[AgentStream] Scan result: {} files, {} directories", files.len(), directories.len());
+                        if !files.is_empty() {
+                            println!("[AgentStream] First 20 files: {:?}", &files.iter().take(20).collect::<Vec<_>>());
+                        }
+                        if !directories.is_empty() {
+                            println!("[AgentStream] All directories: {:?}", directories);
+                        }
+
+                        // 常见的忽略模式（目录和文件）
+                        let ignore_dirs = [
+                            "node_modules", ".git", "target", "dist", "build",
+                            ".vscode", ".idea", "coverage", ".next", ".nuxt"
+                        ];
+
+                        let ignore_files = [
+                            ".DS_Store", "*.log", ".tsbuildinfo"
+                        ];
+
+                        // 检查是否应该忽略目录
+                        let should_ignore_dir = |dir: &str| -> bool {
+                            for pattern in &ignore_dirs {
+                                if dir == *pattern || dir.starts_with(&format!("{}/", pattern)) {
+                                    return true;
+                                }
+                            }
+                            false
+                        };
+
+                        // 检查是否应该忽略文件
+                        let should_ignore_file = |file: &str| -> bool {
+                            // 首先检查文件路径中是否包含忽略的目录
+                            for ignore_dir in &ignore_dirs {
+                                if file.starts_with(&format!("{}/", ignore_dir)) ||
+                                   file.contains(&format!("/{}/", ignore_dir)) {
+                                    return true;
+                                }
+                            }
+
+                            // 然后检查文件名模式
+                            for pattern in &ignore_files {
+                                if pattern.starts_with('*') {
+                                    if file.ends_with(&pattern[1..]) {
+                                        return true;
+                                    }
+                                } else {
+                                    if file == *pattern || file.ends_with(&format!("/{}", pattern)) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            false
+                        };
+
+                        // 过滤目录
+                        let filtered_dirs: Vec<&str> = directories.iter().filter(|d| !should_ignore_dir(d)).cloned().collect();
+
+                        // 过滤文件 - 添加详细日志
+                        let mut ignored_count = 0;
+                        let mut kept_count = 0;
+                        let filtered_files: Vec<&str> = files.iter().filter(|f| {
+                            let ignored = should_ignore_file(f);
+                            if ignored {
+                                ignored_count += 1;
+                                if ignored_count <= 5 {
+                                    println!("[AgentStream] Filtered file: {}", f);
+                                }
+                            } else {
+                                kept_count += 1;
+                                if kept_count <= 5 {
+                                    println!("[AgentStream] Kept file: {}", f);
+                                }
+                            }
+                            !ignored
+                        }).cloned().collect();
+
+                        println!("[AgentStream] After filtering: {} files kept, {} ignored (out of {} total), {} directories",
+                            kept_count, ignored_count, files.len(), filtered_dirs.len());
+
+                        // 按目录分组文件
+                        let mut dir_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+                        let mut root_files: Vec<String> = Vec::new();
+
+                        for entry in &filtered_files {
+                            if entry.contains('/') {
+                                let parts: Vec<&str> = entry.split('/').collect();
+                                if parts.len() > 1 {
+                                    let dir = parts[0].to_string();
+                                    // 只添加非忽略的目录
+                                    if !should_ignore_dir(&dir) {
+                                        let file = parts[1..].join("/");
+                                        dir_map.entry(dir).or_default().push(file.to_string());
+                                    }
+                                } else {
+                                    root_files.push(entry.to_string());
+                                }
+                            } else {
+                                root_files.push(entry.to_string());
+                            }
+                        }
+
+                        // 构建树状结构输出 - 工业级格式
+                        let mut tree_output = String::new();
+
+                        // 先输出根目录文件
+                        for file in &root_files {
+                            tree_output.push_str(&format!("├── {}\n", file));
+                        }
+
+                        // 输出目录和文件
+                        for (dir, files) in &dir_map {
+                            if !root_files.is_empty() {
+                                tree_output.push_str(&format!("│\n├── {}/\n", dir));
+                                for (idx, file) in files.iter().enumerate() {
+                                    if idx == files.len() - 1 {
+                                        tree_output.push_str(&format!("│   └── {}\n", file));
+                                    } else {
+                                        tree_output.push_str(&format!("│   ├── {}\n", file));
+                                    }
+                                }
+                            } else {
+                                tree_output.push_str(&format!("├── {}/\n", dir));
+                                for (idx, file) in files.iter().enumerate() {
+                                    if idx == files.len() - 1 {
+                                        tree_output.push_str(&format!("│   └── {}\n", file));
+                                    } else {
+                                        tree_output.push_str(&format!("│   ├── {}\n", file));
+                                    }
+                                }
+                            }
+                        }
+
+                        // 统计实际显示的文件数
+                        let visible_count = root_files.len() + dir_map.values().map(|v| v.len()).sum::<usize>();
+
+                        // 闭合树结构
+                        if visible_count > 0 {
+                            tree_output.push_str("│\n└── \n");
+                        } else {
+                            tree_output.push_str("(empty directory - all files filtered)\n");
+                        }
+
+                        // 使用代码块格式以保持渲染，添加元数据供前端 i18n
+                        format!("```\n{}\n```\n\n__SCAN_RESULT__{}|{}", tree_output, visible_count, elapsed)
+                    } else {
+                        format!("Error: Failed to parse scan result ({}ms)", elapsed)
+                    }
+                }
+                Err(e) => {
+                    let elapsed = start.elapsed().as_millis();
+                    format!("Error: {} ({}ms)", e, elapsed)
+                }
+            };
+
+            // 发送工具结果事件
+            let _ = app.emit(&format!("agent_{}", agent_id), json!({
+                "type": "content",
+                "content": tool_result.clone(),
+                "metadata": {
+                    "source": "local_model",
+                    "agent_type": "explore",
+                    "execution_time_ms": start.elapsed().as_millis()
+                }
+            }));
+
+            // 返回纯文本的 Message，不带 tool_calls
+            println!("[AgentStream] Local explore completed in {}ms", start.elapsed().as_millis());
+            return Ok(Message {
+                role: "assistant".to_string(),
+                content: Content::Text(tool_result),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+
+        match crate::local_model::local_model_preprocess(messages.clone()).await {
+            Ok(result) => {
+                println!("[AgentStream] Local Model Preprocess:");
+                println!("  - should_use_local: {}", result.should_use_local);
+                println!("  - has_tool_calls: {}", result.has_tool_calls);
+                println!("  - tool_calls: {:?}", result.tool_calls.iter().map(|t| &t.name).collect::<Vec<_>>());
+                println!("  - route_reason: {}", result.route_reason);
+
+                // 如果本地可以处理工具调用
+                if result.should_use_local && result.has_tool_calls {
+                    println!("[AgentStream] Executing {} tool calls locally", result.tool_calls.len());
+
+                    // 执行工具调用并构造返回的 Message
+                    let mut tool_calls_vec = Vec::new();
+                    for tool_call in result.tool_calls {
+                        println!("[AgentStream] Executing tool: {}", tool_call.name);
+
+                        // 构建参数 JSON
+                        let args_json = serde_json::to_string(&tool_call.arguments)
+                            .unwrap_or_else(|_| "{}".to_string());
+                        let args_value: serde_json::Value = serde_json::from_str(&args_json)
+                            .unwrap_or_else(|_| serde_json::json!({}));
+
+                        // 执行工具调用 - 直接调用 core_wrappers
+                        use crate::commands::core_wrappers;
+                        let tool_result = match tool_call.name.as_str() {
+                            "agent_read_file" => {
+                                let rel_path = args_value["rel_path"].as_str().unwrap_or("");
+                                core_wrappers::agent_read_file(root.to_string(), rel_path.to_string()).await
+                                    .unwrap_or_else(|e| format!("错误: {}", e))
+                            }
+                            "agent_list_dir" => {
+                                let rel_path = args_value["rel_path"].as_str().unwrap_or(".");
+                                match core_wrappers::agent_list_dir(root.to_string(), rel_path.to_string()).await {
+                                    Ok(entries) => entries.join("\n"),
+                                    Err(e) => format!("错误: {}", e)
+                                }
+                            }
+                            "agent_write_file" => {
+                                let rel_path = args_value["rel_path"].as_str().unwrap_or("");
+                                let content = args_value["content"].as_str().unwrap_or("");
+                                core_wrappers::agent_write_file(root.to_string(), rel_path.to_string(), content.to_string()).await
+                                    .unwrap_or_else(|e| format!("错误: {}", e))
+                            }
+                            _ => format!("未知的工具: {}", tool_call.name)
+                        };
+
+                        // 发送工具结果事件
+                        let _ = app.emit(&format!("agent_{}", agent_id), json!({
+                            "type": "tool-result",
+                            "tool_name": tool_call.name,
+                            "result": tool_result
+                        }));
+
+                        // 构造 ToolCall
+                        tool_calls_vec.push(crate::core_traits::ai::ToolCall {
+                            id: format!("call_{}", uuid::Uuid::new_v4()),
+                            r#type: "function".to_string(),
+                            function: crate::core_traits::ai::FunctionCall {
+                                name: tool_call.name,
+                                arguments: args_json,
+                            },
+                        });
+                    }
+
+                    // 返回带有工具调用的 Message
+                    println!("[AgentStream] Local tool execution completed, returning Message with tool calls");
+                    return Ok(Message {
+                        role: "assistant".to_string(),
+                        content: Content::Text(format!("已执行 {} 个工具调用", tool_calls_vec.len())),
+                        tool_calls: if tool_calls_vec.is_empty() { None } else { Some(tool_calls_vec) },
+                        tool_call_id: None,
+                    });
+                }
+            }
+            Err(e) => {
+                eprintln!("[AgentStream] Local model preprocess failed: {}, falling back to cloud", e);
+            }
+        }
+    }
+
+    // 调用云端 API
+    eprintln!("[AgentStream] Using cloud API");
     // ... (rest of implementation)
     // 1. Sanitize messages
     let mut clean_messages = messages.clone();

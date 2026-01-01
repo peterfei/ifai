@@ -182,6 +182,7 @@
   },
   "commands": {
     "title": "系统命令",
+    "scanResult": "扫描 {{count}} 项 ({{time}}ms)",
     "explore": { "label": "代码探索", "description": "深度代码库搜索与上下文分析" },
     "review": { "label": "代码审查", "description": "审查代码质量、安全与最佳实践" },
     "test": { "label": "测试生成", "description": "自动生成单元测试与集成案例" },

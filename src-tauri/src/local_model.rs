@@ -58,11 +58,12 @@ pub struct LocalModelConfig {
 impl Default for LocalModelConfig {
     fn default() -> Self {
         let model_path = Self::default_model_path();
+        let model_exists = model_path.exists();
 
         Self {
             model_name: "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string(),
             model_path,
-            enabled: false,  // 默认禁用，需要用户手动启用
+            enabled: model_exists,  // 如果模型文件存在则自动启用
             max_seq_length: 2048,
             temperature: 0.6,
             top_p: 0.9,
@@ -179,15 +180,15 @@ pub struct ModelDownloadConfig {
 
 impl Default for ModelDownloadConfig {
     fn default() -> Self {
+        // 开发环境使用本地测试服务器
+        // 生产环境应替换为实际的模型下载 URL
+        let url = if cfg!(debug_assertions) {
+            "http://localhost:8080/model.gguf".to_string()
+        } else {
+            "https://github.com/peterfei/ifai-models/releases/download/v1.0/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string()
+        };
+
         Self {
-            // 开发环境使用本地测试服务器
-            // 生产环境应替换为实际的模型下载 URL
-            #[cfg(debug_assertions)]
-            let url = "http://localhost:8080/model.gguf".to_string();
-
-            #[cfg(not(debug_assertions))]
-            let url = "https://github.com/peterfei/ifai-models/releases/download/v1.0/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string();
-
             url,
             filename: "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string(),
             expected_size: 379 * 1024 * 1024, // 379MB
@@ -401,31 +402,100 @@ fn extract_text_content(content: &crate::core_traits::ai::Content) -> String {
     }
 }
 
-/// 测试工具调用解析（占位符）
+/// 测试工具调用解析（支持多种格式）
 #[tauri::command]
 pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
-    // 使用正则表达式解析工具调用
     use std::collections::HashMap;
 
-    let pattern = regex::Regex::new(r"agent_(\w+)\s*\(\s*([^)]*)\s*\)").unwrap();
     let mut calls = Vec::new();
+    let text_lower = text.to_lowercase();
 
+    // 模式1: agent_xxx(...) 格式
+    let pattern = regex::Regex::new(r"agent_(\w+)\s*\(\s*([^)]*)\s*\)").unwrap();
     for cap in pattern.captures_iter(&text) {
         if let (Some(tool_name), Some(args_str)) = (cap.get(1), cap.get(2)) {
             let mut args = HashMap::new();
-
-            // 解析 key='value' 格式
             let arg_pattern = regex::Regex::new(r#"(\w+)\s*=\s*['\"]([^'\"]*)['\"]"#).unwrap();
             for arg_cap in arg_pattern.captures_iter(args_str.as_str()) {
                 if let (Some(key), Some(value)) = (arg_cap.get(1), arg_cap.get(2)) {
                     args.insert(key.as_str().to_string(), value.as_str().to_string());
                 }
             }
-
             calls.push(ParsedToolCall {
                 name: format!("agent_{}", tool_name.as_str()),
                 arguments: args,
             });
+        }
+    }
+
+    // 如果已经找到工具调用，直接返回
+    if !calls.is_empty() {
+        return calls;
+    }
+
+    // 模式2: 中文自然语言解析
+    // 读取文件: "读取 xxx", "查看 xxx", "打开 xxx", "read xxx"
+    if text_lower.contains("读取") || text_lower.contains("查看") || text_lower.contains("打开") || text_lower.contains("read ") {
+        // 提取文件路径 - 简化版
+        let file_pattern = regex::Regex::new(r"(?:读取|查看|打开)\s+(\S+)").unwrap();
+        if let Some(cap) = file_pattern.captures(&text) {
+            if let Some(path) = cap.get(1) {
+                let mut args = HashMap::new();
+                args.insert("rel_path".to_string(), path.as_str().to_string());
+                calls.push(ParsedToolCall {
+                    name: "agent_read_file".to_string(),
+                    arguments: args,
+                });
+                return calls;
+            }
+        }
+    }
+
+    // 列出目录: "列出", "目录", "文件夹", "list", "dir", "ls"
+    if text_lower.contains("列出") || text_lower.contains("目录") || text_lower.contains("文件夹") ||
+       text_lower.starts_with("list") || text_lower.starts_with("dir") || text_lower.starts_with("ls") {
+        let mut args = HashMap::new();
+        args.insert("rel_path".to_string(), ".".to_string());
+        calls.push(ParsedToolCall {
+            name: "agent_list_dir".to_string(),
+            arguments: args,
+        });
+        return calls;
+    }
+
+    // 写入文件: "写入", "保存", "write", "save"
+    if text_lower.contains("写入") || text_lower.contains("保存") || text_lower.contains("write") || text_lower.contains("save") {
+        // 这里需要更复杂的解析来获取内容和路径，暂时跳过
+        // 因为需要多行内容解析
+    }
+
+    // 模式3: /命令 格式 (如 /explore, /read)
+    if text.starts_with('/') {
+        let cmd_pattern = regex::Regex::new(r"/(\w+)(?:\s+(.+))?$").unwrap();
+        if let Some(cap) = cmd_pattern.captures(&text) {
+            if let Some(cmd) = cap.get(1) {
+                let cmd_str = cmd.as_str();
+                let arg = cap.get(2).map(|m| m.as_str()).unwrap_or(".");
+                match cmd_str {
+                    "explore" | "scan" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_list_dir".to_string(),
+                            arguments: args,
+                        });
+                    }
+                    "read" => {
+                        let mut args = HashMap::new();
+                        args.insert("rel_path".to_string(), arg.to_string());
+                        calls.push(ParsedToolCall {
+                            name: "agent_read_file".to_string(),
+                            arguments: args,
+                        });
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 

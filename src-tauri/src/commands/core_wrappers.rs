@@ -150,6 +150,49 @@ pub async fn agent_scan_directory(
     let max_files = max_files.unwrap_or(500);
     let max_depth = max_depth.unwrap_or(10);
 
+    // Directories to ignore during scan
+    let ignore_dirs = [
+        "node_modules", ".git", "target", "dist", "build",
+        ".vscode", ".idea", "coverage", ".next", ".nuxt",
+        ".venv", "venv", "__pycache__", "node_modules_cache"
+    ];
+
+    // Files to ignore during scan
+    let ignore_files = [
+        ".DS_Store", "*.log", "*.tsbuildinfo"
+    ];
+
+    // Helper to check if a path should be ignored
+    let should_ignore_path = |path: &str, is_dir: bool| -> bool {
+        let path_lower = path.to_lowercase();
+
+        // Check if path is in or contains an ignored directory
+        for ignore_dir in &ignore_dirs {
+            let pattern = format!("/{}/", ignore_dir);
+            if path_lower.contains(&pattern) || path_lower.starts_with(&format!("{}/", ignore_dir)) {
+                return true;
+            }
+        }
+
+        // For files, also check file patterns
+        if !is_dir {
+            for ignore_file in &ignore_files {
+                if ignore_file.starts_with('*') {
+                    let ext = &ignore_file[1..];
+                    if path_lower.ends_with(ext) {
+                        return true;
+                    }
+                } else {
+                    if path.ends_with(ignore_file) || path == *ignore_file {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    };
+
     // Build glob pattern
     let glob_pattern = if let Some(p) = &pattern {
         // Use provided pattern (e.g., "**/*.ts")
@@ -196,8 +239,14 @@ pub async fn agent_scan_directory(
                             continue;
                         }
 
+                        // Skip ignored paths
+                        let is_dir = path.is_dir();
+                        if should_ignore_path(&rel, is_dir) {
+                            continue;
+                        }
+
                         // Check if directory
-                        if path.is_dir() {
+                        if is_dir {
                             directories.push(rel);
                         } else {
                             files.push(rel);

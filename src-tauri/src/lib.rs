@@ -1,4 +1,5 @@
 use tauri::{Emitter, Manager};
+use serde_json::json;
 #[cfg(feature = "commercial")]
 use ifainew_core;
 
@@ -56,6 +57,57 @@ fn should_use_rag(text: &str) -> bool {
     code_keywords.iter().any(|kw| text.contains(kw))
 }
 
+/// 本地工具执行器（兼容社区版和商业版）
+pub async fn execute_local_tool(
+    tool_name: &str,
+    args: &serde_json::Value,
+    project_root: &str,
+) -> String {
+    use crate::commands::core_wrappers;
+
+    println!("[LocalTool] Executing: {} with args: {}", tool_name, args);
+
+    match tool_name {
+        "agent_read_file" => {
+            let rel_path = args["rel_path"].as_str().unwrap_or("");
+            match core_wrappers::agent_read_file(project_root.to_string(), rel_path.to_string()).await {
+                Ok(content) => content,
+                Err(e) => format!("错误: {}", e)
+            }
+        }
+        "agent_list_dir" => {
+            let rel_path = args["rel_path"].as_str().unwrap_or(".");
+            match core_wrappers::agent_list_dir(project_root.to_string(), rel_path.to_string()).await {
+                Ok(entries) => entries.join("\n"),
+                Err(e) => format!("错误: {}", e)
+            }
+        }
+        "agent_write_file" => {
+            let rel_path = args["rel_path"].as_str().unwrap_or("");
+            let content = args["content"].as_str().unwrap_or("");
+            match core_wrappers::agent_write_file(project_root.to_string(), rel_path.to_string(), content.to_string()).await {
+                Ok(_) => "文件写入成功".to_string(),
+                Err(e) => format!("错误: {}", e)
+            }
+        }
+        "agent_batch_read" => {
+            if let Some(paths_array) = args["paths"].as_array() {
+                let paths: Vec<String> = paths_array.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect();
+                core_wrappers::agent_batch_read(project_root.to_string(), paths).await
+                    .unwrap_or_else(|e| format!("错误: {}", e))
+            } else {
+                "错误: 缺少 paths 参数".to_string()
+            }
+        }
+        _ => {
+            format!("未知的工具: {}", tool_name)
+        }
+    }
+}
+
 #[tauri::command]
 async fn ai_chat(
     app: tauri::AppHandle,
@@ -74,7 +126,7 @@ async fn ai_chat(
     ai_utils::sanitize_messages(&mut messages);
     println!("[AI Chat] After sanitize: {} messages", messages.len());
 
-    if let Some(root) = project_root {
+    if let Some(ref root) = project_root {
         let root_clone = root.clone();
 
         // 1. Detect @codebase query or smart RAG trigger
@@ -239,6 +291,137 @@ async fn ai_chat(
     }
 
     ai_utils::sanitize_messages(&mut messages);
+
+    // 本地模型预处理 - 智能路由决策
+    // 先检查是否应该使用本地模型处理
+    let preprocess_result = local_model::local_model_preprocess(messages.clone()).await;
+
+    // 检查是否应该使用本地处理
+    let should_use_local = match &preprocess_result {
+        Ok(result) => {
+            println!("[AI Chat] Local Model Preprocess:");
+            println!("  - should_use_local: {}", result.should_use_local);
+            println!("  - has_tool_calls: {}", result.has_tool_calls);
+            println!("  - tool_calls: {:?}", result.tool_calls.iter().map(|t| &t.name).collect::<Vec<_>>());
+            println!("  - route_reason: {}", result.route_reason);
+
+            // 如果本地模型解析到工具调用，发送路由事件通知前端
+            if result.has_tool_calls {
+                let _ = app.emit("local-model-route", json!({
+                    "type": "tool-calls-detected",
+                    "tool_calls": result.tool_calls,
+                    "reason": result.route_reason
+                }));
+            }
+
+            // 如果本地模型生成了回复，直接返回
+            if let Some(ref response) = result.local_response {
+                println!("[AI Chat] Using local model response");
+                let _ = app.emit(&event_id, json!({
+                    "type": "content",
+                    "content": response
+                }));
+                let _ = app.emit(&event_id, json!({"type": "done"}));
+                return Ok(());
+            }
+
+            // 决定是否使用本地处理
+            result.should_use_local && result.has_tool_calls
+        }
+        Err(e) => {
+            eprintln!("[AI Chat] Local model preprocess failed: {}, falling back to cloud", e);
+            false
+        }
+    };
+
+    // 如果本地可以处理工具调用，执行并返回
+    if should_use_local {
+        println!("[AI Chat] should_use_local is TRUE, checking conditions...");
+        println!("[AI Chat] preprocess_result is Ok: {}", preprocess_result.is_ok());
+        println!("[AI Chat] project_root: {:?}", project_root);
+
+        if let Ok(result) = preprocess_result {
+            println!("[AI Chat] Got preprocess result, {} tool calls", result.tool_calls.len());
+            if let Some(ref root) = project_root {
+                println!("[AI Chat] Executing {} tool calls locally", result.tool_calls.len());
+
+                let overall_start = std::time::Instant::now();
+
+                // 发送开始事件
+                let _ = app.emit(&event_id, json!({
+                    "type": "thinking",
+                    "content": "Executing locally..."
+                }));
+
+                // 执行每个工具调用并收集结果
+                let mut all_results = Vec::new();
+                for (idx, tool_call) in result.tool_calls.iter().enumerate() {
+                    println!("[AI Chat] Executing tool {}/{}: {}", idx + 1, result.tool_calls.len(), tool_call.name);
+
+                    let tool_start = std::time::Instant::now();
+
+                    // 构建参数 JSON
+                    let args_json = serde_json::to_string(&tool_call.arguments)
+                        .unwrap_or_else(|_| "{}".to_string());
+                    let args_value: serde_json::Value = serde_json::from_str(&args_json)
+                        .unwrap_or_else(|_| serde_json::json!({}));
+
+                    // 执行工具调用
+                    let tool_result = execute_local_tool(&tool_call.name, &args_value, root).await;
+                    let elapsed = tool_start.elapsed().as_millis();
+
+                    // 格式化单个工具结果
+                    let formatted_result = format!(
+                        "[OK] {} ({}ms)\n{}",
+                        tool_call.name,
+                        elapsed,
+                        tool_result
+                    );
+                    all_results.push(formatted_result);
+
+                    // 发送工具结果事件
+                    let _ = app.emit(&event_id, json!({
+                        "type": "tool-result",
+                        "tool_name": tool_call.name,
+                        "result": tool_result,
+                        "execution_time_ms": elapsed
+                    }));
+                }
+
+                let total_elapsed = overall_start.elapsed().as_millis();
+
+                // 组合所有结果 - 工业级格式
+                let header = format!("[Local Model] Completed in {}ms\n", total_elapsed);
+                let combined_result = format!("{}{}", header, all_results.join("\n\n"));
+
+                // 发送完成事件
+                let _ = app.emit(&event_id, json!({
+                    "type": "content",
+                    "content": combined_result,
+                    "metadata": {
+                        "source": "local_model",
+                        "tool_count": result.tool_calls.len(),
+                        "execution_time_ms": total_elapsed
+                    }
+                }));
+                let _ = app.emit(&event_id, json!({
+                    "type": "done",
+                    "metadata": {
+                        "source": "local_model"
+                    }
+                }));
+
+                println!("[AI Chat] Local tool execution completed in {}ms", total_elapsed);
+                return Ok(());
+            } else {
+                eprintln!("[AI Chat] No project_root provided, cannot execute local tools");
+            }
+        } else {
+            eprintln!("[AI Chat] Failed to get preprocess result");
+        }
+    } else {
+        println!("[AI Chat] should_use_local is FALSE, falling back to cloud API");
+    }
 
     // 验证至少有一条用户消息
     let has_user_message = messages.iter().any(|m| m.role == "user");

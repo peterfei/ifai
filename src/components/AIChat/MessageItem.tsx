@@ -53,6 +53,18 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
     // Track content length to detect active streaming (more reliable than isStreaming prop)
     const lastContentLengthRef = useRef(message.content.length);
+
+    // Helper to process scan result i18n
+    const processScanResult = useCallback((text: string): string => {
+        const SCAN_RESULT_MARKER = '__SCAN_RESULT__';
+        if (text.includes(SCAN_RESULT_MARKER)) {
+            return text.replace(
+                /__SCAN_RESULT__(\d+)\|(\d+)/g,
+                (match, count, time) => t('commands.scanResult', { count, time })
+            );
+        }
+        return text;
+    }, [t]);
     // FIXED: Use state instead of ref to ensure re-render when streaming state changes
     const [isActivelyStreaming, setIsActivelyStreaming] = useState(false);
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
@@ -167,10 +179,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
     // This provides markdown formatting (bold, lists, etc.) without the performance cost
     const renderMarkdownWithoutHighlight = useCallback((text: string, key: any) => {
+        // Process scan result i18n before rendering
+        const processedText = processScanResult(text);
         return (
             <ReactMarkdown
                 key={key}
-                children={text}
+                children={processedText}
                 components={{
                     p: ({node, ...props}) => <div {...props} className="mb-2 last:mb-0 text-gray-300" />,
                     code({ node, className, children, ...rest }) {
@@ -202,16 +216,19 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 }}
             />
         );
-    }, []);
+    }, [processScanResult]);
 
     // Helper to render ContentPart - using useCallback to ensure fresh isStreaming value
     // NOTE: Streaming detection is now handled at the CALL SITE, not inside this function
     // This function ALWAYS applies formatting (Markdown + syntax highlighting) when called
     const renderContentPart = useCallback((part: ContentPart, index: number) => {
         if (part.type === 'text' && part.text) {
+            // Process scan result i18n before rendering
+            const processedText = processScanResult(part.text);
+
             // PERFORMANCE: After streaming completes, check for code folding
             // to reduce Markdown parsing overhead by ~95% for large content
-            const lines = part.text.split('\n');
+            const lines = processedText.split('\n');
             const MAX_LINES_BEFORE_COLLAPSE = 50;  // Threshold matching v0.2.0
             const shouldCollapseBlock = lines.length > MAX_LINES_BEFORE_COLLAPSE;
 
@@ -219,7 +236,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 // For large content (>50 lines), use folding to reduce parsing cost
                 const isExpanded = expandedBlocksRef.current.has(index);
                 const displayText = isExpanded
-                    ? part.text
+                    ? processedText
                     : lines.slice(0, MAX_LINES_BEFORE_COLLAPSE).join('\n') + '\n... (展开查看全部)';
 
                 return (
@@ -288,7 +305,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             return (
                 <ReactMarkdown
                     key={index}
-                    children={part.text}
+                    children={processedText}
                     components={{
                         p: ({node, ...props}) => <div {...props} className="mb-2 last:mb-0" />,
                         code({ node, className, children, ...rest }) {
@@ -334,7 +351,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             );
         }
         return null;
-    }, [toggleBlock]);  // Only depend on toggleBlock, read isStreaming from ref
+    }, [toggleBlock, processScanResult]);  // Only depend on toggleBlock, read isStreaming from ref
 
 
     return (

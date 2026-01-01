@@ -106,18 +106,23 @@ impl IntelligenceRouter {
         let is_tool_request = self.is_tool_request(&text);
         let is_long_context = estimated_tokens > 4000 || conversation_length > 20;
 
+        // 打印调试信息
+        println!("[Router] text='{}', is_tool_request={}, is_long_context={}, tokens={}, msg_len={}",
+                 text.chars().take(50).collect::<String>(), is_tool_request, is_long_context, estimated_tokens, conversation_length);
+
         match (is_tool_request, is_simple_query, is_long_context) {
-            (_, _, true) => {
-                // 长上下文 - 优先判断
-                TaskComplexity::Complex
-            }
-            (true, _, _) => {
+            // 工具调用优先 - 即使上下文较长也优先使用本地
+            (true, false, _) | (true, true, false) => {
                 // 工具调用请求
                 if estimated_tokens < 2000 {
                     TaskComplexity::Simple
                 } else {
                     TaskComplexity::Medium
                 }
+            }
+            (_, _, true) => {
+                // 长上下文但没有工具请求
+                TaskComplexity::Complex
             }
             (false, true, false) => {
                 // 简单问答且上下文不长
@@ -193,15 +198,24 @@ impl IntelligenceRouter {
 
     /// 判断是否是工具调用请求
     fn is_tool_request(&self, text: &str) -> bool {
+        let text_lower = text.to_lowercase();
+
+        // 检查命令格式：/explore, /read, /scan 等
+        if text.starts_with('/') {
+            return true;
+        }
+
         // 检查明确的工具调用关键词
         let tool_keywords = [
             "读取", "写入", "创建", "删除", "搜索", "查找",
             "read", "write", "create", "delete", "search", "find",
             "打开", "关闭", "列出", "显示",
             "open", "close", "list", "show",
+            // 添加更多关键词
+            "explore", "scan", "查看", "目录", "文件",
+            "文件", "folder", "dir", "ls",
         ];
 
-        let text_lower = text.to_lowercase();
         tool_keywords.iter().any(|kw| text_lower.contains(kw))
     }
 }

@@ -140,7 +140,15 @@ pub async fn run_agent_task(
         let _ = app.emit(&event_id, json!({ "type": "status", "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
         let _ = app.emit(&event_id, json!({ "type": "log", "message": "Thinking..." }));
 
-        match ai_utils::agent_stream_chat(&app, &context.provider_config, history.clone(), &id, Some(tools.clone())).await {
+        match ai_utils::agent_stream_chat_with_root(
+            &app,
+            &context.provider_config,
+            history.clone(),
+            &id,
+            Some(tools.clone()),
+            Some(context.project_root.clone()),
+            Some(agent_type.clone())
+        ).await {
             Ok(ai_message) => {
                 if let Content::Text(ref text) = ai_message.content {
                     if !text.is_empty() {
