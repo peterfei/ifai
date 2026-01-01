@@ -180,8 +180,15 @@ pub struct ModelDownloadConfig {
 impl Default for ModelDownloadConfig {
     fn default() -> Self {
         Self {
-            // 默认使用本地测试服务器
-            url: "http://localhost:8080/model.gguf".to_string(),
+            // 开发环境使用本地测试服务器
+            // 生产环境应替换为实际的模型下载 URL
+            #[cfg(debug_assertions)]
+            let url = "http://localhost:8080/model.gguf".to_string();
+
+            #[cfg(not(debug_assertions))]
+            let url = "https://github.com/peterfei/ifai-models/releases/download/v1.0/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string();
+
+            url,
             filename: "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string(),
             expected_size: 379 * 1024 * 1024, // 379MB
             checksum: None,
