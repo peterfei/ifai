@@ -254,7 +254,7 @@ export const LocalModelSettings: React.FC = () => {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-medium">模型状态</h3>
+              <h3 className="font-semibold text-gray-900">模型状态</h3>
               {modelInfo && (
                 <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">已下载</span>
               )}
@@ -267,11 +267,23 @@ export const LocalModelSettings: React.FC = () => {
             </div>
 
             {modelInfo ? (
-              <div className="mt-2 text-sm space-y-1">
-                <div><span className="text-gray-500">文件:</span> {modelInfo.path}</div>
-                <div><span className="text-gray-500">大小:</span> {modelInfo.size_mb.toFixed(2)} MB</div>
-                <div><span className="text-gray-500">格式:</span> {modelInfo.format}</div>
-                <div><span className="text-gray-500">模型:</span> {modelInfo.model}</div>
+              <div className="mt-3 text-sm space-y-2 bg-white/50 rounded-lg p-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">文件:</span>
+                  <span className="text-gray-900 break-all font-mono text-xs">{modelInfo.path}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">大小:</span>
+                  <span className="text-gray-900 font-medium">{modelInfo.size_mb.toFixed(2)} MB</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">格式:</span>
+                  <span className="text-gray-900 font-medium">{modelInfo.format}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">模型:</span>
+                  <span className="text-gray-900 font-medium">{modelInfo.model}</span>
+                </div>
               </div>
             ) : downloadState.status === 'Downloading' ? (
               <div className="mt-3 space-y-2">
@@ -340,11 +352,11 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 启用开关 */}
       {modelInfo && config && (
-        <div className="bg-gray-50 rounded-lg p-4">
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium">启用本地模型</h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <h3 className="font-semibold text-gray-900">启用本地模型</h3>
+              <p className="text-sm text-gray-600 mt-1">
                 启用后，简单的代码问答和工具解析将使用本地模型处理
               </p>
             </div>
@@ -366,13 +378,20 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 系统信息 */}
       {systemInfo && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h3 className="font-medium mb-2">系统信息</h3>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div><span className="text-gray-500">操作系统:</span> {systemInfo.os}</div>
-            <div><span className="text-gray-500">架构:</span> {systemInfo.arch}</div>
-            <div className="col-span-2">
-              <span className="text-gray-500">模型目录:</span> {systemInfo.model_dir}
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <h3 className="font-semibold text-gray-900 mb-3">系统信息</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-gray-700">操作系统:</span>
+              <span className="text-gray-900">{systemInfo.os}</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-gray-700">架构:</span>
+              <span className="text-gray-900">{systemInfo.arch}</span>
+            </div>
+            <div className="col-span-2 flex items-baseline gap-2">
+              <span className="font-semibold text-gray-700">模型目录:</span>
+              <span className="text-gray-900 break-all font-mono text-xs">{systemInfo.model_dir}</span>
             </div>
           </div>
         </div>
@@ -387,12 +406,12 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 推理参数 */}
       {config && modelInfo && (
-        <div className="space-y-4">
-          <h3 className="font-medium">推理参数</h3>
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-4">
+          <h3 className="font-semibold text-gray-900">推理参数</h3>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Temperature</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Temperature</label>
               <input
                 type="number"
                 step="0.1"
@@ -400,13 +419,13 @@ export const LocalModelSettings: React.FC = () => {
                 max="2"
                 value={config.temperature}
                 onChange={(e) => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="text-xs text-gray-400 mt-1">控制随机性 (0.0 - 2.0)</p>
+              <p className="text-xs text-gray-500 mt-1.5">控制随机性 (0.0 - 2.0)</p>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Top P</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Top P</label>
               <input
                 type="number"
                 step="0.05"
@@ -414,21 +433,21 @@ export const LocalModelSettings: React.FC = () => {
                 max="1"
                 value={config.top_p}
                 onChange={(e) => setConfig({ ...config, top_p: parseFloat(e.target.value) })}
-                className="w-full px-3 py-2 border rounded"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="text-xs text-gray-400 mt-1">核采样参数 (0.0 - 1.0)</p>
+              <p className="text-xs text-gray-500 mt-1.5">核采样参数 (0.0 - 1.0)</p>
             </div>
           </div>
         </div>
       )}
 
       {/* 测试按钮 */}
-      <div className="border-t pt-4">
-        <h3 className="font-medium mb-2">测试功能</h3>
+      <div className="border-t border-gray-200 pt-4">
+        <h3 className="font-semibold text-gray-900 mb-3">测试功能</h3>
         <div className="flex gap-2">
           <button
             onClick={handleTestToolParse}
-            className="px-4 py-2 text-sm bg-purple-500 text-white rounded hover:bg-purple-600"
+            className="px-4 py-2 text-sm font-medium bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
           >
             测试工具调用解析
           </button>
@@ -436,20 +455,41 @@ export const LocalModelSettings: React.FC = () => {
       </div>
 
       {/* 功能说明 */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <h3 className="font-medium mb-2">当前支持</h3>
-        <ul className="list-disc list-inside space-y-1 text-blue-800">
-          <li>模型文件验证</li>
-          <li>模型下载管理</li>
-          <li>工具调用解析测试</li>
+      <div className="bg-white border border-blue-200 rounded-lg p-4 text-sm shadow-sm">
+        <h3 className="font-semibold text-gray-900 mb-3">当前支持</h3>
+        <ul className="list-disc list-inside space-y-2 text-gray-700">
+          <li className="flex items-start gap-2">
+            <span className="text-blue-500 mt-0.5">•</span>
+            <span>模型文件验证</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-blue-500 mt-0.5">•</span>
+            <span>模型下载管理</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-blue-500 mt-0.5">•</span>
+            <span>工具调用解析测试</span>
+          </li>
         </ul>
 
-        <h3 className="font-medium mt-4 mb-2">即将推出</h3>
-        <ul className="list-disc list-inside space-y-1 text-blue-800">
-          <li>纯 Rust 本地推理（无需外部依赖）</li>
-          <li>流式生成</li>
-          <li>Agent 工具调用集成</li>
-          <li>智能代码补全（FIM）</li>
+        <h3 className="font-semibold text-gray-900 mt-5 mb-3">即将推出</h3>
+        <ul className="list-disc list-inside space-y-2 text-gray-700">
+          <li className="flex items-start gap-2">
+            <span className="text-purple-500 mt-0.5">•</span>
+            <span>纯 Rust 本地推理（无需外部依赖）</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-purple-500 mt-0.5">•</span>
+            <span>流式生成</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-purple-500 mt-0.5">•</span>
+            <span>Agent 工具调用集成</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-purple-500 mt-0.5">•</span>
+            <span>智能代码补全（FIM）</span>
+          </li>
         </ul>
       </div>
     </div>
