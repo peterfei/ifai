@@ -12,6 +12,7 @@ mod prompt_manager;
 mod agent_system;
 mod conversation;
 mod ai_utils;
+mod file_cache;
 mod commands;
 mod performance;
 mod core_traits;
@@ -594,7 +595,10 @@ pub fn run() {
             local_model::get_download_status,
             local_model::start_download,
             local_model::cancel_download,
-            local_model::local_model_preprocess
+            local_model::local_model_preprocess,
+            file_cache::get_file_cache_stats,
+            file_cache::clear_file_cache,
+            file_cache::print_file_cache_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

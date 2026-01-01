@@ -240,17 +240,21 @@ pub async fn agent_stream_chat_with_root(
 ) -> Result<Message, String> {
     eprintln!("[AgentStream] agent_stream_chat called with agent_id: {}, agent_type: {:?}", agent_id, agent_type);
 
-    // 检查是否是 explore 类型 agent - 特殊处理
-    let is_explore_agent = if let Some(ref at) = agent_type {
+    // 检查 agent 类型
+    let (is_explore_agent, is_hybrid_agent) = if let Some(ref at) = agent_type {
         let at_lower = at.to_lowercase();
-        at_lower.contains("explore") || at_lower.contains("scan")
+        let explore = at_lower.contains("explore") || at_lower.contains("scan");
+        // Hybrid agents: review, test, doc, refactor - 这些需要读取文件，但内容生成由云端完成
+        let hybrid = at_lower.contains("review") || at_lower.contains("test") ||
+                     at_lower.contains("doc") || at_lower.contains("refactor");
+        (explore, hybrid)
     } else {
-        false
+        (false, false)
     };
 
     // 本地模型预处理 - 智能路由决策
     if let Some(ref root) = project_root {
-        println!("[AgentStream] Checking local model routing... (is_explore_agent: {})", is_explore_agent);
+        println!("[AgentStream] Checking local model routing... (explore: {}, hybrid: {})", is_explore_agent, is_hybrid_agent);
 
         // 对于 explore agent，如果本地模型可用，直接使用本地工具调用
         if is_explore_agent {
@@ -549,11 +553,95 @@ pub async fn agent_stream_chat_with_root(
         }
     }
 
+    // Hybrid 模式：本地执行工具调用 + 云端生成内容
+    // 用于 review, test, doc, refactor 等 Agent
+    let mut messages_with_tools = messages.clone();
+    if is_hybrid_agent {
+        if let Some(ref root) = project_root {
+            if let Ok(result) = crate::local_model::local_model_preprocess(messages.clone()).await {
+                if result.has_tool_calls && !result.tool_calls.is_empty() {
+                    println!("[AgentStream] Hybrid mode: executing {} tool calls locally", result.tool_calls.len());
+
+                    use crate::file_cache;
+                    use std::path::PathBuf;
+
+                    for tool_call in result.tool_calls {
+                        let tool_name = &tool_call.name;
+                        let args_value = serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::json!({}));
+
+                        println!("[AgentStream] Hybrid: executing tool: {}", tool_name);
+
+                        // 执行工具调用 - 使用文件缓存
+                        let tool_result = match tool_name.as_str() {
+                            "agent_read_file" => {
+                                if let Some(rel_path) = args_value["rel_path"].as_str() {
+                                    let full_path = PathBuf::from(root).join(rel_path);
+                                    match file_cache::cached_read_file(&full_path) {
+                                        Ok(content) => {
+                                            println!("[AgentStream] Hybrid: read file from cache: {} ({} bytes)", rel_path, content.len());
+                                            content
+                                        }
+                                        Err(e) => {
+                                            println!("[AgentStream] Hybrid: read file failed: {}", e);
+                                            format!("Error: {}", e)
+                                        }
+                                    }
+                                } else {
+                                    "Error: missing rel_path parameter".to_string()
+                                }
+                            }
+                            "agent_batch_read" => {
+                                if let Some(paths) = args_value["paths"].as_array() {
+                                    let full_paths: Vec<PathBuf> = paths.iter()
+                                        .filter_map(|p| p.as_str())
+                                        .map(|p| PathBuf::from(root).join(p))
+                                        .collect();
+
+                                    let results = file_cache::cached_read_files(&full_paths);
+                                    let json_results: Vec<serde_json::Value> = results.iter().enumerate().map(|(i, r)| {
+                                        match r {
+                                            Ok(content) => serde_json::json!({
+                                                "path": paths[i],
+                                                "status": "success",
+                                                "content": content
+                                            }),
+                                            Err(e) => serde_json::json!({
+                                                "path": paths[i],
+                                                "status": "error",
+                                                "error": e
+                                            })
+                                        }
+                                    }).collect();
+                                    serde_json::to_string(&json_results).unwrap_or_default()
+                                } else {
+                                    "Error: missing paths parameter".to_string()
+                                }
+                            }
+                            _ => format!("Tool {} not supported in hybrid mode", tool_name)
+                        };
+
+                        // 将工具结果添加到消息历史
+                        messages_with_tools.push(Message {
+                            role: "tool".to_string(),
+                            content: Content::Text(tool_result),
+                            tool_calls: None,
+                            tool_call_id: Some(format!("hybrid_{}", uuid::Uuid::new_v4())),
+                        });
+
+                        println!("[AgentStream] Hybrid: tool result added to message history");
+                    }
+
+                    println!("[AgentStream] Hybrid mode: completed local tool execution, forwarding to cloud API");
+                }
+            }
+        }
+    }
+
     // 调用云端 API
     eprintln!("[AgentStream] Using cloud API");
     // ... (rest of implementation)
-    // 1. Sanitize messages
-    let mut clean_messages = messages.clone();
+    // 1. Sanitize messages - use messages_with_tools for hybrid mode
+    let mut clean_messages = if is_hybrid_agent { messages_with_tools } else { messages.clone() };
     sanitize_messages(&mut clean_messages);
 
     // 2. Build request with proper timeout and keep-alive configuration
