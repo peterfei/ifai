@@ -17,6 +17,7 @@ mod core_traits;
 mod project_config;
 mod community;
 mod local_model;
+mod intelligence_router;
 #[cfg(feature = "commercial")]
 mod commercial;
 
