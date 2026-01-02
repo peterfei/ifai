@@ -18,8 +18,8 @@ pub mod impls {
 
     #[async_trait::async_trait]
     impl AIService for CommercialAIService {
-        async fn chat(&self, _config: &AIProviderConfig, _messages: Vec<Message>) -> Result<Message, String> {
-            todo!("chat not implemented in commercial adapter")
+        async fn chat(&self, config: &AIProviderConfig, messages: Vec<Message>) -> Result<Message, String> {
+            crate::ai_utils::fetch_ai_completion(config, messages, None).await
         }
 
         async fn stream_chat(

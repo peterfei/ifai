@@ -145,7 +145,6 @@ ${textBefore}[CURSOR]${textAfter}
       },
       handleItemDidShow: (completions, item) => {
         // Called when an inline completion item is shown to the user
-        // Can be used for analytics or tracking
       },
       freeInlineCompletions: (completions) => {
         // Called when completions are no longer needed
@@ -217,6 +216,22 @@ ${textBefore}[CURSOR]${textAfter}
     const isGenerating = isChatStreaming;
 
     const baseOptions: monaco.editor.IStandaloneEditorConstructionOptions = {
+      // Inline Suggest - Enable AI code completion
+      inlineSuggest: {
+        enabled: true,
+        showToolbar: 'onHover',
+        keepOnBlur: false,
+        allowQuickSuggestions: false,
+      },
+      // Disable standard suggestions to avoid conflicts with inline suggestions
+      quickSuggestions: {
+        other: false,
+        comments: false,
+        strings: false,
+      },
+      suggestOnTriggerCharacters: false,
+      acceptSuggestionOnEnter: 'on',
+      tabCompletion: 'on',
       minimap: { enabled: showMinimap && !isVeryLargeFile && !isGenerating },
       fontSize: fontSize,
       fontFamily: fontFamily,
