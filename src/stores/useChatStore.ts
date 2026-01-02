@@ -9,6 +9,7 @@ import { useThreadStore } from './threadStore';
 import { invoke } from '@tauri-apps/api/core';
 import { recognizeIntent, shouldTriggerAgent, formatAgentName } from '../utils/intentRecognizer';
 import { autoSaveThread } from './persistence/threadPersistence';
+import i18n from '../i18n/config';
 
 // Content segment interface for tracking stream reception order
 export interface ContentSegment {
@@ -446,7 +447,8 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                         name: tc.name,
                         arguments: JSON.stringify(tc.arguments)
                     },
-                    status: 'pending' as const
+                    status: 'pending' as const,
+                    isLocalModel: true  // 标记为本地模型执行的工具调用
                 }));
 
                 addMessage({
@@ -572,6 +574,14 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         messagesToSend = allMessages.slice(0, -1);
     }
 
+    // 辅助函数：确保 content 是字符串（处理 ContentPart[]）
+    const ensureContentString = (content: any): string => {
+        if (Array.isArray(content)) {
+            return content.map((part: any) => part.type === 'text' ? part.text : '[image]').join('');
+        }
+        return content || '';
+    };
+
     // 转换为API格式
     const msgHistory = messagesToSend.map(m => {
         const toolCalls = m.toolCalls
@@ -589,7 +599,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
         return {
             role: m.role,
-            content: m.content,
+            content: ensureContentString(m.content),
             tool_calls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
             tool_call_id: m.tool_call_id
         };
@@ -628,10 +638,28 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             } else if (payload.type === 'tool_call' && payload.toolCall) {
                 // Note: Rust backend sends camelCase "toolCall"
                 toolCallUpdate = payload.toolCall;
+            } else if (payload.type === 'thinking' || payload.type === 'tool-result' || payload.type === 'done') {
+                // 忽略本地模型的内部消息类型，不显示在聊天中
+                return;
             }
         } catch (e) {
-            // Fallback: treat as plain text
-            textChunk = event.payload;
+            // 尝试解析多个拼接的 JSON 对象（边缘情况处理）
+            const objects = event.payload.match(/\{[^{}]+\}/g);
+            if (objects) {
+                // 查找最后一个 type='content' 的对象
+                for (let i = objects.length - 1; i >= 0; i--) {
+                    try {
+                        const obj = JSON.parse(objects[i]);
+                        if (obj.type === 'content' && obj.content) {
+                            textChunk = obj.content;
+                            break;
+                        }
+                    } catch (e2) {
+                        // 忽略解析失败的单个对象
+                    }
+                }
+                // 如果没有找到 content，则不显示任何内容（静默忽略）
+            }
         }
 
         if (textChunk || toolCallUpdate) {
@@ -647,7 +675,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                     }
 
                     if (textChunk) {
-                        newMsg.content = (newMsg.content || '') + textChunk;
+                        // Ensure textChunk is a string (prevent [object Object])
+                        const safeTextChunk = typeof textChunk === 'string' ? textChunk : JSON.stringify(textChunk);
+                        newMsg.content = (newMsg.content || '') + safeTextChunk;
 
                         // Track text segment in order with character position
                         // @ts-ignore
@@ -925,7 +955,15 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     // 3. Prepare History from Store (Source of Truth)
     // We ignore the `history` arg because we want the latest state including tool outputs we just added
     const messages = coreUseChatStore.getState().messages;
-    
+
+    // 辅助函数：确保 content 是字符串（处理 ContentPart[]）
+    const ensureContentString = (content: any): string => {
+        if (Array.isArray(content)) {
+            return content.map((part: any) => part.type === 'text' ? part.text : '[image]').join('');
+        }
+        return content || '';
+    };
+
     // Slice off the placeholder we just added
     const msgHistory = messages.slice(0, -1).map(m => {
         const toolCalls = m.toolCalls
@@ -953,7 +991,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
 
         return {
             role: m.role,
-            content: m.content,
+            content: ensureContentString(m.content),
             tool_calls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
             tool_call_id: m.tool_call_id
         };
@@ -979,16 +1017,42 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         let toolCallUpdate: any = null;
         try {
             const payload = JSON.parse(event.payload);
-            if (payload.type === 'content' && payload.content) textChunk = payload.content;
-            else if (payload.type === 'tool_call' && payload.toolCall) toolCallUpdate = payload.toolCall;
-        } catch (e) { textChunk = event.payload; }
+            if (payload.type === 'content' && payload.content) {
+                textChunk = payload.content;
+            } else if (payload.type === 'tool_call' && payload.toolCall) {
+                toolCallUpdate = payload.toolCall;
+            } else if (payload.type === 'thinking' || payload.type === 'tool-result' || payload.type === 'done') {
+                // 忽略本地模型的内部消息类型，不显示在聊天中
+                return;
+            }
+        } catch (e) {
+            // 尝试解析多个拼接的 JSON 对象（边缘情况处理）
+            const objects = event.payload.match(/\{[^{}]+\}/g);
+            if (objects) {
+                // 查找最后一个 type='content' 的对象
+                for (let i = objects.length - 1; i >= 0; i--) {
+                    try {
+                        const obj = JSON.parse(objects[i]);
+                        if (obj.type === 'content' && obj.content) {
+                            textChunk = obj.content;
+                            break;
+                        }
+                    } catch (e2) {
+                        // 忽略解析失败的单个对象
+                    }
+                }
+                // 如果没有找到 content，则不显示任何内容（静默忽略）
+            }
+        }
 
         if (textChunk || toolCallUpdate) {
             const updatedMessages = messages.map(m => {
                 if (m.id === assistantMsgId) {
                     const newMsg = { ...m };
                     if (textChunk) {
-                        newMsg.content = (newMsg.content || '') + textChunk;
+                        // Ensure textChunk is a string (prevent [object Object])
+                        const safeTextChunk = typeof textChunk === 'string' ? textChunk : JSON.stringify(textChunk);
+                        newMsg.content = (newMsg.content || '') + safeTextChunk;
                     }
                     if (toolCallUpdate) {
                         const toolName = toolCallUpdate.function?.name || toolCallUpdate.tool;
@@ -1193,6 +1257,7 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
     // 2. Handle File System Tools (Manual Invocation to fix snake_case args)
     const fsTools = ['agent_write_file', 'agent_read_file', 'agent_list_dir'];
     const toolName = toolCall.tool || (toolCall as any).function?.name;
+    let relPath = '';  // 在 try 块外声明，以便 catch 块也能访问
 
     if (fsTools.includes(toolName)) {
         console.log(`[useChatStore] Intercepting FS tool: ${toolName}`);
@@ -1222,7 +1287,7 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
                 return '';
             };
 
-            const relPath = args.rel_path || args.relPath || getDefaultRelPath();
+            relPath = args.rel_path || args.relPath || getDefaultRelPath();
             let content = args.content || "";
 
             // Debug: log content before unescaping
@@ -1278,17 +1343,18 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
             coreUseChatStore.getState().addMessage({
                 id: crypto.randomUUID(),
                 role: 'tool',
-                content: `Success: ${toolName} executed for ${relPath}`,
+                content: i18n.t('tool.success', { toolName: `${toolName} > ${relPath}` }),
                 tool_call_id: toolCallId
             });
 
-            // Continue Conversation
+            // Continue Conversation - 但对于本地模型执行的工具调用，不需要继续调用云端 API
+            // 因为后端已经通过 content 事件发送了格式化的结果
             const settings = useSettingsStore.getState();
             const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
-            if (providerConfig) {
+            if (providerConfig && !(toolCall as any).isLocalModel) {
                 await patchedGenerateResponse(
-                    coreUseChatStore.getState().messages, 
-                    providerConfig, 
+                    coreUseChatStore.getState().messages,
+                    providerConfig,
                     { enableTools: true }
                 );
             }
@@ -1312,7 +1378,7 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
             coreUseChatStore.getState().addMessage({
                 id: crypto.randomUUID(),
                 role: 'tool',
-                content: `Error: ${String(e)}`,
+                content: i18n.t('tool.error', { toolName: `${toolName} > ${relPath}`, error: String(e) }),
                 tool_call_id: toolCallId
             });
              // Still continue to let AI know it failed? 

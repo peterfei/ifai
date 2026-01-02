@@ -93,6 +93,15 @@
     "confirm": "确认",
     "close": "关闭"
   },
+  "tool": {
+    "executed": "工具执行成功",
+    "failed": "工具执行失败",
+    "fileRead": "读取文件",
+    "fileWritten": "写入文件",
+    "directoryListed": "列出目录",
+    "success": "{{toolName}} 执行成功",
+    "error": "{{toolName}} 执行失败: {{error}}"
+  },
   "dialog": {
     "enterNewName": "输入新名称",
     "enterName": "输入名称",

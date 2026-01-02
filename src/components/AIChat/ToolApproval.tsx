@@ -26,6 +26,93 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
 // 代码预览行数
 const PREVIEW_LINES = 8;
 
+// 文件扩展名到语言的映射
+const FILE_EXT_TO_LANG: Record<string, string> = {
+    'js': 'JavaScript', 'jsx': 'JavaScript', 'ts': 'TypeScript', 'tsx': 'TypeScript',
+    'py': 'Python', 'rb': 'Ruby', 'go': 'Go', 'rs': 'Rust', 'java': 'Java',
+    'c': 'C', 'cpp': 'C++', 'cs': 'C#', 'php': 'PHP', 'swift': 'Swift',
+    'kt': 'Kotlin', 'scala': 'Scala', 'sh': 'Shell', 'bash': 'Bash',
+    'html': 'HTML', 'css': 'CSS', 'scss': 'SCSS', 'less': 'Less',
+    'json': 'JSON', 'xml': 'XML', 'yaml': 'YAML', 'yml': 'YAML',
+    'md': 'Markdown', 'sql': 'SQL', 'dockerfile': 'Docker', 'vim': 'Vim',
+};
+
+// 检测文件语言类型
+const detectLanguage = (filePath: string): string => {
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    return FILE_EXT_TO_LANG[ext] || 'Text';
+};
+
+// 代码块显示组件
+const CodeBlock: React.FC<{
+    code: string;
+    language: string;
+    maxLines?: number;
+    fileName?: string;
+}> = ({ code, language, maxLines = 20, fileName }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const lines = code.split('\n');
+    const lineCount = lines.length;
+    const shouldCollapse = lineCount > maxLines;
+    const displayLines = shouldCollapse && !isExpanded ? lines.slice(0, maxLines) : lines;
+
+    return (
+        <div className="rounded-lg border border-gray-700/50 bg-gray-900/80 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900/50 border-b border-gray-700/30">
+                <div className="flex items-center gap-3">
+                    <span className="px-2 py-0.5 text-[10px] font-medium text-blue-400 bg-blue-500/10 rounded border border-blue-500/20">
+                        {language}
+                    </span>
+                    {fileName && (
+                        <span className="text-[10px] text-gray-500 font-mono">
+                            {fileName}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-gray-500">
+                        {lineCount} 行
+                    </span>
+                    {shouldCollapse && (
+                        <button
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className="px-2.5 py-1 text-[10px] font-medium text-gray-400 hover:text-gray-300 bg-gray-800/50 hover:bg-gray-700/50 rounded border border-gray-700/50 transition-all duration-200"
+                        >
+                            {isExpanded ? '收起' : `展开全部`}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Code with line numbers */}
+            <div className="overflow-auto max-h-64">
+                <div className="flex">
+                    {/* Line numbers */}
+                    <div className="flex-shrink-0 px-3 py-3 bg-gray-900/30 border-r border-gray-700/30 text-gray-600 text-[11px] font-mono leading-6 select-none">
+                        {displayLines.map((_, i) => (
+                            <div key={i} className="text-right">
+                                {i + 1}
+                            </div>
+                        ))}
+                    </div>
+                    {/* Code content */}
+                    <pre className="flex-1 px-4 py-3 text-xs text-gray-300 font-mono whitespace-pre break-words leading-6">
+                        <code>{displayLines.join('\n')}</code>
+                        {!isExpanded && shouldCollapse && (
+                            <div className="mt-4 pt-3 border-t border-dashed border-gray-700 text-center">
+                                <span className="text-[10px] text-gray-500">
+                                    ... 还有 {lineCount - maxLines} 行 ...
+                                </span>
+                            </div>
+                        )}
+                    </pre>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Helper to check if result is a file listing (JSON array of file paths)
 const isFileListing = (result: string): string[] | null => {
     try {
@@ -186,35 +273,58 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
     }, [isWriteFile, filePath, isPartial, oldContent]);
 
     return (
-        <div className="mt-2 mb-2 bg-gray-800 rounded-lg border border-gray-600 overflow-hidden w-full max-w-full">
-            <div className="flex items-center justify-between p-2 bg-gray-900 border-b border-gray-700">
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-200 min-w-0">
-                    <span className={`flex-shrink-0 ${getToolColor(toolCall.tool)}`}>
+        <div className="mt-3 mb-3 bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl border border-gray-700/50 overflow-hidden w-full max-w-full shadow-lg">
+            {/* Header with gradient background */}
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-gray-900/80 to-gray-800/80 border-b border-gray-700/50">
+                <div className="flex items-center gap-2.5">
+                    <span className={`flex items-center justify-center w-7 h-7 rounded-lg ${getToolColor(toolCall.tool)} bg-opacity-20`}>
                         {getIcon()}
                     </span>
-                    <span className="truncate">{getToolLabel(toolCall.tool)}</span>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-gray-100">
+                            {getToolLabel(toolCall.tool)}
+                        </span>
+                        {filePath && (
+                            <span className="text-[10px] text-gray-500 font-mono truncate max-w-[200px]" title={filePath}>
+                                {filePath}
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isPartial && <Loader2 size={12} className="animate-spin text-yellow-400" />}
-                    <span className={`text-xs font-medium flex-shrink-0 ${getStatusColor()}`}>
+                    {isPartial && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded-full">
+                            <Loader2 size={10} className="animate-spin text-yellow-400" />
+                            <span className="text-[10px] font-medium text-yellow-400">生成中</span>
+                        </div>
+                    )}
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
+                        toolCall.status === 'completed' ? 'bg-green-500/10 text-green-400' :
+                        toolCall.status === 'failed' ? 'bg-red-500/10 text-red-400' :
+                        toolCall.status === 'approved' ? 'bg-blue-500/10 text-blue-400' :
+                        toolCall.status === 'rejected' ? 'bg-gray-500/10 text-gray-400' :
+                        'bg-amber-500/10 text-amber-400'
+                    }`}>
                         {getStatusLabel()}
-                    </span>
+                    </div>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="p-3 text-xs">
+            <div className="px-4 pb-3">
                 {isWriteFile ? (
-                    <div className="space-y-2">
-                        {/* File Path */}
-                        <div className="flex items-center gap-2 text-gray-400">
-                            <span>路径:</span>
-                            <code className="text-green-400 bg-gray-900 px-1.5 py-0.5 rounded break-all">
-                                {filePath || (isPartial ? '...' : '')}
-                            </code>
-                        </div>
+                    <div className="space-y-3">
+                        {/* File Path - cleaner display */}
+                        {filePath && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
+                                <File size={14} className="text-blue-400" />
+                                <code className="text-sm text-gray-300 font-mono break-all">
+                                    {filePath}
+                                </code>
+                            </div>
+                        )}
 
-                        {/* Code Preview / Diff */}
+                        {/* Code Preview / Diff - Enhanced styling */}
                         {(newContent || isPartial) && (
                             <div className="relative">
                                 {isPartial ? (
@@ -228,19 +338,32 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
 
                                         return (
                                             <>
-                                                <div className="max-h-80 overflow-auto rounded border border-gray-700 bg-gray-900">
-                                                    <pre className="p-3 text-xs text-gray-300 font-mono whitespace-pre-wrap">
-                                                        <code>
-                                                            {displayContent || '正在生成代码...'}
-                                                            <span className="inline-block w-1.5 h-3 bg-blue-500 ml-0.5 animate-pulse" />
-                                                        </code>
-                                                    </pre>
+                                                <div className="rounded-lg border border-gray-700/50 bg-gray-900/80 overflow-hidden shadow-inner">
+                                                    <div className="flex items-center justify-between px-3 py-2 bg-gray-900 border-b border-gray-700/50">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                                                            <span className="text-[11px] font-medium text-yellow-400">
+                                                                生成中...
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-500">
+                                                            {contentLines.length} 行
+                                                        </span>
+                                                    </div>
+                                                    <div className="max-h-80 overflow-auto p-3">
+                                                        <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
+                                                            <code>
+                                                                {displayContent || '正在生成代码...'}
+                                                                <span className="inline-block w-1.5 h-3 bg-blue-500 ml-0.5 animate-pulse" />
+                                                            </code>
+                                                        </pre>
+                                                    </div>
                                                 </div>
                                                 {/* Expand/Collapse during streaming */}
                                                 {shouldCollapse && newContent && (
                                                     <button
                                                         onClick={() => setIsExpanded(!isExpanded)}
-                                                        className="w-full mt-1 py-1 text-xs text-gray-400 hover:text-gray-200 flex items-center justify-center gap-1 bg-gray-900 rounded border border-gray-700 hover:bg-gray-800 transition-colors"
+                                                        className="w-full mt-2 py-2 text-xs text-gray-400 hover:text-gray-200 flex items-center justify-center gap-1.5 bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700/50 hover:border-gray-600 transition-all duration-200"
                                                     >
                                                         {isExpanded ? (
                                                             <>
@@ -439,37 +562,40 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                 )}
             </div>
 
-            {/* Approve/Reject Buttons - Hide when partial or auto-approve is enabled */}
+            {/* Approve/Reject Buttons - Modern styling */}
             {isPending && !isPartial && !settings.agentAutoApprove && (
-                <div className="flex border-t border-gray-700">
+                <div className="flex border-t border-gray-700/50">
                     <button
                         onClick={() => onApprove(toolCall.id)}
-                        className="flex-1 p-2 text-xs font-medium text-green-400 hover:bg-green-900/30 flex items-center justify-center gap-1 border-r border-gray-700 transition-colors"
+                        className="flex-1 p-3 text-sm font-medium text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r border-gray-700/50 transition-all duration-200 hover:shadow-inner"
                     >
-                        <Check size={14} />
-                        批准
+                        <Check size={16} />
+                        批准执行
                     </button>
                     <button
                         onClick={() => onReject(toolCall.id)}
-                        className="flex-1 p-2 text-xs font-medium text-red-400 hover:bg-red-900/30 flex items-center justify-center gap-1 transition-colors"
+                        className="flex-1 p-3 text-sm font-medium text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-2 transition-all duration-200 hover:shadow-inner"
                     >
-                        <X size={14} />
+                        <X size={16} />
                         拒绝
                     </button>
                 </div>
             )}
 
-            {/* Auto-approve indicator */}
+            {/* Auto-approve indicator - More polished */}
             {isPending && !isPartial && settings.agentAutoApprove && (
-                <div className="border-t border-gray-700 px-4 py-2 bg-blue-600/10">
-                    <p className="text-xs text-blue-400">
-                        ⚡ 自动批准已启用，工具调用将自动执行
-                    </p>
+                <div className="border-t border-gray-700/50 px-4 py-3 bg-gradient-to-r from-blue-500/10 to-transparent">
+                    <div className="flex items-center gap-2 text-xs text-blue-400">
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                        <span className="font-medium">自动批准已启用</span>
+                        <span className="text-gray-500">·</span>
+                        <span className="text-gray-400">工具将自动执行</span>
+                    </div>
                 </div>
             )}
 
-            {/* Result */}
-            {toolCall.status === 'completed' && toolCall.result && (() => {
+            {/* Result - Polished display */}
+            {toolCall.status === 'completed' && toolCall.result != null && (() => {
                 // Ensure result is a string for display
                 const resultStr = typeof toolCall.result === 'string'
                     ? toolCall.result
@@ -478,25 +604,175 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                 const fileListing = isFileListing(resultStr);
                 if (fileListing) {
                     return (
-                        <div className="p-2 border-t border-gray-700 bg-green-900/10">
-                            <div className="text-xs text-green-300 font-medium mb-2">
-                                📁 找到 {fileListing.length} 个文件/目录:
+                        <div className="mx-4 mb-3 p-3 rounded-lg border border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
+                                    <FolderOpen size={14} className="text-green-400" />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-semibold text-green-400">
+                                        找到 {fileListing.length} 个文件
+                                    </div>
+                                    <div className="text-[10px] text-green-500/70">
+                                        目录扫描完成
+                                    </div>
+                                </div>
                             </div>
                             <FileListingResult files={fileListing} />
                         </div>
                     );
                 }
+
+                // Handle file read results (including empty files)
+                if (toolCall.tool?.includes('read_file')) {
+                    const isEmpty = resultStr.trim() === '';
+                    const filePath = toolCall.args?.rel_path || toolCall.args?.path || '';
+                    const fileName = filePath.split('/').pop() || '';
+                    const language = detectLanguage(fileName);
+
+                    return (
+                        <div className="mx-4 mb-3">
+                            {isEmpty ? (
+                                /* Empty file state */
+                                <div className="rounded-lg border border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-blue-900/5 overflow-hidden">
+                                    <div className="flex items-center gap-3 px-4 py-3 bg-blue-500/5 border-b border-blue-500/20">
+                                        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20">
+                                            <Eye size={16} className="text-blue-400" />
+                                        </div>
+                                        <div className="text-sm font-semibold text-blue-300">
+                                            文件为空
+                                        </div>
+                                        <span className="px-2 py-0.5 text-[10px] font-medium text-gray-500 bg-gray-800/50 rounded border border-gray-700/50">
+                                            {language}
+                                        </span>
+                                    </div>
+                                    <div className="px-4 py-8 text-center">
+                                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-500/10 mb-3">
+                                            <File size={24} className="text-blue-400/50" />
+                                        </div>
+                                        <div className="text-sm text-gray-400">
+                                            该文件没有任何内容
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Use CodeBlock for non-empty files */
+                                <CodeBlock
+                                    code={resultStr}
+                                    language={language}
+                                    fileName={fileName}
+                                    maxLines={15}
+                                />
+                            )}
+                        </div>
+                    );
+                }
+
+                // Handle long text results (non-file operations)
+                if (resultStr.length > 100) {
+                    const isEmpty = resultStr.trim() === '';
+                    const lines = resultStr.split('\n');
+                    const lineCount = lines.length;
+                    const previewLines = 20;
+
+                    return (
+                        <div className="mx-4 mb-3 rounded-lg border border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-blue-900/5 overflow-hidden">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-4 py-3 bg-blue-500/5 border-b border-blue-500/20">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20">
+                                        <Eye size={16} className="text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-semibold text-blue-300">
+                                            执行完成
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-0.5">
+                                            <span className="text-[10px] text-blue-400/70">
+                                                {resultStr.length} 字符
+                                            </span>
+                                            {lineCount > 1 && (
+                                                <>
+                                                    <span className="text-blue-500/30">·</span>
+                                                    <span className="text-[10px] text-blue-400/70">
+                                                        {lineCount} 行
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                {!isEmpty && lineCount > previewLines && (
+                                    <button
+                                        onClick={() => setIsExpanded(!isExpanded)}
+                                        className="px-3 py-1.5 text-[10px] font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 transition-all duration-200"
+                                    >
+                                        {isExpanded ? '收起内容' : `展开全部 (${lineCount} 行)`}
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-4">
+                                <div className={`overflow-auto rounded-lg border border-gray-700/50 bg-gray-900/80 ${isExpanded ? 'max-h-96' : 'max-h-48'}`}>
+                                    <div className="flex items-center justify-between px-3 py-2 bg-gray-900/50 border-b border-gray-700/30">
+                                        <span className="text-[10px] text-gray-500 font-mono">
+                                            {isExpanded ? `显示全部 ${lineCount} 行` : `显示前 ${Math.min(previewLines, lineCount)} 行`}
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
+                                        </div>
+                                    </div>
+                                    <pre className="p-4 text-xs text-gray-300 font-mono whitespace-pre-wrap break-all leading-relaxed">
+                                        {isExpanded ? resultStr : lines.slice(0, previewLines).join('\n')}
+                                        {!isExpanded && lineCount > previewLines && (
+                                            <div className="mt-4 pt-4 border-t border-dashed border-gray-700 text-center">
+                                                <span className="text-[10px] text-gray-500">
+                                                    ... 还有 {lineCount - previewLines} 行内容 ...
+                                                </span>
+                                            </div>
+                                        )}
+                                    </pre>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                // Short simple result
                 return (
-                    <div className="p-2 border-t border-gray-700 bg-green-900/10 text-xs text-green-300">
-                        <span className="font-medium">结果: </span>
-                        <span className="break-all whitespace-pre-wrap">{resultStr}</span>
+                    <div className="mx-4 mb-3 p-3 rounded-lg border border-gray-600/30 bg-gray-800/50">
+                        <div className="flex items-center gap-2">
+                            <Check size={14} className="text-green-400" />
+                            <span className="text-xs font-semibold text-green-400">
+                                执行成功
+                            </span>
+                        </div>
+                        {resultStr && (
+                            <div className="mt-2 text-xs text-gray-300 break-all whitespace-pre-wrap pl-6">
+                                {resultStr}
+                            </div>
+                        )}
                     </div>
                 );
             })()}
             {toolCall.status === 'failed' && toolCall.result && (
-                <div className="p-2 border-t border-gray-700 bg-red-900/10 text-xs text-red-300">
-                    <span className="font-medium">错误: </span>
-                    <span className="break-all">{typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result)}</span>
+                <div className="mx-4 mb-3 p-3 rounded-lg border border-red-500/20 bg-gradient-to-br from-red-500/5 to-transparent">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                            <X size={14} className="text-red-400" />
+                        </div>
+                        <div>
+                            <div className="text-sm font-semibold text-red-400">
+                                执行失败
+                            </div>
+                            <div className="text-xs text-red-300/70 break-all font-mono mt-1">
+                                {typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result)}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

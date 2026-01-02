@@ -93,6 +93,15 @@
     "confirm": "Confirm",
     "close": "Close"
   },
+  "tool": {
+    "executed": "Tool executed successfully",
+    "failed": "Tool execution failed",
+    "fileRead": "Read file",
+    "fileWritten": "Write file",
+    "directoryListed": "List directory",
+    "success": "{{toolName}} executed successfully",
+    "error": "{{toolName}} execution failed: {{error}}"
+  },
   "dialog": {
     "enterNewName": "Enter a new name",
     "enterName": "Enter a name",

@@ -7,6 +7,7 @@ export interface ToolCall {
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed';
   result?: string;
   isPartial?: boolean;
+  isLocalModel?: boolean;  // 标记是否为本地模型执行的工具调用
 }
 
 // Frontend display message type

@@ -52,7 +52,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     isStreamingRef.current = isStreaming;
 
     // Track content length to detect active streaming (more reliable than isStreaming prop)
-    const lastContentLengthRef = useRef(message.content.length);
+    const lastContentLengthRef = useRef(0);
 
     // Helper to process scan result i18n
     const processScanResult = useCallback((text: string): string => {
@@ -70,13 +70,26 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
     const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-    // Use raw content directly - no throttling
-    // Throttling causes displayContent to update with delay, triggering stringSegments recalculation
-    const displayContent = message.content;
+    // Convert content to string for display
+    // Handle both string and ContentPart[] types
+    const displayContent = React.useMemo(() => {
+      const content = message.content;
+      // If content is an array (ContentPart[]), convert to string
+      if (Array.isArray(content)) {
+        return content.map(part => part.type === 'text' ? part.text : '[image]').join('');
+      }
+      // If content is already a string, use as-is
+      return content || '';
+    }, [message.content]);
 
     // Update streaming status based on content growth
     React.useEffect(() => {
-        const currentLength = message.content.length;
+        const currentLength = displayContent.length;
+
+        // Initialize on first run
+        if (lastContentLengthRef.current === 0 && currentLength > 0) {
+            lastContentLengthRef.current = currentLength;
+        }
         const isGrowing = currentLength > lastContentLengthRef.current;
 
         if (isGrowing) {
@@ -103,7 +116,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 streamingTimeoutRef.current = undefined;
             }
         };
-    }, [message.content]);
+    }, [displayContent]);
 
     const toggleBlock = useCallback((index: number) => {
         setExpandedBlocks(prev => {
@@ -466,7 +479,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         if (!hasToolsInSegments) {
                                             // Simple case: No tools, render full content directly with index 0
                                             // This ensures code block indices start from 0, matching toggleBlock expectations
-                                            return renderContentPart({ type: 'text', text: message.content as string }, 0);
+                                            return renderContentPart({ type: 'text', text: displayContent }, 0);
                                         }
 
                                         // Complex case: Has tools, use precise interleaving
@@ -493,10 +506,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             }
                                         });
 
-                                        // IMPORTANT: Use message.content instead of displayContent
+                                        // IMPORTANT: Use displayContent which is already converted to string
                                         // Position calculation is based on sortedSegments, which aligns with message.content
-                                        // Using displayContent (throttled) can cause misalignment when interval > 0
-                                        const fullContent = message.content as string;
+                                        const fullContent = displayContent;
                                         const parts: Array<{type: 'text', content: string} | {type: 'tool', toolCallId: string}> = [];
                                         let lastPos = 0;
 

@@ -354,11 +354,11 @@ async fn ai_chat(
 
                 let overall_start = std::time::Instant::now();
 
-                // 发送开始事件
-                let _ = app.emit(&event_id, json!({
-                    "type": "thinking",
-                    "content": "Executing locally..."
-                }));
+                // 发送开始事件 - 已注释掉，避免在前端显示调试信息
+                // let _ = app.emit(&event_id, json!({
+                //     "type": "thinking",
+                //     "content": "Executing locally..."
+                // }));
 
                 // 执行每个工具调用并收集结果
                 let mut all_results = Vec::new();
@@ -386,13 +386,13 @@ async fn ai_chat(
                     );
                     all_results.push(formatted_result);
 
-                    // 发送工具结果事件
-                    let _ = app.emit(&event_id, json!({
-                        "type": "tool-result",
-                        "tool_name": tool_call.name,
-                        "result": tool_result,
-                        "execution_time_ms": elapsed
-                    }));
+                    // 发送工具结果事件 - 已注释掉，避免在前端显示调试信息
+                    // let _ = app.emit(&event_id, json!({
+                    //     "type": "tool-result",
+                    //     "tool_name": tool_call.name,
+                    //     "result": tool_result,
+                    //     "execution_time_ms": elapsed
+                    // }));
                 }
 
                 let total_elapsed = overall_start.elapsed().as_millis();
@@ -411,12 +411,13 @@ async fn ai_chat(
                         "execution_time_ms": total_elapsed
                     }
                 }));
-                let _ = app.emit(&event_id, json!({
-                    "type": "done",
-                    "metadata": {
-                        "source": "local_model"
-                    }
-                }));
+                // 发送 done 事件 - 已注释掉，避免在前端显示调试信息
+                // let _ = app.emit(&event_id, json!({
+                //     "type": "done",
+                //     "metadata": {
+                //         "source": "local_model"
+                //     }
+                // }));
 
                 println!("[AI Chat] Local tool execution completed in {}ms", total_elapsed);
                 return Ok(());
