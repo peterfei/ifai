@@ -344,10 +344,13 @@ class ThreadPersistenceService {
       const { useThreadStore } = await import('../threadStore');
       const threadStore = useThreadStore.getState();
 
-      // Restore threads one by one
+      // Restore threads one by one (filter out deleted threads)
       const threadsMap: Record<string, Thread> = {};
       threads.forEach(thread => {
-        threadsMap[thread.id] = thread;
+        // 只恢复非删除状态的线程
+        if (thread.status !== 'deleted') {
+          threadsMap[thread.id] = thread;
+        }
       });
 
       // Use zustand's setState directly

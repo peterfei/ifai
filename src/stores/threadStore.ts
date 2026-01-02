@@ -274,6 +274,9 @@ export const useThreadStore = create<ThreadStore>()(
           };
         });
 
+        // 同步删除到 IndexedDB
+        autoSaveThread(threadId);
+
         console.log(`[ThreadStore] Deleted thread: ${threadId}`);
       },
 
@@ -614,12 +617,22 @@ export const useThreadStore = create<ThreadStore>()(
       name: 'ifai-thread-storage',
       version: 1,
       // Only persist essential data
-      partialize: (state) => ({
-        threads: state.threads,
-        activeThreadId: state.activeThreadId,
-        maxThreads: state.maxThreads,
-        // Don't persist search/filter state
-      }),
+      partialize: (state) => {
+        // 过滤掉已删除的线程
+        const activeThreads: Record<string, Thread> = {};
+        Object.entries(state.threads).forEach(([id, thread]) => {
+          if (thread.status !== 'deleted') {
+            activeThreads[id] = thread;
+          }
+        });
+
+        return {
+          threads: activeThreads,
+          activeThreadId: state.activeThreadId,
+          maxThreads: state.maxThreads,
+          // Don't persist search/filter state
+        };
+      },
     }
   )
 );
