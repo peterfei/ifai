@@ -113,29 +113,31 @@ export const Sidebar = () => {
       </div>
 
       {/* Side Panel Content */}
-      <div className="w-80 flex flex-col h-full bg-gray-900">
-        {sidebarActiveTab === 'explorer' ? (
-          <>
-            <div className="flex items-center justify-between p-2">
-              <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">{t('sidebar.explorer')}</span>
-              <button
-                onClick={handleOpenFolder}
-                className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded"
-                title={t('editor.openFolder')}
-              >
-                <FolderOpen size={14} />
-              </button>
+      {!isPromptManagerOpen && (
+        <div className="w-80 flex flex-col h-full bg-gray-900">
+          {sidebarActiveTab === 'explorer' ? (
+            <>
+              <div className="flex items-center justify-between p-2">
+                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">{t('sidebar.explorer')}</span>
+                <button
+                  onClick={handleOpenFolder}
+                  className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded"
+                  title={t('editor.openFolder')}
+                >
+                  <FolderOpen size={14} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <FileTree />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col h-full">
+              <SearchPanel />
             </div>
-            <div className="flex-1 overflow-auto">
-              <FileTree />
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-col h-full">
-            <SearchPanel />
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
