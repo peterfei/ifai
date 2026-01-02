@@ -253,7 +253,6 @@ ${textBefore}[CURSOR]${textAfter}
         enabled: true,
         showToolbar: 'onHover',
         keepOnBlur: false,
-        allowQuickSuggestions: false,
       },
       // Disable standard suggestions to avoid conflicts with inline suggestions
       quickSuggestions: {

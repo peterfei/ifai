@@ -19,6 +19,9 @@ export interface LayoutState {
   isPromptManagerOpen: boolean;
   chatWidth: number;
 
+  // 侧边栏状态
+  sidebarActiveTab: 'explorer' | 'search';  // 侧边栏活动标签页
+
   // 分屏状态
   panes: Pane[];
   activePaneId: string | null;
@@ -36,6 +39,9 @@ export interface LayoutState {
   setSettingsOpen: (isOpen: boolean) => void;
   toggleSettings: () => void;
   setChatWidth: (width: number) => void;
+
+  // 侧边栏操作
+  setSidebarActiveTab: (tab: 'explorer' | 'search') => void;
 
   // 分屏操作
   splitPane: (direction: 'horizontal' | 'vertical', targetPaneId?: string) => void;
@@ -61,6 +67,9 @@ export const useLayoutStore = create<LayoutState>()(
       isSettingsOpen: false,
       isPromptManagerOpen: false,
       chatWidth: 384,
+
+      // 侧边栏状态
+      sidebarActiveTab: 'explorer',
 
       // 分屏状态
       panes: [
@@ -88,6 +97,9 @@ export const useLayoutStore = create<LayoutState>()(
       setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
       toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
       setChatWidth: (width) => set({ chatWidth: width }),
+
+      // 侧边栏操作
+      setSidebarActiveTab: (tab) => set({ sidebarActiveTab: tab }),
 
       // 分屏操作
       splitPane: (direction, targetPaneId) => {
@@ -243,6 +255,7 @@ export const useLayoutStore = create<LayoutState>()(
         activePaneId: state.activePaneId,
         splitDirection: state.splitDirection,
         chatWidth: state.chatWidth,
+        sidebarActiveTab: state.sidebarActiveTab,
       }),
     }
   )
