@@ -10,6 +10,11 @@ default = ["community"]
 community = []
 commercial = ["ifainew-core"]  # Enable ifainew-core integration
 local-llm = ["ifainew-core"]  # Standalone local LLM support (tool parsing only)
+# LLM inference using llama.cpp (GGUF native support)
+llm-inference = ["llama-cpp-2", "num_cpus"]
+# Combined features
+commercial-local-llm = ["commercial", "llm-inference"]  # Commercial + local LLM inference
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -62,3 +67,12 @@ tiktoken-rs = "0.9.1"
 regex = "1.12.2"
 dirs = "5.0"
 
+# llama.cpp Rust bindings for local LLM inference
+# Supports GGUF format natively (user's model: qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf)
+# Using llama-cpp-2 which has better Qwen2 support
+llama-cpp-2 = { version = "0.1", optional = true }
+num_cpus = { version = "1.16", optional = true }
+
+# tracing for debugging (dev dependency only)
+[dev-dependencies]
+tracing-subscriber = "0.3"

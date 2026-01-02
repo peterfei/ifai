@@ -790,13 +790,17 @@ async fn try_parse_tool_calls(
 }
 
 /// 本地模型代码补全
-/// 注意：当前版本返回错误，建议使用云端 API
-/// TODO: 实现实际的本地模型推理（需要集成 llama.cpp 或 candle）
+///
+/// 使用 llama.cpp 进行本地模型推理。
+/// 如果本地推理失败，返回错误让前端回退到云端 API。
 #[tauri::command]
 pub async fn local_code_completion(
     prompt: String,
     max_tokens: Option<usize>,
 ) -> Result<String, String> {
+    use std::time::Instant;
+
+    let start_time = Instant::now();
     println!("[LocalCompletion] Request received");
     println!("[LocalCompletion] Prompt length: {}", prompt.len());
 
@@ -812,13 +816,35 @@ pub async fn local_code_completion(
         );
     }
 
-    // TODO: 实现实际的本地模型推理
-    // 当前返回错误，让前端回退到云端 API
-    Err(
-        "本地模型代码补全功能正在开发中。\n\n\
-         当前版本请使用云端 API 进行代码补全。\n\n\
-         我们正在集成 llama.cpp 推理引擎，敬请期待！".to_string()
-    )
+    // 检查 llm-inference feature 是否启用
+    #[cfg(not(feature = "llm-inference"))]
+    {
+        return Err(
+            "本地推理功能未启用。\n\n\
+             请使用 --features llm-inference 编译，或使用云端 API。".to_string()
+        );
+    }
+
+    #[cfg(feature = "llm-inference")]
+    {
+        use crate::llm_inference::generate_completion;
+
+        let max_tokens = max_tokens.unwrap_or(50);
+
+        // 调用本地推理
+        match generate_completion(&prompt, max_tokens) {
+            Ok(text) => {
+                let elapsed = start_time.elapsed();
+                println!("[LocalCompletion] ✓ Success: {} chars in {:?}", text.len(), elapsed);
+                Ok(text)
+            }
+            Err(e) => {
+                let elapsed = start_time.elapsed();
+                println!("[LocalCompletion] ✗ Failed after {:?}: {}", elapsed, e);
+                Err(format!("本地推理失败: {}。请使用云端 API。", e))
+            }
+        }
+    }
 }
 
 // ============================================================================

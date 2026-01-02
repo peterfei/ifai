@@ -43,7 +43,11 @@
     "build:commercial": "vite build --mode commercial",
     "tauri:community": "tauri build --features community",
     "tauri:commercial": "tauri build --features commercial",
-    "tauri:dev:commercial": "export APP_EDITION=commercial && tauri dev --features commercial"
+    "tauri:commercial-local-llm": "tauri build --features commercial-local-llm",
+    "tauri:dev:commercial": "export APP_EDITION=commercial && tauri dev --features commercial",
+    "tauri:dev:commercial-local-llm": "export APP_EDITION=commercial && tauri dev --features commercial-local-llm",
+    "tauri:dev:local-llm": "export APP_EDITION=community && tauri dev --features community,llm-inference",
+    "tauri:dev": "export APP_EDITION=community && tauri dev --features community"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

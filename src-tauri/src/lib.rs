@@ -20,6 +20,12 @@ mod project_config;
 mod community;
 mod local_model;
 mod intelligence_router;
+
+// LLM inference using llama.cpp (GGUF native support)
+// Phase 1: placeholder module, Phase 2: actual implementation
+#[cfg(feature = "llm-inference")]
+pub mod llm_inference;
+
 #[cfg(feature = "commercial")]
 mod commercial;
 
