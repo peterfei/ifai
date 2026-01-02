@@ -294,11 +294,35 @@ export const useFileStore = create<FileState>()(
       partialize: (state) => ({
         openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })),
         activeFileId: state.activeFileId,
-        rootPath: state.rootPath
+        rootPath: state.rootPath,
+        // 存储展开的路径而不是 ID，因为 ID 每次重新加载都会变化
+        expandedPaths: Array.from(
+          (() => {
+            const paths = new Set<string>();
+            const collectPaths = (node: FileNode) => {
+              if (state.expandedNodes.has(node.id) && node.kind === 'directory') {
+                paths.add(node.path);
+              }
+              if (node.children) {
+                node.children.forEach(collectPaths);
+              }
+            };
+            if (state.fileTree) {
+              collectPaths(state.fileTree);
+            }
+            return paths;
+          })()
+        ),
       }),
       onRehydrateStorage: () => (state) => {
         // Reload file contents after rehydration from localStorage
         if (state) {
+            // 将 expandedPaths 转换回临时的 expandedPaths 变量
+            // 稍后在文件树加载完成后使用路径匹配恢复 expandedNodes
+            if (Array.isArray((state as any).expandedPaths)) {
+              (state as any).pendingExpandedPaths = new Set((state as any).expandedPaths);
+              delete (state as any).expandedPaths;
+            }
             state.openedFiles.forEach(file => {
                 if (file.path) {
                     state.reloadFileContent(file.id);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
 import { openDirectory, readDirectory } from '../../utils/fileSystem';
@@ -9,12 +9,12 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { IS_COMMERCIAL } from '../../config/edition';
+import { FileNode } from '../../stores/types';
 
 export const Sidebar = () => {
   const { t } = useTranslation();
-  const { setFileTree, rootPath, fileTree } = useFileStore();
-  const [activeTab, setActiveTab] = useState<'explorer' | 'search'>('explorer');
-  const { isPromptManagerOpen, togglePromptManager } = useLayoutStore();
+  const { setFileTree, rootPath, fileTree, setExpandedNodes } = useFileStore();
+  const { sidebarActiveTab, setSidebarActiveTab, isPromptManagerOpen, togglePromptManager } = useLayoutStore();
 
   useEffect(() => {
     // Restore file tree from rootPath if exists
@@ -23,13 +23,32 @@ export const Sidebar = () => {
         try {
           const name = rootPath.split('/').pop() || 'Project';
           const children = await readDirectory(rootPath);
-          setFileTree({
+          const newTree = {
             id: uuidv4(),
             name,
             path: rootPath,
-            kind: 'directory',
+            kind: 'directory' as const,
             children
-          });
+          };
+          setFileTree(newTree);
+
+          // 恢复展开状态
+          const state = useFileStore.getState() as any;
+          if (state.pendingExpandedPaths) {
+            const newExpandedNodes = new Set<string>();
+            const restoreExpandedNodes = (node: FileNode) => {
+              if (state.pendingExpandedPaths.has(node.path) && node.kind === 'directory') {
+                newExpandedNodes.add(node.id);
+              }
+              if (node.children) {
+                node.children.forEach(restoreExpandedNodes);
+              }
+            };
+            restoreExpandedNodes(newTree);
+            setExpandedNodes(newExpandedNodes);
+            delete state.pendingExpandedPaths;
+          }
+
           // Init RAG
           invoke('init_rag_index', { rootPath }).catch(e => console.warn('RAG init warning:', e));
         } catch (e) {
@@ -38,7 +57,7 @@ export const Sidebar = () => {
       };
       loadRoot();
     }
-  }, [rootPath, fileTree, setFileTree]);
+  }, [rootPath, fileTree, setFileTree, setExpandedNodes]);
 
   const handleOpenFolder = async () => {
     try {
@@ -56,20 +75,20 @@ export const Sidebar = () => {
     <div className="flex h-full border-r border-gray-700 bg-gray-900 flex-shrink-0">
       {/* Activity Bar */}
       <div className="w-12 flex flex-col items-center py-2 border-r border-gray-700 bg-[#1e1e1e]">
-        <button 
-          className={`p-2 mb-2 rounded ${activeTab === 'explorer' && !isPromptManagerOpen ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+        <button
+          className={`p-2 mb-2 rounded ${sidebarActiveTab === 'explorer' && !isPromptManagerOpen ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
           onClick={() => {
-            setActiveTab('explorer');
+            setSidebarActiveTab('explorer');
             if (isPromptManagerOpen) togglePromptManager();
           }}
           title={t('sidebar.explorer')}
         >
           <Files size={24} />
         </button>
-        <button 
-          className={`p-2 mb-2 rounded ${activeTab === 'search' && !isPromptManagerOpen ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+        <button
+          className={`p-2 mb-2 rounded ${sidebarActiveTab === 'search' && !isPromptManagerOpen ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
           onClick={() => {
-            setActiveTab('search');
+            setSidebarActiveTab('search');
             if (isPromptManagerOpen) togglePromptManager();
           }}
           title={t('sidebar.search')}
@@ -77,7 +96,7 @@ export const Sidebar = () => {
           <SearchIcon size={24} />
         </button>
         <div className="flex-1" />
-        <button 
+        <button
           className={`p-2 mb-2 rounded ${isPromptManagerOpen ? 'text-blue-400 bg-blue-900/20' : 'text-gray-500 hover:text-gray-300'}`}
           onClick={() => togglePromptManager()}
           title={`${t('sidebar.prompts')}${!IS_COMMERCIAL ? ' (Community - Read Only)' : ''}`}
@@ -95,7 +114,7 @@ export const Sidebar = () => {
 
       {/* Side Panel Content */}
       <div className="w-80 flex flex-col h-full bg-gray-900">
-        {activeTab === 'explorer' && (
+        {sidebarActiveTab === 'explorer' ? (
           <>
             <div className="flex items-center justify-between p-2">
               <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">{t('sidebar.explorer')}</span>
@@ -111,10 +130,11 @@ export const Sidebar = () => {
               <FileTree />
             </div>
           </>
+        ) : (
+          <div className="flex flex-col h-full">
+            <SearchPanel />
+          </div>
         )}
-        <div className={`flex flex-col h-full ${activeTab === 'search' ? '' : 'hidden'}`}>
-          <SearchPanel />
-        </div>
       </div>
     </div>
   );
