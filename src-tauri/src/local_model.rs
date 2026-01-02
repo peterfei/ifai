@@ -180,18 +180,13 @@ pub struct ModelDownloadConfig {
 
 impl Default for ModelDownloadConfig {
     fn default() -> Self {
-        // 开发环境使用本地测试服务器
-        // 生产环境应替换为实际的模型下载 URL
-        let url = if cfg!(debug_assertions) {
-            "http://localhost:8080/model.gguf".to_string()
-        } else {
-            "https://github.com/peterfei/ifai-models/releases/download/v1.0/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string()
-        };
+        // 真实的模型下载地址（使用 CDN 加速）
+        let url = "http://image-peterfei-blog.test.upcdn.net/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string();
 
         Self {
             url,
             filename: "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string(),
-            expected_size: 379 * 1024 * 1024, // 379MB
+            expected_size: 397_807_552, // 379.4MB（实际文件大小）
             checksum: None,
         }
     }
@@ -533,8 +528,10 @@ async fn download_file(
     total_size: u64,
     app: AppHandle,
 ) -> Result<(), String> {
+    println!("[Download] 开始下载: {}", url);
+
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_secs(600))  // 增加到10分钟
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
@@ -547,7 +544,17 @@ async fn download_file(
         return Err(format!("HTTP 错误: {}", response.status()));
     }
 
-    let total_bytes = response.content_length().unwrap_or(total_size);
+    // 获取实际文件大小
+    let total_bytes_from_server = response.content_length();
+    let total_bytes = total_bytes_from_server.unwrap_or_else(|| {
+        println!("[Download] 服务器未返回 Content-Length，使用配置的大小: {}MB", total_size / 1024 / 1024);
+        total_size
+    });
+
+    if let Some(size) = total_bytes_from_server {
+        println!("[Download] 服务器返回文件大小: {}MB ({} bytes)", size / 1024 / 1024, size);
+    }
+
     let mut file = tokio::fs::File::create(output_path)
         .await
         .map_err(|e| format!("创建文件失败: {}", e))?;
@@ -555,12 +562,14 @@ async fn download_file(
     let mut downloaded: u64 = 0;
     let mut start_time = Instant::now();
     let mut last_update_time = Instant::now();
+    let mut last_log_time = Instant::now();
 
     let mut byte_stream = response.bytes_stream();
 
     use futures::stream::StreamExt;
     while let Some(chunk_result) = byte_stream.next().await {
         if cancel_flag.load(Ordering::SeqCst) {
+            println!("[Download] 用户取消下载");
             return Err("下载已取消".to_string());
         }
 
@@ -602,6 +611,13 @@ async fn download_file(
                 s.eta = eta;
             }
 
+            // 每5秒打印一次日志
+            if now.duration_since(last_log_time).as_secs() > 5 {
+                println!("[Download] 进度: {}% ({}/{} bytes), 速度: {}MB/s",
+                    progress, downloaded, total_bytes, speed / 1024 / 1024);
+                last_log_time = now;
+            }
+
             // 发送进度事件到前端
             let _ = app.emit("model-download-progress", &DownloadState {
                 status: DownloadStatus::Downloading,
@@ -617,6 +633,7 @@ async fn download_file(
     }
 
     // 下载完成
+    println!("[Download] 下载完成: {} bytes", downloaded);
     {
         let mut s = state.lock().await;
         s.status = DownloadStatus::Completed;
@@ -866,8 +883,8 @@ mod tests {
     fn test_download_config() {
         let config = ModelDownloadConfig::default();
         assert_eq!(config.filename, "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
-        assert_eq!(config.url, "http://localhost:8080/model.gguf");
-        assert_eq!(config.expected_size, 379 * 1024 * 1024);
+        assert_eq!(config.url, "http://image-peterfei-blog.test.upcdn.net/qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
+        assert_eq!(config.expected_size, 397_807_552); // 379.4MB
     }
 
     #[test]
