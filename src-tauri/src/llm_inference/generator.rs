@@ -57,8 +57,9 @@ impl TextGenerator {
         println!("[TextGenerator]   Prompt length: {} chars", prompt.len());
         println!("[TextGenerator]   Max tokens: {}", self.max_tokens);
 
-        // 创建上下文参数
-        let ctx_params = LlamaContextParams::default();
+        // 创建上下文参数，设置更大的上下文窗口
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(std::num::NonZeroU32::new(2048));
 
         // 创建上下文
         let mut ctx = model.model.new_context(&model.backend, ctx_params)
