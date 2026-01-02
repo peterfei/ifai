@@ -78,22 +78,8 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     // Register Inline Completion Provider
     const completionProvider = monaco.languages.registerInlineCompletionsProvider({ pattern: '**' }, {
       provideInlineCompletions: async (model, position, context, token) => {
-        const { providers, currentProviderId, enableAutocomplete } = useSettingsStore.getState();
+        const { providers, currentProviderId, enableAutocomplete, useLocalModelForCompletion } = useSettingsStore.getState();
         if (!enableAutocomplete) return { items: [] };
-
-        const currentProvider = providers.find(p => p.id === currentProviderId);
-        if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) return { items: [] };
-
-        // Convert to backend format
-        const backendProviderConfig = {
-          id: currentProvider.id,
-          name: currentProvider.name,
-          protocol: currentProvider.protocol,
-          apiKey: currentProvider.apiKey,
-          baseUrl: currentProvider.baseUrl,
-          models: currentProvider.models,
-          enabled: currentProvider.enabled,
-        };
 
         // Get Context
         const textBefore = model.getValueInRange({
@@ -115,7 +101,52 @@ Context:
 ${textBefore}[CURSOR]${textAfter}
 `;
 
+        // Try local model first if enabled
+        if (useLocalModelForCompletion) {
+          try {
+            console.log('[Completion] Trying local model...');
+            const localResult = await invoke<string>('local_code_completion', {
+              prompt,
+              maxTokens: 50,
+            });
+
+            if (localResult && localResult.trim().length > 0) {
+              console.log('[Completion] ✓ Local model succeeded');
+              return {
+                items: [{
+                  insertText: localResult,
+                  range: new monaco.Range(
+                    position.lineNumber,
+                    position.column,
+                    position.lineNumber,
+                    position.column
+                  )
+                }]
+              };
+            }
+          } catch (e) {
+            console.log('[Completion] Local model failed, falling back to cloud:', e);
+            // Fall through to cloud API
+          }
+        }
+
+        // Fallback to cloud API
+        const currentProvider = providers.find(p => p.id === currentProviderId);
+        if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) return { items: [] };
+
+        // Convert to backend format
+        const backendProviderConfig = {
+          id: currentProvider.id,
+          name: currentProvider.name,
+          protocol: currentProvider.protocol,
+          apiKey: currentProvider.apiKey,
+          baseUrl: currentProvider.baseUrl,
+          models: currentProvider.models,
+          enabled: currentProvider.enabled,
+        };
+
         try {
+          console.log('[Completion] Using cloud API...');
           const messages = [{ role: 'user', content: prompt }];
           const result = await invoke<string>('ai_completion', {
             providerConfig: backendProviderConfig,
@@ -127,6 +158,7 @@ ${textBefore}[CURSOR]${textAfter}
           // Clean up result (remove markdown blocks if any)
           let cleanText = result.replace(/^```\w*\n/, '').replace(/\n```$/, '');
 
+          console.log('[Completion] ✓ Cloud API succeeded');
           return {
             items: [{
               insertText: cleanText,
@@ -139,7 +171,7 @@ ${textBefore}[CURSOR]${textAfter}
             }]
           };
         } catch (e) {
-          console.error("Completion failed", e);
+          console.error('[Completion] Cloud API failed:', e);
           return { items: [] };
         }
       },

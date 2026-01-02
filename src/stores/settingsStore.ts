@@ -38,6 +38,7 @@ export interface SettingsState {
   currentProviderId: string;
   currentModel: string;
   enableAutocomplete: boolean;
+  useLocalModelForCompletion: boolean;  // 优先使用本地模型进行代码补全
   maxContextMessages: number;           // 最大上下文消息数
   enableSmartContextSelection: boolean;  // 是否启用智能上下文选择
   maxContextTokens?: number;            // 可选的token限制（未来扩展）
@@ -128,6 +129,7 @@ export const useSettingsStore = create<SettingsState>()(
       currentProviderId: 'zhipu',
       currentModel: 'glm-4.6',
       enableAutocomplete: true,
+      useLocalModelForCompletion: true,  // 默认启用本地模型补全
       maxContextMessages: 15,
       enableSmartContextSelection: true,
       maxContextTokens: undefined,
@@ -216,6 +218,7 @@ export const useSettingsStore = create<SettingsState>()(
         currentProviderId: state.currentProviderId,
         currentModel: state.currentModel,
         enableAutocomplete: state.enableAutocomplete,
+        useLocalModelForCompletion: state.useLocalModelForCompletion,
         agentAutoApprove: state.agentAutoApprove,
         enableNaturalLanguageAgentTrigger: state.enableNaturalLanguageAgentTrigger,
         agentTriggerConfidenceThreshold: state.agentTriggerConfidenceThreshold,

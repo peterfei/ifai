@@ -789,6 +789,38 @@ async fn try_parse_tool_calls(
     }
 }
 
+/// 本地模型代码补全
+/// 注意：当前版本返回错误，建议使用云端 API
+/// TODO: 实现实际的本地模型推理（需要集成 llama.cpp 或 candle）
+#[tauri::command]
+pub async fn local_code_completion(
+    prompt: String,
+    max_tokens: Option<usize>,
+) -> Result<String, String> {
+    println!("[LocalCompletion] Request received");
+    println!("[LocalCompletion] Prompt length: {}", prompt.len());
+
+    // 检查模型是否可用
+    let config = LocalModelConfig::default();
+    if !config.model_path.exists() {
+        return Err(
+            "本地模型文件不存在。\n\n\
+             请先下载模型：\n\
+             1. 打开设置 → 本地模型\n\
+             2. 点击下载模型\n\n\
+             或者使用云端 API 进行代码补全。".to_string()
+        );
+    }
+
+    // TODO: 实现实际的本地模型推理
+    // 当前返回错误，让前端回退到云端 API
+    Err(
+        "本地模型代码补全功能正在开发中。\n\n\
+         当前版本请使用云端 API 进行代码补全。\n\n\
+         我们正在集成 llama.cpp 推理引擎，敬请期待！".to_string()
+    )
+}
+
 // ============================================================================
 // Tests
 // ============================================================================

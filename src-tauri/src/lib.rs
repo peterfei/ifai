@@ -596,6 +596,7 @@ pub fn run() {
             local_model::start_download,
             local_model::cancel_download,
             local_model::local_model_preprocess,
+            local_model::local_code_completion,
             file_cache::get_file_cache_stats,
             file_cache::clear_file_cache,
             file_cache::print_file_cache_stats
