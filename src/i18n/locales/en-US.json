@@ -198,7 +198,8 @@
     "doc": { "label": "Document", "description": "Write documentation and READMEs" },
     "refactor": { "label": "Refactor", "description": "Suggest code improvements" },
     "help": { "label": "System Help", "description": "Show feature guide and shortcuts" },
-    "index": { "label": "Rebuild Index", "description": "Manually force a RAG semantic index rebuild" }
+    "index": { "label": "Rebuild Index", "description": "Manually force a RAG semantic index rebuild" },
+    "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization (v0.2.6)" }
   },
   "help_message": {
     "title": "🚀 Welcome to IfAI v0.2.0",

@@ -17,6 +17,7 @@ import { VirtualMessageList } from './VirtualMessageList';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 // v0.2.6: 任务拆解 Store（测试中）
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
+import { SimpleTaskView } from '../TaskBreakdown/SimpleTaskView';
 
 interface AIChatProps {
   width?: number;
@@ -230,6 +231,193 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
           });
         }, 100);
       }
+
+      setInput('');
+      setShowCommands(false);
+      resetHistoryIndex();
+      return;
+    }
+
+    // v0.2.6 Special Command: /task:demo
+    if (msg.toLowerCase() === '/task:demo') {
+      const { addMessage } = useChatStore.getState() as any;
+      const store = useTaskBreakdownStore.getState();
+
+      // 创建示例任务树
+      const demoTaskTree = {
+        id: `tb-${Date.now()}-demo`,
+        title: '示例：实现用户登录功能',
+        description: '这是一个示例任务拆解，展示了任务树的结构',
+        originalPrompt: '/task:demo',
+        taskTree: {
+          id: 'root-1',
+          title: '实现用户登录功能',
+          description: '完整的用户认证系统，包括登录、注册、密码重置',
+          status: 'in_progress' as const,
+          dependencies: [],
+          priority: 'high' as const,
+          category: 'development' as const,
+          estimatedHours: 16,
+          children: [
+            {
+              id: 'task-1',
+              title: '后端 API 开发',
+              description: '实现登录、注册、密码重置的后端接口',
+              status: 'completed' as const,
+              dependencies: [],
+              category: 'development' as const,
+              estimatedHours: 8,
+              priority: 'high' as const,
+              acceptanceCriteria: [
+                'POST /api/auth/login 返回 JWT token',
+                'POST /api/auth/register 创建新用户',
+                'POST /api/auth/reset-password 发送重置邮件',
+              ],
+              children: [
+                {
+                  id: 'task-1-1',
+                  title: '设计数据库 Schema',
+                  status: 'completed' as const,
+                  dependencies: [],
+                  category: 'development' as const,
+                  estimatedHours: 2,
+                  children: [],
+                },
+                {
+                  id: 'task-1-2',
+                  title: '实现 JWT 认证中间件',
+                  status: 'completed' as const,
+                  dependencies: ['task-1-1'],
+                  category: 'development' as const,
+                  estimatedHours: 3,
+                  children: [],
+                },
+                {
+                  id: 'task-1-3',
+                  title: '编写 API 端点',
+                  status: 'completed' as const,
+                  dependencies: ['task-1-2'],
+                  category: 'development' as const,
+                  estimatedHours: 3,
+                  children: [],
+                },
+              ],
+            },
+            {
+              id: 'task-2',
+              title: '前端登录页面',
+              description: '实现用户登录和注册表单',
+              status: 'in_progress' as const,
+              dependencies: ['task-1'],
+              category: 'development' as const,
+              estimatedHours: 6,
+              priority: 'high' as const,
+              acceptanceCriteria: [
+                '响应式设计，支持移动端',
+                '表单验证（邮箱格式、密码强度）',
+                '错误提示友好',
+                '记住我功能',
+              ],
+              children: [
+                {
+                  id: 'task-2-1',
+                  title: '设计 UI 原型',
+                  status: 'completed' as const,
+                  dependencies: [],
+                  category: 'design' as const,
+                  estimatedHours: 2,
+                  children: [],
+                },
+                {
+                  id: 'task-2-2',
+                  title: '实现登录表单组件',
+                  status: 'in_progress' as const,
+                  dependencies: ['task-2-1'],
+                  category: 'development' as const,
+                  estimatedHours: 3,
+                  children: [],
+                },
+                {
+                  id: 'task-2-3',
+                  title: '集成后端 API',
+                  status: 'pending' as const,
+                  dependencies: ['task-2-2', 'task-1'],
+                  category: 'development' as const,
+                  estimatedHours: 1,
+                  children: [],
+                },
+              ],
+            },
+            {
+              id: 'task-3',
+              title: '编写测试用例',
+              description: '为认证系统编写单元测试和集成测试',
+              status: 'pending' as const,
+              dependencies: ['task-1', 'task-2'],
+              category: 'testing' as const,
+              estimatedHours: 4,
+              priority: 'medium' as const,
+              children: [],
+            },
+            {
+              id: 'task-4',
+              title: '编写技术文档',
+              description: '编写 API 文档和部署指南',
+              status: 'pending' as const,
+              dependencies: ['task-1'],
+              category: 'documentation' as const,
+              estimatedHours: 2,
+              priority: 'low' as const,
+              children: [],
+            },
+          ],
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'in_progress' as const,
+      };
+
+      // 设置到 store
+      store.setCurrentBreakdown(demoTaskTree);
+
+      // 添加用户消息
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: msg
+      });
+
+      // 添加助手响应
+      setTimeout(() => {
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `### 📋 任务拆解示例
+
+\`\`\`tsx
+<SimpleTaskView taskTree={demoTaskTree.taskTree} />
+\`\`\`
+
+---
+
+**提示：** 这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。
+
+任务树包含：
+- **层级结构**：主任务 → 子任务 → 子子任务
+- **状态跟踪**：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕
+- **优先级**：紧急 / 高 / 中 / 低
+- **类别**：开发 / 测试 / 文档 / 设计 / 研究
+- **工时估算**：预估小时数
+- **验收标准**：明确的完成条件
+- **依赖关系**：任务间的依赖
+
+💾 当前任务树已保存到 Store，使用控制台测试：
+\`\`\`javascript
+window.__taskBreakdownStore.getState()
+\`\`\`
+`,
+        });
+      }, 100);
 
       setInput('');
       setShowCommands(false);
