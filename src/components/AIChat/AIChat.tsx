@@ -242,6 +242,12 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
     if (msg.toLowerCase() === '/task:demo') {
       const { addMessage } = useChatStore.getState() as any;
       const store = useTaskBreakdownStore.getState();
+      const rootPath = useFileStore.getState().rootPath;
+
+      // 设置项目根路径到 taskBreakdownStore
+      if (rootPath) {
+        store.setProjectRoot(rootPath);
+      }
 
       // 创建示例任务树
       const demoTaskTree = {
@@ -380,6 +386,13 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       // 设置到 store
       store.setCurrentBreakdown(demoTaskTree);
 
+      // 保存到文件
+      if (rootPath) {
+        store.saveBreakdown().catch((e) => {
+          console.error('[AIChat] Failed to save demo task:', e);
+        });
+      }
+
       // 添加用户消息
       addMessage({
         id: crypto.randomUUID(),
@@ -389,6 +402,10 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
 
       // 添加助手响应
       setTimeout(() => {
+        const saveHint = rootPath
+          ? `\n\n💾 任务已保存到：\`${rootPath}/.ifai/tasks/breakdowns/${demoTaskTree.id}.json\``
+          : '\n\n⚠️ 未打开项目，任务仅保存在内存中';
+
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -409,9 +426,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
 - **类别**：开发 / 测试 / 文档 / 设计 / 研究
 - **工时估算**：预估小时数
 - **验收标准**：明确的完成条件
-- **依赖关系**：任务间的依赖
+- **依赖关系**：任务间的依赖${saveHint}
 
-💾 当前任务树已保存到 Store，使用控制台测试：
+使用控制台测试：
 \`\`\`javascript
 window.__taskBreakdownStore.getState()
 \`\`\`
@@ -683,9 +700,10 @@ window.__taskBreakdownStore.getState()
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-auto p-4"
+        className="min-h-0 overflow-auto p-4"
         style={{
           // v0.2.6 性能优化：单一滚动容器，虚拟滚动使用此容器
+          flex: '1 1 0%', // 明确设置 flex 属性，确保正确计算高度
         }}
       >
         {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}

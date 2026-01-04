@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { invoke } from '@tauri-apps/api/core';
 import { TaskBreakdown, TaskNode, BreakdownStatus, TaskStatus } from '../types/taskBreakdown';
 
 /**
@@ -23,6 +24,8 @@ interface TaskBreakdownState {
   breakdownProgress: number;
   /** 拆解错误信息 */
   error: string | null;
+  /** 项目根路径 */
+  projectRoot: string | null;
 
   /** 设置当前任务拆解 */
   setCurrentBreakdown: (breakdown: TaskBreakdown | null) => void;
@@ -54,6 +57,18 @@ interface TaskBreakdownState {
   };
   /** 计算总预估工时 */
   calculateTotalHours: (taskTree: TaskNode) => number;
+
+  // v0.2.6 文件持久化方法
+  /** 保存当前任务拆解到文件 */
+  saveBreakdown: () => Promise<void>;
+  /** 从文件加载任务拆解 */
+  loadBreakdown: (id: string) => Promise<void>;
+  /** 列出所有任务拆解 */
+  listBreakdowns: () => Promise<TaskBreakdown[]>;
+  /** 删除任务拆解 */
+  deleteBreakdown: (id: string) => Promise<void>;
+  /** 设置项目根路径 */
+  setProjectRoot: (root: string | null) => void;
 }
 
 /**
@@ -129,6 +144,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       isBreakingDown: false,
       breakdownProgress: 0,
       error: null,
+      projectRoot: null,
 
       // 设置当前任务拆解
       setCurrentBreakdown: (breakdown) => {
@@ -245,6 +261,154 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
 
       // 计算总预估工时
       calculateTotalHours: calculateTotalHours,
+
+      // v0.2.6 文件持久化方法
+      /** 设置项目根路径 */
+      setProjectRoot: (root) => {
+        set({ projectRoot: root });
+      },
+
+      /** 保存当前任务拆解到文件 */
+      saveBreakdown: async () => {
+        const { currentBreakdown, projectRoot } = get();
+        if (!currentBreakdown) {
+          set({ error: 'No breakdown to save' });
+          return;
+        }
+        if (!projectRoot) {
+          set({ error: 'Project root not set' });
+          return;
+        }
+
+        try {
+          // 转换为 Rust 兼容格式（使用 snake_case 匹配 Rust 结构体）
+          // serde(alias) 已在 Rust 端配置，所以前端只需发送 camelCase
+          const rustBreakdown = {
+            id: currentBreakdown.id,
+            title: currentBreakdown.title,
+            description: currentBreakdown.description,
+            originalPrompt: currentBreakdown.originalPrompt,
+            taskTree: currentBreakdown.taskTree,
+            createdAt: currentBreakdown.createdAt,
+            updatedAt: currentBreakdown.updatedAt,
+            status: currentBreakdown.status,
+            openspecProposal: currentBreakdown.openspecProposal,
+            totalEstimatedHours: currentBreakdown.totalEstimatedHours,
+            stats: currentBreakdown.stats,
+          };
+
+          await invoke('save_task_breakdown', {
+            projectRoot,
+            breakdown: rustBreakdown,
+          });
+
+          // 添加到历史记录
+          get().addToHistory(currentBreakdown);
+          console.log('[TaskBreakdown] Saved to file:', currentBreakdown.id);
+        } catch (e) {
+          const errorMsg = `Failed to save breakdown: ${e}`;
+          set({ error: errorMsg });
+          console.error('[TaskBreakdown]', errorMsg);
+        }
+      },
+
+      /** 从文件加载任务拆解 */
+      loadBreakdown: async (id) => {
+        const { projectRoot } = get();
+        if (!projectRoot) {
+          set({ error: 'Project root not set' });
+          return;
+        }
+
+        try {
+          const rustBreakdown: any = await invoke('load_task_breakdown', {
+            projectRoot,
+            id,
+          });
+
+          // 转换回 TypeScript 格式
+          const breakdown: TaskBreakdown = {
+            id: rustBreakdown.id,
+            title: rustBreakdown.title,
+            description: rustBreakdown.description,
+            originalPrompt: rustBreakdown.original_prompt,
+            taskTree: rustBreakdown.task_tree,
+            createdAt: rustBreakdown.created_at,
+            updatedAt: rustBreakdown.updated_at,
+            status: rustBreakdown.status,
+            openspecProposal: rustBreakdown.openspec_proposal,
+            totalEstimatedHours: rustBreakdown.total_estimated_hours,
+            stats: rustBreakdown.stats,
+          };
+
+          set({ currentBreakdown: breakdown });
+          console.log('[TaskBreakdown] Loaded from file:', id);
+        } catch (e) {
+          const errorMsg = `Failed to load breakdown: ${e}`;
+          set({ error: errorMsg });
+          console.error('[TaskBreakdown]', errorMsg);
+        }
+      },
+
+      /** 列出所有任务拆解 */
+      listBreakdowns: async () => {
+        const { projectRoot } = get();
+        if (!projectRoot) {
+          console.warn('[TaskBreakdown] Project root not set');
+          return [];
+        }
+
+        try {
+          const rustBreakdowns: any[] = await invoke('list_task_breakdowns', {
+            projectRoot,
+          });
+
+          // 转换回 TypeScript 格式
+          const breakdowns: TaskBreakdown[] = rustBreakdowns.map(rb => ({
+            id: rb.id,
+            title: rb.title,
+            description: rb.description,
+            originalPrompt: rb.original_prompt,
+            taskTree: rb.task_tree,
+            createdAt: rb.created_at,
+            updatedAt: rb.updated_at,
+            status: rb.status,
+            openspecProposal: rb.openspec_proposal,
+            totalEstimatedHours: rb.total_estimated_hours,
+            stats: rb.stats,
+          }));
+
+          console.log('[TaskBreakdown] Found', breakdowns.length, 'breakdowns');
+          return breakdowns;
+        } catch (e) {
+          console.error('[TaskBreakdown] Failed to list breakdowns:', e);
+          return [];
+        }
+      },
+
+      /** 删除任务拆解 */
+      deleteBreakdown: async (id) => {
+        const { projectRoot } = get();
+        if (!projectRoot) {
+          set({ error: 'Project root not set' });
+          return;
+        }
+
+        try {
+          await invoke('delete_task_breakdown', {
+            projectRoot,
+            id,
+          });
+
+          // 从历史记录中移除
+          get().removeFromHistory(id);
+          console.log('[TaskBreakdown] Deleted:', id);
+        } catch (e) {
+          const errorMsg = `Failed to delete breakdown: ${e}`;
+          set({ error: errorMsg });
+          console.error('[TaskBreakdown]', errorMsg);
+        }
+      },
     }),
     {
       name: 'task-breakdown-storage',

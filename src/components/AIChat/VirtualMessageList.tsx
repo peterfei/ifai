@@ -81,10 +81,9 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   return (
     <div
       ref={localRef}
-      className="h-full"
       style={{
-        // 虚拟滚动不需要 overflow，使用外部容器
-        overflow: 'hidden',
+        // 移除 h-full 和 overflow: hidden，让父容器控制滚动
+        // 虚拟滚动通过父容器的滚动来工作
       }}
     >
       <div
