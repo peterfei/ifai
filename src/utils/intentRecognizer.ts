@@ -1,4 +1,4 @@
-export type IntentType = '/explore' | '/review' | '/test' | '/doc' | '/refactor';
+export type IntentType = '/explore' | '/review' | '/test' | '/doc' | '/refactor' | '/proposal';
 
 interface IntentResult {
     type: IntentType;
@@ -10,6 +10,7 @@ interface IntentPattern {
     type: IntentType;
     keywords: string[];
     regex: RegExp;
+    minConfidence?: number;
 }
 
 const PATTERNS: IntentPattern[] = [
@@ -37,6 +38,20 @@ const PATTERNS: IntentPattern[] = [
         type: '/refactor',
         keywords: ['重构', '优化', '改进', 'refactor', 'optimize'],
         regex: /(?:帮我|给我)?(?:重构|优化|改进|refactor|optimize)(?:代码|这段代码)?/i
+    },
+    {
+        type: '/proposal',
+        keywords: ['实现', '功能', '系统', '模块', '架构', '添加', '设计', '方案'],
+        // 修复：使用贪婪匹配，并确保匹配到功能关键词
+        regex: /(?:实现|添加|创建|开发)(?:新的)?(.+?)(?=功能|系统|模块|架构|$)/i,
+        minConfidence: 0.7
+    },
+    {
+        type: '/proposal',
+        keywords: ['重构', '优化', '升级'],
+        // 修复：使用前瞻断言确保正确匹配
+        regex: /(?:重构|优化|升级)(.+?)(?=架构|系统|模块|$)/i,
+        minConfidence: 0.65
     }
 ];
 
@@ -132,6 +147,7 @@ export function formatAgentName(agentType: IntentType): string {
         '/test': 'Test',
         '/doc': 'Doc',
         '/refactor': 'Refactor',
+        '/proposal': 'Proposal',
     };
     return nameMap[agentType] || agentType;
 }

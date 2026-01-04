@@ -406,7 +406,25 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         if (shouldTriggerAgent(intentResult, confidenceThreshold)) {
             const agentType = intentResult.type;
             const agentTypeBase = agentType.slice(1); // Remove '/' prefix
-            const agentName = agentTypeBase.charAt(0).toUpperCase() + agentTypeBase.slice(1) + " Agent";
+
+            // 意图类型到 Agent 名称的映射
+            // 默认规则：首字母大写 + " Agent"
+            // 特殊映射：proposal -> proposal-generator
+            const agentNameMap: Record<string, string> = {
+                'proposal': 'proposal-generator',
+                // 可以添加更多映射
+            };
+
+            const agentName = agentNameMap[agentTypeBase] ||
+                (agentTypeBase.charAt(0).toUpperCase() + agentTypeBase.slice(1) + " Agent");
+
+            console.log('[NaturalLanguageTrigger] Mapped agent:', {
+                intentType: agentType,
+                agentTypeBase,
+                agentName,
+                originalIntent: intentResult
+            });
+
             const args = intentResult.args || textInput;
 
             const { addMessage } = coreUseChatStore.getState();

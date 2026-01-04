@@ -197,9 +197,10 @@
     "test": { "label": "Test", "description": "Generate unit and integration tests" },
     "doc": { "label": "Document", "description": "Write documentation and READMEs" },
     "refactor": { "label": "Refactor", "description": "Suggest code improvements" },
+    "proposal": { "label": "Proposal", "description": "Generate OpenSpec-compliant proposals" },
     "help": { "label": "System Help", "description": "Show feature guide and shortcuts" },
     "index": { "label": "Rebuild Index", "description": "Manually force a RAG semantic index rebuild" },
-    "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization (v0.2.6)" }
+    "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization" }
   },
   "help_message": {
     "title": "🚀 Welcome to IfAI v0.2.0",

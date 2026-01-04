@@ -197,9 +197,10 @@
     "test": { "label": "测试生成", "description": "自动生成单元测试与集成案例" },
     "doc": { "label": "文档生成", "description": "编写技术文档、README 与注释" },
     "refactor": { "label": "重构建议", "description": "提供代码改进与架构重构方案" },
+    "proposal": { "label": "提案生成", "description": "生成 OpenSpec 规范的提案" },
     "help": { "label": "系统帮助", "description": "显示功能指南与快捷键说明" },
     "index": { "label": "重建索引", "description": "手动强制为项目代码库建立 RAG 语义索引" },
-    "task": { "label": "任务拆解", "description": "AI 驱动的任务分解与可视化 (v0.2.6)" }
+    "task": { "label": "任务拆解", "description": "AI 驱动的任务分解与可视化" }
   },
         
       "help_message": {

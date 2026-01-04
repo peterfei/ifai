@@ -19,6 +19,11 @@ import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
 import { TaskBreakdownViewer } from '../TaskBreakdown/TaskBreakdownViewer';
 import { breakdownTask } from '../../services/taskBreakdownService';
+// v0.2.6: 提案审核弹窗
+import { useProposalStore } from '../../stores/proposalStore';
+import { ProposalReviewModal } from '../ProposalWorkflow';
+// v0.2.6: Agent Store
+import { useAgentStore } from '../../stores/agentStore';
 
 interface AIChatProps {
   width?: number;
@@ -65,6 +70,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const commandListRef = useRef<SlashCommandListHandle>(null);
   // v0.2.6: 使用 store 管理任务拆解模态框
   const { openModal: openTaskBreakdownModal } = useTaskBreakdownStore();
+  // v0.2.6: 提案审核弹窗状态
+  const { isReviewModalOpen, pendingReviewProposalId, closeReviewModal } = useProposalStore();
 
   // Track user manual scrolling to disable auto-scroll
   const isUserScrolling = useRef(false);
@@ -537,6 +544,84 @@ ${error}
       return;
     }
 
+    // v0.2.6 Special Command: /proposal [需求描述]
+    if (msg.toLowerCase().startsWith('/proposal ')) {
+      const requirementDescription = msg.substring('/proposal '.length).trim();
+
+      if (!requirementDescription) {
+        const { addMessage } = useChatStore.getState() as any;
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '❌ 请提供要生成提案的需求描述\n\n**用法**：`/proposal [需求描述]`\n\n**示例**：`/proposal 实现用户登录功能`'
+        });
+        setInput('');
+        setShowCommands(false);
+        resetHistoryIndex();
+        return;
+      }
+
+      // 添加用户消息
+      const { addMessage } = useChatStore.getState() as any;
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: msg
+      });
+
+      // 启动 proposal-generator agent
+      try {
+        const assistantMsgId = crypto.randomUUID();
+        addMessage({
+          id: assistantMsgId,
+          role: 'assistant',
+          content: `_[正在生成 OpenSpec 提案...]_\n\n`,
+          // @ts-ignore - custom property
+          agentId: undefined,
+          isAgentLive: true
+        });
+
+        const agentId = await useAgentStore.getState().launchAgent(
+          'proposal-generator',
+          requirementDescription,
+          assistantMsgId
+        );
+
+        // 更新消息的 agentId
+        const messages = useChatStore.getState().messages;
+        const msgToUpdate = messages.find((m: any) => m.id === assistantMsgId);
+        if (msgToUpdate) {
+          // @ts-ignore
+          msgToUpdate.agentId = agentId;
+        }
+      } catch (error) {
+        const { addMessage: addMsg } = useChatStore.getState() as any;
+        addMsg({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `### ❌ 提案生成失败
+
+${error}
+
+**可能的原因**：
+- AI 响应格式不正确
+- 网络连接问题
+- API 配额不足
+
+**建议**：
+1. 尝试简化需求描述
+2. 检查 API 密钥配置
+3. 稍后重试
+`
+        });
+      }
+
+      setInput('');
+      setShowCommands(false);
+      resetHistoryIndex();
+      return;
+    }
+
     if (!isProviderConfigured) {
       const { addMessage } = useChatStore.getState() as any;
       addMessage({
@@ -843,6 +928,14 @@ ${error}
           <Send size={16} />
         </button>
       </div>
+
+      {/* v0.2.6: 提案审核弹窗 */}
+      {isReviewModalOpen && (
+        <ProposalReviewModal
+          proposalId={pendingReviewProposalId}
+          onClose={closeReviewModal}
+        />
+      )}
     </div>
   );
 };

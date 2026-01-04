@@ -21,6 +21,7 @@ mod community;
 mod local_model;
 mod intelligence_router;
 mod token_counter; // v0.2.6 新增：Token 计数模块
+mod openspec; // v0.2.6 新增：OpenSpec 集成
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
@@ -616,7 +617,14 @@ pub fn run() {
             commands::task_commands::save_task_breakdown,
             commands::task_commands::load_task_breakdown,
             commands::task_commands::list_task_breakdowns,
-            commands::task_commands::delete_task_breakdown
+            commands::task_commands::delete_task_breakdown,
+            // v0.2.6 新增：OpenSpec 集成
+            openspec::detector::detect_openspec_cli,
+            commands::proposal_commands::save_proposal,
+            commands::proposal_commands::load_proposal,
+            commands::proposal_commands::delete_proposal,
+            commands::proposal_commands::move_proposal,
+            commands::proposal_commands::list_proposals
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

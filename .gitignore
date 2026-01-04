@@ -50,3 +50,14 @@ BUG_FIX_REPORT.md
 TASK_BREAKDOWN_v0.2.0.md
 
 TOUTIAO_v0.2.5.md
+
+# OpenSpec 提案运行时数据
+.ifai/archive/
+.ifai/changes/
+.ifai/proposals/
+.ifai/sessions/
+.ifai/templates/
+
+# 项目内的 .ifai 目录（除了 prompts 模板）
+.ifai/index.bin
+.ifai/tasks/

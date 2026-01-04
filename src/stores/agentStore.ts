@@ -6,6 +6,7 @@ import { useFileStore } from './fileStore';
 import { useSettingsStore } from './settingsStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
 import { useThreadStore } from './threadStore';
+import { useProposalStore } from './proposalStore';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 
@@ -658,6 +659,62 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         },
                     });
                 }
+            }
+
+            // v0.2.6: Handle proposal-generator agent completion
+            if (agent?.type === 'proposal-generator' && result) {
+                console.log('[AgentStore] 📋 Proposal generator completed, processing result...');
+                (async () => {
+                    try {
+                        // Extract JSON from the result (handle markdown code blocks)
+                        let jsonStr = result;
+                        const codeBlockMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                        if (codeBlockMatch) {
+                            jsonStr = codeBlockMatch[1];
+                        }
+
+                        // Parse the proposal data
+                        const proposalData = JSON.parse(jsonStr);
+
+                        if (proposalData.changeId && proposalData.proposal) {
+                            // Create proposal using the proposalStore
+                            const proposalStore = useProposalStore.getState();
+
+                            // Build proposal object from agent result
+                            const proposalOptions = {
+                                id: proposalData.changeId,
+                                why: proposalData.proposal.why || '',
+                                whatChanges: proposalData.proposal.whatChanges || [],
+                                impact: proposalData.proposal.impact || { specs: [], files: [], breakingChanges: false },
+                                tasks: proposalData.tasks || [],
+                                specDeltas: proposalData.specDeltas || [],
+                                design: proposalData.design,
+                            };
+
+                            const proposal = await proposalStore.createProposal(proposalOptions);
+
+                            console.log('[AgentStore] ✅ Proposal created:', proposal.id);
+
+                            // Show success toast
+                            toast.success('提案生成成功', {
+                                description: `"${proposalData.changeId}" 已创建，等待审核`,
+                            });
+
+                            // Open the review modal
+                            proposalStore.openReviewModal(proposal.id);
+                        } else {
+                            console.warn('[AgentStore] ⚠️ Invalid proposal data structure:', proposalData);
+                            toast.error('提案格式错误', {
+                                description: 'AI 返回的数据格式不正确',
+                            });
+                        }
+                    } catch (error) {
+                        console.error('[AgentStore] ❌ Failed to process proposal result:', error);
+                        toast.error('提案处理失败', {
+                            description: error instanceof Error ? error.message : '未知错误',
+                        });
+                    }
+                })();
             }
         }
         // --- Explore Progress ---

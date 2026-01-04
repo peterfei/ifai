@@ -128,7 +128,17 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
       if (!isActivelyStreaming && !isStreaming) return false;
       // 检查内容是否包含任务拆解的特征
       const cleanContent = displayContent.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      return cleanContent.includes('"taskTree"') || cleanContent.includes('"title"') || cleanContent.includes('"children"');
+
+      // v0.2.6: 优先检测 proposal-generator，避免与 task-breakdown 混淆
+      const isProposalGenerator = cleanContent.includes('"specDeltas"') ||
+                                   cleanContent.includes('"changeId"') ||
+                                   cleanContent.includes('"whatChanges"');
+
+      if (isProposalGenerator) return false; // proposal-generator 不显示为任务拆解
+
+      return cleanContent.includes('"taskTree"') ||
+             cleanContent.includes('"children"') ||
+             (cleanContent.includes('"title"') && cleanContent.includes('"tasks"'));
     }, [displayContent, isActivelyStreaming, isStreaming]);
 
     // Update streaming status based on content growth

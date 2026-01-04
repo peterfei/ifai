@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Search, ShieldCheck, TestTube, FileText, Zap, Terminal, HelpCircle, ListTree } from 'lucide-react';
+import { Search, ShieldCheck, TestTube, FileText, Zap, Terminal, HelpCircle, ListTree, FileEdit } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface Command {
@@ -31,6 +31,8 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
     { id: '/test', label: t('commands.test.label'), description: t('commands.test.description'), icon: <TestTube size={16} />, color: 'bg-green-500' },
     { id: '/doc', label: t('commands.doc.label'), description: t('commands.doc.description'), icon: <FileText size={16} />, color: 'bg-orange-500' },
     { id: '/refactor', label: t('commands.refactor.label'), description: t('commands.refactor.description'), icon: <Zap size={16} />, color: 'bg-yellow-500' },
+    // v0.2.6: 提案生成命令
+    { id: '/proposal', label: t('commands.proposal.label'), description: t('commands.proposal.description'), icon: <FileEdit size={16} />, color: 'bg-rose-500' },
     { id: '/help', label: t('commands.help.label'), description: t('commands.help.description'), icon: <HelpCircle size={16} />, color: 'bg-teal-500' },
     { id: '/index', label: t('commands.index.label'), description: t('commands.index.description'), icon: <Search size={16} />, color: 'bg-indigo-500' },
     // v0.2.6: 任务拆解命令
