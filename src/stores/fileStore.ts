@@ -13,6 +13,8 @@ interface FileState {
   activeFileId: string | null;
   gitStatuses: Map<string, GitStatus>;
   expandedNodes: Set<string>;
+  // v0.2.6 新增：Markdown 预览模式
+  previewMode: 'editor' | 'preview' | 'split';
 
   setFileTree: (tree: FileNode) => void;
   setRootPath: (path: string | null) => Promise<void>;
@@ -30,6 +32,9 @@ interface FileState {
   toggleExpandedNode: (nodeId: string) => void;
   setExpandedNodes: (nodes: Set<string>) => void;
   syncState: (state: Partial<FileState>) => void;
+  // v0.2.6 新增：设置预览模式
+  setPreviewMode: (mode: 'editor' | 'preview' | 'split') => void;
+  togglePreviewMode: () => void;
 }
 
 // Helper to recursively update git status in file tree
@@ -49,6 +54,8 @@ export const useFileStore = create<FileState>()(
       activeFileId: null,
       gitStatuses: new Map(),
       expandedNodes: new Set(),
+      // v0.2.6 新增：默认预览模式
+      previewMode: 'editor',
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
@@ -288,6 +295,21 @@ export const useFileStore = create<FileState>()(
         }
         return new Set();
       },
+
+      // v0.2.6 新增：设置预览模式
+      setPreviewMode: (mode: 'editor' | 'preview' | 'split') => {
+        set({ previewMode: mode });
+      },
+
+      // v0.2.6 新增：切换预览模式（循环切换：editor -> split -> preview -> editor）
+      togglePreviewMode: () => {
+        set((state) => {
+          const modeCycle: Array<'editor' | 'preview' | 'split'> = ['editor', 'split', 'preview'];
+          const currentIndex = modeCycle.indexOf(state.previewMode);
+          const nextIndex = (currentIndex + 1) % modeCycle.length;
+          return { previewMode: modeCycle[nextIndex] };
+        });
+      },
     }),
     {
       name: 'file-storage',
@@ -295,6 +317,8 @@ export const useFileStore = create<FileState>()(
         openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })),
         activeFileId: state.activeFileId,
         rootPath: state.rootPath,
+        // v0.2.6 新增：持久化预览模式
+        previewMode: state.previewMode,
         // 存储展开的路径而不是 ID，因为 ID 每次重新加载都会变化
         expandedPaths: Array.from(
           (() => {
@@ -314,6 +338,7 @@ export const useFileStore = create<FileState>()(
           })()
         ),
       }),
+
       onRehydrateStorage: () => (state) => {
         // Reload file contents after rehydration from localStorage
         if (state) {

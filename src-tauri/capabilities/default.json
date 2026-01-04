@@ -12,6 +12,7 @@
     "opener:default",
     "fs:default",
     "dialog:default",
+    "shell:allow-open",
     "shell:allow-execute",
     {
       "identifier": "shell:allow-execute",
