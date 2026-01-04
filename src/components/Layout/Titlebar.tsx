@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { detectLanguageFromPath } from '../../utils/languageDetection';
 
 interface TitlebarProps {
   onToggleChat?: () => void;
@@ -155,14 +156,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   };
 
   const getLanguageFromPath = (path: string): string => {
-    if (path.endsWith('.ts') || path.endsWith('.tsx')) return 'typescript';
-    if (path.endsWith('.js') || path.endsWith('.jsx')) return 'javascript';
-    if (path.endsWith('.rs')) return 'rust';
-    if (path.endsWith('.json')) return 'json';
-    if (path.endsWith('.md')) return 'markdown';
-    if (path.endsWith('.css')) return 'css';
-    if (path.endsWith('.html')) return 'html';
-    return 'plaintext';
+    return detectLanguageFromPath(path);
   };
 
   return (

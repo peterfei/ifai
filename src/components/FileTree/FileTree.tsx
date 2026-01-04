@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { ContextMenu } from './ContextMenu';
 import { VirtualFileTree, useVirtualization } from './VirtualFileTree';
+import { detectLanguageFromPath } from '../../utils/languageDetection';
 
 interface ContextMenuState {
   x: number;
@@ -177,15 +178,9 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeId, on
   );
 };
 
+// v0.2.6: 使用统一的语言检测工具
 const getLanguageFromPath = (path: string): string => {
-  if (path.endsWith('.ts') || path.endsWith('.tsx')) return 'typescript';
-  if (path.endsWith('.js') || path.endsWith('.jsx')) return 'javascript';
-  if (path.endsWith('.rs')) return 'rust';
-  if (path.endsWith('.json')) return 'json';
-  if (path.endsWith('.md')) return 'markdown';
-  if (path.endsWith('.css')) return 'css';
-  if (path.endsWith('.html')) return 'html';
-  return 'plaintext';
+  return detectLanguageFromPath(path);
 };
 
 export const FileTree = () => {

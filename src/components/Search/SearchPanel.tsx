@@ -6,6 +6,7 @@ import { Loader2, Search, X, ChevronDown, CaseSensitive, Regex, RotateCcw, Clock
 import { readFileContent } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
+import { detectLanguageFromPath } from '../../utils/languageDetection';
 
 interface SearchResult {
   path: string;
@@ -190,33 +191,9 @@ export const SearchPanel = () => {
       console.log('[Search] File content loaded, length:', content.length);
 
       const fileName = result.path.split('/').pop() || 'unknown';
-      const extension = fileName.split('.').pop() || '';
 
-      // Detect language from extension
-      const languageMap: Record<string, string> = {
-        'ts': 'typescript',
-        'tsx': 'typescript',
-        'js': 'javascript',
-        'jsx': 'javascript',
-        'rs': 'rust',
-        'json': 'json',
-        'md': 'markdown',
-        'css': 'css',
-        'html': 'html',
-        'py': 'python',
-        'go': 'go',
-        'java': 'java',
-        'cpp': 'cpp',
-        'c': 'c',
-        'h': 'c',
-        'xml': 'xml',
-        'yaml': 'yaml',
-        'yml': 'yaml',
-        'sh': 'shell',
-        'txt': 'plaintext'
-      };
-
-      const language = languageMap[extension] || 'plaintext';
+      // v0.2.6: 使用统一的语言检测工具
+      const language = detectLanguageFromPath(result.path);
 
       const openedId = openFile({
         id: uuidv4(),
