@@ -64,9 +64,23 @@ pub fn get_main_system_prompt(project_root: &str) -> String {
 
 pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: &str) -> String {
     let mut variables = variables::collect_system_variables(project_root);
-    variables.insert("TASK_DESCRIPTION".to_string(), task_description.to_string());
 
-    let template_name = format!("agents/{}.md", agent_type.to_lowercase().replace(' ', "-"));
+    // v0.2.6: 检测提案上下文 [PROPOSAL:proposal_id]
+    let (clean_task, proposal_id) = extract_proposal_context(task_description);
+    variables.insert("TASK_DESCRIPTION".to_string(), clean_task.to_string());
+
+    // 如果有提案上下文，添加提案相关变量
+    if let Some(pid) = &proposal_id {
+        variables.insert("PROPOSAL_ID".to_string(), pid.clone());
+        variables.insert("PROPOSAL_CONTEXT".to_string(), format!("提案 ID: {}", pid));
+    }
+
+    // v0.2.6: 对于 task-breakdown agent，如果有提案上下文，使用增强版提示词
+    let template_name = if agent_type == "task-breakdown" && proposal_id.is_some() {
+        "agents/task-breakdown-enhanced.md".to_string()
+    } else {
+        format!("agents/{}.md", agent_type.to_lowercase().replace(' ', "-"))
+    };
 
     let template = {
         let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(&template_name);
@@ -82,7 +96,7 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: 
 
     let mut prompt = match template {
         Some(t) => template::render_template(&t.content, &variables).unwrap_or_else(|_| t.content),
-        None => format!("You are a specialized {} agent. Task: {}", agent_type, task_description),
+        None => format!("You are a specialized {} agent. Task: {}", agent_type, clean_task),
     };
 
     // 追加 IFAI.md 中的 custom_instructions (与 main prompt 相同的逻辑)
@@ -97,6 +111,26 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: 
     }
 
     prompt
+}
+
+/// v0.2.6: 提取提案上下文
+/// 检测并移除 [PROPOSAL:xxx] 格式的标记
+/// 返回：(清理后的任务描述, 提案ID)
+fn extract_proposal_context(task: &str) -> (String, Option<String>) {
+    use regex::Regex;
+
+    // 匹配 [PROPOSAL:proposal_id] 格式
+    let re = Regex::new(r"^\[PROPOSAL:([^\]]+)\]\s*").unwrap();
+
+    if let Some(caps) = re.captures(task) {
+        if let Some(proposal_id) = caps.get(1) {
+            let clean_task = re.replace(task, "").to_string();
+            println!("[PromptManager] Detected proposal context: id={}", proposal_id.as_str());
+            return (clean_task, Some(proposal_id.as_str().to_string()));
+        }
+    }
+
+    (task.to_string(), None)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

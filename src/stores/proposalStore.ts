@@ -138,11 +138,14 @@ export const useProposalStore = create<ProposalState>()(
             rootPath,
           });
 
-          // 刷新索引
+          // 刷新索引（不在这里更新 currentProposal，避免循环）
           await get().refreshIndex();
 
-          // 设置为当前提案
-          set({ currentProposal: proposal, isCreating: false });
+          // 一次性更新所有状态，避免多次触发更新
+          set({
+            currentProposal: proposal,
+            isCreating: false
+          });
 
           return proposal;
         } catch (e) {

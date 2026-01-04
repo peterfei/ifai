@@ -254,6 +254,13 @@ pub async fn move_proposal(
     let from_dir = get_proposal_dir(&id, &from, &root_path)?;
     let to_dir = get_proposal_dir(&id, &to, &root_path)?;
 
+    // 如果目标目录已存在，先删除它
+    if to_dir.exists() {
+        println!("[Proposal] Target directory exists, removing: {:?}", to_dir);
+        fs::remove_dir_all(&to_dir)
+            .map_err(|e| format!("Failed to remove existing target directory: {}", e))?;
+    }
+
     // 移动目录
     fs::rename(&from_dir, &to_dir)
         .map_err(|e| format!("Failed to move proposal: {}", e))?;

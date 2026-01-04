@@ -53,20 +53,29 @@ impl Supervisor {
     // --- Approval Mechanism ---
 
     pub async fn wait_for_approval(&self, id: String) -> bool {
+        println!("[Supervisor] wait_for_approval called: id={}", id);
         let (tx, rx) = oneshot::channel();
         {
             let mut txs = self.approval_txs.lock().await;
-            txs.insert(id, tx);
+            txs.insert(id.clone(), tx);
+            println!("[Supervisor] Waiting for approval signal: id={}, pending_count={}", id, txs.len());
         }
-        
+
         // This will block the async task until someone calls notify_approval
-        rx.await.unwrap_or(false)
+        let result = rx.await.unwrap_or(false);
+        println!("[Supervisor] Approval received: id={}, approved={}", id, result);
+        result
     }
 
     pub async fn notify_approval(&self, id: &str, approved: bool) {
+        println!("[Supervisor] notify_approval called: id={}, approved={}", id, approved);
         let mut txs = self.approval_txs.lock().await;
+        println!("[Supervisor] Current pending approvals: {:?}", txs.keys().collect::<Vec<_>>());
         if let Some(tx) = txs.remove(id) {
+            println!("[Supervisor] Sending approval signal: id={}, approved={}", id, approved);
             let _ = tx.send(approved);
+        } else {
+            println!("[Supervisor] WARNING: No pending approval found for id={}", id);
         }
     }
 }

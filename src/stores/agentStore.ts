@@ -599,6 +599,32 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     }
                 }
             }
+            // v0.2.6: 处理独立运行的 agent（无 msgId）的工具调用
+            // 例如从提案审核弹窗启动的 task-breakdown agent
+            else if (toolCall && !msgId) {
+                console.log(`[AgentStore] 📎 Processing tool call for standalone agent: tool=${toolCall.tool}, agent=${id}, isPartial=${toolCall.isPartial}`);
+
+                // 只有当工具调用完整时才自动批准
+                const isNewlyCompleted = !toolCall.isPartial;
+
+                // 注意：独立 agent 不检查 wasAlreadyAutoApproved
+                // 因为每轮 AI 响应的 toolCall.id 会从 _0 重新开始
+                if (isNewlyCompleted) {
+                    // 立即自动批准工具调用
+                    setTimeout(async () => {
+                        try {
+                            console.log(`[AgentStore] 📎 Auto-approving agent action: agent=${id}, tool=${toolCall.tool}`);
+                            await invoke('approve_agent_action', {
+                                id: id,      // agent ID
+                                approved: true
+                            });
+                            console.log(`[AgentStore] ✅ Agent action approved: tool=${toolCall.tool}`);
+                        } catch (error) {
+                            console.error(`[AgentStore] ❌ Failed to approve agent action:`, error);
+                        }
+                    }, 50); // 较短延迟，因为独立 agent 需要快速响应
+                }
+            }
         }
         // --- Final Result ---
         else if (payload.type === 'result') {
@@ -662,8 +688,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             }
 
             // v0.2.6: Handle proposal-generator agent completion
+            console.log('[AgentStore] 📋 Checking agent completion:', {
+                agentId: id,
+                agentType: agent?.type,
+                hasResult: !!result,
+                resultLength: result?.length || 0
+            });
+
             if (agent?.type === 'proposal-generator' && result) {
                 console.log('[AgentStore] 📋 Proposal generator completed, processing result...');
+                console.log('[AgentStore] 📋 Result preview:', result.substring(0, 200));
                 (async () => {
                     try {
                         // Extract JSON from the result (handle markdown code blocks)
@@ -671,10 +705,18 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         const codeBlockMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
                         if (codeBlockMatch) {
                             jsonStr = codeBlockMatch[1];
+                            console.log('[AgentStore] 📋 Extracted JSON from code block');
                         }
 
+                        console.log('[AgentStore] 📋 Parsing JSON...');
                         // Parse the proposal data
                         const proposalData = JSON.parse(jsonStr);
+
+                        console.log('[AgentStore] 📋 Parsed proposal data:', {
+                            hasChangeId: !!proposalData.changeId,
+                            hasProposal: !!proposalData.proposal,
+                            changeId: proposalData.changeId
+                        });
 
                         if (proposalData.changeId && proposalData.proposal) {
                             // Create proposal using the proposalStore
@@ -691,6 +733,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                 design: proposalData.design,
                             };
 
+                            console.log('[AgentStore] 📋 Creating proposal...');
                             const proposal = await proposalStore.createProposal(proposalOptions);
 
                             console.log('[AgentStore] ✅ Proposal created:', proposal.id);
@@ -700,8 +743,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                 description: `"${proposalData.changeId}" 已创建，等待审核`,
                             });
 
-                            // Open the review modal
-                            proposalStore.openReviewModal(proposal.id);
+                            // 延迟打开审核弹窗，避免在当前渲染周期内触发状态更新
+                            console.log('[AgentStore] 📋 Scheduling review modal open for:', proposal.id);
+                            setTimeout(() => {
+                                console.log('[AgentStore] 📋 Opening review modal for:', proposal.id);
+                                proposalStore.openReviewModal(proposal.id);
+                                console.log('[AgentStore] 📋 Review modal should be open now');
+                            }, 100);
                         } else {
                             console.warn('[AgentStore] ⚠️ Invalid proposal data structure:', proposalData);
                             toast.error('提案格式错误', {
@@ -715,6 +763,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         });
                     }
                 })();
+            } else {
+                console.log('[AgentStore] 📋 Skipped proposal processing:', {
+                    reason: !agent?.type ? 'no agent' : agent?.type !== 'proposal-generator' ? 'wrong agent type' : 'no result',
+                    agentType: agent?.type
+                });
             }
         }
         // --- Explore Progress ---

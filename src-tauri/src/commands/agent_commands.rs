@@ -87,7 +87,9 @@ pub async fn approve_agent_action(
 ) -> Result<(), String> {
     #[cfg(feature = "commercial")]
     {
+        println!("[AgentCommands] approve_agent_action called: id={}, approved={}", id, approved);
         supervisor.notify_approval(&id, approved).await;
+        println!("[AgentCommands] notify_approval completed for id={}", id);
         Ok(())
     }
     #[cfg(not(feature = "commercial"))]

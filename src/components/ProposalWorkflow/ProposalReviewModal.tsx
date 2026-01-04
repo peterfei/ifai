@@ -12,6 +12,7 @@
 import React, { useState } from 'react';
 import { X, FileText, Check, XCircle, AlertCircle, Edit3, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProposalStore } from '../../stores/proposalStore';
+import { useAgentStore } from '../../stores/agentStore';
 import { OpenSpecProposal } from '../../types/proposal';
 import { invoke } from '@tauri-apps/api/core';
 import clsx from 'clsx';
@@ -42,24 +43,40 @@ export const ProposalReviewModal = ({
 
   // 当 proposalId 变化时，加载提案
   React.useEffect(() => {
+    let mounted = true;
+
     const loadProposal = async () => {
-      if (proposalId) {
+      if (proposalId && mounted) {
         setIsLoading(true);
         try {
           const loadedProposal = await proposalStore.loadProposal(proposalId, 'proposals');
-          setProposal(loadedProposal);
+          if (mounted) {
+            setProposal(loadedProposal);
+          }
         } catch (e) {
           console.error('Failed to load proposal:', e);
-          setProposal(null);
+          if (mounted) {
+            setProposal(null);
+          }
         } finally {
-          setIsLoading(false);
+          if (mounted) {
+            setIsLoading(false);
+          }
         }
-      } else {
-        setProposal(proposalStore.currentProposal);
+      } else if (!proposalId && mounted) {
+        // 只有在没有 proposalId 时才使用 currentProposal
+        const current = proposalStore.currentProposal;
+        if (mounted) {
+          setProposal(current);
+        }
       }
     };
 
     loadProposal();
+
+    return () => {
+      mounted = false;
+    };
   }, [proposalId]);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -173,6 +190,25 @@ export const ProposalReviewModal = ({
       };
 
       await proposalStore.saveProposal(approvedProposal);
+
+      // v0.2.6: 批准后自动启动任务拆解
+      try {
+        // 构建包含提案信息的提示词
+        // 格式：[PROPOSAL:proposal_id] 提案描述
+        const breakdownPrompt = `[PROPOSAL:${proposal.id}] ${proposal.why}\n\n请基于此提案进行详细的任务拆解。`;
+
+        // 使用 task-breakdown agent 进行任务拆解
+        await useAgentStore.getState().launchAgent(
+          'task-breakdown',
+          breakdownPrompt,
+          undefined // msgId - 不关联到特定消息
+        );
+
+        console.log('[ProposalReviewModal] 已启动任务拆解 agent for proposal:', proposal.id);
+      } catch (breakdownError) {
+        console.error('[ProposalReviewModal] 任务拆解启动失败:', breakdownError);
+        // 不阻塞批准流程，只记录错误
+      }
 
       // 回调
       onApproved?.(approvedProposal);
