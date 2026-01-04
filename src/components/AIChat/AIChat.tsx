@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Settings } from 'lucide-react';
+import { Send, Settings, X } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -68,8 +68,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
-  // v0.2.6: 使用 store 管理任务拆解模态框
-  const { openModal: openTaskBreakdownModal } = useTaskBreakdownStore();
+  // v0.2.6: 任务拆解 Store
+  const { currentBreakdown, isPanelOpen, setPanelOpen } = useTaskBreakdownStore();
   // v0.2.6: 提案审核弹窗状态
   const { isReviewModalOpen, pendingReviewProposalId, closeReviewModal } = useProposalStore();
 
@@ -503,8 +503,8 @@ window.__taskBreakdownStore.getState()
           await store.saveBreakdown();
         }
 
-        // 打开模态框（使用 store）
-        openTaskBreakdownModal();
+        // 打开任务拆解面板
+        setPanelOpen(true);
 
         // 更新消息内容为 JSON 格式（用于 TaskBreakdownViewer 检测）
         // breakdownTask 内部会创建一个临时消息，我们需要找到它并更新
@@ -935,6 +935,46 @@ ${error}
           proposalId={pendingReviewProposalId}
           onClose={closeReviewModal}
         />
+      )}
+
+      {/* v0.2.6: 任务拆解面板 */}
+      {isPanelOpen && currentBreakdown && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-[#252526] w-[90vw] max-w-4xl h-[80vh] rounded-lg shadow-xl border border-gray-700 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold text-white">任务拆解</h2>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-4">
+              <TaskBreakdownViewer
+                breakdown={currentBreakdown}
+                mode="full"
+                allowModeSwitch={true}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg flex justify-between items-center">
+              <div className="text-sm text-gray-400">
+                {currentBreakdown.taskTree.title}
+              </div>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

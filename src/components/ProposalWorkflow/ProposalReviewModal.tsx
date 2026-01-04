@@ -12,9 +12,10 @@
 import React, { useState } from 'react';
 import { X, FileText, Check, XCircle, AlertCircle, Edit3, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProposalStore } from '../../stores/proposalStore';
-import { useAgentStore } from '../../stores/agentStore';
+import { useFileStore } from '../../stores/fileStore';
 import { OpenSpecProposal } from '../../types/proposal';
 import { invoke } from '@tauri-apps/api/core';
+import { openFileFromPath } from '../../utils/fileActions';
 import clsx from 'clsx';
 
 interface ProposalReviewModalProps {
@@ -191,23 +192,17 @@ export const ProposalReviewModal = ({
 
       await proposalStore.saveProposal(approvedProposal);
 
-      // v0.2.6: 批准后自动启动任务拆解
-      try {
-        // 构建包含提案信息的提示词
-        // 格式：[PROPOSAL:proposal_id] 提案描述
-        const breakdownPrompt = `[PROPOSAL:${proposal.id}] ${proposal.why}\n\n请基于此提案进行详细的任务拆解。`;
+      // v0.2.6: 批准后直接打开 tasks.md 文件（不再调用 LLM）
+      const rootPath = useFileStore.getState().rootPath;
+      const tasksPath = `${rootPath}/.ifai/changes/${proposal.id}/tasks.md`;
 
-        // 使用 task-breakdown agent 进行任务拆解
-        await useAgentStore.getState().launchAgent(
-          'task-breakdown',
-          breakdownPrompt,
-          undefined // msgId - 不关联到特定消息
-        );
+      console.log('[ProposalReviewModal] 打开任务文件:', tasksPath);
 
-        console.log('[ProposalReviewModal] 已启动任务拆解 agent for proposal:', proposal.id);
-      } catch (breakdownError) {
-        console.error('[ProposalReviewModal] 任务拆解启动失败:', breakdownError);
-        // 不阻塞批准流程，只记录错误
+      const success = await openFileFromPath(tasksPath);
+
+      if (!success) {
+        console.warn('[ProposalReviewModal] 无法打开 tasks.md，尝试打开 proposal.md');
+        await openFileFromPath(`${rootPath}/.ifai/changes/${proposal.id}/proposal.md`);
       }
 
       // 回调

@@ -7,8 +7,10 @@ import { useSettingsStore } from './settingsStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
 import { useThreadStore } from './threadStore';
 import { useProposalStore } from './proposalStore';
+import { useTaskBreakdownStore } from './taskBreakdownStore';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
+import { openFileFromPath } from '../utils/fileActions';
 
 /**
  * 任务树节点接口（用于解析）
@@ -763,9 +765,168 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         });
                     }
                 })();
+            }
+            // v0.2.6: Handle task-breakdown agent completion
+            else if (agent?.type === 'task-breakdown' && result) {
+                console.log('[AgentStore] 📋 Task breakdown completed, processing result...');
+                console.log('[AgentStore] 📋 Result preview:', result.substring(0, 200));
+                (async () => {
+                    try {
+                        // 检查结果是否为空或只有空白字符
+                        const trimmedResult = result.trim();
+                        if (!trimmedResult || trimmedResult.length < 10) {
+                            throw new Error('AI 返回结果为空或过短，无法解析任务拆解');
+                        }
+
+                        // Extract JSON from the result (handle markdown code blocks)
+                        let jsonStr = result;
+                        const codeBlockMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                        if (codeBlockMatch) {
+                            jsonStr = codeBlockMatch[1];
+                            console.log('[AgentStore] 📋 Extracted JSON from code block');
+                        } else {
+                            // 如果没有代码块，尝试直接解析
+                            console.log('[AgentStore] 📋 No code block found, parsing raw result');
+                        }
+
+                        // 清理 JSON 字符串
+                        jsonStr = jsonStr.trim();
+                        if (!jsonStr || jsonStr.length < 10) {
+                            throw new Error('提取的 JSON 内容为空');
+                        }
+
+                        console.log('[AgentStore] 📋 Parsing JSON...', {
+                            length: jsonStr.length,
+                            preview: jsonStr.substring(0, 100)
+                        });
+                        // Parse the task breakdown data
+                        const breakdownData = JSON.parse(jsonStr);
+
+                        console.log('[AgentStore] 📋 Parsed breakdown data:', {
+                            hasId: !!breakdownData.id,
+                            hasTitle: !!breakdownData.title,
+                            hasTaskTree: !!breakdownData.taskTree,
+                            breakdownId: breakdownData.id
+                        });
+
+                        // 验证并修复数据结构
+                        if (breakdownData.taskTree) {
+                            // 如果缺少 id，生成一个
+                            if (!breakdownData.id) {
+                                breakdownData.id = `tb-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+                                console.log('[AgentStore] 📋 Generated id for breakdown:', breakdownData.id);
+                            }
+
+                            // 如果缺少 title，从 taskTree.title 获取
+                            if (!breakdownData.title && breakdownData.taskTree.title) {
+                                breakdownData.title = breakdownData.taskTree.title;
+                                console.log('[AgentStore] 📋 Extracted title from taskTree:', breakdownData.title);
+                            }
+
+                            // 如果仍然没有 title，使用默认值
+                            if (!breakdownData.title) {
+                                breakdownData.title = '任务拆解';
+                                console.log('[AgentStore] 📋 Using default title');
+                            }
+
+                            // 如果缺少 description，使用 taskTree.description 或默认值
+                            if (!breakdownData.description) {
+                                breakdownData.description = breakdownData.taskTree.description || '任务拆解结果';
+                                console.log('[AgentStore] 📋 Generated description:', breakdownData.description);
+                            }
+
+                            // 如果缺少 originalPrompt，使用 description
+                            if (!breakdownData.originalPrompt) {
+                                breakdownData.originalPrompt = breakdownData.description;
+                                console.log('[AgentStore] 📋 Generated originalPrompt');
+                            }
+
+                            // 确保 updatedAt 存在
+                            if (!breakdownData.updatedAt) {
+                                breakdownData.updatedAt = Date.now();
+                            }
+
+                            console.log('[AgentStore] 📋 Final breakdown structure:', {
+                                id: breakdownData.id,
+                                title: breakdownData.title,
+                                description: breakdownData.description,
+                                hasTaskTree: !!breakdownData.taskTree
+                            });
+                            // Save task breakdown using the taskBreakdownStore
+                            const taskBreakdownStore = useTaskBreakdownStore.getState();
+
+                            // Build breakdown object from agent result
+                            const breakdown = {
+                                ...breakdownData,
+                                createdAt: Date.now(),
+                                status: 'draft' as const,
+                            };
+
+                            console.log('[AgentStore] 📋 Saving task breakdown...');
+                            await taskBreakdownStore.saveBreakdown(breakdown);
+
+                            console.log('[AgentStore] ✅ Task breakdown saved:', breakdown.id);
+
+                            // v0.2.6: 直接打开提案 markdown 文件，不再显示任务树 UI
+                            if (breakdownData.proposalReference && breakdownData.proposalReference.proposalId) {
+                                const rootPath = useFileStore.getState().rootPath;
+                                const proposalId = breakdownData.proposalReference.proposalId;
+                                const proposalPath = `${rootPath}/.ifai/changes/${proposalId}/proposal.md`;
+
+                                console.log('[AgentStore] 📄 Opening proposal file:', proposalPath);
+
+                                // 打开提案文件
+                                const success = await openFileFromPath(proposalPath);
+
+                                if (success) {
+                                    toast.success('任务拆解完成', {
+                                        description: `已打开提案：${breakdownData.title}`,
+                                    });
+                                } else {
+                                    // 如果打开失败，回退到任务树面板
+                                    taskBreakdownStore.setCurrentBreakdown(breakdown);
+                                    taskBreakdownStore.setPanelOpen(true);
+                                    toast.success('任务拆解完成', {
+                                        description: `"${breakdownData.title}" 已生成`,
+                                        action: {
+                                            label: '查看任务树',
+                                            onClick: () => {
+                                                taskBreakdownStore.setPanelOpen(true);
+                                            },
+                                        },
+                                    });
+                                }
+                            } else {
+                                // 没有提案关联，显示任务树面板
+                                taskBreakdownStore.setCurrentBreakdown(breakdown);
+                                taskBreakdownStore.setPanelOpen(true);
+                                toast.success('任务拆解完成', {
+                                    description: `"${breakdownData.title}" 已生成`,
+                                    action: {
+                                        label: '查看',
+                                        onClick: () => {
+                                            taskBreakdownStore.setPanelOpen(true);
+                                        },
+                                    },
+                                });
+                            }
+
+                        } else {
+                            console.warn('[AgentStore] ⚠️ Invalid breakdown data structure:', breakdownData);
+                            toast.error('任务拆解格式错误', {
+                                description: 'AI 返回的数据格式不正确',
+                            });
+                        }
+                    } catch (error) {
+                        console.error('[AgentStore] ❌ Failed to process task breakdown result:', error);
+                        toast.error('任务拆解处理失败', {
+                            description: error instanceof Error ? error.message : '未知错误',
+                        });
+                    }
+                })();
             } else {
-                console.log('[AgentStore] 📋 Skipped proposal processing:', {
-                    reason: !agent?.type ? 'no agent' : agent?.type !== 'proposal-generator' ? 'wrong agent type' : 'no result',
+                console.log('[AgentStore] 📋 Skipped proposal/task processing:', {
+                    reason: !agent?.type ? 'no agent' : (agent?.type !== 'proposal-generator' && agent?.type !== 'task-breakdown') ? 'wrong agent type' : 'no result',
                     agentType: agent?.type
                 });
             }
