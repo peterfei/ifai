@@ -18,6 +18,7 @@ import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 // v0.2.6: 任务拆解 Store（测试中）
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
 import { SimpleTaskView } from '../TaskBreakdown/SimpleTaskView';
+import { breakdownTask } from '../../services/taskBreakdownService';
 
 interface AIChatProps {
   width?: number;
@@ -435,6 +436,142 @@ window.__taskBreakdownStore.getState()
 `,
         });
       }, 100);
+
+      setInput('');
+      setShowCommands(false);
+      resetHistoryIndex();
+      return;
+    }
+
+    // v0.2.6 Special Command: /task:breakdown
+    if (msg.toLowerCase().startsWith('/task:breakdown ')) {
+      const taskDescription = msg.substring('/task:breakdown '.length).trim();
+
+      if (!taskDescription) {
+        const { addMessage } = useChatStore.getState() as any;
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '❌ 请提供要拆解的任务描述\n\n**用法**：`/task:breakdown [任务描述]`\n\n**示例**：`/task:breakdown 实现用户登录功能`'
+        });
+        setInput('');
+        setShowCommands(false);
+        resetHistoryIndex();
+        return;
+      }
+
+      const { addMessage } = useChatStore.getState() as any;
+      const store = useTaskBreakdownStore.getState();
+      const rootPath = useFileStore.getState().rootPath;
+
+      // 设置项目根路径
+      if (rootPath) {
+        store.setProjectRoot(rootPath);
+      }
+
+      // 添加用户消息
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: msg
+      });
+
+      // 添加加载消息
+      const loadingMsgId = crypto.randomUUID();
+      addMessage({
+        id: loadingMsgId,
+        role: 'assistant',
+        content: `🔄 正在拆解任务...
+
+**任务描述**：${taskDescription}
+
+**AI 正在分析任务...**
+`
+      });
+
+      // 更新进度的辅助函数
+      const updateProgress = (step: number, message: string) => {
+        const { updateMessageContent } = useChatStore.getState() as any;
+        const progress = '⏳'.repeat(Math.min(step, 5));
+        updateMessageContent(loadingMsgId, `🔄 正在拆解任务...
+
+**任务描述**：${taskDescription}
+
+${progress}
+
+**进度**：${message}
+`);
+      };
+
+      try {
+        // 更新进度：开始调用 AI
+        updateProgress(1, '正在连接 AI 服务...');
+
+        // 调用 AI 进行任务拆解
+        const breakdown = await breakdownTask(
+          taskDescription,
+          currentProviderId,
+          currentModel
+        );
+
+        // 设置到 store
+        store.setCurrentBreakdown(breakdown);
+
+        // 保存到文件
+        if (rootPath) {
+          await store.saveBreakdown();
+        }
+
+        // 更新消息显示结果
+        const { updateMessageContent } = useChatStore.getState() as any;
+        const saveHint = rootPath
+          ? `\n\n💾 任务已保存到：\`${rootPath}/.ifai/tasks/breakdowns/${breakdown.id}.json\``
+          : '\n\n⚠️ 未打开项目，任务仅保存在内存中';
+
+        updateMessageContent(loadingMsgId, `### ✅ 任务拆解完成
+
+**任务 ID**：\`${breakdown.id}\`
+
+**任务标题**：${breakdown.title}
+
+**描述**：${breakdown.description}
+
+**预估工时**：${breakdown.totalEstimatedHours ? `${breakdown.totalEstimatedHours.toFixed(1)} 小时` : '计算中...'}
+
+\`\`\`tsx
+<SimpleTaskView taskTree={breakdown.taskTree} />
+\`\`\`
+
+---
+
+**统计信息**：
+- 总任务数：${breakdown.stats?.total || 0}
+- 待办：${breakdown.stats?.pending || 0}
+- 进行中：${breakdown.stats?.inProgress || 0}
+- 已完成：${breakdown.stats?.completed || 0}${saveHint}
+
+**提示**：使用控制台查看详情：
+\`\`\`javascript
+window.__taskBreakdownStore.getState()
+\`\`\`
+`);
+      } catch (error) {
+        const { updateMessageContent } = useChatStore.getState() as any;
+        updateMessageContent(loadingMsgId, `### ❌ 任务拆解失败
+
+${error}
+
+**可能的原因**：
+- AI 响应格式不正确
+- 网络连接问题
+- API 配额不足
+
+**建议**：
+1. 尝试简化任务描述
+2. 检查 API 密钥配置
+3. 稍后重试
+`);
+      }
 
       setInput('');
       setShowCommands(false);

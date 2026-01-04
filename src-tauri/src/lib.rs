@@ -611,7 +611,12 @@ pub fn run() {
             // v0.2.6 新增：Token 计数命令
             token_counter::count_tokens,
             token_counter::count_tokens_batch,
-            token_counter::estimate_tokens_cmd
+            token_counter::estimate_tokens_cmd,
+            // v0.2.6 新增：任务拆解文件存储
+            commands::task_commands::save_task_breakdown,
+            commands::task_commands::load_task_breakdown,
+            commands::task_commands::list_task_breakdowns,
+            commands::task_commands::delete_task_breakdown
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
