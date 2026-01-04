@@ -440,13 +440,13 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
         style={{
-          // Optimize scrolling without aggressive containment
-          // Using 'content' instead of 'strict' to avoid full repaints
+          // v0.2.6 性能优化：使用 CSS containment 优化渲染
           contain: 'content',
-          // Only use will-change during active streaming
+          // 仅在流式传输时使用 will-change
           ...(isLoading && { willChange: 'scroll-position' }),
         }}
       >
+        {/* v0.2.6 性能优化：消息列表使用 CSS 优化 + React.memo (在 MessageItem 中) */}
         {rawMessages.map((message, index) => (
           <MessageItem
             key={message.id}
