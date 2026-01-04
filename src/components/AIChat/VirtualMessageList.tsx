@@ -30,11 +30,6 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // 检测是否有正在流式输出的消息
-  const hasStreamingMessage = messages.some(m =>
-    m.role === 'assistant' && isLoading && messages.indexOf(m) === messages.length - 1
-  );
-
   // ⚠️ 重要：始终调用 hooks，不能在条件返回之前
   // 使用 @tanstack/react-virtual 创建虚拟化列表
   const virtualizer = useVirtualizer({
@@ -42,20 +37,21 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     getScrollElement: () => parentRef.current,
     estimateSize: () => 150, // 估算每条消息高度
     overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
-    enabled: messages.length >= 15 && !hasStreamingMessage, // 流式输出时禁用虚拟滚动
+    // 简化逻辑：只要正在加载就禁用虚拟滚动，确保流式输出正常
+    enabled: messages.length >= 15 && !isLoading,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
 
   // 自动滚动到底部（流式输出时）
   useEffect(() => {
-    if (hasStreamingMessage && parentRef.current) {
+    if (isLoading && parentRef.current) {
       parentRef.current.scrollTop = parentRef.current.scrollHeight;
     }
-  }, [messages, hasStreamingMessage]);
+  }, [messages, isLoading]);
 
-  // 条件渲染：短对话或流式输出时使用普通列表
-  if (messages.length < 15 || hasStreamingMessage) {
+  // 条件渲染：短对话或正在加载时使用普通列表
+  if (messages.length < 15 || isLoading) {
     return (
       <div className="space-y-4">
         {messages.map((message) => (
