@@ -17,7 +17,7 @@ import { VirtualMessageList } from './VirtualMessageList';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 // v0.2.6: 任务拆解 Store（测试中）
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
-import { SimpleTaskView } from '../TaskBreakdown/SimpleTaskView';
+import { TaskBreakdownViewer } from '../TaskBreakdown/TaskBreakdownViewer';
 import { breakdownTask } from '../../services/taskBreakdownService';
 
 interface AIChatProps {
@@ -63,6 +63,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
+  // v0.2.6: 使用 store 管理任务拆解模态框
+  const { openModal: openTaskBreakdownModal } = useTaskBreakdownStore();
 
   // Track user manual scrolling to disable auto-scroll
   const isUserScrolling = useRef(false);
@@ -476,38 +478,10 @@ window.__taskBreakdownStore.getState()
         content: msg
       });
 
-      // 添加加载消息
-      const loadingMsgId = crypto.randomUUID();
-      addMessage({
-        id: loadingMsgId,
-        role: 'assistant',
-        content: `🔄 正在拆解任务...
-
-**任务描述**：${taskDescription}
-
-**AI 正在分析任务...**
-`
-      });
-
-      // 更新进度的辅助函数
-      const updateProgress = (step: number, message: string) => {
-        const { updateMessageContent } = useChatStore.getState() as any;
-        const progress = '⏳'.repeat(Math.min(step, 5));
-        updateMessageContent(loadingMsgId, `🔄 正在拆解任务...
-
-**任务描述**：${taskDescription}
-
-${progress}
-
-**进度**：${message}
-`);
-      };
+      // 注意：不需要添加加载消息，breakdownTask 内部会处理
 
       try {
-        // 更新进度：开始调用 AI
-        updateProgress(1, '正在连接 AI 服务...');
-
-        // 调用 AI 进行任务拆解
+        // 调用 AI 进行任务拆解（breakdownTask 内部会添加进度消息）
         const breakdown = await breakdownTask(
           taskDescription,
           currentProviderId,
@@ -522,42 +496,25 @@ ${progress}
           await store.saveBreakdown();
         }
 
-        // 更新消息显示结果
-        const { updateMessageContent } = useChatStore.getState() as any;
-        const saveHint = rootPath
-          ? `\n\n💾 任务已保存到：\`${rootPath}/.ifai/tasks/breakdowns/${breakdown.id}.json\``
-          : '\n\n⚠️ 未打开项目，任务仅保存在内存中';
+        // 打开模态框（使用 store）
+        openTaskBreakdownModal();
 
-        updateMessageContent(loadingMsgId, `### ✅ 任务拆解完成
-
-**任务 ID**：\`${breakdown.id}\`
-
-**任务标题**：${breakdown.title}
-
-**描述**：${breakdown.description}
-
-**预估工时**：${breakdown.totalEstimatedHours ? `${breakdown.totalEstimatedHours.toFixed(1)} 小时` : '计算中...'}
-
-\`\`\`tsx
-<SimpleTaskView taskTree={breakdown.taskTree} />
-\`\`\`
-
----
-
-**统计信息**：
-- 总任务数：${breakdown.stats?.total || 0}
-- 待办：${breakdown.stats?.pending || 0}
-- 进行中：${breakdown.stats?.inProgress || 0}
-- 已完成：${breakdown.stats?.completed || 0}${saveHint}
-
-**提示**：使用控制台查看详情：
-\`\`\`javascript
-window.__taskBreakdownStore.getState()
-\`\`\`
-`);
+        // 更新消息内容为 JSON 格式（用于 TaskBreakdownViewer 检测）
+        // breakdownTask 内部会创建一个临时消息，我们需要找到它并更新
+        const { messages, updateMessageContent } = useChatStore.getState() as any;
+        // 找到最新的 assistant 消息（应该是 breakdownTask 创建的）
+        const assistantMessages = messages.filter((m: any) => m.role === 'assistant');
+        if (assistantMessages.length > 0) {
+          const lastMsg = assistantMessages[assistantMessages.length - 1];
+          // 更新为 JSON 格式，这样 detectTaskBreakdown 就能检测到
+          updateMessageContent(lastMsg.id, JSON.stringify(breakdown, null, 2));
+        }
       } catch (error) {
-        const { updateMessageContent } = useChatStore.getState() as any;
-        updateMessageContent(loadingMsgId, `### ❌ 任务拆解失败
+        const { addMessage: addMsg } = useChatStore.getState() as any;
+        addMsg({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `### ❌ 任务拆解失败
 
 ${error}
 
@@ -570,7 +527,8 @@ ${error}
 1. 尝试简化任务描述
 2. 检查 API 密钥配置
 3. 稍后重试
-`);
+`
+        });
       }
 
       setInput('');

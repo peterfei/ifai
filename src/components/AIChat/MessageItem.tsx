@@ -10,6 +10,40 @@ import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
+import { TaskBreakdownViewer } from '../TaskBreakdown/TaskBreakdownViewer';
+import { TaskBreakdown } from '../../types/taskBreakdown';
+
+/**
+ * 检测内容是否是任务拆解 JSON
+ * @param content 消息内容
+ * @returns 解析后的 TaskBreakdown 对象或 null
+ */
+function detectTaskBreakdown(content: string): TaskBreakdown | null {
+  if (!content || typeof content !== 'string') return null;
+
+  try {
+    // 移除可能的 markdown 代码块标记
+    const cleanContent = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+    // 检查是否包含 taskTree 字段（任务拆解的核心标识）
+    if (!cleanContent.includes('"taskTree"') && !cleanContent.includes('"title"')) {
+      return null;
+    }
+
+    // 尝试解析 JSON
+    const parsed = JSON.parse(cleanContent);
+
+    // 验证是否是有效的 TaskBreakdown 结构
+    if (parsed && parsed.taskTree && parsed.title && parsed.id) {
+      return parsed as TaskBreakdown;
+    }
+  } catch (e) {
+    // JSON 解析失败，可能是不完整的内容或流式传输中
+    return null;
+  }
+
+  return null;
+}
 
 interface MessageItemProps {
     message: Message;
@@ -81,6 +115,21 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
       // If content is already a string, use as-is
       return content || '';
     }, [message.content]);
+
+    // v0.2.6: 检测任务拆解内容
+    const taskBreakdown = React.useMemo(() => {
+      // 仅在非流式状态时检测（流式中的 JSON 不完整）
+      if (isActivelyStreaming || isStreaming) return null;
+      return detectTaskBreakdown(displayContent);
+    }, [displayContent, isActivelyStreaming, isStreaming]);
+
+    // v0.2.6: 检测是否正在流式传输任务拆解内容
+    const isStreamingTaskBreakdown = React.useMemo(() => {
+      if (!isActivelyStreaming && !isStreaming) return false;
+      // 检查内容是否包含任务拆解的特征
+      const cleanContent = displayContent.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      return cleanContent.includes('"taskTree"') || cleanContent.includes('"title"') || cleanContent.includes('"children"');
+    }, [displayContent, isActivelyStreaming, isStreaming]);
 
     // Update streaming status based on content growth
     React.useEffect(() => {
@@ -430,8 +479,26 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         )}
 
-                        {/* Multi-modal Content Rendering (if available) */}
-                        {message.multiModalContent && message.multiModalContent.length > 0 ? (
+                        {/* v0.2.6: 任务拆解结果展示（工业级渲染） */}
+                        {taskBreakdown ? (
+                            <TaskBreakdownViewer
+                                breakdown={taskBreakdown}
+                                mode="inline"
+                                allowModeSwitch={true}
+                            />
+                        ) : isStreamingTaskBreakdown ? (
+                            /* 流式传输中的任务拆解 - 显示进度 */
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                                    <span>正在拆解任务...</span>
+                                </div>
+                                {/* 显示流式内容（用于调试和进度查看） */}
+                                <div className="text-xs text-gray-500 font-mono max-h-32 overflow-y-auto bg-[#1e1e1e] rounded border border-gray-700 p-2">
+                                    {displayContent.slice(-500)}
+                                </div>
+                            </div>
+                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
                             <div className="space-y-2">
                                 {message.multiModalContent.map((part, index) => renderContentPart(part, index))}
                             </div>

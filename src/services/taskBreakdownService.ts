@@ -9,7 +9,52 @@ import { listen } from '@tauri-apps/api/event';
 import { v4 as uuidv4 } from 'uuid';
 import { useAgentStore } from '../stores/agentStore';
 import { useChatStore } from '../stores/useChatStore';
-import { TaskBreakdown, TaskNode } from '../types/taskBreakdown';
+import { TaskBreakdown, TaskNode, TaskStatus } from '../types/taskBreakdown';
+
+/**
+ * 计算任务树的统计数据
+ */
+function calculateStats(node: TaskNode): {
+  total: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  failed: number;
+} {
+  let total = 1;
+  let pending = node.status === 'pending' ? 1 : 0;
+  let inProgress = node.status === 'in_progress' ? 1 : 0;
+  let completed = node.status === 'completed' ? 1 : 0;
+  let failed = node.status === 'failed' ? 1 : 0;
+
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      const childStats = calculateStats(child);
+      total += childStats.total;
+      pending += childStats.pending;
+      inProgress += childStats.inProgress;
+      completed += childStats.completed;
+      failed += childStats.failed;
+    }
+  }
+
+  return { total, pending, inProgress, completed, failed };
+}
+
+/**
+ * 计算任务树的总预估工时
+ */
+function calculateTotalHours(node: TaskNode): number {
+  let total = node.estimatedHours || 0;
+
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      total += calculateTotalHours(child);
+    }
+  }
+
+  return total;
+}
 
 /**
  * 解析 AI 响应中的 JSON
@@ -95,12 +140,12 @@ export async function startBreakdownAgent(
  * 等待 Agent 完成
  *
  * @param agentId Agent ID
- * @param timeout 超时时间（毫秒），默认 60 秒
+ * @param timeout 超时时间（毫秒），默认 120 秒
  * @returns 任务拆解结果
  */
 export async function waitForBreakdownResult(
   agentId: string,
-  timeout: number = 60000
+  timeout: number = 120000
 ): Promise<TaskBreakdown> {
   console.log('[TaskBreakdownService] Waiting for agent result:', agentId);
 
@@ -122,7 +167,7 @@ export async function waitForBreakdownResult(
     // 设置超时
     timeoutId = setTimeout(() => {
       cleanup();
-      reject(new Error('任务拆解超时（60秒）'));
+      reject(new Error(`任务拆解超时（${timeout/1000}秒）`));
     }, timeout);
 
     // 监听 agent 事件
@@ -141,6 +186,10 @@ export async function waitForBreakdownResult(
           // 解析 JSON
           const taskTree = parseAIResponse(result);
 
+          // 计算统计数据和总工时
+          const stats = calculateStats(taskTree);
+          const totalEstimatedHours = calculateTotalHours(taskTree);
+
           // 构建 TaskBreakdown
           const breakdown: TaskBreakdown = {
             id: generateTaskId(taskTree.title),
@@ -148,6 +197,8 @@ export async function waitForBreakdownResult(
             description: taskTree.description || result.substring(0, 200),
             originalPrompt: result, // 保存完整的原始响应
             taskTree: taskTree,
+            stats,
+            totalEstimatedHours,
             createdAt: Date.now(),
             updatedAt: Date.now(),
             status: 'draft',
@@ -209,8 +260,8 @@ export async function breakdownTask(
     // 启动 agent
     const agentId = await startBreakdownAgent(taskDescription, tempMsgId);
 
-    // 等待结果
-    const breakdown = await waitForBreakdownResult(agentId);
+    // 等待结果（增加超时时间到 180 秒）
+    const breakdown = await waitForBreakdownResult(agentId, 180000);
 
     console.log('[TaskBreakdownService] Task breakdown completed:', breakdown.id);
     return breakdown;

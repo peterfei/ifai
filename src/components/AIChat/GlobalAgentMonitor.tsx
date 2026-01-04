@@ -333,9 +333,8 @@ export const GlobalAgentMonitor: React.FC = () => {
                                             <span className="opacity-30 italic">{t('agent_monitor_initializing')}</span>
                                         ) : (
                                             agent.logs.map((log, i) => (
-                                                <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-blue-500/50 pl-2 leading-relaxed">
-                                                    <span className="text-gray-600 select-none mr-2 opacity-50">❯</span>
-                                                    {log}
+                                                <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-blue-500/50 pl-2">
+                                                    <pre className="text-gray-300 whitespace-pre-wrap">{log}</pre>
                                                 </div>
                                             ))
                                         )}

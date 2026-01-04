@@ -26,6 +26,8 @@ interface TaskBreakdownState {
   error: string | null;
   /** 项目根路径 */
   projectRoot: string | null;
+  /** v0.2.6: 模态框是否打开 */
+  isModalOpen: boolean;
 
   /** 设置当前任务拆解 */
   setCurrentBreakdown: (breakdown: TaskBreakdown | null) => void;
@@ -57,6 +59,10 @@ interface TaskBreakdownState {
   };
   /** 计算总预估工时 */
   calculateTotalHours: (taskTree: TaskNode) => number;
+  /** 打开模态框 */
+  openModal: () => void;
+  /** 关闭模态框 */
+  closeModal: () => void;
 
   // v0.2.6 文件持久化方法
   /** 保存当前任务拆解到文件 */
@@ -145,6 +151,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       breakdownProgress: 0,
       error: null,
       projectRoot: null,
+      isModalOpen: false,
 
       // 设置当前任务拆解
       setCurrentBreakdown: (breakdown) => {
@@ -408,6 +415,16 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
           set({ error: errorMsg });
           console.error('[TaskBreakdown]', errorMsg);
         }
+      },
+
+      /** 打开模态框 */
+      openModal: () => {
+        set({ isModalOpen: true });
+      },
+
+      /** 关闭模态框 */
+      closeModal: () => {
+        set({ isModalOpen: false });
       },
     }),
     {

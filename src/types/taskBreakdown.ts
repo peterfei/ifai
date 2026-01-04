@@ -16,7 +16,7 @@ export type TaskCategory = 'development' | 'testing' | 'documentation' | 'design
 /**
  * 任务优先级
  */
-export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent' | 'critical';
 
 /**
  * 任务节点
