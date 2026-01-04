@@ -60,7 +60,7 @@ mkdir %USERPROFILE%\.ifai\models
 ### 4. 下载模型
 
 从以下位置下载模型：
-- Hugging Face: `https://huggingface.co/ifai/qwen2.5-coder-0.5b-ifai-v3-gguf`
+- Hugging Face: `https://huggingface.co/peterfei/ifai`
 - 或使用应用内的模型下载功能
 
 ## 配置选项
