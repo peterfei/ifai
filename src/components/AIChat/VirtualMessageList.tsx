@@ -15,11 +15,13 @@ interface VirtualMessageListProps {
   onReject: (messageId: string, toolCallId: string) => void;
   onOpenFile: (path: string) => Promise<void>;
   isLoading: boolean;
+  parentRef?: React.RefObject<HTMLDivElement>; // 外部滚动容器引用
 }
 
 /**
  * 虚拟滚动消息列表组件
  * 使用 @tanstack/react-virtual 实现动态高度虚拟滚动
+ * 支持外部滚动容器（避免嵌套滚动问题）
  */
 export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   messages,
@@ -27,31 +29,38 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   onReject,
   onOpenFile,
   isLoading,
+  parentRef,
 }) => {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const localRef = useRef<HTMLDivElement>(null);
+  const scrollElementRef = parentRef || localRef;
+
+  // 检测是否有待处理的工具调用
+  const hasPendingToolCalls = messages.some(m =>
+    m.toolCalls?.some(tc => tc.status === 'pending' || tc.isPartial)
+  );
 
   // ⚠️ 重要：始终调用 hooks，不能在条件返回之前
   // 使用 @tanstack/react-virtual 创建虚拟化列表
   const virtualizer = useVirtualizer({
     count: messages.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150, // 估算每条消息高度
     overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
-    // 简化逻辑：只要正在加载就禁用虚拟滚动，确保流式输出正常
-    enabled: messages.length >= 15 && !isLoading,
+    // 流式输出 或 有待处理工具调用时禁用虚拟滚动
+    enabled: messages.length >= 15 && !isLoading && !hasPendingToolCalls,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
 
   // 自动滚动到底部（流式输出时）
   useEffect(() => {
-    if (isLoading && parentRef.current) {
-      parentRef.current.scrollTop = parentRef.current.scrollHeight;
+    if ((isLoading || hasPendingToolCalls) && scrollElementRef.current) {
+      scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, hasPendingToolCalls]);
 
-  // 条件渲染：短对话或正在加载时使用普通列表
-  if (messages.length < 15 || isLoading) {
+  // 条件渲染：短对话、正在加载、或有待处理工具调用时使用普通列表
+  if (messages.length < 15 || isLoading || hasPendingToolCalls) {
     return (
       <div className="space-y-4">
         {messages.map((message) => (
@@ -68,11 +77,15 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     );
   }
 
-  // 虚拟滚动渲染（长对话 + 非流式状态）
+  // 虚拟滚动渲染（长对话 + 非流式状态 + 无待处理工具调用）
   return (
     <div
-      ref={parentRef}
-      className="h-full overflow-auto"
+      ref={localRef}
+      className="h-full"
+      style={{
+        // 虚拟滚动不需要 overflow，使用外部容器
+        overflow: 'hidden',
+      }}
     >
       <div
         style={{
@@ -101,7 +114,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 onApprove={onApprove}
                 onReject={onReject}
                 onOpenFile={onOpenFile}
-                isStreaming={isLoading && message.role === 'assistant'}
+                isStreaming={false}
               />
             </div>
           );

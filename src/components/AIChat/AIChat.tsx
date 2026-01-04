@@ -439,22 +439,21 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-hidden relative"
+        className="flex-1 overflow-auto p-4"
         style={{
-          // v0.2.6 性能优化：虚拟滚动需要固定高度容器
+          // v0.2.6 性能优化：单一滚动容器，虚拟滚动使用此容器
         }}
       >
-        <div className="absolute inset-0 overflow-auto p-4">
-          {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
-          <VirtualMessageList
-            messages={rawMessages}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onOpenFile={handleOpenFile}
-            isLoading={isLoading}
-          />
-          <div ref={messagesEndRef} />
-        </div>
+        {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
+        <VirtualMessageList
+          messages={rawMessages}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onOpenFile={handleOpenFile}
+          isLoading={isLoading}
+          parentRef={scrollContainerRef}
+        />
+        <div ref={messagesEndRef} />
       </div>
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
