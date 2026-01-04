@@ -20,6 +20,7 @@ mod project_config;
 mod community;
 mod local_model;
 mod intelligence_router;
+mod token_counter; // v0.2.6 新增：Token 计数模块
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
@@ -606,7 +607,11 @@ pub fn run() {
             local_model::local_code_completion,
             file_cache::get_file_cache_stats,
             file_cache::clear_file_cache,
-            file_cache::print_file_cache_stats
+            file_cache::print_file_cache_stats,
+            // v0.2.6 新增：Token 计数命令
+            token_counter::count_tokens,
+            token_counter::count_tokens_batch,
+            token_counter::estimate_tokens_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -9,6 +9,7 @@ import { useThreadStore } from './threadStore';
 import { invoke } from '@tauri-apps/api/core';
 import { recognizeIntent, shouldTriggerAgent, formatAgentName } from '../utils/intentRecognizer';
 import { autoSaveThread } from './persistence/threadPersistence';
+import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage } from '../utils/tokenCounter';
 import i18n from '../i18n/config';
 
 // Content segment interface for tracking stream reception order
@@ -124,17 +125,22 @@ const originalApproveToolCall = coreUseChatStore.getState().approveToolCall;
 const originalRejectToolCall = coreUseChatStore.getState().rejectToolCall;
 
 /**
- * 智能消息上下文选择
+ * 智能消息上下文选择（支持 Token 限制）
  * 保留系统消息、最近消息、以及包含关键内容（tool_calls、references等）的历史消息
+ * v0.2.6 新增：支持基于 Token 的上下文窗口管理
  *
  * @param messages - 所有历史消息
  * @param maxMessages - 最大保留消息数
+ * @param model - 模型名称（用于 Token 计算）
+ * @param maxTokens - 最大 Token 数（可选）
  * @returns - 过滤后的消息（保持原始顺序）
  */
-function selectMessagesForContext(
+async function selectMessagesForContext(
     messages: Message[],
-    maxMessages: number
-): Message[] {
+    maxMessages: number,
+    model?: string,
+    maxTokens?: number
+): Promise<Message[]> {
     // 1. 如果消息总数小于限制，直接返回
     if (messages.length <= maxMessages) {
         return messages;
@@ -145,11 +151,22 @@ function selectMessagesForContext(
         message: Message;
         score: number;
         index: number;  // 原始索引
+        estimatedTokens: number;  // 估算的 Token 数
     }
+
+    // 简单的 Token 估算函数（避免频繁调用后端）
+    const estimateTokens = (msg: Message): number => {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        // 英文约 4 字符 = 1 Token，中文约 2 字符 = 1 Token
+        const chineseChars = (content.match(/[\u4e00-\u9fff]/g) || []).length;
+        const otherChars = content.length - chineseChars;
+        return Math.ceil((chineseChars / 2) + (otherChars / 4));
+    };
 
     const scored: ScoredMessage[] = messages.map((msg, idx) => {
         let score = 0;
         const positionFromEnd = messages.length - 1 - idx;
+        const estimatedTokens = estimateTokens(msg);
 
         // 规则1: 系统消息 - 最高优先级
         if (msg.role === 'system') {
@@ -180,7 +197,7 @@ function selectMessagesForContext(
         const decayFactor = Math.pow(1.1, positionFromEnd);
         score = score * decayFactor;
 
-        return { message: msg, score, index: idx };
+        return { message: msg, score, index: idx, estimatedTokens };
     });
 
     // 3. 按分数降序排序，取前 maxMessages 条
@@ -204,7 +221,8 @@ function selectMessagesForContext(
                         selected.push({
                             message: responseMsg,
                             score: 450,  // tool响应分数
-                            index: i
+                            index: i,
+                            estimatedTokens: estimateTokens(responseMsg)
                         });
                     }
                 }
@@ -224,7 +242,8 @@ function selectMessagesForContext(
                         selected.push({
                             message: requestMsg,
                             score: 500,  // tool_call分数
-                            index: i
+                            index: i,
+                            estimatedTokens: estimateTokens(requestMsg)
                         });
                     }
                     break;
@@ -233,10 +252,55 @@ function selectMessagesForContext(
         }
     });
 
-    // 5. 按原始索引排序，保持时间顺序
+    // 5. v0.2.6 新增：Token 限制检查（滑动窗口策略）
+    if (model && maxTokens) {
+        const totalTokens = selected.reduce((sum, s) => sum + s.estimatedTokens, 0);
+
+        if (totalTokens > maxTokens) {
+            console.log(`[Context] Token limit exceeded: ${totalTokens} > ${maxTokens}, applying sliding window`);
+
+            // 滑动窗口：保留最近的高优先级消息
+            const maxTokenLimit = maxTokens * 0.9;  // 留 10% 余量
+
+            // 按原始索引排序（时间顺序）
+            selected.sort((a, b) => a.index - b.index);
+
+            // 从最近的消息开始，向前累加 Token
+            const windowSelected: typeof selected = [];
+            let currentTokens = 0;
+
+            // 首先保留所有系统消息
+            const systemMessages = selected.filter(s => s.message.role === 'system');
+            windowSelected.push(...systemMessages);
+            currentTokens += systemMessages.reduce((sum, s) => sum + s.estimatedTokens, 0);
+
+            // 然后从最近的消息开始添加
+            for (let i = selected.length - 1; i >= 0; i--) {
+                const s = selected[i];
+                if (s.message.role === 'system') continue;  // 已添加
+
+                if (currentTokens + s.estimatedTokens <= maxTokenLimit) {
+                    windowSelected.push(s);
+                    currentTokens += s.estimatedTokens;
+                } else if (windowSelected.length < systemMessages.length + 3) {
+                    // 至少保留系统消息 + 最后 3 条消息
+                    windowSelected.push(s);
+                    currentTokens += s.estimatedTokens;
+                }
+            }
+
+            // 按时间顺序重新排序
+            windowSelected.sort((a, b) => a.index - b.index);
+            selected = windowSelected;
+
+            console.log(`[Context] Sliding window applied: ${selected.length} messages, ~${currentTokens} tokens`);
+        }
+    }
+
+    // 6. 按原始索引排序，保持时间顺序
     selected.sort((a, b) => a.index - b.index);
 
-    // 6. 返回消息（去重后的）
+    // 7. 返回消息（去重后的）
     return selected.map(s => s.message);
 }
 
@@ -541,14 +605,19 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     const assistantPlaceholder = allMessages[allMessages.length - 1];  // 刚添加的占位符
 
     // 获取上下文配置
-    const { maxContextMessages, enableSmartContextSelection } = useSettingsStore.getState();
+    const { maxContextMessages, enableSmartContextSelection, maxContextTokens } = useSettingsStore.getState();
 
     // 选择要发送的消息
     let messagesToSend: Message[];
     if (enableSmartContextSelection) {
-        // 智能选择：保留系统消息、关键消息、最近消息
+        // v0.2.6 智能选择：支持 Token 限制
         const messagesWithoutPlaceholder = allMessages.slice(0, -1);
-        messagesToSend = selectMessagesForContext(messagesWithoutPlaceholder, maxContextMessages);
+        messagesToSend = await selectMessagesForContext(
+            messagesWithoutPlaceholder,
+            maxContextMessages,
+            modelName,  // 模型名称
+            maxContextTokens  // Token 限制
+        );
 
         // 调试日志：简化输出避免刷屏
         const selectedSummary = {

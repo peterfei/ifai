@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { MessageItem } from './MessageItem';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
 import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
+import { TokenUsageIndicator } from './TokenUsageIndicator';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 
 interface AIChatProps {
@@ -458,6 +459,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         ))}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* v0.2.6 新增：Token 使用量指示器 */}
+      <TokenUsageIndicator />
 
       <div className="border-t border-gray-700 p-3 bg-[#252526] flex items-center relative">
         {showCommands && (
