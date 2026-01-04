@@ -3,6 +3,32 @@ import { persist } from 'zustand/middleware';
 
 export type AIProtocol = 'openai' | 'anthropic' | 'gemini';
 
+// 预设模板类型（用于自定义提供商）
+export type PresetTemplate = 'ollama' | 'vllm' | 'localai' | 'lmstudio' | 'custom';
+
+// 模型参数配置
+export interface ModelParamsConfig {
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
+}
+
+// 预设参数模板
+export const MODEL_PARAM_PRESETS: Record<string, ModelParamsConfig> = {
+  fast: { temperature: 0.3, top_p: 0.9, max_tokens: 2048 },
+  balanced: { temperature: 0.7, top_p: 0.9, max_tokens: 4096 },
+  precise: { temperature: 0.1, top_p: 0.95, max_tokens: 8192 },
+};
+
+// 预设端点模板
+export const PRESET_ENDPOINTS: Record<PresetTemplate, { baseUrl: string; defaultModels: string[] }> = {
+  ollama: { baseUrl: 'http://localhost:11434/v1/chat/completions', defaultModels: ['qwen2.5-coder:latest', 'deepseek-coder:latest', 'llama3.2:latest', 'codellama:latest'] },
+  vllm: { baseUrl: 'http://localhost:8000/v1/chat/completions', defaultModels: ['meta-llama/Llama-3.1-8B-Instruct'] },
+  localai: { baseUrl: 'http://localhost:8080/v1/chat/completions', defaultModels: ['gpt-3.5-turbo'] },
+  lmstudio: { baseUrl: 'http://localhost:1234/v1/chat/completions', defaultModels: ['local-model'] },
+  custom: { baseUrl: '', defaultModels: [] },
+};
+
 export interface AIProviderConfig {
   id: string;
   name: string;
@@ -11,6 +37,14 @@ export interface AIProviderConfig {
   apiKey: string;
   models: string[];
   enabled: boolean;
+
+  // v0.2.6 新增：自定义提供商支持
+  isCustom?: boolean;                    // 是否为自定义提供商
+  presetTemplate?: PresetTemplate;       // 预设模板
+  customEndpoint?: string;               // 自定义端点地址（用于覆盖 baseUrl）
+  modelParams?: ModelParamsConfig;       // 模型参数配置
+  displayName?: string;                  // 显示名称（用于覆盖默认名称）
+  group?: 'cloud' | 'local' | 'custom';  // 提供商分组
 }
 
 export interface SettingsState {
@@ -67,6 +101,17 @@ export interface SettingsState {
   addProvider: (provider: AIProviderConfig) => void;
   removeProvider: (providerId: string) => void;
   setCurrentProviderAndModel: (providerId: string, modelName: string) => void;
+
+  // v0.2.6 新增：自定义提供商管理
+  addCustomProvider: (config: {
+    name: string;
+    presetTemplate: PresetTemplate;
+    customEndpoint?: string;
+    apiKey?: string;
+    modelParams?: ModelParamsConfig;
+  }) => string;  // 返回新提供商 ID
+  updateModelParams: (providerId: string, modelParams: ModelParamsConfig) => void;
+  getProvidersByGroup: (group: 'cloud' | 'local' | 'custom') => AIProviderConfig[];
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -193,6 +238,59 @@ export const useSettingsStore = create<SettingsState>()(
       })),
 
       setCurrentProviderAndModel: (providerId, modelName) => set({ currentProviderId: providerId, currentModel: modelName }),
+
+      // v0.2.6 新增：添加自定义提供商
+      addCustomProvider: (config) => {
+        const { name, presetTemplate, customEndpoint, apiKey, modelParams } = config;
+        const preset = PRESET_ENDPOINTS[presetTemplate];
+
+        // 生成唯一 ID
+        const id = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        const newProvider: AIProviderConfig = {
+          id,
+          name,
+          displayName: name,  // 用户提供作为显示名称
+          protocol: 'openai',  // 自定义提供商默认使用 OpenAI 兼容协议
+          baseUrl: customEndpoint || preset.baseUrl,
+          apiKey: apiKey || '',
+          models: preset.defaultModels,
+          enabled: true,
+          isCustom: true,
+          presetTemplate,
+          customEndpoint,
+          modelParams: modelParams || MODEL_PARAM_PRESETS.balanced,
+          group: 'custom',
+        };
+
+        set((state) => {
+          if (state.providers.some(p => p.id === id)) {
+            console.warn(`Provider with ID ${id} already exists.`);
+            return state;
+          }
+          return {
+            providers: [...state.providers, newProvider],
+            // 自动切换到新添加的提供商
+            currentProviderId: id,
+            currentModel: newProvider.models[0] || '',
+          };
+        });
+
+        return id;
+      },
+
+      // v0.2.6 新增：更新模型参数
+      updateModelParams: (providerId, modelParams) => set((state) => ({
+        providers: state.providers.map(p =>
+          p.id === providerId ? { ...p, modelParams } : p
+        ),
+      })),
+
+      // v0.2.6 新增：按分组获取提供商
+      getProvidersByGroup: (group) => {
+        const state = get();
+        return state.providers.filter(p => p.group === group || (!p.group && group === 'cloud'));
+      },
     }),
     {
       name: 'settings-storage',

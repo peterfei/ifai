@@ -134,7 +134,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   }, [rawMessages, isLoading]);
 
   const currentProvider = providers.find(p => p.id === currentProviderId);
-  const isProviderConfigured = currentProvider && currentProvider.apiKey && currentProvider.enabled;
+  // 自定义提供商（本地端点）可能不需要 API Key
+  const isProviderConfigured = currentProvider && currentProvider.enabled &&
+    (currentProvider.isCustom || currentProvider.apiKey);
 
   const handleSend = async () => {
     if (!input.trim()) return;

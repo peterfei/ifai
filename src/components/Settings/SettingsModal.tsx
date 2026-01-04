@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM } from 'lucide-react';
+import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM, Globe } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { useTranslation } from 'react-i18next';
@@ -7,12 +7,13 @@ import clsx from 'clsx';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { DataManagementPanel } from './DataManagementPanel';
 import { LocalModelSettings } from './LocalModelSettings';
+import { CustomProviderSettings } from './CustomProviderSettings';
 
 export const SettingsModal = () => {
   const { t } = useTranslation();
   const { isSettingsOpen, setSettingsOpen } = useLayoutStore();
   const settings = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider'>('general');
 
   if (!isSettingsOpen) return null;
 
@@ -20,6 +21,7 @@ export const SettingsModal = () => {
     { id: 'general', label: t('settings.general'), icon: Monitor },
     { id: 'editor', label: t('settings.editor'), icon: Type },
     { id: 'ai', label: t('settings.ai'), icon: Cpu },
+    { id: 'customProvider', label: '自定义提供商', icon: Globe },
     { id: 'performance', label: t('settings.performance'), icon: Zap },
     { id: 'keybindings', label: t('shortcuts.keyboardShortcuts'), icon: Keyboard },
     { id: 'data', label: '数据管理', icon: Database },
@@ -130,83 +132,161 @@ export const SettingsModal = () => {
                     </span>
                 </div>
 
-                <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-gray-300">{t('settings.aiProviders')}</h3>
+                {/* 内置提供商 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-bold text-gray-300">内置提供商</h3>
+                  </div>
+
+                  {settings.providers.filter(p => !p.isCustom).map(provider => {
+                      const isCurrent = provider.id === settings.currentProviderId;
+                      const hasApiKey = provider.apiKey && provider.apiKey.trim() !== '';
+
+                      return (
+                          <div key={provider.id} className={clsx(
+                              "border rounded p-3 bg-[#2d2d2d] transition-all mb-3",
+                              isCurrent ? "border-blue-500 bg-blue-900/10" : "border-gray-600"
+                          )}>
+                              <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center">
+                                      <span className="font-semibold text-gray-200">{provider.name}</span>
+                                      {isCurrent && (
+                                          <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+                                      )}
+                                      {hasApiKey && !isCurrent && (
+                                          <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
+                                      )}
+                                  </div>
+                                  <div className="flex items-center">
+                                      <span className="text-xs text-gray-400 mr-2">{provider.enabled ? t('common.on') : t('common.off')}</span>
+                                      <input
+                                          type="checkbox"
+                                          checked={provider.enabled}
+                                          onChange={(e) => settings.updateProviderConfig(provider.id, { enabled: e.target.checked })}
+                                          className="cursor-pointer"
+                                      />
+                                  </div>
+                              </div>
+
+                              {provider.enabled && (
+                                  <div className="space-y-3 mt-2">
+                                      <div>
+                                          <label className="block text-xs text-gray-400 mb-1">{t('settings.apiKey')}</label>
+                                          <input
+                                              type="password"
+                                              value={provider.apiKey}
+                                              onChange={(e) => settings.updateProviderConfig(provider.id, { apiKey: e.target.value })}
+                                              className={clsx(
+                                                  "w-full border rounded px-2 py-1 text-white text-xs focus:outline-none",
+                                                  isCurrent ? "bg-blue-900/20 border-blue-500 focus:border-blue-400" : "bg-[#3c3c3c] border-gray-600 focus:border-blue-500"
+                                              )}
+                                              placeholder={t('settings.apiKeyFor', { providerName: provider.name })}
+                                          />
+                                          {hasApiKey && (
+                                              <div className="mt-1 text-xs text-green-400">
+                                                  ✓ API密钥已配置 - {isCurrent ? '当前激活' : '点击下方设为默认'}
+                                              </div>
+                                          )}
+                                      </div>
+                                      <div>
+                                          <label className="block text-xs text-gray-400 mb-1">{t('settings.baseUrl')}</label>
+                                          <input
+                                              type="text"
+                                              value={provider.baseUrl}
+                                              onChange={(e) => settings.updateProviderConfig(provider.id, { baseUrl: e.target.value })}
+                                              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
+                                              placeholder="https://..."
+                                          />
+                                      </div>
+                                      {!isCurrent && hasApiKey && (
+                                          <button
+                                              onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
+                                              className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                          >
+                                              设为默认
+                                          </button>
+                                      )}
+                                  </div>
+                              )}
+                          </div>
+                      );
+                  })}
                 </div>
 
-                {settings.providers.map(provider => {
-                    const isCurrent = provider.id === settings.currentProviderId;
-                    const hasApiKey = provider.apiKey && provider.apiKey.trim() !== '';
+                {/* 自定义提供商 */}
+                {settings.providers.filter(p => p.isCustom).length > 0 && (
+                  <div className="border-t border-gray-600 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-bold text-gray-300 flex items-center">
+                          <Globe size={14} className="mr-1" />
+                          自定义提供商
+                        </h3>
+                        <button
+                          onClick={() => setActiveTab('customProvider')}
+                          className="text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          管理自定义提供商 →
+                        </button>
+                    </div>
 
-                    return (
-                        <div key={provider.id} className={clsx(
-                            "border rounded p-3 bg-[#2d2d2d] transition-all",
-                            isCurrent ? "border-blue-500 bg-blue-900/10" : "border-gray-600"
-                        )}>
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center">
-                                    <span className="font-semibold text-gray-200">{provider.name}</span>
-                                    {isCurrent && (
-                                        <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
-                                    )}
-                                    {hasApiKey && !isCurrent && (
-                                        <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
-                                    )}
-                                </div>
-                                <div className="flex items-center">
-                                    <span className="text-xs text-gray-400 mr-2">{provider.enabled ? t('common.on') : t('common.off')}</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={provider.enabled}
-                                        onChange={(e) => settings.updateProviderConfig(provider.id, { enabled: e.target.checked })}
-                                        className="cursor-pointer"
-                                    />
-                                </div>
-                            </div>
+                    {settings.providers.filter(p => p.isCustom).map(provider => {
+                        const isCurrent = provider.id === settings.currentProviderId;
+                        const hasApiKey = provider.apiKey && provider.apiKey.trim() !== '';
 
-                            {provider.enabled && (
-                                <div className="space-y-3 mt-2">
-                                    <div>
-                                        <label className="block text-xs text-gray-400 mb-1">{t('settings.apiKey')}</label>
-                                        <input
-                                            type="password"
-                                            value={provider.apiKey}
-                                            onChange={(e) => settings.updateProviderConfig(provider.id, { apiKey: e.target.value })}
-                                            className={clsx(
-                                                "w-full border rounded px-2 py-1 text-white text-xs focus:outline-none",
-                                                isCurrent ? "bg-blue-900/20 border-blue-500 focus:border-blue-400" : "bg-[#3c3c3c] border-gray-600 focus:border-blue-500"
-                                            )}
-                                            placeholder={t('settings.apiKeyFor', { providerName: provider.name })}
-                                        />
-                                        {hasApiKey && (
-                                            <div className="mt-1 text-xs text-green-400">
-                                                ✓ API密钥已配置 - {isCurrent ? '当前激活' : '点击下方设为默认'}
-                                            </div>
+                        return (
+                            <div key={provider.id} className={clsx(
+                                "border rounded p-3 bg-[#2d2d2d] transition-all mb-3",
+                                isCurrent ? "border-blue-500 bg-blue-900/10" : "border-gray-600",
+                                provider.isCustom && "border-purple-500/30"
+                            )}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center">
+                                        <Globe size={14} className="mr-1 text-purple-400" />
+                                        <span className="font-semibold text-gray-200">
+                                          {provider.displayName || provider.name}
+                                        </span>
+                                        {isCurrent && (
+                                            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+                                        )}
+                                        <span className="ml-2 px-2 py-0.5 text-xs bg-purple-600/50 text-purple-300 rounded">自定义</span>
+                                        {hasApiKey && !isCurrent && (
+                                            <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
                                         )}
                                     </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-400 mb-1">{t('settings.baseUrl')}</label>
+                                    <div className="flex items-center">
+                                        <span className="text-xs text-gray-400 mr-2">{provider.enabled ? t('common.on') : t('common.off')}</span>
                                         <input
-                                            type="text"
-                                            value={provider.baseUrl}
-                                            onChange={(e) => settings.updateProviderConfig(provider.id, { baseUrl: e.target.value })}
-                                            className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500"
-                                            placeholder="https://..."
+                                            type="checkbox"
+                                            checked={provider.enabled}
+                                            onChange={(e) => settings.updateProviderConfig(provider.id, { enabled: e.target.checked })}
+                                            className="cursor-pointer"
                                         />
                                     </div>
-                                    {!isCurrent && hasApiKey && (
-                                        <button
-                                            onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
-                                            className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                                        >
-                                            设为默认
-                                        </button>
-                                    )}
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
+
+                                {provider.enabled && (
+                                    <div className="space-y-2 mt-2">
+                                        <div className="text-xs text-gray-500">
+                                            端点: <span className="font-mono">{provider.baseUrl}</span>
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            模型: {provider.models.length > 0 ? provider.models.join(', ') : '未配置'}
+                                        </div>
+                                        {!isCurrent && hasApiKey && (
+                                            <button
+                                                onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
+                                                className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                            >
+                                                设为默认
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-600">
                   <span className="text-sm font-medium text-gray-300">{t('settings.enableAutocomplete')}</span>
@@ -310,6 +390,7 @@ export const SettingsModal = () => {
             {activeTab === 'keybindings' && <KeyboardShortcuts />}
             {activeTab === 'data' && <DataManagementPanel />}
             {activeTab === 'localModel' && <LocalModelSettings />}
+            {activeTab === 'customProvider' && <CustomProviderSettings />}
           </div>
         </div>
       </div>
