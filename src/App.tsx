@@ -31,8 +31,25 @@ import { useSettingsStore } from './stores/settingsStore';
 function App() {
   const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, fetchGitStatuses } = useFileStore();
-  const { isChatOpen, toggleChat, toggleCommandPalette, setCommandPaletteOpen, isTerminalOpen, toggleTerminal, chatWidth, setChatWidth, isPromptManagerOpen } = useLayoutStore();
+  const {
+    isChatOpen,
+    toggleChat,
+    toggleCommandPalette,
+    setCommandPaletteOpen,
+    isTerminalOpen,
+    toggleTerminal,
+    chatWidth,
+    setChatWidth,
+    isPromptManagerOpen,
+    // v0.2.6 新增：侧边栏状态
+    isSidebarOpen,
+    toggleSidebar,
+    sidebarPosition,
+    sidebarWidth,
+    setSidebarWidth,
+  } = useLayoutStore();
   const [isResizingChat, setIsResizingChat] = React.useState(false);
+  const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
   const [showCacheStats, setShowCacheStats] = useState(false);
 
   // Onboarding state
@@ -217,6 +234,11 @@ function App() {
     'perf.toggleCacheStats': (e: KeyboardEvent) => {
       e.preventDefault();
       setShowCacheStats(prev => !prev);
+    },
+    // v0.2.6 新增：切换侧栏显示/隐藏
+    'layout.toggleSidebar': (e: KeyboardEvent) => {
+      e.preventDefault();
+      toggleSidebar();
     }
   };
 
@@ -258,7 +280,37 @@ function App() {
       
       {/* Main content area: Sidebar + Editor/Terminal + AIChat */}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        {/* v0.2.6 新增：侧栏宽度拖拽 */}
+        {isSidebarOpen && sidebarPosition === 'left' && (
+          <Sidebar />
+        )}
+        {isSidebarOpen && sidebarPosition === 'left' && (
+          <div
+            className="cursor-col-resize hover:bg-blue-500/50 transition-colors w-1 bg-transparent"
+            onMouseDown={(e) => {
+              setIsResizingSidebar(true);
+              const startX = e.clientX;
+              const startWidth = sidebarWidth;
+
+              const handleMouseMove = (e: MouseEvent) => {
+                const deltaX = sidebarPosition === 'left'
+                  ? e.clientX - startX
+                  : startX - e.clientX;
+                const newWidth = Math.max(150, Math.min(500, startWidth + deltaX));
+                setSidebarWidth(newWidth);
+              };
+
+              const handleMouseUp = () => {
+                setIsResizingSidebar(false);
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+          />
+        )}
 
         <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
           <TabBar />
@@ -276,6 +328,36 @@ function App() {
           )}
           <Statusbar />
         </div>
+
+        {/* v0.2.6 新增：右侧侧栏位置 */}
+        {isSidebarOpen && sidebarPosition === 'right' && (
+          <>
+            <div
+              className="cursor-col-resize hover:bg-blue-500/50 transition-colors w-1 bg-transparent"
+              onMouseDown={(e) => {
+                setIsResizingSidebar(true);
+                const startX = e.clientX;
+                const startWidth = sidebarWidth;
+
+                const handleMouseMove = (e: MouseEvent) => {
+                  const deltaX = startX - e.clientX;
+                  const newWidth = Math.max(150, Math.min(500, startWidth + deltaX));
+                  setSidebarWidth(newWidth);
+                };
+
+                const handleMouseUp = () => {
+                  setIsResizingSidebar(false);
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+            />
+            <Sidebar />
+          </>
+        )}
 
         {isChatOpen && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
       </div>

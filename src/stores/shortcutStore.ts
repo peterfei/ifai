@@ -41,6 +41,7 @@ const IFAI_DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane2', commandId: 'layout.focusPane2', keys: 'Mod+2', label: 'Focus Pane 2', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.focusPane3', commandId: 'layout.focusPane3', keys: 'Mod+3', label: 'Focus Pane 3', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Mod+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'ifai' },
+  { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'ifai' },
 ];
 
 const VSCODE_KEYBINDINGS: KeyBinding[] = [
@@ -58,6 +59,7 @@ const VSCODE_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane2', commandId: 'layout.focusPane2', keys: 'Mod+2', label: 'Focus Pane 2', category: 'Layout', scheme: 'vscode' },
   { id: 'layout.focusPane3', commandId: 'layout.focusPane3', keys: 'Mod+3', label: 'Focus Pane 3', category: 'Layout', scheme: 'vscode' },
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Mod+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'vscode' },
+  { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'vscode' },
 ];
 
 const INTELLIJ_KEYBINDINGS: KeyBinding[] = [
@@ -73,6 +75,7 @@ const INTELLIJ_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane2', commandId: 'layout.focusPane2', keys: 'Alt+2', label: 'Focus Pane 2', category: 'Layout', scheme: 'intellij' }, // Different binding
   { id: 'layout.focusPane3', commandId: 'layout.focusPane3', keys: 'Alt+3', label: 'Focus Pane 3', category: 'Layout', scheme: 'intellij' }, // Different binding
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Alt+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'intellij' }, // Different binding
+  { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'intellij' },
 ];
 
 const PRESET_SCHEMES = {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Sun, Moon, MessageSquare, Terminal, Settings } from 'lucide-react';
+import { ChevronDown, Sun, Moon, MessageSquare, Terminal, Settings, Sidebar } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -23,7 +23,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const menuRef = useRef<HTMLDivElement>(null);
   const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty, fetchGitStatuses } = useFileStore();
   const { theme, setTheme } = useEditorStore();
-  const { toggleSettings } = useLayoutStore();
+  const { toggleSettings, isSidebarOpen, toggleSidebar } = useLayoutStore();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -215,6 +215,13 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       </div>
 
       <div className="flex items-center space-x-2">
+        <button
+          className={`p-1 rounded ${isSidebarOpen ? 'text-purple-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          onClick={toggleSidebar}
+          title="切换侧边栏 (Cmd+B)"
+        >
+          <Sidebar size={16} />
+        </button>
         <button
           className={`p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700`}
           onClick={toggleSettings}

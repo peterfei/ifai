@@ -11,7 +11,7 @@ import { CustomProviderSettings } from './CustomProviderSettings';
 
 export const SettingsModal = () => {
   const { t } = useTranslation();
-  const { isSettingsOpen, setSettingsOpen } = useLayoutStore();
+  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
   const settings = useSettingsStore();
   const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider'>('general');
 
@@ -67,7 +67,7 @@ export const SettingsModal = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">{t('settings.theme')}</label>
-                  <select 
+                  <select
                     value={settings.theme}
                     onChange={(e) => settings.updateSettings({ theme: e.target.value as 'vs-dark' | 'light' })}
                     className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
@@ -75,6 +75,19 @@ export const SettingsModal = () => {
                     <option value="vs-dark">{t('settings.dark')}</option>
                     <option value="light">{t('settings.light')}</option>
                   </select>
+                </div>
+                {/* v0.2.6 新增：侧边栏位置设置 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">侧边栏位置</label>
+                  <select
+                    value={sidebarPosition}
+                    onChange={(e) => setSidebarPosition(e.target.value as 'left' | 'right')}
+                    className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="left">左侧</option>
+                    <option value="right">右侧</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">快捷键: Cmd/Ctrl+B 切换侧边栏显示/隐藏</p>
                 </div>
               </div>
             )}

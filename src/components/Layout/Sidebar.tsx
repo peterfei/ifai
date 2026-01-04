@@ -14,7 +14,14 @@ import { FileNode } from '../../stores/types';
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { setFileTree, rootPath, fileTree, setExpandedNodes } = useFileStore();
-  const { sidebarActiveTab, setSidebarActiveTab, isPromptManagerOpen, togglePromptManager } = useLayoutStore();
+  const {
+    sidebarActiveTab,
+    setSidebarActiveTab,
+    isPromptManagerOpen,
+    togglePromptManager,
+    // v0.2.6 新增：使用动态宽度
+    sidebarWidth,
+  } = useLayoutStore();
 
   useEffect(() => {
     // Restore file tree from rootPath if exists
@@ -114,7 +121,7 @@ export const Sidebar = () => {
 
       {/* Side Panel Content */}
       {!isPromptManagerOpen && (
-        <div className="w-80 flex flex-col h-full bg-gray-900">
+        <div className="flex flex-col h-full bg-gray-900" style={{ width: `${sidebarWidth}px` }}>
           {sidebarActiveTab === 'explorer' ? (
             <>
               <div className="flex items-center justify-between p-2">

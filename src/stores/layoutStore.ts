@@ -19,7 +19,10 @@ export interface LayoutState {
   isPromptManagerOpen: boolean;
   chatWidth: number;
 
-  // 侧边栏状态
+  // v0.2.6 新增：侧边栏状态
+  isSidebarOpen: boolean;
+  sidebarPosition: 'left' | 'right';
+  sidebarWidth: number;
   sidebarActiveTab: 'explorer' | 'search';  // 侧边栏活动标签页
 
   // 分屏状态
@@ -40,7 +43,11 @@ export interface LayoutState {
   toggleSettings: () => void;
   setChatWidth: (width: number) => void;
 
-  // 侧边栏操作
+  // v0.2.6 新增：侧边栏操作
+  setSidebarOpen: (isOpen: boolean) => void;
+  toggleSidebar: () => void;
+  setSidebarPosition: (position: 'left' | 'right') => void;
+  setSidebarWidth: (width: number) => void;
   setSidebarActiveTab: (tab: 'explorer' | 'search') => void;
 
   // 分屏操作
@@ -68,7 +75,10 @@ export const useLayoutStore = create<LayoutState>()(
       isPromptManagerOpen: false,
       chatWidth: 384,
 
-      // 侧边栏状态
+      // v0.2.6 新增：侧边栏初始状态
+      isSidebarOpen: true,
+      sidebarPosition: 'left',
+      sidebarWidth: 250,
       sidebarActiveTab: 'explorer',
 
       // 分屏状态
@@ -98,7 +108,11 @@ export const useLayoutStore = create<LayoutState>()(
       toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
       setChatWidth: (width) => set({ chatWidth: width }),
 
-      // 侧边栏操作
+      // v0.2.6 新增：侧边栏操作函数
+      setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+      toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+      setSidebarPosition: (position) => set({ sidebarPosition: position }),
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(150, Math.min(500, width)) }),
       setSidebarActiveTab: (tab) => set({ sidebarActiveTab: tab }),
 
       // 分屏操作
@@ -256,6 +270,10 @@ export const useLayoutStore = create<LayoutState>()(
         splitDirection: state.splitDirection,
         chatWidth: state.chatWidth,
         sidebarActiveTab: state.sidebarActiveTab,
+        // v0.2.6 新增：持久化侧边栏状态
+        isSidebarOpen: state.isSidebarOpen,
+        sidebarPosition: state.sidebarPosition,
+        sidebarWidth: state.sidebarWidth,
       }),
     }
   )
