@@ -1,0 +1,118 @@
+/**
+ * 虚拟滚动消息列表 - v0.2.6 性能优化
+ * 使用 @tanstack/react-virtual 实现高性能长列表渲染
+ * 仅渲染可见区域的消息，大幅提升长对话性能
+ */
+
+import React, { useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useChatStore } from '../../stores/useChatStore';
+import { MessageItem } from './MessageItem';
+
+interface VirtualMessageListProps {
+  messages: ReturnType<typeof useChatStore.getState>['messages'];
+  onApprove: (messageId: string, toolCallId: string) => void;
+  onReject: (messageId: string, toolCallId: string) => void;
+  onOpenFile: (path: string) => Promise<void>;
+  isLoading: boolean;
+}
+
+/**
+ * 虚拟滚动消息列表组件
+ * 使用 @tanstack/react-virtual 实现动态高度虚拟滚动
+ */
+export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
+  messages,
+  onApprove,
+  onReject,
+  onOpenFile,
+  isLoading,
+}) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // 检测是否有正在流式输出的消息
+  const hasStreamingMessage = messages.some(m =>
+    m.role === 'assistant' && isLoading && messages.indexOf(m) === messages.length - 1
+  );
+
+  // ⚠️ 重要：始终调用 hooks，不能在条件返回之前
+  // 使用 @tanstack/react-virtual 创建虚拟化列表
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 150, // 估算每条消息高度
+    overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
+    enabled: messages.length >= 15 && !hasStreamingMessage, // 流式输出时禁用虚拟滚动
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  // 自动滚动到底部（流式输出时）
+  useEffect(() => {
+    if (hasStreamingMessage && parentRef.current) {
+      parentRef.current.scrollTop = parentRef.current.scrollHeight;
+    }
+  }, [messages, hasStreamingMessage]);
+
+  // 条件渲染：短对话或流式输出时使用普通列表
+  if (messages.length < 15 || hasStreamingMessage) {
+    return (
+      <div className="space-y-4">
+        {messages.map((message) => (
+          <MessageItem
+            key={message.id}
+            message={message}
+            onApprove={onApprove}
+            onReject={onReject}
+            onOpenFile={onOpenFile}
+            isStreaming={isLoading && message.role === 'assistant'}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // 虚拟滚动渲染（长对话 + 非流式状态）
+  return (
+    <div
+      ref={parentRef}
+      className="h-full overflow-auto"
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualItems.map((virtualRow) => {
+          const message = messages[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <MessageItem
+                message={message}
+                onApprove={onApprove}
+                onReject={onReject}
+                onOpenFile={onOpenFile}
+                isStreaming={isLoading && message.role === 'assistant'}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default VirtualMessageList;

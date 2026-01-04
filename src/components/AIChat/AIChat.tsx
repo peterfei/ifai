@@ -13,6 +13,7 @@ import { MessageItem } from './MessageItem';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
 import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
+import { VirtualMessageList } from './VirtualMessageList';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 
 interface AIChatProps {
@@ -438,26 +439,22 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-hidden relative"
         style={{
-          // v0.2.6 性能优化：使用 CSS containment 优化渲染
-          contain: 'content',
-          // 仅在流式传输时使用 will-change
-          ...(isLoading && { willChange: 'scroll-position' }),
+          // v0.2.6 性能优化：虚拟滚动需要固定高度容器
         }}
       >
-        {/* v0.2.6 性能优化：消息列表使用 CSS 优化 + React.memo (在 MessageItem 中) */}
-        {rawMessages.map((message, index) => (
-          <MessageItem
-            key={message.id}
-            message={message}
+        <div className="absolute inset-0 overflow-auto p-4">
+          {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
+          <VirtualMessageList
+            messages={rawMessages}
             onApprove={handleApprove}
             onReject={handleReject}
             onOpenFile={handleOpenFile}
-            isStreaming={isLoading && message.role === 'assistant'}
+            isLoading={isLoading}
           />
-        ))}
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
