@@ -15,6 +15,8 @@ import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
 import { VirtualMessageList } from './VirtualMessageList';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
+// v0.2.6: 任务拆解 Store（测试中）
+import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
 
 interface AIChatProps {
   width?: number;
@@ -331,6 +333,60 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
 
   // Auto-approve tool calls when enabled
   const agentAutoApprove = useSettingsStore(state => state.agentAutoApprove);
+
+  // v0.2.6: 测试任务拆解 Store
+  useEffect(() => {
+    // 仅在开发模式下启用测试
+    if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
+      console.log('[TaskBreakdown] Store 已加载，使用 window.__taskBreakdownStore 访问');
+      // 将 store 暴露到全局作用域以便在控制台测试
+      (window as any).__taskBreakdownStore = useTaskBreakdownStore;
+      (window as any).__testTaskBreakdown = () => {
+        const store = useTaskBreakdownStore.getState();
+        const testData = {
+          id: `tb-${Date.now()}-test`,
+          title: '测试任务拆解',
+          description: '这是一个测试任务',
+          originalPrompt: '测试提示',
+          taskTree: {
+            id: 'root-1',
+            title: '根任务',
+            status: 'pending' as const,
+            dependencies: [],
+            children: [
+              {
+                id: 'child-1',
+                title: '子任务 1',
+                status: 'pending' as const,
+                dependencies: [],
+                children: [],
+                estimatedHours: 2,
+                category: 'development' as const,
+              },
+              {
+                id: 'child-2',
+                title: '子任务 2',
+                status: 'in_progress' as const,
+                dependencies: [],
+                children: [],
+                estimatedHours: 3,
+                category: 'testing' as const,
+              },
+            ],
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          status: 'draft' as const,
+        };
+        store.setCurrentBreakdown(testData);
+        console.log('[TaskBreakdown] 测试数据已设置', store.currentBreakdown);
+      };
+      (window as any).__clearTaskBreakdown = () => {
+        useTaskBreakdownStore.getState().clearCurrent();
+        console.log('[TaskBreakdown] 当前任务已清除');
+      };
+    }
+  }, []);
 
   useEffect(() => {
     if (!agentAutoApprove) return;
