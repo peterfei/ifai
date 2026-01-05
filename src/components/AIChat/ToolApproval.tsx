@@ -177,6 +177,59 @@ const FileListingResult: React.FC<{ files: string[] }> = ({ files }) => {
 const MAX_DIFF_SIZE = 5000;  // 5000字符阈值 - 超过此大小跳过Monaco Diff
 const MAX_LINES_COLLAPSED = 50;  // 50行折叠阈值
 
+// Helper to organize paths into a tree structure for better visualization (Point 3)
+const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    
+    // Group paths by directory
+    const tree = React.useMemo(() => {
+        const root: any = { nodes: {}, files: [] };
+        paths.forEach(path => {
+            const parts = path.split('/');
+            const fileName = parts.pop() || '';
+            let current = root;
+            parts.forEach(dir => {
+                if (!current.nodes[dir]) current.nodes[dir] = { nodes: {}, files: [] };
+                current = current.nodes[dir];
+            });
+            current.files.push(fileName);
+        });
+        return root;
+    }, [paths]);
+
+    const renderNode = (node: any, name: string, depth: number) => (
+        <div key={name} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
+            {name && (
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-400 py-0.5">
+                    <FolderOpen size={10} className="text-yellow-500/70" />
+                    <span className="font-medium">{name}</span>
+                </div>
+            )}
+            <div className={name ? "border-l border-gray-700/50 ml-1.5 pl-2" : ""}>
+                {Object.keys(node.nodes).map(dir => renderNode(node.nodes[dir], dir, depth + 1))}
+                {node.files.map((file: string) => (
+                    <div key={file} className="flex items-center gap-1.5 text-[11px] text-gray-300 py-0.5 group">
+                        <File size={10} className="text-blue-400/70" />
+                        <span className="truncate group-hover:text-blue-300 transition-colors cursor-default">{file}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="bg-gray-900/40 rounded-lg border border-gray-700/30 p-2.5">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">文件结构</span>
+                <button onClick={() => setIsExpanded(!isExpanded)} className="text-gray-500 hover:text-gray-300">
+                    {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+            </div>
+            {isExpanded && renderNode(tree, '', 0)}
+        </div>
+    );
+};
+
 export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProps) => {
     const { t } = useTranslation();
     const settings = useSettingsStore();
@@ -513,36 +566,30 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                                 );
                             }
 
-                            // Special handling for agent_batch_read - show file count
+                            // Special handling for agent_batch_read - show file count and tree view (Point 3)
                             if (toolName.includes('batch_read')) {
                                 const paths = args.paths || [];
                                 return (
-                                    <div className="space-y-1">
-                                        <div className="text-gray-400">批量读取文件:</div>
-                                        <div className="text-green-400 bg-gray-900 px-2 py-1 rounded text-sm">
-                                            {paths.length} 个文件
-                                        </div>
-                                        {paths.length > 0 && paths.length <= 5 && (
-                                            <div className="mt-1 space-y-0.5">
-                                                {paths.map((p: string, i: number) => (
-                                                    <div key={i} className="text-[10px] text-gray-500 truncate font-mono" title={p}>
-                                                        • {p.split('/').pop() || p}
-                                                    </div>
-                                                ))}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-gray-400 text-xs">批量读取:</div>
+                                            <div className="text-green-400 bg-green-400/10 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                {paths.length} 个文件
                                             </div>
-                                        )}
+                                        </div>
+                                        {paths.length > 0 && <FileTreeVisualizer paths={paths} />}
                                     </div>
                                 );
                             }
 
-                            // Special handling for agent_read_file - show file path
+                            // Special handling for agent_read_file - show file path (Point 3)
                             if (toolName.includes('read_file')) {
                                 const relPath = args.rel_path || args.path || '';
                                 return (
-                                    <div className="space-y-1">
-                                        <div className="text-gray-400">读取文件:</div>
-                                        <code className="text-green-400 bg-gray-900 px-2 py-1 rounded text-sm font-mono break-all">
-                                            {relPath}
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
+                                        <Eye size={12} className="text-blue-400" />
+                                        <code className="text-xs text-gray-300 font-mono break-all leading-relaxed">
+                                            read(<span className="text-blue-300">{relPath}</span>)
                                         </code>
                                     </div>
                                 );

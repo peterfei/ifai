@@ -135,12 +135,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // Handle both string and ContentPart[] types
     const displayContent = React.useMemo(() => {
       const content = message.content;
+      let rawText = '';
+      
       // If content is an array (ContentPart[]), convert to string
       if (Array.isArray(content)) {
-        return content.map(part => part.type === 'text' ? part.text : '[image]').join('');
+        rawText = content.map(part => part.type === 'text' ? part.text : '[image]').join('');
+      } else {
+        // If content is already a string, use as-is
+        rawText = content || '';
       }
-      // If content is already a string, use as-is
-      return content || '';
+
+      // v0.2.6: 过滤思维链标记 <think>...</think>
+      // 移除完整的 think 块以及由于流式截断可能残留的 </think> 标签
+      return rawText
+        .replace(/<think>[\s\S]*?<\/think>/gi, '') // 移除完整的思考块
+        .replace(/<\/think>/gi, '')               // 移除残留的闭合标签
+        .trim();
     }, [message.content]);
 
     // v0.2.6: 检测任务拆解内容
