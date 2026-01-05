@@ -27,6 +27,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useChatStore } from './stores/useChatStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { useSnippetStore } from './stores/snippetStore';
 
 function App() {
   const { t } = useTranslation();
@@ -162,10 +163,17 @@ function App() {
       const activeFile = openedFiles.find(f => f.id === activeFileId);
       if (activeFile) {
         try {
-          await writeFileContent(activeFile.path, activeFile.content);
-          setFileDirty(activeFile.id, false);
-          toast.success(t('common.fileSaved'));
-          fetchGitStatuses();
+          if (activeFile.path.startsWith('snippet://')) {
+            const snippetId = activeFile.path.replace('snippet://', '');
+            await useSnippetStore.getState().updateSnippet(snippetId, { code: activeFile.content });
+            setFileDirty(activeFile.id, false);
+            toast.success('Snippet saved to database');
+          } else {
+            await writeFileContent(activeFile.path, activeFile.content);
+            setFileDirty(activeFile.id, false);
+            toast.success(t('common.fileSaved'));
+            fetchGitStatuses();
+          }
         } catch (error) {
           console.error('Failed to save file:', error);
           toast.error(t('common.fileSaveFailed'));

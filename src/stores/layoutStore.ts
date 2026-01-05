@@ -23,7 +23,7 @@ export interface LayoutState {
   isSidebarOpen: boolean;
   sidebarPosition: 'left' | 'right';
   sidebarWidth: number;
-  sidebarActiveTab: 'explorer' | 'search';  // 侧边栏活动标签页
+  sidebarActiveTab: 'explorer' | 'search' | 'snippets';  // 侧边栏活动标签页
 
   // 分屏状态
   panes: Pane[];
@@ -48,7 +48,7 @@ export interface LayoutState {
   toggleSidebar: () => void;
   setSidebarPosition: (position: 'left' | 'right') => void;
   setSidebarWidth: (width: number) => void;
-  setSidebarActiveTab: (tab: 'explorer' | 'search') => void;
+  setSidebarActiveTab: (tab: 'explorer' | 'search' | 'snippets') => void;
 
   // 分屏操作
   splitPane: (direction: 'horizontal' | 'vertical', targetPaneId?: string) => void;

@@ -2,9 +2,10 @@ import React, { useEffect } from 'react';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
 import { openDirectory, readDirectory } from '../../utils/fileSystem';
-import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock } from 'lucide-react';
+import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
+import { SnippetManager } from '../SnippetManager/SnippetManager';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -102,6 +103,16 @@ export const Sidebar = () => {
         >
           <SearchIcon size={24} />
         </button>
+        <button
+          className={`p-2 mb-2 rounded ${sidebarActiveTab === 'snippets' && !isPromptManagerOpen ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          onClick={() => {
+            setSidebarActiveTab('snippets');
+            if (isPromptManagerOpen) togglePromptManager();
+          }}
+          title="Snippet Manager"
+        >
+          <Code2 size={24} />
+        </button>
         <div className="flex-1" />
         <button
           className={`p-2 mb-2 rounded ${isPromptManagerOpen ? 'text-blue-400 bg-blue-900/20' : 'text-gray-500 hover:text-gray-300'}`}
@@ -138,9 +149,13 @@ export const Sidebar = () => {
                 <FileTree />
               </div>
             </>
-          ) : (
+          ) : sidebarActiveTab === 'search' ? (
             <div className="flex flex-col h-full">
               <SearchPanel />
+            </div>
+          ) : (
+            <div className="flex flex-col h-full">
+              <SnippetManager />
             </div>
           )}
         </div>
