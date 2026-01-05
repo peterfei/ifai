@@ -17,6 +17,7 @@ export default defineConfig({
     },
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'ifainew-core': path.resolve(__dirname, './src/core/mock-core'),
     },
   },
 });

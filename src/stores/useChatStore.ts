@@ -7,6 +7,7 @@ import { useSettingsStore } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useThreadStore } from './threadStore';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { recognizeIntent, shouldTriggerAgent, formatAgentName } from '../utils/intentRecognizer';
 import { autoSaveThread } from './persistence/threadPersistence';
 import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage } from '../utils/tokenCounter';
@@ -308,6 +309,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     const callId = crypto.randomUUID().slice(0, 8);
     console.log(`>>> [${callId}] patchedSendMessage called:`, typeof content === 'string' ? content.slice(0, 50) : 'array');
 
+    // Set loading state immediately to provide UI feedback
+    coreUseChatStore.setState({ isLoading: true });
+
     // ========================================================================
     // Thread-Aware Message Management
     // ========================================================================
@@ -388,6 +392,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                     content: `❌ **Failed to launch agent**\n\nError: ${String(e)}`
                 });
             }
+            coreUseChatStore.setState({ isLoading: false });
             return;
         }
     }
@@ -471,6 +476,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 });
                 console.error('[NaturalLanguageTrigger] Failed to launch agent:', e);
             }
+            coreUseChatStore.setState({ isLoading: false });
             return;
         } else if (intentResult && intentResult.confidence > 0.5) {
             // Medium confidence: Log for future improvement
@@ -496,14 +502,22 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             content: textInput
         });
 
-        const preprocessResult = await invoke<any>('local_model_preprocess', {
+        // Add timeout for local model preprocessing (2 seconds)
+        // This prevents the UI from hanging if the local model check takes too long
+        const preprocessPromise = invoke<any>('local_model_preprocess', {
             messages: messagesForLocal
         });
+        
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Local model preprocess timeout')), 2000)
+        );
+
+        const preprocessResult = await Promise.race([preprocessPromise, timeoutPromise]) as any;
 
         console.log('[LocalModel] Preprocess result:', preprocessResult);
 
         // If local model can handle this
-        if (preprocessResult.should_use_local) {
+        if (preprocessResult && preprocessResult.should_use_local) {
             const { addMessage } = coreUseChatStore.getState();
 
             // Add user message
@@ -551,6 +565,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 for (const tc of toolCalls) {
                     await coreUseChatStore.getState().approveToolCall(assistantMsgId, tc.id);
                 }
+                coreUseChatStore.setState({ isLoading: false });
                 return;
             }
             // If local response available (simple Q&A)
@@ -569,6 +584,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                     useThreadStore.getState().updateThreadTimestamp(currentThreadId);
                     useThreadStore.getState().incrementMessageCount(currentThreadId);
                 }
+                coreUseChatStore.setState({ isLoading: false });
                 return;
             }
         }
@@ -708,7 +724,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     });
 
     // 5. Setup Listeners
-    const { listen } = await import('@tauri-apps/api/event');
+    // const { listen } = await import('@tauri-apps/api/event');
     
     // Status Listener
     const unlistenStatus = await listen<string>(`${assistantMsgId}_status`, (event) => {
@@ -954,7 +970,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {
         clearTimeout(finishTimeout);
-        console.log("[Chat] Stream finished", event.payload);
+        console.log("[Chat] Stream finished event received", event.payload); // Updated log message
 
         // Finalize all partial tool calls
         const { messages } = coreUseChatStore.getState();
@@ -996,22 +1012,11 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
         if (shouldAutoApprove) {
             const message = updatedMessages.find(m => m.id === assistantMsgId);
-            console.log(`[Chat] Found assistant message: ${!!message}`);
-            console.log(`[Chat] Message has toolCalls: ${!!message?.toolCalls}, count: ${message?.toolCalls?.length || 0}`);
-            if (message?.toolCalls) {
-                console.log(`[Chat] Tool calls details:`, message.toolCalls.map(tc => ({
-                    id: tc.id,
-                    tool: tc.tool,
-                    status: tc.status,
-                    isPartial: tc.isPartial
-                })));
-            }
             if (message && message.toolCalls) {
                 const pendingToolCalls = message.toolCalls.filter(tc => tc.status === 'pending' && !tc.isPartial);
-                console.log(`[Chat] Pending tool calls (after filter): ${pendingToolCalls.length}`);
-
+                
                 if (pendingToolCalls.length > 0) {
-                    console.log(`[Chat] Auto-approving ${pendingToolCalls.length} tool calls from patchedGenerateResponse`);
+                    console.log(`[Chat] Auto-approving ${pendingToolCalls.length} tool calls from patchedSendMessage`);
 
                     // 检查是否在自动工具调用循环中（防止无限循环）
                     const { messages } = coreUseChatStore.getState();
@@ -1022,61 +1027,61 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                     // 如果最近有太多工具调用，可能是陷入了循环，停止自动继续
                     if (recentToolCalls.length >= 3) {
                         console.warn(`[Chat] Detected potential tool call loop (${recentToolCalls.length} recent tool calls), stopping auto-continue`);
-                        return;
-                    }
+                    } else {
+                        // Execute all tool calls
+                        for (const tc of pendingToolCalls) {
+                            // @ts-ignore - third parameter not in type definition yet
+                            await coreUseChatStore.getState().approveToolCall(assistantMsgId, tc.id, { skipContinue: true });
+                        }
 
-                    // Execute all tool calls
-                    for (const tc of pendingToolCalls) {
-                        // @ts-ignore - third parameter not in type definition yet
-                        await coreUseChatStore.getState().approveToolCall(assistantMsgId, tc.id, { skipContinue: true });
-                    }
+                        console.log(`[Chat] All tool calls executed from patchedSendMessage`);
 
-                    console.log(`[Chat] All tool calls executed from patchedGenerateResponse`);
+                        // After all tools are executed, continue the conversation
+                        const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
+                        if (providerConfig) {
+                            console.log(`[Chat] Continuing conversation after tool execution (scheduled in 300ms)`);
 
-                    // After all tools are executed, continue the conversation
-                    const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
-                    if (providerConfig) {
-                        console.log(`[Chat] Continuing conversation after tool execution (scheduled in 300ms)`);
+                            // 使用 setTimeout 延迟调用
+                            setTimeout(async () => {
+                                console.log(`[Chat] Executing delayed continuation (after 300ms delay)`);
 
-                        // 使用 setTimeout 延迟调用
-                        setTimeout(async () => {
-                            console.log(`[Chat] Executing delayed continuation (after 300ms delay)`);
+                                // 手动清理当前函数的监听器
+                                console.log(`[Chat] Manually cleaning up previous listeners`);
+                                unlistenStatus();
+                                unlistenStream();
+                                unlistenRefs();
+                                unlistenCompacted();
+                                unlistenFinish();
+                                unlistenError();
 
-                            // 手动清理当前函数的监听器
-                            console.log(`[Chat] Manually cleaning up previous listeners`);
-                            unlistenStatus();
-                            unlistenStream();
-                            unlistenRefs();
-                            unlistenCompacted();
-                            unlistenFinish();
-                            unlistenError();
+                                // Get updated messages with tool results
+                                const finalMessages = coreUseChatStore.getState().messages;
 
-                            // Get updated messages with tool results
-                            const finalMessages = coreUseChatStore.getState().messages;
+                                // Continue the conversation with all tool results
+                                await patchedGenerateResponse(
+                                    finalMessages,
+                                    providerConfig,
+                                    { enableTools: true }
+                                );
+                            }, 300);  // 延迟 300ms
 
-                            // Continue the conversation with all tool results
-                            await patchedGenerateResponse(
-                                finalMessages,
-                                providerConfig,
-                                { enableTools: true }
-                            );
-                        }, 300);  // 延迟 300ms
-
-                        // 不继续执行，直接返回（避免清理监听器）
-                        return;
+                            // 不继续执行，直接返回（避免清理监听器）
+                            return;
+                        }
                     }
                 }
-
-                // 如果没有继续对话，清理监听器
-                console.log(`[Chat] Cleaning up listeners (normal completion)`);
-                unlistenStatus();
-                unlistenStream();
-                unlistenRefs();
-                unlistenCompacted();
-                unlistenFinish();
-                unlistenError();
             }
         }
+
+        // Cleanup listeners (normal completion)
+        console.log(`[Chat] Cleaning up listeners (normal completion)`);
+        unlistenStatus();
+        unlistenStream();
+        unlistenRefs();
+        unlistenCompacted();
+        unlistenFinish();
+        unlistenError();
+        coreUseChatStore.setState({ isLoading: false });
     });
 
     // Error Listener - Handle stream errors
@@ -1097,6 +1102,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
+        coreUseChatStore.setState({ isLoading: false });
     });
 
     // 6. Invoke Backend
@@ -1126,6 +1132,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
+        coreUseChatStore.setState({ isLoading: false });
     }
 
     // Note: Listener cleanup is now handled in the _finish handler
@@ -1211,7 +1218,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     });
 
     // 4. Setup Listeners (Duplicate logic from patchedSendMessage - refactoring would be better but keeping it self-contained for patch)
-    const { listen } = await import('@tauri-apps/api/event');
+    // const { listen } = await import('@tauri-apps/api/event');
     
     const unlistenStatus = await listen<string>(`${assistantMsgId}_status`, (event) => {
         const { messages } = coreUseChatStore.getState();
@@ -1416,6 +1423,8 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
+        console.log("[Chat/GenerateResponse] Setting isLoading to false");
+        coreUseChatStore.setState({ isLoading: false });
     });
 
     // 5. Invoke Backend
