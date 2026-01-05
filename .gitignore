@@ -51,6 +51,10 @@ TASK_BREAKDOWN_v0.2.0.md
 
 TOUTIAO_v0.2.5.md
 
+# Playwright test artifacts
+playwright-report/
+test-results/
+
 # OpenSpec 提案运行时数据
 .ifai/archive/
 .ifai/changes/
