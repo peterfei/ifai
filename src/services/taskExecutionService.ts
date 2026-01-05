@@ -9,10 +9,52 @@ import { readFileContent } from '../utils/fileSystem';
 import { parseTasksMarkdown, updateTaskStatus, generateTasksMarkdown, findTask, getTaskPath, TasksFile, Task } from '../utils/taskParser';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
+import { useTaskStore } from '../stores/taskStore';
+import { TaskStatus as MonitorStatus, TaskCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
 
 export class TaskExecutionService {
   private tasksFile: TasksFile | null = null;
   private tasksFilePath: string = '';
+
+  /**
+   * 同步任务到 TaskStore (用于 Mission Control 仪表盘显示)
+   */
+  private syncWithStore(): void {
+    if (!this.tasksFile) return;
+
+    const taskStore = useTaskStore.getState();
+    const newTasksMetadata: TaskMetadata[] = [];
+    
+    console.log(`[TaskExecution] Syncing ${this.tasksFile.tasks.length} tasks to store`);
+
+    this.tasksFile.tasks.forEach(task => {
+      // 映射任务状态
+      let status = MonitorStatus.PENDING;
+      if (task.status === 'in_progress') status = MonitorStatus.RUNNING;
+      if (task.status === 'done') status = MonitorStatus.SUCCESS;
+
+      const existingTask = taskStore.tasks.find(t => t.id === task.id);
+      
+      const metadata: TaskMetadata = {
+        id: task.id,
+        title: task.title,
+        description: task.content,
+        status: status,
+        category: TaskCategory.GENERATION, // AI 实施任务默认为生成类
+        priority: TaskPriority.NORMAL,
+        createdAt: existingTask ? existingTask.createdAt : Date.now(),
+        progress: {
+            current: task.status === 'done' ? 100 : (task.status === 'in_progress' ? 50 : 0),
+            total: 100,
+            percentage: task.status === 'done' ? 100 : (task.status === 'in_progress' ? 50 : 0)
+        }
+      };
+      
+      newTasksMetadata.push(metadata);
+    });
+
+    taskStore.setTasks(newTasksMetadata);
+  }
 
   /**
    * 从当前打开的提案中加载任务
@@ -24,6 +66,7 @@ export class TaskExecutionService {
     try {
       const content = await readFileContent(tasksPath);
       this.tasksFile = parseTasksMarkdown(content, proposalId);
+      this.syncWithStore();
       return this.tasksFile;
     } catch (e) {
       throw new Error(`Failed to load tasks: ${e}`);
@@ -43,6 +86,7 @@ export class TaskExecutionService {
       const proposalId = pathMatch ? pathMatch[1] : undefined;
 
       this.tasksFile = parseTasksMarkdown(content, proposalId);
+      this.syncWithStore();
       return this.tasksFile;
     } catch (e) {
       throw new Error(`Failed to load tasks from file: ${e}`);
@@ -88,6 +132,7 @@ export class TaskExecutionService {
 
     // 更新状态为 in_progress
     this.tasksFile = updateTaskStatus(this.tasksFile, taskId, 'in_progress');
+    this.syncWithStore();
 
     // 保存到文件
     await this.saveToFile();
@@ -105,6 +150,7 @@ export class TaskExecutionService {
 
     // 更新状态为 done
     this.tasksFile = updateTaskStatus(this.tasksFile, taskId, 'done');
+    this.syncWithStore();
 
     // 保存到文件
     await this.saveToFile();

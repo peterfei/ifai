@@ -1,13 +1,43 @@
-/**
- * 任务拆解状态管理 Store
- * v0.2.6 新增
- */
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { TaskBreakdown, TaskNode } from '../types/taskBreakdown';
 import { useFileStore } from './fileStore';
+import { useTaskStore } from './taskStore';
+import { TaskStatus as MonitorStatus, TaskCategory as MonitorCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
+
+/**
+ * 将任务树扁平化为 TaskMetadata 数组
+ */
+function flattenTaskTree(node: TaskNode, category: MonitorCategory = MonitorCategory.GENERATION): TaskMetadata[] {
+  let status = MonitorStatus.PENDING;
+  if (node.status === 'in_progress') status = MonitorStatus.RUNNING;
+  if (node.status === 'completed') status = MonitorStatus.SUCCESS;
+  if (node.status === 'failed') status = MonitorStatus.FAILED;
+
+  const metadata: TaskMetadata = {
+    id: node.id,
+    title: node.title,
+    description: node.description,
+    status: status,
+    category: category,
+    priority: TaskPriority.NORMAL,
+    createdAt: Date.now(),
+    progress: {
+      current: node.status === 'completed' ? 100 : (node.status === 'in_progress' ? 50 : 0),
+      total: 100,
+      percentage: node.status === 'completed' ? 100 : (node.status === 'in_progress' ? 50 : 0)
+    }
+  };
+
+  const results = [metadata];
+  if (node.children) {
+    node.children.forEach(child => {
+      results.push(...flattenTaskTree(child, category));
+    });
+  }
+  return results;
+}
 
 interface TaskBreakdownState {
   /** 当前任务拆解 */
@@ -23,6 +53,8 @@ interface TaskBreakdownState {
 
   /** 设置当前任务拆解 */
   setCurrentBreakdown: (breakdown: TaskBreakdown | null) => void;
+  /** 同步到任务监控 Store */
+  syncToTaskStore: () => void;
   /** 加载任务拆解 */
   loadBreakdown: (id: string) => Promise<TaskBreakdown>;
   /** 保存任务拆解 */
@@ -50,6 +82,25 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
 
       setCurrentBreakdown: (breakdown) => {
         set({ currentBreakdown: breakdown });
+        if (breakdown) {
+          get().syncToTaskStore();
+        }
+      },
+
+      syncToTaskStore: () => {
+        const { currentBreakdown } = get();
+        if (!currentBreakdown) return;
+
+        const taskStore = useTaskStore.getState();
+        const flatTasks = flattenTaskTree(currentBreakdown.taskTree);
+
+        flatTasks.forEach(task => {
+          if (taskStore.tasks.has(task.id)) {
+            taskStore.updateTask(task.id, task);
+          } else {
+            taskStore.addTask(task);
+          }
+        });
       },
 
       loadBreakdown: async (id) => {
@@ -66,6 +117,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
           });
 
           set({ currentBreakdown: breakdown, isLoading: false });
+          get().syncToTaskStore();
           return breakdown;
         } catch (e) {
           const errorMsg = `Failed to load task breakdown: ${e}`;
@@ -91,6 +143,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
           await get().refreshHistory();
 
           set({ currentBreakdown: breakdown });
+          get().syncToTaskStore();
         } catch (e) {
           const errorMsg = `Failed to save task breakdown: ${e}`;
           set({ error: errorMsg });

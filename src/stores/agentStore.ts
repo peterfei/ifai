@@ -11,6 +11,8 @@ import { useTaskBreakdownStore } from './taskBreakdownStore';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import { openFileFromPath } from '../utils/fileActions';
+import { useTaskStore } from './taskStore';
+import { TaskStatus as MonitorStatus, TaskCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
 
 /**
  * 任务树节点接口（用于解析）
@@ -247,6 +249,40 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   activeListeners: {},
   agentToMessageMap: {},
   autoApprovedToolCalls: new Set<string>(),
+
+  /**
+   * 同步 Agent 动作到 Mission Control
+   */
+  syncAgentActionToTaskMonitor: (id: string, agentType: string, status: any, log?: string) => {
+    const taskStore = useTaskStore.getState();
+    const existing = taskStore.tasks.find(t => t.id === id);
+
+    let monitorStatus = MonitorStatus.RUNNING;
+    if (status === 'completed') monitorStatus = MonitorStatus.SUCCESS;
+    if (status === 'failed') monitorStatus = MonitorStatus.FAILED;
+
+    const metadata: TaskMetadata = {
+      id,
+      title: `${agentType} Agent`,
+      description: log || existing?.description || `Executing ${agentType} logic...`,
+      status: monitorStatus,
+      category: TaskCategory.GENERATION,
+      priority: TaskPriority.HIGH,
+      createdAt: existing ? existing.createdAt : Date.now(),
+      progress: {
+        current: status === 'completed' ? 100 : 50,
+        total: 100,
+        percentage: status === 'completed' ? 100 : 50
+      },
+      logs: log ? [{ timestamp: Date.now(), level: 'info' as any, message: log }] : existing?.logs
+    };
+
+    if (existing) {
+      taskStore.updateTask(id, metadata);
+    } else {
+      taskStore.addTask(metadata);
+    }
+  },
   
   launchAgent: async (agentType: string, task: string, chatMsgId?: string, threadId?: string) => {
     // 1. Pre-generate ID
@@ -311,6 +347,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     a.id === id ? { ...a, status: status as any, progress } : a
                 )
             }));
+            // Sync to Mission Control
+            get().syncAgentActionToTaskMonitor(id, agentType, status);
         }
         // --- Log Update ---
         else if (payload.type === 'log' && (payload as any).message) {
@@ -325,6 +363,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     return { ...a, logs: newLogs, status: needsStatusFix ? 'running' : a.status };
                 })
             }));
+            // Sync to Mission Control
+            get().syncAgentActionToTaskMonitor(id, agentType, 'running', message);
         }
         // --- Content Streaming ---
         else if (payload.type === 'thinking' || (payload as any).type === 'content') {
@@ -632,6 +672,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         else if (payload.type === 'result') {
             const result = payload.result || "";
             console.log(`[AgentStore] Result received for agent ${id}, msgId: ${msgId || 'NONE'}`);
+
+            // Sync to Mission Control
+            get().syncAgentActionToTaskMonitor(id, agentType, 'completed', '✅ 任务圆满完成');
+
             if (msgId) {
                 const { messages, isLoading } = coreUseChatStore.getState();
                 console.log(`[AgentStore] Before setState: isLoading=${isLoading}`);
@@ -1167,6 +1211,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         // --- Error ---
         else if (payload.type === 'error') {
+            // Sync to Mission Control
+            get().syncAgentActionToTaskMonitor(id, agentType, 'failed', `❌ 错误: ${payload.error}`);
+
             if (msgId) {
                 const { messages } = coreUseChatStore.getState();
                 coreUseChatStore.setState({
@@ -1243,6 +1290,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         threadId: currentThreadId, // Associate with thread
     };
     set(state => ({ runningAgents: [newAgent, ...state.runningAgents] }));
+
+    // Sync to Mission Control
+    get().syncAgentActionToTaskMonitor(id, agentType, 'initializing', `🚀 ${agentType} agent 启动...`);
 
     // 4.5. Add agent task to thread if threadId exists
     if (currentThreadId) {

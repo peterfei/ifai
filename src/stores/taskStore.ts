@@ -69,11 +69,16 @@ export function createTask(
 // Store
 // ============================================================================
 
-export const useTaskStore = create<TaskStore>()(
+interface TaskStoreExtended extends Omit<TaskStore, 'tasks'> {
+  tasks: TaskMetadata[];
+  setTasks: (tasks: TaskMetadata[]) => void;
+}
+
+export const useTaskStore = create<TaskStoreExtended>()(
   persist(
     (set, get) => ({
       // State
-      tasks: new Map<string, TaskMetadata>(),
+      tasks: [],
       activeTaskId: null,
       filter: DEFAULT_FILTER,
       history: [],
@@ -83,15 +88,23 @@ export const useTaskStore = create<TaskStore>()(
       // Task Operations
       // ============================================================================
 
+      setTasks: (tasks: TaskMetadata[]) => {
+        set({ tasks });
+      },
+
       /**
        * Add a new task
        */
       addTask: (task: TaskMetadata) => {
         set((state) => {
-          const tasks = new Map(state.tasks);
-          tasks.set(task.id, task);
+          const exists = state.tasks.find(t => t.id === task.id);
+          if (exists) {
+            return {
+              tasks: state.tasks.map(t => t.id === task.id ? task : t)
+            };
+          }
 
-          // Set as active if no active task
+          const tasks = [...state.tasks, task];
           const activeTaskId = state.activeTaskId || task.id;
 
           return {
@@ -106,28 +119,24 @@ export const useTaskStore = create<TaskStore>()(
        */
       updateTask: (id: string, updates: TaskUpdate) => {
         set((state) => {
-          const tasks = new Map(state.tasks);
-          const task = tasks.get(id);
+          const tasks = state.tasks.map(task => {
+            if (task.id !== id) return task;
 
-          if (!task) return state;
-
-          const updatedTask: TaskMetadata = {
-            ...task,
-            ...updates,
-            // Recalculate percentage if progress changed
-            progress: updates.progress
-              ? {
-                  ...updates.progress,
-                  percentage:
-                    updates.progress.percentage ||
-                    (updates.progress.total > 0
-                      ? Math.round((updates.progress.current / updates.progress.total) * 100)
-                      : 0),
-                }
-              : task.progress,
-          };
-
-          tasks.set(id, updatedTask);
+            return {
+              ...task,
+              ...updates,
+              progress: updates.progress
+                ? {
+                    ...updates.progress,
+                    percentage:
+                      updates.progress.percentage ||
+                      (updates.progress.total > 0
+                        ? Math.round((updates.progress.current / updates.progress.total) * 100)
+                        : 0),
+                  }
+                : task.progress,
+            };
+          });
 
           return { tasks };
         });
@@ -138,14 +147,11 @@ export const useTaskStore = create<TaskStore>()(
        */
       removeTask: (id: string) => {
         set((state) => {
-          const tasks = new Map(state.tasks);
-          const task = tasks.get(id);
+          const task = state.tasks.find(t => t.id === id);
 
           if (task) {
-            // Add to history before removing
             const history = [task, ...state.history].slice(0, state.maxHistorySize);
-
-            tasks.delete(id);
+            const tasks = state.tasks.filter(t => t.id !== id);
 
             return {
               tasks,
@@ -166,30 +172,28 @@ export const useTaskStore = create<TaskStore>()(
        * Get a task by ID
        */
       getTask: (id: string) => {
-        return get().tasks.get(id);
+        return get().tasks.find(t => t.id === id);
       },
 
       /**
        * Get tasks by status
        */
       getTasksByStatus: (status: TaskStatus) => {
-        const tasks = get().tasks;
-        return Array.from(tasks.values()).filter((task) => task.status === status);
+        return get().tasks.filter((task) => task.status === status);
       },
 
       /**
        * Get tasks by category
        */
       getTasksByCategory: (category: TaskCategory) => {
-        const tasks = get().tasks;
-        return Array.from(tasks.values()).filter((task) => task.category === category);
+        return get().tasks.filter((task) => task.category === category);
       },
 
       /**
        * Get all tasks as array
        */
       getAllTasks: () => {
-        return Array.from(get().tasks.values());
+        return get().tasks;
       },
 
       /**
@@ -197,20 +201,16 @@ export const useTaskStore = create<TaskStore>()(
        */
       getFilteredTasks: () => {
         const { tasks, filter } = get();
-        const taskArray = Array.from(tasks.values());
 
-        return taskArray.filter((task) => {
-          // Status filter
-          if (filter.status !== 'all' && task.status !== filter.status) {
+        return tasks.filter((task) => {
+          if (filter.status && filter.status !== 'all' && task.status !== filter.status) {
             return false;
           }
 
-          // Category filter
-          if (filter.category !== 'all' && task.category !== filter.category) {
+          if (filter.category && filter.category !== 'all' && task.category !== filter.category) {
             return false;
           }
 
-          // Search filter
           if (filter.search) {
             const search = filter.search.toLowerCase();
             return (
@@ -232,21 +232,12 @@ export const useTaskStore = create<TaskStore>()(
        */
       clearCompleted: () => {
         set((state) => {
-          const tasks = new Map<string, TaskMetadata>();
-          const completedTasks: TaskMetadata[] = [];
+          const completedTasks = state.tasks.filter(t => t.status === 'success' || t.status === 'failed' || t.status === 'cancelled');
+          const remainingTasks = state.tasks.filter(t => !(t.status === 'success' || t.status === 'failed' || t.status === 'cancelled'));
 
-          for (const [id, task] of state.tasks) {
-            if (task.status === 'success' || task.status === 'failed' || task.status === 'cancelled') {
-              completedTasks.push(task);
-            } else {
-              tasks.set(id, task);
-            }
-          }
-
-          // Add to history
           const history = [...completedTasks, ...state.history].slice(0, state.maxHistorySize);
 
-          return { tasks, history };
+          return { tasks: remainingTasks, history };
         });
       },
 
@@ -255,17 +246,16 @@ export const useTaskStore = create<TaskStore>()(
        */
       cancelAll: () => {
         set((state) => {
-          const tasks = new Map(state.tasks);
-
-          for (const [id, task] of state.tasks) {
+          const tasks = state.tasks.map(task => {
             if (task.status === 'running' || task.status === 'pending') {
-              tasks.set(id, {
+              return {
                 ...task,
                 status: 'cancelled' as TaskStatus,
                 completedAt: Date.now(),
-              });
+              };
             }
-          }
+            return task;
+          });
 
           return { tasks };
         });
@@ -313,10 +303,8 @@ export const useTaskStore = create<TaskStore>()(
       partialize: (state) => ({
         history: state.history,
         maxHistorySize: state.maxHistorySize,
-        // Don't persist active tasks (they'll be recreated)
-        tasks: undefined,
-        activeTaskId: undefined,
-        filter: undefined,
+        // Don't persist active tasks
+        tasks: [],
       }),
     }
   )
@@ -330,12 +318,11 @@ export const useTaskStore = create<TaskStore>()(
  * Hook to get filtered tasks (Memoized)
  */
 export const useFilteredTasks = () => {
-  const tasks = useTaskStore(state => state.tasks);
+  const tasks = useTaskStore(state => state.tasks, shallow);
   const filter = useTaskStore(state => state.filter, shallow);
   
   return useMemo(() => {
-    const taskArray = Array.from(tasks.values());
-    return taskArray.filter((task) => {
+    return tasks.filter((task) => {
       if (filter.status !== 'all' && task.status !== filter.status) return false;
       if (filter.category !== 'all' && task.category !== filter.category) return false;
       if (filter.search) {
@@ -352,16 +339,15 @@ export const useFilteredTasks = () => {
  * Hook to get task counts (Memoized)
  */
 export const useTaskCounts = () => {
-  const tasks = useTaskStore(state => state.tasks);
+  const tasks = useTaskStore(state => state.tasks, shallow);
   
   return useMemo(() => {
-    const taskArray = Array.from(tasks.values());
     return {
-      total: taskArray.length,
-      running: taskArray.filter((t) => t.status === 'running').length,
-      success: taskArray.filter((t) => t.status === 'success').length,
-      failed: taskArray.filter((t) => t.status === 'failed').length,
-      pending: taskArray.filter((t) => t.status === 'pending').length,
+      total: tasks.length,
+      running: tasks.filter((t) => t.status === 'running').length,
+      success: tasks.filter((t) => t.status === 'success').length,
+      failed: tasks.filter((t) => t.status === 'failed').length,
+      pending: tasks.filter((t) => t.status === 'pending').length,
     };
   }, [tasks]);
 };
@@ -372,5 +358,5 @@ export const useTaskCounts = () => {
 export const useActiveTask = () => {
   const activeTaskId = useTaskStore(state => state.activeTaskId);
   const tasks = useTaskStore(state => state.tasks);
-  return useMemo(() => activeTaskId ? tasks.get(activeTaskId) : null, [activeTaskId, tasks]);
+  return useMemo(() => tasks.find(t => t.id === activeTaskId) || null, [activeTaskId, tasks]);
 };

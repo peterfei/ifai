@@ -191,15 +191,13 @@ export const TaskMonitor: React.FC<any> = ({ className = '' }) => {
 // ============================================================================
 
 export const TaskMonitorCompact = ({ maxTasks = 3 }) => {
-  // 仅获取 tasks Map 本身，引用保持稳定
-  const allTasksMap = useTaskStore(state => state.tasks);
+  const allTasks = useTaskStore(state => state.tasks);
   
-  // 在 useMemo 中进行计算，防止返回新数组导致的渲染循环
   const activeTasks = useMemo(() => {
-    return Array.from(allTasksMap.values())
+    return allTasks
       .filter(t => t.status === 'running')
       .slice(0, maxTasks);
-  }, [allTasksMap, maxTasks]);
+  }, [allTasks, maxTasks]);
 
   if (activeTasks.length === 0) return null;
 

@@ -120,7 +120,7 @@ export const Sidebar = () => {
             setSidebarActiveTab('tasks');
             if (isPromptManagerOpen) togglePromptManager();
           }}
-          title="Task Monitor"
+          title="Mission Control"
         >
           <ListChecks size={24} />
         </button>
