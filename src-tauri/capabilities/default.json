@@ -7,6 +7,7 @@
   ],
   "permissions": [
     "core:window:default",
+    "core:window:allow-show",
     "core:event:default",
     "window-state:default",
     "opener:default",

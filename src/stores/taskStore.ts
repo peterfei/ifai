@@ -4,8 +4,10 @@
  * Central state management for task monitoring system.
  */
 
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { shallow } from 'zustand/shallow';
 import type {
   TaskMetadata,
   TaskStore,
@@ -325,34 +327,50 @@ export const useTaskStore = create<TaskStore>()(
 // ============================================================================
 
 /**
- * Hook to get all tasks
+ * Hook to get filtered tasks (Memoized)
  */
-export const useTasks = () => useTaskStore((state) => state.getAllTasks());
+export const useFilteredTasks = () => {
+  const tasks = useTaskStore(state => state.tasks);
+  const filter = useTaskStore(state => state.filter, shallow);
+  
+  return useMemo(() => {
+    const taskArray = Array.from(tasks.values());
+    return taskArray.filter((task) => {
+      if (filter.status !== 'all' && task.status !== filter.status) return false;
+      if (filter.category !== 'all' && task.category !== filter.category) return false;
+      if (filter.search) {
+        const search = filter.search.toLowerCase();
+        return task.title.toLowerCase().includes(search) || 
+               task.description?.toLowerCase().includes(search);
+      }
+      return true;
+    }).sort((a, b) => b.createdAt - a.createdAt);
+  }, [tasks, filter]);
+};
 
 /**
- * Hook to get filtered tasks
+ * Hook to get task counts (Memoized)
  */
-export const useFilteredTasks = () => useTaskStore((state) => state.getFilteredTasks());
+export const useTaskCounts = () => {
+  const tasks = useTaskStore(state => state.tasks);
+  
+  return useMemo(() => {
+    const taskArray = Array.from(tasks.values());
+    return {
+      total: taskArray.length,
+      running: taskArray.filter((t) => t.status === 'running').length,
+      success: taskArray.filter((t) => t.status === 'success').length,
+      failed: taskArray.filter((t) => t.status === 'failed').length,
+      pending: taskArray.filter((t) => t.status === 'pending').length,
+    };
+  }, [tasks]);
+};
 
 /**
  * Hook to get active task
  */
-export const useActiveTask = () => useTaskStore((state) => {
-  const { activeTaskId, tasks } = state;
-  return activeTaskId ? tasks.get(activeTaskId) : null;
-});
-
-/**
- * Hook to get task counts
- */
-export const useTaskCounts = () => {
-  const tasks = useTaskStore((state) => state.getAllTasks());
-
-  return {
-    total: tasks.length,
-    running: tasks.filter((t) => t.status === 'running').length,
-    success: tasks.filter((t) => t.status === 'success').length,
-    failed: tasks.filter((t) => t.status === 'failed').length,
-    pending: tasks.filter((t) => t.status === 'pending').length,
-  };
+export const useActiveTask = () => {
+  const activeTaskId = useTaskStore(state => state.activeTaskId);
+  const tasks = useTaskStore(state => state.tasks);
+  return useMemo(() => activeTaskId ? tasks.get(activeTaskId) : null, [activeTaskId, tasks]);
 };

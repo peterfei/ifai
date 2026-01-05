@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore'; // Changed imports
+import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore'; 
 import { ToolApproval } from './ToolApproval';
 import { ExploreProgress } from './ExploreProgress';
 import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
@@ -12,6 +12,17 @@ import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
 import { TaskBreakdownViewer } from '../TaskBreakdown/TaskBreakdownViewer';
 import { TaskBreakdown } from '../../types/taskBreakdown';
+import { toast } from 'sonner';
+
+/**
+ * 工业级消息样式常量
+ */
+const STYLES = {
+    userBubble: 'max-w-[85%] rounded-2xl p-4 bg-blue-600 text-white shadow-lg ml-auto',
+    assistantBubble: 'w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm relative group',
+    agentBubble: 'w-full rounded-2xl p-4 bg-[#1e1e1e] text-blue-100 border border-blue-900/30 shadow-sm relative group',
+    timestamp: 'text-[10px] text-gray-500 mt-1'
+};
 
 /**
  * 检测内容是否是任务拆解 JSON
@@ -227,6 +238,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             store.rejectAllToolCalls(message.id);
         }
     };
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(displayContent);
+        toast.success(t('common.copied') || 'Copied to clipboard');
+    };
+
+    // Determine bubble style
+    const isAgent = !!(message as any).agentId;
+    const bubbleClass = isUser ? STYLES.userBubble : (isAgent ? STYLES.agentBubble : STYLES.assistantBubble);
 //...
 
     // Parse segments from string content (for non-multi-modal or fallback)
@@ -427,21 +447,50 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
 
     return (
-        <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
-            <div
-                className={isUser
-                    ? 'max-w-[85%] rounded-lg p-3 bg-blue-600 text-white'
-                    : 'w-full rounded-lg p-3 bg-[#2d2d2d] text-gray-200 border border-gray-700'
-                }
-            >
-                <div className="flex items-start">
-                    {isUser ? (
-                        <User size={16} className="mr-2 min-w-[16px] mt-1" />
-                    ) : (
-                        <img src={ifaiLogo} alt="IfAI Logo" className="w-4 h-4 mr-2 min-w-[16px] mt-1 opacity-70" /> // IfAI logo
-                    )}
+        <div className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'}`}>
+            <div className={bubbleClass}>
+                {/* Actions Toolbar - Floating on top right of assistant messages */}
+                {!isUser && !isActivelyStreaming && (
+                    <div className="absolute -top-3 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 border border-gray-700 rounded-md p-1 shadow-lg z-10">
+                        <button onClick={handleCopy} className="p-1 hover:bg-gray-700 rounded text-gray-400" title="Copy content">
+                            <Copy size={12} />
+                        </button>
+                        <button className="p-1 hover:bg-gray-700 rounded text-gray-400" title="Regenerate">
+                            <RotateCcw size={12} />
+                        </button>
+                        <button className="p-1 hover:bg-gray-700 rounded text-gray-400">
+                            <MoreHorizontal size={12} />
+                        </button>
+                    </div>
+                )}
+
+                <div className="flex items-start gap-3">
+                    {/* Avatar Logic */}
+                    <div className="shrink-0 mt-0.5">
+                        {isUser ? (
+                            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-inner text-white">
+                                <User size={14} />
+                            </div>
+                        ) : isAgent ? (
+                            <div className="w-6 h-6 rounded-full bg-blue-900 flex items-center justify-center border border-blue-500/50 shadow-inner text-blue-400">
+                                <Bot size={14} />
+                            </div>
+                        ) : (
+                            <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-700 bg-black/20 flex items-center justify-center">
+                                <img src={ifaiLogo} alt="IfAI Logo" className="w-4 h-4 opacity-90" />
+                            </div>
+                        )}
+                    </div>
                     
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 text-inherit">
+                        {isAgent && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter bg-blue-900/40 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                    Agent Live
+                                </span>
+                            </div>
+                        )}
+
                         {/* Batch Review Panel */}
                         {pendingCount > 1 && (
                             <div className="mb-3 p-2 bg-blue-900/20 rounded border border-blue-700/50 flex items-center justify-between">
