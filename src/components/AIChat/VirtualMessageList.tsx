@@ -45,22 +45,25 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     count: messages.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150, // 估算每条消息高度
-    overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
-    // 流式输出 或 有待处理工具调用时禁用虚拟滚动
-    enabled: messages.length >= 15 && !isLoading && !hasPendingToolCalls,
+    overscan: 5, // 增加预加载范围
+    // 稳定性优化：仅基于消息数量决定是否启用，不基于 isLoading，防止流式输出期间频繁切换模式
+    enabled: messages.length >= 15,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  // 自动滚动到底部（流式输出时）
+  // 自动滚动到底部优化：使用 requestAnimationFrame 异步执行
   useEffect(() => {
     if ((isLoading || hasPendingToolCalls) && scrollElementRef.current) {
-      scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
+      const scrollEl = scrollElementRef.current;
+      requestAnimationFrame(() => {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      });
     }
-  }, [messages, isLoading, hasPendingToolCalls]);
+  }, [messages.length, isLoading, hasPendingToolCalls]);
 
-  // 条件渲染：短对话、正在加载、或有待处理工具调用时使用普通列表
-  if (messages.length < 15 || isLoading || hasPendingToolCalls) {
+  // 条件渲染：只有在消息极少时才降级，且过程平滑
+  if (messages.length < 5) {
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
         {messages.map((message) => (

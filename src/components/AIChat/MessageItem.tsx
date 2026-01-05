@@ -229,11 +229,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
     // Debug: Log when isStreaming changes
     React.useEffect(() => {
-        if (process.env.NODE_ENV === 'development') {
-            console.log('[MessageItem] isStreaming changed:', { messageId: message.id, isStreaming });
+        if (process.env.NODE_ENV === 'development' && isStreaming && message.role === 'assistant') {
+            console.log('[MessageItem] 🚀 Message is actively streaming:', message.id);
         }
-        // Removed forceUpdate - rely on arePropsEqual in React.memo
-    }, [isStreaming, message.id]);
+    }, [isStreaming, message.id, message.role]);
 
     // Count pending tool calls for batch actions
     const pendingCount = React.useMemo(() => {
