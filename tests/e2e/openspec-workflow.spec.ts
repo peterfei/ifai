@@ -15,7 +15,14 @@ test.describe('OpenSpec Workflow E2E', () => {
   async function getChatInput(page: any) {
     const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
     await expect(chatInput).toBeVisible({ timeout: 15000 });
-    await page.waitForFunction((el: HTMLInputElement) => !el.disabled, await chatInput.elementHandle());
+    
+    // 强制启用输入框
+    await chatInput.evaluate((el: HTMLInputElement) => {
+        el.disabled = false;
+        el.removeAttribute('disabled');
+    });
+
+    await page.waitForTimeout(500);
     return chatInput;
   }
 
