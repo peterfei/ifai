@@ -10,7 +10,7 @@ import { TerminalPanel } from './components/Terminal/TerminalPanel';
 import { PromptManager } from './components/PromptManager/PromptManager';
 import { SettingsModal } from './components/Settings/SettingsModal';
 import { GlobalAgentMonitor } from './components/AIChat/GlobalAgentMonitor';
-import { PerformanceMonitor } from './components/PerformanceMonitor/PerformanceMonitor';
+import { PerformancePanel } from './components/DevTools/PerformancePanel';
 import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel';
 import { WelcomeDialog, LocalModelDownload } from './components/Onboarding';
 import { useFileStore } from './stores/fileStore';
@@ -366,7 +366,11 @@ function App() {
         <CommandPalette onSelect={handleSelectFileFromPalette} />
         <SettingsModal />
         <GlobalAgentMonitor />
-        <PerformanceMonitor />
+        {useSettingsStore((state) => state.showPerformanceMonitor) && (
+          <PerformancePanel 
+            onClose={() => useSettingsStore.getState().updateSettings({ showPerformanceMonitor: false })} 
+          />
+        )}
         {showCacheStats && <CacheStatsPanel onClose={() => setShowCacheStats(false)} />}
         <Toaster position="bottom-right" theme="dark" />
 
