@@ -278,3 +278,8 @@ export const useLayoutStore = create<LayoutState>()(
     }
   )
 );
+
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__layoutStore = useLayoutStore;
+}

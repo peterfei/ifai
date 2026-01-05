@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Settings, X } from 'lucide-react';
+import { Send, Settings, X, ChevronDown } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -1164,40 +1164,61 @@ ${context}
             onMouseDown={onResizeStart}
         />
       )}
-      <div className="flex items-center justify-between p-3 border-b border-gray-700 bg-[#252526]">
-        <div className="flex items-center">
-          <img src={ifaiLogo} alt="IfAI Logo" className="w-4 h-4 mr-2 opacity-70" />
-          <span className="text-[10px] font-bold text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700 tracking-tighter">
-            V0.2.4
-          </span>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 bg-[#1e1e1e]/60 backdrop-blur-md sticky top-0 z-[60]">
+        <div className="flex items-center gap-2.5 group">
+          <div className="relative">
+            <img src={ifaiLogo} alt="IfAI Logo" className="w-5 h-5 opacity-90 transition-transform duration-300 group-hover:scale-110" />
+            <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[11px] font-black text-gray-100 tracking-tight leading-none">IfAI Editor</span>
+            <span className="text-[9px] font-bold text-blue-500/80 tracking-widest uppercase mt-0.5">V0.2.6 PRO</span>
+          </div>
         </div>
         
-        <div className="flex items-center space-x-2">
-            <select
-                className="bg-gray-700 text-gray-300 text-sm px-2 py-1 rounded outline-none"
-                value={currentProviderId}
-                onChange={(e) => setCurrentProviderAndModel(e.target.value, (providers.find(p => p.id === e.target.value)?.models[0] || ''))}
-            >
-                {providers.map(p => (
-                    <option key={p.id} value={p.id} disabled={!p.enabled}>{p.name}</option>
-                ))}
-            </select>
-
-            {currentProvider && (
+        <div className="flex items-center gap-2">
+            {/* Custom Provider Selector */}
+            <div className="relative group/select">
                 <select
-                    className="bg-gray-700 text-gray-300 text-sm px-2 py-1 rounded outline-none"
-                    value={currentModel}
-                    onChange={(e) => setCurrentProviderAndModel(currentProviderId, e.target.value)}
+                    className="appearance-none bg-gray-800/40 hover:bg-gray-800/80 text-[11px] font-semibold text-gray-300 pl-2 pr-6 py-1 rounded-lg border border-white/5 hover:border-blue-500/30 outline-none transition-all cursor-pointer"
+                    value={currentProviderId}
+                    onChange={(e) => setCurrentProviderAndModel(e.target.value, (providers.find(p => p.id === e.target.value)?.models[0] || ''))}
                 >
-                    {currentProvider.models.map(model => (
-                        <option key={model} value={model}>{model}</option>
-                    ))
-}
+                    {providers.map(p => (
+                        <option key={p.id} value={p.id} disabled={!p.enabled}>{p.name}</option>
+                    ))}
                 </select>
+                <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover/select:text-blue-400 transition-colors">
+                    <ChevronDown size={10} />
+                </div>
+            </div>
+
+            {/* Custom Model Selector */}
+            {currentProvider && (
+                <div className="relative group/select">
+                    <select
+                        className="appearance-none bg-gray-800/40 hover:bg-gray-800/80 text-[11px] font-semibold text-gray-300 pl-2 pr-6 py-1 rounded-lg border border-white/5 hover:border-blue-500/30 outline-none transition-all cursor-pointer"
+                        value={currentModel}
+                        onChange={(e) => setCurrentProviderAndModel(currentProviderId, e.target.value)}
+                    >
+                        {currentProvider.models.map(model => (
+                            <option key={model} value={model}>{model}</option>
+                        ))}
+                    </select>
+                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover/select:text-blue-400 transition-colors">
+                        <ChevronDown size={10} />
+                    </div>
+                </div>
             )}
 
-            <button onClick={() => setSettingsOpen(true)} className="text-gray-400 hover:text-white">
-                <Settings size={16} />
+            <div className="w-px h-4 bg-white/5 mx-1" />
+
+            <button 
+                onClick={() => setSettingsOpen(true)} 
+                className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-all active:scale-95"
+                title="AI Settings"
+            >
+                <Settings size={14} />
             </button>
         </div>
       </div>
