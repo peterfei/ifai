@@ -1561,7 +1561,7 @@ const patchedApproveToolCall = async (
                 return '';
             };
 
-            let relPath: string = args.rel_path || args.relPath || getDefaultRelPath();
+            relPath = args.rel_path || args.relPath || getDefaultRelPath();
             let content: string = args.content || "";
 
             console.log('[FS Tool] Final relPath:', relPath);
@@ -1761,3 +1761,8 @@ export const useChatStore = coreUseChatStore;
 
 // Re-export types
 export type { ChatState, ToolCall, Message, ContentPart, ImageUrl, BackendMessage, AIProviderConfig } from 'ifainew-core';
+
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__chatStore = useChatStore;
+}

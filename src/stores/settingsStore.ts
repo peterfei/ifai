@@ -378,3 +378,8 @@ setTimeout(() => {
     }
   }
 }, 0);
+
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__settingsStore = useSettingsStore;
+}

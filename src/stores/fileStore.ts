@@ -359,3 +359,8 @@ export const useFileStore = create<FileState>()(
     }
   )
 );
+
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__fileStore = useFileStore;
+}
