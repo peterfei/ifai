@@ -66,14 +66,15 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   if (messages.length < 5) {
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <MessageItem
             key={message.id}
             message={message}
             onApprove={onApprove}
             onReject={onReject}
             onOpenFile={onOpenFile}
-            isStreaming={isLoading && message.role === 'assistant'}
+            // 优化：仅当是最后一条助手消息且处于加载状态时，才设为流式
+            isStreaming={isLoading && message.role === 'assistant' && index === messages.length - 1}
           />
         ))}
       </div>
@@ -121,7 +122,8 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 onApprove={onApprove}
                 onReject={onReject}
                 onOpenFile={onOpenFile}
-                isStreaming={false}
+                // 虚拟列表同步逻辑：仅最后一条消息在加载中时设为流式
+                isStreaming={isLoading && message.role === 'assistant' && virtualRow.index === messages.length - 1}
               />
             </div>
           );

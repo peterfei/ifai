@@ -259,17 +259,19 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
             {/* Content Area */}
             <div className="px-5 pb-4 pt-4">
                 {isWriteFile ? (
-                    <div className="space-y-4">
+                    <div className="space-y-4 overflow-hidden"> {/* Added overflow-hidden to contain shifts */}
                         {/* Improved Typewriter Streaming Preview (Point 1) */}
                         {(newContent || isPartial) && (
-                            <TypewriterCodeBlock 
-                                code={newContent}
-                                isPartial={isPartial}
-                                language={detectLanguage(filePath)}
-                                fileName={filePath.split('/').pop() || ''}
-                                isExpanded={isExpanded}
-                                onToggleExpand={() => setIsExpanded(!isExpanded)}
-                            />
+                            <div className="animate-in fade-in zoom-in-95 duration-200">
+                                <TypewriterCodeBlock 
+                                    code={newContent}
+                                    isPartial={isPartial}
+                                    language={detectLanguage(filePath)}
+                                    fileName={filePath.split('/').pop() || ''}
+                                    isExpanded={isExpanded}
+                                    onToggleExpand={() => setIsExpanded(!isExpanded)}
+                                />
+                            </div>
                         )}
                         
                         {/* Full Diff View (Only when completed) */}
