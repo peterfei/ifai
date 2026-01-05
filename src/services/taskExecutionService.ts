@@ -23,18 +23,31 @@ export class TaskExecutionService {
     if (!this.tasksFile) return;
 
     const taskStore = useTaskStore.getState();
-    const newTasksMetadata: TaskMetadata[] = [];
-    
-    console.log(`[TaskExecution] Syncing ${this.tasksFile.tasks.length} tasks to store`);
 
+    console.log(`[TaskExecution] Syncing ${this.tasksFile.tasks.length} tasks to store`);
+    console.log(`[TaskExecution] Current store has ${taskStore.tasks.length} tasks`);
+
+    // 首先移除所有不在文件中的任务（已删除的任务）
+    const taskIdsInFile = new Set(this.tasksFile.tasks.map(t => t.id));
+    const tasksToRemove = taskStore.tasks.filter(t => !taskIdsInFile.has(t.id));
+
+    if (tasksToRemove.length > 0) {
+      console.log(`[TaskExecution] Removing ${tasksToRemove.length} tasks that are no longer in file`);
+      tasksToRemove.forEach(t => {
+        taskStore.removeTask(t.id);
+      });
+    }
+
+    // 然后更新或添加每个任务
     this.tasksFile.tasks.forEach(task => {
       // 映射任务状态
       let status = MonitorStatus.PENDING;
       if (task.status === 'in_progress') status = MonitorStatus.RUNNING;
       if (task.status === 'done') status = MonitorStatus.SUCCESS;
+      if (task.status === 'failed') status = MonitorStatus.FAILED;
 
       const existingTask = taskStore.tasks.find(t => t.id === task.id);
-      
+
       const metadata: TaskMetadata = {
         id: task.id,
         title: task.title,
@@ -43,17 +56,22 @@ export class TaskExecutionService {
         category: TaskCategory.GENERATION, // AI 实施任务默认为生成类
         priority: TaskPriority.NORMAL,
         createdAt: existingTask ? existingTask.createdAt : Date.now(),
+        startedAt: existingTask?.startedAt,
+        completedAt: task.status === 'done' ? (existingTask?.completedAt || Date.now()) : existingTask?.completedAt,
         progress: {
-            current: task.status === 'done' ? 100 : (task.status === 'in_progress' ? 50 : 0),
-            total: 100,
-            percentage: task.status === 'done' ? 100 : (task.status === 'in_progress' ? 50 : 0)
+          current: task.status === 'done' ? 100 : (task.status === 'in_progress' ? 50 : 0),
+          total: 100,
+          percentage: task.status === 'done' ? 100 : (task.status === 'in_progress' ? 50 : 0)
         }
       };
-      
-      newTasksMetadata.push(metadata);
+
+      // 使用 addTask 而不是批量替换，这样可以触发正确的更新
+      taskStore.addTask(metadata);
+
+      console.log(`[TaskExecution] Synced task ${task.id}: status=${task.status} -> monitor=${status}`);
     });
 
-    taskStore.setTasks(newTasksMetadata);
+    console.log(`[TaskExecution] Sync complete. Store now has ${taskStore.tasks.length} tasks`);
   }
 
   /**

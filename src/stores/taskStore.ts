@@ -89,7 +89,9 @@ export const useTaskStore = create<TaskStoreExtended>()(
       // ============================================================================
 
       setTasks: (tasks: TaskMetadata[]) => {
-        set({ tasks });
+        // 强制触发更新：使用新数组引用
+        // 同时触发 Zustand 的内部更新机制
+        set({ tasks: [...tasks] });
       },
 
       /**
@@ -318,16 +320,18 @@ export const useTaskStore = create<TaskStoreExtended>()(
  * Hook to get filtered tasks (Memoized)
  */
 export const useFilteredTasks = () => {
-  const tasks = useTaskStore(state => state.tasks, shallow);
-  const filter = useTaskStore(state => state.filter, shallow);
-  
+  // 不使用 shallow 比较，让 Zustand 使用默认的引用比较
+  // 这样每次 tasks 数组引用变化时都会触发更新
+  const tasks = useTaskStore(state => state.tasks);
+  const filter = useTaskStore(state => state.filter);
+
   return useMemo(() => {
     return tasks.filter((task) => {
       if (filter.status !== 'all' && task.status !== filter.status) return false;
       if (filter.category !== 'all' && task.category !== filter.category) return false;
       if (filter.search) {
         const search = filter.search.toLowerCase();
-        return task.title.toLowerCase().includes(search) || 
+        return task.title.toLowerCase().includes(search) ||
                task.description?.toLowerCase().includes(search);
       }
       return true;
@@ -339,8 +343,9 @@ export const useFilteredTasks = () => {
  * Hook to get task counts (Memoized)
  */
 export const useTaskCounts = () => {
-  const tasks = useTaskStore(state => state.tasks, shallow);
-  
+  // 不使用 shallow 比较
+  const tasks = useTaskStore(state => state.tasks);
+
   return useMemo(() => {
     return {
       total: tasks.length,

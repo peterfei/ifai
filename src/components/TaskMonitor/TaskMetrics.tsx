@@ -227,29 +227,24 @@ export const MetricsSummary: React.FC<MetricsSummaryProps> = ({
 }) => {
   if (!metrics) return null;
 
-  const parts: React.ReactNode[] = [];
-  const { speed, eta } = metrics;
-
-  if (speed !== undefined && speed > 0) {
-    parts.push(<SpeedIndicator key="speed" speed={speed} />);
-  }
-
-  if (eta !== undefined && eta > 0) {
-    parts.push(<ETAIndicator key="eta" eta={eta} />);
-  }
-
-  if (parts.length === 0) return null;
+  const { speed, eta, resources } = metrics;
+  const hasSpeedOrEta = (speed !== undefined && speed > 0) || (eta !== undefined && eta > 0);
 
   return (
-    <div className={`flex items-center gap-2 text-[11px] ${className}`}>
-      {parts.map((part, index) => (
-        <React.Fragment key={index}>
-          {index > 0 && (
-            <span className="text-[#3c3c3c]">{separator}</span>
-          )}
-          {part}
-        </React.Fragment>
-      ))}
+    <div className={`flex items-center gap-3 ${className}`}>
+      {hasSpeedOrEta && (
+        <div className="flex items-center gap-2">
+            {speed !== undefined && speed > 0 && <SpeedIndicator speed={speed} />}
+            {speed !== undefined && speed > 0 && eta !== undefined && eta > 0 && (
+                <span className="text-gray-700 text-[9px]">{separator}</span>
+            )}
+            {eta !== undefined && eta > 0 && <ETAIndicator eta={eta} />}
+        </div>
+      )}
+      
+      {resources && (
+        <ResourceBar cpu={resources.cpu} memory={resources.memory} />
+      )}
     </div>
   );
 };

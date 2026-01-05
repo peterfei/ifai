@@ -860,6 +860,96 @@ ${context}
       return;
     }
 
+    // v0.2.6 Special Command: /task:complete <taskId>
+    if (msg.toLowerCase().startsWith('/task:complete ')) {
+      const taskId = msg.substring('/task:complete '.length).trim();
+
+      if (!taskId) {
+        const { addMessage } = useChatStore.getState() as any;
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '❌ 请提供任务 ID\n\n**用法**：`/task:complete <任务ID>`'
+        });
+        setInput('');
+        return;
+      }
+
+      import('../../services/taskExecutionService').then(async ({ getTaskExecutionService }) => {
+        try {
+          const service = getTaskExecutionService();
+          await service.completeTask(taskId);
+
+          const { addMessage } = useChatStore.getState() as any;
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'user',
+            content: msg
+          });
+
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `✅ 任务 **${taskId}** 已标记为完成。`
+          });
+
+          setInput('');
+          setShowCommands(false);
+          resetHistoryIndex();
+        } catch (e) {
+          const { addMessage } = useChatStore.getState() as any;
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `❌ 操作失败: ${e}`
+          });
+          setInput('');
+        }
+      });
+      return;
+    }
+
+    // v0.2.6 Special Command: /task:test:all
+    if (msg.toLowerCase() === '/task:test:all') {
+      const { addMessage } = useChatStore.getState() as any;
+      const agentStore = useAgentStore.getState();
+
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: msg
+      });
+
+      try {
+        const assistantMsgId = crypto.randomUUID();
+        addMessage({
+          id: assistantMsgId,
+          role: 'assistant',
+          content: `_[正在启动自动化测试集成流...]_`,
+          isAgentLive: true
+        });
+
+        // 启动专属的测试 Agent
+        await agentStore.launchAgent(
+          'test-suite-executor',
+          '运行全量单元测试与 E2E 测试，并汇总报告至 Mission Control',
+          assistantMsgId
+        );
+
+      } catch (e) {
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `❌ 无法启动测试 Agent: ${e}`
+        });
+      }
+
+      setInput('');
+      setShowCommands(false);
+      resetHistoryIndex();
+      return;
+    }
+
     if (!isProviderConfigured) {
       const { addMessage } = useChatStore.getState() as any;
       addMessage({
