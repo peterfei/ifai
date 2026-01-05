@@ -88,12 +88,14 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
             <button 
                 onClick={() => setView('list')}
                 className={`p-1 rounded ${view === 'list' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}
+                title="List View"
             >
                 <ListTree size={12} />
             </button>
             <button 
                 onClick={() => setView('timeline')}
                 className={`p-1 rounded ${view === 'timeline' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}
+                title="Timeline View"
             >
                 <LayoutGrid size={12} />
             </button>

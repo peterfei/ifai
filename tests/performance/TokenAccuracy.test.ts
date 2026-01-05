@@ -61,23 +61,27 @@ describe('Token Accuracy & Stress Testing', () => {
     });
 
     it('should handle race conditions with rapid updates and latency', async () => {
-      // 模拟后端延迟
-      let callCount = 0;
+      // 模拟后端延迟 - 使用闭包捕获每个请求的唯一ID
+      let requestId = 0;
+      const pendingRequests = new Map<number, Promise<number>>();
+
       invokeMock.mockImplementation(async () => {
-        callCount++;
-        const delay = callCount % 2 === 0 ? 50 : 200; // 交替延迟
+        const id = ++requestId;
+        // 交替延迟制造竞态条件
+        const delay = id % 2 === 0 ? 50 : 200;
         await new Promise(resolve => setTimeout(resolve, delay));
-        return callCount;
+        return id;
       });
 
-      // 发送多个并发请求
+      // 发送多个并发请求（注意：由于 JS 事件循环，这里实际是顺序调用）
+      // 为了真正测试竞态，需要确保调用快速发生
       const p1 = estimateTokens('first');
       const p2 = estimateTokens('second');
       const p3 = estimateTokens('third');
 
       const results = await Promise.all([p1, p2, p3]);
       console.log(`[Race Test] Results with variable latency:`, results);
-      
+
       expect(results).toHaveLength(3);
       // 验证所有请求都正确返回，即使返回顺序可能与发送顺序不同
       expect(results).toContain(1);
