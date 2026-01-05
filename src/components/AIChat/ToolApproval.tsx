@@ -219,29 +219,42 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
 
     return (
         <div className="group/tool mt-4 mb-4 rounded-2xl border border-gray-700/40 bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5">
-            {/* Elegant Header (Point 2) */}
-            <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900/40 to-transparent border-b border-gray-700/30">
-                <div className="flex items-center gap-3">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-xl ${getToolColor(toolCall.tool)} bg-opacity-10 border border-current opacity-80 shadow-lg shadow-black/20`}>
-                        {getIcon()}
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-[13px] font-bold text-gray-100 tracking-tight leading-tight">
-                            {getToolLabel(toolCall.tool)}
-                        </span>
-                        {filePath && (
-                            <span className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
-                                {filePath}
-                            </span>
-                        )}
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${ isPartial ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : toolCall.status === 'completed' ? 'bg-green-500/10 text-green-400 border-green-500/20' : toolCall.status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/20' : toolCall.status === 'approved' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : toolCall.status === 'rejected' ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
-                        {getStatusLabel()}
-                    </div>
-                </div>
-            </div>
+                        {/* Elegant Header (Point 2) */}
+                        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900/40 to-transparent border-b border-gray-700/30">
+                            <div className="flex items-center gap-3 pr-12"> {/* Added pr-12 to avoid copy button overlap */}
+                                <div className={`flex items-center justify-center w-8 h-8 rounded-xl ${getToolColor(toolCall.tool)} bg-opacity-10 border border-current opacity-80 shadow-lg shadow-black/20`}>
+                                    {getIcon()}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[13px] font-bold text-gray-100 tracking-tight leading-tight">
+                                        {getToolLabel(toolCall.tool)}
+                                    </span>
+                                    {filePath ? (
+                                        <span className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
+                                            {toolCall.tool?.includes('write') ? 'Writing to' : 'Accessing'} {filePath}
+                                        </span>
+                                    ) : (
+                                        toolCall.args?.command && (
+                                            <span className="text-[10px] text-gray-500 font-mono truncate max-w-[220px]">
+                                                exec: {toolCall.args.command}
+                                            </span>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                                    isPartial ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]' :
+                                    toolCall.status === 'completed' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                    toolCall.status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                    toolCall.status === 'approved' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                    toolCall.status === 'rejected' ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}>
+                                    {getStatusLabel()}
+                                </div>
+                            </div>
+                        </div>
 
             {/* Content Area */}
             <div className="px-5 pb-4 pt-4">
@@ -300,13 +313,23 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                                 const paths = args.paths || [];
                                 return (
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="text-gray-400 text-xs">批量读取:</div>
-                                            <div className="text-green-400 bg-green-400/10 px-2 py-0.5 rounded text-[10px] font-bold">
-                                                {paths.length} 个文件
-                                            </div>
-                                        </div>
+                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Dataset ({paths.length} items)</div>
                                         {paths.length > 0 && <FileTreeVisualizer paths={paths} />}
+                                    </div>
+                                );
+                            }
+
+                            if (toolName.includes('scan_directory') || toolName.includes('list_dir')) {
+                                const relPath = args.rel_path || args.path || '.';
+                                return (
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Directory</div>
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
+                                            <FolderOpen size={12} className="text-yellow-500/70" />
+                                            <code className="text-[11px] text-green-400 font-mono">
+                                                {relPath}
+                                            </code>
+                                        </div>
                                     </div>
                                 );
                             }
@@ -314,11 +337,14 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                             if (toolName.includes('read_file')) {
                                 const relPath = args.rel_path || args.path || '';
                                 return (
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
-                                        <Eye size={12} className="text-blue-400" />
-                                        <code className="text-xs text-gray-300 font-mono break-all leading-relaxed">
-                                            read(<span className="text-blue-300">{relPath}</span>)
-                                        </code>
+                                    <div className="space-y-2">
+                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Source</div>
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
+                                            <File size={12} className="text-blue-400/70" />
+                                            <code className="text-[11px] text-gray-300 font-mono">
+                                                {relPath}
+                                            </code>
+                                        </div>
                                     </div>
                                 );
                             }

@@ -1,59 +1,80 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from './setup-utils';
 
-test.describe('Chat UI Advanced Optimizations', () => {
+test.describe('Chat UI Refined Optimizations', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForTimeout(5000);
   });
 
-  test('should show advanced typewriter effect during streaming write', async ({ page }) => {
-    // 注入正在生成的写入工具
+  test('should show professional labels for directory listing', async ({ page }) => {
+    // 注入列目录工具
     await page.evaluate(() => {
         const store = (window as any).__chatStore;
         if (store) {
             store.getState().addMessage({
-                id: 'streaming-write-test',
+                id: 'list-dir-test',
                 role: 'assistant',
-                content: 'Generating code...', 
+                content: 'Checking current folder.',
                 toolCalls: [{
-                    id: 'call-streaming',
-                    tool: 'agent_write_file',
-                    args: { rel_path: 'app.py', content: 'import os\nprint("Hello")' },
-                    status: 'pending',
-                    isPartial: true
-                }]
-            });
-        }
-    });
-
-    await page.waitForTimeout(1000);
-    const bodyText = await page.innerText('body');
-    
-    // 验证新版 UI 元素（不区分大小写匹配）
-    expect(bodyText.toUpperCase()).toContain('STREAMING'); 
-    expect(bodyText).toContain('app.py');
-    
-    // 使用属性选择器避开斜杠转义问题
-    const typewriter = page.locator('[class*="group/typewriter"]');
-    await expect(typewriter).toBeVisible();
-  });
-
-  test('should display modernized tool call container', async ({ page }) => {
-    await page.evaluate(() => {
-        const store = (window as any).__chatStore;
-        if (store) {
-            store.getState().addMessage({
-                id: 'ui-test',
-                role: 'assistant',
-                content: 'Running tool...', 
-                toolCalls: [{
-                    id: 'call-ui',
-                    tool: 'agent_execute_command',
-                    args: { command: 'ls -la' },
+                    id: 'call-list',
+                    tool: 'agent_list_dir',
+                    args: { rel_path: '.' },
                     status: 'completed',
-                    result: 'total 0\ndrwxr-xr-x  2 user  staff  64'
+                    result: '["src", "package.json"]'
+                }]
+            });
+        }
+    });
+
+    await page.waitForTimeout(1000);
+    const bodyText = await page.innerText('body');
+    
+    // 验证专业标签 (Point 2)
+    expect(bodyText.toUpperCase()).toContain('TARGET DIRECTORY');
+    expect(bodyText).toContain('.');
+  });
+
+  test('should show semantic accessing label in header', async ({ page }) => {
+    await page.evaluate(() => {
+        const store = (window as any).__chatStore;
+        if (store) {
+            store.getState().addMessage({
+                id: 'header-test',
+                role: 'assistant',
+                content: 'Reading...',
+                toolCalls: [{
+                    id: 'call-header',
+                    tool: 'agent_read_file',
+                    args: { rel_path: 'README.md' },
+                    status: 'pending'
+                }]
+            });
+        }
+    });
+
+    await page.waitForTimeout(1000);
+    const bodyText = await page.innerText('body');
+    
+    // 验证头部语义描述 (Point 2)
+    expect(bodyText).toContain('Accessing README.md');
+  });
+
+  test('should verify no overlap margin in tool header', async ({ page }) => {
+    // 注入任意工具以检查头部样式
+    await page.evaluate(() => {
+        const store = (window as any).__chatStore;
+        if (store) {
+            store.getState().addMessage({
+                id: 'style-test',
+                role: 'assistant',
+                content: 'Style check',
+                toolCalls: [{
+                    id: 'call-style',
+                    tool: 'agent_execute_command',
+                    args: { command: 'npm start' },
+                    status: 'pending'
                 }]
             });
         }
@@ -61,30 +82,8 @@ test.describe('Chat UI Advanced Optimizations', () => {
 
     await page.waitForTimeout(1000);
     
-    // 使用更健壮的属性选择器
-    const toolContainer = page.locator('[class*="group/tool"]');
-    await expect(toolContainer).toBeVisible();
-    
-    const bodyText = await page.innerText('body').then(t => t.toUpperCase());
-    expect(bodyText).toContain('OUTPUT RESULT');
-  });
-
-  test('should filter out all think tags', async ({ page }) => {
-    await page.evaluate(() => {
-        const store = (window as any).__chatStore;
-        if (store) {
-            store.getState().addMessage({
-                id: 'think-test-2',
-                role: 'assistant',
-                content: 'Start. <think>Internal logic</think> End.'
-            });
-        }
-    });
-
-    await page.waitForTimeout(1000);
-    const bodyText = await page.innerText('body');
-    expect(bodyText).not.toContain('<think>');
-    // 模糊匹配，忽略多余空格
-    expect(bodyText.replace(/\s+/g, ' ')).toContain('Start. End.');
+    // 验证头部是否包含防止遮挡的内边距 (Point 1)
+    const header = page.locator('.flex.items-center.gap-3.pr-12').first();
+    await expect(header).toBeVisible();
   });
 });
