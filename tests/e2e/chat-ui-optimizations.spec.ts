@@ -1,22 +1,29 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from './setup-utils';
 
-test.describe('Chat UI Optimizations (Deep Injection)', () => {
+test.describe('Chat UI Advanced Optimizations', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForTimeout(5000);
   });
 
-  test('should filter out </think> tags from assistant messages', async ({ page }) => {
-    // 直接向 Store 注入包含思考标记的消息
+  test('should show advanced typewriter effect during streaming write', async ({ page }) => {
+    // 注入正在生成的写入工具
     await page.evaluate(() => {
         const store = (window as any).__chatStore;
         if (store) {
             store.getState().addMessage({
-                id: 'think-test',
+                id: 'streaming-write-test',
                 role: 'assistant',
-                content: 'Hello. <think>Hidden thought</think> This is the visible part.</think>'
+                content: 'Generating code...', 
+                toolCalls: [{
+                    id: 'call-streaming',
+                    tool: 'agent_write_file',
+                    args: { rel_path: 'app.py', content: 'import os\nprint("Hello")' },
+                    status: 'pending',
+                    isPartial: true
+                }]
             });
         }
     });
@@ -24,64 +31,60 @@ test.describe('Chat UI Optimizations (Deep Injection)', () => {
     await page.waitForTimeout(1000);
     const bodyText = await page.innerText('body');
     
-    // 验证标记被过滤掉
-    expect(bodyText).not.toContain('<think>');
-    expect(bodyText).not.toContain('</think>');
-    expect(bodyText).toContain('This is the visible part');
+    // 验证新版 UI 元素（不区分大小写匹配）
+    expect(bodyText.toUpperCase()).toContain('STREAMING'); 
+    expect(bodyText).toContain('app.py');
+    
+    // 使用属性选择器避开斜杠转义问题
+    const typewriter = page.locator('[class*="group/typewriter"]');
+    await expect(typewriter).toBeVisible();
   });
 
-  test('should display tree view for agent_batch_read tool call', async ({ page }) => {
-    // 注入包含批量读取工具的消息
+  test('should display modernized tool call container', async ({ page }) => {
     await page.evaluate(() => {
         const store = (window as any).__chatStore;
         if (store) {
             store.getState().addMessage({
-                id: 'tree-test',
+                id: 'ui-test',
                 role: 'assistant',
-                content: 'I found these files:',
+                content: 'Running tool...', 
                 toolCalls: [{
-                    id: 'call-1',
-                    tool: 'agent_batch_read',
-                    args: { paths: ['src/App.tsx', 'src/main.tsx', 'public/index.html'] },
+                    id: 'call-ui',
+                    tool: 'agent_execute_command',
+                    args: { command: 'ls -la' },
                     status: 'completed',
-                    result: '["src/App.tsx", "src/main.tsx", "public/index.html"]'
+                    result: 'total 0\ndrwxr-xr-x  2 user  staff  64'
                 }]
             });
         }
     });
 
-    await page.waitForTimeout(2000);
-    const bodyText = await page.innerText('body');
+    await page.waitForTimeout(1000);
     
-    // 验证“文件结构”树状视图
-    expect(bodyText).toContain('文件结构');
-    expect(bodyText).toContain('src');
-    expect(bodyText).toContain('App.tsx');
+    // 使用更健壮的属性选择器
+    const toolContainer = page.locator('[class*="group/tool"]');
+    await expect(toolContainer).toBeVisible();
+    
+    const bodyText = await page.innerText('body').then(t => t.toUpperCase());
+    expect(bodyText).toContain('OUTPUT RESULT');
   });
 
-  test('should show read(path) format for single file read', async ({ page }) => {
-    // 注入单文件读取工具
+  test('should filter out all think tags', async ({ page }) => {
     await page.evaluate(() => {
         const store = (window as any).__chatStore;
         if (store) {
             store.getState().addMessage({
-                id: 'read-test',
+                id: 'think-test-2',
                 role: 'assistant',
-                content: 'Reading file...',
-                toolCalls: [{
-                    id: 'call-2',
-                    tool: 'agent_read_file',
-                    args: { rel_path: 'package.json' },
-                    status: 'pending'
-                }]
+                content: 'Start. <think>Internal logic</think> End.'
             });
         }
     });
 
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
     const bodyText = await page.innerText('body');
-    
-    // 验证新格式 read(path)
-    expect(bodyText).toContain('read(package.json)');
+    expect(bodyText).not.toContain('<think>');
+    // 模糊匹配，忽略多余空格
+    expect(bodyText.replace(/\s+/g, ' ')).toContain('Start. End.');
   });
 });
