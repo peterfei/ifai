@@ -1,50 +1,57 @@
+/**
+ * OpenSpec 工作流 E2E 测试 (重构版)
+ */
+
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from './setup-utils';
 
 test.describe('OpenSpec Workflow E2E', () => {
   test.beforeEach(async ({ page }) => {
-    // 1. Skip onboarding & Configure Ollama as default
     await setupE2ETestEnvironment(page);
-    
     await page.goto('/');
     await page.waitForTimeout(1000);
   });
 
+  async function getChatInput(page: any) {
+    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
+    await expect(chatInput).toBeVisible({ timeout: 15000 });
+    await page.waitForFunction((el: HTMLInputElement) => !el.disabled, await chatInput.elementHandle());
+    return chatInput;
+  }
+
   test('should handle task breakdown via /task:demo', async ({ page }) => {
-    // 1. Send /task:demo command
-    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[placeholder*="Ask AI"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
+    const chatInput = await getChatInput(page);
+    
     await chatInput.fill('/task:demo');
     await chatInput.press('Enter');
 
-    // 3. Verify AI response and task tree display
-    const taskTree = page.locator('.task-tree-container, .simple-task-view');
-    await expect(taskTree.first()).toBeVisible({ timeout: 10000 });
+    // 验证任务树组件已渲染
+    // 使用更通用的选择器，或者根据标题文本查找
+    const taskTree = page.locator('.task-tree-container, [class*="TaskBreakdownViewer"]');
+    await expect(taskTree.first()).toBeVisible({ timeout: 15000 });
 
-    // 4. Verify task nodes are rendered
-    const taskNode = page.locator('text=后端 API 开发');
-    await expect(taskNode).toBeVisible();
+    // 验证关键任务节点
+    await expect(page.locator('text=后端 API 开发')).toBeVisible();
 
-    // 5. Verify auto-sync to Mission Control
+    // 验证同步到 Mission Control
     const missionControlTab = page.locator('button[title="Mission Control"]');
     await missionControlTab.click();
     
-    // Check if tasks from demo appear in Mission Control
     await expect(page.locator('text=后端 API 开发')).toBeVisible();
   });
 
   test('should toggle task status and reflect in Mission Control', async ({ page }) => {
-    // 1. Re-trigger demo tasks
-    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[placeholder*="Ask AI"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
+    const chatInput = await getChatInput(page);
+    
     await chatInput.fill('/task:demo');
     await chatInput.press('Enter');
     
-    // Switch to Mission Control
+    // 等待任务加载并进入 Mission Control
+    await page.waitForTimeout(2000);
     await page.locator('button[title="Mission Control"]').click();
     
-    // Verify a task exists in 'completed' state in the demo data
-    const completedTask = page.locator('.task-card:has-text("设计数据库 Schema")');
+    // 验证 demo 数据中的已完成任务
+    const completedTask = page.locator('.task-card, [class*="task-card"]').filter({ hasText: '设计数据库 Schema' });
     await expect(completedTask).toBeVisible();
     await expect(completedTask).toContainText('100%');
   });

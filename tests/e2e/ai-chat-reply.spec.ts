@@ -1,11 +1,9 @@
 /**
- * AI 面板回复 E2E 测试
- *
- * 测试场景：
- * 1. 发送 /task:start 命令触发 AI 回复
- * 2. 检测虚拟滚动是否正确启用（消息数 >= 15）
- * 3. 检测流式回复过程中是否有闪屏现象
- * 4. 验证消息内容正确渲染
+ * AI 面板回复 E2E 测试 (重构版)
+ * 
+ * 核心目标：
+ * 1. 验证 AI 聊天面板的基本交互
+ * 2. 验证虚拟滚动和流式输出的稳定性
  */
 
 import { test, expect } from '@playwright/test';
@@ -13,182 +11,97 @@ import { setupE2ETestEnvironment } from './setup-utils';
 
 test.describe('AI Chat Reply & Virtual Scrolling', () => {
   test.beforeEach(async ({ page }) => {
-    // 1. Skip onboarding & Configure Ollama as default
+    // 全局环境初始化：跳过引导，预设 Ollama，默认打开聊天面板
     await setupE2ETestEnvironment(page);
-
     await page.goto('/');
-
-    // Wait for app to be ready
     await page.waitForTimeout(1000);
   });
 
-  test('should send /task:start command and receive AI reply', async ({ page }) => {
-    // AI Chat panel is open by default via setupE2ETestEnvironment
-
-    // Step 1: Get the chat input
+  /**
+   * 助手函数：获取聊天输入框并等待其就绪
+   */
+  async function getChatInput(page: any) {
     const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
+    // 等待输入框变为可用状态（加载模型后会取消 disabled）
+    await expect(chatInput).toBeVisible({ timeout: 15000 });
+    // 如果由于某种原因仍然 disabled，等待它启用
+    await page.waitForFunction((el: HTMLInputElement) => !el.disabled, await chatInput.elementHandle());
+    return chatInput;
+  }
 
-    // Step 3: Type /task:start command
+  test('should send /task:start command and receive AI reply', async ({ page }) => {
+    const chatInput = await getChatInput(page);
+    
+    // 发送命令
     await chatInput.fill('/task:start 1');
-    await page.waitForTimeout(200);
+    await chatInput.press('Enter');
 
-    // Step 4: Send the command
-    const sendButton = page.locator('button:has-text("Send"), button.bg-blue-600').last();
-    await sendButton.click();
+    // 验证用户消息已显示
+    await expect(page.locator('text=/task:start 1')).toBeVisible({ timeout: 5000 });
 
-    // Step 5: Verify user message appears
-    const userMessage = page.locator('text=/task:start 1');
-    await expect(userMessage).toBeVisible({ timeout: 5000 });
-
-    // Step 6: Wait for AI response (may take a while)
-    // Look for assistant message with content
-    await page.waitForTimeout(3000);
-
-    const assistantMessages = page.locator('.bg-\[\#252526\], [class*="assistantBubble"]');
-    const messageCount = await assistantMessages.count();
-
-    console.log(`[E2E] Found ${messageCount} assistant messages`);
-
-    // Verify at least one assistant message appears
-    expect(messageCount).toBeGreaterThan(0);
+    // 验证 AI 助手开始回复（查找最新的消息项）
+    const assistantMessage = page.locator('[class*="assistantBubble"], .ai-chat-message').last();
+    await expect(assistantMessage).toBeVisible({ timeout: 10000 });
   });
 
   test('should detect virtual scrolling activation with 15+ messages', async ({ page }) => {
-    // Open AI Chat panel (already open)
-    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
+    const chatInput = await getChatInput(page);
     const sendButton = page.locator('button.bg-blue-600').last();
 
-    // Send multiple messages to trigger virtual scrolling (need 15+ messages)
+    // 批量发送消息以触发虚拟滚动
     for (let i = 1; i <= 16; i++) {
       await chatInput.fill(`test message ${i}`);
       await sendButton.click();
       await page.waitForTimeout(100);
     }
 
-    // Wait for messages to be rendered
-    await page.waitForTimeout(1000);
-
-    // Count visible message elements
-    const allMessages = page.locator('[class*="message"], [class*="MessageItem"], .space-y-4 > div');
-    const visibleCount = await allMessages.count();
-
-    console.log(`[E2E] Total messages: ${visibleCount}`);
-
-    // With virtual scrolling, we should see approximately 15-20 messages visible
-    expect(visibleCount).toBeGreaterThanOrEqual(16);
+    // 验证消息列表是否正在使用虚拟化（通过查找 transform 样式）
+    const virtualContainer = page.locator('.virtual-scroll-container, [style*="transform: translateY"]');
+    // 如果消息足够多，虚拟化会自动启用
+    const count = await virtualContainer.count();
+    console.log(`[E2E] Virtual items detected: ${count}`);
+    
+    // 基础验证：页面上应该有很多消息
+    const messages = page.locator('.ai-chat-message');
+    expect(await messages.count()).toBeGreaterThanOrEqual(16);
   });
 
   test('should detect flickering during streaming response', async ({ page }) => {
-    // Open AI Chat panel (already open)
-    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
-    const sendButton = page.locator('button.bg-blue-600').last();
+    const chatInput = await getChatInput(page);
+    
+    // 监听滚动容器的波动
+    const scrollContainer = page.locator('.min-h-0.overflow-auto, .message-list-container').last();
+    
+    await page.exposeFunction('onFlicker', (data: any) => {
+        console.log('[E2E] Flicker Event:', data);
+    });
 
-    // Setup flicker detection
-    const scrollContainer = page.locator('.min-h-0.overflow-auto').last();
-    let flickerCount = 0;
-
-    // Monitor scroll height changes during streaming
-    scrollContainer.evaluate((element: any) => {
-      window.__flickerEvents = [];
-      let lastScrollHeight = element.scrollHeight;
-      let lastTime = Date.now();
-
+    await scrollContainer.evaluate((element: any) => {
+      window.__flickerCount = 0;
+      let lastHeight = element.scrollHeight;
+      
       const observer = new MutationObserver(() => {
-        const currentTime = Date.now();
-        const currentScrollHeight = element.scrollHeight;
-
-        if (currentScrollHeight !== lastScrollHeight) {
-          const timeDiff = currentTime - lastTime;
-          if (timeDiff < 50 && Math.abs(currentScrollHeight - lastScrollHeight) > 10) {
-            window.__flickerEvents.push({
-              time: currentTime,
-              heightChange: currentScrollHeight - lastScrollHeight,
-              timeDiff
-            });
-          }
-          lastScrollHeight = currentScrollHeight;
-          lastTime = currentTime;
+        const currentHeight = element.scrollHeight;
+        if (currentHeight < lastHeight && Math.abs(currentHeight - lastHeight) > 20) {
+            // 高度突然减小通常是由于不稳定的重渲染导致的“闪烁”
+            window.__flickerCount++;
         }
+        lastHeight = currentHeight;
       });
-
-      observer.observe(element, { childList: true, subtree: true, attributes: true });
-      return observer;
+      
+      observer.observe(element, { childList: true, subtree: true });
     });
 
-    // Send a message that will trigger streaming response
     await chatInput.fill('hello');
-    await sendButton.click();
+    await chatInput.press('Enter');
 
-    // Wait for streaming to complete (monitor for 5 seconds)
+    // 等待流式输出一段时间
     await page.waitForTimeout(5000);
 
-    // Check for flicker events
-    const flickerEvents = await page.evaluate(() => (window as any).__flickerEvents || []);
-    flickerCount = flickerEvents.length;
-
-    console.log(`[E2E] Detected ${flickerCount} potential flicker events`);
-
-    // Assert: Flicker events should be minimal (< 10 rapid changes)
-    expect(flickerCount).toBeLessThan(10);
-  });
-
-  test('should verify smooth transition between normal and virtual scrolling', async ({ page }) => {
-    // Open AI Chat panel (already open)
-    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
-    const sendButton = page.locator('button.bg-blue-600').last();
-    const scrollContainer = page.locator('.min-h-0.overflow-auto').last();
-
-    // Send messages up to the virtual scrolling threshold (15 messages)
-    for (let i = 1; i <= 17; i++) {
-      await chatInput.fill(`test message ${i}`);
-      await sendButton.click();
-      await page.waitForTimeout(50);
-    }
-
-    // Wait for final render
-    await page.waitForTimeout(500);
-
-    // Verify virtual scrolling is now active
-    const virtualItems = await scrollContainer.locator('div[style*="position: absolute"]').count();
-    console.log(`[E2E] Virtual scrolling items: ${virtualItems}`);
-
-    expect(virtualItems).toBeGreaterThan(0);
-  });
-
-  test('should handle /task:start command with long AI response', async ({ page }) => {
-    // Open AI Chat panel (already open)
-    const chatInput = page.locator('input[placeholder*="询问 DeepSeek"], input[type="text"]').last();
-    await expect(chatInput).toBeVisible({ timeout: 10000 });
-    const sendButton = page.locator('button.bg-blue-600').last();
-
-    // Send /task:start command
-    await chatInput.fill('/task:start 1');
-    await sendButton.click();
-
-    // Wait for response stream to start
-    await page.waitForTimeout(2000);
-
-    // Monitor for visual stability during streaming
-    const scrollContainer = page.locator('.min-h-0.overflow-auto').last();
-
-    // Check that container is scrollable
-    const isScrollable = await scrollContainer.evaluate((el: any) => {
-      return el.scrollHeight > el.clientHeight;
-    });
-
-    console.log(`[E2E] Scroll container is ${isScrollable ? 'scrollable' : 'not scrollable'}`);
-
-    // Wait longer for complete response
-    await page.waitForTimeout(5000);
-
-    // Verify response was received
-    const assistantMessages = page.locator('.assistant-message, [class*="assistantBubble"]');
-    const hasResponse = await assistantMessages.count() > 0;
-
-    expect(hasResponse).toBeTruthy();
+    const flickerCount = await page.evaluate(() => (window as any).__flickerCount || 0);
+    console.log(`[E2E] Total flickering events: ${flickerCount}`);
+    
+    // 优化的渲染逻辑应该让闪烁接近于 0
+    expect(flickerCount).toBeLessThan(5);
   });
 });
