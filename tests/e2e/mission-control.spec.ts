@@ -1,18 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { setupE2ETestEnvironment } from './setup-utils';
 
 test.describe('Mission Control E2E', () => {
   test.beforeEach(async ({ page }) => {
-    // Inject localStorage to skip onboarding
-    await page.addInitScript(() => {
-      const state = {
-        completed: true,
-        skipped: true,
-        remindCount: 0,
-        lastRemindDate: null,
-      };
-      window.localStorage.setItem('ifai_onboarding_state', JSON.stringify(state));
-    });
-
+    // 1. Skip onboarding & Configure Ollama as default
+    await setupE2ETestEnvironment(page);
+    
     await page.goto('/');
     
     // Wait for the app to be interactive
@@ -21,7 +14,6 @@ test.describe('Mission Control E2E', () => {
 
   test('should open Mission Control and toggle views', async ({ page }) => {
     // 1. Find and click the Mission Control icon in sidebar
-    // We use the title attribute which we just updated to "Mission Control"
     const missionControlTab = page.locator('button[title="Mission Control"]');
     await expect(missionControlTab).toBeVisible();
     await missionControlTab.click();
