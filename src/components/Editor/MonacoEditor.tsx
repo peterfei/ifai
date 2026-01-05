@@ -75,8 +75,8 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
       }
     });
 
-    // Register Inline Completion Provider
-    const completionProvider = monaco.languages.registerInlineCompletionsProvider({ pattern: '**' }, {
+    // Register Inline Completion Provider (applies to all languages)
+    const completionProvider = monaco.languages.registerInlineCompletionsProvider('*', {
       provideInlineCompletions: async (model, position, context, token) => {
         const { providers, currentProviderId, enableAutocomplete, useLocalModelForCompletion } = useSettingsStore.getState();
         if (!enableAutocomplete) return { items: [] };

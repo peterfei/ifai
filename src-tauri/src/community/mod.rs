@@ -22,17 +22,42 @@ impl AIService for BasicAIService {
         _event_id: &str,
         callback: Box<dyn Fn(String) + Send>,
     ) -> Result<(), String> {
-        // Simple implementation that calls fetch_ai_completion and calls callback with full content
-        // This simulates streaming by sending the whole content at once
-        // TODO: Implement true streaming in ai_utils for community edition
+        // Enhanced implementation that supports tool_calls
         match ai_utils::fetch_ai_completion(config, messages, None).await {
             Ok(msg) => {
-                match msg.content {
+                // 1. Send text content
+                match &msg.content {
                     crate::core_traits::ai::Content::Text(text) => {
-                        callback(text);
+                        if !text.is_empty() {
+                            callback(text.to_string());
+                        }
                     }
                     _ => {}
                 }
+
+                // 2. Send tool_calls if present (format matches ifainew_core)
+                if let Some(tool_calls) = &msg.tool_calls {
+                    use serde_json::json;
+
+                    for tc in tool_calls {
+                        // Create tool_call chunk in the same format as ifainew_core
+                        let tool_call_event = json!({
+                            "type": "tool_call",
+                            "tool_call": {
+                                "index": 0,
+                                "id": &tc.id,
+                                "type": &tc.r#type,
+                                "function": {
+                                    "name": &tc.function.name,
+                                    "arguments": &tc.function.arguments
+                                }
+                            }
+                        });
+
+                        callback(tool_call_event.to_string());
+                    }
+                }
+
                 Ok(())
             }
             Err(e) => Err(e),

@@ -260,8 +260,8 @@ pub async fn agent_stream_chat_with_root(
         if is_explore_agent {
             println!("[AgentStream] Explore agent detected, using local tool calls");
 
-            // 获取任务描述（最后一条用户消息）
-            let task_path = messages.iter()
+            // 从用户消息中提取文件路径（如果存在），否则使用当前目录
+            let last_user_msg = messages.iter()
                 .filter(|m| m.role == "user")
                 .last()
                 .and_then(|m| {
@@ -270,8 +270,40 @@ pub async fn agent_stream_chat_with_root(
                     } else {
                         None
                     }
+                });
+
+            // 尝试从消息中提取路径（支持格式：读取 xxx，查看 xxx，read xxx，review xxx 等）
+            let task_path = if let Some(msg) = last_user_msg {
+                // 使用正则表达式提取路径
+                let path_patterns = [
+                    r"(?:读取|查看|打开|read|review|check)\s+([\w./]+)",
+                    r"(?:test|doc)\s+([\w./]+)",
+                ];
+
+                let mut extracted_path = None;
+                for pattern in &path_patterns {
+                    if let Ok(re) = regex::Regex::new(pattern) {
+                        if let Some(cap) = re.captures(msg) {
+                            if let Some(path) = cap.get(1) {
+                                extracted_path = Some(path.as_str().to_string());
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                extracted_path.unwrap_or_else(|| {
+                    // 如果没有找到路径，检查消息是否只是文件路径
+                    if msg.chars().count() < 200 && (msg.contains('/') || msg.contains('.')) {
+                        msg.to_string()
+                    } else {
+                        // 默认扫描当前目录
+                        ".".to_string()
+                    }
                 })
-                .unwrap_or(".");
+            } else {
+                ".".to_string()
+            };
 
             println!("[AgentStream] Task path: {}", task_path);
 

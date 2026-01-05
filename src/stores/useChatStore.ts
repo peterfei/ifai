@@ -596,12 +596,22 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     };
 
     coreUseChatStore.setState({ isLoading: true });
-    
+
     // 2. Add User Message
+    // 移除特殊标记（如 [CHAT]、[TASK-EXECUTION]）用于显示，但保留原始 content 用于意图识别
+    const displayContent = typeof content === 'string'
+        ? content.replace(/^\[(CHAT|TASK-EXECUTION)\]\s*/, '').replace(/\[TASK-EXECUTION\]\s*/g, '')
+        : content;
+
+    // 检测是否为任务执行上下文（使用原始 content）
+    const autoApproveTools = typeof content === 'string' && content.includes('[TASK-EXECUTION]');
+
     const userMsg = {
         id: crypto.randomUUID(),
         role: 'user' as const,
-        content: content
+        content: displayContent,  // 使用清理后的内容显示
+        // @ts-ignore - 添加自动审批标志
+        autoApproveTools
     };
     // @ts-ignore
     coreUseChatStore.getState().addMessage(userMsg);
@@ -684,9 +694,14 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 }))
             : undefined;
 
+        // 移除特殊标记（如 [CHAT]、[TASK-EXECUTION]）再发送给 AI
+        let content = ensureContentString(m.content);
+        // 清理所有内部标记
+        content = content.replace(/^\[(CHAT|TASK-EXECUTION)\]\s*/, '');
+
         return {
             role: m.role,
-            content: ensureContentString(m.content),
+            content: content,
             tool_calls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
             tool_call_id: m.tool_call_id
         };
@@ -781,9 +796,11 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                             endPos: newMsg.content.length
                         });
                     }
-                    
+
                     if (toolCallUpdate) {
+                        console.log('[Chat] Received tool_call event:', toolCallUpdate);
                         const toolName = toolCallUpdate.function?.name || toolCallUpdate.tool;
+                        console.log('[Chat] Tool name:', toolName);
                         const newArgsChunk = toolCallUpdate.function?.arguments || '';
 
                         const existingCalls = newMsg.toolCalls || [];
@@ -923,7 +940,20 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     });
 
     // Finish Listener - Finalize tool calls when streaming completes
-    const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, (event) => {
+    const finishTimeout = setTimeout(() => {
+        console.warn(`[Chat] WARNING: _finish event timeout for ${assistantMsgId}_finish after 10 seconds`);
+        console.warn(`[Chat] This suggests the backend stream did not complete properly`);
+        // Timeout: cleanup listeners
+        console.log(`[Chat] Cleaning up listeners due to timeout`);
+        unlistenStatus();
+        unlistenStream();
+        unlistenRefs();
+        unlistenCompacted();
+        unlistenError();
+    }, 10000);  // 10 seconds timeout
+
+    const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {
+        clearTimeout(finishTimeout);
         console.log("[Chat] Stream finished", event.payload);
 
         // Finalize all partial tool calls
@@ -942,6 +972,111 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         });
 
         coreUseChatStore.setState({ messages: updatedMessages });
+
+        // ✨ NEW: Auto-approve tool calls (same logic as in patchedSendMessage)
+        const settings = useSettingsStore.getState();
+        const assistantIndex = updatedMessages.findIndex(m => m.id === assistantMsgId);
+
+        // Find the user message that triggered this assistant message
+        let userMessageHasAutoApprove = false;
+        if (assistantIndex > 0) {
+            for (let i = assistantIndex - 1; i >= 0; i--) {
+                if (updatedMessages[i].role === 'user') {
+                    userMessageHasAutoApprove = (updatedMessages[i] as any).autoApproveTools === true;
+                    console.log(`[Chat] User message autoApproveTools: ${userMessageHasAutoApprove}`);
+                    break;
+                }
+            }
+        }
+
+        // Check both global setting and message-level flag
+        const shouldAutoApprove = settings.agentAutoApprove || userMessageHasAutoApprove;
+
+        console.log(`[Chat] Auto-approve check: global=${settings.agentAutoApprove}, message=${userMessageHasAutoApprove}, result=${shouldAutoApprove}`);
+
+        if (shouldAutoApprove) {
+            const message = updatedMessages.find(m => m.id === assistantMsgId);
+            console.log(`[Chat] Found assistant message: ${!!message}`);
+            console.log(`[Chat] Message has toolCalls: ${!!message?.toolCalls}, count: ${message?.toolCalls?.length || 0}`);
+            if (message?.toolCalls) {
+                console.log(`[Chat] Tool calls details:`, message.toolCalls.map(tc => ({
+                    id: tc.id,
+                    tool: tc.tool,
+                    status: tc.status,
+                    isPartial: tc.isPartial
+                })));
+            }
+            if (message && message.toolCalls) {
+                const pendingToolCalls = message.toolCalls.filter(tc => tc.status === 'pending' && !tc.isPartial);
+                console.log(`[Chat] Pending tool calls (after filter): ${pendingToolCalls.length}`);
+
+                if (pendingToolCalls.length > 0) {
+                    console.log(`[Chat] Auto-approving ${pendingToolCalls.length} tool calls from patchedGenerateResponse`);
+
+                    // 检查是否在自动工具调用循环中（防止无限循环）
+                    const { messages } = coreUseChatStore.getState();
+                    const recentToolCalls = messages
+                        .slice(-5)  // 检查最近 5 条消息
+                        .filter(m => m.toolCalls && m.toolCalls.length > 0);
+
+                    // 如果最近有太多工具调用，可能是陷入了循环，停止自动继续
+                    if (recentToolCalls.length >= 3) {
+                        console.warn(`[Chat] Detected potential tool call loop (${recentToolCalls.length} recent tool calls), stopping auto-continue`);
+                        return;
+                    }
+
+                    // Execute all tool calls
+                    for (const tc of pendingToolCalls) {
+                        // @ts-ignore - third parameter not in type definition yet
+                        await coreUseChatStore.getState().approveToolCall(assistantMsgId, tc.id, { skipContinue: true });
+                    }
+
+                    console.log(`[Chat] All tool calls executed from patchedGenerateResponse`);
+
+                    // After all tools are executed, continue the conversation
+                    const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
+                    if (providerConfig) {
+                        console.log(`[Chat] Continuing conversation after tool execution (scheduled in 300ms)`);
+
+                        // 使用 setTimeout 延迟调用
+                        setTimeout(async () => {
+                            console.log(`[Chat] Executing delayed continuation (after 300ms delay)`);
+
+                            // 手动清理当前函数的监听器
+                            console.log(`[Chat] Manually cleaning up previous listeners`);
+                            unlistenStatus();
+                            unlistenStream();
+                            unlistenRefs();
+                            unlistenCompacted();
+                            unlistenFinish();
+                            unlistenError();
+
+                            // Get updated messages with tool results
+                            const finalMessages = coreUseChatStore.getState().messages;
+
+                            // Continue the conversation with all tool results
+                            await patchedGenerateResponse(
+                                finalMessages,
+                                providerConfig,
+                                { enableTools: true }
+                            );
+                        }, 300);  // 延迟 300ms
+
+                        // 不继续执行，直接返回（避免清理监听器）
+                        return;
+                    }
+                }
+
+                // 如果没有继续对话，清理监听器
+                console.log(`[Chat] Cleaning up listeners (normal completion)`);
+                unlistenStatus();
+                unlistenStream();
+                unlistenRefs();
+                unlistenCompacted();
+                unlistenFinish();
+                unlistenError();
+            }
+        }
     });
 
     // Error Listener - Handle stream errors
@@ -954,6 +1089,14 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 m.id === assistantMsgId ? { ...m, content: `❌ Error: ${event.payload}` } : m
             )
         });
+
+        // Error: cleanup listeners
+        unlistenStatus();
+        unlistenStream();
+        unlistenRefs();
+        unlistenCompacted();
+        unlistenFinish();
+        unlistenError();
     });
 
     // 6. Invoke Backend
@@ -975,43 +1118,26 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 content: `❌ 发送失败: ${errorMsg}\n\n请检查：\n1. API Key 是否配置正确\n2. 网络连接是否正常\n3. 控制台是否有详细错误信息`
             } : m)
         });
-    } finally {
-        coreUseChatStore.setState({ isLoading: false });
+
+        // Error: cleanup listeners
         unlistenStatus();
         unlistenStream();
         unlistenRefs();
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
-
-        // ========================================================================
-        // Save thread messages after completion
-        // ========================================================================
-        const finalMessages = coreUseChatStore.getState().messages;
-        const currentThreadId = useThreadStore.getState().activeThreadId;
-        if (currentThreadId) {
-          setThreadMessages(currentThreadId, [...finalMessages]);
-          useThreadStore.getState().updateThreadTimestamp(currentThreadId);
-          useThreadStore.getState().incrementMessageCount(currentThreadId);
-
-          // Auto-update thread title from first user message if default title
-          const thread = useThreadStore.getState().getThread(currentThreadId);
-          if (thread && thread.title.includes('新对话')) {
-            const firstUserMsg = finalMessages.find(m => m.role === 'user');
-            if (firstUserMsg && finalMessages.filter(m => m.role === 'user').length === 1) {
-              const newTitle = generateTitleFromMessage(firstUserMsg.content);
-              if (newTitle !== '新对话') {
-                useThreadStore.getState().updateThread(currentThreadId, { title: newTitle });
-              }
-            }
-          }
-        }
     }
+
+    // Note: Listener cleanup is now handled in the _finish handler
+    // This ensures listeners are not cleaned up before _finish event is received
 };
 
 const patchedGenerateResponse = async (history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
     console.log(">>> patchedGenerateResponse called");
-    
+    console.log("[Chat] History length:", history?.length);
+    console.log("[Chat] Provider config:", providerConfig?.id);
+    console.log("[Chat] Options:", options);
+
     // 1. Prepare Config (Reuse logic or just use passed config if it's already correct)
     const settings = useSettingsStore.getState();
     const fullProviderConfig = settings.providers.find((p: any) => p.id === providerConfig.id) || providerConfig;
@@ -1142,7 +1268,9 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                         newMsg.content = (newMsg.content || '') + safeTextChunk;
                     }
                     if (toolCallUpdate) {
+                        console.log('[Chat/GenerateResponse] Received tool_call event:', toolCallUpdate);
                         const toolName = toolCallUpdate.function?.name || toolCallUpdate.tool;
+                        console.log('[Chat/GenerateResponse] Tool name:', toolName);
                         const newArgsChunk = toolCallUpdate.function?.arguments || '';
 
                         const existingCalls = newMsg.toolCalls || [];
@@ -1242,26 +1370,61 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         coreUseChatStore.setState({ messages: [...compactedMessages, assistantMsgPlaceholder] });
     });
 
-    const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, (event) => {
-        const { messages } = coreUseChatStore.getState();
-        const updatedMessages = messages.map(m => {
-            if (m.id === assistantMsgId && m.toolCalls) {
-                return { ...m, toolCalls: m.toolCalls.map(tc => ({ ...tc, isPartial: false })) };
-            }
-            return m;
-        });
-        coreUseChatStore.setState({ messages: updatedMessages });
-    });
-
+    // Error Listener - Handle stream errors
     const unlistenError = await listen<string>(`${assistantMsgId}_error`, (event) => {
+        console.error("[Chat/GenerateResponse] Stream error", event.payload);
+
         const { messages } = coreUseChatStore.getState();
         coreUseChatStore.setState({
             messages: messages.map(m => m.id === assistantMsgId ? { ...m, content: `❌ Error: ${event.payload}` } : m)
         });
+
+        // Error: cleanup listeners
+        unlistenStatus();
+        unlistenStream();
+        unlistenRefs();
+        unlistenCompacted();
+        unlistenError();
+    });
+
+    // Finish Listener - Clean up listeners when streaming completes
+    const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {
+        console.log("[Chat/GenerateResponse] Stream finished", event.payload);
+
+        // Finalize all partial tool calls
+        const { messages } = coreUseChatStore.getState();
+        const updatedMessages = messages.map(m => {
+            if (m.id === assistantMsgId && m.toolCalls) {
+                return {
+                    ...m,
+                    toolCalls: m.toolCalls.map(tc => ({
+                        ...tc,
+                        isPartial: false  // Mark as complete
+                    }))
+                };
+            }
+            return m;
+        });
+
+        coreUseChatStore.setState({ messages: updatedMessages });
+
+        // Clean up all listeners
+        console.log("[Chat/GenerateResponse] Cleaning up listeners");
+        unlistenStatus();
+        unlistenStream();
+        unlistenRefs();
+        unlistenCompacted();
+        unlistenFinish();
+        unlistenError();
     });
 
     // 5. Invoke Backend
     try {
+        console.log(`[Chat] Invoking ai_chat with eventId: ${assistantMsgId}`);
+        console.log(`[Chat] Message history length: ${msgHistory.length}`);
+        console.log(`[Chat] Project root: ${useFileStore.getState().rootPath}`);
+        console.log(`[Chat] Enable tools: true`);
+
         await invoke('ai_chat', {
             providerConfig: backendConfig,
             messages: msgHistory,
@@ -1269,47 +1432,35 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
             projectRoot: useFileStore.getState().rootPath,
             enableTools: true
         });
+
+        console.log(`[Chat] ai_chat invoke completed successfully`);
     } catch (e) {
+        console.error('[Chat/GenerateResponse] Invoke error:', e);
         const { messages } = coreUseChatStore.getState();
+        const errorMsg = e instanceof Error ? e.message : String(e);
         coreUseChatStore.setState({
-            messages: messages.map(m => m.id === assistantMsgId ? { ...m, content: `Error: ${e}` } : m)
+            messages: messages.map(m => m.id === assistantMsgId ? { ...m, content: `❌ 发送失败: ${errorMsg}` } : m)
         });
-    } finally {
-        coreUseChatStore.setState({ isLoading: false });
+
+        // Error: cleanup listeners
         unlistenStatus();
         unlistenStream();
         unlistenRefs();
         unlistenCompacted();
         unlistenFinish();
         unlistenError();
-
-        // ========================================================================
-        // Save thread messages after completion
-        // ========================================================================
-        const finalMessages = coreUseChatStore.getState().messages;
-        const currentThreadId = useThreadStore.getState().activeThreadId;
-        if (currentThreadId) {
-          setThreadMessages(currentThreadId, [...finalMessages]);
-          useThreadStore.getState().updateThreadTimestamp(currentThreadId);
-          useThreadStore.getState().incrementMessageCount(currentThreadId);
-
-          // Auto-update thread title from first user message if default title
-          const thread = useThreadStore.getState().getThread(currentThreadId);
-          if (thread && thread.title.includes('新对话')) {
-            const firstUserMsg = finalMessages.find(m => m.role === 'user');
-            if (firstUserMsg && finalMessages.filter(m => m.role === 'user').length === 1) {
-              const newTitle = generateTitleFromMessage(firstUserMsg.content);
-              if (newTitle !== '新对话') {
-                useThreadStore.getState().updateThread(currentThreadId, { title: newTitle });
-              }
-            }
-          }
-        }
     }
+
+    // Note: Listener cleanup is now handled in the _finish handler
+    // This ensures listeners are not cleaned up before _finish event is received
 };
 
-const patchedApproveToolCall = async (messageId: string, toolCallId: string) => {
-    console.log(`[useChatStore] patchedApproveToolCall called - messageId: ${messageId}, toolCallId: ${toolCallId}`);
+const patchedApproveToolCall = async (
+    messageId: string,
+    toolCallId: string,
+    options?: { skipContinue?: boolean }
+) => {
+    console.log(`[useChatStore] patchedApproveToolCall called - messageId: ${messageId}, toolCallId: ${toolCallId}, options:`, options);
 
     const state = coreUseChatStore.getState();
     const message = state.messages.find(m => m.id === messageId);
@@ -1436,9 +1587,10 @@ const patchedApproveToolCall = async (messageId: string, toolCallId: string) => 
 
             // Continue Conversation - 但对于本地模型执行的工具调用，不需要继续调用云端 API
             // 因为后端已经通过 content 事件发送了格式化的结果
+            // 如果 skipContinue 选项为 true，也不自动继续（由调用者控制）
             const settings = useSettingsStore.getState();
             const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
-            if (providerConfig && !(toolCall as any).isLocalModel) {
+            if (providerConfig && !(toolCall as any).isLocalModel && !options?.skipContinue) {
                 await patchedGenerateResponse(
                     coreUseChatStore.getState().messages,
                     providerConfig,

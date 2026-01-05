@@ -622,6 +622,244 @@ ${error}
       return;
     }
 
+    // v0.2.6 Special Command: /task:start <taskId>
+    if (msg.toLowerCase().startsWith('/task:start ')) {
+      const taskId = msg.substring('/task:start '.length).trim();
+
+      if (!taskId) {
+        const { addMessage } = useChatStore.getState() as any;
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: '❌ 请提供任务 ID\n\n**用法**：`/task:start <任务ID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用任务**：使用 `/task:list` 查看所有任务'
+        });
+        setInput('');
+        setShowCommands(false);
+        resetHistoryIndex();
+        return;
+      }
+
+      // 动态导入服务（避免循环依赖）
+      import('../../services/taskExecutionService').then(async ({ getTaskExecutionService }) => {
+        try {
+          const service = getTaskExecutionService();
+          const rootPath = useFileStore.getState().rootPath;
+
+          if (!rootPath) {
+            throw new Error('未打开项目');
+          }
+
+          // 尝试从当前打开的文件中加载任务
+          const activeFile = useFileStore.getState().openedFiles.find(f => f.path.includes('tasks.md'));
+
+          if (!activeFile) {
+            const { addMessage } = useChatStore.getState() as any;
+            addMessage({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: '❌ 未找到 tasks.md 文件\n\n请先打开一个提案中的 tasks.md 文件'
+            });
+            setInput('');
+            return;
+          }
+
+          // 加载任务
+          await service.loadTasksFromFile(activeFile.path);
+
+          // 查找任务
+          const task = service.findTask(taskId);
+
+          if (!task) {
+            const { addMessage } = useChatStore.getState() as any;
+            const allTasks = service.getTodoTasks();
+            const taskList = allTasks.map(t => `- \`/task:start ${t.id}\`: ${t.title}`).join('\n');
+            addMessage({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `❌ 未找到任务: ${taskId}\n\n**可用任务**：\n${taskList || '无'}`
+            });
+            setInput('');
+            return;
+          }
+
+          // 标记任务为进行中
+          await service.startTask(taskId);
+
+          // 添加用户消息
+          const { addMessage } = useChatStore.getState() as any;
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'user',
+            content: msg
+          });
+
+          // 构建任务上下文
+          const taskPath = service.getTaskPath(taskId);
+          const context = taskPath.map(t => `${'  '.repeat(t.level)}- [${t.status === 'done' ? 'x' : ' '}] ${t.id}: ${t.title}`).join('\n');
+
+          // 发送任务到 AI
+          // 使用 [CHAT] 前缀来绕过意图识别和斜杠命令处理
+          // 使用 [TASK-EXECUTION] 标记来启用工具自动审批
+          // 这样可以避免被误识别为 /explore 或其他 agent
+          const prompt = `[CHAT] [TASK-EXECUTION] 我需要协助实施以下开发任务：
+
+**任务 ID**: ${task.id}
+**任务标题**: ${task.title}
+**任务描述**: ${task.content}
+
+**任务路径**:
+${context}
+
+请帮助我完成这个任务的实施工作。请：
+1. 首先查看项目结构，了解现有代码
+2. 然后读取相关文件，分析实现方案
+3. 创建或修改所需的文件
+4. 最后总结完成的工作
+
+你可以使用 agent_list_dir、agent_read_file、agent_write_file 等工具来完成这些工作。`;
+
+          // 使用 sendMessage 发送给 AI（保留 [CHAT] 标记以绕过意图识别）
+          const { sendMessage } = useChatStore.getState();
+          const currentProviderId = useSettingsStore.getState().currentProviderId;
+          const currentModel = useSettingsStore.getState().currentModel;
+          await sendMessage(prompt, currentProviderId, currentModel);
+
+          setInput('');
+          setShowCommands(false);
+          resetHistoryIndex();
+
+        } catch (e) {
+          console.error('[TaskStart] Failed:', e);
+          const { addMessage } = useChatStore.getState() as any;
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `❌ 任务启动失败: ${e}`
+          });
+          setInput('');
+        }
+      });
+
+      return;
+    }
+
+    // v0.2.6 Special Command: /task:list
+    if (msg.toLowerCase() === '/task:list') {
+      import('../../services/taskExecutionService').then(async ({ getTaskExecutionService }) => {
+        try {
+          const service = getTaskExecutionService();
+          const rootPath = useFileStore.getState().rootPath;
+          const openedFiles = useFileStore.getState().openedFiles;
+
+          if (!rootPath) {
+            const { addMessage } = useChatStore.getState() as any;
+            addMessage({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: '❌ 未打开项目\n\n请先打开一个项目文件夹'
+            });
+            setInput('');
+            return;
+          }
+
+          // 尝试从当前打开的文件中加载任务
+          const activeFile = openedFiles.find(f => f.path.includes('tasks.md'));
+
+          // 调试信息
+          console.log('[TaskList] Opened files:', openedFiles.map(f => f.path));
+          console.log('[TaskList] Looking for tasks.md in:', openedFiles.map(f => f.path));
+
+          if (!activeFile) {
+            const { addMessage } = useChatStore.getState() as any;
+            const fileList = openedFiles.length > 0
+              ? '\n\n**当前打开的文件**：\n' + openedFiles.map(f => `- ${f.path.split('/').pop()}`).join('\n')
+              : '';
+
+            addMessage({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: `❌ 未找到 tasks.md 文件${fileList}\n\n**解决方法**：\n1. 在文件树中找到提案目录（.ifai/changes/xxx/）\n2. 打开 tasks.md 文件\n3. 再次运行 /task:list`
+            });
+            setInput('');
+            setShowCommands(false);
+            resetHistoryIndex();
+            return;
+          }
+
+          console.log('[TaskList] Found tasks.md:', activeFile.path);
+
+          // 加载任务
+          await service.loadTasksFromFile(activeFile.path);
+          const stats = service.getTaskStats();
+          const todoTasks = service.getTodoTasks();
+          const inProgressTasks = service.getInProgressTasks();
+          const doneTasks = service.getCompletedTasks();
+
+          console.log('[TaskList] Stats:', stats);
+          console.log('[TaskList] Tasks:', { todo: todoTasks.length, inProgress: inProgressTasks.length, done: doneTasks.length });
+
+          let content = `### 📊 任务统计\n\n`;
+          content += `- 总计: ${stats.total}\n`;
+          content += `- 待办: ${stats.todo}\n`;
+          content += `- 进行中: ${stats.inProgress}\n`;
+          content += `- 已完成: ${stats.done}\n\n`;
+
+          if (todoTasks.length > 0) {
+            content += `### 📋 待办任务\n\n`;
+            todoTasks.forEach(t => {
+              content += `- \`/task:start ${t.id}\`: ${t.title}\n`;
+            });
+            content += '\n';
+          }
+
+          if (inProgressTasks.length > 0) {
+            content += `### 🔄 进行中\n\n`;
+            inProgressTasks.forEach(t => {
+              content += `- \`${t.id}\`: ${t.title}\n`;
+            });
+            content += '\n';
+          }
+
+          if (doneTasks.length > 0) {
+            content += `### ✅ 已完成\n\n`;
+            doneTasks.slice(0, 5).forEach(t => {
+              content += `- \`${t.id}\`: ${t.title}\n`;
+            });
+            if (doneTasks.length > 5) {
+              content += `... 还有 ${doneTasks.length - 5} 个已完成任务\n`;
+            }
+          }
+
+          if (stats.total === 0) {
+            content += '\n⚠️ 未解析到任何任务，请检查 tasks.md 文件格式';
+          }
+
+          const { addMessage } = useChatStore.getState() as any;
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content
+          });
+
+          setInput('');
+          setShowCommands(false);
+          resetHistoryIndex();
+
+        } catch (e) {
+          console.error('[TaskList] Failed:', e);
+          const { addMessage } = useChatStore.getState() as any;
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `❌ 获取任务列表失败: ${e}`
+          });
+          setInput('');
+        }
+      });
+
+      return;
+    }
+
     if (!isProviderConfigured) {
       const { addMessage } = useChatStore.getState() as any;
       addMessage({

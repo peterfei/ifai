@@ -59,6 +59,11 @@ export function recognizeIntent(input: string): IntentResult | null {
     const text = input.trim();
     if (!text) return null;
 
+    // 跳过带有特殊标记的消息（如 [CHAT]），这些消息应该直接发送给 AI
+    if (text.startsWith('[CHAT]') || text.startsWith('[SKIP-INTENT]') || text.startsWith('[NO-AGENT]')) {
+        return null;
+    }
+
     let bestMatch: IntentResult | null = null;
     let maxScore = 0;
 

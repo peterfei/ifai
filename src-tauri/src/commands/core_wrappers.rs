@@ -199,6 +199,12 @@ pub async fn agent_scan_directory(
         if p.starts_with('/') || p.starts_with('.') {
             // Absolute or relative pattern
             Path::new(&root_path).join(p).to_string_lossy().to_string()
+        } else if p == "**" {
+            // Special case: "**" means all files recursively
+            format!("{}/**/*", base_path.to_string_lossy())
+        } else if p.starts_with("**/") || p.contains("/**/") {
+            // Pattern already contains recursive wildcards, use as-is
+            format!("{}/{}", base_path.to_string_lossy(), p)
         } else {
             // Simple pattern like "*.ts", apply to current directory
             format!("{}/**/{}", base_path.to_string_lossy(), p)
@@ -207,6 +213,8 @@ pub async fn agent_scan_directory(
         // Default: match all files
         format!("{}/**/*", base_path.to_string_lossy())
     };
+
+    println!("[agent_scan_directory] glob_pattern = {}", glob_pattern);
 
     let mut files: Vec<String> = Vec::new();
     let mut directories: Vec<String> = Vec::new();

@@ -138,6 +138,7 @@ export const useFileStore = create<FileState>()(
                 return {
                   ...f,
                   initialLine: file.initialLine,
+                  language: file.language || f.language, // 更新语言类型
                   ...(shouldUpdateContent ? { content: file.content, isDirty: file.isDirty } : {})
                 };
               }

@@ -452,13 +452,29 @@ async fn ai_chat(
     // Callback wrapper for Tauri events
     let app_handle_for_stream = app.clone();
     let event_id_clone = event_id.clone();
-    
+    let app_for_finish = app.clone();
+    let event_id_for_finish = event_id.clone();
+
     state.ai_service.stream_chat(
-        &provider_config, 
-        messages, 
-        &event_id, 
+        &provider_config,
+        messages,
+        &event_id,
         Box::new(move |chunk| {
-             let _ = app_handle_for_stream.emit(&event_id_clone, chunk);
+             // 调试：打印 chunk 内容
+             println!("[AI Chat] Streaming chunk: {}", chunk);
+
+             let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
+
+             // 检查是否为 finish_reason: tool_calls
+             // 如果是，触发 _finish 事件
+             if let Ok(json_obj) = serde_json::from_str::<serde_json::Value>(&chunk) {
+                 if let Some(finish_reason) = json_obj.get("finish_reason").and_then(|v| v.as_str()) {
+                     if finish_reason == "tool_calls" {
+                         println!("[AI Chat] Detected tool_calls finish, triggering _finish event");
+                         let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
+                     }
+                 }
+             }
         })
     ).await
 }
