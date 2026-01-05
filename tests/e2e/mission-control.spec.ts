@@ -2,41 +2,19 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Mission Control E2E', () => {
   test.beforeEach(async ({ page }) => {
+    // Inject localStorage to skip onboarding
+    await page.addInitScript(() => {
+      const state = {
+        completed: true,
+        skipped: true,
+        remindCount: 0,
+        lastRemindDate: null,
+      };
+      window.localStorage.setItem('ifai_onboarding_state', JSON.stringify(state));
+    });
+
     await page.goto('/');
-
-    // Handle the welcome dialog that blocks interactions
-    // The dialog asks about downloading local AI models
-    try {
-      // Wait for app to initialize and modal to appear
-      await page.waitForTimeout(1000);
-
-      // Check if welcome modal is present by looking for its heading
-      const modalVisible = await page.locator('h1:has-text("欢迎使用 IfAI Editor"), h1:has-text("Welcome")').isVisible().catch(() => false);
-
-      if (modalVisible) {
-        // Look for the skip button "跳过，使用云端" or similar skip options
-        const skipButton = page.locator('button:has-text("跳过，使用云端"), button:has-text("稍后提醒我"), button:has-text("Skip"), button:has-text("Remind")').first();
-
-        if (await skipButton.isVisible()) {
-          await skipButton.click();
-          await page.waitForTimeout(500); // Wait for modal close animation
-        } else {
-          // Fallback: Try clicking any button that might close the modal
-          const anyButton = page.locator('.fixed.inset-0.z-50 button').nth(2);
-          await anyButton.click().catch(() => {});
-          await page.waitForTimeout(500);
-        }
-
-        // Verify modal is closed
-        const stillVisible = await page.locator('.fixed.inset-0.z-50').isVisible().catch(() => false);
-        if (stillVisible) {
-          console.log('Warning: Modal may still be visible');
-        }
-      }
-    } catch (e) {
-      console.log('Modal handling completed:', e.message);
-    }
-
+    
     // Wait for the app to be interactive
     await page.waitForTimeout(1000);
   });

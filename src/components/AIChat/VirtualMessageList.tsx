@@ -62,7 +62,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   // 条件渲染：短对话、正在加载、或有待处理工具调用时使用普通列表
   if (messages.length < 15 || isLoading || hasPendingToolCalls) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4" style={{ contain: 'layout style paint' }}>
         {messages.map((message) => (
           <MessageItem
             key={message.id}
@@ -84,6 +84,8 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
       style={{
         // 移除 h-full 和 overflow: hidden，让父容器控制滚动
         // 虚拟滚动通过父容器的滚动来工作
+        contain: 'layout style paint',
+        willChange: 'transform',
       }}
     >
       <div
@@ -91,6 +93,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
           height: `${virtualizer.getTotalSize()}px`,
           width: '100%',
           position: 'relative',
+          contain: 'layout style paint',
         }}
       >
         {virtualItems.map((virtualRow) => {
@@ -106,6 +109,8 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 left: 0,
                 width: '100%',
                 transform: `translateY(${virtualRow.start}px)`,
+                willChange: 'transform',
+                contain: 'layout style paint',
               }}
             >
               <MessageItem

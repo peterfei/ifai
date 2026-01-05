@@ -41,3 +41,68 @@ html, body, #root {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
 }
+
+/* AI Chat Panel Performance Optimizations */
+/* Prevent flickering during message streaming and virtual scrolling */
+.ai-chat-message {
+  /* Use containment to isolate layout recalculations */
+  contain: layout style paint;
+
+  /* Hint to browser for smooth transforms */
+  will-change: transform;
+
+  /* Prevent layout shift during content updates */
+  transform: translateZ(0);
+
+  /* Smooth fade-in for new messages */
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Virtual scrolling container optimizations */
+.virtual-scroll-container {
+  contain: layout style paint;
+  will-change: transform;
+}
+
+/* Message list container */
+.message-list-container {
+  /* Prevent sub-pixel rendering issues */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Use GPU acceleration for smooth scrolling */
+  transform: translateZ(0);
+
+  /* Optimize repaint behavior */
+  contain: layout style paint;
+}
+
+/* Streaming message cursor animation */
+.streaming-cursor::after {
+  content: '▋';
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  color: inherit;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Prevent flash of unstyled content */
+[style*="transform:"] {
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

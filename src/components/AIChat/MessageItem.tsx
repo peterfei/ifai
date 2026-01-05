@@ -65,20 +65,36 @@ interface MessageItemProps {
 }
 
 // Custom comparison function for React.memo
-// Re-render when isStreaming changes or message content changes
+// Optimized to avoid unnecessary re-renders during streaming
 const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps) => {
-    // Always re-render if isStreaming changes
+    // Only re-render if isStreaming changes AND this message is the one being streamed
+    // This prevents all messages from re-rendering when a new message starts streaming
     if (prevProps.isStreaming !== nextProps.isStreaming) {
-        return false;
+        // Only the assistant message that is actually streaming needs to re-render
+        const isCurrentlyStreaming = nextProps.isStreaming && nextProps.message.role === 'assistant';
+        const wasStreaming = prevProps.isStreaming && prevProps.message.role === 'assistant';
+
+        // If this specific message's streaming status changed, re-render
+        if (isCurrentlyStreaming !== wasStreaming) {
+            return false;
+        }
     }
-    // Re-render if message content changes
+
+    // Re-render if message content changes (only for this message)
     if (prevProps.message.content !== nextProps.message.content) {
         return false;
     }
+
     // Re-render if toolCalls change
     if (prevProps.message.toolCalls !== nextProps.message.toolCalls) {
         return false;
     }
+
+    // Re-render if message ID changes (edge case)
+    if (prevProps.message.id !== nextProps.message.id) {
+        return false;
+    }
+
     // Otherwise skip re-render
     return true;
 };

@@ -956,17 +956,20 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     });
 
     // Finish Listener - Finalize tool calls when streaming completes
+    // Increase timeout for local LLMs (Ollama) which may be slower
     const finishTimeout = setTimeout(() => {
-        console.warn(`[Chat] WARNING: _finish event timeout for ${assistantMsgId}_finish after 10 seconds`);
+        console.warn(`[Chat] WARNING: _finish event timeout for ${assistantMsgId}_finish after 30 seconds`);
         console.warn(`[Chat] This suggests the backend stream did not complete properly`);
-        // Timeout: cleanup listeners
-        console.log(`[Chat] Cleaning up listeners due to timeout`);
+        // Timeout: cleanup listeners (but NOT unlistenFinish, so we can still handle late finish events)
+        console.log(`[Chat] Cleaning up listeners due to timeout (except finish listener)`);
         unlistenStatus();
         unlistenStream();
         unlistenRefs();
         unlistenCompacted();
         unlistenError();
-    }, 10000);  // 10 seconds timeout
+        // Note: We intentionally do NOT clean up unlistenFinish here
+        // This allows late-arriving finish events to still be processed
+    }, 30000);  // Increased to 30 seconds for local LLMs
 
     const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {
         clearTimeout(finishTimeout);
@@ -988,6 +991,18 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         });
 
         coreUseChatStore.setState({ messages: updatedMessages });
+
+        // Debug: Log tool calls found
+        const assistantMsg = updatedMessages.find(m => m.id === assistantMsgId);
+        console.log(`[Chat] Assistant message toolCalls:`, assistantMsg?.toolCalls?.length || 0);
+        if (assistantMsg?.toolCalls) {
+            console.log(`[Chat] Tool calls:`, assistantMsg.toolCalls.map(tc => ({
+                id: tc.id,
+                tool: tc.tool,
+                status: tc.status,
+                isPartial: tc.isPartial
+            })));
+        }
 
         // ✨ NEW: Auto-approve tool calls (same logic as in patchedSendMessage)
         const settings = useSettingsStore.getState();
@@ -1144,6 +1159,14 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     console.log("[Chat] History length:", history?.length);
     console.log("[Chat] Provider config:", providerConfig?.id);
     console.log("[Chat] Options:", options);
+
+    // Debug: Print message history
+    history.forEach((msg: any, i: number) => {
+        console.log(`[Chat] History[${i}] role=${msg.role}, hasToolCalls=${!!msg.toolCalls}, toolCallId=${!!msg.tool_call_id}`);
+        if (msg.toolCalls) {
+            console.log(`[Chat]   toolCalls:`, msg.toolCalls.map((tc: any) => ({ tool: tc.tool, status: tc.status })));
+        }
+    });
 
     // 1. Prepare Config (Reuse logic or just use passed config if it's already correct)
     const settings = useSettingsStore.getState();
@@ -1527,6 +1550,10 @@ const patchedApproveToolCall = async (
 
             // Fix arguments: snake_case (LLM) -> camelCase (Tauri)
             const args = toolCall.args || {};
+            console.log('[FS Tool] Raw args:', JSON.stringify(args));
+            console.log('[FS Tool] Raw args keys:', Object.keys(args));
+            console.log('[FS Tool] args.rel_path:', args.rel_path);
+            console.log('[FS Tool] args.relPath:', args.relPath);
 
             // Get default relPath based on tool type
             const getDefaultRelPath = () => {
@@ -1534,8 +1561,11 @@ const patchedApproveToolCall = async (
                 return '';
             };
 
-            relPath = args.rel_path || args.relPath || getDefaultRelPath();
-            let content = args.content || "";
+            let relPath: string = args.rel_path || args.relPath || getDefaultRelPath();
+            let content: string = args.content || "";
+
+            console.log('[FS Tool] Final relPath:', relPath);
+            console.log('[FS Tool] Final content length:', content.length);
 
             // Debug: log content before unescaping
             console.log('[FS Tool] Content preview (first 200 chars):', content.substring(0, 200));
