@@ -18,6 +18,7 @@ interface EditorState {
   activeEditorId: string | null;
   theme: 'vs-dark' | 'light';
   inlineEdit: InlineEditState;
+  activeFileTokenCount: number;
 
   setEditorInstance: (paneId: string, instance: editor.IStandaloneCodeEditor) => void;
   getEditorInstance: (paneId: string) => editor.IStandaloneCodeEditor | null;
@@ -28,6 +29,7 @@ interface EditorState {
   closeInlineEdit: () => void;
   getActiveEditor: () => editor.IStandaloneCodeEditor | null;
   evictLRU: () => void;
+  setActiveFileTokenCount: (count: number) => void;
 }
 
 const MAX_EDITOR_INSTANCES = 4;
@@ -41,6 +43,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     position: null,
     selection: null,
   },
+  activeFileTokenCount: 0,
 
   setEditorInstance: (paneId, instance) => {
     const state = get();
@@ -144,4 +147,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       get().removeEditorInstance(lruPaneId);
     }
   },
+
+  setActiveFileTokenCount: (count) => set({ activeFileTokenCount: count }),
 }));

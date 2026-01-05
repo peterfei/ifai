@@ -9,7 +9,9 @@ import { InlineEditWidget } from './InlineEditWidget';
 import { WelcomeScreen } from './WelcomeScreen';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
+import { debounce } from 'lodash-es';
 
 // Configure monaco-editor to use local files instead of CDN to avoid 404 errors
 loader.config({ monaco });
@@ -27,6 +29,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const openedFiles = useFileStore(state => state.openedFiles);
   const panes = useLayoutStore(state => state.panes);
   const setChatOpen = useLayoutStore(state => state.setChatOpen);
+  const setActiveFileTokenCount = useEditorStore(state => state.setActiveFileTokenCount);
   
   const sendMessage = useChatStore(state => state.sendMessage);
 
@@ -34,6 +37,39 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const pane = panes.find(p => p.id === paneId);
   const fileId = pane?.fileId;
   const file = fileId ? openedFiles.find(f => f.id === fileId) : null;
+
+  // Sequence ID to prevent race conditions
+  const lastRequestId = useRef(0);
+
+  // Debounced token count update
+  const updateTokenCount = useCallback(
+    debounce(async (text: string) => {
+      const requestId = ++lastRequestId.current;
+      try {
+        const count = await estimateTokens(text);
+        // Only update if this is still the latest request
+        if (requestId === lastRequestId.current) {
+          setActiveFileTokenCount(count);
+        } else {
+          console.log('[MonacoEditor] Discarded stale token count result');
+        }
+      } catch (e) {
+        if (requestId === lastRequestId.current) {
+          console.error('[MonacoEditor] Failed to count tokens:', e);
+        }
+      }
+    }, 500),
+    [setActiveFileTokenCount]
+  );
+
+  // Initial count when file changes
+  useEffect(() => {
+    if (file?.content) {
+      updateTokenCount(file.content);
+    } else {
+      setActiveFileTokenCount(0);
+    }
+  }, [file?.id, file?.content, updateTokenCount, setActiveFileTokenCount]);
 
   const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
     // 存储编辑器实例
@@ -210,6 +246,7 @@ ${textBefore}[CURSOR]${textAfter}
   const handleChange = (value: string | undefined) => {
     if (fileId && value !== undefined) {
       useFileStore.getState().updateFileContent(fileId, value);
+      updateTokenCount(value);
     }
   };
 

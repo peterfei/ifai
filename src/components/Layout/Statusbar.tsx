@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useFileStore } from '../../stores/fileStore';
+import { useEditorStore } from '../../stores/editorStore';
+import { formatTokenCount } from '../../utils/tokenCounter';
 
 export const Statusbar = () => {
   const rootPath = useFileStore(state => state.rootPath);
   const activeFileId = useFileStore(state => state.activeFileId);
   const openedFiles = useFileStore(state => state.openedFiles);
+  const activeFileTokenCount = useEditorStore(state => state.activeFileTokenCount);
   const activeFile = openedFiles.find(f => f.id === activeFileId);
   const [ragStatus, setRagStatus] = useState('Ready');
   const [ragProgress, setRagProgress] = useState<number | null>(null);
@@ -63,6 +66,9 @@ export const Statusbar = () => {
       <div className="flex items-center space-x-4">
         <span>UTF-8</span>
         <span>{activeFile?.language || 'Plain Text'}</span>
+        <span className="bg-blue-700/50 px-2 py-0.5 rounded border border-blue-400/20 tabular-nums">
+          Tokens: {formatTokenCount(activeFileTokenCount)}
+        </span>
       </div>
     </div>
   );

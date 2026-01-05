@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { usePerformanceMetrics } from './usePerformanceMetrics';
+import { useEditorStore } from '../../stores/editorStore';
 import { X, Activity, Cpu, Database } from 'lucide-react';
 
 interface PerformancePanelProps {
@@ -9,6 +10,7 @@ interface PerformancePanelProps {
 
 export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) => {
   const { metrics, currentMetrics } = usePerformanceMetrics(1000);
+  const activeFileTokenCount = useEditorStore(state => state.activeFileTokenCount);
   const [minimized, setMinimized] = useState(false);
 
   if (minimized) {
@@ -65,7 +67,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
         />
         <MetricCard 
           label="Tokens" 
-          value={currentMetrics.tokens} 
+          value={activeFileTokenCount} 
           unit="" 
           status="good" 
         />
