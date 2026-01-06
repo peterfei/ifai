@@ -74,9 +74,13 @@ test.describe('Message Segment Ordering Consistency', () => {
     // 3. 验证流式中的顺序：工具在上面 (Order 0)，文字在下面 (Order 1)
     // 此时 MessageItem 应该使用 sortedSegments 渲染，顺序为 [Tool, Text]
     const streamingOrder = await page.evaluate(() => {
-        const container = document.querySelector('.bg-\[\#252526\] .flex-1.min-w-0.text-inherit');
+        // 使用属性选择器来避免特殊字符转义问题
+        const container = document.querySelector('[class*="bg-[#252526]"]');
         if (!container) return ['not found'];
-        const elements = Array.from(container.children);
+        // 找到内容容器
+        const contentDiv = container.querySelector('.flex-1.min-w-0.text-inherit');
+        if (!contentDiv) return ['content div not found'];
+        const elements = Array.from(contentDiv.children);
         return elements
             .map(el => {
                 if (el.classList.contains('group/tool')) return 'tool';
@@ -100,9 +104,13 @@ test.describe('Message Segment Ordering Consistency', () => {
 
     // 5. 验证结束后的顺序
     const finishedOrder = await page.evaluate(() => {
-        const container = document.querySelector('.bg-\[\#252526\] .flex-1.min-w-0.text-inherit');
+        // 使用属性选择器来避免特殊字符转义问题
+        const container = document.querySelector('[class*="bg-[#252526]"]');
         if (!container) return ['not found'];
-        const elements = Array.from(container.children);
+        // 找到内容容器
+        const contentDiv = container.querySelector('.flex-1.min-w-0.text-inherit');
+        if (!contentDiv) return ['content div not found'];
+        const elements = Array.from(contentDiv.children);
         return elements
             .map(el => {
                 if (el.classList.contains('group/tool')) return 'tool';
