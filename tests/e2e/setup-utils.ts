@@ -126,6 +126,60 @@ export async function setupE2ETestEnvironment(page: Page) {
     (window as any).__TAURI_INTERNALS__ = { transformCallback: (cb: any) => cb, invoke: mockInvoke };
     (window as any).__TAURI__ = { core: { invoke: mockInvoke }, event: { listen: mockListen } };
 
+    // Mock proposal commands to auto-load v0.2.6-demo-vue-login
+    const mockListProposals = async () => {
+      const mockProposal = {
+        proposals: [
+          {
+            id: 'v0.2.6-demo-vue-login',
+            title: 'Demo Vue Login Feature',
+            status: 'draft',
+            location: 'proposals',
+            created_at: Date.now(),
+            updated_at: Date.now()
+          }
+        ],
+        last_updated: Date.now() / 1000
+      };
+      return mockProposal;
+    };
+
+    const mockLoadProposal = async (args: any) => {
+      if (args.id === 'v0.2.6-demo-vue-login') {
+        // 读取真实的 proposal 文件
+        const proposalData = {
+          id: 'v0.2.6-demo-vue-login',
+          path: '.ifai/proposals/v0.2.6-demo-vue-login/',
+          status: 'draft',
+          location: 'proposals',
+          proposal_location: 'proposals',
+          why: '实现 Vue 登录功能演示',
+          what_changes: ['添加登录组件', '实现认证逻辑'],
+          impact: {
+            specs: [],
+            files: [],
+            breaking_changes: false
+          },
+          tasks: [],
+          spec_deltas: [],
+          design: null,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          validated: false
+        };
+        return proposalData;
+      }
+      throw new Error('Proposal not found');
+    };
+
+    // Override mockInvoke for proposal commands
+    const originalMockInvoke = mockInvoke;
+    (window as any).__TAURI_INTERNALS__.invoke = async (cmd: string, args?: any) => {
+      if (cmd === 'list_proposals') return await mockListProposals();
+      if (cmd === 'load_proposal') return await mockLoadProposal(args);
+      return originalMockInvoke(cmd, args);
+    };
+
     // B. 强力劫持 LocalStorage 防止被 SettingsStore 初始化覆盖
     const providers = [{
         id: 'ollama-e2e', name: 'Ollama Mock', protocol: 'openai', 
@@ -153,6 +207,16 @@ export async function setupE2ETestEnvironment(page: Page) {
         if (store) {
             console.log(`[E2E] Direct Store Send: ${text}`);
             await store.sendMessage(text, 'ollama-e2e', 'mock-model');
+        }
+    };
+
+    // D. 自动刷新 proposal 索引
+    (window as any).__E2E_REFRESH_PROPOSALS__ = async () => {
+        const proposalStore = (window as any).__proposalStore;
+        if (proposalStore) {
+            console.log('[E2E] Refreshing proposal index...');
+            await proposalStore.getState().refreshIndex();
+            console.log('[E2E] Proposal index refreshed:', proposalStore.getState().index);
         }
     };
 
@@ -220,5 +284,21 @@ export async function setupE2ETestEnvironment(page: Page) {
             file.setFileTree({ id: 'root', name: 'mock', kind: 'directory', path: '/Users/mac/mock-project', children: [] });
         }
     }, 1000);
+
+    // E. 自动刷新 proposal 索引（延迟执行，确保 store 已初始化）
+    setTimeout(async () => {
+      try {
+        const proposalStore = (window as any).__proposalStore;
+        if (proposalStore) {
+          console.log('[E2E] Auto-refreshing proposal index...');
+          await proposalStore.getState().refreshIndex();
+          console.log('[E2E] Proposal index refreshed:', proposalStore.getState().index);
+        } else {
+          console.warn('[E2E] Proposal store not found');
+        }
+      } catch (e) {
+        console.error('[E2E] Failed to refresh proposal index:', e);
+      }
+    }, 500);
   });
 }

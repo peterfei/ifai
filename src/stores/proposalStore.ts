@@ -339,6 +339,11 @@ export const useProposalStore = create<ProposalState>()(
   )
 );
 
+// 暴露到 window 对象用于 E2E 测试
+if (typeof window !== 'undefined') {
+  (window as any).__proposalStore = useProposalStore;
+}
+
 /**
  * 生成提案 ID
  */

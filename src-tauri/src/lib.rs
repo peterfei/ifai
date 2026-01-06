@@ -778,6 +778,7 @@ pub fn run() {
             commands::proposal_commands::delete_proposal,
             commands::proposal_commands::move_proposal,
             commands::proposal_commands::list_proposals,
+            commands::proposal_commands::init_demo_proposal,
             commands::bash_commands::execute_bash_command
         ])
         .run(tauri::generate_context!())

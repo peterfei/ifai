@@ -286,6 +286,23 @@ pub async fn move_proposal(
     Ok(())
 }
 
+/// 提案元数据（用于 metadata.json）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProposalMetadata {
+    pub id: String,
+    pub title: Option<String>,
+    pub status: String,
+    pub location: Option<String>,
+    #[serde(rename = "createdAt", alias = "created_at")]
+    pub created_at: u64,
+    #[serde(rename = "updatedAt", alias = "updated_at")]
+    pub updated_at: Option<u64>,
+    // 兼容旧格式的字段
+    pub why: Option<String>,
+    #[serde(rename = "proposal_location")]
+    pub legacy_location: Option<String>,
+}
+
 /// 列出所有提案
 #[tauri::command]
 pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, String> {
@@ -296,7 +313,8 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
     // 扫描所有位置
     for location in &[ProposalLocation::Proposals, ProposalLocation::Changes, ProposalLocation::Archive] {
         let base_dir = get_proposals_base_dir(&root_path)?;
-        let location_dir = base_dir.join(location_str(location));
+        let location_str_val = location_str(location);
+        let location_dir = base_dir.join(location_str_val);
 
         if !location_dir.exists() {
             continue;
@@ -311,15 +329,30 @@ pub async fn list_proposals(root_path: String) -> Result<ProposalIndexData, Stri
                 let metadata_path = path.join("metadata.json");
                 if metadata_path.exists() {
                     if let Ok(json) = fs::read_to_string(&metadata_path) {
-                        if let Ok(proposal) = serde_json::from_str::<ProposalData>(&json) {
+                        // 尝试解析为元数据
+                        if let Ok(meta) = serde_json::from_str::<ProposalMetadata>(&json) {
+                            // 优先使用 title，如果没有则尝试使用 why，最后回退到 id
+                            let title = meta.title
+                                .or(meta.why)
+                                .unwrap_or_else(|| meta.id.clone());
+                            
+                            // 确定位置：优先使用 metadata 中的，否则使用当前扫描目录
+                            let loc = meta.location
+                                .or(meta.legacy_location)
+                                .unwrap_or_else(|| location_str_val.to_string());
+
                             all_proposals.push(ProposalIndexItem {
-                                id: proposal.id.clone(),
-                                title: proposal.why.clone(),
-                                status: proposal.status,
-                                location: proposal.proposal_location,
-                                created_at: proposal.created_at,
-                                updated_at: proposal.updated_at,
+                                id: meta.id,
+                                title,
+                                status: meta.status,
+                                location: loc,
+                                created_at: meta.created_at,
+                                updated_at: meta.updated_at.unwrap_or(meta.created_at),
                             });
+                        } else {
+                            if let Err(e) = serde_json::from_str::<ProposalMetadata>(&json) {
+                                println!("[Proposal] Failed to parse metadata for {:?}: {}", path, e);
+                            }
                         }
                     }
                 }
@@ -464,4 +497,79 @@ fn generate_spec_delta_md(delta: &SpecDeltaData) -> String {
     }
 
     content
+}
+
+/// 初始化 Demo Proposal（将内置的 demo proposal 复制到项目）
+#[tauri::command]
+pub async fn init_demo_proposal(root_path: String) -> Result<bool, String> {
+    println!("[Proposal] Initializing demo proposal for: {}", root_path);
+
+    // 检查 demo proposal 是否已存在
+    let demo_proposal_id = "v0.2.6-demo-vue-login";
+    let proposal_dir = get_proposal_dir(demo_proposal_id, &ProposalLocation::Proposals, &root_path)?;
+
+    if proposal_dir.exists() {
+        println!("[Proposal] Demo proposal already exists, skipping");
+        return Ok(false);
+    }
+
+    // 创建 demo proposal 目录
+    fs::create_dir_all(&proposal_dir)
+        .map_err(|e| format!("Failed to create demo proposal directory: {}", e))?;
+
+    // 创建 demo proposal 内容
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u64;
+
+    let demo_proposal = ProposalData {
+        id: demo_proposal_id.to_string(),
+        path: format!(".ifai/proposals/{}/", demo_proposal_id),
+        status: "draft".to_string(),
+        proposal_location: "proposals".to_string(),
+        why: "演示 Vue 登录功能的完整实现流程".to_string(),
+        what_changes: vec![
+            "创建登录组件（Login.vue）".to_string(),
+            "实现用户认证逻辑".to_string(),
+            "添加路由配置".to_string(),
+            "集成状态管理".to_string(),
+        ],
+        impact: ProposalImpactData {
+            specs: vec![],
+            files: vec!["src/views/Login.vue".to_string(), "src/router/index.ts".to_string()],
+            breaking_changes: false,
+        },
+        tasks: vec![
+            ProposalTaskData {
+                id: "task-1".to_string(),
+                title: "创建登录页面组件".to_string(),
+                description: "使用 Vue 3 Composition API 创建登录表单组件".to_string(),
+                category: "frontend".to_string(),
+                estimated_hours: 2.0,
+                dependencies: None,
+            },
+            ProposalTaskData {
+                id: "task-2".to_string(),
+                title: "实现认证 API".to_string(),
+                description: "创建用户登录、注册的 API 接口".to_string(),
+                category: "backend".to_string(),
+                estimated_hours: 3.0,
+                dependencies: Some(vec!["task-1".to_string()]),
+            },
+        ],
+        spec_deltas: vec![],
+        design: Some("# 设计文档\n\n## UI 设计\n\n登录页面包含：\n- 用户名/邮箱输入框\n- 密码输入框\n- 登录按钮\n- 注册链接\n\n## 技术栈\n\n- Vue 3 + TypeScript\n- Pinia (状态管理)\n- Vue Router\n- Element Plus / Ant Design Vue".to_string()),
+        created_at: now,
+        updated_at: now,
+        validated: false,
+        validation_errors: None,
+        validation_warnings: None,
+    };
+
+    // 保存 demo proposal
+    save_proposal(demo_proposal.clone(), ProposalLocation::Proposals, root_path).await?;
+
+    println!("[Proposal] Demo proposal initialized successfully");
+    Ok(true)
 }

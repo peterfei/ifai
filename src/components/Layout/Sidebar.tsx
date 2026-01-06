@@ -60,6 +60,16 @@ export const Sidebar = () => {
 
           // Init RAG
           invoke('init_rag_index', { rootPath }).catch(e => console.warn('RAG init warning:', e));
+
+          // 初始化 Demo Proposal
+          invoke('init_demo_proposal', { rootPath }).then(async (initialized) => {
+            if (initialized) {
+              console.log('[Sidebar] Demo proposal initialized successfully');
+              // 刷新 proposal 索引
+              const { useProposalStore } = await import('../../stores/proposalStore');
+              await useProposalStore.getState().refreshIndex();
+            }
+          }).catch(e => console.warn('[Sidebar] Failed to initialize demo proposal:', e));
         } catch (e) {
           console.error("Failed to restore project:", e);
         }
@@ -74,6 +84,19 @@ export const Sidebar = () => {
       if (tree) {
         setFileTree(tree);
         invoke('init_rag_index', { rootPath: tree.path }).catch(e => console.warn('RAG init warning:', e));
+
+        // 初始化 Demo Proposal
+        try {
+          const initialized = await invoke('init_demo_proposal', { rootPath: tree.path });
+          if (initialized) {
+            console.log('[Sidebar] Demo proposal initialized successfully');
+            // 刷新 proposal 索引
+            const { useProposalStore } = await import('../../stores/proposalStore');
+            await useProposalStore.getState().refreshIndex();
+          }
+        } catch (e) {
+          console.warn('[Sidebar] Failed to initialize demo proposal:', e);
+        }
       }
     } catch (e) {
       console.error('[Sidebar] Error in handleOpenFolder:', e);
