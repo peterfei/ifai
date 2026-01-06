@@ -13,6 +13,39 @@ import { autoSaveThread } from './persistence/threadPersistence';
 import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage } from '../utils/tokenCounter';
 import i18n from '../i18n/config';
 
+// 辅助函数：安全解析流式 Payload，处理拼接 JSON 及类型异常
+function safeExtractContent(payload: any): string {
+    if (!payload) return '';
+    
+    // 情况 1: payload 是已解析的对象
+    if (typeof payload === 'object') {
+        if (payload.type === 'content' && payload.content) return payload.content;
+        return '';
+    }
+    
+    // 情况 2: payload 是字符串
+    if (typeof payload === 'string') {
+        try {
+            // 尝试直接解析
+            const parsed = JSON.parse(payload);
+            if (parsed.type === 'content' && parsed.content) return parsed.content;
+        } catch (e) {
+            // 尝试正则提取拼接的 JSON 对象
+            const objects = payload.match(/\{[^{}]+\}/g);
+            if (objects) {
+                for (let i = objects.length - 1; i >= 0; i--) {
+                    try {
+                        const obj = JSON.parse(objects[i]);
+                        if (obj.type === 'content' && obj.content) return obj.content;
+                    } catch (e2) {}
+                }
+            }
+        }
+    }
+    
+    return '';
+}
+
 // Content segment interface for tracking stream reception order
 export interface ContentSegment {
   type: 'text' | 'tool';
@@ -748,10 +781,8 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         let toolCallUpdate: any = null;
 
         try {
-            // Check if payload is already an object or needs parsing
-            const payload = typeof event.payload === 'string' 
-                ? JSON.parse(event.payload) 
-                : event.payload;
+            // Parse JSON format: {"type":"content","content":"文本"}
+            const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
 
             if (payload.type === 'content' && payload.content) {
                 textChunk = payload.content;
@@ -763,24 +794,8 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 return;
             }
         } catch (e) {
-            // 仅在 payload 为字符串时尝试正则匹配拼接的 JSON
-            if (typeof event.payload === 'string') {
-                const objects = event.payload.match(/\{[^{}]+\}/g);
-                if (objects) {
-                    // 查找最后一个 type='content' 的对象
-                    for (let i = objects.length - 1; i >= 0; i--) {
-                        try {
-                            const obj = JSON.parse(objects[i]);
-                            if (obj.type === 'content' && obj.content) {
-                                textChunk = obj.content;
-                                break;
-                            }
-                        } catch (e2) {
-                            // 忽略解析失败的单个对象
-                        }
-                    }
-                }
-            }
+            // 兜底方案：使用安全提取逻辑处理拼接 JSON
+            textChunk = safeExtractContent(event.payload);
         }
 
         if (textChunk || toolCallUpdate) {
@@ -1270,9 +1285,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         let toolCallUpdate: any = null;
         try {
             // Check if payload is already an object or needs parsing
-            const payload = typeof event.payload === 'string' 
-                ? JSON.parse(event.payload) 
-                : event.payload;
+            const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
 
             if (payload.type === 'content' && payload.content) {
                 textChunk = payload.content;
@@ -1283,24 +1296,8 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                 return;
             }
         } catch (e) {
-            // 仅在 payload 为字符串时尝试正则匹配拼接的 JSON
-            if (typeof event.payload === 'string') {
-                const objects = event.payload.match(/\{[^{}]+\}/g);
-                if (objects) {
-                    // 查找最后一个 type='content' 的对象
-                    for (let i = objects.length - 1; i >= 0; i--) {
-                        try {
-                            const obj = JSON.parse(objects[i]);
-                            if (obj.type === 'content' && obj.content) {
-                                textChunk = obj.content;
-                                break;
-                            }
-                        } catch (e2) {
-                            // 忽略解析失败的单个对象
-                        }
-                    }
-                }
-            }
+            // 兜底方案：使用安全提取逻辑
+            textChunk = safeExtractContent(event.payload);
         }
 
         if (textChunk || toolCallUpdate) {
