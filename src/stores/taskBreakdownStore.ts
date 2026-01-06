@@ -211,13 +211,21 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
     }),
     {
       name: 'task-breakdown-storage',
-      version: 1,
+      version: 1, // 添加版本号
       partialize: (state) => ({
         history: state.history,
         // 不持久化 currentBreakdown，避免占用太多空间
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[TaskBreakdownStore] Migrating from version ${version} to 1`);
+        // 处理状态迁移
+        if (version === 0) {
+          // 从版本 0 迁移到版本 1
+          return {
+            ...persistedState,
+            // 确保所有必需的字段都存在
+            history: persistedState.history || [],
+          };
+        }
         return persistedState;
       },
     }

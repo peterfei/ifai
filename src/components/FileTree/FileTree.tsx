@@ -184,7 +184,7 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, expandedNodes, toggleExpandedNode, setExpandedNodes, openedFiles, setActiveFile } = useFileStore();
+  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, setRootPath, expandedNodes, toggleExpandedNode, setExpandedNodes, openedFiles, setActiveFile } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -230,13 +230,19 @@ export const FileTree = () => {
             try {
                 const statuses = await invoke<Record<string, GitStatus>>('get_git_statuses', { repoPath: rootPath });
                 setGitStatuses(new Map(Object.entries(statuses)));
-            } catch (e) {
-                console.error("Failed to fetch Git status:", e);
+            } catch (e: any) {
+                // 如果路径不存在或不是 Git 仓库，清空 rootPath
+                if (e?.message?.includes('could not find repository') || e?.code === 'NotFound') {
+                    console.warn(`Git repository not found at ${rootPath}, clearing rootPath`);
+                    setRootPath(null);
+                } else {
+                    console.error("Failed to fetch Git status:", e);
+                }
             }
         };
         fetchGitStatus();
     }
-  }, [rootPath, setGitStatuses]);
+  }, [rootPath, setGitStatuses, setRootPath]);
 
   // Get flattened list of visible nodes for keyboard navigation
   // Optimized: cache flattened nodes and only recalculate when necessary

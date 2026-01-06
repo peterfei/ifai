@@ -45,29 +45,32 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     count: messages.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150, // 估算每条消息高度
-    overscan: 5, // 增加预加载范围
-    // 稳定性优化：仅基于消息数量决定是否启用，不基于 isLoading，防止流式输出期间频繁切换模式
-    enabled: messages.length >= 15,
+    overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
+    // 流式输出 或 有待处理工具调用时禁用虚拟滚动
+    enabled: messages.length >= 15 && !isLoading && !hasPendingToolCalls,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  // ⚠️ 移除这里的 useEffect 自动滚动逻辑，统一由父组件 AIChat.tsx 处理
-  // 避免在流式输出期间出现双重滚动竞争导致的视觉抖动
+  // 自动滚动到底部（流式输出时）
+  useEffect(() => {
+    if ((isLoading || hasPendingToolCalls) && scrollElementRef.current) {
+      scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
+    }
+  }, [messages, isLoading, hasPendingToolCalls]);
 
-  // 条件渲染：只有在消息极少时才降级，且过程平滑
-  if (messages.length < 5) {
+  // 条件渲染：短对话、正在加载、或有待处理工具调用时使用普通列表
+  if (messages.length < 15 || isLoading || hasPendingToolCalls) {
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {messages.map((message, index) => (
+        {messages.map((message) => (
           <MessageItem
             key={message.id}
             message={message}
             onApprove={onApprove}
             onReject={onReject}
             onOpenFile={onOpenFile}
-            // 优化：仅当是最后一条助手消息且处于加载状态时，才设为流式
-            isStreaming={isLoading && message.role === 'assistant' && index === messages.length - 1}
+            isStreaming={isLoading && message.role === 'assistant'}
           />
         ))}
       </div>
@@ -115,8 +118,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 onApprove={onApprove}
                 onReject={onReject}
                 onOpenFile={onOpenFile}
-                // 虚拟列表同步逻辑：仅最后一条消息在加载中时设为流式
-                isStreaming={isLoading && message.role === 'assistant' && virtualRow.index === messages.length - 1}
+                isStreaming={false}
               />
             </div>
           );
