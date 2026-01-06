@@ -1,11 +1,13 @@
 import React, { useState, useLayoutEffect } from 'react';
-import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder } from 'lucide-react';
+import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck } from 'lucide-react';
 import { ToolCall } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
 import { MonacoDiffView } from '../Editor/MonacoDiffView';
 import { getToolLabel, getToolColor } from 'ifainew-core';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { formatToolResultToMarkdown, FormattedToolResult, extractToolSummary } from '../../utils/toolResultFormatter';
+import ReactMarkdown from 'react-markdown';
 
 interface ToolApprovalProps {
     toolCall: ToolCall;
@@ -391,15 +393,44 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                 </div>
             )}
 
-            {/* Results Display */}
+            {/* Results Display - ✅ Enhanced with Markdown formatting */}
             {toolCall.status === 'completed' && toolCall.result && !isWriteFile && (
                 <div className="px-5 pb-4">
-                    <div className="flex items-center gap-2 mb-2 ml-1">
+                    <div className="flex items-center gap-2 mb-3 ml-1">
                         <div className="w-1 h-3 bg-green-500 rounded-full" />
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Output Result</span>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">执行结果</span>
                     </div>
-                    <div className="p-3 rounded-xl border border-green-500/20 bg-green-500/5 text-[11px] text-gray-300 font-mono whitespace-pre-wrap overflow-auto max-h-60 leading-relaxed">
-                        { typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2) }
+                    <div className="p-4 rounded-xl border border-green-500/20 bg-green-500/5 overflow-auto max-h-80 leading-relaxed">
+                        <ReactMarkdown
+                            components={{
+                                h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
+                                h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
+                                h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
+                                p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
+                                ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
+                                ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
+                                li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
+                                strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
+                                em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
+                                code({ node, inline, ...rest }: any) {
+                                    if (inline) {
+                                        return (
+                                            <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />
+                                        );
+                                    }
+                                    return (
+                                        <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />
+                                    );
+                                },
+                                pre({node, ...props}) {
+                                    return (
+                                        <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
+                                    );
+                                },
+                            }}
+                        >
+                            {formatToolResultToMarkdown(toolCall.result)}
+                        </ReactMarkdown>
                     </div>
                 </div>
             )}

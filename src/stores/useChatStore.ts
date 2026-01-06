@@ -602,7 +602,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     const lastAssistantMsg = currentMessages.filter(m => m.role === 'assistant').pop();
     const isLastMessageStreaming = lastAssistantMsg && (
         !lastAssistantMsg.content ||
-        lastAssistantMsg.content.trim() === '' ||
+        (typeof lastAssistantMsg.content === 'string' && lastAssistantMsg.content.trim() === '') ||
         (lastAssistantMsg.contentSegments && lastAssistantMsg.contentSegments.length > 0)
     );
 

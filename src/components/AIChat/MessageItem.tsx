@@ -3,10 +3,11 @@ import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, Rota
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore'; 
+import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { ToolApproval } from './ToolApproval';
 import { ExploreProgress } from './ExploreProgress';
 import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
+import { TaskSummary } from './TaskSummary';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
@@ -731,6 +732,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         {/* Explore Agent Progress */}
                         {(message as any).exploreProgress && (
                             <ExploreProgressNew progress={(message as any).exploreProgress} mode="minimal" />
+                        )}
+
+                        {/* ✅ Task Summary - 显示生成完成后的总结信息 */}
+                        {!effectivelyStreaming && message.toolCalls && message.toolCalls.length > 0 && (
+                            <TaskSummary message={message} />
                         )}
                     </div>
                 </div>
