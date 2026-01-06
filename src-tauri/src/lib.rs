@@ -465,14 +465,12 @@ async fn ai_chat(
 
              let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
 
-             // 检查是否为 finish_reason: tool_calls
-             // 如果是，触发 _finish 事件
+             // 检查是否为 finish_reason（包括 tool_calls, stop, length 等）
+             // 对所有 finish_reason 都触发 _finish 事件
              if let Ok(json_obj) = serde_json::from_str::<serde_json::Value>(&chunk) {
                  if let Some(finish_reason) = json_obj.get("finish_reason").and_then(|v| v.as_str()) {
-                     if finish_reason == "tool_calls" {
-                         println!("[AI Chat] Detected tool_calls finish, triggering _finish event");
-                         let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
-                     }
+                     println!("[AI Chat] Detected finish_reason: {}, triggering _finish event", finish_reason);
+                     let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
                  }
              }
         })

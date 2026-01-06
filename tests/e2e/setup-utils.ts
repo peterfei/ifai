@@ -4,7 +4,7 @@ import { Page } from '@playwright/test';
  * 设置 E2E 测试环境，强力锁定应用状态
  */
 export async function setupE2ETestEnvironment(page: Page) {
-  // 1. Mock API 
+  // 1. Mock API
   await page.route('**/v1/chat/completions', async (route) => {
     await route.fulfill({
       status: 200,
@@ -19,15 +19,47 @@ export async function setupE2ETestEnvironment(page: Page) {
 
   // 2. 注入核心拦截与锁定脚本
   await page.addInitScript(() => {
-    // A. 深度 Mock Tauri
-    const mockInvoke = async (cmd: string) => {
+    // A. 深度 Mock Tauri with event support
+    const eventListeners: Record<string, Function[]> = {};
+
+    const mockInvoke = async (cmd: string, args?: any) => {
         if (cmd === 'get_git_statuses') return [];
         if (cmd === 'read_directory') return [];
         if (cmd === 'plugin:dialog|ask') return true;
+        if (cmd === 'ai_chat') {
+            // Mock streaming response that sends content and triggers _finish event
+            const eventId = args?.event_id || 'mock-event-id';
+            const responseContent = 'Mock AI response: Task completed successfully.';
+
+            // Simulate async streaming
+            setTimeout(() => {
+                // Send content chunk
+                const streamListeners = eventListeners[eventId] || [];
+                streamListeners.forEach(fn => fn({ payload: responseContent }));
+
+                // Trigger _finish event shortly after
+                setTimeout(() => {
+                    const finishListeners = eventListeners[`${eventId}_finish`] || [];
+                    finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                }, 50);
+            }, 100);
+            return {};
+        }
         return {};
     };
+
+    const mockListen = async (event: string, handler: Function) => {
+        const listeners = eventListeners[event] || [];
+        listeners.push(handler);
+        eventListeners[event] = listeners;
+        return () => {
+            const idx = eventListeners[event]?.indexOf(handler);
+            if (idx > -1) eventListeners[event]?.splice(idx, 1);
+        };
+    };
+
     (window as any).__TAURI_INTERNALS__ = { transformCallback: (cb: any) => cb, invoke: mockInvoke };
-    (window as any).__TAURI__ = { core: { invoke: mockInvoke }, event: { listen: async () => (() => {}) } };
+    (window as any).__TAURI__ = { core: { invoke: mockInvoke }, event: { listen: mockListen } };
 
     // B. 强力劫持 LocalStorage 防止被 SettingsStore 初始化覆盖
     const providers = [{

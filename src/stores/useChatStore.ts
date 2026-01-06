@@ -962,13 +962,28 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     // History Compaction Listener (Auto-summarization Fix)
     const unlistenCompacted = await listen<any[]>(`${assistantMsgId}_compacted`, (event) => {
         console.log("[Chat] History compacted event received", event.payload);
-        const compactedMessages = event.payload.map(m => ({
-            id: crypto.randomUUID(),
-            role: m.role,
-            content: m.content,
-            toolCalls: m.tool_calls, // Note: snake_case from Rust
-            tool_call_id: m.tool_call_id
-        }));
+        const compactedMessages = event.payload.map((m: any, index: number) => {
+            // Try to preserve original message IDs by matching with existing messages
+            const existingMsg = coreUseChatStore.getState().messages.find(existing =>
+                existing.role === m.role &&
+                existing.content === m.content &&
+                (!existing.toolCalls && !m.tool_calls ||
+                 existing.toolCalls?.length === m.tool_calls?.length)
+            );
+
+            // Use existing ID if found, otherwise generate new one
+            const id = existingMsg?.id || crypto.randomUUID();
+
+            return {
+                id,
+                role: m.role,
+                content: m.content,
+                toolCalls: m.tool_calls,
+                tool_call_id: m.tool_call_id,
+                // Preserve other properties from existing message
+                ...(existingMsg ? { agentId: existingMsg.agentId, isAgentLive: existingMsg.isAgentLive } : {})
+            };
+        });
 
         // Replace history but keep the currently streaming assistant message
         coreUseChatStore.setState({ messages: [...compactedMessages, assistantMsgPlaceholder] });
@@ -979,15 +994,17 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     const finishTimeout = setTimeout(() => {
         console.warn(`[Chat] WARNING: _finish event timeout for ${assistantMsgId}_finish after 30 seconds`);
         console.warn(`[Chat] This suggests the backend stream did not complete properly`);
-        // Timeout: cleanup listeners (but NOT unlistenFinish, so we can still handle late finish events)
-        console.log(`[Chat] Cleaning up listeners due to timeout (except finish listener)`);
+        // Timeout: cleanup all listeners including unlistenFinish to prevent leaks
+        console.log(`[Chat] Cleaning up all listeners due to timeout`);
         unlistenStatus();
         unlistenStream();
         unlistenRefs();
         unlistenCompacted();
+        unlistenFinish();  // Clean up finish listener to prevent memory leaks
         unlistenError();
-        // Note: We intentionally do NOT clean up unlistenFinish here
-        // This allows late-arriving finish events to still be processed
+
+        // Also set isLoading to false to allow user to send new messages
+        coreUseChatStore.setState({ isLoading: false });
     }, 30000);  // Increased to 30 seconds for local LLMs
 
     const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {
@@ -1433,13 +1450,31 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     const unlistenRefs = await listen<string[]>("codebase-references", (event) => { /* No user msg to attach to here, maybe just ignore or attach to last msg? */ });
     
     const unlistenCompacted = await listen<any[]>(`${assistantMsgId}_compacted`, (event) => {
-        const compactedMessages = event.payload.map(m => ({
-            id: crypto.randomUUID(),
-            role: m.role,
-            content: m.content,
-            toolCalls: m.tool_calls,
-            tool_call_id: m.tool_call_id
-        }));
+        console.log("[Chat] History compacted event received", event.payload);
+        const compactedMessages = event.payload.map((m: any, index: number) => {
+            // Try to preserve original message IDs by matching with existing messages
+            const existingMsg = coreUseChatStore.getState().messages.find(existing =>
+                existing.role === m.role &&
+                existing.content === m.content &&
+                (!existing.toolCalls && !m.tool_calls ||
+                 existing.toolCalls?.length === m.tool_calls?.length)
+            );
+
+            // Use existing ID if found, otherwise generate new one
+            const id = existingMsg?.id || crypto.randomUUID();
+
+            return {
+                id,
+                role: m.role,
+                content: m.content,
+                toolCalls: m.tool_calls,
+                tool_call_id: m.tool_call_id,
+                // Preserve other properties from existing message
+                ...(existingMsg ? { agentId: existingMsg.agentId, isAgentLive: existingMsg.isAgentLive } : {})
+            };
+        });
+
+        // Replace history but keep the currently streaming assistant message
         coreUseChatStore.setState({ messages: [...compactedMessages, assistantMsgPlaceholder] });
     });
 

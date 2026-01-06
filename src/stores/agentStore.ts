@@ -235,6 +235,8 @@ interface AgentState {
   initEventListeners: () => Promise<() => void>;
   approveAction: (id: string, approved: boolean) => Promise<void>;
   clearCompletedAgents: () => void;
+  // Helper to sync agent actions to Mission Control
+  syncAgentActionToTaskMonitor: (id: string, agentType: string, status: any, log?: string) => void;
 }
 
 function unescapeToolArguments(args: any): any {
