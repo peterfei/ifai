@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, FileText, Check, XCircle, AlertCircle, Edit3, Eye, ChevronDown, ChevronUp, HelpCircle, List, Activity, Info, FileCode } from 'lucide-react';
+import { X, FileText, Check, XCircle, AlertCircle, Edit3, Eye, ChevronDown, ChevronUp, HelpCircle, List, Activity, Info, FileCode, Clock } from 'lucide-react';
 import { useProposalStore } from '../../stores/proposalStore';
 import { useFileStore } from '../../stores/fileStore';
 import { OpenSpecProposal } from '../../types/proposal';
