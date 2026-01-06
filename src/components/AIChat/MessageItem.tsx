@@ -624,44 +624,31 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         );
                                     } else {
                                         /* === NON-STREAMING MODE: Use full content with Markdown/highlighting === */
-                                        // Simplified: If not streaming, just render the full content parts.
-                                        // The tool calls will be rendered either as interleaved (if detected) or at the bottom.
-                                        const { segments } = parseToolCalls(displayContent);
-                                        let currentToolIndex = 0;
-                                        const hasInterleavedTools = segments.some(s => s.type === 'tool');
-
+                                        // v0.2.6: 修复顺序翻转问题。
+                                        // 即使在非流式模式下，也应优先尊重 contentSegments 记录的原始顺序
+                                        // 这防止了“总结文字”在生成结束后突然跳到“代码块”上方导致的视觉抖动
                                         return (
                                             <>
-                                                {segments.map((segment, index) => {
-                                                    if (segment.type === 'tool') {
-                                                        const storedToolCall = message.toolCalls && message.toolCalls[currentToolIndex];
-                                                        currentToolIndex++;
-                                                        const displayToolCall = storedToolCall || segment.toolCall;
-                                                        if (!displayToolCall) return null;
-                                                        return (
-                                                            <ToolApproval
-                                                                key={displayToolCall.id}
-                                                                toolCall={displayToolCall}
-                                                                onApprove={() => onApprove(message.id, displayToolCall.id)}
-                                                                onReject={() => onReject(message.id, displayToolCall.id)}
-                                                            />
-                                                        );
-                                                    } else {
+                                                {sortedSegments.map((segment: ContentSegment, index: number) => {
+                                                    if (segment.type === 'text') {
                                                         const content = segment.content;
                                                         if (!content) return null;
+                                                        // 非流式状态下，对每个文本片段使用带高亮的渲染器
                                                         return renderContentPart({ type: 'text', text: content }, index);
+                                                    } else if (segment.type === 'tool' && segment.toolCallId) {
+                                                        const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
+                                                        if (!toolCall) return null;
+                                                        return (
+                                                            <ToolApproval
+                                                                key={`tool-${segment.toolCallId}`}
+                                                                toolCall={toolCall}
+                                                                onApprove={() => onApprove(message.id, toolCall.id)}
+                                                                onReject={() => onReject(message.id, toolCall.id)}
+                                                            />
+                                                        );
                                                     }
+                                                    return null;
                                                 })}
-
-                                                {/* Render remaining tool calls at the bottom if not interleaved */}
-                                                {!hasInterleavedTools && message.toolCalls && message.toolCalls.map((toolCall) => (
-                                                    <ToolApproval
-                                                        key={toolCall.id}
-                                                        toolCall={toolCall}
-                                                        onApprove={() => onApprove(message.id, toolCall.id)}
-                                                        onReject={() => onReject(message.id, toolCall.id)}
-                                                    />
-                                                ))}
                                             </>
                                         );
                                     }

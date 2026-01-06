@@ -748,8 +748,10 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         let toolCallUpdate: any = null;
 
         try {
-            // Parse JSON format: {"type":"content","content":"文本"}
-            const payload = JSON.parse(event.payload);
+            // Check if payload is already an object or needs parsing
+            const payload = typeof event.payload === 'string' 
+                ? JSON.parse(event.payload) 
+                : event.payload;
 
             if (payload.type === 'content' && payload.content) {
                 textChunk = payload.content;
@@ -761,22 +763,23 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 return;
             }
         } catch (e) {
-            // 尝试解析多个拼接的 JSON 对象（边缘情况处理）
-            const objects = event.payload.match(/\{[^{}]+\}/g);
-            if (objects) {
-                // 查找最后一个 type='content' 的对象
-                for (let i = objects.length - 1; i >= 0; i--) {
-                    try {
-                        const obj = JSON.parse(objects[i]);
-                        if (obj.type === 'content' && obj.content) {
-                            textChunk = obj.content;
-                            break;
+            // 仅在 payload 为字符串时尝试正则匹配拼接的 JSON
+            if (typeof event.payload === 'string') {
+                const objects = event.payload.match(/\{[^{}]+\}/g);
+                if (objects) {
+                    // 查找最后一个 type='content' 的对象
+                    for (let i = objects.length - 1; i >= 0; i--) {
+                        try {
+                            const obj = JSON.parse(objects[i]);
+                            if (obj.type === 'content' && obj.content) {
+                                textChunk = obj.content;
+                                break;
+                            }
+                        } catch (e2) {
+                            // 忽略解析失败的单个对象
                         }
-                    } catch (e2) {
-                        // 忽略解析失败的单个对象
                     }
                 }
-                // 如果没有找到 content，则不显示任何内容（静默忽略）
             }
         }
 
@@ -1195,7 +1198,9 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     const assistantMsgPlaceholder = {
         id: assistantMsgId,
         role: 'assistant' as const,
-        content: ''
+        content: '',
+        // @ts-ignore - custom property for tracking stream order
+        contentSegments: [] as ContentSegment[]
     };
     // @ts-ignore
     coreUseChatStore.getState().addMessage(assistantMsgPlaceholder);
@@ -1264,7 +1269,11 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         let textChunk = '';
         let toolCallUpdate: any = null;
         try {
-            const payload = JSON.parse(event.payload);
+            // Check if payload is already an object or needs parsing
+            const payload = typeof event.payload === 'string' 
+                ? JSON.parse(event.payload) 
+                : event.payload;
+
             if (payload.type === 'content' && payload.content) {
                 textChunk = payload.content;
             } else if (payload.type === 'tool_call' && payload.toolCall) {
@@ -1274,22 +1283,23 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                 return;
             }
         } catch (e) {
-            // 尝试解析多个拼接的 JSON 对象（边缘情况处理）
-            const objects = event.payload.match(/\{[^{}]+\}/g);
-            if (objects) {
-                // 查找最后一个 type='content' 的对象
-                for (let i = objects.length - 1; i >= 0; i--) {
-                    try {
-                        const obj = JSON.parse(objects[i]);
-                        if (obj.type === 'content' && obj.content) {
-                            textChunk = obj.content;
-                            break;
+            // 仅在 payload 为字符串时尝试正则匹配拼接的 JSON
+            if (typeof event.payload === 'string') {
+                const objects = event.payload.match(/\{[^{}]+\}/g);
+                if (objects) {
+                    // 查找最后一个 type='content' 的对象
+                    for (let i = objects.length - 1; i >= 0; i--) {
+                        try {
+                            const obj = JSON.parse(objects[i]);
+                            if (obj.type === 'content' && obj.content) {
+                                textChunk = obj.content;
+                                break;
+                            }
+                        } catch (e2) {
+                            // 忽略解析失败的单个对象
                         }
-                    } catch (e2) {
-                        // 忽略解析失败的单个对象
                     }
                 }
-                // 如果没有找到 content，则不显示任何内容（静默忽略）
             }
         }
 
