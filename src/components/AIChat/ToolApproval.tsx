@@ -1,5 +1,5 @@
 import React, { useState, useLayoutEffect } from 'react';
-import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck } from 'lucide-react';
+import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle } from 'lucide-react';
 import { ToolCall } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
@@ -7,6 +7,9 @@ import { MonacoDiffView } from '../Editor/MonacoDiffView';
 import { getToolLabel, getToolColor } from 'ifainew-core';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { formatToolResultToMarkdown, FormattedToolResult, extractToolSummary } from '../../utils/toolResultFormatter';
+import { ToolArgsViewer, CompactToolArgsViewer } from './ToolArgsViewer';
+import { StreamingToolArgsViewer } from './StreamingToolArgsViewer';
+import { ToolExecutionIndicator, StreamingContentLoader } from './ToolExecutionIndicator';
 import ReactMarkdown from 'react-markdown';
 
 interface ToolApprovalProps {
@@ -220,7 +223,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
     }, [isWriteFile, filePath, isPartial, oldContent]);
 
     return (
-        <div className="group/tool mt-4 mb-4 rounded-2xl border border-gray-700/40 bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5">
+        <div data-test-id="tool-approval-card" className="group/tool mt-4 mb-4 rounded-2xl border border-gray-700/40 bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5">
                         {/* Elegant Header (Point 2) */}
                         <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900/40 to-transparent border-b border-gray-700/30">
                             <div className="flex items-center gap-3 pr-12"> {/* Added pr-12 to avoid copy button overlap */}
@@ -261,11 +264,22 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
             {/* Content Area */}
             <div className="px-5 pb-4 pt-4">
                 {isWriteFile ? (
-                    <div className="space-y-4 overflow-hidden"> {/* Added overflow-hidden to contain shifts */}
+                    <div className="space-y-4 overflow-hidden">
+                        {/* ✅ 流式参数显示 - write_file 也显示参数 */}
+                        {isPartial && (
+                            <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
+                                <StreamingToolArgsViewer
+                                    args={toolCall.args || {}}
+                                    isStreaming={isPartial}
+                                    streamingKeys={isPartial ? Object.keys(toolCall.args || {}) : []}
+                                />
+                            </div>
+                        )}
+
                         {/* Improved Typewriter Streaming Preview (Point 1) */}
                         {(newContent || isPartial) && (
                             <div className="animate-in fade-in zoom-in-95 duration-200">
-                                <TypewriterCodeBlock 
+                                <TypewriterCodeBlock
                                     code={newContent}
                                     isPartial={isPartial}
                                     language={detectLanguage(filePath)}
@@ -275,7 +289,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                                 />
                             </div>
                         )}
-                        
+
                         {/* Full Diff View (Only when completed) */}
                         {!isPartial && oldContent !== null && newContent && (
                             <div className="relative mt-4 group/diff">
@@ -307,61 +321,32 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                         )}
                     </div>
                 ) : (
-                    /* 其他工具类型：显示参数或摘要 */
-                    <div className="space-y-2">
-                        {(() => {
-                            const toolName = toolCall.tool || '';
-                            const args = toolCall.args || {};
+                    /* ✅ 其他工具类型：统一使用 ToolArgsViewer 工业级UI */
+                    <div className="space-y-3">
+                        {/* 工具类型标题 */}
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">操作参数</span>
+                            {isPartial && (
+                                <div className="flex items-center gap-1.5 ml-auto">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                    </span>
+                                    <span className="text-[10px] font-bold text-blue-400 animate-pulse uppercase">生成中</span>
+                                </div>
+                            )}
+                        </div>
 
-                            if (toolName.includes('batch_read')) {
-                                const paths = args.paths || [];
-                                return (
-                                    <div className="space-y-3">
-                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Dataset ({paths.length} items)</div>
-                                        {paths.length > 0 && <FileTreeVisualizer paths={paths} />}
-                                    </div>
-                                );
-                            }
+                        {/* 工具参数可视化 */}
+                        <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
+                            <StreamingToolArgsViewer
+                                args={toolCall.args || {}}
+                                isStreaming={isPartial}
+                                streamingKeys={isPartial ? Object.keys(toolCall.args || {}) : []}
+                            />
+                        </div>
 
-                            if (toolName.includes('scan_directory') || toolName.includes('list_dir')) {
-                                const relPath = args.rel_path || args.path || '.';
-                                return (
-                                    <div className="space-y-2">
-                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Directory</div>
-                                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
-                                            <FolderOpen size={12} className="text-yellow-500/70" />
-                                            <code className="text-[11px] text-green-400 font-mono">
-                                                {relPath}
-                                            </code>
-                                        </div>
-                                    </div>
-                                );
-                            }
-
-                            if (toolName.includes('read_file')) {
-                                const relPath = args.rel_path || args.path || '';
-                                return (
-                                    <div className="space-y-2">
-                                        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Source</div>
-                                        <div className="flex items-center gap-2 px-3 py-2 bg-gray-900/50 rounded-lg border border-gray-700/30">
-                                            <File size={12} className="text-blue-400/70" />
-                                            <code className="text-[11px] text-gray-300 font-mono">
-                                                {relPath}
-                                            </code>
-                                        </div>
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <>
-                                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">参数详情</div>
-                                    <pre className="bg-gray-900/80 p-3 rounded-xl border border-gray-700/30 overflow-x-auto whitespace-pre-wrap break-words text-gray-300 text-[11px] font-mono leading-relaxed">
-                                        {Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : (isPartial ? '...' : '{}')}
-                                    </pre>
-                                </>
-                            );
-                        })()}
                     </div>
                 )}
             </div>
@@ -393,44 +378,100 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                 </div>
             )}
 
-            {/* Results Display - ✅ Enhanced with Markdown formatting */}
-            {toolCall.status === 'completed' && toolCall.result && !isWriteFile && (
+            {/* ✅ 执行状态指示器 - 批准后显示 */}
+            {toolCall.status === 'approved' && (
                 <div className="px-5 pb-4">
-                    <div className="flex items-center gap-2 mb-3 ml-1">
-                        <div className="w-1 h-3 bg-green-500 rounded-full" />
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">执行结果</span>
+                    <ToolExecutionIndicator
+                        status="running"
+                        message={isWriteFile ? `正在写入文件: ${filePath}` : '正在执行操作...'}
+                    />
+                </div>
+            )}
+
+            {/* ✅ 执行结果展示 - 工业级UI，无JSON显示 */}
+            {/* 修复：在 isPartial 状态下不显示结果，避免显示上一个工具的结果 */}
+            {(toolCall.status === 'completed' || toolCall.status === 'failed') && !isWriteFile && !isPartial && (
+                <div className="px-5 pb-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    {/* 结果标题 */}
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <div className={`w-1 h-4 rounded-full ${toolCall.status === 'completed' ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                                {toolCall.status === 'completed' ? '执行结果' : '执行失败'}
+                            </span>
+                        </div>
+                        {/* 状态徽章 */}
+                        <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
+                            toolCall.status === 'completed'
+                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}>
+                            {toolCall.status === 'completed' ? '成功' : '失败'}
+                        </div>
                     </div>
-                    <div className="p-4 rounded-xl border border-green-500/20 bg-green-500/5 overflow-auto max-h-80 leading-relaxed">
-                        <ReactMarkdown
-                            components={{
-                                h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
-                                h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
-                                h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
-                                p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
-                                ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
-                                ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
-                                li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
-                                strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
-                                em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
-                                code({ node, inline, ...rest }: any) {
-                                    if (inline) {
+
+                    {/* 结果内容卡片 */}
+                    <div className={`p-4 rounded-xl border overflow-hidden ${
+                        toolCall.status === 'completed'
+                            ? 'bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20'
+                            : 'bg-gradient-to-br from-red-500/5 to-red-500/10 border-red-500/20'
+                    }`}>
+                        {/* 成功图标动画 */}
+                        {toolCall.status === 'completed' && (
+                            <div className="flex items-center justify-center mb-3">
+                                <div className="relative">
+                                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                                        <CheckCircle className="w-6 h-6 text-green-400" />
+                                    </div>
+                                    <div className="absolute inset-0 w-12 h-12 rounded-full bg-green-400/20 animate-ping" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 失败图标动画 */}
+                        {toolCall.status === 'failed' && (
+                            <div className="flex items-center justify-center mb-3">
+                                <div className="relative">
+                                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                                        <XCircle className="w-6 h-6 text-red-400" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 格式化的结果内容 */}
+                        <div className="overflow-auto max-h-96 leading-relaxed">
+                            <ReactMarkdown
+                                components={{
+                                    h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
+                                    h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
+                                    h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
+                                    p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
+                                    ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
+                                    ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
+                                    li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
+                                    strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
+                                    em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
+                                    code({ node, inline, ...rest }: any) {
+                                        if (inline) {
+                                            return (
+                                                <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />
+                                            );
+                                        }
                                         return (
-                                            <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />
+                                            <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />
                                         );
-                                    }
-                                    return (
-                                        <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />
-                                    );
-                                },
-                                pre({node, ...props}) {
-                                    return (
-                                        <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
-                                    );
-                                },
-                            }}
-                        >
-                            {formatToolResultToMarkdown(toolCall.result)}
-                        </ReactMarkdown>
+                                    },
+                                    pre({node, ...props}) {
+                                        return (
+                                            <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
+                                        );
+                                    },
+                                }}
+                            >
+                                {formatToolResultToMarkdown(toolCall.result)}
+                            </ReactMarkdown>
+                        </div>
                     </div>
                 </div>
             )}

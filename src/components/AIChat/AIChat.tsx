@@ -1260,6 +1260,7 @@ ${context}
             />
         )}
         <input
+          data-test-id="chat-input"
           ref={inputRef}
           type="text"
           className="flex-1 bg-transparent outline-none text-white text-sm placeholder-gray-500 mr-2"
@@ -1270,6 +1271,7 @@ ${context}
           disabled={isLoading}
         />
         <button
+          data-test-id="send-button"
           onClick={handleSend}
           className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors disabled:opacity-50"
           disabled={!input.trim() || isLoading}

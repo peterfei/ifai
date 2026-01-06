@@ -8,6 +8,7 @@ import { ToolApproval } from './ToolApproval';
 import { ExploreProgress } from './ExploreProgress';
 import { ExploreProgress as ExploreProgressNew } from './ExploreProgressNew';
 import { TaskSummary } from './TaskSummary';
+import { TaskCompletionBanner } from './TaskCompletionBanner';
 import { useTranslation } from 'react-i18next';
 import { parseToolCalls } from 'ifainew-core';
 import ifaiLogo from '../../../imgs/ifai.png';
@@ -732,6 +733,21 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         {/* Explore Agent Progress */}
                         {(message as any).exploreProgress && (
                             <ExploreProgressNew progress={(message as any).exploreProgress} mode="minimal" />
+                        )}
+
+                        {/* ✅ Task Completion Banner - 任务完成横幅，显示在消息末尾 */}
+                        {!effectivelyStreaming && (
+                            <TaskCompletionBanner
+                                message={message}
+                                onOpenFile={(path) => {
+                                    toast.info(`打开文件: ${path}`);
+                                    // TODO: 实现打开文件的逻辑
+                                }}
+                                onCopyContent={(content) => {
+                                    navigator.clipboard.writeText(content);
+                                    toast.success('内容已复制到剪贴板');
+                                }}
+                            />
                         )}
 
                         {/* ✅ Task Summary - 显示生成完成后的总结信息 */}
