@@ -1,13 +1,15 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import { Eye, Code, Columns } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { TabContextMenu } from './TabContextMenu';
 import clsx from 'clsx';
 
 export const TabBar = () => {
   const { openedFiles, activeFileId, setActiveFile, closeFile, previewMode, togglePreviewMode } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const tabBarRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string } | null>(null);
 
   // 获取当前活动文件
   const activeFile = useMemo(() =>
@@ -35,6 +37,11 @@ export const TabBar = () => {
         // Convert vertical scroll (wheel) to horizontal scroll
         tabBarRef.current.scrollLeft += e.deltaY;
     }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, fileId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, fileId });
   };
 
   // 获取预览模式图标
@@ -81,6 +88,7 @@ export const TabBar = () => {
                 : "bg-[#212121] text-gray-300 hover:bg-[#252526]"
             )}
             onClick={() => handleTabClick(file.id)}
+            onContextMenu={(e) => handleContextMenu(e, file.id)}
             title={file.path}
           >
             <span className="flex-1 truncate mr-1 text-xs">{file.name}</span>
@@ -121,6 +129,15 @@ export const TabBar = () => {
             {previewMode === 'editor' ? '编辑' : previewMode === 'preview' ? '预览' : '分屏'}
           </span>
         </button>
+      )}
+
+      {contextMenu && (
+        <TabContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          fileId={contextMenu.fileId}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );

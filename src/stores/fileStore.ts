@@ -22,6 +22,8 @@ interface FileState {
   setRootPath: (path: string | null) => Promise<void>;
   openFile: (file: OpenedFile) => string;
   closeFile: (id: string) => void;
+  closeOthers: (id: string) => void;
+  closeAll: () => void;
   setActiveFile: (id: string) => void;
   updateFileContent: (id: string, content: string) => void;
   setFileDirty: (id: string, isDirty: boolean) => void;
@@ -176,6 +178,19 @@ export const useFileStore = create<FileState>()(
           openedFiles: newFiles,
           activeFileId: newActiveId,
         };
+      }),
+
+      closeOthers: (id) => set((state) => {
+        const newFiles = state.openedFiles.filter(f => f.id === id);
+        return {
+          openedFiles: newFiles,
+          activeFileId: id,
+        };
+      }),
+
+      closeAll: () => set({
+        openedFiles: [],
+        activeFileId: null,
       }),
 
       setActiveFile: (id) => set({ activeFileId: id }),
