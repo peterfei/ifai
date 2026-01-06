@@ -16,8 +16,15 @@ interface IntentPattern {
 const PATTERNS: IntentPattern[] = [
     {
         type: '/explore',
-        keywords: ['生成', '创建', '写个', '脚本', '文件', 'create', 'generate', 'write'],
-        regex: /(?:帮我|给我)?(?:生成|创建|写(?:个|一份)?)(?:文件|脚本|代码)?(?:\s+)?([\w\.\-\/]+)?/i
+        keywords: ['浏览', '查看', '项目', '结构', '文件', 'explore', 'scan', 'list', 'tree'],
+        // 只有当包含明确的浏览意图或者提到了路径/结构时才触发
+        regex: /(?:帮我|给我)?(?:浏览|查看|扫描|列出|list|scan|explore)(?:项目|目录|结构|文件)?(?:\s+)?([\w\.\-\/]+)?/i
+    },
+    {
+        type: '/explore',
+        keywords: ['文件', '目录', '结构', '项目'],
+        // 匹配纯路径或明确的目录查看请求
+        regex: /^(?:ls|dir|tree|scan)\s+([\w\.\-\/]+)$|^(?:查看|扫描)(?:项目|目录|结构)$/i
     },
     {
         type: '/review',

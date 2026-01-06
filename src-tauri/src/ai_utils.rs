@@ -217,6 +217,79 @@ fn extract_partial_value(json_str: &str, key: &str) -> Option<String> {
     None
 }
 
+pub fn extract_task_path(msg: &str) -> String {
+    // 扩展正则表达式以支持中文路径
+    let path_patterns = [
+        r"(?:读取|查看|打开|read|review|check)\s+([^\s,，。]+)",
+        r"(?:test|doc)\s+([^\s,，。]+)",
+    ];
+
+    let mut extracted_path = None;
+    for pattern in &path_patterns {
+        if let Ok(re) = regex::Regex::new(pattern) {
+            if let Some(cap) = re.captures(msg) {
+                if let Some(path) = cap.get(1) {
+                    extracted_path = Some(path.as_str().to_string());
+                    break;
+                }
+            }
+        }
+    }
+
+    extracted_path.unwrap_or_else(|| {
+        // 如果没有找到显式指令，检查消息是否看起来像是一个纯路径
+        let trimmed = msg.trim();
+        let char_count = trimmed.chars().count();
+        
+        // 路径通常比较短，不包含空格或中文标点
+        let has_spaces = trimmed.contains(' ') || trimmed.contains('\t');
+        let has_punctuation = trimmed.contains('，') || trimmed.contains('。') || trimmed.contains('！') || trimmed.contains('？');
+        
+        // 检查是否看起来像文件：有扩展名且没有太多中文字符
+        let has_extension = trimmed.contains('.') && trimmed.split('.').last().map_or(false, |ext| ext.len() >= 2 && ext.len() <= 5);
+        let has_slash = trimmed.contains('/') || trimmed.contains('\\');
+        
+        // 统计中文字符比例
+        let chinese_chars = trimmed.chars().filter(|c| (*c >= '\u{4e00}' && *c <= '\u{9fff}')).count();
+        let is_mostly_chinese = char_count > 0 && (chinese_chars as f64 / char_count as f64) > 0.5;
+
+        // 识别标准：
+        // 1. 字符数少于 64
+        // 2. 没有空格和中文标点
+        // 3. 包含路径分隔符 OR (包含扩展名 且 中文字符比例不高)
+        if char_count < 64 && !has_spaces && !has_punctuation && (has_slash || (has_extension && !is_mostly_chinese)) {
+            trimmed.to_string()
+        } else {
+            ".".to_string()
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_task_path() {
+        // 显式指令
+        assert_eq!(extract_task_path("read src/main.rs"), "src/main.rs");
+        assert_eq!(extract_task_path("读取 src/lib.rs"), "src/lib.rs");
+        assert_eq!(extract_task_path("查看 ./docs"), "./docs");
+        assert_eq!(extract_task_path("打开 测试文件.js"), "测试文件.js");
+        
+        // 纯路径
+        assert_eq!(extract_task_path("src/utils.ts"), "src/utils.ts");
+        assert_eq!(extract_task_path("package.json"), "package.json");
+        assert_eq!(extract_task_path("./README.md"), "./README.md");
+        
+        // 自然语言（不应被识别为路径）
+        assert_eq!(extract_task_path("生成示例代码 100行左右 如demo.js"), ".");
+        assert_eq!(extract_task_path("帮我写个脚本"), ".");
+        assert_eq!(extract_task_path("这是个包含.的点号但很长的句子，不应该被识别为路径。"), ".");
+        assert_eq!(extract_task_path("这是一个带有.js扩展名的中文字句"), ".");
+    }
+}
+
 /// Agent-specific streaming chat that returns a Message (unlike stream_chat which only emits events)
 pub async fn agent_stream_chat(
     app: &AppHandle,
@@ -272,35 +345,9 @@ pub async fn agent_stream_chat_with_root(
                     }
                 });
 
-            // 尝试从消息中提取路径（支持格式：读取 xxx，查看 xxx，read xxx，review xxx 等）
+            // 尝试从消息中提取路径
             let task_path = if let Some(msg) = last_user_msg {
-                // 使用正则表达式提取路径
-                let path_patterns = [
-                    r"(?:读取|查看|打开|read|review|check)\s+([\w./]+)",
-                    r"(?:test|doc)\s+([\w./]+)",
-                ];
-
-                let mut extracted_path = None;
-                for pattern in &path_patterns {
-                    if let Ok(re) = regex::Regex::new(pattern) {
-                        if let Some(cap) = re.captures(msg) {
-                            if let Some(path) = cap.get(1) {
-                                extracted_path = Some(path.as_str().to_string());
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                extracted_path.unwrap_or_else(|| {
-                    // 如果没有找到路径，检查消息是否只是文件路径
-                    if msg.chars().count() < 200 && (msg.contains('/') || msg.contains('.')) {
-                        msg.to_string()
-                    } else {
-                        // 默认扫描当前目录
-                        ".".to_string()
-                    }
-                })
+                extract_task_path(msg)
             } else {
                 ".".to_string()
             };

@@ -1377,7 +1377,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       // We still keep global status listener as a fallback or for other UI parts
       const unlistenStatus = await listen('agent:status', (event: any) => {
         const { id, status, progress } = event.payload;
-        useAgentStore.setState(state => {
+        set(state => {
             const agent = state.runningAgents.find(a => a.id === id);
             if (agent && (agent.status !== status || agent.progress !== progress)) {
                 return { runningAgents: state.runningAgents.map(a => a.id === id ? { ...a, status: status as any, progress } : a) };
