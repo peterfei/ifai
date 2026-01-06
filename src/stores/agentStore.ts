@@ -744,41 +744,35 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             });
 
             if (agent?.type === 'proposal-generator' && result) {
-                console.log('[AgentStore] 📋 Proposal generator completed, processing result...');
+                console.log('[AgentStore] 📋 Proposal generator completed, processing Markdown...');
                 console.log('[AgentStore] 📋 Result preview:', result.substring(0, 200));
                 (async () => {
                     try {
-                        // Extract JSON from the result (handle markdown code blocks)
-                        let jsonStr = result;
-                        const codeBlockMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-                        if (codeBlockMatch) {
-                            jsonStr = codeBlockMatch[1];
-                            console.log('[AgentStore] 📋 Extracted JSON from code block');
-                        }
+                        // 导入 Markdown 解析器
+                        const { parseProposalFromMarkdown } = await import('../utils/proposalMarkdownParser');
 
-                        console.log('[AgentStore] 📋 Parsing JSON...');
-                        // Parse the proposal data
-                        const proposalData = JSON.parse(jsonStr);
+                        // 从 Markdown 中解析 proposal 数据（不消耗 token）
+                        console.log('[AgentStore] 📋 Parsing Markdown to extract proposal data...');
+                        const parsedProposal = parseProposalFromMarkdown(result);
 
-                        console.log('[AgentStore] 📋 Parsed proposal data:', {
-                            hasChangeId: !!proposalData.changeId,
-                            hasProposal: !!proposalData.proposal,
-                            changeId: proposalData.changeId
-                        });
+                        if (parsedProposal) {
+                            console.log('[AgentStore] 📋 Parsed proposal data:', {
+                                changeId: parsedProposal.changeId,
+                                tasksCount: parsedProposal.tasks.length,
+                                specDeltasCount: parsedProposal.specDeltas.length
+                            });
 
-                        if (proposalData.changeId && proposalData.proposal) {
                             // Create proposal using the proposalStore
                             const proposalStore = useProposalStore.getState();
 
-                            // Build proposal object from agent result
+                            // Build proposal object from parsed data
                             const proposalOptions = {
-                                id: proposalData.changeId,
-                                why: proposalData.proposal.why || '',
-                                whatChanges: proposalData.proposal.whatChanges || [],
-                                impact: proposalData.proposal.impact || { specs: [], files: [], breakingChanges: false },
-                                tasks: proposalData.tasks || [],
-                                specDeltas: proposalData.specDeltas || [],
-                                design: proposalData.design,
+                                id: parsedProposal.changeId,
+                                why: parsedProposal.why,
+                                whatChanges: parsedProposal.whatChanges,
+                                impact: parsedProposal.impact,
+                                tasks: parsedProposal.tasks,
+                                specDeltas: parsedProposal.specDeltas,
                             };
 
                             console.log('[AgentStore] 📋 Creating proposal...');
@@ -788,7 +782,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
                             // Show success toast
                             toast.success('提案生成成功', {
-                                description: `"${proposalData.changeId}" 已创建，等待审核`,
+                                description: `"${parsedProposal.changeId}" 已创建，正在打开审核...`,
                             });
 
                             // 延迟打开审核弹窗，避免在当前渲染周期内触发状态更新
@@ -799,15 +793,17 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                 console.log('[AgentStore] 📋 Review modal should be open now');
                             }, 100);
                         } else {
-                            console.warn('[AgentStore] ⚠️ Invalid proposal data structure:', proposalData);
-                            toast.error('提案格式错误', {
-                                description: 'AI 返回的数据格式不正确',
+                            console.warn('[AgentStore] ⚠️ Failed to parse proposal from Markdown');
+                            // 即使解析失败，Markdown 也已经显示在聊天中
+                            toast.info('提案已生成', {
+                                description: '提案内容已显示在聊天中，但无法创建审核记录',
                             });
                         }
                     } catch (error) {
                         console.error('[AgentStore] ❌ Failed to process proposal result:', error);
+                        // 即使处理失败，Markdown 也已经显示在聊天中
                         toast.error('提案处理失败', {
-                            description: error instanceof Error ? error.message : '未知错误',
+                            description: '提案内容已显示，但无法打开审核弹窗',
                         });
                     }
                 })();
