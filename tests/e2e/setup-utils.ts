@@ -23,6 +23,7 @@ export async function setupE2ETestEnvironment(page: Page) {
     const mockInvoke = async (cmd: string) => {
         if (cmd === 'get_git_statuses') return [];
         if (cmd === 'read_directory') return [];
+        if (cmd === 'plugin:dialog|ask') return true;
         return {};
     };
     (window as any).__TAURI_INTERNALS__ = { transformCallback: (cb: any) => cb, invoke: mockInvoke };

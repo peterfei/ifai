@@ -22,8 +22,8 @@ interface FileTreeItemProps {
     level: number;
     onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
     onReload: () => void;
-    selectedNodeId: string | null;
-    onNodeSelect: (nodeId: string) => void;
+    selectedNodeIds: string[];
+    onNodeSelect: (nodeId: string, ctrlKey: boolean, shiftKey: boolean) => void;
     onNodeActivate: (node: FileNode) => void;
     expandedNodes: Set<string>;
     onToggleExpand: (nodeId: string) => void;
@@ -41,14 +41,14 @@ const flattenVisibleNodes = (node: FileNode, expandedNodes: Set<string>): FileNo
     return nodes;
 };
 
-const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeId, onNodeSelect, onNodeActivate, expandedNodes, onToggleExpand, onChildrenLoaded }: FileTreeItemProps) => {
+const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, onNodeSelect, onNodeActivate, expandedNodes, onToggleExpand, onChildrenLoaded }: FileTreeItemProps) => {
   const [children, setChildren] = useState<FileNode[] | undefined>(node.children);
   const [forceUpdate, setForceUpdate] = useState(0);
   const { openFile, gitStatuses } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const itemRef = useRef<HTMLDivElement>(null);
   const isExpanded = expandedNodes.has(node.id);
-  const isSelected = selectedNodeId === node.id;
+  const isSelected = selectedNodeIds.includes(node.id);
 
   const loadChildren = async () => {
     try {
@@ -78,33 +78,40 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeId, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded]);
 
-  const handleClick = async () => {
-    onNodeSelect(node.id);
+  const handleClick = async (e: React.MouseEvent) => {
+    onNodeSelect(node.id, e.ctrlKey || e.metaKey, e.shiftKey);
     if (node.kind === 'directory') {
-      if (!isExpanded) {
-        if (!children) {
-            await loadChildren();
+      // Only toggle expansion if no modifier keys are pressed, 
+      // or if it's a simple click (standard behavior)
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (!isExpanded) {
+          if (!children) {
+              await loadChildren();
+          }
         }
+        onToggleExpand(node.id);
       }
-      onToggleExpand(node.id);
     } else {
-      try {
-        const content = await readFileContent(node.path);
-        const openedId = openFile({
-          id: node.id,
-          path: node.path,
-          name: node.name,
-          content: content,
-          isDirty: false,
-          language: getLanguageFromPath(node.path)
-        });
+      // Only activate file if no modifier keys are pressed
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        try {
+          const content = await readFileContent(node.path);
+          const openedId = openFile({
+            id: node.id,
+            path: node.path,
+            name: node.name,
+            content: content,
+            isDirty: false,
+            language: getLanguageFromPath(node.path)
+          });
 
-        if (activePaneId) {
-            assignFileToPane(activePaneId, openedId);
+          if (activePaneId) {
+              assignFileToPane(activePaneId, openedId);
+          }
+        } catch (e) {
+          console.error("Failed to read file", e);
+          toast.error(`Failed to read file: ${String(e)}`);
         }
-      } catch (e) {
-        console.error("Failed to read file", e);
-        toast.error(`Failed to read file: ${String(e)}`);
       }
     }
   };
@@ -141,6 +148,9 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeId, on
     <div>
       <div
         ref={itemRef}
+        data-testid="file-tree-item"
+        data-node-id={node.id}
+        data-selected={isSelected}
         className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
           isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
         }`}
@@ -164,7 +174,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeId, on
                 level={level + 1}
                 onContextMenu={onContextMenu}
                 onReload={loadChildren}
-                selectedNodeId={selectedNodeId}
+                selectedNodeIds={selectedNodeIds}
                 onNodeSelect={onNodeSelect}
                 onNodeActivate={onNodeActivate}
                 expandedNodes={expandedNodes}
@@ -184,10 +194,9 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, setRootPath, expandedNodes, toggleExpandedNode, setExpandedNodes, openedFiles, setActiveFile } = useFileStore();
+  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, setRootPath, expandedNodes, toggleExpandedNode, setExpandedNodes, openedFiles, setActiveFile, selectedNodeIds, setSelectedNodeIds, lastSelectedNodeId, setLastSelectedNodeId } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -282,111 +291,6 @@ export const FileTree = () => {
     return null;
   }, []);
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle if context menu is open or input/textarea is focused
-      if (contextMenu.node) {
-        return;
-      }
-
-      // Check if focus is in an editable element (Monaco Editor, textarea, input, etc.)
-      const activeElement = document.activeElement;
-      if (activeElement) {
-        const isEditable =
-          activeElement instanceof HTMLInputElement ||
-          activeElement instanceof HTMLTextAreaElement ||
-          activeElement.getAttribute('contenteditable') === 'true' ||
-          activeElement.classList.contains('monaco-mouse-cursor-text') ||
-          activeElement.closest('.monaco-editor') !== null;
-
-        if (isEditable) {
-          return; // Don't intercept keyboard events when editing
-        }
-      }
-
-      if (!fileTree || visibleNodes.length === 0) return;
-
-      const currentIndex = selectedNodeId
-        ? visibleNodes.findIndex(n => n.id === selectedNodeId)
-        : -1;
-
-      switch (e.key) {
-        case 'ArrowDown': {
-          e.preventDefault();
-          const nextIndex = currentIndex + 1;
-          if (nextIndex < visibleNodes.length) {
-            const nextNode = visibleNodes[nextIndex];
-            setSelectedNodeId(nextNode.id);
-          }
-          break;
-        }
-        case 'ArrowUp': {
-          e.preventDefault();
-          const prevIndex = currentIndex - 1;
-          if (prevIndex >= 0) {
-            const prevNode = visibleNodes[prevIndex];
-            setSelectedNodeId(prevNode.id);
-          } else if (selectedNodeId === null && visibleNodes.length > 0) {
-            // Select first item if nothing selected
-            setSelectedNodeId(visibleNodes[0].id);
-          }
-          break;
-        }
-        case 'ArrowRight': {
-          e.preventDefault();
-          if (selectedNodeId && currentIndex >= 0) {
-            const currentNode = visibleNodes[currentIndex];
-            if (currentNode.kind === 'directory') {
-              if (!expandedNodes.has(currentNode.id)) {
-                // Expand directory - FileTreeItem will auto-load children
-                toggleExpandedNode(currentNode.id);
-              } else if (currentNode.children && currentNode.children.length > 0) {
-                // Move to first child if already expanded and has children
-                setSelectedNodeId(currentNode.children[0].id);
-              }
-            }
-          }
-          break;
-        }
-        case 'ArrowLeft': {
-          e.preventDefault();
-          if (selectedNodeId && currentIndex >= 0) {
-            const currentNode = visibleNodes[currentIndex];
-            if (currentNode.kind === 'directory' && expandedNodes.has(currentNode.id)) {
-              // Collapse directory
-              toggleExpandedNode(currentNode.id);
-            } else {
-              // Move to parent
-              const parentPath = currentNode.path.substring(0, currentNode.path.lastIndexOf('/'));
-              const parentNode = visibleNodes.find(n => n.path === parentPath);
-              if (parentNode) {
-                setSelectedNodeId(parentNode.id);
-              }
-            }
-          }
-          break;
-        }
-        case 'Enter': {
-          e.preventDefault();
-          if (selectedNodeId && currentIndex >= 0) {
-            const currentNode = visibleNodes[currentIndex];
-            activateNode(currentNode);
-          }
-          break;
-        }
-        case 'Escape': {
-          e.preventDefault();
-          setSelectedNodeId(null);
-          break;
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [fileTree, visibleNodes, selectedNodeId, expandedNodes, contextMenu]);
-
   const activateNode = async (node: FileNode) => {
     if (node.kind === 'directory') {
       toggleExpandedNode(node.id);
@@ -424,9 +328,163 @@ export const FileTree = () => {
     }
   };
 
-  const handleNodeSelect = useCallback((nodeId: string) => {
-    setSelectedNodeId(nodeId);
-  }, []);
+  const handleNodeSelect = useCallback((nodeId: string, ctrlKey: boolean, shiftKey: boolean) => {
+    if (shiftKey && lastSelectedNodeId && visibleNodes.length > 0) {
+      // Find indices of last and current selection in the flattened visible nodes
+      const lastIndex = visibleNodes.findIndex(n => n.id === lastSelectedNodeId);
+      const currentIndex = visibleNodes.findIndex(n => n.id === nodeId);
+      
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const start = Math.min(lastIndex, currentIndex);
+        const end = Math.max(lastIndex, currentIndex);
+        const rangeIds = visibleNodes.slice(start, end + 1).map(n => n.id);
+        
+        // Combine with existing selection if Ctrl is also pressed
+        if (ctrlKey) {
+          setSelectedNodeIds(Array.from(new Set([...selectedNodeIds, ...rangeIds])));
+        } else {
+          setSelectedNodeIds(rangeIds);
+        }
+        setLastSelectedNodeId(nodeId);
+        return;
+      }
+    }
+    
+    if (ctrlKey) {
+      if (selectedNodeIds.includes(nodeId)) {
+        setSelectedNodeIds(selectedNodeIds.filter(id => id !== nodeId));
+        // Update lastSelected if we just deselected it
+        if (lastSelectedNodeId === nodeId) {
+          setLastSelectedNodeId(selectedNodeIds.length > 1 ? selectedNodeIds.find(id => id !== nodeId) || null : null);
+        }
+      } else {
+        setSelectedNodeIds([...selectedNodeIds, nodeId]);
+        setLastSelectedNodeId(nodeId);
+      }
+    } else {
+      setSelectedNodeIds([nodeId]);
+      setLastSelectedNodeId(nodeId);
+    }
+  }, [selectedNodeIds, lastSelectedNodeId, visibleNodes, setSelectedNodeIds, setLastSelectedNodeId]);
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if context menu is open or input/textarea is focused
+      if (contextMenu.node) {
+        return;
+      }
+
+      // Check if focus is in an editable element (Monaco Editor, textarea, input, etc.)
+      const activeElement = document.activeElement;
+      if (activeElement) {
+        const isEditable =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement.getAttribute('contenteditable') === 'true' ||
+          activeElement.classList.contains('monaco-mouse-cursor-text') ||
+          activeElement.closest('.monaco-editor') !== null;
+
+        if (isEditable) {
+          return; // Don't intercept keyboard events when editing
+        }
+      }
+
+      if (!fileTree || visibleNodes.length === 0) return;
+
+      const currentIndex = lastSelectedNodeId
+        ? visibleNodes.findIndex(n => n.id === lastSelectedNodeId)
+        : -1;
+
+      switch (e.key) {
+        case 'ArrowDown': {
+          e.preventDefault();
+          const nextIndex = currentIndex + 1;
+          if (nextIndex < visibleNodes.length) {
+            const nextNode = visibleNodes[nextIndex];
+            if (e.shiftKey) {
+              handleNodeSelect(nextNode.id, false, true);
+            } else {
+              setSelectedNodeIds([nextNode.id]);
+              setLastSelectedNodeId(nextNode.id);
+            }
+          }
+          break;
+        }
+        case 'ArrowUp': {
+          e.preventDefault();
+          const prevIndex = currentIndex - 1;
+          if (prevIndex >= 0) {
+            const prevNode = visibleNodes[prevIndex];
+            if (e.shiftKey) {
+              handleNodeSelect(prevNode.id, false, true);
+            } else {
+              setSelectedNodeIds([prevNode.id]);
+              setLastSelectedNodeId(prevNode.id);
+            }
+          } else if (lastSelectedNodeId === null && visibleNodes.length > 0) {
+            // Select first item if nothing selected
+            setSelectedNodeIds([visibleNodes[0].id]);
+            setLastSelectedNodeId(visibleNodes[0].id);
+          }
+          break;
+        }
+        case 'ArrowRight': {
+          e.preventDefault();
+          if (lastSelectedNodeId && currentIndex >= 0) {
+            const currentNode = visibleNodes[currentIndex];
+            if (currentNode.kind === 'directory') {
+              if (!expandedNodes.has(currentNode.id)) {
+                // Expand directory - FileTreeItem will auto-load children
+                toggleExpandedNode(currentNode.id);
+              } else if (currentNode.children && currentNode.children.length > 0) {
+                // Move to first child if already expanded and has children
+                setSelectedNodeIds([currentNode.children[0].id]);
+                setLastSelectedNodeId(currentNode.children[0].id);
+              }
+            }
+          }
+          break;
+        }
+        case 'ArrowLeft': {
+          e.preventDefault();
+          if (lastSelectedNodeId && currentIndex >= 0) {
+            const currentNode = visibleNodes[currentIndex];
+            if (currentNode.kind === 'directory' && expandedNodes.has(currentNode.id)) {
+              // Collapse directory
+              toggleExpandedNode(currentNode.id);
+            } else {
+              // Move to parent
+              const parentPath = currentNode.path.substring(0, currentNode.path.lastIndexOf('/'));
+              const parentNode = visibleNodes.find(n => n.path === parentPath);
+              if (parentNode) {
+                setSelectedNodeIds([parentNode.id]);
+                setLastSelectedNodeId(parentNode.id);
+              }
+            }
+          }
+          break;
+        }
+        case 'Enter': {
+          e.preventDefault();
+          if (lastSelectedNodeId && currentIndex >= 0) {
+            const currentNode = visibleNodes[currentIndex];
+            activateNode(currentNode);
+          }
+          break;
+        }
+        case 'Escape': {
+          e.preventDefault();
+          setSelectedNodeIds([]);
+          setLastSelectedNodeId(null);
+          break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [fileTree, visibleNodes, lastSelectedNodeId, selectedNodeIds, expandedNodes, contextMenu, handleNodeSelect, setSelectedNodeIds, setLastSelectedNodeId]);
 
   const handleToggleExpand = useCallback((nodeId: string) => {
     toggleExpandedNode(nodeId);
@@ -440,7 +498,13 @@ export const FileTree = () => {
   const handleContextMenu = (e: React.MouseEvent, node: FileNode) => {
     e.preventDefault();
     e.stopPropagation();
-    setSelectedNodeId(node.id);
+    
+    // If the node is not already part of the selection, select only this node
+    if (!selectedNodeIds.includes(node.id)) {
+      setSelectedNodeIds([node.id]);
+      setLastSelectedNodeId(node.id);
+    }
+    
     setContextMenu({ x: e.clientX, y: e.clientY, node });
   };
 
@@ -526,19 +590,24 @@ export const FileTree = () => {
           visibleNodes={visibleNodes}
           renderNode={(node, index) => {
             const level = getLevelFromPath(node.path, rootPath);
-            const isSelected = selectedNodeId === node.id;
+            const isSelected = selectedNodeIds.includes(node.id);
             const isExpanded = expandedNodes.has(node.id);
 
             return (
               <div
                 key={node.id}
+                data-testid="file-tree-item"
+                data-node-id={node.id}
+                data-selected={isSelected}
                 className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
                   isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
                 }`}
                 style={{ paddingLeft: `${level * 12 + 8}px` }}
-                onClick={() => {
-                  handleNodeSelect(node.id);
-                  activateNode(node);
+                onClick={(e) => {
+                  handleNodeSelect(node.id, e.ctrlKey || e.metaKey, e.shiftKey);
+                  if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                    activateNode(node);
+                  }
                 }}
                 onContextMenu={(e) => handleContextMenu(e, node)}
               >
@@ -559,7 +628,7 @@ export const FileTree = () => {
           level={0}
           onContextMenu={handleContextMenu}
           onReload={() => {}}
-          selectedNodeId={selectedNodeId}
+          selectedNodeIds={selectedNodeIds}
           onNodeSelect={handleNodeSelect}
           onNodeActivate={activateNode}
           expandedNodes={expandedNodes}

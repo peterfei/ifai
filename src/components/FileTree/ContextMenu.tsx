@@ -27,6 +27,7 @@ import {
 } from '../../utils/fileSystem';
 import { toast } from 'sonner';
 import { platform } from '@tauri-apps/plugin-os';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { FileNode } from '../../stores/types';
 
 interface ContextMenuProps {
@@ -177,7 +178,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
-  const currentPlatform = platform();
+  const currentPlatform = (() => {
+    try {
+      return platform();
+    } catch (e) {
+      console.warn('Failed to get platform, falling back to linux', e);
+      return 'linux' as any;
+    }
+  })();
+  const { selectedNodeIds, fileTree } = useFileStore();
   const [inputDialog, setInputDialog] = useState<{
     title: string;
     defaultValue: string;
@@ -361,22 +370,63 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   };
 
   const handleDelete = async () => {
-    console.log('[ContextMenu] Delete requested for:', node.name, 'at path:', node.path);
-    if (window.confirm(t('common.confirmDeleteFile', { fileName: node.name }))) {
+    if (!node) return;
+
+    // Check if the right-clicked node is part of the current selection
+    const isNodeInSelection = selectedNodeIds.includes(node.id);
+    
+    // Helper to find nodes by ID in the tree
+    const findNodesByIds = (root: any, ids: string[]): FileNode[] => {
+      const results: FileNode[] = [];
+      const traverse = (n: FileNode) => {
+        if (ids.includes(n.id)) results.push(n);
+        if (n.children) n.children.forEach(traverse);
+      };
+      if (root) traverse(root);
+      return results;
+    };
+
+    const targetNodes = isNodeInSelection 
+      ? findNodesByIds(fileTree, selectedNodeIds)
+      : [node];
+
+    const confirmMessage = targetNodes.length > 1
+      ? t('common.confirmDeleteMultiple', { count: targetNodes.length })
+      : t('common.confirmDeleteFile', { fileName: node.name });
+
+    // Close the menu first
+    onClose();
+
+    // Use Tauri's native dialog if available, fallback to window.confirm
+    let confirmed = false;
+    try {
+      confirmed = await ask(confirmMessage, {
+        title: t('common.delete'),
+        kind: 'warning',
+        okLabel: t('common.confirm'),
+        cancelLabel: t('common.cancel')
+      });
+    } catch (e) {
+      console.warn('Native dialog failed, falling back to window.confirm', e);
+      confirmed = window.confirm(confirmMessage);
+    }
+
+    if (confirmed) {
       try {
-        await deleteFile(node.path);
-        console.log('[ContextMenu] Delete successful, refreshing file tree...');
+        // Delete all target nodes in parallel
+        await Promise.all(targetNodes.map(n => deleteFile(n.path)));
+        
+        console.log('[ContextMenu] Bulk delete successful, refreshing file tree...');
         toast.success(t('common.deletedSuccessfully'));
         await onRefresh();
         console.log('[ContextMenu] File tree refreshed');
       } catch (error) {
-        console.error('[ContextMenu] Delete failed:', error);
+        console.error('[ContextMenu] Bulk delete failed:', error);
         toast.error(`${t('common.deleteFailed')}: ${String(error)}`);
       }
     } else {
       console.log('[ContextMenu] Delete cancelled');
     }
-    onClose();
   };
 
   const handleRefresh = () => {

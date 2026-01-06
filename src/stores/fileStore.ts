@@ -13,6 +13,8 @@ interface FileState {
   activeFileId: string | null;
   gitStatuses: Map<string, GitStatus>;
   expandedNodes: Set<string>;
+  selectedNodeIds: string[];
+  lastSelectedNodeId: string | null;
   // v0.2.6 新增：Markdown 预览模式
   previewMode: 'editor' | 'preview' | 'split';
 
@@ -31,6 +33,8 @@ interface FileState {
   refreshFileTreePreserveExpanded: (expandedNodes: Set<string>) => Promise<Set<string>>;
   toggleExpandedNode: (nodeId: string) => void;
   setExpandedNodes: (nodes: Set<string>) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
+  setLastSelectedNodeId: (id: string | null) => void;
   syncState: (state: Partial<FileState>) => void;
   // v0.2.6 新增：设置预览模式
   setPreviewMode: (mode: 'editor' | 'preview' | 'split') => void;
@@ -54,6 +58,8 @@ export const useFileStore = create<FileState>()(
       activeFileId: null,
       gitStatuses: new Map(),
       expandedNodes: new Set(),
+      selectedNodeIds: [],
+      lastSelectedNodeId: null,
       // v0.2.6 新增：默认预览模式
       previewMode: 'editor',
 
@@ -70,6 +76,10 @@ export const useFileStore = create<FileState>()(
       }),
 
       setExpandedNodes: (nodes: Set<string>) => set({ expandedNodes: nodes }),
+
+      setSelectedNodeIds: (ids: string[]) => set({ selectedNodeIds: ids }),
+
+      setLastSelectedNodeId: (id: string | null) => set({ lastSelectedNodeId: id }),
 
       setFileTree: (tree) => {
         const treeWithStatus = tree ? updateGitStatusRecursive(tree, get().gitStatuses) : null;

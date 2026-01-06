@@ -9,6 +9,18 @@ export const TabBar = () => {
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const tabBarRef = useRef<HTMLDivElement>(null);
 
+  // 获取当前活动文件
+  const activeFile = useMemo(() =>
+    openedFiles.find(f => f.id === activeFileId) || null,
+    [openedFiles, activeFileId]
+  );
+
+  // 是否显示预览按钮（仅对 Markdown 文件显示）
+  const showPreviewButton = useMemo(() =>
+    activeFile?.language === 'markdown',
+    [activeFile]
+  );
+
   if (openedFiles.length === 0) return null;
 
   const handleTabClick = (fileId: string) => {
@@ -24,18 +36,6 @@ export const TabBar = () => {
         tabBarRef.current.scrollLeft += e.deltaY;
     }
   };
-
-  // 获取当前活动文件
-  const activeFile = useMemo(() =>
-    openedFiles.find(f => f.id === activeFileId) || null,
-    [openedFiles, activeFileId]
-  );
-
-  // 是否显示预览按钮（仅对 Markdown 文件显示）
-  const showPreviewButton = useMemo(() =>
-    activeFile?.language === 'markdown',
-    [activeFile]
-  );
 
   // 获取预览模式图标
   const getPreviewIcon = () => {
@@ -69,8 +69,6 @@ export const TabBar = () => {
     >
       {/* 标签栏 - 可滚动区域 */}
       <div
-        ref={tabBarRef}
-        onWheel={handleWheel}
         className="flex items-center flex-1 overflow-x-auto min-w-0 horizontal-scrollbar"
       >
         {openedFiles.map(file => (
