@@ -597,6 +597,38 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     // --- Direct Backend Invocation Logic ---
 
+    // ✅ 修复：检查是否有正在流式传输的消息，避免重复创建占位符
+    const { messages: currentMessages } = coreUseChatStore.getState();
+    const lastAssistantMsg = currentMessages.filter(m => m.role === 'assistant').pop();
+    const isLastMessageStreaming = lastAssistantMsg && (
+        !lastAssistantMsg.content ||
+        lastAssistantMsg.content.trim() === '' ||
+        (lastAssistantMsg.contentSegments && lastAssistantMsg.contentSegments.length > 0)
+    );
+
+    if (isLastMessageStreaming) {
+        console.warn('[Chat] Detected streaming assistant message, forcing cleanup before creating new placeholder');
+        console.log('[Chat] Last message:', {
+            id: lastAssistantMsg.id,
+            hasContent: !!lastAssistantMsg.content,
+            contentLength: lastAssistantMsg.content?.length || 0,
+            contentSegments: lastAssistantMsg.contentSegments?.length || 0
+        });
+
+        // 强制设置 isLoading = false，允许用户继续
+        coreUseChatStore.setState({ isLoading: false });
+
+        // 显示提示信息
+        const { addMessage } = coreUseChatStore.getState();
+        addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: '⚠️ 前一个请求仍在处理中，请稍后再试。'
+        });
+
+        return;  // 停止处理新请求
+    }
+
     // 1. Prepare Provider Config
     // Note: settings already retrieved above for intent recognition
     const providerData = settings.providers.find((p: any) => p.id === providerId);
