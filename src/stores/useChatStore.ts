@@ -13,39 +13,6 @@ import { autoSaveThread } from './persistence/threadPersistence';
 import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage } from '../utils/tokenCounter';
 import i18n from '../i18n/config';
 
-// 辅助函数：安全解析流式 Payload，处理拼接 JSON 及类型异常
-function safeExtractContent(payload: any): string {
-    if (!payload) return '';
-    
-    // 情况 1: payload 是已解析的对象
-    if (typeof payload === 'object') {
-        if (payload.type === 'content' && payload.content) return payload.content;
-        return '';
-    }
-    
-    // 情况 2: payload 是字符串
-    if (typeof payload === 'string') {
-        try {
-            // 尝试直接解析
-            const parsed = JSON.parse(payload);
-            if (parsed.type === 'content' && parsed.content) return parsed.content;
-        } catch (e) {
-            // 尝试正则提取拼接的 JSON 对象
-            const objects = payload.match(/\{[^{}]+\}/g);
-            if (objects) {
-                for (let i = objects.length - 1; i >= 0; i--) {
-                    try {
-                        const obj = JSON.parse(objects[i]);
-                        if (obj.type === 'content' && obj.content) return obj.content;
-                    } catch (e2) {}
-                }
-            }
-        }
-    }
-    
-    return '';
-}
-
 // Content segment interface for tracking stream reception order
 export interface ContentSegment {
   type: 'text' | 'tool';
@@ -191,6 +158,8 @@ async function selectMessagesForContext(
     // 简单的 Token 估算函数（避免频繁调用后端）
     const estimateTokens = (msg: Message): number => {
         const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        if (!content || typeof content !== 'string') return 0;
+        
         // 英文约 4 字符 = 1 Token，中文约 2 字符 = 1 Token
         const chineseChars = (content.match(/[\u4e00-\u9fff]/g) || []).length;
         const otherChars = content.length - chineseChars;
@@ -764,10 +733,12 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         const { messages } = coreUseChatStore.getState();
         const lastAssistantMsg = messages.find(m => m.id === assistantMsgId);
         if (lastAssistantMsg) {
-            console.log(`[Chat] Status update: ${event.payload}`);
+            // Safety check for payload type
+            const safePayload = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
+            console.log(`[Chat] Status update: ${safePayload}`);
             if (!lastAssistantMsg.content) {
                 const updatedMessages = messages.map(m => 
-                    m.id === assistantMsgId ? { ...m, content: `_(${event.payload})_ \n\n` } : m
+                    m.id === assistantMsgId ? { ...m, content: `_(${safePayload})_ \n\n` } : m
                 );
                 coreUseChatStore.setState({ messages: updatedMessages });
             }
@@ -780,22 +751,50 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         let textChunk = '';
         let toolCallUpdate: any = null;
 
+        // [v3 Robust Stream Listener] - 彻底防御 event.payload.match 崩溃
         try {
-            // Parse JSON format: {"type":"content","content":"文本"}
-            const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+            const rawPayload: any = event.payload;
+            if (rawPayload === null || rawPayload === undefined) return;
 
-            if (payload.type === 'content' && payload.content) {
-                textChunk = payload.content;
-            } else if (payload.type === 'tool_call' && payload.toolCall) {
-                // Note: Rust backend sends camelCase "toolCall"
-                toolCallUpdate = payload.toolCall;
-            } else if (payload.type === 'thinking' || payload.type === 'tool-result' || payload.type === 'done') {
-                // 忽略本地模型的内部消息类型，不显示在聊天中
-                return;
+            // 策略 A: payload 已经是对象
+            if (typeof rawPayload === 'object') {
+                if (rawPayload.type === 'content' && rawPayload.content) {
+                    textChunk = String(rawPayload.content);
+                } else if (rawPayload.type === 'tool_call' && rawPayload.toolCall) {
+                    toolCallUpdate = rawPayload.toolCall;
+                } else if (rawPayload.type === 'thinking' || rawPayload.type === 'tool-result' || rawPayload.type === 'done') {
+                    return;
+                }
+            } 
+            // 策略 B: payload 是字符串
+            else if (typeof rawPayload === 'string') {
+                try {
+                    const parsed = JSON.parse(rawPayload);
+                    if (parsed && parsed.type === 'content' && parsed.content) {
+                        textChunk = String(parsed.content);
+                    } else if (parsed && parsed.type === 'tool_call' && parsed.toolCall) {
+                        toolCallUpdate = parsed.toolCall;
+                    }
+                } catch (jsonErr) {
+                    // 策略 C: 处理拼接 JSON
+                    if (typeof rawPayload.match === 'function') {
+                        const objects = rawPayload.match(/\{[^{}]+\}/g);
+                        if (objects) {
+                            for (let i = objects.length - 1; i >= 0; i--) {
+                                try {
+                                    const obj = JSON.parse(objects[i]);
+                                    if (obj && obj.type === 'content' && obj.content) {
+                                        textChunk = String(obj.content);
+                                        break;
+                                    }
+                                } catch (e2) {}
+                            }
+                        }
+                    }
+                }
             }
-        } catch (e) {
-            // 兜底方案：使用安全提取逻辑处理拼接 JSON
-            textChunk = safeExtractContent(event.payload);
+        } catch (fatalErr) {
+            console.error('[Fatal] Robust stream listener error:', fatalErr);
         }
 
         if (textChunk || toolCallUpdate) {
@@ -857,7 +856,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                                 parsedArgs = { ...existingCall.args }; // Keep previous values
 
                                 // Extract content field with proper unescaping
-                                const contentMatch = updatedArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                                // Safety check: Ensure updatedArgsString is a string before calling match
+                                const safeArgsString = String(updatedArgsString);
+                                const contentMatch = safeArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
                                 if (contentMatch) {
                                     // Manually unescape JSON string
                                     let content = contentMatch[1];
@@ -872,7 +873,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                                 }
 
                                 // Extract rel_path field
-                                const relPathMatch = updatedArgsString.match(/"rel_path"\s*:\s*"([^"]*)"/);
+                                const relPathMatch = safeArgsString.match(/"rel_path"\s*:\s*"([^"]*)"/);
                                 if (relPathMatch) {
                                     parsedArgs.rel_path = relPathMatch[1];
                                 }
@@ -1124,12 +1125,14 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     // Error Listener - Handle stream errors
     const unlistenError = await listen<string>(`${assistantMsgId}_error`, (event) => {
-        console.error("[Chat] Stream error", event.payload);
+        // Safety check for payload type
+        const safePayload = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
+        console.error("[Chat] Stream error", safePayload);
 
         const { messages } = coreUseChatStore.getState();
         coreUseChatStore.setState({
             messages: messages.map(m =>
-                m.id === assistantMsgId ? { ...m, content: `❌ Error: ${event.payload}` } : m
+                m.id === assistantMsgId ? { ...m, content: `❌ Error: ${safePayload}` } : m
             )
         });
 
@@ -1272,8 +1275,10 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         const { messages } = coreUseChatStore.getState();
         const lastAssistantMsg = messages.find(m => m.id === assistantMsgId);
         if (lastAssistantMsg && !lastAssistantMsg.content) {
+            // Safety check for payload type
+            const safePayload = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
             const updatedMessages = messages.map(m => 
-                m.id === assistantMsgId ? { ...m, content: `_(${event.payload})_ \n\n` } : m
+                m.id === assistantMsgId ? { ...m, content: `_(${safePayload})_ \n\n` } : m
             );
             coreUseChatStore.setState({ messages: updatedMessages });
         }
@@ -1283,21 +1288,45 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         const { messages } = coreUseChatStore.getState();
         let textChunk = '';
         let toolCallUpdate: any = null;
-        try {
-            // Check if payload is already an object or needs parsing
-            const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
 
-            if (payload.type === 'content' && payload.content) {
-                textChunk = payload.content;
-            } else if (payload.type === 'tool_call' && payload.toolCall) {
-                toolCallUpdate = payload.toolCall;
-            } else if (payload.type === 'thinking' || payload.type === 'tool-result' || payload.type === 'done') {
-                // 忽略本地模型的内部消息类型，不显示在聊天中
-                return;
+        // [v3 Robust Stream Listener - Generate]
+        try {
+            const rawPayload: any = event.payload;
+            if (rawPayload === null || rawPayload === undefined) return;
+
+            if (typeof rawPayload === 'object') {
+                if (rawPayload.type === 'content' && rawPayload.content) {
+                    textChunk = String(rawPayload.content);
+                } else if (rawPayload.type === 'tool_call' && rawPayload.toolCall) {
+                    toolCallUpdate = rawPayload.toolCall;
+                }
+            } else if (typeof rawPayload === 'string') {
+                try {
+                    const parsed = JSON.parse(rawPayload);
+                    if (parsed && parsed.type === 'content' && parsed.content) {
+                        textChunk = String(parsed.content);
+                    } else if (parsed && parsed.type === 'tool_call' && parsed.toolCall) {
+                        toolCallUpdate = parsed.toolCall;
+                    }
+                } catch (e) {
+                    if (typeof rawPayload.match === 'function') {
+                        const objects = rawPayload.match(/\{[^{}]+\}/g);
+                        if (objects) {
+                            for (let i = objects.length - 1; i >= 0; i--) {
+                                try {
+                                    const obj = JSON.parse(objects[i]);
+                                    if (obj && obj.type === 'content' && obj.content) {
+                                        textChunk = String(obj.content);
+                                        break;
+                                    }
+                                } catch (e2) {}
+                            }
+                        }
+                    }
+                }
             }
-        } catch (e) {
-            // 兜底方案：使用安全提取逻辑
-            textChunk = safeExtractContent(event.payload);
+        } catch (fatalErr) {
+            console.error('[Fatal] Robust stream listener (generate) error:', fatalErr);
         }
 
         if (textChunk || toolCallUpdate) {
@@ -1329,7 +1358,9 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                             } catch (e) {
                                 parsedArgs = { ...existingCall.args };
 
-                                const contentMatch = updatedArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                                // Safety check: Ensure updatedArgsString is a string before calling match
+                                const safeArgsString = String(updatedArgsString);
+                                const contentMatch = safeArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
                                 if (contentMatch) {
                                     let content = contentMatch[1];
                                     content = content
@@ -1341,7 +1372,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                                     parsedArgs.content = content;
                                 }
 
-                                const relPathMatch = updatedArgsString.match(/"rel_path"\s*:\s*"([^"]*)"/);
+                                const relPathMatch = safeArgsString.match(/"rel_path"\s*:\s*"([^"]*)"/);
                                 if (relPathMatch) {
                                     parsedArgs.rel_path = relPathMatch[1];
                                 }
@@ -1414,11 +1445,13 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
 
     // Error Listener - Handle stream errors
     const unlistenError = await listen<string>(`${assistantMsgId}_error`, (event) => {
-        console.error("[Chat/GenerateResponse] Stream error", event.payload);
+        // Safety check for payload type
+        const safePayload = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
+        console.error("[Chat/GenerateResponse] Stream error", safePayload);
 
         const { messages } = coreUseChatStore.getState();
         coreUseChatStore.setState({
-            messages: messages.map(m => m.id === assistantMsgId ? { ...m, content: `❌ Error: ${event.payload}` } : m)
+            messages: messages.map(m => m.id === assistantMsgId ? { ...m, content: `❌ Error: ${safePayload}` } : m)
         });
 
         // Error: cleanup listeners
