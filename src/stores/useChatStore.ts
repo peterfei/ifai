@@ -992,7 +992,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     // Finish Listener - Finalize tool calls when streaming completes
     // Increase timeout for local LLMs (Ollama) which may be slower
     const finishTimeout = setTimeout(() => {
-        console.warn(`[Chat] WARNING: _finish event timeout for ${assistantMsgId}_finish after 30 seconds`);
+        console.warn(`[Chat] WARNING: _finish event timeout for ${assistantMsgId}_finish after 60 seconds`);
         console.warn(`[Chat] This suggests the backend stream did not complete properly`);
         // Timeout: cleanup all listeners including unlistenFinish to prevent leaks
         console.log(`[Chat] Cleaning up all listeners due to timeout`);
@@ -1005,7 +1005,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
         // Also set isLoading to false to allow user to send new messages
         coreUseChatStore.setState({ isLoading: false });
-    }, 30000);  // Increased to 30 seconds for local LLMs
+    }, 60000);  // Increased to 60 seconds for commercial version with ifainew-core
 
     const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {
         clearTimeout(finishTimeout);
