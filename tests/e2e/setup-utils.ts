@@ -29,19 +29,84 @@ export async function setupE2ETestEnvironment(page: Page) {
         if (cmd === 'ai_chat') {
             // Mock streaming response that sends content and triggers _finish event
             const eventId = args?.event_id || 'mock-event-id';
-            const responseContent = 'Mock AI response: Task completed successfully.';
+            const messages = args?.messages || [];
+            const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+            const query = lastUserMsg?.content?.Text || lastUserMsg?.content || '';
+
+            // Check if this is a bash command request
+            const isBashCommand = query.includes('执行') || query.includes('运行') ||
+                                 query.includes('python') || query.includes('java') ||
+                                 query.includes('curl') || query.includes('whoami') ||
+                                 query.includes('sleep') || query.includes('git') ||
+                                 query.includes('npm') || query.includes('cargo');
+
+            let responseContent = 'Mock AI response: Task completed successfully.';
 
             // Simulate async streaming
             setTimeout(() => {
-                // Send content chunk
                 const streamListeners = eventListeners[eventId] || [];
-                streamListeners.forEach(fn => fn({ payload: responseContent }));
 
-                // Trigger _finish event shortly after
-                setTimeout(() => {
-                    const finishListeners = eventListeners[`${eventId}_finish`] || [];
-                    finishListeners.forEach(fn => fn({ payload: 'DONE' }));
-                }, 50);
+                if (isBashCommand) {
+                    // Simulate tool_calls for bash commands
+                    const toolCallPayload = JSON.stringify({
+                        choices: [{
+                            index: 0,
+                            delta: {
+                                tool_calls: [{
+                                    index: 0,
+                                    id: 'call_bash_mock',
+                                    type: 'function',
+                                    function: {
+                                        name: 'bash',
+                                        arguments: JSON.stringify({
+                                            command: query.replace(/^(帮我)?(执行|运行)\s+/, ''),
+                                            timeout: 30000
+                                        })
+                                    }
+                                }]
+                            }
+                        }]
+                    });
+
+                    streamListeners.forEach(fn => fn({ payload: toolCallPayload }));
+
+                    // After tool call, send the result
+                    setTimeout(() => {
+                        // Generate mock command output
+                        let mockOutput = '';
+                        if (query.includes('python')) mockOutput = 'Python 3.11.0';
+                        else if (query.includes('java')) mockOutput = 'openjdk version "17.0.2"';
+                        else if (query.includes('curl')) mockOutput = 'HTTP/1.1 200 OK';
+                        else if (query.includes('whoami')) mockOutput = 'mock-user';
+                        else if (query.includes('sleep')) mockOutput = 'Command completed';
+                        else if (query.includes('git')) mockOutput = 'git version 2.39.0';
+                        else mockOutput = 'Command executed successfully';
+
+                        const contentPayload = JSON.stringify({
+                            choices: [{
+                                index: 0,
+                                delta: { content: mockOutput }
+                            }]
+                        });
+
+                        streamListeners.forEach(fn => fn({ payload: contentPayload }));
+
+                        // Trigger _finish event
+                        setTimeout(() => {
+                            const finishListeners = eventListeners[`${eventId}_finish`] || [];
+                            finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                        }, 50);
+                    }, 200);
+                } else {
+                    // Regular response for non-bash commands
+                    streamListeners.forEach(fn => fn({ payload: responseContent }));
+
+                    // Trigger _finish event shortly after
+                    setTimeout(() => {
+                        const finishListeners = eventListeners[`${eventId}_finish`] || [];
+                        finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                    }, 50);
+                }
             }, 100);
             return {};
         }
