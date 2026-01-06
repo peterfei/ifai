@@ -158,7 +158,7 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
           apiKey: '',
-          models: ['glm-4.6', 'glm-4.7', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'],
+          models: ['glm-4.7', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'],
           enabled: true,
         },
         {
@@ -294,7 +294,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -334,7 +334,19 @@ export const useSettingsStore = create<SettingsState>()(
         maxContextTokens: state.maxContextTokens,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 1`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 2`);
+
+        // 版本 1 -> 2：添加 glm-4.5v 和 glm-4.5-air 到智谱AI模型列表
+        if (version < 2 && persistedState.providers) {
+          const zhipuProvider = persistedState.providers.find((p: any) => p.id === 'zhipu');
+          if (zhipuProvider && zhipuProvider.models) {
+            const newModels = ['glm-4.7', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'];
+            // 合并新旧模型，去重
+            zhipuProvider.models = Array.from(new Set([...newModels, ...zhipuProvider.models]));
+            console.log('[SettingsStore] Updated zhipu models:', zhipuProvider.models);
+          }
+        }
+
         return persistedState;
       },
     }
@@ -360,7 +372,7 @@ setTimeout(() => {
       useSettingsStore.setState(state => ({
         providers: state.providers.map(p =>
           p.id === 'zhipu'
-            ? { ...p, enabled: true, models: ['glm-4.6', 'glm-4.7', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'] }
+            ? { ...p, enabled: true, models: ['glm-4.7', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'] }
             : p
         ),
         currentProviderId: 'zhipu',
