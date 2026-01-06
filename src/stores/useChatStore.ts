@@ -1040,9 +1040,13 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                         .filter(m => m.toolCalls && m.toolCalls.length > 0);
 
                     // 如果最近有太多工具调用，可能是陷入了循环，停止自动继续
-                    if (recentToolCalls.length >= 3) {
-                        console.warn(`[Chat] Detected potential tool call loop (${recentToolCalls.length} recent tool calls), stopping auto-continue`);
+                    if (recentToolCalls.length >= 5) { // v0.2.6: 稍微放宽限制但增加严谨性
+                        console.warn(`[Chat] Detected potential tool call loop, stopping auto-continue`);
+                        coreUseChatStore.setState({ isLoading: false });
                     } else {
+                        // 保持 isLoading 为 true，直到下一个响应生成
+                        coreUseChatStore.setState({ isLoading: true });
+
                         // Execute all tool calls
                         for (const tc of pendingToolCalls) {
                             // @ts-ignore - third parameter not in type definition yet
@@ -1058,10 +1062,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
                             // 使用 setTimeout 延迟调用
                             setTimeout(async () => {
-                                console.log(`[Chat] Executing delayed continuation (after 300ms delay)`);
+                                console.log(`[Chat] Executing delayed continuation`);
 
                                 // 手动清理当前函数的监听器
-                                console.log(`[Chat] Manually cleaning up previous listeners`);
                                 unlistenStatus();
                                 unlistenStream();
                                 unlistenRefs();
@@ -1072,16 +1075,18 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                                 // Get updated messages with tool results
                                 const finalMessages = coreUseChatStore.getState().messages;
 
-                                // Continue the conversation with all tool results
+                                // Continue the conversation - patchedGenerateResponse will keep isLoading: true
                                 await patchedGenerateResponse(
                                     finalMessages,
                                     providerConfig,
                                     { enableTools: true }
                                 );
-                            }, 300);  // 延迟 300ms
+                            }, 300);
 
-                            // 不继续执行，直接返回（避免清理监听器）
+                            // 重要：不在这里设置 isLoading: false，也不清理监听器（由延迟任务处理）
                             return;
+                        } else {
+                            coreUseChatStore.setState({ isLoading: false });
                         }
                     }
                 }

@@ -1102,7 +1102,7 @@ ${context}
   }, []);
 
   useEffect(() => {
-    if (!agentAutoApprove) return;
+    if (!agentAutoApprove || isLoading) return; // Skip if loading/streaming (handled in useChatStore finish listener)
 
     // Find all pending tool calls that are ready for approval (not partial)
     const pendingToolCalls: Array<{messageId: string; toolCallId: string}> = [];

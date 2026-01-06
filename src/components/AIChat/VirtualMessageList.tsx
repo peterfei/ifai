@@ -52,15 +52,8 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  // 自动滚动到底部优化：使用 requestAnimationFrame 异步执行
-  useEffect(() => {
-    if ((isLoading || hasPendingToolCalls) && scrollElementRef.current) {
-      const scrollEl = scrollElementRef.current;
-      requestAnimationFrame(() => {
-        scrollEl.scrollTop = scrollEl.scrollHeight;
-      });
-    }
-  }, [messages.length, isLoading, hasPendingToolCalls]);
+  // ⚠️ 移除这里的 useEffect 自动滚动逻辑，统一由父组件 AIChat.tsx 处理
+  // 避免在流式输出期间出现双重滚动竞争导致的视觉抖动
 
   // 条件渲染：只有在消息极少时才降级，且过程平滑
   if (messages.length < 5) {

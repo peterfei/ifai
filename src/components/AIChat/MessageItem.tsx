@@ -67,20 +67,12 @@ interface MessageItemProps {
 // Custom comparison function for React.memo
 // Optimized to avoid unnecessary re-renders during streaming
 const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps) => {
-    // Only re-render if isStreaming changes AND this message is the one being streamed
-    // This prevents all messages from re-rendering when a new message starts streaming
+    // Re-render if streaming status changes
     if (prevProps.isStreaming !== nextProps.isStreaming) {
-        // Only the assistant message that is actually streaming needs to re-render
-        const isCurrentlyStreaming = nextProps.isStreaming && nextProps.message.role === 'assistant';
-        const wasStreaming = prevProps.isStreaming && prevProps.message.role === 'assistant';
-
-        // If this specific message's streaming status changed, re-render
-        if (isCurrentlyStreaming !== wasStreaming) {
-            return false;
-        }
+        return false;
     }
 
-    // Re-render if message content changes (only for this message)
+    // Re-render if message content changes
     if (prevProps.message.content !== nextProps.message.content) {
         return false;
     }
@@ -90,8 +82,13 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
         return false;
     }
 
-    // Re-render if message ID changes (edge case)
+    // Re-render if message ID changes
     if (prevProps.message.id !== nextProps.message.id) {
+        return false;
+    }
+
+    // Re-render if metadata changes (like exploreProgress)
+    if ((prevProps.message as any).exploreProgress !== (nextProps.message as any).exploreProgress) {
         return false;
     }
 
@@ -127,7 +124,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         return text;
     }, [t]);
     // FIXED: Use state instead of ref to ensure re-render when streaming state changes
+    // v0.2.6: 优化流式检测逻辑，结合外部 props 和内部内容增长
     const [isActivelyStreaming, setIsActivelyStreaming] = useState(false);
+    
+    // 强制使用外部传进来的 isStreaming 作为主要判定依据
+    const effectivelyStreaming = isStreaming || isActivelyStreaming;
+
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
     const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -149,20 +151,19 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
       // 移除完整的 think 块以及由于流式截断可能残留的 </think> 标签
       return rawText
         .replace(/<think>[\s\S]*?<\/think>/gi, '') // 移除完整的思考块
-        .replace(/<\/think>/gi, '')               // 移除残留的闭合标签
-        .trim();
+        .replace(/<\/think>/gi, '');               // 移除残留的闭合标签
     }, [message.content]);
 
     // v0.2.6: 检测任务拆解内容
     const taskBreakdown = React.useMemo(() => {
       // 仅在非流式状态时检测（流式中的 JSON 不完整）
-      if (isActivelyStreaming || isStreaming) return null;
+      if (effectivelyStreaming) return null;
       return detectTaskBreakdown(displayContent);
-    }, [displayContent, isActivelyStreaming, isStreaming]);
+    }, [displayContent, effectivelyStreaming]);
 
     // v0.2.6: 检测是否正在流式传输任务拆解内容
     const isStreamingTaskBreakdown = React.useMemo(() => {
-      if (!isActivelyStreaming && !isStreaming) return false;
+      if (!effectivelyStreaming) return false;
       // 检查内容是否包含任务拆解的特征
       const cleanContent = displayContent.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
@@ -176,7 +177,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
       return cleanContent.includes('"taskTree"') ||
              cleanContent.includes('"children"') ||
              (cleanContent.includes('"title"') && cleanContent.includes('"tasks"'));
-    }, [displayContent, isActivelyStreaming, isStreaming]);
+    }, [displayContent, effectivelyStreaming]);
 
     // Update streaming status based on content growth
     React.useEffect(() => {
@@ -475,7 +476,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         <div className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'}`}>
             <div className={bubbleClass}>
                 {/* Actions Toolbar - Floating on top right of assistant messages */}
-                {!isUser && !isActivelyStreaming && (
+                {!isUser && !effectivelyStreaming && (
                     <div className="absolute -top-3 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 border border-gray-700 rounded-md p-1 shadow-lg z-10">
                         <button onClick={handleCopy} className="p-1 hover:bg-gray-700 rounded text-gray-400" title="Copy content">
                             <Copy size={12} />
@@ -592,7 +593,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 /* Use simple streaming check */
                                 (() => {
                                     // Simple check: use streaming mode if actively streaming
-                                    if (isActivelyStreaming) {
+                                    if (effectivelyStreaming) {
                                         /* === STREAMING MODE: Render ALL segments (text + tools) in order as plain text === */
                                         return (
                                             <>
@@ -623,91 +624,44 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         );
                                     } else {
                                         /* === NON-STREAMING MODE: Use full content with Markdown/highlighting === */
+                                        // Simplified: If not streaming, just render the full content parts.
+                                        // The tool calls will be rendered either as interleaved (if detected) or at the bottom.
+                                        const { segments } = parseToolCalls(displayContent);
+                                        let currentToolIndex = 0;
+                                        const hasInterleavedTools = segments.some(s => s.type === 'tool');
 
-                                        // First, check if there are any tools in sortedSegments
-                                        const hasToolsInSegments = sortedSegments.some(s => s.type === 'tool');
-
-                                        if (!hasToolsInSegments) {
-                                            // Simple case: No tools, render full content directly with index 0
-                                            // This ensures code block indices start from 0, matching toggleBlock expectations
-                                            return renderContentPart({ type: 'text', text: displayContent }, 0);
-                                        }
-
-                                        // Complex case: Has tools, use precise interleaving
-                                        // Build tool position map: order -> { toolCallId, charPos }
-                                        const toolPositions = new Map<number, { toolCallId: string, charPos: number }>();
-
-                                        // FIXED: Use endPos (absolute position) instead of accumulating content.length
-                                        // This ensures correct tool placement even when text chunks are split
-                                        sortedSegments.forEach((segment: ContentSegment, index: number) => {
-                                            if (segment.type === 'tool' && segment.toolCallId) {
-                                                // Find the last text segment before this tool
-                                                let charPos = 0;
-                                                for (let i = index - 1; i >= 0; i--) {
-                                                    const prevSeg = sortedSegments[i];
-                                                    if (prevSeg.type === 'text' && prevSeg.endPos !== undefined) {
-                                                        charPos = prevSeg.endPos;
-                                                        break;
-                                                    }
-                                                }
-                                                toolPositions.set(segment.order, {
-                                                    toolCallId: segment.toolCallId,
-                                                    charPos: charPos
-                                                });
-                                            }
-                                        });
-
-                                        // IMPORTANT: Use displayContent which is already converted to string
-                                        // Position calculation is based on sortedSegments, which aligns with message.content
-                                        const fullContent = displayContent;
-                                        const parts: Array<{type: 'text', content: string} | {type: 'tool', toolCallId: string}> = [];
-                                        let lastPos = 0;
-
-                                        // Sort tools by character position
-                                        const sortedTools = Array.from(toolPositions.values()).sort((a, b) => a.charPos - b.charPos);
-
-                                        sortedTools.forEach(({ toolCallId, charPos }) => {
-                                            // Add text before this tool
-                                            if (charPos > lastPos) {
-                                                parts.push({
-                                                    type: 'text',
-                                                    content: fullContent.substring(lastPos, charPos)
-                                                });
-                                            }
-                                            // Add tool
-                                            parts.push({ type: 'tool', toolCallId });
-                                            lastPos = charPos;
-                                        });
-
-                                        // Add remaining text
-                                        if (lastPos < fullContent.length) {
-                                            parts.push({
-                                                type: 'text',
-                                                content: fullContent.substring(lastPos)
-                                            });
-                                        }
-
-                                        // Render all parts
-                                        // Note: When tools are interleaved, each text part gets its own index
-                                        // Code block indices will be offset, but this is acceptable for the interleaved case
                                         return (
                                             <>
-                                                {parts.map((part, index) => {
-                                                    if (part.type === 'text') {
-                                                        return renderContentPart({ type: 'text', text: part.content }, index);
-                                                    } else {
-                                                        const toolCall = message.toolCalls?.find(tc => tc.id === part.toolCallId);
-                                                        if (!toolCall) return null;
+                                                {segments.map((segment, index) => {
+                                                    if (segment.type === 'tool') {
+                                                        const storedToolCall = message.toolCalls && message.toolCalls[currentToolIndex];
+                                                        currentToolIndex++;
+                                                        const displayToolCall = storedToolCall || segment.toolCall;
+                                                        if (!displayToolCall) return null;
                                                         return (
                                                             <ToolApproval
-                                                                key={`tool-${part.toolCallId}`}
-                                                                toolCall={toolCall}
-                                                                onApprove={() => onApprove(message.id, toolCall.id)}
-                                                                onReject={() => onReject(message.id, toolCall.id)}
+                                                                key={displayToolCall.id}
+                                                                toolCall={displayToolCall}
+                                                                onApprove={() => onApprove(message.id, displayToolCall.id)}
+                                                                onReject={() => onReject(message.id, displayToolCall.id)}
                                                             />
                                                         );
+                                                    } else {
+                                                        const content = segment.content;
+                                                        if (!content) return null;
+                                                        return renderContentPart({ type: 'text', text: content }, index);
                                                     }
                                                 })}
+
+                                                {/* Render remaining tool calls at the bottom if not interleaved */}
+                                                {!hasInterleavedTools && message.toolCalls && message.toolCalls.map((toolCall) => (
+                                                    <ToolApproval
+                                                        key={toolCall.id}
+                                                        toolCall={toolCall}
+                                                        onApprove={() => onApprove(message.id, toolCall.id)}
+                                                        onReject={() => onReject(message.id, toolCall.id)}
+                                                    />
+                                                ))}
                                             </>
                                         );
                                     }
@@ -722,6 +676,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     // If parseToolCalls found tool segments, we interleave.
                                     // Otherwise, we treat them as native and show them at the top.
                                     const hasInterleavedTools = stringSegments.some(s => s.type === 'tool');
+
+                                    // 3. 如果是简单的文本消息（无工具），直接渲染完整内容
+                                    if (!hasInterleavedTools && (!message.toolCalls || message.toolCalls.length === 0)) {
+                                        return effectivelyStreaming 
+                                            ? renderMarkdownWithoutHighlight(displayContent, 'simple-streaming')
+                                            : renderContentPart({ type: 'text', text: displayContent }, 0);
+                                    }
 
                                     return (
                                         <>
@@ -747,8 +708,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                         return <p key={index} className="text-sm whitespace-pre-wrap text-gray-400">{content}</p>;
                                                     }
                                                     // Use streaming check - use markdown without highlighting
-                                                    if (isActivelyStreaming) {
-                                                        return renderMarkdownWithoutHighlight(content, index);
+                                                    if (effectivelyStreaming) {
+                                                        return renderMarkdownWithoutHighlight(content, `fallback-text-${index}`);
                                                     }
                                                     return renderContentPart({ type: 'text', text: content }, index);
                                                 }
