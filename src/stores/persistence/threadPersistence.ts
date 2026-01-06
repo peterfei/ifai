@@ -77,6 +77,8 @@ function messageToStored(message: Message, threadId: string): StoredMessage {
     references: (message as any).references,
     agentId: (message as any).agentId,
     isAgentLive: (message as any).isAgentLive,
+    // ✅ FIX: Preserve contentSegments for streaming message order tracking
+    contentSegments: (message as any).contentSegments,
   };
 }
 

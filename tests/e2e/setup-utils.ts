@@ -95,6 +95,46 @@ export async function setupE2ETestEnvironment(page: Page) {
         return (window as any).__chatStore?.getState()?.messages || [];
     };
 
+    // E. Mock IndexedDB for thread persistence testing
+    (window as any).__E2E_INDEXED_DB_MOCK__ = {
+        threads: new Map<string, any>(),
+        messages: new Map<string, any[]>(),
+
+        clear() {
+            this.threads.clear();
+            this.messages.clear();
+        },
+
+        saveThread(thread: any) {
+            this.threads.set(thread.id, thread);
+        },
+
+        getThread(threadId: string) {
+            return this.threads.get(threadId);
+        },
+
+        getAllThreads() {
+            return Array.from(this.threads.values());
+        },
+
+        saveMessages(messages: any[]) {
+            messages.forEach(msg => {
+                const threadMsgs = this.messages.get(msg.threadId) || [];
+                threadMsgs.push(msg);
+                this.messages.set(msg.threadId, threadMsgs);
+            });
+        },
+
+        getThreadMessages(threadId: string) {
+            return this.messages.get(threadId) || [];
+        },
+
+        deleteThread(threadId: string) {
+            this.threads.delete(threadId);
+            this.messages.delete(threadId);
+        }
+    };
+
     // 暴露任务拆解 Store
     const originalSetItem = window.localStorage.setItem.bind(window.localStorage);
     window.localStorage.setItem = (key, val) => {
