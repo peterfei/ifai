@@ -317,11 +317,24 @@ export const useProposalStore = create<ProposalState>()(
     }),
     {
       name: 'proposal-storage',
+      version: 1, // 添加版本号
       // 持久化配置
       partialize: (state) => ({
         index: state.index,
         // 不持久化 currentProposal，避免占用太多空间
       }),
+      migrate: (persistedState: any, version: number) => {
+        // 处理状态迁移
+        if (version === 0) {
+          // 从版本 0 迁移到版本 1
+          return {
+            ...persistedState,
+            // 确保所有必需的字段都存在
+            index: persistedState.index || { proposals: [], lastUpdated: 0 },
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );
