@@ -151,7 +151,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
   const [taskId] = useState<string>(() => `explore-${Date.now()}`);
 
   // Convert explore data to task metadata
-  const existingTask = tasks.get(taskId);
+  const existingTask = tasks.find(t => t.id === taskId);
   const taskMetadata = exploreToTaskMetadata(progress, existingTask);
 
   // Update task in store

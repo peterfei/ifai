@@ -294,6 +294,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
+      version: 1,
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -332,6 +333,10 @@ export const useSettingsStore = create<SettingsState>()(
         enableSmartContextSelection: state.enableSmartContextSelection,
         maxContextTokens: state.maxContextTokens,
       }),
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[SettingsStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

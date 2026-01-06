@@ -85,6 +85,10 @@ export const useExploreStore = create<ExploreUIState>()(
       name: 'explore-ui-storage',
       // Versioning for future migrations
       version: 1,
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[ExploreStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

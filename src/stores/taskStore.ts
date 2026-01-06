@@ -308,6 +308,10 @@ export const useTaskStore = create<TaskStoreExtended>()(
         // Don't persist active tasks
         tasks: [],
       }),
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[TaskStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

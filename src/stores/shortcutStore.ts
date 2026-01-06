@@ -144,6 +144,11 @@ export const useShortcutStore = create<ShortcutState>()(
     }),
     {
       name: 'shortcut-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[ShortcutStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

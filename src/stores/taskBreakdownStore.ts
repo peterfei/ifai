@@ -211,10 +211,15 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
     }),
     {
       name: 'task-breakdown-storage',
+      version: 1,
       partialize: (state) => ({
         history: state.history,
         // 不持久化 currentBreakdown，避免占用太多空间
       }),
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[TaskBreakdownStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

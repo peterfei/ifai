@@ -46,6 +46,11 @@ export const useChatUIStore = create<ChatUIState>()(
     }),
     {
       name: 'chat-ui-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[ChatUIStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

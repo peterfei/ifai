@@ -314,6 +314,7 @@ export const useFileStore = create<FileState>()(
     }),
     {
       name: 'file-storage',
+      version: 1,
       partialize: (state) => ({
         openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })),
         activeFileId: state.activeFileId,
@@ -355,6 +356,10 @@ export const useFileStore = create<FileState>()(
                 }
             });
         }
+      },
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[FileStore] Migrating from version ${version} to 1`);
+        return persistedState;
       },
     }
   )

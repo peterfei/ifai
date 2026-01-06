@@ -264,6 +264,7 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'layout-storage',
+      version: 1,
       partialize: (state) => ({
         panes: state.panes,
         activePaneId: state.activePaneId,
@@ -275,6 +276,10 @@ export const useLayoutStore = create<LayoutState>()(
         sidebarPosition: state.sidebarPosition,
         sidebarWidth: state.sidebarWidth,
       }),
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[LayoutStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

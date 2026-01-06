@@ -633,6 +633,10 @@ export const useThreadStore = create<ThreadStore>()(
           // Don't persist search/filter state
         };
       },
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[ThreadStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );

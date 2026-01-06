@@ -317,11 +317,16 @@ export const useProposalStore = create<ProposalState>()(
     }),
     {
       name: 'proposal-storage',
+      version: 1,
       // 持久化配置
       partialize: (state) => ({
         index: state.index,
         // 不持久化 currentProposal，避免占用太多空间
       }),
+      migrate: (persistedState: any, version: number) => {
+        console.log(`[ProposalStore] Migrating from version ${version} to 1`);
+        return persistedState;
+      },
     }
   )
 );
