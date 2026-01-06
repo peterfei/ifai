@@ -111,6 +111,33 @@ pub async fn execute_local_tool(
                 "错误: 缺少 paths 参数".to_string()
             }
         }
+        "bash" | "agent_run_shell_command" | "agent_execute_command" => {
+            let cmd_str = args["command"].as_str().unwrap_or("");
+            let cwd = args["working_dir"]
+                .as_str()
+                .or_else(|| args["cwd"].as_str())
+                .unwrap_or(project_root);
+            let timeout_val = args["timeout"]
+                .as_u64()
+                .or_else(|| args["timeout_ms"].as_u64());
+            let env_vars = args.get("env_vars")
+                .and_then(|v| v.as_object())
+                .map(|obj| {
+                    obj.iter()
+                        .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                        .collect::<std::collections::HashMap<String, String>>()
+                });
+
+            match commands::bash_commands::execute_bash_command(
+                cmd_str.to_string(),
+                Some(cwd.to_string()),
+                timeout_val,
+                env_vars,
+            ).await {
+                Ok(result) => serde_json::to_string(&result).unwrap_or_default(),
+                Err(e) => format!("命令执行失败: {}", e),
+            }
+        }
         _ => {
             format!("未知的工具: {}", tool_name)
         }
@@ -246,8 +273,19 @@ async fn ai_chat(
         // Update messages with summarized version
         messages = updated_messages;
 
-        // 3. Assemble Final System Prompt
+        // Insert Main System Prompt
         let mut final_system_prompt = prompt_manager::get_main_system_prompt(&root);
+        
+        // 注入工具定义兜底：确保模型即便没收到 tools 参数，也能通过提示词学会调用
+        final_system_prompt.push_str("\n\n# ADDITIONAL TOOLS AVAILABLE\n");
+        final_system_prompt.push_str("You also have access to the following tool. You MUST use it by outputting a standard tool call JSON:\n");
+        final_system_prompt.push_str(r#"
+- name: bash
+  description: Execute a shell command
+  parameters: { "command": "string", "working_dir": "string (optional)" }
+  example: {"name": "bash", "arguments": {"command": "ls -la"}}
+"#);
+
         if let Some(context) = rag_context {
              if !context.is_empty() {
                 let truncated_context = if context.len() > 12000 {
@@ -454,21 +492,121 @@ async fn ai_chat(
     let event_id_clone = event_id.clone();
     let app_for_finish = app.clone();
     let event_id_for_finish = event_id.clone();
+    let project_root_clone = project_root.clone();
+
+    // 使用内部可变性以在 Fn 闭包中修改状态
+    let accumulated_reasoning = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let accumulated_content = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let has_intercepted_tool = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+    // 为云端请求注入 bash 工具定义
+    let mut tools = vec![
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "bash",
+                "description": "Execute a shell command",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": { "type": "string", "description": "The command to execute" },
+                        "working_dir": { "type": "string", "description": "Working directory (optional)" }
+                    },
+                    "required": ["command"]
+                }
+            }
+        })
+    ];
 
     state.ai_service.stream_chat(
         &provider_config,
         messages,
         &event_id,
+        Some(tools),
         Box::new(move |chunk| {
              // 调试：打印 chunk 内容
-             println!("[AI Chat] Streaming chunk: {}", chunk);
+             // println!("[AI Chat] Streaming chunk: {}", chunk);
 
-             let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
-
-             // 检查是否为 finish_reason（包括 tool_calls, stop, length 等）
-             // 对所有 finish_reason 都触发 _finish 事件
+             // 解析并检查 GLM 特有的 XML 格式
              if let Ok(json_obj) = serde_json::from_str::<serde_json::Value>(&chunk) {
-                 if let Some(finish_reason) = json_obj.get("finish_reason").and_then(|v| v.as_str()) {
+                 let mut current_reasoning = String::new();
+                 let mut current_content = String::new();
+
+                 // 处理推理内容 (reasoning_content)
+                 if let Some(reasoning) = json_obj["choices"][0]["delta"]["reasoning_content"].as_str() {
+                     let mut acc_reasoning = accumulated_reasoning.lock().unwrap();
+                     acc_reasoning.push_str(reasoning);
+                     current_reasoning = acc_reasoning.clone();
+                 } else {
+                     current_reasoning = accumulated_reasoning.lock().unwrap().clone();
+                 }
+
+                 // 处理正文内容 (content)
+                 if let Some(content) = json_obj["choices"][0]["delta"]["content"].as_str() {
+                     let mut acc_content = accumulated_content.lock().unwrap();
+                     acc_content.push_str(content);
+                     current_content = acc_content.clone();
+                 } else {
+                     current_content = accumulated_content.lock().unwrap().clone();
+                 }
+
+                 // 检测 XML 标签并转换
+                 let combined = format!("{}{}", current_reasoning, current_content);
+                 let already_intercepted = has_intercepted_tool.load(std::sync::atomic::Ordering::SeqCst);
+
+                 if combined.contains("</tool_call>") && !already_intercepted {
+                     use regex::Regex;
+                     let re_full = Regex::new(r"<tool_call>(.*?)</tool_call>").unwrap();
+                     if let Some(caps) = re_full.captures(&combined) {
+                         let full_match = caps.get(0).unwrap().as_str();
+                         let re_tool = Regex::new(r"<tool_call>([^<]+)").unwrap();
+                         let re_key = Regex::new(r"<arg_key>([^<]+)</arg_key>").unwrap();
+                         let re_val = Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
+
+                         if let Some(tool_name) = re_tool.captures(full_match).and_then(|c| c.get(1)).map(|m| m.as_str().trim()) {
+                             let mut args = serde_json::Map::new();
+                             let keys: Vec<_> = re_key.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                             let vals: Vec<_> = re_val.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                             for (k, v) in keys.iter().zip(vals.iter()) {
+                                 args.insert(k.to_string(), serde_json::json!(v));
+                             }
+
+                             if !args.is_empty() {
+                                 // 标记已拦截，防止同一次流中重复触发
+                                 has_intercepted_tool.store(true, std::sync::atomic::Ordering::SeqCst);
+                                 
+                                 let cmd_str = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
+                                 println!("[AI Chat] INTERCEPTED XML: {} - {}", tool_name, cmd_str);
+
+                                 // 发送标准工具调用事件给前端
+                                 let _ = app_handle_for_stream.emit(&event_id_clone, serde_json::json!({
+                                     "type": "tool_call",
+                                     "tool_call": {
+                                         "index": 0,
+                                         "id": format!("glm_{}", uuid::Uuid::new_v4()),
+                                         "type": "function",
+                                         "function": {
+                                             "name": tool_name,
+                                             "arguments": serde_json::to_string(&args).unwrap_or_default()
+                                         }
+                                     }
+                                 }).to_string());
+                             }
+                         }
+                     }
+                 }
+
+                 // 如果已经拦截过工具，或者正在输出 XML 标签，则彻底静默后续所有块
+                 // 这样可以防止 AI 在工具调用后输出重复的 XML 或者废话
+                 let is_xml_fragment = combined.contains("<tool_call>") || combined.contains("<arg_") || chunk.contains("tool_call");
+                 let should_suppress = already_intercepted || is_xml_fragment;
+                 
+                 if !should_suppress {
+                     let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
+                 }
+
+                 // 检查 finish_reason
+                 if let Some(finish_reason) = json_obj["choices"][0].get("finish_reason").and_then(|v| v.as_str()) {
                      println!("[AI Chat] Detected finish_reason: {}, triggering _finish event", finish_reason);
                      let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
                  }
@@ -602,6 +740,7 @@ pub fn run() {
             commands::agent_commands::launch_agent,
             commands::agent_commands::list_running_agents,
             commands::agent_commands::approve_agent_action,
+            commands::bash_commands::execute_bash_command,
             performance::detect_gpu_info,
             performance::is_on_battery,
             performance::get_display_refresh_rate,
@@ -638,7 +777,8 @@ pub fn run() {
             commands::proposal_commands::load_proposal,
             commands::proposal_commands::delete_proposal,
             commands::proposal_commands::move_proposal,
-            commands::proposal_commands::list_proposals
+            commands::proposal_commands::list_proposals,
+            commands::bash_commands::execute_bash_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -81,7 +81,7 @@ pub mod ai {
     #[async_trait::async_trait]
     pub trait AIService: Send + Sync {
         async fn chat(&self, config: &AIProviderConfig, messages: Vec<Message>) -> Result<Message, String>;
-        async fn stream_chat(&self, config: &AIProviderConfig, messages: Vec<Message>, event_id: &str, callback: Box<dyn Fn(String) + Send>) -> Result<(), String>;
+        async fn stream_chat(&self, config: &AIProviderConfig, messages: Vec<Message>, event_id: &str, tools: Option<Vec<serde_json::Value>>, callback: Box<dyn Fn(String) + Send>) -> Result<(), String>;
     }
 }
 

@@ -5,3 +5,5 @@ pub mod core_wrappers;
 pub mod task_commands;
 // v0.2.6 新增：提案管理
 pub mod proposal_commands;
+// v0.5.0 新增：Bash 命令执行
+pub mod bash_commands;

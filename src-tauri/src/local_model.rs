@@ -350,6 +350,24 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
     let mut calls = Vec::new();
     let text_lower = text.to_lowercase();
 
+    // 优先检查：是否是纯命令（由意图识别器提取的 bash 命令）
+    // 特征：短文本、包含常见命令关键词
+    let is_pure_command = text.len() < 50 && (
+        text.starts_with("ls") || text.starts_with("pwd") || text.starts_with("cd") ||
+        text.starts_with("git") || text.starts_with("npm") || text.starts_with("yarn") ||
+        text.starts_with("pnpm") || text.starts_with("cargo") || text.starts_with("node") ||
+        text.starts_with("python") || text.starts_with("pip") || text.starts_with("python3") ||
+        text.contains("git status") || text.contains("git log") || text.contains("git diff") ||
+        text.contains("npm run") || text.contains("npm test") || text.contains("npm install") ||
+        text.contains("cargo build") || text.contains("cargo test") || text.contains("cargo run")
+    );
+
+    if is_pure_command {
+        // 纯命令应该由 bash agent 处理，返回空列表
+        println!("[LocalModel] Detected pure command '{}', delegating to bash agent", text);
+        return calls;
+    }
+
     // 模式1: agent_xxx(...) 格式
     let pattern = regex::Regex::new(r"agent_(\w+)\s*\(\s*([^)]*)\s*\)").unwrap();
     for cap in pattern.captures_iter(&text) {

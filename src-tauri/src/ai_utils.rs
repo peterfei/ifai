@@ -176,6 +176,7 @@ struct StreamChoice {
 #[derive(serde::Deserialize, Debug)]
 struct StreamDelta {
     content: Option<String>,
+    reasoning_content: Option<String>,
     tool_calls: Option<Vec<ToolCallChunk>>,
 }
 
@@ -595,6 +596,20 @@ pub async fn agent_stream_chat_with_root(
                                 core_wrappers::agent_write_file(root.to_string(), rel_path.to_string(), content.to_string()).await
                                     .unwrap_or_else(|e| format!("错误: {}", e))
                             }
+                            "bash" => {
+                                let command = args_value["command"].as_str().unwrap_or("");
+                                let working_dir = args_value["working_dir"].as_str().map(|s| s.to_string());
+                                let timeout = args_value["timeout"].as_u64();
+                                match crate::commands::bash_commands::execute_bash_command(
+                                    command.to_string(),
+                                    working_dir,
+                                    timeout,
+                                    None,
+                                ).await {
+                                    Ok(result) => serde_json::to_string(&result).unwrap_or_default(),
+                                    Err(e) => format!("错误: {}", e)
+                                }
+                            }
                             _ => format!("未知的工具: {}", tool_call.name)
                         };
 
@@ -822,35 +837,100 @@ pub async fn agent_stream_chat_with_root(
 
         match event {
             Ok(event) => {
-                // Log stream statistics every 50 events
-                if event_count % 50 == 0 {
-                    let elapsed = start_time.elapsed().as_secs_f64();
-                    eprintln!("[AgentStream] Event #{} | Stats: {:.1}s elapsed, {:.3}s since last",
-                        event_count, elapsed, time_since_last);
-                } else {
-                    eprintln!("[AgentStream] Event #{}", event_count);
-                }
-                eprintln!("[AgentStream] Received event, data length: {}", event.data.len());
-
-                if event.data == "[DONE]" {
-                    let total_time = start_time.elapsed().as_secs_f64();
-                    eprintln!("[AgentStream] Stream completed: {} events in {:.1}s",
-                        event_count, total_time);
-                    break;
-                }
-
+                // ... (解析逻辑)
                 if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
                     if let Some(choice) = stream_response.choices.first() {
+                        // 处理推理内容 (reasoning_content)
+                        if let Some(reasoning) = &choice.delta.reasoning_content {
+                            // ... (之前的拦截逻辑)
+                            if reasoning.contains("</tool_call>") {
+                                // 提取并存入 accumulated_tool_calls
+                                use regex::Regex;
+                                let re_full = Regex::new(r"<tool_call>(.*?)</tool_call>").unwrap();
+                                if let Some(caps) = re_full.captures(reasoning) {
+                                    let full_match = caps.get(0).unwrap().as_str();
+                                    let re_tool = Regex::new(r"<tool_call>([^<]+)").unwrap();
+                                    let re_key = Regex::new(r"<arg_key>([^<]+)</arg_key>").unwrap();
+                                    let re_val = Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
+
+                                    if let Some(tool_name) = re_tool.captures(full_match).and_then(|c| c.get(1)).map(|m| m.as_str().trim()) {
+                                        let mut args_map = serde_json::Map::new();
+                                        let keys: Vec<_> = re_key.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                                        let vals: Vec<_> = re_val.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                                        for (k, v) in keys.iter().zip(vals.iter()) {
+                                            args_map.insert(k.to_string(), json!(v));
+                                        }
+
+                                        let tool_id = format!("glm_{}", uuid::Uuid::new_v4());
+                                        accumulated_tool_calls.insert(999, StreamingToolCall {
+                                            id: tool_id,
+                                            name: tool_name.to_string(),
+                                            arguments: serde_json::to_string(&args_map).unwrap_or_default(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+
                         // Handle text content
                         if let Some(content) = &choice.delta.content {
                             eprintln!("[AgentStream] Got content chunk: {} chars", content.len());
                             accumulated_content.push_str(content);
 
-                            // Send to frontend in real-time as 'thinking' type
-                            let _ = app.emit(
-                                &format!("agent_{}", agent_id),
-                                json!({ "type": "thinking", "content": content })
-                            );
+                            // Detect if we are inside a GLM XML tool call
+                            // If the content looks like part of <tool_call>...
+                            if accumulated_content.contains("<tool_call>") && !accumulated_content.contains("</tool_call>") {
+                                // Silent mode: don't emit thinking event for the XML tags
+                                eprintln!("[AgentStream] GLM XML detected in content, suppressing display until closed");
+                            } else if accumulated_content.contains("</tool_call>") {
+                                // Once closed, handle it as a tool call (already handled in reasoning or check here)
+                                // We also need to "clean" the accumulated content to remove the XML tags
+                                // so they don't show up in the final text message
+                                
+                                // (XML handling logic already added in reasoning_content, let's make it more robust here)
+                                use regex::Regex;
+                                let re_full = Regex::new(r"<tool_call>(.*?)</tool_call>").unwrap();
+                                if let Some(caps) = re_full.captures(&accumulated_content) {
+                                    let full_match = caps.get(0).unwrap().as_str();
+                                    
+                                    // Extract tool and args similar to the reasoning logic
+                                    let re_tool = Regex::new(r"<tool_call>([^<]+)").unwrap();
+                                    let re_key = Regex::new(r"<arg_key>([^<]+)</arg_key>").unwrap();
+                                    let re_val = Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
+
+                                    if let Some(tool_name) = re_tool.captures(full_match).and_then(|c| c.get(1)).map(|m| m.as_str().trim()) {
+                                        let mut args = serde_json::Map::new();
+                                        let keys: Vec<_> = re_key.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                                        let vals: Vec<_> = re_val.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+
+                                        for (k, v) in keys.iter().zip(vals.iter()) {
+                                            args.insert(k.to_string(), json!(v));
+                                        }
+
+                                        if !args.is_empty() {
+                                            println!("[AgentStream] Intercepted XML Tool Call in Content: {}", tool_name);
+                                            let _ = app.emit(
+                                                &format!("agent_{}", agent_id),
+                                                json!({
+                                                    "type": "tool_call",
+                                                    "toolCall": {
+                                                        "id": format!("glm_content_{}", uuid::Uuid::new_v4()),
+                                                        "tool": tool_name,
+                                                        "args": args,
+                                                        "isPartial": false
+                                                    }
+                                                })
+                                            );
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Normal text content
+                                let _ = app.emit(
+                                    &format!("agent_{}", agent_id),
+                                    json!({ "type": "thinking", "content": content })
+                                );
+                            }
                         }
 
                         // Handle tool call chunks

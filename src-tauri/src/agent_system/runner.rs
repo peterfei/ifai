@@ -38,98 +38,139 @@ pub async fn run_agent_task(
     });
 
     let _ = supervisor.update_status(&id, AgentStatus::Running).await;
-    
-    let tools = vec![
-        json!({
-            "type": "function",
-            "function": {
-                "name": "agent_list_dir",
-                "description": "List files in a directory",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "rel_path": { "type": "string", "description": "Relative path to directory" }
+
+    // Define tools based on agent type
+    // Bash agent only gets bash tool, all other agents get exploration + bash tools
+    let tools = if agent_type == "bash" || agent_type == "/bash" {
+        // Bash agent: ONLY gets bash tool
+        vec![
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "bash",
+                    "description": "Execute a shell command",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": { "type": "string", "description": "The command to execute" },
+                            "working_dir": { "type": "string", "description": "Working directory (optional)" },
+                            "timeout": { "type": "number", "description": "Timeout in milliseconds (optional)" }
+                        },
+                        "required": ["command"]
                     }
                 }
-            }
-        }),
-        json!({
-            "type": "function",
-            "function": {
-                "name": "agent_read_file",
-                "description": "Read content of a file",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "rel_path": { "type": "string", "description": "Relative path to file" }
-                    },
-                    "required": ["rel_path"]
-                }
-            }
-        }),
-        json!({
-            "type": "function",
-            "function": {
-                "name": "agent_batch_read",
-                "description": "Read multiple files in parallel for efficiency. Use this when you need to read 3-10 files at once. Returns JSON array with results for each file.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "paths": {
-                            "type": "array",
-                            "items": { "type": "string" },
-                            "description": "Array of relative file paths to read (recommended: 3-10 files per batch)"
+            })
+        ]
+    } else {
+        // Other agents: get full exploration + bash tools
+        vec![
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_list_dir",
+                    "description": "List files in a directory",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to directory" }
                         }
-                    },
-                    "required": ["paths"]
+                    }
                 }
-            }
-        }),
-        json!({
-            "type": "function",
-            "function": {
-                "name": "agent_scan_directory",
-                "description": "Scan a directory and return structured file tree with statistics. Supports glob patterns (e.g., '*.ts') and limits. Use this for quick project overview before deep scanning.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "rel_path": {
-                            "type": "string",
-                            "description": "Relative path to directory to scan (default: '.' for current directory)"
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_read_file",
+                    "description": "Read content of a file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to file" }
                         },
-                        "pattern": {
-                            "type": "string",
-                            "description": "Optional glob pattern to filter files (e.g., '*.ts', '**/*.tsx', '**/*.rs')"
-                        },
-                        "max_depth": {
-                            "type": "number",
-                            "description": "Maximum directory depth to scan (default: 10)"
-                        },
-                        "max_files": {
-                            "type": "number",
-                            "description": "Maximum number of files to return (default: 500)"
-                        }
-                    },
-                    "required": []
+                        "required": ["rel_path"]
+                    }
                 }
-            }
-        }),
-        json!({
-            "type": "function",
-            "function": {
-                "name": "agent_write_file",
-                "description": "Write content to a file",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "rel_path": { "type": "string", "description": "Relative path to file" },
-                        "content": { "type": "string", "description": "File content" }
-                    },
-                    "required": ["rel_path", "content"]
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_batch_read",
+                    "description": "Read multiple files in parallel for efficiency. Use this when you need to read 3-10 files at once. Returns JSON array with results for each file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "paths": {
+                                "type": "array",
+                                "items": { "type": "string" },
+                                "description": "Array of relative file paths to read (recommended: 3-10 files per batch)"
+                            }
+                        },
+                        "required": ["paths"]
+                    }
                 }
-            }
-        })
-    ];
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_scan_directory",
+                    "description": "Scan a directory and return structured file tree with statistics. Supports glob patterns (e.g., '*.ts') and limits. Use this for quick project overview before deep scanning.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": {
+                                "type": "string",
+                                "description": "Relative path to directory to scan (default: '.' for current directory)"
+                            },
+                            "pattern": {
+                                "type": "string",
+                                "description": "Optional glob pattern to filter files (e.g., '*.ts', '**/*.tsx', '**/*.rs')"
+                            },
+                            "max_depth": {
+                                "type": "number",
+                                "description": "Maximum directory depth to scan (default: 10)"
+                            },
+                            "max_files": {
+                                "type": "number",
+                                "description": "Maximum number of files to return (default: 500)"
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_write_file",
+                    "description": "Write content to a file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to file" },
+                            "content": { "type": "string", "description": "File content" }
+                        },
+                        "required": ["rel_path", "content"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "bash",
+                    "description": "Execute a shell command",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": { "type": "string", "description": "The command to execute" },
+                            "working_dir": { "type": "string", "description": "Working directory (optional)" },
+                            "timeout": { "type": "number", "description": "Timeout in milliseconds (optional)" }
+                        },
+                        "required": ["command"]
+                    }
+                }
+            })
+        ]
+    };
 
     let mut loop_count = 0;
     const MAX_LOOPS: usize = 12;
@@ -194,16 +235,19 @@ pub async fn run_agent_task(
                                 let _ = app.emit(&event_id, json!({ "type": "status", "status": "waitingfortool" }));
 
                                 let approved = supervisor.wait_for_approval(id.clone()).await;
+                                println!("[AgentRunner] Approval received for {}: {}", tool_name, approved);
                                 
                                 if approved {
                                     let _ = app.emit("agent:status", json!({ "id": id, "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "status", "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("🚀 Executing {}...", tool_name) }));
+                                    println!("[AgentRunner] Starting execution of {}", tool_name);
                                 }
 
                                 let _ = supervisor.update_status(&id, if approved { AgentStatus::Running } else { AgentStatus::Stopped }).await;
 
                                 if !approved {
+                                    println!("[AgentRunner] Tool {} REJECTED by user", tool_name);
                                     ("User rejected the operation.".to_string(), false)
                                 } else {
                                     if tool_name == "agent_write_file" {
@@ -214,6 +258,7 @@ pub async fn run_agent_task(
 
                                     // Use recursive scan for agent_scan_directory to enable progress callbacks
                                     let tool_result = if tool_name == "agent_scan_directory" {
+                                        println!("[AgentRunner] Executing scan_directory...");
                                         let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".").to_string();
                                         let pattern = args["pattern"].as_str().map(|s| s.to_string());
                                         let max_depth = args["max_depth"].as_u64().map(|v| v as usize);
@@ -226,9 +271,16 @@ pub async fn run_agent_task(
                                             Err(e) => format!("Error: {}", e)
                                         }
                                     } else {
+                                        println!("[AgentRunner] Calling tools::execute_tool_internal for {}", tool_name);
                                         match tools::execute_tool_internal(tool_name, &args, &context.project_root).await {
-                                            Ok(res) => res,
-                                            Err(e) => format!("Error: {}", e)
+                                            Ok(res) => {
+                                                println!("[AgentRunner] Execution success for {}. Result size: {}", tool_name, res.len());
+                                                res
+                                            },
+                                            Err(e) => {
+                                                println!("[AgentRunner] Execution FAILED for {}: {}", tool_name, e);
+                                                format!("Error: {}", e)
+                                            }
                                         }
                                     };
 

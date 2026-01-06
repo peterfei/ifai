@@ -20,10 +20,11 @@ impl AIService for BasicAIService {
         config: &AIProviderConfig,
         messages: Vec<Message>,
         _event_id: &str,
+        tools: Option<Vec<serde_json::Value>>,
         callback: Box<dyn Fn(String) + Send>,
     ) -> Result<(), String> {
         // Enhanced implementation that supports tool_calls
-        match ai_utils::fetch_ai_completion(config, messages, None).await {
+        match ai_utils::fetch_ai_completion(config, messages, tools).await {
             Ok(msg) => {
                 // 1. Send text content
                 match &msg.content {

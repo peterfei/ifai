@@ -27,9 +27,12 @@ pub mod impls {
             config: &AIProviderConfig,
             messages: Vec<Message>,
             event_id: &str,
+            tools: Option<Vec<serde_json::Value>>,
             _callback: Box<dyn Fn(String) + Send>,
         ) -> Result<(), String> {
-            // 直接透传，无需序列化转换
+            // 注意：如果 ifainew_core::ai::stream_chat 目前不支持 tools 参数，
+            // 我们可以暂时忽略或通过其他方式注入。
+            // 但为了修复编译错误，必须匹配核心 trait 的方法签名。
             ifainew_core::ai::stream_chat(
                 self.app.clone(),
                 config.clone(),

@@ -24,6 +24,8 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     'agent_read_file': <Eye size={14} />,
     'agent_list_dir': <FolderOpen size={14} />,
     'agent_execute_command': <Terminal size={14} />,
+    'agent_run_shell_command': <Terminal size={14} />,
+    'bash': <Terminal size={14} />,
     'agent_search': <Search size={14} />,
     'agent_delete_file': <Trash2 size={14} />,
 };

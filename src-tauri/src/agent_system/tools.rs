@@ -155,6 +155,47 @@ pub async fn execute_tool_internal(
                 max_files
             ).await
         },
+        "bash" | "agent_run_shell_command" | "agent_execute_command" => {
+            let command = get_arg_str(args, "command", "");
+            let working_dir = get_arg_opt_str(args, "working_dir")
+                .or_else(|| Some(project_root.to_string()));
+            let timeout = get_arg_opt_u64(args, "timeout");
+
+            println!("[AgentTools] BASH EXECUTION START:");
+            println!("  - Requested tool: {}", tool_name);
+            println!("  - Command: {}", command);
+            println!("  - Directory: {:?}", working_dir);
+
+            match crate::commands::bash_commands::execute_bash_command(
+                command.to_string(),
+                working_dir,
+                timeout,
+                None, // env_vars
+            ).await {
+                Ok(result) => {
+                    // Format the result in a more AI-friendly way
+                    // If command succeeded, focus on stdout. If failed, include stderr.
+                    let formatted = if result.success {
+                        if result.stdout.trim().is_empty() {
+                            format!("Command '{}' completed successfully (no output).", command)
+                        } else {
+                            result.stdout.clone()
+                        }
+                    } else {
+                        format!("Command '{}' failed with exit code {}.\nstdout: {}\nstderr: {}",
+                            command, result.exit_code, result.stdout, result.stderr)
+                    };
+
+                    println!("[AgentTools] BASH SUCCESS: exit_code={}, success={}, output_len={}",
+                        result.exit_code, result.success, formatted.len());
+                    Ok(formatted)
+                },
+                Err(e) => {
+                    println!("[AgentTools] BASH ERROR: {}", e);
+                    Err(e)
+                },
+            }
+        },
         _ => Err(format!("Tool {} not implemented or allowed in Agent System", tool_name))
     }
 }

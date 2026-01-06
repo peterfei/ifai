@@ -110,9 +110,10 @@ export function formatToolResultToMarkdown(result: any): string {
     lines.push(`**⚠️ Stderr:**\n\`\`\`\n${result.stderr}\n\`\`\`\n`);
   }
 
-  if (result.exitCode !== undefined) {
-    const exitIcon = result.exitCode === 0 ? '✅' : '❌';
-    lines.push(`**🔚 Exit Code:** ${exitIcon} ${result.exitCode}\n`);
+  const exitCode = result.exitCode !== undefined ? result.exitCode : result.exit_code;
+  if (exitCode !== undefined) {
+    const exitIcon = exitCode === 0 ? '✅' : '❌';
+    lines.push(`**🔚 Exit Code:** ${exitIcon} ${exitCode}\n`);
   }
 
   // 处理内容
