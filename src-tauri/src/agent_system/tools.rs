@@ -91,21 +91,42 @@ fn unescape_string(s: &str) -> String {
     result
 }
 
+/// Calibrate project root path
+/// If the path points to 'src-tauri' (common dev environment issue), jump up to the parent directory.
+fn calibrate_project_root(raw_root: &str) -> String {
+    let mut base_path = std::path::PathBuf::from(raw_root);
+    if base_path.ends_with("src-tauri") {
+        println!("[AgentTools] Root calibration: Detected 'src-tauri', jumping to parent.");
+        if let Some(parent) = base_path.parent() {
+            base_path = parent.to_path_buf();
+        }
+    }
+    base_path.to_string_lossy().to_string()
+}
+
 pub async fn execute_tool_internal(
     tool_name: &str,
     args: &Value,
     project_root: &str,
 ) -> Result<String, String> {
-    println!("[AgentTools] Executing tool: {} with args: {}", tool_name, args);
+    // 1. Calibrate the project root globally for ALL tools
+    let calibrated_root = calibrate_project_root(project_root);
+    
+    // Only log if calibration actually changed the path
+    if calibrated_root != project_root {
+        println!("[AgentTools] Executing tool: {} | Root Calibrated: '{}' -> '{}'", tool_name, project_root, calibrated_root);
+    } else {
+        println!("[AgentTools] Executing tool: {} with args: {}", tool_name, args);
+    }
 
     match tool_name {
         "agent_read_file" => {
             let rel_path = get_arg_str(args, "rel_path", "");
-            agent::agent_read_file(project_root.to_string(), rel_path.to_string()).await
+            agent::agent_read_file(calibrated_root, rel_path.to_string()).await
         },
         "agent_list_dir" => {
             let rel_path = get_arg_str(args, "rel_path", ".");
-            let result = agent::agent_list_dir(project_root.to_string(), rel_path.to_string()).await?;
+            let result = agent::agent_list_dir(calibrated_root, rel_path.to_string()).await?;
             Ok(result.join("\n"))
         },
         "agent_write_file" => {
@@ -113,14 +134,12 @@ pub async fn execute_tool_internal(
             let content = get_arg_str(args, "content", "");
 
             // Fix: Unescape escape sequences in content (\\n -> \n, \\t -> \t, etc.)
-            // The JSON from AI contains escaped newlines as \\n which need to be converted to actual \n
             let unescaped_content = unescape_string(content);
 
             println!("[AgentTools] Writing file: {} (content length: {})", rel_path, unescaped_content.len());
-            agent::agent_write_file(project_root.to_string(), rel_path.to_string(), unescaped_content).await
+            agent::agent_write_file(calibrated_root, rel_path.to_string(), unescaped_content).await
         },
         "agent_batch_read" => {
-            // Extract paths array from arguments - check both snake_case and camelCase
             let paths_array = args["paths"].as_array()
                 .or_else(|| args["Paths"].as_array())
                 .ok_or("Missing 'paths' array in arguments")?;
@@ -135,9 +154,7 @@ pub async fn execute_tool_internal(
             }
 
             println!("[AgentTools] Batch reading {} files", paths.len());
-
-            // Call the batch_read function
-            crate::commands::core_wrappers::agent_batch_read(project_root.to_string(), paths).await
+            crate::commands::core_wrappers::agent_batch_read(calibrated_root, paths).await
         },
         "agent_scan_directory" => {
             let rel_path = get_arg_str(args, "rel_path", ".");
@@ -148,7 +165,7 @@ pub async fn execute_tool_internal(
             println!("[AgentTools] Scanning directory: {} (pattern: {:?})", rel_path, pattern);
 
             crate::commands::core_wrappers::agent_scan_directory(
-                project_root.to_string(),
+                calibrated_root,
                 rel_path.to_string(),
                 pattern,
                 max_depth,
@@ -159,20 +176,6 @@ pub async fn execute_tool_internal(
             let command = get_arg_str(args, "command", "");
             let working_dir_arg = get_arg_opt_str(args, "working_dir");
             let timeout = get_arg_opt_u64(args, "timeout");
-
-            println!("[AgentTools DEBUG] project_root raw: '{}'", project_root);
-
-            // 防御性编程：自动校准项目根目录
-            // 如果 project_root 指向了 src-tauri 内部，自动向上跳一级
-            let mut base_path = std::path::PathBuf::from(project_root);
-            if base_path.ends_with("src-tauri") {
-                println!("[AgentTools DEBUG] Detected project_root points to src-tauri, jumping up to parent.");
-                if let Some(parent) = base_path.parent() {
-                    base_path = parent.to_path_buf();
-                }
-            }
-            let calibrated_root = base_path.to_string_lossy().to_string();
-            println!("[AgentTools DEBUG] Calibrated root: '{}'", calibrated_root);
 
             // Sanitize working directory to be relative to project root
             let final_working_dir = match working_dir_arg {
