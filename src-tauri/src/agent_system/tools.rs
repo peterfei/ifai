@@ -160,10 +160,15 @@ pub async fn execute_tool_internal(
             let working_dir_arg = get_arg_opt_str(args, "working_dir");
             let timeout = get_arg_opt_u64(args, "timeout");
 
+            println!("[AgentTools DEBUG] project_root raw: '{}'", project_root);
+            println!("[AgentTools DEBUG] working_dir_arg raw: '{:?}'", working_dir_arg);
+
             // Sanitize working directory to be relative to project root
             let final_working_dir = match working_dir_arg {
                 Some(dir) => {
                     let clean_dir = dir.trim_start_matches(|c| c == '/' || c == '\\');
+                    println!("[AgentTools DEBUG] clean_dir: '{}'", clean_dir);
+                    
                     if clean_dir.is_empty() || clean_dir == "." {
                         project_root.to_string()
                     } else {
@@ -173,10 +178,16 @@ pub async fn execute_tool_internal(
                 None => project_root.to_string(),
             };
 
+            // Resolve to absolute canonical path for debugging
+            let canonical_path = std::fs::canonicalize(&final_working_dir)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|e| format!("(Failed to resolve: {})", e));
+
             println!("[AgentTools] BASH EXECUTION START:");
             println!("  - Requested tool: {}", tool_name);
             println!("  - Command: {}", command);
-            println!("  - Directory: {}", final_working_dir);
+            println!("  - Calculated Directory: {}", final_working_dir);
+            println!("  - Canonical Directory: {}", canonical_path);
 
             match crate::commands::bash_commands::execute_bash_command(
                 command.to_string(),
