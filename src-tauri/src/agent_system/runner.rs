@@ -441,6 +441,16 @@ pub async fn run_agent_task(
                             Err(e) => (format!("Failed to parse arguments: {}", e), false)
                         };
 
+                        // ⚡️ FIX: 发送 tool_result 事件，让前端能立即显示工具输出
+                        // 前端会根据 toolCallId 匹配并更新对应 toolCall 的 result 字段
+                        let tool_id = format!("{}_{}", id, idx);
+                        let _ = app.emit(&event_id, json!({
+                            "type": "tool_result",
+                            "toolCallId": tool_id,
+                            "result": tool_result,
+                            "success": _success
+                        }));
+
                         history.push(Message {
                             role: "tool".to_string(),
                             content: Content::Text(tool_result),

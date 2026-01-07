@@ -627,8 +627,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     const isNewlyCompleted = !liveToolCall.isPartial;
                     const wasAlreadyAutoApproved = get().autoApprovedToolCalls.has(liveToolCall.id);
 
+                    console.log(`[AgentStore] Auto-approve check: isNewlyCompleted=${isNewlyCompleted}, wasAlreadyAutoApproved=${wasAlreadyAutoApproved}`);
+
                     if (isNewlyCompleted && !wasAlreadyAutoApproved) {
                         const settings = useSettingsStore.getState();
+                        console.log(`[AgentStore] Auto-approve setting: ${settings.agentAutoApprove}`);
+
                         if (settings.agentAutoApprove) {
                             // Mark as auto-approved BEFORE calling to prevent race condition
                             const currentState = get();
@@ -688,18 +692,34 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (msgId) {
                 const { messages, isLoading } = coreUseChatStore.getState();
                 console.log(`[AgentStore] Before setState: isLoading=${isLoading}`);
+
+                // ⚡️ FIX: 为工具调用设置 result，使得 ToolApproval 组件能显示输出
+                // Agent 的最终响应（result）包含了所有工具执行的摘要和输出
+                const updatedMessages = messages.map(m => {
+                    if (m.id === msgId) {
+                        return {
+                            ...m,
+                            content: result,
+                            agentId: undefined,      // ✅ Clear agent ID so isAgentStreaming becomes false
+                            isAgentLive: false,       // ✅ Clear live marker so highlighting appears
+                            // 🐛 FIX: Update tool call status to completed and set result
+                            toolCalls: m.toolCalls?.map(tc => {
+                                const isCompleted = (tc.status === 'approved' || tc.status === 'pending');
+                                return {
+                                    ...tc,
+                                    status: isCompleted ? 'completed' as const : tc.status,
+                                    // ⚡️ FIX: 为完成的工具设置 result（包含 Agent 的完整响应）
+                                    // 这样 ToolApproval 组件就能显示 bash 命令的输出
+                                    ...(isCompleted && !tc.result ? { result } : {})
+                                };
+                            })
+                        };
+                    }
+                    return m;
+                });
+
                 coreUseChatStore.setState({
-                    messages: messages.map(m => m.id === msgId ? {
-                        ...m,
-                        content: result,
-                        agentId: undefined,      // ✅ Clear agent ID so isAgentStreaming becomes false
-                        isAgentLive: false,       // ✅ Clear live marker so highlighting appears
-                        // 🐛 FIX: Update tool call status to completed
-                        toolCalls: m.toolCalls?.map(tc => ({
-                            ...tc,
-                            status: (tc.status === 'approved' || tc.status === 'pending') ? 'completed' as const : tc.status
-                        }))
-                    } : m),
+                    messages: updatedMessages,
                     isLoading: false
                 });
                 console.log(`[AgentStore] After setState: isLoading=${coreUseChatStore.getState().isLoading}`);
@@ -982,6 +1002,42 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 console.log('[AgentStore] 📋 Skipped proposal/task processing:', {
                     reason: !agent?.type ? 'no agent' : (agent?.type !== 'proposal-generator' && agent?.type !== 'task-breakdown') ? 'wrong agent type' : 'no result',
                     agentType: agent?.type
+                });
+            }
+        }
+        // --- Tool Result (bash command output, etc.) ---
+        else if (payload.type === 'tool_result') {
+            const toolCallId = payload.toolCallId;
+            const result = payload.result;
+            const success = payload.success;
+
+            console.log(`[AgentStore] Tool result received: toolCallId=${toolCallId}, success=${success}`);
+
+            if (toolCallId && msgId) {
+                // ⚡️ FIX: 只更新 result 字段，不修改 status
+                // 让 Agent 的 result 事件处理器统一管理 status，避免破坏 Agent 流程
+                const { messages } = coreUseChatStore.getState();
+                coreUseChatStore.setState({
+                    messages: messages.map(m => {
+                        if (m.id === msgId && m.toolCalls) {
+                            return {
+                                ...m,
+                                toolCalls: m.toolCalls.map(tc => {
+                                    if (tc.id === toolCallId) {
+                                        console.log(`[AgentStore] Updating tool result for ${toolCallId}`);
+                                        // 只设置 result，保持 status 不变
+                                        // status 会在 Agent 完成时由 result 事件处理器统一更新
+                                        return {
+                                            ...tc,
+                                            result: result
+                                        };
+                                    }
+                                    return tc;
+                                })
+                            };
+                        }
+                        return m;
+                    })
                 });
             }
         }
@@ -1335,12 +1391,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   approveAction: async (id: string, approved: boolean) => {
-      await invoke('approve_agent_action', { id, approved });
-      set(state => ({
-          runningAgents: state.runningAgents.map(a => 
-              a.id === id ? { ...a, pendingApproval: undefined } : a
-          )
-      }));
+      console.log(`[AgentStore] approveAction called: id=${id}, approved=${approved}`);
+      try {
+          await invoke('approve_agent_action', { id, approved });
+          console.log(`[AgentStore] approve_agent_action invoke successful`);
+          set(state => ({
+              runningAgents: state.runningAgents.map(a =>
+                  a.id === id ? { ...a, pendingApproval: undefined } : a
+              )
+          }));
+      } catch (error) {
+          console.error(`[AgentStore] ❌ approve_agent_action invoke failed:`, error);
+          throw error;
+      }
   },
 
   removeAgent: (id: string) => {

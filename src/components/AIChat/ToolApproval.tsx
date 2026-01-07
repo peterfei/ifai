@@ -11,6 +11,7 @@ import { ToolArgsViewer, CompactToolArgsViewer } from './ToolArgsViewer';
 import { StreamingToolArgsViewer } from './StreamingToolArgsViewer';
 import { ToolExecutionIndicator, StreamingContentLoader } from './ToolExecutionIndicator';
 import ReactMarkdown from 'react-markdown';
+import { BashConsoleOutput } from './BashConsoleOutput';
 
 interface ToolApprovalProps {
     toolCall: ToolCall;
@@ -182,6 +183,44 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
 
     const isPending = toolCall.status === 'pending';
     const isPartial = toolCall.isPartial;
+
+    // ⚡️ FIX: 检测是否是bash命令输出
+    const isBashOutput = () => {
+        const toolName = toolCall.tool?.toLowerCase() || '';
+        return toolName.includes('bash') ||
+               toolName.includes('execute_command') ||
+               toolName.includes('shell') ||
+               toolName.includes('agent_list_dir') ||
+               toolName.includes('agent_read_file');
+    };
+
+    // 解析bash命令输出
+    const parseBashOutput = () => {
+        const result = toolCall.result;
+        if (!result) return null;
+
+        // 如果是字符串，直接返回
+        if (typeof result === 'string') {
+            return {
+                output: result,
+                command: toolCall.args?.command || toolCall.args?.cmd || undefined,
+                exitCode: toolCall.args?.exit_code || toolCall.args?.exitCode || 0,
+                success: toolCall.status === 'completed'
+            };
+        }
+
+        // 如果是对象，尝试解析
+        if (typeof result === 'object') {
+            return {
+                output: result.stdout || result.stderr || result.output || JSON.stringify(result),
+                command: result.command || toolCall.args?.command || undefined,
+                exitCode: result.exit_code || result.exitCode || 0,
+                success: result.success !== undefined ? result.success : toolCall.status === 'completed'
+            };
+        }
+
+        return null;
+    };
 
     const getIcon = () => {
         if (!toolCall.tool) return <Terminal size={14} />;
@@ -404,29 +443,40 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                     {/* 结果标题 */}
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                            <div className={`w-1 h-4 rounded-full ${toolCall.status === 'completed' ? 'bg-green-500' : 'bg-red-500'}`} />
+                            {/* ⚡️ FIX: 根据result判断是否成功，而不是只看status */}
+                            <div className={`w-1 h-4 rounded-full ${
+                                toolCall.status === 'failed' ? 'bg-red-500' :
+                                toolCall.result || toolCall.status === 'completed' ? 'bg-green-500' : 'bg-gray-500'
+                            }`} />
                             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                                {toolCall.status === 'completed' ? '执行结果' : '执行失败'}
+                                {toolCall.status === 'failed' ? '执行失败' : '执行结果'}
                             </span>
                         </div>
                         {/* 状态徽章 */}
+                        {/* ⚡️ FIX: 根据result存在与否和status判断显示 */}
                         <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
-                            toolCall.status === 'completed'
+                            toolCall.status === 'failed'
+                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                : toolCall.result || toolCall.status === 'completed'
                                 ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
                         }`}>
-                            {toolCall.status === 'completed' ? '成功' : '失败'}
+                            {toolCall.status === 'failed' ? '失败' : toolCall.result || toolCall.status === 'completed' ? '成功' : '运行中'}
                         </div>
                     </div>
 
                     {/* 结果内容卡片 */}
+                    {/* ⚡️ FIX: 根据result和status判断背景色 */}
                     <div className={`p-4 rounded-xl border overflow-hidden ${
-                        toolCall.status === 'completed'
+                        toolCall.status === 'failed'
+                            ? 'bg-gradient-to-br from-red-500/5 to-red-500/10 border-red-500/20'
+                            : toolCall.result || toolCall.status === 'completed'
                             ? 'bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20'
-                            : 'bg-gradient-to-br from-red-500/5 to-red-500/10 border-red-500/20'
+                            : 'bg-gradient-to-br from-gray-500/5 to-gray-500/10 border-gray-500/20'
                     }`}>
                         {/* 成功图标动画 */}
-                        {toolCall.status === 'completed' && (
+                        {/* ⚡️ FIX: 有result或status=completed时显示成功图标 */}
+                        {(toolCall.result || toolCall.status === 'completed') && toolCall.status !== 'failed' && (
                             <div className="flex items-center justify-center mb-3">
                                 <div className="relative">
                                     <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
@@ -449,37 +499,81 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                         )}
 
                         {/* 格式化的结果内容 */}
-                        <div className="overflow-auto max-h-96 leading-relaxed">
-                            <ReactMarkdown
-                                components={{
-                                    h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
-                                    h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
-                                    h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
-                                    p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
-                                    ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
-                                    ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
-                                    li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
-                                    strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
-                                    em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
-                                    code({ node, inline, ...rest }: any) {
-                                        if (inline) {
+                        <div className="overflow-auto leading-relaxed">
+                            {/* ⚡️ FIX: Bash命令使用工业级控制台样式 */}
+                            {isBashOutput() ? (() => {
+                                const bashOutput = parseBashOutput();
+                                return bashOutput ? (
+                                    <BashConsoleOutput
+                                        output={bashOutput.output}
+                                        command={bashOutput.command}
+                                        exitCode={bashOutput.exitCode}
+                                        success={bashOutput.success}
+                                    />
+                                ) : (
+                                    <ReactMarkdown
+                                        components={{
+                                            h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
+                                            h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
+                                            h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
+                                            p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
+                                            ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
+                                            ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
+                                            li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
+                                            strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
+                                            em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
+                                            code({ node, inline, ...rest }: any) {
+                                                if (inline) {
+                                                    return (
+                                                        <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />
+                                                    );
+                                                }
+                                                return (
+                                                    <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />
+                                                );
+                                            },
+                                            pre({node, ...props}) {
+                                                return (
+                                                    <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
+                                                );
+                                            },
+                                        }}
+                                    >
+                                        {formatToolResultToMarkdown(toolCall.result)}
+                                    </ReactMarkdown>
+                                );
+                            })() : (
+                                <ReactMarkdown
+                                    components={{
+                                        h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
+                                        h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
+                                        h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
+                                        p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
+                                        ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
+                                        ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
+                                        li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
+                                        strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
+                                        em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
+                                        code({ node, inline, ...rest }: any) {
+                                            if (inline) {
+                                                return (
+                                                    <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />
+                                                );
+                                            }
                                             return (
-                                                <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />
+                                                <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />
                                             );
-                                        }
-                                        return (
-                                            <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />
-                                        );
-                                    },
-                                    pre({node, ...props}) {
-                                        return (
-                                            <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
-                                        );
-                                    },
-                                }}
-                            >
-                                {formatToolResultToMarkdown(toolCall.result)}
-                            </ReactMarkdown>
+                                        },
+                                        pre({node, ...props}) {
+                                            return (
+                                                <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
+                                            );
+                                        },
+                                    }}
+                                >
+                                    {formatToolResultToMarkdown(toolCall.result)}
+                                </ReactMarkdown>
+                            )}
                         </div>
                     </div>
                 </div>

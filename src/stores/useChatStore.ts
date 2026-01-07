@@ -1631,7 +1631,9 @@ const patchedApproveToolCall = async (
             )
         }));
 
+        console.log(`[useChatStore] Calling approveAction for agent ${agentId}`);
         await useAgentStore.getState().approveAction(agentId, true);
+        console.log(`[useChatStore] approveAction completed for agent ${agentId}`);
 
         // 🐛 FIX: Agent 执行完成后，更新工具状态为 completed
         const agentStore = useAgentStore.getState();
