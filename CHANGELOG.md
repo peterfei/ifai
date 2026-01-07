@@ -23,6 +23,7 @@
 ### 🚀 重大变更
 - **Agent 进化**: 解锁 Shell 系统级访问能力，Agent 可执行 `npm`, `git` 等命令自主配置环境。
 - **OpenSpec 融合**: 深度集成 OpenSpec 协议标准，开启“规范驱动 (Spec-Driven)”的 AI 开发新范式。
+- **Token 可视化**: 对话界面新增实时 Token 计数与消耗分析，助力精准掌控 API 使用成本。
 - **Markdown 增强**: 引入全新的实时预览引擎，支持分屏/预览多模式切换，显著提升文档生产力。
 - **自定义 API**: 全面支持 OpenAI 兼容接口，无缝接入 DeepSeek、Moonshot 等第三方模型服务。
 - **任务拆解**: 引入 Task Breakdown Service，支持将模糊需求转化为可视化的结构化任务树。

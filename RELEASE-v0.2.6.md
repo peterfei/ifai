@@ -20,6 +20,13 @@ Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的�
 ![Bash Tool Demo 1](./imgs/ifai202601001.png)
 ![Bash Tool Demo 2](./imgs/ifai202601002.png)
 
+### 📊 Token 可视化与成本管理 (Token Intelligence)
+- **实时计量**：对话界面新增 Token 计数器。无论是发送的消息还是 AI 的响应，Token 消耗现在都一目了然。
+- **透明消耗**：支持查看 Context Token 和 Generation Token 的详细分布。这对于使用按量计费（如 DeepSeek、OpenAI）的用户来说，是管理成本的利器。
+- **性能无感**：基于 Rust 后端的高性能 Tokenizer，在不影响响应速度的前提下提供最精准的计数统计。
+
+![Token Usage Indicator](./imgs/ifai202601003.png)
+
 ### 🌳 结构化任务拆解 (Task Breakdown)
 面对模糊的复杂需求，IfAI 现在能像高级工程师一样进行系统化拆解。
 - **可视化任务树**：将需求拆解为层级分明的子任务（Task Tree），并在 UI 中实时渲染。
