@@ -398,8 +398,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
             )}
 
             {/* ✅ 执行结果展示 - 工业级UI，无JSON显示 */}
-            {/* 修复：在 isPartial 状态下不显示结果，避免显示上一个工具的结果 */}
-            {(toolCall.status === 'completed' || toolCall.status === 'failed') && !isWriteFile && !isPartial && (
+            {/* 🐛 FIX: 只在真正有执行结果时才显示，避免显示旧工具的结果 */}
+            {(toolCall.status === 'completed' || toolCall.status === 'failed') && !isWriteFile && !isPartial && toolCall.result && toolCall.result.trim().length > 0 && (
                 <div className="px-5 pb-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     {/* 结果标题 */}
                     <div className="flex items-center justify-between mb-3">
