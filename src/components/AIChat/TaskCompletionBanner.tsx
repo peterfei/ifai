@@ -26,18 +26,8 @@ interface CompletionInfo {
  * 提取完成信息
  */
 function extractCompletionInfo(message: Message): CompletionInfo | null {
+  // v0.2.6 优化：对于没有工具调用（纯文字响应）的消息，不显示完成横幅
   if (!message.toolCalls || message.toolCalls.length === 0) {
-    // 没有工具调用，检查是否有内容
-    const content = typeof message.content === 'string' ? message.content : '';
-    if (content && content.trim()) {
-      return {
-        hasContent: true,
-        hasFiles: false,
-        fileCount: 0,
-        contentLength: content.length,
-        isSuccessful: true,
-      };
-    }
     return null;
   }
 
@@ -57,10 +47,19 @@ function extractCompletionInfo(message: Message): CompletionInfo | null {
   // 提取文件信息
   const files: string[] = [];
   completedCalls.forEach(tc => {
+    // 兼容多种返回格式
     const result: any = tc.result;
-    if (result?.path) files.push(result.path);
-    if (result?.paths) files.push(...result.paths);
-    if (result?.files) files.push(...result.files);
+    if (typeof result === 'string') {
+        // 尝试从字符串中提取路径（启发式）
+        if (result.includes('Successfully wrote to ')) {
+            const path = result.replace('Successfully wrote to ', '').trim();
+            files.push(path);
+        }
+    } else if (result && typeof result === 'object') {
+        if (result.path) files.push(result.path);
+        if (result.paths) files.push(...result.paths);
+        if (result.files) files.push(...result.files);
+    }
   });
 
   if (files.length > 0) {
@@ -73,7 +72,7 @@ function extractCompletionInfo(message: Message): CompletionInfo | null {
 }
 
 /**
- * 任务完成横幅主组件 - 简洁版
+ * 任务完成横幅主组件 - 极致简约版
  */
 export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
   message,
@@ -82,63 +81,66 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
 }) => {
   const info = extractCompletionInfo(message);
 
-  if (!info || !info.isSuccessful) {
+  // 如果不成功，或者没有生成文件且不是复杂任务，则不显示
+  if (!info || !info.isSuccessful || (!info.hasFiles && info.contentLength! < 500)) {
     return null;
   }
 
   return (
-    <div className="mt-3 mb-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {/* 简洁横幅 */}
-      <div className="rounded-lg border border-gray-700/50 bg-gray-800/30 px-4 py-3">
-        {/* 成功提示 - 简洁 */}
-        <div className="flex items-center gap-3 mb-3">
-          <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-          <span className="text-sm text-gray-300">
-            {info.hasFiles && `已生成 ${info.fileCount} 个文件`}
-            {!info.hasFiles && info.hasContent && '内容已生成'}
-          </span>
+    <div className="mt-2 mb-1 px-1 animate-in fade-in slide-in-from-bottom-1 duration-500">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
+        <div className="flex items-center gap-1.5 py-0.5 px-1.5 rounded bg-green-500/5 border border-green-500/10">
+          <CheckCircle className="w-3 h-3 text-green-500/70" />
+          <span className="text-green-500/80 font-medium">任务已完成</span>
         </div>
 
-        {/* 文件列表 - 简洁 */}
         {info.hasFiles && (
-          <div className="space-y-1.5 ml-7">
-            {message.toolCalls
-              ?.filter(tc => tc.status === 'completed')
-              .flatMap(tc => {
-                const result: any = tc.result;
-                const files: string[] = [];
-                if (result?.path) files.push(result.path);
-                if (result?.paths) files.push(...result.paths);
-                if (result?.files) files.push(...result.files);
-                return files;
-              })
-              .slice(0, 5)
-              .map((file, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-200 cursor-pointer transition-colors"
-                  onClick={() => onOpenFile?.(file)}
-                  title="点击打开文件"
-                >
-                  <FileText className="w-3 h-3 flex-shrink-0" />
-                  <span className="font-mono truncate">{file}</span>
-                </div>
-              ))}
+          <div className="flex items-center gap-2">
+            <span className="opacity-50">|</span>
+            <span className="flex items-center gap-1">
+              <FolderOpen size={10} className="opacity-70" />
+              已生成 {info.fileCount} 个文件:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {message.toolCalls
+                ?.filter(tc => tc.status === 'completed')
+                .flatMap(tc => {
+                  const result: any = tc.result;
+                  const files: string[] = [];
+                  if (typeof result === 'string' && result.includes('wrote to ')) {
+                      files.push(result.replace('Successfully wrote to ', '').trim());
+                  } else if (result && typeof result === 'object') {
+                      if (result.path) files.push(result.path);
+                      if (result.paths) files.push(...result.paths);
+                      if (result.files) files.push(...result.files);
+                  }
+                  return files;
+                })
+                .slice(0, 3)
+                .map((file, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => onOpenFile?.(file)}
+                    className="hover:text-blue-400 hover:underline transition-colors font-mono truncate max-w-[120px]"
+                  >
+                    {file.split('/').pop()}
+                  </button>
+                ))}
+              {info.fileCount > 3 && <span>...</span>}
+            </div>
           </div>
         )}
 
-        {/* 内容摘要 - 简洁 */}
-        {info.hasContent && !info.hasFiles && (
-          <div className="ml-7">
-            <div className="text-xs text-gray-500">
-              {info.contentLength} 字符
-              <button
-                onClick={() => onCopyContent?.(typeof message.content === 'string' ? message.content : '')}
-                className="ml-3 text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                复制内容
-              </button>
-            </div>
+        {info.hasContent && (
+          <div className="flex items-center gap-2">
+            <span className="opacity-50">|</span>
+            <span>{info.contentLength} 字符</span>
+            <button
+              onClick={() => onCopyContent?.(typeof message.content === 'string' ? message.content : '')}
+              className="text-blue-500/60 hover:text-blue-400 transition-colors"
+            >
+              复制
+            </button>
           </div>
         )}
       </div>
