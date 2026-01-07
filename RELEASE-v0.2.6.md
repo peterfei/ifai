@@ -14,40 +14,43 @@ IfAI v0.2.6 是我们在 **AI Agent 自主性**与**环境感知能力**上的�
 Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的系统级交互能力。
 - **环境配置**：Agent 可以执行 `npm install`、`cargo build` 等命令，自动配置开发环境。
 - **Git 交互**：支持 `git status`、`git diff` 等操作，让 AI 理解版本控制状态。
-- **智能路径校准**：彻底解决了开发环境与运行环境路径不一致的痛点。无论是在 E2E 测试还是真实项目中，Agent 都能自动识别并跳出 `src-tauri` 等误判路径，精准定位项目根目录。
-- **自我纠错机制**：当命令失败（如 `package.json not found`）时，系统会主动分析 stderr 并提供路径提示，引导 Agent 自动修正目录，打破重试死循环。
+- **智能路径校准**：彻底解决了开发环境与运行环境路径不一致的痛点。
+- **自我纠错机制**：当命令失败时主动分析并提供路径提示。
 
-![Bash Tool Demo](./imgs/ifai2026001.png)
-*(占位符：展示 Agent 执行 `npm install` 并根据反馈修正路径的流程)*
+![Bash Tool Demo 1](./imgs/ifai202601001.png)
+![Bash Tool Demo 2](./imgs/ifai202601002.png)
 
 ### 🌳 结构化任务拆解 (Task Breakdown)
 面对模糊的复杂需求，IfAI 现在能像高级工程师一样进行系统化拆解。
-- **可视化任务树**：将一个庞大的 Feature Request 拆解为层级分明的子任务（Task Tree），并在 UI 中实时渲染。
-- **持久化同步**：任务状态实时同步到文件系统（`.ifai/tasks/`），确保进度不丢失，支持跨会话继续任务。
-- **智能关联**：自动关联相关代码文件与提案（Proposal），实现从需求到代码的完整追踪。
+- **可视化任务树**：将需求拆解为层级分明的子任务（Task Tree），并在 UI 中实时渲染。
+- **持久化同步**：任务状态实时同步到文件系统（`.ifai/tasks/`）。
 
-![Task Tree Demo](./imgs/ifai2026002.png)
-*(占位符：展示 Mission Control 中的任务树结构与状态更新)*
-
-### 🛡️ 核心引擎增强 (Engine Resilience)
-- **RAG 索引隔离**：修复了项目切换时 RAG 索引数据残留的隐患。现在的初始化逻辑包含强制重置机制，确保每个项目的上下文纯净无污染。
-- **文件系统一致性**：统一了 Bash 工具和 Rust 文件系统工具（`agent_list_dir` 等）的路径解析逻辑，消除了“精神分裂”现象，确保 Agent 看到的文件列表与真实磁盘完全一致。
-
-### 🔌 灵活的自定义 API (Flexible Custom API)
-- **OpenAI 兼容**：完全支持 OpenAI 兼容格式的自定义 API 端点。您现在可以无缝接入 DeepSeek、Moonshot (Kimi)、Yi 等第三方大模型服务，甚至连接到您自建的 vLLM/Ollama 服务。
-- **参数微调**：支持自定义 Context Window（上下文窗口）大小和 Max Tokens，让模型能力发挥到极致。
+![Task Tree Visualization](./imgs/ifai202601004.png)
+![Mission Control Center](./imgs/ifai202601005.png)
 
 ### 📑 OpenSpec 深度融合 (Deep OpenSpec Integration)
-- **协议驱动开发**：v0.2.6 实现了与 [OpenSpec](https://openspec.dev) 标准的深度集成。这意味着 Agent 现在的行为不仅基于 Prompt，更受标准化的规范（Spec）驱动。
-- **一致性保证**：通过 OpenSpec，AI 能够更精准地遵循项目设计规范，确保生成代码的架构一致性，为自动化的 Spec-to-Code 流程奠定了坚实基础。
+- **协议驱动开发**：v0.2.6 实现了与 [OpenSpec](https://openspec.dev) 标准的深度集成。
+- **一致性保证**：AI 能够更精准地遵循项目设计规范，确保生成代码的架构一致性。
 
-### 🤖 本地模型体验升级
-- **自动续写**：针对本地小参数模型（如 Qwen2.5-Coder）常见的输出截断问题，实现了无缝自动续写功能，长代码生成不再中断。
-- **Token 计数**：新增 Token 计数与管理模块，帮助用户更精细地控制本地推理成本与上下文窗口。
+![OpenSpec Workflow](./imgs/ifai202601007.png)
+
+### 🔌 灵活的自定义 API (Flexible Custom API)
+- **OpenAI 兼容**：支持接入 DeepSeek、Moonshot (Kimi)、Yi 等第三方大模型服务。
+- **参数微调**：支持自定义 Context Window 大小和 Max Tokens。
+
+![Custom API Settings](./imgs/ifai202601009.png)
 
 ### ⚡ 极致性能：Snippet Manager 虚拟滚动
-- **海量数据承载**：为了展示 v0.2.6 渲染管线的进化，我们重构了代码片段管理器（Snippet Manager）。用户现在可以测试在加载数千条代码片段时的“零延迟”滚动体验。
-- **虚拟滚动技术**：通过底层虚拟列表（Virtual List）技术，即便面对海量代码块，界面依然能保持 120 FPS 的顺滑度，告别长列表卡顿。
+- **海量数据承载**：代码片段管理器支持万级数据加载，保持 120 FPS 顺滑滚动。
+- **流畅体验**：告别长列表卡顿，实现毫秒级预览。
+
+![Snippet Virtual Scroll](./imgs/ifai202601010.png)
+
+### 🤖 本地模型体验升级
+- **自动续写**：长代码生成不再中断，实现无缝续写。
+- **Token 计数**：精细控制本地推理成本。
+
+![Local LLM Stats](./imgs/ifai202601011.png)
 
 ---
 
@@ -55,24 +58,19 @@ Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的�
 
 ### 🚀 新增功能 (Features)
 - **[Agent]** 新增 `bash` 和 `agent_run_shell_command` 工具，支持带超时控制的命令执行。
-- **[Agent]** 实现了基于 `stderr` 分析的智能错误反馈机制，大幅提升 Agent 的自主修复率。
-- **[Settings]** 新增自定义 API 配置面板，支持 `baseUrl`、`apiKey` 及上下文参数的灵活设置。
-- **[Tasks]** 引入 `TaskBreakdownService`，支持 JSON 格式的任务树生成与解析。
-- **[Tasks]** 新增 `TaskExecutionService`，负责任务状态流转与持久化存储。
-- **[OpenSpec]** 初步集成 OpenSpec 标准，为未来的标准化 AI 开发流程打下基础。
+- **[Agent]** 实现了基于 `stderr` 分析的智能错误反馈机制。
+- **[Settings]** 新增自定义 API 配置面板，支持灵活设置。
+- **[Tasks]** 引入 `TaskBreakdownService` 和 `TaskExecutionService`。
+- **[OpenSpec]** 深度集成 OpenSpec 标准协议。
 
 ### ⚡ 优化 (Improvements)
-- **[Performance]** 深度优化了流式响应的渲染管线，在高并发 Token 输出场景下 CPU 占用降低 30%。
-- **[Performance]** 优化了长文本生成的内存管理，消除了长时间对话后的界面卡顿。
-- **[Core]** `src-tauri` 路径自动校准逻辑，防止 Agent 陷入源码目录陷阱。
-- **[UI]** 优化了聊天界面中的工具调用审批（ToolApproval）组件，支持更清晰的命令预览。
-- **[LocalLLM]** 优化了本地模型的流式响应处理，减少卡顿。
+- **[Performance]** 优化流式响应渲染管线，CPU 占用降低 30%。
+- **[UI]** Snippet Manager 全面接入虚拟列表技术。
+- **[Core]** `src-tauri` 路径自动校准逻辑。
 
 ### 🐛 修复 (Fixes)
-- **[RAG]** 修复了 `init_rag_index` 中的状态残留 Bug，防止旧项目索引污染新项目。
-- **[Agent]** 修复了 `agent_list_dir` 在处理绝对路径时的遍历错误。
-- **[Agent]** 解决了批准操作后因反馈为空导致的 Agent 重复执行死循环。
-- **[UI]** 修复了文件树在某些操作后未能及时刷新显示新文件的问题。
+- **[RAG]** 修复了项目切换时的索引数据残留 Bug。
+- **[Agent]** 修复了绝对路径遍历错误及重复执行循环。
 
 ---
 
@@ -80,9 +78,6 @@ Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的�
 
 如果您是从 v0.2.5 升级：
 1. 直接安装新版本覆盖即可。
-2. 建议在首次打开项目时，手动运行一次 `/index` 命令以重建纯净的 RAG 索引。
-3. 如果遇到 Agent 路径问题，尝试重启应用以清除可能的旧缓存状态。
+2. 建议首次运行执行 `/index` 重建索引。
 
----
-
-> **致谢**: 特别感谢社区反馈的关于本地模型路径解析和任务循环的问题，你们的反馈是我们进化的动力。
+> **致谢**: 感谢所有为 v0.2.6 提供反馈和测试支持的用户。

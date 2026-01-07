@@ -78,6 +78,8 @@ export interface TaskBreakdown {
   taskTree: TaskNode;
   /** 创建时间 */
   createdAt: number;
+  /** 更新时间 */
+  updatedAt: number;
   /** 状态 */
   status: 'draft' | 'in_progress' | 'completed' | 'failed';
   /** 关联的 OpenSpec 提案 */
