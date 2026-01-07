@@ -195,11 +195,18 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
     };
 
     const getStatusLabel = () => {
+        // Terminal states should always take priority over isPartial
+        const TERMINAL_STATES = ['completed', 'failed', 'rejected'];
+        if (TERMINAL_STATES.includes(toolCall.status)) {
+            switch (toolCall.status) {
+                case 'completed': return '已完成';
+                case 'failed': return '失败';
+                case 'rejected': return '已拒绝';
+                default: return toolCall.status;
+            }
+        }
         if (isPartial) return '生成中...';
         switch (toolCall.status) {
-            case 'completed': return '已完成';
-            case 'failed': return '失败';
-            case 'rejected': return '已拒绝';
             case 'approved': return '已批准';
             default: return '待审批';
         }

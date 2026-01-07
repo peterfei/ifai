@@ -585,13 +585,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
                             // Update existing tool call
                             const newToolCalls = [...existing];
+                            const existingStatus = newToolCalls[index].status;
+
+                            // Define terminal states that should NEVER be overwritten
+                            const TERMINAL_STATES = ['completed', 'failed', 'rejected'];
+
                             newToolCalls[index] = {
                                 ...newToolCalls[index],
                                 ...liveToolCall,
-                                // If it was already approved/completed, don't revert status
-                                status: (newToolCalls[index].status !== 'pending' && !liveToolCall.isPartial)
-                                    ? newToolCalls[index].status
-                                    : liveToolCall.status
+                                // CRITICAL: Never overwrite terminal states
+                                status: TERMINAL_STATES.includes(existingStatus)
+                                    ? existingStatus  // Keep existing terminal state
+                                    : (existingStatus === 'approved' && liveToolCall.isPartial)
+                                        ? existingStatus  // Don't revert approved state with partial update
+                                        : liveToolCall.status  // Otherwise use new status
                             };
                             messageUpdated = true;
                             return { ...m, toolCalls: newToolCalls };
