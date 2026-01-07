@@ -68,7 +68,9 @@ export interface AgentEventPayload {
     args: any;
     isPartial?: boolean;
   };
+  toolCallId?: string;
   result?: string;
+  success?: boolean;
   error?: string;
 
   // Explore agent progress events

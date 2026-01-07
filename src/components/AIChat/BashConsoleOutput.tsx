@@ -174,7 +174,7 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
       </div>
 
       {/* 自定义滚动条样式 */}
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .bash-console-output ::-webkit-scrollbar {
           width: 8px;
           height: 8px;
@@ -203,7 +203,7 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
           background: rgba(59, 130, 246, 0.3);
           color: #fff;
         }
-      `}</style>
+      ` }} />
     </div>
   );
 };

@@ -217,11 +217,12 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
 
         // 如果是对象，尝试解析
         if (typeof result === 'object') {
+            const res = result as any;
             return {
-                output: result.stdout || result.stderr || result.output || JSON.stringify(result),
-                command: result.command || toolCall.args?.command || undefined,
-                exitCode: result.exit_code || result.exitCode || 0,
-                success: result.success !== undefined ? result.success : toolCall.status === 'completed'
+                output: res.stdout || res.stderr || res.output || JSON.stringify(res),
+                command: res.command || toolCall.args?.command || undefined,
+                exitCode: res.exit_code || res.exitCode || 0,
+                success: res.success !== undefined ? res.success : toolCall.status === 'completed'
             };
         }
 
