@@ -1808,10 +1808,11 @@ const patchedApproveToolCall = async (
 
         if (!hasToolMessage && toolCallAfter?.result) {
             console.log(`[useChatStore] Adding tool result message for bash command`);
+            const exitCode = (toolCallAfter as any).exit_code !== undefined ? (toolCallAfter as any).exit_code : 0;
             coreUseChatStore.getState().addMessage({
                 id: crypto.randomUUID(),
                 role: 'tool',
-                content: `Command completed. Exit code: ${toolCallAfter.exit_code || 0}`,
+                content: `Command completed. Exit code: ${exitCode}`,
                 tool_call_id: toolCallId
             });
         }

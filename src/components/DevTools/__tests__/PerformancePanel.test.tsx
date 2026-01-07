@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import '@testing-library/jest-dom';
 import { PerformancePanel } from '../PerformancePanel';
 
 // Mock Recharts since it renders SVG and can be complex to test in JSDOM

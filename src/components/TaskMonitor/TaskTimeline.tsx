@@ -3,12 +3,22 @@ import { useTaskStore } from '../../stores/taskStore';
 import { CheckCircle2, Clock, PlayCircle, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-export const TaskTimeline: React.FC = () => {
+import { TaskStatus } from './types';
+
+export interface TaskTimelineProps {
+  tasks?: TaskMetadata[];
+  groupBy?: 'category' | 'status' | 'none';
+  showDuration?: boolean;
+  showMetrics?: boolean;
+  maxItems?: number;
+}
+
+export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
   const tasks = useTaskStore(state => state.tasks);
 
-  // Memoize the sorted array to avoid infinite re-renders
+  // Memoize the sorted array
   const sortedTasks = useMemo(() => {
-    return Array.from(tasks.values()).sort((a, b) => b.createdAt - a.createdAt);
+    return [...tasks].sort((a, b) => b.createdAt - a.createdAt);
   }, [tasks]);
 
   if (sortedTasks.length === 0) {
@@ -25,11 +35,11 @@ export const TaskTimeline: React.FC = () => {
           <div key={task.id} className="relative flex gap-4 group">
             {/* Icon Column */}
             <div className="z-10 bg-[#1e1e1e] rounded-full p-1 ring-4 ring-[#1e1e1e]">
-              {task.status === 'success' ? (
+              {task.status === TaskStatus.SUCCESS ? (
                 <CheckCircle2 size={16} className="text-green-500" />
-              ) : task.status === 'running' ? (
+              ) : task.status === TaskStatus.RUNNING ? (
                 <PlayCircle size={16} className="text-blue-500 animate-pulse" />
-              ) : task.status === 'failed' ? (
+              ) : task.status === TaskStatus.FAILED ? (
                 <XCircle size={16} className="text-red-500" />
               ) : (
                 <Clock size={16} className="text-gray-500" />

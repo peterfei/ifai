@@ -6,12 +6,17 @@
 /**
  * 任务状态
  */
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'todo' | 'done';
 
 /**
  * 任务类别
  */
-export type TaskCategory = 'development' | 'testing' | 'documentation' | 'design' | 'other';
+export type TaskCategory = 'development' | 'testing' | 'documentation' | 'design' | 'other' | 'research';
+
+/**
+ * 任务优先级
+ */
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent' | 'critical';
 
 /**
  * 任务节点
@@ -25,6 +30,8 @@ export interface TaskNode {
   description?: string;
   /** 任务状态 */
   status: TaskStatus;
+  /** 任务优先级 */
+  priority?: TaskPriority;
   /** 依赖的其他任务 ID */
   dependencies: string[];
   /** 子任务 */
@@ -54,6 +61,14 @@ export interface TaskBreakdown {
   title: string;
   /** 描述 */
   description: string;
+  /** 统计信息 */
+  stats?: {
+    totalTasks: number;
+    completedTasks: number;
+    totalHours: number;
+  };
+  /** 总预估工时 */
+  totalEstimatedHours?: number;
   /** 原始提示词 */
   originalPrompt: string;
   /** 任务树 */

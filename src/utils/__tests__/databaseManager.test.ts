@@ -95,7 +95,7 @@ describe('DatabaseManager', () => {
     
     await databaseManager.bulkCreate(storeName, [s1, s2]);
 
-    const results = await databaseManager.search(storeName, 'Hooks');
+    const results = await databaseManager.search<TestSnippet>(storeName, 'Hooks');
     expect(results).toHaveLength(1);
     expect(results[0].id).toBe('s1');
   });

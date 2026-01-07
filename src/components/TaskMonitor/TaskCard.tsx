@@ -200,7 +200,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 <h4 className="text-[12px] font-semibold text-gray-200 truncate leading-tight">{task.title}</h4>
                 <TaskStatusBadge status={task.status} size="sm" />
             </div>
-            {task.description && mode !== 'compact' && (
+            {task.description && (mode as string) !== 'compact' && (
                 <p className="text-[10px] text-gray-500 truncate mt-0.5">{task.description}</p>
             )}
           </div>

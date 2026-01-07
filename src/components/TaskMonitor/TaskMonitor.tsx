@@ -13,6 +13,14 @@ import { shallow } from 'zustand/shallow';
 // 子组件：筛选控制
 // ============================================================================
 
+export interface TaskMonitorProps {
+  mode?: 'normal' | 'detailed' | 'compact';
+  maxTasks?: number;
+  showFilter?: boolean;
+  showSummary?: boolean;
+  className?: string;
+}
+
 interface TaskFilterControlsProps {
   filter: TaskFilter;
   onFilterChange: (filter: TaskFilter) => void;
@@ -26,10 +34,10 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
 
   const STATUS_OPTIONS: Array<{ value: TaskStatus | 'all'; label: string }> = [
     { value: 'all', label: '全部' },
-    { value: 'running', label: '运行中' },
-    { value: 'pending', label: '等待中' },
-    { value: 'success', label: '完成' },
-    { value: 'failed', label: '失败' },
+    { value: TaskStatus.RUNNING, label: '运行中' },
+    { value: TaskStatus.PENDING, label: '等待中' },
+    { value: TaskStatus.SUCCESS, label: '完成' },
+    { value: TaskStatus.FAILED, label: '失败' },
   ];
 
   return (
@@ -136,13 +144,13 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
 // 主组件
 // ============================================================================
 
-export const TaskMonitor: React.FC<any> = ({ className = '' }) => {
+export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = ({ className = '' }) => {
   const [view, setView] = useState<'list' | 'timeline'>('list');
   const tasks = useFilteredTasks();
   const counts = useTaskCounts();
-  const filter = useTaskStore(state => state.filter, shallow);
-  const setFilter = useTaskStore(state => state.setFilter);
-  const clearCompleted = useTaskStore(state => state.clearCompleted);
+  const filter = useTaskStore((state: any) => state.filter);
+  const setFilter = useTaskStore((state: any) => state.setFilter);
+  const clearCompleted = useTaskStore((state: any) => state.clearCompleted);
 
   return (
     <div className={`flex flex-col bg-[#1e1e1e] h-full overflow-hidden ${className}`}>
@@ -160,7 +168,7 @@ export const TaskMonitor: React.FC<any> = ({ className = '' }) => {
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-black/20 rounded border border-gray-800">
                     <Search size={10} className="text-gray-600" />
                     <input
-                        value={filter.search || ''}
+                        value={(filter as TaskFilter).search || ''}
                         onChange={(e) => setFilter({ ...filter, search: e.target.value || undefined })}
                         placeholder="快速过滤..."
                         className="bg-transparent text-[10px] outline-none w-20 text-gray-300"
@@ -192,12 +200,16 @@ export const TaskMonitor: React.FC<any> = ({ className = '' }) => {
 // 紧凑模式
 // ============================================================================
 
-export const TaskMonitorCompact = ({ maxTasks = 3 }) => {
+export interface TaskMonitorCompactProps {
+  maxTasks?: number;
+}
+
+export const TaskMonitorCompact: React.FC<TaskMonitorCompactProps> = ({ maxTasks = 3 }) => {
   const allTasks = useTaskStore(state => state.tasks);
   
   const activeTasks = useMemo(() => {
-    return allTasks
-      .filter(t => t.status === 'running')
+    return Array.from(allTasks.values())
+      .filter(t => t.status === TaskStatus.RUNNING)
       .slice(0, maxTasks);
   }, [allTasks, maxTasks]);
 

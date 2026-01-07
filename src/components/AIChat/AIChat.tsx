@@ -398,7 +398,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
 
       // 保存到文件
       if (rootPath) {
-        store.saveBreakdown().catch((e) => {
+        store.saveBreakdown(demoTaskTree).catch((e) => {
           console.error('[AIChat] Failed to save demo task:', e);
         });
       }
@@ -500,7 +500,7 @@ window.__taskBreakdownStore.getState()
 
         // 保存到文件
         if (rootPath) {
-          await store.saveBreakdown();
+          await store.saveBreakdown(breakdown);
         }
 
         // 打开任务拆解面板
@@ -1307,7 +1307,7 @@ ${context}
             <div className="flex-1 overflow-auto p-4">
               <TaskBreakdownViewer
                 breakdown={currentBreakdown}
-                mode="full"
+                mode="modal"
                 allowModeSwitch={true}
               />
             </div>

@@ -50,6 +50,10 @@ interface TaskBreakdownState {
   error: string | null;
   /** 是否显示任务树面板 */
   isPanelOpen: boolean;
+  /** 是否显示详情弹窗 */
+  isModalOpen: boolean;
+  /** 项目根目录（缓存） */
+  projectRoot: string | null;
 
   /** 设置当前任务拆解 */
   setCurrentBreakdown: (breakdown: TaskBreakdown | null) => void;
@@ -69,6 +73,14 @@ interface TaskBreakdownState {
   setError: (error: string | null) => void;
   /** 打开/关闭任务树面板 */
   setPanelOpen: (open: boolean) => void;
+  /** 打开弹窗 */
+  openModal: () => void;
+  /** 关闭弹窗 */
+  closeModal: () => void;
+  /** 更新任务节点状态 */
+  updateTaskNodeStatus: (nodeId: string, status: any) => void;
+  /** 设置项目根目录 */
+  setProjectRoot: (root: string) => void;
 }
 
 export const useTaskBreakdownStore = create<TaskBreakdownState>()(
@@ -79,6 +91,8 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       isLoading: false,
       error: null,
       isPanelOpen: false,
+      isModalOpen: false,
+      projectRoot: null,
 
       setCurrentBreakdown: (breakdown) => {
         set({ currentBreakdown: breakdown });
@@ -95,7 +109,8 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
         const flatTasks = flattenTaskTree(currentBreakdown.taskTree);
 
         flatTasks.forEach(task => {
-          if (taskStore.tasks.has(task.id)) {
+          // Check if task exists in array
+          if (taskStore.tasks.some(t => t.id === task.id)) {
             taskStore.updateTask(task.id, task);
           } else {
             taskStore.addTask(task);
@@ -106,7 +121,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       loadBreakdown: async (id) => {
         set({ isLoading: true, error: null });
         try {
-          const rootPath = useFileStore.getState().rootPath;
+          const rootPath = get().projectRoot || useFileStore.getState().rootPath;
           if (!rootPath) {
             throw new Error('No project root opened');
           }
@@ -129,7 +144,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       saveBreakdown: async (breakdown) => {
         set({ error: null });
         try {
-          const rootPath = useFileStore.getState().rootPath;
+          const rootPath = get().projectRoot || useFileStore.getState().rootPath;
           if (!rootPath) {
             throw new Error('No project root opened');
           }
@@ -154,7 +169,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       deleteBreakdown: async (id) => {
         set({ error: null });
         try {
-          const rootPath = useFileStore.getState().rootPath;
+          const rootPath = get().projectRoot || useFileStore.getState().rootPath;
           if (!rootPath) {
             throw new Error('No project root opened');
           }
@@ -179,7 +194,7 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       refreshHistory: async () => {
         set({ error: null });
         try {
-          const rootPath = useFileStore.getState().rootPath;
+          const rootPath = get().projectRoot || useFileStore.getState().rootPath;
           if (!rootPath) {
             set({ history: [] });
             return;
@@ -208,6 +223,33 @@ export const useTaskBreakdownStore = create<TaskBreakdownState>()(
       setPanelOpen: (open) => {
         set({ isPanelOpen: open });
       },
+
+      openModal: () => set({ isModalOpen: true }),
+      closeModal: () => set({ isModalOpen: false }),
+
+      updateTaskNodeStatus: (nodeId, status) => {
+          set(state => {
+              if (!state.currentBreakdown) return state;
+              
+              const updateNode = (node: TaskNode): TaskNode => {
+                  if (node.id === nodeId) return { ...node, status };
+                  if (node.children) {
+                      return { ...node, children: node.children.map(updateNode) };
+                  }
+                  return node;
+              };
+
+              const newBreakdown = {
+                  ...state.currentBreakdown,
+                  taskTree: updateNode(state.currentBreakdown.taskTree)
+              };
+
+              return { currentBreakdown: newBreakdown };
+          });
+          get().syncToTaskStore();
+      },
+
+      setProjectRoot: (root) => set({ projectRoot: root }),
     }),
     {
       name: 'task-breakdown-storage',
