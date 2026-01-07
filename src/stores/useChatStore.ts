@@ -1788,8 +1788,40 @@ const patchedApproveToolCall = async (
         return;
     }
 
-    // 3. Fallback to Original Flow (for other tools)
-    console.log(`[useChatStore] Using original approval flow`);
+    // 3. Handle Bash Tools - add tool result message after execution
+    const bashTools = ['bash', 'execute_bash_command', 'bash_execute_streaming'];
+    if (bashTools.includes(toolName)) {
+        console.log(`[useChatStore] Bash tool detected: ${toolName}`);
+
+        // Let original flow handle execution
+        await originalApproveToolCall(messageId, toolCallId);
+
+        // After execution, ensure a tool result message exists in conversation
+        const state = coreUseChatStore.getState();
+        const message = state.messages.find(m => m.id === messageId);
+        const toolCallAfter = message?.toolCalls?.find(tc => tc.id === toolCallId);
+
+        // Only add tool message if one doesn't already exist for this tool_call_id
+        const hasToolMessage = state.messages.some(m =>
+            m.tool_call_id === toolCallId && m.role === 'tool'
+        );
+
+        if (!hasToolMessage && toolCallAfter?.result) {
+            console.log(`[useChatStore] Adding tool result message for bash command`);
+            coreUseChatStore.getState().addMessage({
+                id: crypto.randomUUID(),
+                role: 'tool',
+                content: `Command completed. Exit code: ${toolCallAfter.exit_code || 0}`,
+                tool_call_id: toolCallId
+            });
+        }
+
+        useFileStore.getState().refreshFileTree();
+        return;
+    }
+
+    // 4. Fallback to Original Flow (for other tools)
+    console.log(`[useChatStore] Using original approval flow for: ${toolName}`);
     await originalApproveToolCall(messageId, toolCallId);
     useFileStore.getState().refreshFileTree();
 };
