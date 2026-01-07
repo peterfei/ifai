@@ -65,3 +65,4 @@ test-results/
 # 项目内的 .ifai 目录（除了 prompts 模板）
 .ifai/index.bin
 .ifai/tasks/
+bash-agent-issue-analysis.md
