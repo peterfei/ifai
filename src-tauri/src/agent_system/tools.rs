@@ -161,21 +161,30 @@ pub async fn execute_tool_internal(
             let timeout = get_arg_opt_u64(args, "timeout");
 
             println!("[AgentTools DEBUG] project_root raw: '{}'", project_root);
-            println!("[AgentTools DEBUG] working_dir_arg raw: '{:?}'", working_dir_arg);
+
+            // 防御性编程：自动校准项目根目录
+            // 如果 project_root 指向了 src-tauri 内部，自动向上跳一级
+            let mut base_path = std::path::PathBuf::from(project_root);
+            if base_path.ends_with("src-tauri") {
+                println!("[AgentTools DEBUG] Detected project_root points to src-tauri, jumping up to parent.");
+                if let Some(parent) = base_path.parent() {
+                    base_path = parent.to_path_buf();
+                }
+            }
+            let calibrated_root = base_path.to_string_lossy().to_string();
+            println!("[AgentTools DEBUG] Calibrated root: '{}'", calibrated_root);
 
             // Sanitize working directory to be relative to project root
             let final_working_dir = match working_dir_arg {
                 Some(dir) => {
                     let clean_dir = dir.trim_start_matches(|c| c == '/' || c == '\\');
-                    println!("[AgentTools DEBUG] clean_dir: '{}'", clean_dir);
-                    
                     if clean_dir.is_empty() || clean_dir == "." {
-                        project_root.to_string()
+                        calibrated_root.clone()
                     } else {
-                        std::path::Path::new(project_root).join(clean_dir).to_string_lossy().to_string()
+                        std::path::Path::new(&calibrated_root).join(clean_dir).to_string_lossy().to_string()
                     }
                 },
-                None => project_root.to_string(),
+                None => calibrated_root.clone(),
             };
 
             // Resolve to absolute canonical path for debugging
@@ -186,6 +195,7 @@ pub async fn execute_tool_internal(
             println!("[AgentTools] BASH EXECUTION START:");
             println!("  - Requested tool: {}", tool_name);
             println!("  - Command: {}", command);
+            println!("  - Calibrated Root: {}", calibrated_root);
             println!("  - Calculated Directory: {}", final_working_dir);
             println!("  - Canonical Directory: {}", canonical_path);
 
