@@ -40,10 +40,61 @@ pub async fn run_agent_task(
     let _ = supervisor.update_status(&id, AgentStatus::Running).await;
 
     // Define tools based on agent type
-    // Bash agent only gets bash tool, all other agents get exploration + bash tools
+    // Bash agent: ONLY gets bash tool
+    // Demo agent: Gets file creation + bash + read tools
+    // All other agents: Get full exploration + bash tools
     let tools = if agent_type == "bash" || agent_type == "/bash" {
         // Bash agent: ONLY gets bash tool
         vec![
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "bash",
+                    "description": "Execute a shell command",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": { "type": "string", "description": "The command to execute" },
+                            "working_dir": { "type": "string", "description": "Working directory (optional)" },
+                            "timeout": { "type": "number", "description": "Timeout in milliseconds (optional)" }
+                        },
+                        "required": ["command"]
+                    }
+                }
+            })
+        ]
+    } else if agent_type == "demo" || agent_type == "/demo" || agent_type == "Demo Agent" {
+        // Demo agent: Gets file creation + bash + read tools
+        vec![
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_write_file",
+                    "description": "Write content to a file. Creates parent directories if they don't exist.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to the file" },
+                            "content": { "type": "string", "description": "Content to write to the file" }
+                        },
+                        "required": ["rel_path", "content"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_read_file",
+                    "description": "Read content of a file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to file" }
+                        },
+                        "required": ["rel_path"]
+                    }
+                }
+            }),
             json!({
                 "type": "function",
                 "function": {

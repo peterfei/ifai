@@ -1,4 +1,4 @@
-export type IntentType = '/explore' | '/review' | '/test' | '/doc' | '/refactor' | '/proposal' | '/bash';
+export type IntentType = '/explore' | '/review' | '/test' | '/doc' | '/refactor' | '/proposal' | '/bash' | '/demo';
 
 interface IntentResult {
     type: IntentType;
@@ -14,6 +14,13 @@ interface IntentPattern {
 }
 
 const PATTERNS: IntentPattern[] = [
+    {
+        type: '/demo',
+        keywords: ['demo', '演示', '新手', '引导', '教程', 'example', 'tutorial'],
+        // 匹配 "/demo"、"开始演示"、"运行 demo"、"新手引导"等
+        regex: /^(?:\/)?(?:demo|演示|新手引导|开始演示|运行demo|运行\s+demo)$/i,
+        minConfidence: 0.95
+    },
     {
         type: '/bash',
         keywords: ['执行', '运行', 'run', 'execute', '命令', 'command'],
@@ -168,6 +175,7 @@ export function formatAgentName(agentType: IntentType): string {
         '/refactor': 'Refactor',
         '/proposal': 'Proposal',
         '/bash': 'Bash',
+        '/demo': 'Demo',
     };
     return nameMap[agentType] || agentType;
 }
