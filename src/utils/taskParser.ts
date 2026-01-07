@@ -8,7 +8,7 @@
 export interface Task {
   id: string;          // 任务 ID (如 "1", "2-1")
   title: string;       // 任务标题
-  status: 'todo' | 'in_progress' | 'done';
+  status: 'todo' | 'in_progress' | 'done' | 'failed';
   content: string;     // 任务描述内容
   level: number;       // 缩进层级 (0, 1, 2...)
   parentId?: string;   // 父任务 ID

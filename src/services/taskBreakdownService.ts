@@ -20,12 +20,14 @@ function calculateStats(node: TaskNode): {
   inProgress: number;
   completed: number;
   failed: number;
+  totalHours: number;
 } {
   let total = 1;
   let pending = node.status === 'pending' ? 1 : 0;
   let inProgress = node.status === 'in_progress' ? 1 : 0;
   let completed = node.status === 'completed' ? 1 : 0;
   let failed = node.status === 'failed' ? 1 : 0;
+  let totalHours = node.estimatedHours || 0;
 
   if (node.children && node.children.length > 0) {
     for (const child of node.children) {
@@ -35,10 +37,11 @@ function calculateStats(node: TaskNode): {
       inProgress += childStats.inProgress;
       completed += childStats.completed;
       failed += childStats.failed;
+      totalHours += childStats.totalHours;
     }
   }
 
-  return { total, pending, inProgress, completed, failed };
+  return { total, pending, inProgress, completed, failed, totalHours };
 }
 
 /**

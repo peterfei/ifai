@@ -28,26 +28,26 @@ interface TaskBreakdownViewerProps {
  * 简化的统计信息卡片（用于 inline 模式）
  */
 const StatsCard: React.FC<{ breakdown: TaskBreakdown }> = ({ breakdown }) => {
-  const stats = breakdown.stats || { total: 0, pending: 0, inProgress: 0, completed: 0, failed: 0 };
+  const stats = (breakdown.stats as any) || { total: 0, pending: 0, inProgress: 0, completed: 0, failed: 0 };
 
   return (
     <div className="flex items-center gap-4 text-xs">
       <span className="flex items-center gap-1.5 text-gray-400">
         <CheckCircle2 className="w-4 h-4 text-green-400" />
-        <span>已完成: {stats.completed}</span>
+        <span>已完成: {stats.completed || 0}</span>
       </span>
       <span className="flex items-center gap-1.5 text-gray-400">
         <Clock className="w-4 h-4 text-blue-400" />
-        <span>进行中: {stats.inProgress}</span>
+        <span>进行中: {stats.inProgress || 0}</span>
       </span>
-      {stats.failed > 0 && (
+      {(stats.failed || 0) > 0 && (
         <span className="flex items-center gap-1.5 text-gray-400">
           <AlertCircle className="w-4 h-4 text-red-400" />
           <span>失败: {stats.failed}</span>
         </span>
       )}
       <span className="text-gray-500">
-        总计: {stats.total} 任务
+        总计: {stats.total || 0} 任务
       </span>
     </div>
   );

@@ -63,8 +63,11 @@ export interface TaskBreakdown {
   description: string;
   /** 统计信息 */
   stats?: {
-    totalTasks: number;
-    completedTasks: number;
+    total: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+    failed: number;
     totalHours: number;
   };
   /** 总预估工时 */

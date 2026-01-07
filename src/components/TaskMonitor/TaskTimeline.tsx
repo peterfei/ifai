@@ -3,7 +3,7 @@ import { useTaskStore } from '../../stores/taskStore';
 import { CheckCircle2, Clock, PlayCircle, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-import { TaskStatus } from './types';
+import { TaskStatus, TaskMetadata } from './types';
 
 export interface TaskTimelineProps {
   tasks?: TaskMetadata[];
