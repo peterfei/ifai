@@ -693,7 +693,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         ...m,
                         content: result,
                         agentId: undefined,      // ✅ Clear agent ID so isAgentStreaming becomes false
-                        isAgentLive: false       // ✅ Clear live marker so highlighting appears
+                        isAgentLive: false,       // ✅ Clear live marker so highlighting appears
+                        // 🐛 FIX: Update tool call status to completed
+                        toolCalls: m.toolCalls?.map(tc => ({
+                            ...tc,
+                            status: (tc.status === 'approved' || tc.status === 'pending') ? 'completed' as const : tc.status
+                        }))
                     } : m),
                     isLoading: false
                 });

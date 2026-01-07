@@ -1632,6 +1632,25 @@ const patchedApproveToolCall = async (
         }));
 
         await useAgentStore.getState().approveAction(agentId, true);
+
+        // 🐛 FIX: Agent 执行完成后，更新工具状态为 completed
+        const agentStore = useAgentStore.getState();
+        const agent = agentStore.runningAgents.find(a => a.id === agentId);
+
+        if (agent && agent.status === 'completed') {
+            console.log(`[useChatStore] Agent completed, updating tool status to completed`);
+            coreUseChatStore.setState(state => ({
+                messages: state.messages.map(m =>
+                    m.id === messageId ? {
+                        ...m,
+                        toolCalls: m.toolCalls?.map(tc =>
+                            tc.id === toolCallId ? { ...tc, status: 'completed' as const } : tc
+                        )
+                    } : m
+                )
+            }));
+        }
+
         useFileStore.getState().refreshFileTree();
         return;
     }
@@ -1796,19 +1815,40 @@ const patchedApproveToolCall = async (
         // Let original flow handle execution
         await originalApproveToolCall(messageId, toolCallId);
 
-        // After execution, ensure a tool result message exists in conversation
+        // 🐛 FIX: 确保工具状态正确更新
+        // After execution, check if status needs to be updated
         const state = coreUseChatStore.getState();
         const message = state.messages.find(m => m.id === messageId);
         const toolCallAfter = message?.toolCalls?.find(tc => tc.id === toolCallId);
 
+        // 如果工具状态还是 approved 但有 result，说明状态没有正确更新
+        if (toolCallAfter && toolCallAfter.status === 'approved' && toolCallAfter.result) {
+            console.log(`[useChatStore] Fixing tool status: approved -> completed`);
+            coreUseChatStore.setState(state => ({
+                messages: state.messages.map(m =>
+                    m.id === messageId ? {
+                        ...m,
+                        toolCalls: m.toolCalls?.map(tc =>
+                            tc.id === toolCallId ? { ...tc, status: 'completed' as const } : tc
+                        )
+                    } : m
+                )
+            }));
+        }
+
+        // After execution, ensure a tool result message exists in conversation
+        const stateAfterFix = coreUseChatStore.getState();
+        const messageAfterFix = stateAfterFix.messages.find(m => m.id === messageId);
+        const toolCallAfterFix = messageAfterFix?.toolCalls?.find(tc => tc.id === toolCallId);
+
         // Only add tool message if one doesn't already exist for this tool_call_id
-        const hasToolMessage = state.messages.some(m =>
+        const hasToolMessage = stateAfterFix.messages.some(m =>
             m.tool_call_id === toolCallId && m.role === 'tool'
         );
 
-        if (!hasToolMessage && toolCallAfter?.result) {
+        if (!hasToolMessage && toolCallAfterFix?.result) {
             console.log(`[useChatStore] Adding tool result message for bash command`);
-            const exitCode = (toolCallAfter as any).exit_code !== undefined ? (toolCallAfter as any).exit_code : 0;
+            const exitCode = (toolCallAfterFix as any).exit_code !== undefined ? (toolCallAfterFix as any).exit_code : 0;
             coreUseChatStore.getState().addMessage({
                 id: crypto.randomUUID(),
                 role: 'tool',
