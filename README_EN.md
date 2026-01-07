@@ -17,7 +17,7 @@
 ---
 
 <div align="center">
-  ![](imgs/ifai2601003_1280.mp4)
+  ![](imgs/ifai2601003_1280.gif)
 </div>
 
 ---
