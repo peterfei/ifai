@@ -1,8 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { ToolApproval } from './ToolApproval';
 import { ExploreProgress } from './ExploreProgress';
@@ -15,6 +12,7 @@ import ifaiLogo from '../../../imgs/ifai.png';
 import { TaskBreakdownViewer } from '../TaskBreakdown/TaskBreakdownViewer';
 import { TaskBreakdown } from '../../types/taskBreakdown';
 import { toast } from 'sonner';
+import { MarkdownRenderer, SimpleMarkdownRenderer } from './MarkdownRenderer';
 
 /**
  * 工业级消息样式常量
@@ -297,170 +295,31 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     let toolCallIndex = 0;
 
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
-    // This provides markdown formatting (bold, lists, etc.) without the performance cost
+    // 使用统一的 SimpleMarkdownRenderer（无语法高亮，性能优化）
     const renderMarkdownWithoutHighlight = useCallback((text: string, key: any) => {
         // Process scan result i18n before rendering
         const processedText = processScanResult(text);
-        return (
-            <ReactMarkdown
-                key={key}
-                children={processedText}
-                components={{
-                    p: ({node, ...props}) => <div {...props} className="mb-2 last:mb-0 text-gray-300" />,
-                    code({ node, className, children, ...rest }) {
-                        const { inline } = rest as any;
-                        if (!inline) {
-                            // Code block: use plain pre without syntax highlighting
-                            return (
-                                <pre className="whitespace-pre-wrap break-word text-[13px] font-mono text-gray-300 bg-[#1e1e1e] p-3 rounded border border-gray-700 my-2 overflow-x-auto">
-                                    {String(children)}
-                                </pre>
-                            );
-                        }
-                        // Inline code
-                        return (
-                            <code {...rest} className="px-1 py-0.5 bg-gray-800 text-gray-300 rounded text-sm font-mono">
-                                {children}
-                            </code>
-                        );
-                    },
-                    strong: ({node, ...props}) => <strong {...props} className="font-bold text-white" />,
-                    em: ({node, ...props}) => <em {...props} className="italic text-gray-200" />,
-                    ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300" />,
-                    ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300" />,
-                    li: ({node, ...props}) => <li {...props} className="ml-4" />,
-                    h1: ({node, ...props}) => <h1 {...props} className="text-xl font-bold mb-2 text-white" />,
-                    h2: ({node, ...props}) => <h2 {...props} className="text-lg font-bold mb-2 text-white" />,
-                    h3: ({node, ...props}) => <h3 {...props} className="text-md font-bold mb-2 text-white" />,
-                    a: ({node, ...props}) => <a {...props} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer" />,
-                }}
-            />
-        );
+        return <SimpleMarkdownRenderer key={key} content={processedText} />;
     }, [processScanResult]);
 
-    // Helper to render ContentPart - using useCallback to ensure fresh isStreaming value
+    // 使用统一的 MarkdownRenderer（带语法高亮和代码折叠）
     // NOTE: Streaming detection is now handled at the CALL SITE, not inside this function
     // This function ALWAYS applies formatting (Markdown + syntax highlighting) when called
-    const renderContentPart = useCallback((part: ContentPart, index: number) => {
+    const renderContentPart = useCallback((part: ContentPart, index: number, isStreaming: boolean) => {
         if (part.type === 'text' && part.text) {
             // Process scan result i18n before rendering
             const processedText = processScanResult(part.text);
 
-            // PERFORMANCE: After streaming completes, check for code folding
-            // to reduce Markdown parsing overhead by ~95% for large content
-            const lines = processedText.split('\n');
-            const MAX_LINES_BEFORE_COLLAPSE = 50;  // Threshold matching v0.2.0
-            const shouldCollapseBlock = lines.length > MAX_LINES_BEFORE_COLLAPSE;
-
-            if (shouldCollapseBlock) {
-                // For large content (>50 lines), use folding to reduce parsing cost
-                const isExpanded = expandedBlocksRef.current.has(index);
-                const displayText = isExpanded
-                    ? processedText
-                    : lines.slice(0, MAX_LINES_BEFORE_COLLAPSE).join('\n') + '\n... (展开查看全部)';
-
-                return (
-                    <div key={index} className="flex flex-col">
-                        <ReactMarkdown
-                            children={displayText}
-                            components={{
-                                p: ({node, ...props}) => <div {...props} className="mb-2 last:mb-0" />,
-                                code({ node, className, children, ...rest }) {
-                                    const match = /language-(\w+)/.exec(className || '');
-                                    const { ref, ...propsToPass } = rest;
-                                    const isInline = (rest as any).inline;
-
-                                    if (!isInline) {
-                                        return (
-                                            <div className="my-2">
-                                                <SyntaxHighlighter
-                                                    {...propsToPass}
-                                                    children={String(children)}
-                                                    style={vscDarkPlus}
-                                                    language={match ? match[1] : 'text'}
-                                                    PreTag="div"
-                                                    wrapLines={true}
-                                                    customStyle={{
-                                                        margin: 0,
-                                                        borderRadius: '0.375rem',
-                                                        fontSize: '0.75rem',
-                                                        whiteSpace: 'pre-wrap',
-                                                        wordBreak: 'break-word',
-                                                        display: 'block'
-                                                    }}
-                                                />
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <code {...rest} className={className}>
-                                            {children}
-                                        </code>
-                                    );
-                                },
-                            }}
-                        />
-                        <button
-                            onClick={() => toggleBlock(index)}
-                            className="self-start mt-1 px-3 py-1 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1 bg-gray-900 rounded border border-gray-700 hover:bg-gray-800 transition-colors"
-                        >
-                            {isExpanded ? (
-                                <>
-                                    <ChevronUp size={12} />
-                                    收起 ({lines.length} 行)
-                                </>
-                            ) : (
-                                <>
-                                    <ChevronDown size={12} />
-                                    展开全部 ({lines.length} 行)
-                                </>
-                            )}
-                        </button>
-                    </div>
-                );
-            }
-
-            // Normal Markdown rendering for small to medium content
+            // 使用统一的 MarkdownRenderer
             return (
-                <ReactMarkdown
+                <MarkdownRenderer
                     key={index}
-                    children={processedText}
-                    components={{
-                        p: ({node, ...props}) => <div {...props} className="mb-2 last:mb-0" />,
-                        code({ node, className, children, ...rest }) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            const { ref, ...propsToPass } = rest;
-                            const isInline = (rest as any).inline;
-
-                            if (!isInline) {
-                                return (
-                                    <SyntaxHighlighter
-                                        {...propsToPass}
-                                        children={String(children)}
-                                        style={vscDarkPlus}
-                                        language={match ? match[1] : 'text'}
-                                        PreTag="div"
-                                        wrapLines={true}
-                                        customStyle={{
-                                            margin: 0,
-                                            borderRadius: '0.375rem',
-                                            fontSize: '0.75rem',
-                                            whiteSpace: 'pre-wrap',
-                                            wordBreak: 'break-word',
-                                            display: 'block'
-                                        }}
-                                    />
-                                );
-                            }
-
-                            return (
-                                <code {...rest} className={className}>
-                                    {children}
-                                </code>
-                            );
-                        },
-                    }}
+                    content={processedText}
+                    isStreaming={isStreaming}
+                    maxLinesBeforeCollapse={50}
+                    isExpanded={expandedBlocksRef.current.has(index)}
+                    onToggleExpand={() => toggleBlock(index)}
+                    index={index}
                 />
             );
         } else if (part.type === 'image_url' && part.image_url?.url) {
@@ -471,7 +330,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             );
         }
         return null;
-    }, [toggleBlock, processScanResult]);  // Only depend on toggleBlock, read isStreaming from ref
+    }, [toggleBlock, processScanResult]);
 
 
     return (
@@ -587,7 +446,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
                             <div className="space-y-2">
-                                {message.multiModalContent.map((part, index) => renderContentPart(part, index))}
+                                {message.multiModalContent.map((part, index) => renderContentPart(part, index, effectivelyStreaming))}
                             </div>
                         ) : (
                             /* Check if contentSegments exists for stream-order rendering */
@@ -636,7 +495,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                         const content = segment.content;
                                                         if (!content) return null;
                                                         // 非流式状态下，对每个文本片段使用带高亮的渲染器
-                                                        return renderContentPart({ type: 'text', text: content }, index);
+                                                        return renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
                                                     } else if (segment.type === 'tool' && segment.toolCallId) {
                                                         const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
                                                         if (!toolCall) return null;
@@ -668,9 +527,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                     // 3. 如果是简单的文本消息（无工具），直接渲染完整内容
                                     if (!hasInterleavedTools && (!message.toolCalls || message.toolCalls.length === 0)) {
-                                        return effectivelyStreaming 
+                                        return effectivelyStreaming
                                             ? renderMarkdownWithoutHighlight(displayContent, 'simple-streaming')
-                                            : renderContentPart({ type: 'text', text: displayContent }, 0);
+                                            : renderContentPart({ type: 'text', text: displayContent }, 0, false);
                                     }
 
                                     return (
@@ -700,7 +559,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     if (effectivelyStreaming) {
                                                         return renderMarkdownWithoutHighlight(content, `fallback-text-${index}`);
                                                     }
-                                                    return renderContentPart({ type: 'text', text: content }, index);
+                                                    return renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
                                                 }
                                             })}
 

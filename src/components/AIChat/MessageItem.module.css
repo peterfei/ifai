@@ -1,0 +1,268 @@
+/* MessageItem CSS Modules - 隔离样式防止冲突 */
+
+.messageContainer {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.5rem;
+}
+
+.messageContainer.user {
+  align-items: flex-end;
+}
+
+.messageContainer.assistant {
+  align-items: flex-start;
+}
+
+.bubble {
+  position: relative;
+  max-width: 85%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.bubble.user {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.bubble.assistant {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-bottom-left-radius: 0.25rem;
+  border: 1px solid #374151;
+}
+
+/* Markdown 内容样式 */
+.markdownContent :global(p) {
+  margin-bottom: 0.5rem;
+}
+
+.markdownContent :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.markdownContent :global(strong) {
+  font-weight: 700;
+  color: white;
+}
+
+.markdownContent :global(em) {
+  font-style: italic;
+  color: #d1d5db;
+}
+
+/* 标题样式 */
+.markdownContent :global(h1),
+.markdownContent :global(h2),
+.markdownContent :global(h3) {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.markdownContent :global(h1) {
+  font-size: 1.25rem;
+}
+
+.markdownContent :global(h2) {
+  font-size: 1.125rem;
+}
+
+.markdownContent :global(h3) {
+  font-size: 1rem;
+}
+
+/* 列表样式 */
+.markdownContent :global(ul),
+.markdownContent :global(ol) {
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem;
+  color: #d1d5db;
+}
+
+.markdownContent :global(li) {
+  margin-left: 0.5rem;
+}
+
+/* 链接样式 */
+.markdownContent :global(a) {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.markdownContent :global(a:hover) {
+  color: #93c5fd;
+}
+
+/* 行内代码样式 */
+.markdownContent :global(code) {
+  padding: 0.125rem 0.25rem;
+  background: #1f2937;
+  color: #d1d5db;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* 代码块样式 */
+.markdownContent :global(pre) {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  background: #1e1e1e;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8125rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  color: #d1d5db;
+  line-height: 1.5;
+}
+
+/* 语法高亮覆盖 */
+.markdownContent :global(.react-syntax-highlighter-line-number) {
+  color: #6b7280;
+  padding-right: 0.75rem;
+  user-select: none;
+}
+
+.markdownContent :global(pre[class*='language-']) {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  background: #1e1e1e;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+}
+
+/* 折叠按钮样式 */
+.collapseButton {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  color: #60a5fa;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.collapseButton:hover {
+  color: #93c5fd;
+  background: #1f2937;
+}
+
+/* 流式状态指示器 */
+.streamingIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  background: rgba(107, 114, 128, 0.1);
+  border-radius: 0.25rem;
+}
+
+.streamingDot {
+  width: 0.375rem;
+  height: 0.375rem;
+  background: #3b82f6;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* 头像样式 */
+.avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.avatar.user {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.avatar.assistant {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* 工具栏样式 */
+.toolbar {
+  position: absolute;
+  top: -0.75rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.messageContainer:hover .toolbar {
+  opacity: 1;
+}
+
+.toolbarButton {
+  padding: 0.25rem;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbarButton:hover {
+  background: #374151;
+  color: #d1d5db;
+}
+
+/* 图片样式 */
+.imageContainer {
+  max-width: 16rem;
+  border: 1px solid #4b5563;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.imageContainer img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
