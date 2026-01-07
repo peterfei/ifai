@@ -15,13 +15,13 @@ Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的�
 - **系统级操作**：Agent 可执行 `npm install`、`cargo build`、`git status` 等物理命令。
 - **环境自愈**：具备“路径感知”能力，自动识别并跳出源码目录陷阱，根据错误反馈自动修正工作目录。
 
-![Agent Shell & Path Perception](./imgs/ifai202601001.png)
+![Agent Shell & Path Perception](./imgs/ifai202601007.png)
 
 ### 📊 Token 可视化与成本管理 (Token Intelligence)
 - **实时计量**：对话界面实时显示 Token 消耗。
 - **透明消耗**：详细分解 Context 与 Generation 占比，帮助开发者精准掌控 API 成本。
 
-![Token Usage Visualization](./imgs/ifai202601003.png)
+![Token Usage Visualization](./imgs/ifai202601001.png)
 
 ### 🌳 结构化任务拆解 (Task Tree)
 - **架构师思维**：将复杂需求拆解为层级分明的子任务树，并在 UI 中实时渲染。
@@ -37,13 +37,13 @@ Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的�
 ### 📝 专业级 Markdown 支持
 - **实时预览**：引入全新的预览引擎，支持“编辑/预览/分屏”三栖布局。
 
-![Markdown Preview Mode](./imgs/ifai202601008.png)
+![Markdown Preview Mode](./imgs/ifai202601002.png)
 
 ### ⚡ 极致性能与本地模型
 - **Snippet 虚拟滚动**：支持万级数据秒级加载，保持 120 FPS 顺滑度。
 - **本地自愈**：实现 Local LLM 自动续写功能，解决长文本截断痛点。
 
-![Snippet & Local LLM](./imgs/ifai202601010.png)
+![Snippet & Local LLM](./imgs/ifai202601009.png)
 
 ---
 
