@@ -17,6 +17,7 @@ interface ToolApprovalProps {
     toolCall: ToolCall;
     onApprove: (id: string) => void;
     onReject: (id: string) => void;
+    isLatestBashTool?: boolean; // 是否是message中最新的bash命令
 }
 
 // 工具图标映射
@@ -175,7 +176,7 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
 // PERFORMANCE: Large file thresholds
 const MAX_DIFF_SIZE = 5000;
 
-export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProps) => {
+export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool = false }: ToolApprovalProps) => {
     const { t } = useTranslation();
     const settings = useSettingsStore();
     const [isExpanded, setIsExpanded] = useState(false);
@@ -192,6 +193,11 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
                toolName.includes('shell') ||
                toolName.includes('agent_list_dir') ||
                toolName.includes('agent_read_file');
+    };
+
+    // ⚡️ FIX: 判断是否应该显示控制台（只有最新的bash命令才显示）
+    const shouldShowConsole = () => {
+        return isBashOutput() && isLatestBashTool;
     };
 
     // 解析bash命令输出
@@ -500,8 +506,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject }: ToolApprovalProp
 
                         {/* 格式化的结果内容 */}
                         <div className="overflow-auto leading-relaxed">
-                            {/* ⚡️ FIX: Bash命令使用工业级控制台样式 */}
-                            {isBashOutput() ? (() => {
+                            {/* ⚡️ FIX: Bash命令使用工业级控制台样式（只有最新的bash命令显示） */}
+                            {shouldShowConsole() ? (() => {
                                 const bashOutput = parseBashOutput();
                                 return bashOutput ? (
                                     <BashConsoleOutput

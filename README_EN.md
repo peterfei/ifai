@@ -16,6 +16,12 @@
 
 ---
 
+<div align="center">
+  <video src="imgs/ifai2601003_1280.mp4" width="100%" autoplay loop muted playsinline></video>
+</div>
+
+---
+
 ## 📖 Introduction
 
 **IfAI (若爱)** is a modern cross-platform code editor that perfectly integrates powerful AI assistance with traditional code editing. The name "若爱" (IfAI) means "if there is love, code will be warm" - we believe AI should be the most caring programming companion for developers.

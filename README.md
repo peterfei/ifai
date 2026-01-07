@@ -15,6 +15,12 @@
 
 ---
 
+<div align="center">
+  <video src="imgs/ifai2601003_1280.mp4" width="100%" autoplay loop muted playsinline></video>
+</div>
+
+---
+
 ## 💡 为什么选择 IfAI?
 
 在 AI 时代，编辑器不应只是代码的容器，而应是 AI 的躯体。IfAI 采用 **AI 原生 (AI-Native)** 架构，将推理能力深度植入内核。

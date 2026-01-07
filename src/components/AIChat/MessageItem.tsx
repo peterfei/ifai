@@ -130,6 +130,27 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // 强制使用外部传进来的 isStreaming 作为主要判定依据
     const effectivelyStreaming = isStreaming || isActivelyStreaming;
 
+    // ⚡️ FIX: 辅助函数 - 判断toolCall是否是最新的bash命令
+    const isLatestBashTool = useCallback((toolCallId: string): boolean => {
+        if (!message.toolCalls) return false;
+
+        // 找到所有bash命令
+        const bashToolCalls = message.toolCalls.filter(tc => {
+            const toolName = tc.tool?.toLowerCase() || '';
+            return toolName.includes('bash') ||
+                   toolName.includes('execute_command') ||
+                   toolName.includes('shell') ||
+                   toolName.includes('agent_list_dir') ||
+                   toolName.includes('agent_read_file');
+        });
+
+        if (bashToolCalls.length === 0) return false;
+
+        // 检查当前toolCall是否是最后一个bash命令
+        const latestBashTool = bashToolCalls[bashToolCalls.length - 1];
+        return latestBashTool.id === toolCallId;
+    }, [message.toolCalls]);
+
     // Component-level timeout to avoid global variable collision between multiple MessageItem instances
     const streamingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -480,6 +501,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                                 toolCall={toolCall}
                                                                 onApprove={() => onApprove(message.id, toolCall.id)}
                                                                 onReject={() => onReject(message.id, toolCall.id)}
+                                                                isLatestBashTool={isLatestBashTool(toolCall.id)}
                                                             />
                                                         );
                                                     }
@@ -509,6 +531,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                                 toolCall={toolCall}
                                                                 onApprove={() => onApprove(message.id, toolCall.id)}
                                                                 onReject={() => onReject(message.id, toolCall.id)}
+                                                                isLatestBashTool={isLatestBashTool(toolCall.id)}
                                                             />
                                                         );
                                                     }
@@ -551,6 +574,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                             toolCall={displayToolCall}
                                                             onApprove={() => onApprove(message.id, displayToolCall.id)}
                                                             onReject={() => onReject(message.id, displayToolCall.id)}
+                                                            isLatestBashTool={isLatestBashTool(displayToolCall.id)}
                                                         />
                                                     );
                                                 } else {
@@ -574,6 +598,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     toolCall={toolCall}
                                                     onApprove={() => onApprove(message.id, toolCall.id)}
                                                     onReject={() => onReject(message.id, toolCall.id)}
+                                                    isLatestBashTool={isLatestBashTool(toolCall.id)}
                                                 />
                                             ))}
 
@@ -585,6 +610,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     toolCall={toolCall}
                                                     onApprove={() => onApprove(message.id, toolCall.id)}
                                                     onReject={() => onReject(message.id, toolCall.id)}
+                                                    isLatestBashTool={isLatestBashTool(toolCall.id)}
                                                 />
                                             ))}
                                         </>
