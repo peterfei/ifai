@@ -12,93 +12,59 @@ IfAI v0.2.6 是我们在 **AI Agent 自主性**与**环境感知能力**上的�
 
 ### 🐚 Agent Shell 能力解锁 (Bash Tool)
 Agent 不再被局限于沙箱内的文件读写，现在它拥有了真正的系统级交互能力。
-- **环境配置**：Agent 可以执行 `npm install`、`cargo build` 等命令，自动配置开发环境。
-- **Git 交互**：支持 `git status`、`git diff` 等操作，让 AI 理解版本控制状态。
-- **智能路径校准**：彻底解决了开发环境与运行环境路径不一致的痛点。
-- **自我纠错机制**：当命令失败时主动分析并提供路径提示。
+- **系统级操作**：Agent 可执行 `npm install`、`cargo build`、`git status` 等物理命令。
+- **环境自愈**：具备“路径感知”能力，自动识别并跳出源码目录陷阱，根据错误反馈自动修正工作目录。
 
-![Bash Tool Demo 1](./imgs/ifai202601001.png)
-![Bash Tool Demo 2](./imgs/ifai202601002.png)
+![Agent Shell & Path Perception](./imgs/ifai202601001.png)
 
 ### 📊 Token 可视化与成本管理 (Token Intelligence)
-- **实时计量**：对话界面新增 Token 计数器。无论是发送的消息还是 AI 的响应，Token 消耗现在都一目了然。
-- **透明消耗**：支持查看 Context Token 和 Generation Token 的详细分布。这对于使用按量计费（如 DeepSeek、OpenAI）的用户来说，是管理成本的利器。
-- **性能无感**：基于 Rust 后端的高性能 Tokenizer，在不影响响应速度的前提下提供最精准的计数统计。
+- **实时计量**：对话界面实时显示 Token 消耗。
+- **透明消耗**：详细分解 Context 与 Generation 占比，帮助开发者精准掌控 API 成本。
 
-![Token Usage Indicator](./imgs/ifai202601003.png)
+![Token Usage Visualization](./imgs/ifai202601003.png)
 
-### 🌳 结构化任务拆解 (Task Breakdown)
-面对模糊的复杂需求，IfAI 现在能像高级工程师一样进行系统化拆解。
-- **可视化任务树**：将需求拆解为层级分明的子任务（Task Tree），并在 UI 中实时渲染。
-- **持久化同步**：任务状态实时同步到文件系统（`.ifai/tasks/`）。
+### 🌳 结构化任务拆解 (Task Tree)
+- **架构师思维**：将复杂需求拆解为层级分明的子任务树，并在 UI 中实时渲染。
+- **持久化同步**：任务状态实时同步至 `.ifai/tasks/`，支持跨会话断点续传。
 
-![Task Tree Visualization](./imgs/ifai202601004.png)
-![Mission Control Center](./imgs/ifai202601005.png)
+![Task Tree & Mission Control](./imgs/ifai202601005.png)
 
-### 📑 OpenSpec 深度融合 (Deep OpenSpec Integration)
-- **协议驱动开发**：v0.2.6 实现了与 [OpenSpec](https://openspec.dev) 标准的深度集成。
-- **一致性保证**：AI 能够更精准地遵循项目设计规范，确保生成代码的架构一致性。
+### 📑 OpenSpec 深度融合 (Spec-Driven)
+- **规范驱动**：原生集成 [OpenSpec](https://openspec.dev) 标准，确保 AI 生成代码的架构一致性。
 
-![OpenSpec Workflow](./imgs/ifai202601007.png)
+![OpenSpec Workflow Integration](./imgs/ifai202601007.png)
 
-### 🔌 灵活的自定义 API (Flexible Custom API)
-- **OpenAI 兼容**：支持接入 DeepSeek、Moonshot (Kimi)、Yi 等第三方大模型服务。
-- **参数微调**：支持自定义 Context Window 大小和 Max Tokens。
+### 📝 专业级 Markdown 支持
+- **实时预览**：引入全新的预览引擎，支持“编辑/预览/分屏”三栖布局。
 
-![Custom API Settings](./imgs/ifai202601009.png)
+![Markdown Preview Mode](./imgs/ifai202601008.png)
 
-### ⚡ 极致性能：Snippet Manager 虚拟滚动
-- **海量数据承载**：为了展示 v0.2.6 渲染管线的进化，我们重构了代码片段管理器（Snippet Manager）。用户现在可以测试在加载数千条代码片段时的“零延迟”滚动体验。
-- **虚拟滚动技术**：通过底层虚拟列表（Virtual List）技术，即便面对海量代码块，界面依然能保持 120 FPS 的顺滑度，告别长列表卡顿。
+### ⚡ 极致性能与本地模型
+- **Snippet 虚拟滚动**：支持万级数据秒级加载，保持 120 FPS 顺滑度。
+- **本地自愈**：实现 Local LLM 自动续写功能，解决长文本截断痛点。
 
-![Snippet Virtual Scroll](./imgs/ifai202601010.png)
-
-### 📝 专业级 Markdown 支持 (Markdown Productivity)
-- **实时预览**：新增强大的 Markdown 预览引擎。无论是编写技术文档、需求说明还是 README，现在都可以实时查看最终渲染效果。
-- **三栖布局**：支持“仅编辑”、“仅预览”和“实时分屏”三种模式。通过工具栏或快捷键即可无缝切换，打造极致的文档协作体验。
-- **GFM 标准**：深度支持 GitHub Flavored Markdown，包括表格、任务列表、代码块高亮等特性。
-
-![Markdown Preview Demo](./imgs/ifai202601008.png)
-
-### 🧪 工业级稳定性：全链路自动化测试
-- **全面覆盖**：v0.2.6 建立了严苛的测试标准。新增 50+ 项 E2E 测试用例，覆盖了从 AI 聊天、Agent 任务执行到复杂文件操作的所有关键路径。
-- **专项防护**：专门针对 Agent 容易陷入的“死循环”和“路径偏移”设计了还原场景测试。现在的系统在发布前必须通过“循环预防”和“状态隔离”专项检测，确保其在复杂项目中的鲁棒性。
-- **跨平台 CI**：完善了 Windows 生产级构建流水线，实现了代码提交即检测，确保双版本（社区/商业）在不同操作系统下的一致性。
-
-![Testing Infrastructure](./imgs/ifai202601006.png)
-
-### 🤖 本地模型体验升级
-- **自动续写**：长代码生成不再中断，实现无缝续写。
-- **Token 计数**：精细控制本地推理成本。
-
-![Local LLM Stats](./imgs/ifai202601011.png)
+![Snippet & Local LLM](./imgs/ifai202601010.png)
 
 ---
 
 ## 📝 详细变更日志 (Detailed Changes)
 
 ### 🚀 新增功能 (Features)
-- **[Agent]** 新增 `bash` 和 `agent_run_shell_command` 工具，支持带超时控制的命令执行。
-- **[Agent]** 实现了基于 `stderr` 分析的智能错误反馈机制。
-- **[Settings]** 新增自定义 API 配置面板，支持灵活设置。
-- **[Tasks]** 引入 `TaskBreakdownService` 和 `TaskExecutionService`。
-- **[OpenSpec]** 深度集成 OpenSpec 标准协议。
+- **[Agent]** 新增 `bash` 执行工具，支持路径自动校准与智能 stderr 反馈。
+- **[Settings]** 全面支持 OpenAI 兼容格式的自定义 API 接入。
+- **[UI]** 引入 `VirtualMessageList`，大规模对话渲染性能提升 80%。
+- **[UI]** Snippet Manager 实现全量虚拟滚动。
 
 ### ⚡ 优化 (Improvements)
-- **[Performance]** 优化流式响应渲染管线，CPU 占用降低 30%。
-- **[UI]** Snippet Manager 全面接入虚拟列表技术。
-- **[Core]** `src-tauri` 路径自动校准逻辑。
+- **[Performance]** 优化流式响应渲染管线，高负载场景 CPU 降低 30%。
+- **[Test]** 建立全链路 E2E 测试体系，新增 50+ 核心回归用例。
 
 ### 🐛 修复 (Fixes)
-- **[RAG]** 修复了项目切换时的索引数据残留 Bug。
-- **[Agent]** 修复了绝对路径遍历错误及重复执行循环。
+- **[RAG]** 实现了强制索引重置机制，消除项目切换时的数据污染。
+- **[Agent]** 修复绝对路径解析 Bug 导致的 Agent 死循环。
 
 ---
 
 ## 🤝 升级指南
 
-如果您是从 v0.2.5 升级：
-1. 直接安装新版本覆盖即可。
-2. 建议首次运行执行 `/index` 重建索引。
-
-> **致谢**: 感谢所有为 v0.2.6 提供反馈和测试支持的用户。
+如果您是从 v0.2.5 升级，建议安装后运行 `/index` 命令重置 RAG 索引以获得最佳体验。
