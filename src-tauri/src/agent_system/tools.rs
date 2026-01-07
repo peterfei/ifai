@@ -157,33 +157,53 @@ pub async fn execute_tool_internal(
         },
         "bash" | "agent_run_shell_command" | "agent_execute_command" => {
             let command = get_arg_str(args, "command", "");
-            let working_dir = get_arg_opt_str(args, "working_dir")
-                .or_else(|| Some(project_root.to_string()));
+            let working_dir_arg = get_arg_opt_str(args, "working_dir");
             let timeout = get_arg_opt_u64(args, "timeout");
+
+            // Sanitize working directory to be relative to project root
+            let final_working_dir = match working_dir_arg {
+                Some(dir) => {
+                    let clean_dir = dir.trim_start_matches(|c| c == '/' || c == '\\');
+                    if clean_dir.is_empty() || clean_dir == "." {
+                        project_root.to_string()
+                    } else {
+                        std::path::Path::new(project_root).join(clean_dir).to_string_lossy().to_string()
+                    }
+                },
+                None => project_root.to_string(),
+            };
 
             println!("[AgentTools] BASH EXECUTION START:");
             println!("  - Requested tool: {}", tool_name);
             println!("  - Command: {}", command);
-            println!("  - Directory: {:?}", working_dir);
+            println!("  - Directory: {}", final_working_dir);
 
             match crate::commands::bash_commands::execute_bash_command(
                 command.to_string(),
-                working_dir,
+                Some(final_working_dir.clone()),
                 timeout,
                 None, // env_vars
             ).await {
                 Ok(result) => {
-                    // Format the result in a more AI-friendly way
-                    // If command succeeded, focus on stdout. If failed, include stderr.
+                    // Format the result in a more AI-friendly way.
+                    // IMPORTANT: Include stderr even on success, because many tools (like npm/git)
+                    // output progress or status to stderr. This prevents the AI from thinking 
+                    // nothing happened and looping.
                     let formatted = if result.success {
-                        if result.stdout.trim().is_empty() {
-                            format!("Command '{}' completed successfully (no output).", command)
-                        } else {
-                            result.stdout.clone()
+                        let mut output = format!("Command '{}' executed successfully in {}.\n", command, final_working_dir);
+                        if !result.stdout.trim().is_empty() {
+                            output.push_str(&format!("stdout:\n{}\n", result.stdout));
                         }
+                        if !result.stderr.trim().is_empty() {
+                            output.push_str(&format!("stderr/logs:\n{}\n", result.stderr));
+                        }
+                        if result.stdout.trim().is_empty() && result.stderr.trim().is_empty() {
+                            output.push_str("(No output produced)");
+                        }
+                        output
                     } else {
-                        format!("Command '{}' failed with exit code {}.\nstdout: {}\nstderr: {}",
-                            command, result.exit_code, result.stdout, result.stderr)
+                        format!("Command '{}' failed with exit code {} in {}.\nstdout: {}\nstderr: {}",
+                            command, result.exit_code, final_working_dir, result.stdout, result.stderr)
                     };
 
                     println!("[AgentTools] BASH SUCCESS: exit_code={}, success={}, output_len={}",
