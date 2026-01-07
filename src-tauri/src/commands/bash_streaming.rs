@@ -33,6 +33,12 @@ pub struct BashStreamResult {
     pub elapsed_ms: u64,
     /// 是否超时
     pub timed_out: bool,
+    /// ⚡️ FIX: 添加标准输出内容
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stdout: Option<String>,
+    /// ⚡️ FIX: 添加标准错误内容
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stderr: Option<String>,
 }
 
 /// 流式执行 Bash 命令
@@ -100,6 +106,10 @@ pub async fn execute_bash_command_streaming(
     let mut buffer = Vec::with_capacity(throttle);
     let mut has_error = false;
 
+    // ⚡️ FIX: 添加输出缓冲区，用于在结果中返回完整输出
+    let mut stdout_buffer = Vec::new();
+    let mut stderr_buffer = Vec::new();
+
     // 流式读取函数
     let mut read_stream = async {
         loop {
@@ -116,12 +126,15 @@ pub async fn execute_bash_command_streaming(
                             let processed_line = if line.len() > MAX_LINE_LENGTH {
                                 format!("{}...[Line truncated]", &line[..MAX_LINE_LENGTH])
                             } else {
-                                line
+                                line.clone()
                             };
+
+                            // ⚡️ FIX: 收集到 stdout 缓冲区
+                            stdout_buffer.push(line);
 
                             buffer.push(BashStreamEvent {
                                 event_type: "output".to_string(),
-                                content: processed_line.clone(),
+                                content: processed_line,
                                 is_stderr: false,
                                 line_count: line_count + 1,
                             });
@@ -158,12 +171,15 @@ pub async fn execute_bash_command_streaming(
                             let processed_line = if line.len() > MAX_LINE_LENGTH {
                                 format!("{}...[Line truncated]", &line[..MAX_LINE_LENGTH])
                             } else {
-                                line
+                                line.clone()
                             };
+
+                            // ⚡️ FIX: 收集到 stderr 缓冲区
+                            stderr_buffer.push(line);
 
                             buffer.push(BashStreamEvent {
                                 event_type: "output".to_string(),
-                                content: processed_line.clone(),
+                                content: processed_line,
                                 is_stderr: true,
                                 line_count: line_count + 1,
                             });
@@ -256,6 +272,17 @@ pub async fn execute_bash_command_streaming(
         success,
         elapsed_ms,
         timed_out,
+        // ⚡️ FIX: 添加输出内容
+        stdout: if stdout_buffer.is_empty() {
+            None
+        } else {
+            Some(stdout_buffer.join("\n"))
+        },
+        stderr: if stderr_buffer.is_empty() {
+            None
+        } else {
+            Some(stderr_buffer.join("\n"))
+        },
     })
 }
 
