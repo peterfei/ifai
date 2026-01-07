@@ -109,12 +109,16 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             PreTag="div"
             wrapLines={true}
             customStyle={{
-              margin: 0,
-              borderRadius: '0.375rem',
-              fontSize: '0.75rem',
+              margin: '0.5rem 0',        // 对应 my-2
+              borderRadius: '0.375rem',   // 对应 rounded
+              fontSize: '0.75rem',        // 12px，与 SimpleMarkdownRenderer 一致
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               display: 'block',
+              padding: '1rem',            // 对应 p-4
+              backgroundColor: '#1e1e1e',
+              border: '1px solid #374151',
+              minHeight: '60px',          // 确保最小高度一致，避免布局跳动
             }}
           />
         </div>
@@ -174,8 +178,9 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
 
       if (!inline) {
         // 代码块 - 无语法高亮
+        // ⚡️ FIX: 统一代码块样式，与 SyntaxHighlighter 保持一致，避免布局跳动
         return (
-          <pre className="whitespace-pre-wrap break-word text-[13px] font-mono text-gray-300 bg-[#1e1e1e] p-3 rounded border border-gray-700 my-2 overflow-x-auto">
+          <pre className="whitespace-pre-wrap break-word text-[12px] font-mono text-gray-300 bg-[#1e1e1e] p-4 rounded border border-gray-700 my-2 overflow-x-auto min-h-[60px]">
             {String(children)}
           </pre>
         );

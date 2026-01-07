@@ -199,11 +199,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 clearTimeout(streamingTimeoutRef.current);
             }
 
-            // Set timeout to mark streaming as complete after 750ms of no changes
+            // Set timeout to mark streaming as complete after 1500ms of no changes
+            // ⚡️ FIX: 延长超时时间，减少频繁的状态切换，降低重渲染次数
             streamingTimeoutRef.current = setTimeout(() => {
                 setIsActivelyStreaming(false);
                 streamingTimeoutRef.current = undefined;
-            }, 750);
+            }, 1500);
         }
 
         // Cleanup timeout on unmount
@@ -337,8 +338,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         <div className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'}`}>
             <div className={bubbleClass}>
                 {/* Actions Toolbar - Floating on top right of assistant messages */}
-                {!isUser && !effectivelyStreaming && (
-                    <div className="absolute -top-3 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 border border-gray-700 rounded-md p-1 shadow-lg z-10">
+                {/* ⚡️ FIX: 始终渲染，使用 opacity 控制可见性，避免布局跳动 */}
+                {!isUser && (
+                    <div className={`absolute -top-3 right-4 flex items-center gap-1 transition-opacity bg-gray-800 border border-gray-700 rounded-md p-1 shadow-lg z-10 ${
+                        effectivelyStreaming ? 'opacity-0 pointer-events-none' : 'opacity-0 group-hover:opacity-100'
+                    }`} style={{ height: '28px', minWidth: '80px' }}>
                         <button onClick={handleCopy} className="p-1 hover:bg-gray-700 rounded text-gray-400" title="Copy content">
                             <Copy size={12} />
                         </button>
@@ -595,24 +599,34 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         )}
 
                         {/* ✅ Task Completion Banner - 任务完成横幅，显示在消息末尾 */}
-                        {!effectivelyStreaming && (
-                            <TaskCompletionBanner
-                                message={message}
-                                onOpenFile={(path) => {
-                                    toast.info(`打开文件: ${path}`);
-                                    // TODO: 实现打开文件的逻辑
-                                }}
-                                onCopyContent={(content) => {
-                                    navigator.clipboard.writeText(content);
-                                    toast.success('内容已复制到剪贴板');
-                                }}
-                            />
-                        )}
+                        {/* ⚡️ FIX: 添加占位包装器，避免横幅突然出现导致的布局跳动 */}
+                        <div className="min-h-[24px] transition-opacity duration-300">
+                            {!effectivelyStreaming ? (
+                                <TaskCompletionBanner
+                                    message={message}
+                                    onOpenFile={(path) => {
+                                        toast.info(`打开文件: ${path}`);
+                                        // TODO: 实现打开文件的逻辑
+                                    }}
+                                    onCopyContent={(content) => {
+                                        navigator.clipboard.writeText(content);
+                                        toast.success('内容已复制到剪贴板');
+                                    }}
+                                />
+                            ) : (
+                                <div className="h-4" aria-hidden="true" />  // 占位高度
+                            )}
+                        </div>
 
                         {/* ✅ Task Summary - 显示生成完成后的总结信息 */}
-                        {!effectivelyStreaming && message.toolCalls && message.toolCalls.length > 0 && (
-                            <TaskSummary message={message} />
-                        )}
+                        {/* ⚡️ FIX: 添加占位包装器，避免组件突然出现导致的布局跳动 */}
+                        <div className="min-h-[60px] transition-opacity duration-300">
+                            {!effectivelyStreaming && message.toolCalls && message.toolCalls.length > 0 ? (
+                                <TaskSummary message={message} />
+                            ) : (
+                                <div className="h-12" aria-hidden="true" />  // 占位高度
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
