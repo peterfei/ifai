@@ -269,9 +269,25 @@ test.describe('Demo Login Feature', () => {
 })
 ```
 
-## Step 6: Verify and Report
+## Step 6: Install Dependencies and Run
 
-After creating all files, verify the structure:
+After creating all files, you MUST **ACTUALLY EXECUTE** these commands:
+
+```
+Execute: npm install
+Execute: npm run dev
+```
+
+**IMPORTANT**: Do NOT just say "下一步：运行 npm install". You must **ACTUALLY CALL THE BASH TOOL** to execute these commands:
+
+```
+Call bash tool: npm install
+Call bash tool: npm run dev
+```
+
+## Step 7: Verify and Report
+
+After installing dependencies, verify the structure:
 
 ```
 Execute: ls -la src/views/
@@ -289,11 +305,8 @@ Then provide a summary to the user:
 - src/router/index.ts - 路由配置
 - tests/e2e/demo-login.spec.ts - E2E 测试
 
-🎯 下一步：
-1. 运行 npm install 安装依赖
-2. 运行 npm run dev 启动开发服务器
-3. 访问 http://localhost:5173/login 查看登录页面
-4. 运行 npm run test:e2e 执行测试
+✅ 已安装依赖并启动开发服务器
+🌐 访问 http://localhost:5173/login 查看登录页面
 
 💡 提示：这是一个演示应用，展示了如何使用 IfAI 创建完整的 Vue 登录功能。
 ```
