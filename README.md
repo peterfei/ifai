@@ -15,9 +15,7 @@
 
 ---
 
-<div align="center">
-  ![](imgs/ifai2601003_1280.gif)
-</div>
+![](imgs/ifai2601003_1280.gif)
 
 ---
 
