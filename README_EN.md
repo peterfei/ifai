@@ -17,7 +17,7 @@
 ---
 
 <div align="center">
-  <video src="imgs/ifai2601003_1280.mp4" width="100%" autoplay loop muted playsinline></video>
+  ![](imgs/ifai2601003_1280.mp4)
 </div>
 
 ---
