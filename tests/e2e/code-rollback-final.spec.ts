@@ -273,7 +273,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
     expect(content).toBe(CONTENT_ORIGINAL);
   });
 
-  test('应该支持多文件原子化撤销 (Transaction)', async ({ page }) => {
+  test('应该支持多文件原子化撤销 (Transaction) - 撤销后消息消失', async ({ page }) => {
     await page.evaluate(({ fileA, fileB }) => {
       const chatStore = (window as any).__chatStore?.getState();
       chatStore.addMessage({
@@ -290,14 +290,27 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(1000);
 
-    // 寻找“撤销所有”按钮
+    // 寻找"撤销所有"按钮
     const undoAllBtn = page.locator('button:has-text("撤销所有")').or(page.locator('button:has-text("Undo All")'));
     await expect(undoAllBtn).toBeVisible();
     await undoAllBtn.click();
-    
+
     await page.waitForTimeout(1000);
+
+    // 验证文件内容已恢复
     const contentA = await page.evaluate(({ file }) => (window as any).__fileStore?.getState().openedFiles.find((f:any) => f.name === file)?.content, { file: FILE_MAIN });
     expect(contentA).toBe(CONTENT_ORIGINAL);
+
+    // 🔥 新增验证：撤销所有后，消息应该消失
+    const messageExists = await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore?.getState();
+      return chatStore?.messages.some((m: any) => m.id === 'msg-multi');
+    });
+    expect(messageExists).toBe(false); // 消息应该被删除
+
+    // 验证 DOM 中消息已移除
+    const messageInDOM = await page.locator('text="同步更新了组件和样式"').count();
+    expect(messageInDOM).toBe(0);
   });
 
   test('撤销"新建文件"操作时，应物理删除文件', async ({ page }) => {

@@ -78,4 +78,6 @@ export interface ChatState {
     hasConflict?: boolean;
     error?: string;
   }>;
+
+  deleteMessage?: (messageId: string) => void;
 }
