@@ -363,6 +363,36 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         return [...message.contentSegments].sort((a: ContentSegment, b: ContentSegment) => a.order - b.order);
     }, [message.contentSegments]);
 
+    // ⚡️ FIX: Merge adjacent text segments to reduce DOM nodes and improve rendering performance
+    // This fixes the "styling mess" issue where each character creates its own Markdown container
+    const mergedSegments = React.useMemo(() => {
+        if (!sortedSegments || sortedSegments.length === 0) {
+            return null;
+        }
+
+        const merged: ContentSegment[] = [];
+
+        for (const segment of sortedSegments) {
+            if (segment.type === 'text') {
+                const lastMerged = merged[merged.length - 1];
+
+                if (lastMerged && lastMerged.type === 'text') {
+                    // Merge adjacent text segments
+                    lastMerged.content += segment.content;
+                    lastMerged.timestamp = segment.timestamp; // Update timestamp to latest
+                } else {
+                    // Create new text segment
+                    merged.push({ ...segment });
+                }
+            } else {
+                // Non-text segments (tool, etc.) are added as-is
+                merged.push(segment);
+            }
+        }
+
+        return merged;
+    }, [sortedSegments]);
+
     let toolCallIndex = 0;
 
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
@@ -551,7 +581,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         /* === STREAMING MODE: Render ALL segments (text + tools) in order as plain text === */
                                         return (
                                             <>
-                                                {sortedSegments.map((segment: ContentSegment, index: number) => {
+                                                {mergedSegments.map((segment: ContentSegment, index: number) => {
                                                     if (segment.type === 'text') {
                                                         const content = segment.content;
                                                         if (!content) return null;
@@ -582,10 +612,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         /* === NON-STREAMING MODE: Use full content with Markdown/highlighting === */
                                         // v0.2.6: 修复顺序翻转问题。
                                         // 即使在非流式模式下，也应优先尊重 contentSegments 记录的原始顺序
-                                        // 这防止了“总结文字”在生成结束后突然跳到“代码块”上方导致的视觉抖动
+                                        // 这防止了"总结文字"在生成结束后突然跳到"代码块"上方导致的视觉抖动
                                         return (
                                             <>
-                                                {sortedSegments.map((segment: ContentSegment, index: number) => {
+                                                {mergedSegments.map((segment: ContentSegment, index: number) => {
                                                     if (segment.type === 'text') {
                                                         const content = segment.content;
                                                         if (!content) return null;
