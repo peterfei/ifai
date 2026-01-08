@@ -585,8 +585,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
             )}
 
             {/* ✅ 执行结果展示 - 工业级UI，无JSON显示 */}
-            {/* 🐛 FIX: 只在有 result 时显示执行结果 */}
-            {(toolCall.status === 'completed' || toolCall.status === 'failed' || toolCall.result) && !isWriteFile && !isPartial && (
+            {/* 🔥 FIX: 显示所有工具的执行结果，包括 agent_write_file */}
+            {(toolCall.status === 'completed' || toolCall.status === 'failed' || toolCall.result) && !isPartial && (
                 <div className="px-5 pb-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     {/* 结果标题 */}
                     <div className="flex items-center justify-between mb-3">
@@ -687,7 +687,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                             },
                                         }}
                                     >
-                                        {formatToolResultToMarkdown(toolCall.result)}
+                                        {formatToolResultToMarkdown(toolCall.result, toolCall)}
                                     </ReactMarkdown>
                                 );
                             })() : (
@@ -719,7 +719,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                         },
                                     }}
                                 >
-                                    {formatToolResultToMarkdown(toolCall.result)}
+                                    {formatToolResultToMarkdown(toolCall.result, toolCall)}
                                 </ReactMarkdown>
                             )}
                         </div>

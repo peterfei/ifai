@@ -1699,6 +1699,7 @@ const patchedApproveToolCall = async (
 
             console.log('[FS Tool] Final relPath:', relPath);
             console.log('[FS Tool] Final content length:', content.length);
+            console.log('[FS Tool] Final content preview:', content.substring(0, 100));
 
             // Debug: log content before unescaping
             console.log('[FS Tool] Content preview (first 200 chars):', content.substring(0, 200));
@@ -1745,18 +1746,22 @@ const patchedApproveToolCall = async (
 
             const result = await invoke(toolName, tauriArgs);
 
-            // 🔥 回滚功能：包装 result 以包含回滚数据
+            // 🔥 回滚功能：包装 result 以包含回滚数据和 diff 所需数据
             let stringResult: string;
             if (toolName === 'agent_write_file') {
+                console.log('[Rollback] Building enhancedResult with content length:', content.length);
+                console.log('[Rollback] content preview:', content.substring(0, 100));
                 const enhancedResult = {
                     success: true,
                     message: typeof result === 'string' ? result : JSON.stringify(result),
                     originalContent: originalContent || '',  // 空字符串表示新建文件
+                    newContent: content,  // 🔥 新增：保存新写入的内容，用于 diff 显示
                     filePath: `${rootPath}/${relPath}`.replace(/\/\//g, '/'),
                     timestamp: Date.now()
                 };
+                console.log('[Rollback] enhancedResult.newContent length:', enhancedResult.newContent.length);
                 stringResult = JSON.stringify(enhancedResult);
-                console.log('[Rollback] Enhanced result with rollback data');
+                console.log('[Rollback] Enhanced result with rollback data and newContent');
             } else {
                 stringResult = typeof result === 'string' ? result : JSON.stringify(result);
             }

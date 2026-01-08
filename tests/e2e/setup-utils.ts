@@ -28,6 +28,204 @@ export async function setupE2ETestEnvironment(page: Page) {
     // 暴露到 window 以便其他函数可以访问
     (window as any).__E2E_MOCK_FILE_SYSTEM__ = mockFileSystem;
 
+    // 🔥 暴露格式化函数用于测试
+    (window as any).__formatToolResultToMarkdown = (result: any, toolCall?: any) => {
+      if (!result) return '';
+
+      // 处理 agent_write_file 的特殊结构
+      if (result.filePath && result.success !== undefined) {
+        const lines: string[] = [];
+        lines.push(`### ✅ 文件写入成功\n`);
+        lines.push(`**📄 文件路径:** \`${result.filePath}\`\n`);
+
+        // 原始内容信息
+        if (result.originalContent !== undefined) {
+          if (result.originalContent === '') {
+            lines.push(`**📝 操作类型:** 新建文件\n`);
+          } else {
+            const originalLines = result.originalContent.split('\n').length;
+            const originalSize = (result.originalContent.length / 1024).toFixed(2);
+            lines.push(`**📝 操作类型:** 覆盖已有文件\n`);
+
+            // 🔥 使用 result.newContent 或 toolCall.args.content
+            const newContent = result.newContent || toolCall?.args?.content || '';
+            const newLines = newContent ? newContent.split('\n').length : 0;
+
+            // 🔥 先不显示变更统计，等智能 diff 检测完成后再显示
+            lines.push(`**📁 原始文件:** ${originalLines} 行，${originalSize} KB\n`);
+
+            // 🔥 智能diff：检测行级别变化
+            if (newContent && result.originalContent) {
+              const originalLinesList = result.originalContent.split('\n');
+              const newLinesList = newContent.split('\n');
+
+              // 🔥 先检测是否只是行号前缀变化
+              const isLineNumberChange = originalLinesList.length > 0 && newLinesList.length > 0;
+              let hasLineNumberPrefix = false;
+
+              if (isLineNumberChange) {
+                const firstOriginalLine = originalLinesList[0];
+                const firstNewLine = newLinesList[0];
+                const lineNumberRegex = /^(\d+)\s+(.+)$/;
+
+                const originalMatch = firstOriginalLine.match(lineNumberRegex);
+                const newMatch = firstNewLine.match(lineNumberRegex);
+
+                if (originalMatch && newMatch) {
+                  if (originalMatch[2] === newMatch[2]) {
+                    hasLineNumberPrefix = true;
+                  }
+                }
+              }
+
+              if (hasLineNumberPrefix) {
+                // 行号模式：只显示真正变化的内容
+                const removedLines: string[] = [];
+                const addedLines: string[] = [];
+                const lineNumberRegex = /^(\d+)\s+(.+)$/;
+
+                const originalContentMap = new Map<string, number[]>();
+                originalLinesList.forEach((line) => {
+                  const match = line.match(lineNumberRegex);
+                  if (match) {
+                    const content = match[2];
+                    if (!originalContentMap.has(content)) {
+                      originalContentMap.set(content, []);
+                    }
+                    originalContentMap.get(content)!.push(parseInt(match[1]));
+                  }
+                });
+
+                const newContentMap = new Map<string, number[]>();
+                newLinesList.forEach((line) => {
+                  const match = line.match(lineNumberRegex);
+                  if (match) {
+                    const content = match[2];
+                    if (!newContentMap.has(content)) {
+                      newContentMap.set(content, []);
+                    }
+                    newContentMap.get(content)!.push(parseInt(match[1]));
+                  }
+                });
+
+                for (const [content, originalLineNumbers] of originalContentMap) {
+                  if (!newContentMap.has(content)) {
+                    originalLineNumbers.forEach(lineNum => {
+                      removedLines.push(`${lineNum} ${content}`);
+                    });
+                  }
+                }
+
+                for (const [content, newLineNumbers] of newContentMap) {
+                  if (!originalContentMap.has(content)) {
+                    newLineNumbers.forEach(lineNum => {
+                      addedLines.push(`${lineNum} ${content}`);
+                    });
+                  }
+                }
+
+                // 🔥 智能模式：显示实际变化的行数统计
+                lines.push(`**📊 变更统计:** -${removedLines.length} +${addedLines.length} 行（只统计真正变化的行）\n`);
+
+                if (removedLines.length > 0) {
+                  lines.push(`**🗑️ 被删除内容** (共 ${removedLines.length} 行):\n`);
+                  lines.push(`\`\`\`diff\n`);
+                  const previewLines = Math.min(20, removedLines.length);
+                  for (let i = 0; i < previewLines; i++) {
+                    const line = removedLines[i];
+                    if (line.trim()) {
+                      lines.push(`-${line}\n`);  // 🔥 智能模式：行号是内容的一部分，不添加空格
+                    }
+                  }
+                  if (removedLines.length > 20) {
+                    lines.push(`... (还有 ${removedLines.length - 20} 行)\n`);
+                  }
+                  lines.push(`\`\`\`\n`);
+                }
+
+                if (addedLines.length > 0) {
+                  lines.push(`**✨ 新增内容** (共 ${addedLines.length} 行):\n`);
+                  lines.push(`\`\`\`diff\n`);
+                  const previewLines = Math.min(20, addedLines.length);
+                  for (let i = 0; i < previewLines; i++) {
+                    const line = addedLines[i];
+                    if (line.trim()) {
+                      lines.push(`+${line}\n`);  // 🔥 智能模式：行号是内容的一部分，不添加空格
+                    }
+                  }
+                  if (addedLines.length > 20) {
+                    lines.push(`... (还有 ${addedLines.length - 20} 行)\n`);
+                  }
+                  lines.push(`\`\`\`\n`);
+                }
+              } else {
+                // 非行号模式：逐行对比
+                const removedLines: string[] = [];
+                const addedLines: string[] = [];
+
+                const maxLines = Math.max(originalLinesList.length, newLinesList.length);
+
+                for (let i = 0; i < maxLines; i++) {
+                  const originalLine = originalLinesList[i] || '';
+                  const newLine = newLinesList[i] || '';
+
+                  if (originalLine && !newLine) {
+                    removedLines.push(originalLine);
+                  } else if (!originalLine && newLine) {
+                    addedLines.push(newLine);
+                  } else if (originalLine !== newLine) {
+                    removedLines.push(originalLine);
+                    addedLines.push(newLine);
+                  }
+                }
+
+                // 🔥 非行号模式：显示实际变化的行数统计
+                lines.push(`**📊 变更统计:** -${removedLines.length} +${addedLines.length} 行\n`);
+
+                if (removedLines.length > 0) {
+                  lines.push(`**🗑️ 被删除内容** (共 ${removedLines.length} 行):\n`);
+                  lines.push(`\`\`\`diff\n`);
+                  const previewLines = Math.min(20, removedLines.length);
+                  for (let i = 0; i < previewLines; i++) {
+                    const line = removedLines[i];
+                    if (line.trim()) {
+                      lines.push(`- ${line}\n`);  // 🔥 在 - 后面添加空格，符合标准 diff 格式
+                    }
+                  }
+                  if (removedLines.length > 20) {
+                    lines.push(`... (还有 ${removedLines.length - 20} 行)\n`);
+                  }
+                  lines.push(`\`\`\`\n`);
+                }
+
+                if (addedLines.length > 0) {
+                  lines.push(`**✨ 新增内容** (共 ${addedLines.length} 行):\n`);
+                  lines.push(`\`\`\`diff\n`);
+                  const previewLines = Math.min(20, addedLines.length);
+                  for (let i = 0; i < previewLines; i++) {
+                    const line = addedLines[i];
+                    if (line.trim()) {
+                      lines.push(`+ ${line}\n`);  // 🔥 在 + 后面添加空格，符合标准 diff 格式
+                    }
+                  }
+                  if (addedLines.length > 20) {
+                    lines.push(`... (还有 ${addedLines.length - 20} 行)\n`);
+                  }
+                  lines.push(`\`\`\`\n`);
+                }
+              }
+            }
+          }
+        }
+
+        lines.push(`**💬 结果:** File written\n`);
+
+        return lines.join('');
+      }
+
+      return JSON.stringify(result, null, 2);
+    };
+
     const mockInvoke = async (cmd: string, args?: any) => {
         if (cmd === 'get_git_statuses') return [];
         if (cmd === 'plugin:fs|read_dir') return [
@@ -76,15 +274,9 @@ export async function setupE2ETestEnvironment(page: Page) {
                 newContent: args.content.substring(0, 50)
             });
 
-            // 返回包含原始内容的结构化数据（用于 rollback 测试）
-            const rollbackData = {
-                success: true,
-                message: `File written: ${args.relPath}`,
-                originalContent: originalContent,  // 🔥 返回实际的原始内容
-                filePath: filePath,
-                timestamp: Date.now()
-            };
-            return JSON.stringify(rollbackData);
+            // 返回简单消息（避免嵌套结构）
+            // 🔥 前端的 enhancedResult 会包含 originalContent 和 newContent
+            return `File written: ${args.relPath}`;
         }
         if (cmd === 'agent_list_dir') {
             console.log('[E2E Mock] agent_list_dir:', args);
