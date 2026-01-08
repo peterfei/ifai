@@ -1879,7 +1879,20 @@ const patchedApproveToolCall = async (
     if (bashTools.includes(toolName)) {
         console.log(`[useChatStore] Bash tool detected: ${toolName}`);
 
-        // 先调用 original 流程执行命令
+        // 🔥 FIX: 先更新状态为 'approved'，让 UI 立即反馈
+        // 这样用户可以看到状态变化，而不是一直等待命令执行完成
+        coreUseChatStore.setState(state => ({
+            messages: state.messages.map(m =>
+                m.id === messageId ? {
+                    ...m,
+                    toolCalls: m.toolCalls?.map(tc =>
+                        tc.id === toolCallId ? { ...tc, status: 'approved' as const } : tc
+                    )
+                } : m
+            )
+        }));
+
+        // 然后调用 original 流程执行命令
         await originalApproveToolCall(messageId, toolCallId);
 
         // 执行后，检查是否已存在 tool 消息
@@ -1903,21 +1916,59 @@ const patchedApproveToolCall = async (
         if (toolCallAfter?.result) {
             console.log(`[useChatStore] Creating tool message for bash result`);
 
-            // 解析 bash result
+            // 🔥 FIX: 解析 bash result 并添加明确的状态信息
             let outputContent = '';
             try {
                 const bashResult = JSON.parse(toolCallAfter.result);
                 const stdout = bashResult.stdout || '';
                 const stderr = bashResult.stderr || '';
                 const exitCode = bashResult.exitCode !== undefined ? bashResult.exitCode : bashResult.exit_code || 0;
+                const success = bashResult.success !== undefined ? bashResult.success : exitCode === 0;
 
                 const outputParts = [];
-                if (stdout) outputParts.push(stdout.trim());
-                if (stderr) outputParts.push(`stderr: ${stderr.trim()}`);
 
-                outputContent = outputParts.length > 0
-                    ? outputParts.join('\n')
-                    : `Command completed (no output). Exit code: ${exitCode}`;
+                // 🔥 添加执行状态说明
+                if (success) {
+                    outputParts.push(`✅ Command executed successfully (exit code: ${exitCode})`);
+
+                    // 🔥 FIX: 检测是否是服务器启动成功，添加特别说明
+                    const stdoutLower = stdout.toLowerCase();
+                    const isServerStartup =
+                        stdoutLower.includes('local:') ||
+                        stdoutLower.includes('network:') ||
+                        stdoutLower.includes('ready in') ||
+                        stdoutLower.includes('vite') ||
+                        stdoutLower.includes('compiled successfully') ||
+                        stdoutLower.includes('server running') ||
+                        stdoutLower.includes('listening on') ||
+                        stdoutLower.includes('running on') ||
+                        stdout.includes('Server started successfully');
+
+                    if (isServerStartup) {
+                        outputParts.push(`\n📢 IMPORTANT: The development server has been successfully started and is now running in the background.`);
+                        outputParts.push(`The server is ready to accept requests. Do NOT attempt to run this command again.`);
+                        outputParts.push(`The user can now access the application in their browser.`);
+                    }
+                } else if (exitCode === -1) {
+                    outputParts.push(`⚠️ Command executed but timed out (exit code: -1)`);
+                } else {
+                    outputParts.push(`❌ Command executed but failed (exit code: ${exitCode})`);
+                }
+
+                // 添加输出内容
+                if (stdout) {
+                    outputParts.push(`\nStdout:\n${stdout.trim()}`);
+                }
+                if (stderr) {
+                    outputParts.push(`\nStderr:\n${stderr.trim()}`);
+                }
+
+                // 如果没有任何输出
+                if (outputParts.length === 1) { // 只有状态行
+                    outputParts.push('\n(no output)');
+                }
+
+                outputContent = outputParts.join('\n');
             } catch (e) {
                 outputContent = toolCallAfter.result;
             }

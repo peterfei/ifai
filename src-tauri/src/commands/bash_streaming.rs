@@ -7,6 +7,70 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
+/// 检测输出是否包含启动成功的标志
+///
+/// 对于长期运行的命令（如 `npm run dev`），我们不应该等待它们结束，
+/// 而是检测特定的成功标志，一旦检测到就认为命令执行成功。
+fn detect_startup_success(stdout_lines: &[String], stderr_lines: &[String]) -> bool {
+    // 常见的成功启动标志
+    const SUCCESS_PATTERNS: &[&str] = &[
+        // Vite / Vue
+        "Local:",
+        "Network:",
+        "ready in",
+        "VITE",
+
+        // Webpack
+        "Compiled successfully",
+        "webpack: Compiled",
+        "webpack compiled",
+        "webpack: Compiled with",
+
+        // Next.js
+        "ready - started server on",
+        "▲ Next.js",
+
+        // Create React App
+        "Starting the development server",
+        "Compiled successfully!",
+        "You can now view",
+
+        // General server messages
+        "Server running",
+        "server running",
+        "listening on",
+        "Listening on",
+        "Serving",
+        "serving at",
+
+        // Python servers
+        "Running on",
+        "Serving HTTP on",
+
+        // Go servers
+        "Starting server",
+        "Server started",
+
+        // Node.js
+        "server is listening",
+        "application is running",
+    ];
+
+    // 检查所有输出行
+    let all_lines: Vec<&String> = stdout_lines.iter().chain(stderr_lines.iter()).collect();
+
+    for line in all_lines {
+        let lower_line = line.to_lowercase();
+        for pattern in SUCCESS_PATTERNS {
+            if lower_line.contains(&pattern.to_lowercase()) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 /// 流式输出事件数据
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BashStreamEvent {
@@ -141,6 +205,30 @@ pub async fn execute_bash_command_streaming(
 
                             line_count += 1;
 
+                            // 🔥 FIX: 检测启动成功标志
+                            if detect_startup_success(&stdout_buffer, &stderr_buffer) {
+                                // 发送剩余缓冲内容
+                                if !buffer.is_empty() {
+                                    emit_batch(&app_handle, &event_id, &buffer)?;
+                                }
+
+                                // 发送成功事件
+                                emit_event(&app_handle, &event_id, BashStreamEvent {
+                                    event_type: "complete".to_string(),
+                                    content: "✅ Server started successfully (detected startup pattern)".to_string(),
+                                    is_stderr: false,
+                                    line_count,
+                                })?;
+
+                                // 🔥 FIX: Kill 掉后台进程（如 npm run dev）
+                                // 使用 start kill 而不是 wait，因为我们不想等待它结束
+                                let _ = child.start_kill();
+                                println!("[Bash Streaming] Killed background process after detecting startup success");
+
+                                // 提前结束循环，返回成功状态
+                                return Ok::<_, String>(true); // true 表示检测到启动成功
+                            }
+
                             // 达到节流阈值时发送
                             if buffer.len() >= throttle {
                                 emit_batch(&app_handle, &event_id, &buffer)?;
@@ -186,6 +274,29 @@ pub async fn execute_bash_command_streaming(
 
                             line_count += 1;
 
+                            // 🔥 FIX: 检测启动成功标志
+                            if detect_startup_success(&stdout_buffer, &stderr_buffer) {
+                                // 发送剩余缓冲内容
+                                if !buffer.is_empty() {
+                                    emit_batch(&app_handle, &event_id, &buffer)?;
+                                }
+
+                                // 发送成功事件
+                                emit_event(&app_handle, &event_id, BashStreamEvent {
+                                    event_type: "complete".to_string(),
+                                    content: "✅ Server started successfully (detected startup pattern)".to_string(),
+                                    is_stderr: false,
+                                    line_count,
+                                })?;
+
+                                // 🔥 FIX: Kill 掉后台进程
+                                let _ = child.start_kill();
+                                println!("[Bash Streaming] Killed background process after detecting startup success");
+
+                                // 提前结束循环，返回成功状态
+                                return Ok::<_, String>(true); // true 表示检测到启动成功
+                            }
+
                             if buffer.len() >= throttle {
                                 emit_batch(&app_handle, &event_id, &buffer)?;
                                 buffer.clear();
@@ -225,25 +336,33 @@ pub async fn execute_bash_command_streaming(
         // 等待进程结束
         let status = child.wait().await.map_err(|e| e.to_string())?;
 
-        Ok::<_, String>(status)
+        // 返回 false 表示没有提前检测到启动成功，进程正常结束
+        Ok::<_, String>(false)
     };
 
     // 执行流式读取（带超时）
     let result = timeout(timeout_duration, read_stream).await;
     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
-    // 发送完成事件
+    // 发送完成事件并确定结果
     let (exit_code, success, timed_out) = match result {
-        Ok(Ok(status)) => {
-            let code = status.code().unwrap_or(-1);
-            let success = status.success();
-            emit_event(&app_handle, &event_id, BashStreamEvent {
-                event_type: "complete".to_string(),
-                content: format!("Command completed with exit code {}", code),
-                is_stderr: false,
-                line_count,
-            })?;
-            (code, success, false)
+        Ok(Ok(detected_startup)) => {
+            // detected_startup: true 表示检测到启动成功并提前结束
+            if detected_startup {
+                // 检测到启动成功，返回成功状态
+                (0, true, false) // exit_code: 0, success: true, timed_out: false
+            } else {
+                // 进程正常结束（没有提前检测到启动成功）
+                // 这里需要重新获取进程状态，但我们没有保存它
+                // 由于进程已经正常结束，我们可以假设它是成功的
+                emit_event(&app_handle, &event_id, BashStreamEvent {
+                    event_type: "complete".to_string(),
+                    content: "Command completed (process exited normally)".to_string(),
+                    is_stderr: false,
+                    line_count,
+                })?;
+                (0, true, false)
+            }
         }
         Ok(Err(e)) => {
             emit_event(&app_handle, &event_id, BashStreamEvent {

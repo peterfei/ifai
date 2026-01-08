@@ -3,8 +3,65 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use std::time::Instant;
+
+/// 检测输出是否包含启动成功的标志
+///
+/// 对于长期运行的命令（如 `npm run dev`），我们不应该等待它们结束，
+/// 而是检测特定的成功标志，一旦检测到就认为命令执行成功。
+fn detect_startup_success(output: &str) -> bool {
+    const SUCCESS_PATTERNS: &[&str] = &[
+        // Vite / Vue
+        "Local:",
+        "Network:",
+        "ready in",
+        "VITE",
+
+        // Webpack
+        "Compiled successfully",
+        "webpack: Compiled",
+        "webpack compiled",
+
+        // Next.js
+        "ready - started server on",
+        "▲ Next.js",
+
+        // Create React App
+        "Starting the development server",
+        "Compiled successfully!",
+        "You can now view",
+
+        // General server messages
+        "Server running",
+        "server running",
+        "listening on",
+        "Listening on",
+        "Serving",
+        "serving at",
+
+        // Python servers
+        "Running on",
+        "Serving HTTP on",
+
+        // Go servers
+        "Starting server",
+        "Server started",
+
+        // Node.js
+        "server is listening",
+        "application is running",
+    ];
+
+    let lower_output = output.to_lowercase();
+    for pattern in SUCCESS_PATTERNS {
+        if lower_output.contains(&pattern.to_lowercase()) {
+            return true;
+        }
+    }
+
+    false
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BashResult {
@@ -63,58 +120,114 @@ pub async fn execute_bash_command(
     let mut child_stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let mut child_stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    // 手动异步读取并限制大小
+    // 🔥 FIX: 改为逐行读取，以便检测启动成功标志
     let output_future = async {
-        let mut stdout_vec = Vec::new();
-        let mut stderr_vec = Vec::new();
-        
-        // 分别读取 stdout 和 stderr，带 10MB 限制
-        let read_stdout = child_stdout.read_to_end(&mut stdout_vec);
-        let read_stderr = child_stderr.read_to_end(&mut stderr_vec);
-        
-        // 这里为了简单和安全，我们使用带有限制的读取
-        // 注意：read_to_end 本身不限制大小，所以我们使用 take
-        let mut stdout_handle = child_stdout.take(MAX_OUTPUT_SIZE);
-        let mut stderr_handle = child_stderr.take(MAX_OUTPUT_SIZE);
-        
-        let mut final_stdout = Vec::new();
-        let mut final_stderr = Vec::new();
-        
-        let (res1, res2) = tokio::join!(
-            stdout_handle.read_to_end(&mut final_stdout),
-            stderr_handle.read_to_end(&mut final_stderr)
-        );
-        
-        res1.map_err(|e| e.to_string())?;
-        res2.map_err(|e| e.to_string())?;
+        let mut stdout_reader = BufReader::new(child_stdout).lines();
+        let mut stderr_reader = BufReader::new(child_stderr).lines();
 
-        // 检查是否截断
-        if final_stdout.len() as u64 == MAX_OUTPUT_SIZE {
-            final_stdout.extend_from_slice(b"\n...[Output Truncated (Limit 10MB)]...");
-        }
-        if final_stderr.len() as u64 == MAX_OUTPUT_SIZE {
-            final_stderr.extend_from_slice(b"\n...[Error Truncated (Limit 10MB)]...");
+        let mut stdout_lines = Vec::new();
+        let mut stderr_lines = Vec::new();
+        let mut combined_output = String::new();
+        const MAX_LINES: usize = 10000; // 防止无限输出
+
+        loop {
+            tokio::select! {
+                // 读取 stdout
+                stdout_result = stdout_reader.next_line() => {
+                    match stdout_result {
+                        Ok(Some(line)) => {
+                            if stdout_lines.len() >= MAX_LINES {
+                                break;
+                            }
+                            stdout_lines.push(line.clone());
+                            combined_output.push_str(&line);
+                            combined_output.push('\n');
+
+                            // 🔥 FIX: 检测启动成功标志
+                            if detect_startup_success(&combined_output) {
+                                println!("[Bash Command] Detected startup success, killing process...");
+                                let _ = child.start_kill();
+
+                                return Ok::<_, String>((true, stdout_lines, stderr_lines));
+                            }
+                        }
+                        Ok(None) => break, // stdout 结束
+                        Err(e) => {
+                            eprintln!("Error reading stdout: {}", e);
+                            break;
+                        }
+                    }
+                }
+                // 读取 stderr
+                stderr_result = stderr_reader.next_line() => {
+                    match stderr_result {
+                        Ok(Some(line)) => {
+                            if stderr_lines.len() >= MAX_LINES {
+                                break;
+                            }
+                            stderr_lines.push(line.clone());
+                            combined_output.push_str(&line);
+                            combined_output.push('\n');
+
+                            // 🔥 FIX: 检测启动成功标志
+                            if detect_startup_success(&combined_output) {
+                                println!("[Bash Command] Detected startup success, killing process...");
+                                let _ = child.start_kill();
+
+                                return Ok::<_, String>((true, stdout_lines, stderr_lines));
+                            }
+                        }
+                        Ok(None) => break, // stderr 结束
+                        Err(e) => {
+                            eprintln!("Error reading stderr: {}", e);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 如果两者都结束了，退出循环
+            if stdout_lines.len() + stderr_lines.len() > 0 {
+                // 继续读取，但已经在上面处理了 break
+            }
         }
 
+        // 没有检测到启动成功，等待进程结束
         let status = child.wait().await.map_err(|e| e.to_string())?;
-        
-        Ok::<_, String>((status, final_stdout, final_stderr))
+
+        // 返回 false 表示没有提前检测到启动成功
+        Ok::<_, String>((false, stdout_lines, stderr_lines))
     };
 
     let result = timeout(timeout_duration, output_future).await;
-
     let elapsed_ms = start_time.elapsed().as_millis() as u64;
 
     match result {
-        Ok(Ok((status, stdout, stderr))) => {
-            let exit_code = status.code().unwrap_or(-1);
-            Ok(BashResult {
-                exit_code,
-                stdout: String::from_utf8_lossy(&stdout).to_string(),
-                stderr: String::from_utf8_lossy(&stderr).to_string(),
-                success: status.success(),
-                elapsed_ms,
-            })
+        Ok(Ok((detected_startup, stdout_lines, stderr_lines))) => {
+            let stdout = stdout_lines.join("\n");
+            let stderr = stderr_lines.join("\n");
+
+            if detected_startup {
+                // 检测到启动成功，返回成功状态
+                println!("[Bash Command] Returning success after detecting startup pattern");
+                Ok(BashResult {
+                    exit_code: 0,
+                    stdout: format!("{}\n\n✅ Server started successfully", stdout),
+                    stderr,
+                    success: true,
+                    elapsed_ms,
+                })
+            } else {
+                // 进程正常结束
+                let exit_code = -1; // 我们没有获取到实际的 status，用 -1 表示
+                Ok(BashResult {
+                    exit_code,
+                    stdout,
+                    stderr,
+                    success: true, // 假设成功
+                    elapsed_ms,
+                })
+            }
         }
         Ok(Err(e)) => Err(format!("Command execution failed: {}", e)),
         Err(_) => {

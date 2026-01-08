@@ -363,6 +363,34 @@ export async function setupE2ETestEnvironment(page: Page) {
                     stderr: 'ls: cannot access \'/nonexistent_directory_12345\': No such file or directory',
                     exitCode: 2
                 };
+            } else if (command.includes('npm run dev')) {
+                // 🔥 模拟 npm run dev 启动成功（用于测试启动成功检测）
+                // 返回 Vite 的典型启动输出
+                return {
+                    stdout: '> vite-project@0.0.0 dev\n> vite\n\n  VITE v5.0.0  ready in 250 ms\n\n  ➜  Local:   http://localhost:5173/\n  ➜  Network: use --host to expose\n  ➜  press h + enter to show help',
+                    stderr: '',
+                    exitCode: 0,
+                    success: true,
+                    elapsed_ms: 300
+                };
+            } else if (command.includes('npm start')) {
+                // 🔥 模拟 npm start (Create React App) 启动成功
+                return {
+                    stdout: 'Starting the development server...\n\nCompiled successfully!\n\nYou can now view vite-project in the browser.\n\n  Local:            http://localhost:3000',
+                    stderr: '',
+                    exitCode: 0,
+                    success: true,
+                    elapsed_ms: 2000
+                };
+            } else if (command.includes('python app.py')) {
+                // 🔥 模拟 Python Flask 服务器启动成功
+                return {
+                    stdout: ' * Serving Flask app \'app\'\n * Debug mode: on\nWARNING: This is a development server. Do not use it in a production deployment.\n * Running on http://127.0.0.1:5000\n * Press CTRL+C to quit',
+                    stderr: '',
+                    exitCode: 0,
+                    success: true,
+                    elapsed_ms: 500
+                };
             }
 
             // 默认返回通用输出
