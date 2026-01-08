@@ -731,6 +731,7 @@ pub fn run() {
             commands::core_wrappers::agent_write_file,
             commands::core_wrappers::agent_read_file,
             commands::core_wrappers::agent_list_dir,
+            commands::core_wrappers::agent_delete_file,
             commands::core_wrappers::agent_batch_read,
             commands::core_wrappers::agent_scan_directory,
             commands::prompt_commands::list_prompts,

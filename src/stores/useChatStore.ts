@@ -1727,8 +1727,39 @@ const patchedApproveToolCall = async (
             };
 
             console.log(`[useChatStore] Invoking ${toolName} with`, tauriArgs);
+
+            // 🔥 回滚功能：对于 agent_write_file，先捕获原始内容
+            let originalContent = '';
+            if (toolName === 'agent_write_file') {
+                try {
+                    originalContent = await invoke('agent_read_file', {
+                        rootPath,
+                        relPath
+                    });
+                    console.log('[Rollback] Captured original content for:', relPath);
+                } catch (e) {
+                    // 文件不存在，这是新建文件，originalContent 保持空字符串
+                    console.log('[Rollback] New file detected:', relPath);
+                }
+            }
+
             const result = await invoke(toolName, tauriArgs);
-            const stringResult = typeof result === 'string' ? result : JSON.stringify(result);
+
+            // 🔥 回滚功能：包装 result 以包含回滚数据
+            let stringResult: string;
+            if (toolName === 'agent_write_file') {
+                const enhancedResult = {
+                    success: true,
+                    message: typeof result === 'string' ? result : JSON.stringify(result),
+                    originalContent: originalContent || '',  // 空字符串表示新建文件
+                    filePath: `${rootPath}/${relPath}`.replace(/\/\//g, '/'),
+                    timestamp: Date.now()
+                };
+                stringResult = JSON.stringify(enhancedResult);
+                console.log('[Rollback] Enhanced result with rollback data');
+            } else {
+                stringResult = typeof result === 'string' ? result : JSON.stringify(result);
+            }
 
             // Update status to completed
             coreUseChatStore.setState(state => ({

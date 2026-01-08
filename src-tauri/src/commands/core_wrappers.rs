@@ -93,6 +93,22 @@ pub async fn agent_list_dir(root_path: String, rel_path: String) -> Result<Vec<S
     }
 }
 
+/// Delete a file
+/// Used for rollback functionality to physically delete newly created files
+#[tauri::command]
+pub async fn agent_delete_file(root_path: String, rel_path: String) -> Result<String, String> {
+    #[cfg(feature = "commercial")]
+    {
+        return ifainew_core::agent::agent_delete_file(root_path, rel_path).await;
+    }
+    #[cfg(not(feature = "commercial"))]
+    {
+        let path = std::path::Path::new(&root_path).join(&rel_path);
+        tokio::fs::remove_file(&path).await.map_err(|e| e.to_string())?;
+        Ok(format!("File deleted: {}", rel_path))
+    }
+}
+
 /// Batch read multiple files in parallel
 /// Returns a JSON string with results for each file
 #[tauri::command]
