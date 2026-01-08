@@ -291,13 +291,17 @@ ${textBefore}[CURSOR]${textAfter}
         showToolbar: 'onHover',
         keepOnBlur: false,
       },
-      // Disable standard suggestions to avoid conflicts with inline suggestions
+      // Core navigation features (v0.2.6 fixes)
+      links: true,
+      contextmenu: true,
+      definitionLinkOpensInPeek: true,
+      // Enable standard suggestions for navigation/symbols
       quickSuggestions: {
-        other: false,
+        other: !isVeryLargeFile,
         comments: false,
-        strings: false,
+        strings: !isVeryLargeFile,
       },
-      suggestOnTriggerCharacters: false,
+      suggestOnTriggerCharacters: true,
       acceptSuggestionOnEnter: 'on',
       tabCompletion: 'on',
       minimap: { enabled: showMinimap && !isVeryLargeFile && !isGenerating },
@@ -352,8 +356,10 @@ ${textBefore}[CURSOR]${textAfter}
       if (currentValue !== (file.content || '')) {
         editor.setValue(file.content || '');
       }
+      // Ensure editor is focused when switching files to keep keyboard shortcuts active
+      editor.focus();
     }
-  }, [file?.id]); // Only re-run when file ID changes (file switch), not content changes
+  }, [file?.id, paneId, getEditorInstance]); // Include paneId for stability
 
   // Jump to initial line when specified (for search results, file tree clicks, etc.)
   useEffect(() => {
@@ -379,7 +385,7 @@ ${textBefore}[CURSOR]${textAfter}
     <div className="relative h-full w-full">
       <Editor
         height="100%"
-        path={file?.path || `untitled-${paneId}`} // Unique path for model caching
+        path={file?.path || `untitled-${paneId}-${file?.id}`} // Guarantee uniqueness
         defaultLanguage={file?.language || 'plaintext'}
         language={file?.language || 'plaintext'}
         // Use defaultValue instead of value to avoid controlled component issues

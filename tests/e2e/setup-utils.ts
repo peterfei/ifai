@@ -25,7 +25,20 @@ export async function setupE2ETestEnvironment(page: Page) {
 
     const mockInvoke = async (cmd: string, args?: any) => {
         if (cmd === 'get_git_statuses') return [];
-        if (cmd === 'read_directory') return [];
+        if (cmd === 'plugin:fs|read_dir') return [
+            { name: 'App.tsx', isDirectory: false, isFile: true },
+            { name: 'main.tsx', isDirectory: false, isFile: true },
+            { name: 'src', isDirectory: true, isFile: false }
+        ];
+        if (cmd === 'plugin:fs|read_text_file') {
+            if (args.path.endsWith('App.tsx')) return 'export function App() { return <div>App</div>; }';
+            if (args.path.endsWith('main.tsx')) return 'import { App } from "./App";\nReactDOM.render(<App />, document.body);';
+            return '// Mock content';
+        }
+        if (cmd === 'read_directory') return [
+            { name: 'App.tsx', isDirectory: false, isFile: true },
+            { name: 'main.tsx', isDirectory: false, isFile: true }
+        ];
         if (cmd === 'plugin:dialog|ask') return true;
 
         // Handle launch_agent command for Demo Agent
@@ -317,6 +330,40 @@ export async function setupE2ETestEnvironment(page: Page) {
         return (window as any).__chatStore?.getState()?.messages || [];
     };
 
+    (window as any).__E2E_OPEN_MOCK_FILE__ = (name: string) => {
+        const fileStore = (window as any).__fileStore?.getState();
+        if (fileStore) {
+            fileStore.openFile({
+                id: `mock-${name}`,
+                path: `/Users/mac/mock-project/${name}`,
+                name: name,
+                content: `
+/**
+ * Test class for breadcrumbs
+ */
+export class TestApp {
+    private value: number = 0;
+
+    constructor() {
+        console.log("Initialized");
+    }
+
+    public getValue() {
+        return this.value;
+    }
+}
+                `,
+                isDirty: false,
+                language: 'typescript'
+            });
+            // Auto assign to active pane if possible
+            const layoutStore = (window as any).__layoutStore?.getState();
+            if (layoutStore && layoutStore.activePaneId) {
+                layoutStore.assignFileToPane(layoutStore.activePaneId, `mock-${name}`);
+            }
+        }
+    };
+
     // E. Mock IndexedDB for thread persistence testing
     (window as any).__E2E_INDEXED_DB_MOCK__ = {
         threads: new Map<string, any>(),
@@ -368,13 +415,26 @@ export async function setupE2ETestEnvironment(page: Page) {
 
     // D. 运行时状态稳定器 (防止组件挂载后的状态偏移)
     setInterval(() => {
+        if ((window as any).__E2E_SKIP_STABILIZER__) return;
+        
         const settings = (window as any).__settingsStore?.getState();
         if (settings && settings.currentProviderId !== 'ollama-e2e') {
             settings.updateSettings({ currentProviderId: 'ollama-e2e', currentModel: 'mock-model' });
         }
         const file = (window as any).__fileStore?.getState();
-        if (file && !file.rootPath) {
-            file.setFileTree({ id: 'root', name: 'mock', kind: 'directory', path: '/Users/mac/mock-project', children: [] });
+        if (file && (!file.rootPath || !file.fileTree)) {
+            console.log('[E2E Mock] Initializing FileStore state...');
+            file.setRootPath('/Users/mac/mock-project');
+            file.setFileTree({ 
+                id: 'root', 
+                name: 'mock-project', 
+                kind: 'directory', 
+                path: '/Users/mac/mock-project', 
+                children: [
+                    { id: 'app-tsx', name: 'App.tsx', kind: 'file', path: '/Users/mac/mock-project/App.tsx' },
+                    { id: 'main-tsx', name: 'main.tsx', kind: 'file', path: '/Users/mac/mock-project/main.tsx' }
+                ] 
+            });
         }
     }, 1000);
 
