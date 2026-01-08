@@ -93,8 +93,58 @@ export async function setupE2ETestEnvironment(page: Page) {
             console.log('[E2E Mock] File deleted from memory:', filePath);
             return { success: true };
         }
+        if (cmd === 'agent_delete_file') {
+            console.log('[E2E Mock] agent_delete_file:', args);
+            const filePath = `${args.rootPath}/${args.relPath}`.replace(/\/\//g, '/');
+            mockFileSystem.delete(filePath);
+            console.log('[E2E Mock] File deleted from memory:', filePath);
+            return `File deleted: ${args.relPath}`;
+        }
         if (cmd === 'execute_bash_command') {
             console.log('[E2E Mock] execute_bash_command:', args);
+            const command = args?.command || '';
+
+            // 🔥 根据实际命令返回不同的输出
+            // 注意：直接返回对象，让 Tauri 的 invoke 机制处理序列化
+
+            // 先检查 stderr 测试（因为包含 echo，需要优先处理）
+            if (command.includes('>&2')) {
+                console.log('[E2E Mock] Detected stderr test command:', command);
+                const parts = command.split('&&');
+                console.log('[E2E Mock] Parts:', parts);
+                const stdoutMatch = parts[0].match(/echo\s+"([^"]+)"/);
+                const stderrMatch = parts[1].match(/echo\s+"([^"]+)"/);
+                console.log('[E2E Mock] Matches:', { stdoutMatch, stderrMatch });
+                const stdout = stdoutMatch ? stdoutMatch[1] : '';
+                const stderr = stderrMatch ? stderrMatch[1] : '';
+                const result = {
+                    stdout: stdout,
+                    stderr: stderr,
+                    exitCode: 0
+                };
+                console.log('[E2E Mock] Returning:', result);
+                return result;
+            } else if (command.includes('echo')) {
+                // 提取 echo 的内容
+                const echoMatch = command.match(/echo\s+"([^"]+)"/) || command.match(/echo\s+'([^']+)'/) || command.match(/echo\s+(.+)/);
+                if (echoMatch) {
+                    const output = echoMatch[1];
+                    return {
+                        stdout: output,
+                        stderr: '',
+                        exitCode: 0
+                    };
+                }
+            } else if (command.includes('ls') && command.includes('/nonexistent')) {
+                // 不存在的目录
+                return {
+                    stdout: '',
+                    stderr: 'ls: cannot access \'/nonexistent_directory_12345\': No such file or directory',
+                    exitCode: 2
+                };
+            }
+
+            // 默认返回通用输出
             return {
                 stdout: 'Mock command output',
                 stderr: '',

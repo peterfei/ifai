@@ -1874,20 +1874,73 @@ const patchedApproveToolCall = async (
         const messageAfterFix = stateAfterFix.messages.find(m => m.id === messageId);
         const toolCallAfterFix = messageAfterFix?.toolCalls?.find(tc => tc.id === toolCallId);
 
-        // Only add tool message if one doesn't already exist for this tool_call_id
-        const hasToolMessage = stateAfterFix.messages.some(m =>
+        // 🔥 查找或创建 tool 消息
+        let toolMessage = stateAfterFix.messages.find(m =>
             m.tool_call_id === toolCallId && m.role === 'tool'
         );
 
-        if (!hasToolMessage && toolCallAfterFix?.result) {
-            console.log(`[useChatStore] Adding tool result message for bash command`);
-            const exitCode = (toolCallAfterFix as any).exit_code !== undefined ? (toolCallAfterFix as any).exit_code : 0;
-            coreUseChatStore.getState().addMessage({
-                id: crypto.randomUUID(),
-                role: 'tool',
-                content: `Command completed. Exit code: ${exitCode}`,
-                tool_call_id: toolCallId
-            });
+        if (toolCallAfterFix?.result) {
+            console.log(`[useChatStore] 🔥 Processing bash result for tool message`);
+            console.log(`[useChatStore] 🔥 Raw result:`, toolCallAfterFix.result.substring(0, 200));
+
+            // 🔥 解析 bash result，提取实际输出内容
+            let outputContent = '';
+            try {
+                const bashResult = JSON.parse(toolCallAfterFix.result);
+                console.log(`[useChatStore] 🔥 Parsed bashResult:`, bashResult);
+                const stdout = bashResult.stdout || '';
+                const stderr = bashResult.stderr || '';
+                const exitCode = bashResult.exitCode !== undefined ? bashResult.exitCode : bashResult.exit_code || 0;
+
+                console.log(`[useChatStore] 🔥 Extracted values:`, {
+                    stdout: `"${stdout.substring(0, 50)}"`,
+                    stderr: `"${stderr.substring(0, 50)}"`,
+                    exitCode,
+                    stdoutLength: stdout.length,
+                    stderrLength: stderr.length
+                });
+
+                // 组合输出：stdout + stderr（如果有）
+                const outputParts = [];
+                if (stdout) outputParts.push(stdout.trim());
+                if (stderr) outputParts.push(`stderr: ${stderr.trim()}`);
+
+                console.log(`[useChatStore] 🔥 Output parts count:`, outputParts.length);
+
+                // 如果有输出，使用输出；否则使用默认消息
+                if (outputParts.length > 0) {
+                    outputContent = outputParts.join('\n');
+                } else {
+                    outputContent = `Command completed (no output). Exit code: ${exitCode}`;
+                }
+
+                console.log(`[useChatStore] 🔥 Final output content (length ${outputContent.length}):`, outputContent.substring(0, 100));
+            } catch (e) {
+                // 如果解析失败，使用原始 result
+                console.warn(`[useChatStore] ❌ Failed to parse bash result:`, e);
+                console.log(`[useChatStore] 🔥 Using raw result as content`);
+                outputContent = toolCallAfterFix.result;
+            }
+
+            // 🔥 更新或创建 tool 消息
+            if (toolMessage) {
+                // 更新现有消息
+                console.log(`[useChatStore] Updating existing tool message`);
+                coreUseChatStore.setState(state => ({
+                    messages: state.messages.map(m =>
+                        m.id === toolMessage.id ? { ...m, content: outputContent } : m
+                    )
+                }));
+            } else {
+                // 创建新消息
+                console.log(`[useChatStore] Creating new tool message`);
+                coreUseChatStore.getState().addMessage({
+                    id: crypto.randomUUID(),
+                    role: 'tool',
+                    content: outputContent,
+                    tool_call_id: toolCallId
+                });
+            }
         }
 
         useFileStore.getState().refreshFileTree();
