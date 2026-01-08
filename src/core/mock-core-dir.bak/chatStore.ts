@@ -1,5 +1,4 @@
-import { AIProviderConfig } from './settingsStore';
-
+// Mock ChatState for community edition
 export interface ToolCall {
   id: string;
   tool: string;
@@ -7,52 +6,64 @@ export interface ToolCall {
   status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed';
   result?: string;
   isPartial?: boolean;
-  isLocalModel?: boolean;  // 标记是否为本地模型执行的工具调用
+  isLocalModel?: boolean;
 }
 
-// Frontend display message type
 export interface ImageUrl {
-    url: string;
+  url: string;
 }
 
 export interface ContentPart {
-    type: 'text' | 'image_url';
-    text?: string;
-    image_url?: ImageUrl;
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: ImageUrl;
 }
 
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string; // Keep string content for backward compatibility
-  multiModalContent?: ContentPart[]; // New field for multi-modal
+  content: string;
+  multiModalContent?: ContentPart[];
   references?: string[];
   toolCalls?: ToolCall[];
   tool_call_id?: string;
 }
 
-// Backend API message types (must match Rust `ai.rs`)
 export interface BackendImageUrl {
-    url: string;
+  url: string;
 }
 
 export interface BackendContentPart {
-    type: 'text' | 'image_url';
-    text?: string;
-    image_url?: BackendImageUrl;
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: BackendImageUrl;
 }
 
 export interface BackendMessage {
-    role: string;
-    content: any; // Can be string or ContentPart array
-    tool_calls?: {
-        id: string;
-        type: 'function';
-        function: { name: string; arguments: string; };
-    }[];
-    tool_call_id?: string;
+  role: string;
+  content: any;
+  tool_calls?: {
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }[];
+  tool_call_id?: string;
 }
 
+export interface AIProviderConfig {
+  id: string;
+  name: string;
+  protocol: any;
+  base_url: string;
+  api_key: string;
+  models: string[];
+  enabled: boolean;
+}
+
+// Community edition: rollback functions return not-available error
 export interface ChatState {
   messages: Message[];
   isLoading: boolean;
@@ -63,9 +74,11 @@ export interface ChatState {
   toggleAutocomplete: () => void;
   approveToolCall: (messageId: string, toolCallId: string) => Promise<void>;
   rejectToolCall: (messageId: string, toolCallId: string) => Promise<void>;
-  generateResponse: (history: BackendMessage[], providerConfig: AIProviderConfig, options?: { enableTools?: boolean }) => Promise<void>; // Use BackendMessage
+  generateResponse: (history: BackendMessage[], providerConfig: AIProviderConfig, options?: {
+    enableTools?: boolean;
+  }) => Promise<void>;
 
-  // 🔥 回滚功能 (商业版功能)
+  // 🔥 社区版: rollback 函数返回不可用提示
   rollbackToolCall?: (messageId: string, toolCallId: string, force?: boolean) => Promise<{
     success: boolean;
     conflict?: boolean;

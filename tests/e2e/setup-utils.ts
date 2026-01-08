@@ -23,6 +23,11 @@ export async function setupE2ETestEnvironment(page: Page) {
     // Put eventListeners on window so it's accessible from Mock code
     (window as any).__TAURI_EVENT_LISTENERS__ = {};
 
+    // 🔥 内存文件系统，用于跟踪文件内容和回滚测试
+    const mockFileSystem = new Map<string, string>();
+    // 暴露到 window 以便其他函数可以访问
+    (window as any).__E2E_MOCK_FILE_SYSTEM__ = mockFileSystem;
+
     const mockInvoke = async (cmd: string, args?: any) => {
         if (cmd === 'get_git_statuses') return [];
         if (cmd === 'plugin:fs|read_dir') return [
@@ -40,6 +45,62 @@ export async function setupE2ETestEnvironment(page: Page) {
             { name: 'main.tsx', isDirectory: false, isFile: true }
         ];
         if (cmd === 'plugin:dialog|ask') return true;
+
+        // 🔥 商业版 (ifainew-core) 使用的命令
+        if (cmd === 'agent_read_file') {
+            console.log('[E2E Mock] agent_read_file:', args);
+            const filePath = `${args.rootPath}/${args.relPath}`.replace(/\/\//g, '/');
+            const content = mockFileSystem.get(filePath);
+            if (content !== undefined) {
+                console.log('[E2E Mock] Returning existing file content');
+                return content;
+            }
+            // 文件不存在，抛出错误
+            const error = new Error(`File not found: ${filePath}`);
+            (error as any).code = 'ENOENT';
+            throw error;
+        }
+        if (cmd === 'agent_write_file') {
+            console.log('[E2E Mock] agent_write_file:', args);
+            const filePath = `${args.rootPath}/${args.relPath}`.replace(/\/\//g, '/');
+
+            // 🔥 获取原始内容（如果文件已存在）
+            const originalContent = mockFileSystem.get(filePath) || '';
+
+            // 🔥 写入新内容到内存文件系统
+            mockFileSystem.set(filePath, args.content);
+
+            console.log('[E2E Mock] File updated:', {
+                filePath,
+                hadOriginalContent: originalContent !== '',
+                newContent: args.content.substring(0, 50)
+            });
+
+            // 返回包含原始内容的结构化数据（用于 rollback 测试）
+            const rollbackData = {
+                success: true,
+                message: `File written: ${args.relPath}`,
+                originalContent: originalContent,  // 🔥 返回实际的原始内容
+                filePath: filePath,
+                timestamp: Date.now()
+            };
+            return JSON.stringify(rollbackData);
+        }
+        if (cmd === 'delete_file') {
+            console.log('[E2E Mock] delete_file:', args);
+            const filePath = args.path;
+            mockFileSystem.delete(filePath);
+            console.log('[E2E Mock] File deleted from memory:', filePath);
+            return { success: true };
+        }
+        if (cmd === 'execute_bash_command') {
+            console.log('[E2E Mock] execute_bash_command:', args);
+            return {
+                stdout: 'Mock command output',
+                stderr: '',
+                exitCode: 0
+            };
+        }
 
         // Handle launch_agent command for Demo Agent
         if (cmd === 'launch_agent') {
@@ -229,8 +290,68 @@ export async function setupE2ETestEnvironment(page: Page) {
         };
     };
 
-    (window as any).__TAURI_INTERNALS__ = { transformCallback: (cb: any) => cb, invoke: mockInvoke };
-    (window as any).__TAURI__ = { core: { invoke: mockInvoke }, event: { listen: mockListen } };
+    // 🔥 Mock Tauri app API
+    const mockApp = {
+        getName: async () => 'IfAI',
+        getVersion: async () => '0.2.6',
+        getTauriVersion: async () => '1.5.0',
+    };
+
+    (window as any).__TAURI_INTERNALS__ = {
+        transformCallback: (cb: any) => cb,
+        invoke: mockInvoke,
+        // 🔥 Add unregisterCallback support
+        unregisterCallback: (cb: any) => {
+            // Mock implementation - do nothing
+        }
+    };
+    (window as any).__TAURI__ = {
+      core: { invoke: mockInvoke },
+      event: {
+        listen: mockListen,
+        // 🔥 Add event.emit support
+        emit: async (event: string, payload?: any) => {
+            const listeners = (window as any).__TAURI_EVENT_LISTENERS__[event] || [];
+            listeners.forEach((fn: Function) => fn({ payload }));
+        }
+      },
+      // 🔥 Add app API
+      app: mockApp,
+      // 🔥 Mock window API for App.tsx initialization
+      window: {
+        getCurrent: () => ({
+          show: async () => console.log('[E2E Mock] Window shown'),
+          hide: async () => console.log('[E2E Mock] Window hidden'),
+          close: async () => console.log('[E2E Mock] Window closed'),
+          minimize: async () => console.log('[E2E Mock] Window minimized'),
+          maximize: async () => console.log('[E2E Mock] Window maximized'),
+          unmaximize: async () => console.log('[E2E Mock] Window unmaximized'),
+          isFocused: async () => true,
+          isMaximized: async () => false,
+          isMinimized: async () => false,
+          scaleFactor: async () => 1,
+          innerPosition: async () => ({ x: 0, y: 0 }),
+          innerSize: async () => ({ width: 1920, height: 1080 }),
+          outerPosition: async () => ({ x: 0, y: 0 }),
+          outerSize: async () => ({ width: 1920, height: 1080 }),
+          setAlwaysOnTop: async () => {},
+          setAlwaysOnBottom: async () => {},
+          setDecorations: async () => {},
+          setIgnoreCursorEvents: async () => {},
+          setSize: async () => {},
+          setMinSize: async () => {},
+          setMaxSize: async () => {},
+          setPosition: async () => {},
+          setTitle: async () => {},
+          setResizable: async () => {},
+          setSkipTaskbar: async () => {},
+          onFocusChanged: () => {},
+          onResizeRequested: () => {},
+          onCloseRequested: () => {},
+          onScaleChanged: () => {},
+        })
+      }
+    };
 
     // Mock proposal commands to auto-load v0.2.6-demo-vue-login
     const mockListProposals = async () => {
@@ -330,14 +451,9 @@ export async function setupE2ETestEnvironment(page: Page) {
         return (window as any).__chatStore?.getState()?.messages || [];
     };
 
-    (window as any).__E2E_OPEN_MOCK_FILE__ = (name: string) => {
+    (window as any).__E2E_OPEN_MOCK_FILE__ = (name: string, content?: string) => {
         const fileStore = (window as any).__fileStore?.getState();
-        if (fileStore) {
-            fileStore.openFile({
-                id: `mock-${name}`,
-                path: `/Users/mac/mock-project/${name}`,
-                name: name,
-                content: `
+        const fileContent = content || `
 /**
  * Test class for breadcrumbs
  */
@@ -352,7 +468,15 @@ export class TestApp {
         return this.value;
     }
 }
-                `,
+                `;
+        const filePath = `/Users/mac/mock-project/${name}`;
+
+        if (fileStore) {
+            fileStore.openFile({
+                id: `mock-${name}`,
+                path: filePath,
+                name: name,
+                content: fileContent,
                 isDirty: false,
                 language: 'typescript'
             });
@@ -361,6 +485,13 @@ export class TestApp {
             if (layoutStore && layoutStore.activePaneId) {
                 layoutStore.assignFileToPane(layoutStore.activePaneId, `mock-${name}`);
             }
+        }
+
+        // 🔥 初始化 mock 文件系统，确保文件存在
+        const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+        if (mockFileSystem && !mockFileSystem.has(filePath)) {
+            mockFileSystem.set(filePath, fileContent);
+            console.log('[E2E Mock] Initialized file system with:', name);
         }
     };
 
@@ -453,5 +584,25 @@ export class TestApp {
         console.error('[E2E] Failed to refresh proposal index:', e);
       }
     }, 500);
+
+    // 🔥 商业版：确保 ifainew-core 的 store 被暴露到 window
+    setTimeout(() => {
+      if (!(window as any).__chatStore) {
+        console.log('[E2E] __chatStore not found, attempting to set from module...');
+        // 尝试从全局作用域获取 ifainew-core 的 useChatStore
+        try {
+          // 检查是否可以通过 require/import 获取
+          const stores = (window as any).___stores___;
+          if (stores && stores.useChatStore) {
+            (window as any).__chatStore = stores.useChatStore;
+            console.log('[E2E] __chatStore set from ___stores___');
+          }
+        } catch (e) {
+          console.warn('[E2E] Could not set __chatStore:', e);
+        }
+      } else {
+        console.log('[E2E] __chatStore already available');
+      }
+    }, 1000);
   });
 }

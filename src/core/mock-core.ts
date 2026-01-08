@@ -59,6 +59,20 @@ export interface ChatState {
     updateMessageContent: (id: string, content: string) => void;
     addToolCall: (messageId: string, toolCall: ToolCall) => void; // 补全缺失方法
     updateToolCall: (messageId: string, toolCallId: string, updates: Partial<ToolCall>) => void; // 补全缺失方法
+
+    // 🔥 回滚功能 (商业版功能) - 社区版返回不可用提示
+    rollbackToolCall?: (messageId: string, toolCallId: string, force?: boolean) => Promise<{
+        success: boolean;
+        conflict?: boolean;
+        error?: string;
+    }>;
+
+    rollbackMessageToolCalls?: (messageId: string, force?: boolean) => Promise<{
+        success: boolean;
+        count?: number;
+        hasConflict?: boolean;
+        error?: string;
+    }>;
 }
 
 // Backend Message type for invoke calls
@@ -170,6 +184,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     rejectToolCall: async (messageId, toolCallId) => {
         console.log("Mock core: rejectToolCall", messageId, toolCallId);
+    },
+
+    // 🔥 社区版: rollback 函数返回不可用提示
+    rollbackToolCall: async (messageId: string, toolCallId: string, force?: boolean) => {
+        console.warn('[Mock Core] Rollback feature is only available in commercial edition');
+        return {
+            success: false,
+            error: 'AI 代码回滚功能仅在企业版中可用'
+        };
+    },
+
+    rollbackMessageToolCalls: async (messageId: string, force?: boolean) => {
+        console.warn('[Mock Core] Rollback feature is only available in commercial edition');
+        return {
+            success: false,
+            error: 'AI 代码回滚功能仅在企业版中可用'
+        };
     }
 }));
 

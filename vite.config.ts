@@ -9,6 +9,8 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async ({ mode }) => {
   // 同时检查 Vite mode 和环境变量 APP_EDITION
   const isCommercial = mode === 'commercial' || process.env.APP_EDITION === 'commercial';
+  // 🔥 检测是否在 E2E 测试环境
+  const isE2E = process.env.NODE_ENV === 'test' || process.env.VITE_TEST_ENV === 'e2e';
 
   return {
     plugins: [react()],
@@ -18,9 +20,17 @@ export default defineConfig(async ({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        // 🔥 商业版：指向 ifainew-core 目录（让 Vite 通过 package.json 解析入口点）
+        // 社区版：使用 mock-core
         "ifainew-core": isCommercial
           ? path.resolve(__dirname, process.env.APP_CORE_PATH || "../ifainew-core/typescript")
-          : path.resolve(__dirname, "./src/core/mock-core")
+          : path.resolve(__dirname, "./src/core/mock-core"),
+        // 🔥 E2E 测试环境：使用 Tauri API mocks
+        ...(isE2E ? {
+          '@tauri-apps/api/event': path.resolve(__dirname, './src/tauri-mocks/api/event'),
+          '@tauri-apps/api/window': path.resolve(__dirname, './src/tauri-mocks/api/window'),
+          '@tauri-apps/api/app': path.resolve(__dirname, './src/tauri-mocks/api/app'),
+        } : {})
       }
     },
 
@@ -52,8 +62,15 @@ export default defineConfig(async ({ mode }) => {
     },
     // Optimize dependencies
     optimizeDeps: {
-      exclude: ['@tauri-apps/api'],
+      exclude: ['@tauri-apps/api', '@tauri-apps/plugin-fs'],
       include: ['monaco-editor'],
+    },
+    // Build options for Tauri
+    build: {
+      rollupOptions: {
+        // Externalize Tauri plugins (provided at runtime)
+        external: ['@tauri-apps/plugin-fs'],
+      },
     },
   };
 });

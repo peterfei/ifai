@@ -1952,4 +1952,16 @@ export type { ChatState, ToolCall, Message, ContentPart, ImageUrl, BackendMessag
 // @ts-ignore
 if (typeof window !== 'undefined') {
   (window as any).__chatStore = useChatStore;
+  // 🔥 确保在 DOM 加载后再次设置（应对模块加载时机问题）
+  if (typeof document !== 'undefined') {
+    const setStore = () => {
+      (window as any).__chatStore = useChatStore;
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setStore);
+    } else {
+      // DOM 已经加载完成，立即设置
+      setTimeout(setStore, 0);
+    }
+  }
 }

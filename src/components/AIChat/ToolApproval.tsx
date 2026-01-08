@@ -1,6 +1,6 @@
-import React, { useState, useLayoutEffect } from 'react';
-import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle } from 'lucide-react';
-import { ToolCall } from '../../stores/useChatStore';
+import React, { useState, useLayoutEffect, useMemo } from 'react';
+import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle } from 'lucide-react';
+import { ToolCall, useChatStore } from '../../stores/useChatStore';
 import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
 import { MonacoDiffView } from '../Editor/MonacoDiffView';
@@ -12,12 +12,14 @@ import { StreamingToolArgsViewer } from './StreamingToolArgsViewer';
 import { ToolExecutionIndicator, StreamingContentLoader } from './ToolExecutionIndicator';
 import ReactMarkdown from 'react-markdown';
 import { BashConsoleOutput } from './BashConsoleOutput';
+import { toast } from 'sonner';
 
 interface ToolApprovalProps {
     toolCall: ToolCall;
     onApprove: (id: string) => void;
     onReject: (id: string) => void;
     isLatestBashTool?: boolean; // 是否是message中最新的bash命令
+    message?: any; // 添加 message prop 以访问父消息
 }
 
 // 工具图标映射
@@ -176,11 +178,90 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
 // PERFORMANCE: Large file thresholds
 const MAX_DIFF_SIZE = 5000;
 
-export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool = false }: ToolApprovalProps) => {
+export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool = false, message }: ToolApprovalProps) => {
     const { t } = useTranslation();
     const settings = useSettingsStore();
+    const chatStore = useChatStore();
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
+
+    // 🔥 回滚功能状态
+    const [isRollingBack, setIsRollingBack] = useState(false);
+    const [showConflictDialog, setShowConflictDialog] = useState(false);
+
+    // 🔥 检测回滚功能是否可用（商业版 vs 社区版）
+    const hasRollbackFeature = useMemo(() => {
+      return typeof chatStore.rollbackToolCall === 'function';
+    }, []);
+
+    // 🔥 检查是否有回滚数据
+    // 🔥 使用稳定的依赖，避免初始化顺序问题
+    const resultForRollback = toolCall?.result;
+    const hasRollbackData = useMemo(() => {
+      if (!resultForRollback) return false;
+      try {
+        const data = JSON.parse(resultForRollback);
+        return data && data.originalContent !== undefined;
+      } catch {
+        return false;
+      }
+    }, [resultForRollback]);
+
+    // 🔥 撤销处理函数
+    const handleUndo = async () => {
+      if (!message || !hasRollbackFeature) return;
+
+      setIsRollingBack(true);
+
+      try {
+        const result = await chatStore.rollbackToolCall?.(
+          message.id,
+          toolCall.id,
+          false  // 检测冲突
+        );
+
+        if (result?.conflict) {
+          setShowConflictDialog(true);
+          setIsRollingBack(false);
+          return;
+        }
+
+        if (result?.success) {
+          toast.success('文件已恢复');
+        } else {
+          toast.error(result?.error || '回滚失败');
+        }
+      } catch (e) {
+        console.error('[Rollback] Error:', e);
+        toast.error('回滚失败: ' + String(e));
+      } finally {
+        setIsRollingBack(false);
+      }
+    };
+
+    // 🔥 确认强制回滚
+    const handleConfirmRollback = async () => {
+      if (!message || !hasRollbackFeature) return;
+
+      try {
+        const result = await chatStore.rollbackToolCall?.(
+          message.id,
+          toolCall.id,
+          true  // 强制回滚
+        );
+
+        setShowConflictDialog(false);
+
+        if (result?.success) {
+          toast.success('文件已强制恢复');
+        } else {
+          toast.error(result?.error || '回滚失败');
+        }
+      } catch (e) {
+        console.error('[Rollback] Error:', e);
+        toast.error('回滚失败: ' + String(e));
+      }
+    };
 
     const isPending = toolCall.status === 'pending';
     const isPartial = toolCall.isPartial;
@@ -430,6 +511,66 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                             自动批准已开启 · 工具执行中
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* 🔥 撤销按钮 - 仅在已完成的文件写入操作且有回滚数据时显示 */}
+            {toolCall.status === 'completed' &&
+             toolCall.tool === 'agent_write_file' &&
+             hasRollbackData &&
+             hasRollbackFeature && (
+                <div className="flex border-t border-gray-700/30">
+                    <button
+                        onClick={handleUndo}
+                        disabled={isRollingBack}
+                        className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
+                                   text-amber-400 hover:bg-amber-500/10
+                                   disabled:opacity-50 disabled:cursor-not-allowed
+                                   flex items-center justify-center gap-2 transition-all duration-200"
+                    >
+                        {isRollingBack ? (
+                            <>
+                                <Loader2 size={14} className="animate-spin" />
+                                撤销中...
+                            </>
+                        ) : (
+                            <>
+                                <RotateCcw size={14} />
+                                撤销
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
+
+            {/* 🔥 冲突确认对话框 */}
+            {showConflictDialog && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
+                    <div className="bg-[#252526] w-[400px] rounded-lg border border-gray-700 shadow-xl">
+                        <div className="p-4 border-b border-gray-700">
+                            <h2 className="text-lg font-medium flex items-center gap-2">
+                                <AlertTriangle className="text-amber-400" size={18} />
+                                检测到手动修改
+                            </h2>
+                        </div>
+                        <div className="p-6 text-sm text-gray-300">
+                            文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。
+                        </div>
+                        <div className="p-4 border-t border-gray-700 flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowConflictDialog(false)}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={handleConfirmRollback}
+                                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded font-bold transition-colors"
+                            >
+                                确认回滚
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

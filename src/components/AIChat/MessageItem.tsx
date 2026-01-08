@@ -287,6 +287,55 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         }
     };
 
+    // 🔥 回滚功能 - 检查 result 是否有回滚数据
+    // 🔥 必须在 hasRollbackableFiles 之前定义，避免初始化顺序错误
+    const hasRollbackData = (result: string | undefined): boolean => {
+        if (!result) return false;
+        try {
+            const data = JSON.parse(result);
+            return data.originalContent !== undefined;
+        } catch {
+            return false;
+        }
+    };
+
+    // 🔥 回滚功能 - 检查是否有可回滚的文件
+    const hasRollbackableFiles = React.useMemo(() => {
+        if (!message.toolCalls) return false;
+        return message.toolCalls.some(tc =>
+            tc.tool === 'agent_write_file' &&
+            tc.status === 'completed' &&
+            hasRollbackData(tc.result)
+        );
+    }, [message.toolCalls]);
+
+    // 🔥 撤销所有处理函数
+    const handleUndoAll = async () => {
+        const store = useChatStore.getState() as any;
+        if (!store.rollbackMessageToolCalls) {
+            toast.error('回滚功能不可用');
+            return;
+        }
+
+        try {
+            const result = await store.rollbackMessageToolCalls(message.id, false);
+
+            if (result?.hasConflict) {
+                toast.error('检测到文件冲突，请单独回滚每个文件');
+                return;
+            }
+
+            if (result?.success) {
+                toast.success(`已回滚 ${result.count || 0} 个文件`);
+            } else {
+                toast.error(result?.error || '回滚失败');
+            }
+        } catch (e) {
+            console.error('[Rollback] Error:', e);
+            toast.error('回滚失败: ' + String(e));
+        }
+    };
+
     const handleCopy = () => {
         navigator.clipboard.writeText(displayContent);
         toast.success(t('common.copied') || 'Copied to clipboard');
@@ -410,14 +459,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     有 {pendingCount} 个待处理的操作
                                 </div>
                                 <div className="flex gap-2">
-                                    <button 
+                                    <button
                                         onClick={handleApproveAll}
                                         className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] rounded transition-colors"
                                     >
                                         <CheckCheck size={12} />
                                         全部批准
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={handleRejectAll}
                                         className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors"
                                     >
@@ -425,6 +474,25 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         全部拒绝
                                     </button>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* 🔥 撤销所有按钮 - 显示在有可回滚文件时 */}
+                        {hasRollbackableFiles && (
+                            <div className="mb-3 p-3 bg-amber-900/20 rounded border border-amber-700/50 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <RotateCcw size={14} className="text-amber-400" />
+                                    <span className="text-xs font-medium text-amber-300">
+                                        AI 已修改文件
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={handleUndoAll}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-700
+                                               text-white text-[11px] font-bold rounded transition-colors"
+                                >
+                                    撤销所有
+                                </button>
                             </div>
                         )}
 
@@ -502,6 +570,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                                 onApprove={() => onApprove(message.id, toolCall.id)}
                                                                 onReject={() => onReject(message.id, toolCall.id)}
                                                                 isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                                                message={message}
                                                             />
                                                         );
                                                     }
@@ -532,6 +601,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                                 onApprove={() => onApprove(message.id, toolCall.id)}
                                                                 onReject={() => onReject(message.id, toolCall.id)}
                                                                 isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                                                message={message}
                                                             />
                                                         );
                                                     }
@@ -575,6 +645,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                             onApprove={() => onApprove(message.id, displayToolCall.id)}
                                                             onReject={() => onReject(message.id, displayToolCall.id)}
                                                             isLatestBashTool={isLatestBashTool(displayToolCall.id)}
+                                                            message={message}
                                                         />
                                                     );
                                                 } else {
@@ -599,6 +670,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     onApprove={() => onApprove(message.id, toolCall.id)}
                                                     onReject={() => onReject(message.id, toolCall.id)}
                                                     isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                                    message={message}
                                                 />
                                             ))}
 
@@ -611,6 +683,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     onApprove={() => onApprove(message.id, toolCall.id)}
                                                     onReject={() => onReject(message.id, toolCall.id)}
                                                     isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                                    message={message}
                                                 />
                                             ))}
                                         </>
