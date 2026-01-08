@@ -86,6 +86,35 @@ export async function setupE2ETestEnvironment(page: Page) {
             };
             return JSON.stringify(rollbackData);
         }
+        if (cmd === 'agent_list_dir') {
+            console.log('[E2E Mock] agent_list_dir:', args);
+            let dirPath = `${args.rootPath}/${args.relPath}`.replace(/\/\//g, '/');
+
+            // 处理 . 和 .. 路径
+            if (dirPath.endsWith('/.')) {
+                dirPath = dirPath.substring(0, dirPath.length - 2);
+            }
+            // 确保路径以 / 结尾
+            if (!dirPath.endsWith('/')) {
+                dirPath += '/';
+            }
+
+            // 从内存文件系统中获取该目录下的所有文件/目录
+            const entries: string[] = [];
+            for (const [filePath, _] of mockFileSystem.entries()) {
+                // 检查文件是否在目标目录下（直接子项）
+                if (filePath.startsWith(dirPath)) {
+                    const relativePath = filePath.substring(dirPath.length);
+                    // 只添加直接子项（不包含子目录中的文件）
+                    if (relativePath && !relativePath.includes('/')) {
+                        entries.push(relativePath);
+                    }
+                }
+            }
+
+            console.log('[E2E Mock] Directory listing for', dirPath, ':', entries);
+            return entries.join('\n');
+        }
         if (cmd === 'delete_file') {
             console.log('[E2E Mock] delete_file:', args);
             const filePath = args.path;

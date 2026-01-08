@@ -1780,8 +1780,10 @@ const patchedApproveToolCall = async (
                 await fileStore.reloadFileContent(openedFile.id);
             }
 
-            // 🔥 FIX: 对于 agent_read_file，tool 消息应该包含文件内容
+            // 🔥 FIX: 对于 agent_read_file 和 agent_list_dir，tool 消息应该包含实际内容
             let toolMessageContent = i18n.t('tool.success', { toolName: `${toolName} > ${relPath}` });
+
+            // agent_read_file: 返回文件内容
             if (toolName === 'agent_read_file' && stringResult !== undefined) {
                 // 对于文件读取，将文件内容作为 tool 消息发送给 LLM
                 // 限制内容长度避免超出 token 限制
@@ -1792,6 +1794,19 @@ const patchedApproveToolCall = async (
                     toolMessageContent = stringResult;
                 }
                 console.log(`[useChatStore] File read result: ${stringResult.length} chars, truncated to ${toolMessageContent.length} chars`);
+            }
+
+            // agent_list_dir: 返回目录列表
+            if (toolName === 'agent_list_dir' && stringResult !== undefined) {
+                // 对于目录列表，将文件/目录列表作为 tool 消息发送给 LLM
+                // 限制列表长度避免超出 token 限制
+                const maxListLength = 10000; // 10KB 限制
+                if (stringResult.length > maxListLength) {
+                    toolMessageContent = `[目录列表过长，已截取前 ${maxListLength} 字符]\n\n` + stringResult.substring(0, maxListLength) + `\n\n... (省略剩余 ${stringResult.length - maxListLength} 字符)`;
+                } else {
+                    toolMessageContent = stringResult;
+                }
+                console.log(`[useChatStore] Dir list result: ${stringResult.length} chars, truncated to ${toolMessageContent.length} chars`);
             }
 
             // Add Tool Output Message
