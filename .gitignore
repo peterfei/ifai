@@ -66,3 +66,6 @@ test-results/
 .ifai/index.bin
 .ifai/tasks/
 bash-agent-issue-analysis.md
+tests/e2e/repro-redundant-text.png
+tests/e2e/repro-styling-issue.png
+tests/e2e/repro-ui-blocking.png

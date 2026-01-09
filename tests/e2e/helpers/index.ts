@@ -12,5 +12,8 @@ export * from './assert-helpers';
 // 数据生成器
 export * from './data-generators';
 
+// 清理函数
+export * from './cleanup-helpers';
+
 // 重新导出setup-utils（向后兼容）
 export { setupE2ETestEnvironment } from '../setup-utils';

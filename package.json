@@ -50,7 +50,16 @@
     "tauri:dev:commercial": "export APP_EDITION=commercial && tauri dev --features commercial",
     "tauri:dev:commercial-local-llm": "export APP_EDITION=commercial && tauri dev --features commercial-local-llm",
     "tauri:dev:local-llm": "export APP_EDITION=community && tauri dev --features community,llm-inference",
-    "tauri:dev": "export APP_EDITION=community && tauri dev --features community"
+    "tauri:dev": "export APP_EDITION=community && tauri dev --features community",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:fast": "playwright test --grep '@fast'",
+    "test:e2e:medium": "playwright test --grep '@fast|@medium'",
+    "test:e2e:slow": "playwright test --grep '@slow'",
+    "test:e2e:regression": "playwright test --grep '@regression'",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
