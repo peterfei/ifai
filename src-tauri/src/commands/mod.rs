@@ -7,3 +7,5 @@ pub mod task_commands;
 pub mod proposal_commands;
 // v0.5.0 新增：Bash 命令执行
 pub mod bash_commands;
+// v0.2.8 新增：符号索引与跨文件关联
+pub mod symbol_commands;

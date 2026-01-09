@@ -2,6 +2,7 @@ use tauri::{Emitter, Manager};
 use serde_json::json;
 #[cfg(feature = "commercial")]
 use ifainew_core;
+use std::sync::Arc;
 
 mod file_walker;
 mod search;
@@ -35,8 +36,8 @@ mod commercial;
 use terminal::TerminalManager;
 use lsp::LspManager;
 use agent_system::Supervisor;
-use std::sync::Arc;
 use crate::core_traits::ai::{Message, Content, ContentPart};
+use crate::commands::symbol_commands::SymbolIndexState;
 
 pub struct AppState {
     pub ai_service: Arc<dyn core_traits::ai::AIService>,
@@ -674,7 +675,10 @@ pub fn run() {
             rag_service: rag,
             agent_service: agent,
         });
-        
+
+        // v0.2.8: 符号索引状态
+        app.manage(Arc::new(std::sync::Mutex::new(SymbolIndexState::new())));
+
         #[cfg(feature = "commercial")]
         {
             app.manage(ifainew_core::RagState::new());
@@ -781,7 +785,13 @@ pub fn run() {
             commands::proposal_commands::move_proposal,
             commands::proposal_commands::list_proposals,
             commands::proposal_commands::init_demo_proposal,
-            commands::bash_commands::execute_bash_command
+            commands::bash_commands::execute_bash_command,
+            // v0.2.8 新增：符号索引与跨文件关联
+            commands::symbol_commands::extract_symbols,
+            commands::symbol_commands::index_project_symbols,
+            commands::symbol_commands::find_symbol_references,
+            commands::symbol_commands::find_implementations,
+            commands::symbol_commands::clear_symbol_index
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
