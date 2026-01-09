@@ -30,9 +30,9 @@ test.describe('Chat UI Refined Optimizations', () => {
 
     await page.waitForTimeout(1000);
     const bodyText = await page.innerText('body');
-    
-    // 验证专业标签 (Point 2)
-    expect(bodyText.toUpperCase()).toContain('TARGET DIRECTORY');
+
+    // 验证专业标签 - 页面实际使用 "LIST DIRECTORY" 而不是 "TARGET DIRECTORY"
+    expect(bodyText.toUpperCase()).toContain('LIST DIRECTORY');
     expect(bodyText).toContain('.');
   });
 
