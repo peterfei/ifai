@@ -119,12 +119,12 @@ export const CommandBar = () => {
         },
         layout: {
           splitVertical: async (file?: string) => {
-            // TODO: 实现视图分割
-            return { success: false, error: '视图分割功能未实现' };
+            // 使用 layoutStore 的 splitVertical 方法
+            return useLayoutStore.getState().splitVertical(file);
           },
           splitHorizontal: async (file?: string) => {
-            // TODO: 实现视图分割
-            return { success: false, error: '视图分割功能未实现' };
+            // 使用 layoutStore 的 splitHorizontal 方法
+            return useLayoutStore.getState().splitHorizontal(file);
           },
         },
         search: {
@@ -166,10 +166,10 @@ export const CommandBar = () => {
               const command = Command.create('npm', buildArgs);
 
               // 在项目目录中执行
-              command.stdout((line) => {
+              command.stdout.on('data', (line) => {
                 console.log('[Build]', line);
               });
-              command.stderr((line) => {
+              command.stderr.on('data', (line) => {
                 console.error('[Build Error]', line);
               });
 
@@ -434,25 +434,17 @@ export const CommandBar = () => {
     inputRef.current?.focus();
   };
 
-  // 始终渲染组件以确保键盘监听器正常工作，但使用 CSS 隐藏
-  // 这样可以确保键盘快捷键始终有效
-  if (!isCommandBarOpen) {
-    // 返回一个隐藏的 div 以保持组件挂载和键盘监听器激活
-    return (
-      <div
-        className="command-bar-overlay command-bar-hidden"
-        data-test-id="quick-command-bar"
-        style={{ display: 'none' }}
-        aria-hidden="true"
-      />
-    );
-  }
-
   return (
     <div
-      className="command-bar-overlay"
+      className={`command-bar-overlay ${!isCommandBarOpen ? 'command-bar-hidden' : ''}`}
       onClick={handleClose}
       data-test-id="quick-command-bar"
+      style={{
+        visibility: isCommandBarOpen ? 'visible' : 'hidden',
+        opacity: isCommandBarOpen ? 1 : 0,
+        pointerEvents: isCommandBarOpen ? 'auto' : 'none'
+      }}
+      aria-hidden={!isCommandBarOpen}
     >
       <div
         className="command-bar-container"

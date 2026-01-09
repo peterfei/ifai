@@ -202,13 +202,13 @@ export class MockCommandLineCore implements ICommandLineCore {
         return this.executeGrep(args, context);
       // 导航操作命令
       case 'cd':
-        return this.executeCd(args, context);
+        return this.executeCd(args);
       // 构建操作命令
       case 'make':
         return this.executeMake(args, context);
       // 调试操作命令
       case 'breakpoint':
-        return this.executeBreakpoint(args, context);
+        return this.executeBreakpoint(args);
       // 配置操作命令
       case 'set':
         return this.executeSet(args, context);
