@@ -16,6 +16,7 @@ export interface LayoutState {
   isCommandPaletteOpen: boolean;
   isTerminalOpen: boolean;
   isSettingsOpen: boolean;
+  isCommandBarOpen: boolean; // v0.2.7 新增：底部命令行
   isPromptManagerOpen: boolean;
   chatWidth: number;
 
@@ -42,6 +43,8 @@ export interface LayoutState {
   toggleCommandPalette: () => void;
   setTerminalOpen: (isOpen: boolean) => void;
   toggleTerminal: () => void;
+  setCommandBarOpen: (isOpen: boolean) => void; // v0.2.7 新增
+  toggleCommandBar: () => void; // v0.2.7 新增
   setSettingsOpen: (isOpen: boolean) => void;
   toggleSettings: () => void;
   setChatWidth: (width: number) => void;
@@ -78,6 +81,7 @@ export const useLayoutStore = create<LayoutState>()(
       isCommandPaletteOpen: false,
       isTerminalOpen: false,
       isSettingsOpen: false,
+      isCommandBarOpen: false,
       isPromptManagerOpen: false,
       chatWidth: 384,
 
@@ -113,6 +117,8 @@ export const useLayoutStore = create<LayoutState>()(
       toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
       setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
       toggleTerminal: () => set((state) => ({ isTerminalOpen: !state.isTerminalOpen })),
+      setCommandBarOpen: (isOpen) => set({ isCommandBarOpen: isOpen }),
+      toggleCommandBar: () => set((state) => ({ isCommandBarOpen: !state.isCommandBarOpen })),
       setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
       toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
       setChatWidth: (width) => set({ chatWidth: width }),

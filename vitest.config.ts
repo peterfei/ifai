@@ -5,6 +5,14 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      'ifainew-core': path.resolve(__dirname, './src/core/mock-core'),
+      // 在测试中，私有库指向占位模块
+      '@ifai/core/commandBar': path.resolve(__dirname, './src/core/commandBar/pro-placeholder'),
+    },
+  },
   test: {
     globals: true,
     environment: 'happy-dom',
@@ -15,10 +23,6 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules/', 'tests/setup.ts', 'src/vite-env.d.ts', 'tests/e2e/**'],
-    },
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      'ifainew-core': path.resolve(__dirname, './src/core/mock-core'),
     },
   },
 });

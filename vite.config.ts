@@ -25,6 +25,11 @@ export default defineConfig(async ({ mode }) => {
         "ifainew-core": isCommercial
           ? path.resolve(__dirname, process.env.APP_CORE_PATH || "../ifainew-core/typescript")
           : path.resolve(__dirname, "./src/core/mock-core"),
+        // 🔥 CommandBar 私有库：社区版使用占位模块（运行时动态导入会失败，触发降级）
+        // 商业版应该指向真实的私有库路径
+        "@ifai/core/commandBar": isCommercial
+          ? path.resolve(__dirname, "../ifainew-core/src/commandBar")
+          : path.resolve(__dirname, "./src/core/commandBar/pro-placeholder"),
         // 🔥 E2E 测试环境：使用 Tauri API mocks
         ...(isE2E ? {
           '@tauri-apps/api/event': path.resolve(__dirname, './src/tauri-mocks/api/event'),
