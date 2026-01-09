@@ -12,6 +12,9 @@ export default defineConfig(async ({ mode }) => {
   // 🔥 检测是否在 E2E 测试环境
   const isE2E = process.env.NODE_ENV === 'test' || process.env.VITE_TEST_ENV === 'e2e';
 
+  // 🔥 E2E 测试环境强制使用社区模式（私有库不存在）
+  const shouldUsePrivateCore = isCommercial && !isE2E;
+
   return {
     plugins: [react()],
     define: {
@@ -22,13 +25,16 @@ export default defineConfig(async ({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
         // 🔥 商业版：指向 ifainew-core 目录（让 Vite 通过 package.json 解析入口点）
         // 社区版：使用 mock-core
-        "ifainew-core": isCommercial
+        // E2E 测试：使用 mock-core（避免私有库路径问题）
+        "ifainew-core": shouldUsePrivateCore
           ? path.resolve(__dirname, process.env.APP_CORE_PATH || "../ifainew-core/typescript")
           : path.resolve(__dirname, "./src/core/mock-core"),
-        // 🔥 CommandBar 私有库：社区版使用占位模块（运行时动态导入会失败，触发降级）
-        // 商业版应该指向真实的私有库路径
-        "@ifai/core/commandBar": isCommercial
-          ? path.resolve(__dirname, "../ifainew-core/src/commandBar")
+        // 🔥 CommandBar 私有库：
+        // - E2E 测试环境：始终使用占位模块
+        // - 商业版（非 E2E）：指向真实私有库路径
+        // - 社区版：使用占位模块
+        "@ifai/core/commandBar": shouldUsePrivateCore
+          ? path.resolve(__dirname, "../ifainew-core/typescript/src/commandBar")
           : path.resolve(__dirname, "./src/core/commandBar/pro-placeholder"),
         // 🔥 E2E 测试环境：使用 Tauri API mocks
         ...(isE2E ? {

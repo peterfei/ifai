@@ -1,0 +1,248 @@
+/**
+ * 命令行组件样式
+ * 与项目整体风格保持一致（参考 CommandPalette）
+ */
+
+.command-bar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.command-bar-container {
+  background-color: #252526;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  width: 600px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #454545;
+  overflow: hidden;
+}
+
+.command-bar-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.command-bar-input-wrapper {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #252526;
+  border-bottom: 1px solid #454545;
+  gap: 8px;
+}
+
+.command-bar-prefix {
+  color: #808080;
+  font-size: 14px;
+  font-weight: 500;
+  user-select: none;
+}
+
+.command-bar-input {
+  flex: 1;
+  background-color: #3c3c3c;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-size: 14px;
+  outline: none;
+}
+
+.command-bar-input:focus {
+  border-color: #007acc;
+}
+
+.command-bar-input::placeholder {
+  color: #808080;
+}
+
+.command-bar-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #808080;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.command-bar-close:hover {
+  color: #ffffff;
+  background-color: #3c3c3c;
+}
+
+/* 命令反馈区域 */
+.command-bar-feedback {
+  padding: 16px;
+  background-color: #1e1e1e;
+  border-top: 1px solid #454545;
+  min-height: 80px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.command-bar-success {
+  border-left: 3px solid #4ec9b0;
+}
+
+.command-bar-error {
+  border-left: 3px solid #f48771;
+}
+
+.command-bar-message {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.command-bar-message:empty {
+  display: none;
+}
+
+/* Markdown 样式支持 */
+.command-bar-feedback h1 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.command-bar-feedback h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+}
+
+.command-bar-feedback p {
+  margin: 6px 0;
+}
+
+.command-bar-feedback code {
+  background-color: #2d2d2d;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.command-bar-feedback table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.command-bar-feedback table th,
+.command-bar-feedback table td {
+  border: 1px solid #454545;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.command-bar-feedback table th {
+  background-color: #2d2d2d;
+}
+
+.command-bar-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #808080;
+  gap: 8px;
+}
+
+.command-bar-loading::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid #454545;
+  border-top-color: #007acc;
+  border-radius: 50%;
+  animation: command-bar-spin 1s linear infinite;
+}
+
+@keyframes command-bar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 自动补全建议列表 */
+.command-bar-suggestions {
+  border-top: 1px solid #454545;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.command-bar-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.command-bar-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.command-bar-suggestion-item:hover,
+.command-bar-suggestion-item.selected {
+  background-color: #094771;
+}
+
+.command-bar-suggestion-item.selected {
+  border-left: 2px solid #007acc;
+}
+
+.command-bar-suggestion-icon {
+  color: #808080;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.command-bar-suggestion-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.command-bar-suggestion-name {
+  color: #cccccc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.command-bar-suggestion-description {
+  color: #808080;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-bar-suggestion-item.selected .command-bar-suggestion-name {
+  color: #ffffff;
+}
+
+.command-bar-suggestion-item.selected .command-bar-suggestion-description {
+  color: #cccccc;
+}

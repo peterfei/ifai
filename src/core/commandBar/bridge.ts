@@ -14,8 +14,12 @@ import type {
  * 检查是否为商业版
  */
 const isCommercial = () => {
-  // @ts-expect-error - process.env 是运行时定义的
-  return import.meta.env.MODE === 'commercial' || import.meta.env.APP_EDITION === 'commercial';
+  // import.meta.env 是 Vite 提供的环境变量
+  const mode = (import.meta as any).env?.MODE;
+  const edition = (import.meta as any).env?.APP_EDITION;
+  const isE2E = (import.meta as any).env?.VITE_TEST_ENV === 'e2e';
+  // E2E 环境强制使用社区模式
+  return (mode === 'commercial' || edition === 'commercial') && !isE2E;
 };
 
 /**
@@ -40,7 +44,7 @@ class CommandBridge {
 
     this.loadStartTime = performance.now();
 
-    // 社区版直接跳过私有库加载
+    // 社区版直接使用 Mock 实现
     if (!isCommercial()) {
       const { MockCommandLineCore } = await import('./mock');
       this.instance = new MockCommandLineCore();
@@ -50,6 +54,7 @@ class CommandBridge {
       // 商业版尝试加载私有库
       try {
         // 尝试动态导入私有库
+        // @ts-ignore - Vite alias 会在构建时解析此路径
         const module = await import('@ifai/core/commandBar');
         const { CommandLineCore } = module;
 
@@ -58,7 +63,18 @@ class CommandBridge {
           throw new Error('Invalid core module: CommandLineCore export is not a constructor');
         }
 
-        this.instance = new CommandLineCore();
+        // 尝试实例化并初始化
+        const instance = new CommandLineCore();
+        await instance.initialize();
+
+        // 验证实例是否正常工作（execute 方法应该能被调用）
+        try {
+          await instance.getSuggestions('');
+        } catch (e) {
+          throw new Error(`Core initialization failed: ${e}`);
+        }
+
+        this.instance = instance;
         this.coreType = 'pro';
         console.info(
           `[CommandBar] Running in Pro mode (load time: ${performance.now() - this.loadStartTime}ms)`
@@ -76,12 +92,13 @@ class CommandBridge {
       }
     }
 
-    // 初始化核心
-    try {
-      await this.instance.initialize();
-    } catch (error) {
-      console.error('[CommandBar] Initialization failed:', error);
-      // 即使初始化失败也保留实例，让调用方处理
+    // 初始化核心（对于 Mock 实现也需要初始化）
+    if (this.coreType === 'mock') {
+      try {
+        await this.instance.initialize();
+      } catch (error) {
+        console.error('[CommandBar] Initialization failed:', error);
+      }
     }
 
     return this.instance;

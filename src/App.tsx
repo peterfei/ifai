@@ -6,6 +6,7 @@ import { SplitPaneContainer } from './components/Layout/SplitPaneContainer';
 import { TabBar } from './components/Editor/TabBar';
 import { AIChat } from './components/AIChat/AIChat';
 import { CommandPalette } from './components/CommandPalette/CommandPalette';
+import { CommandBar } from './components/CommandBar';
 import { TerminalPanel } from './components/Terminal/TerminalPanel';
 import { PromptManager } from './components/PromptManager/PromptManager';
 import { SettingsModal } from './components/Settings/SettingsModal';
@@ -380,6 +381,7 @@ function App() {
       
       <Fragment>
         <CommandPalette onSelect={handleSelectFileFromPalette} />
+        <CommandBar />
         <SettingsModal />
         <GlobalAgentMonitor />
         {useSettingsStore((state) => state.showPerformanceMonitor) && (
