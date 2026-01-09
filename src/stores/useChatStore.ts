@@ -12,6 +12,8 @@ import { recognizeIntent, shouldTriggerAgent, formatAgentName } from '../utils/i
 import { autoSaveThread } from './persistence/threadPersistence';
 import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage } from '../utils/tokenCounter';
 import i18n from '../i18n/config';
+// 🔥 版本区分:根据版本显示不同的提示
+import { IS_COMMERCIAL } from '../config/edition';
 
 // Content segment interface for tracking stream reception order
 export interface ContentSegment {
@@ -607,26 +609,40 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     );
 
     if (isLastMessageStreaming) {
-        console.warn('[Chat] Detected streaming assistant message, forcing cleanup before creating new placeholder');
-        console.log('[Chat] Last message:', {
-            id: lastAssistantMsg.id,
-            hasContent: !!lastAssistantMsg.content,
-            contentLength: lastAssistantMsg.content?.length || 0,
-            contentSegments: lastAssistantMsg.contentSegments?.length || 0
-        });
+        console.warn('[Chat] Detected streaming assistant message, user wants to send new message');
+        console.log('[Chat] Edition:', IS_COMMERCIAL ? 'Commercial (PRO)' : 'Community');
 
-        // 强制设置 isLoading = false，允许用户继续
-        coreUseChatStore.setState({ isLoading: false });
+        // 🔥 版本区分处理:根据版本显示不同提示
+        if (!IS_COMMERCIAL) {
+          // 社区版:显示友好提示
+          console.log('[Chat] Community Edition: Showing feature limitation message');
 
-        // 显示提示信息
-        const { addMessage } = coreUseChatStore.getState();
-        addMessage({
+          coreUseChatStore.setState({ isLoading: false });
+
+          const { addMessage } = coreUseChatStore.getState();
+          addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: '⚠️ 前一个请求仍在处理中，请稍后再试。'
-        });
+            content: '💡 **提示**: 快速连续发送消息功能仅在 PRO 版本中可用。\n\n请等待当前响应完成后,再发送下一条消息。升级到 PRO 版本可体验更流畅的对话体验。'
+          });
 
-        return;  // 停止处理新请求
+          return;  // 社区版:停止处理新请求
+        } else {
+          // 商业版:自动取消前一个响应
+          console.log('[Chat] Commercial Edition: Auto-cancelling previous response');
+
+          coreUseChatStore.setState({
+            messages: coreUseChatStore.getState().messages.map(m =>
+                m.id === lastAssistantMsg.id
+                    ? { ...m, content: lastAssistantMsg.content || '⏸️ 响应已取消' }
+                    : m
+            ),
+            isLoading: false  // 重置加载状态
+          });
+
+          // 不显示警告,继续处理新请求
+          // 用户发送新消息意味着他们想要放弃前一个响应
+        }
     }
 
     // 1. Prepare Provider Config

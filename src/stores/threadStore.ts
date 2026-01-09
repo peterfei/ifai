@@ -313,11 +313,11 @@ export const useThreadStore = create<ThreadStore>()(
         // 🔥 修复线程加载状态隔离:切换线程时重置 isLoading 状态
         // 这样可以避免新线程的输入框被旧线程的加载状态禁用
         // 使用动态导入避免循环依赖
-        import('./useChatStore').then(({ useChatStore }) => {
+        import('ifainew-core').then(({ useChatStore }) => {
           const chatStore = useChatStore.getState();
           if (chatStore.isLoading) {
             console.log(`[ThreadStore] Resetting isLoading state for thread switch`);
-            chatStore.setState({ isLoading: false });
+            useChatStore.setState({ isLoading: false });
           }
         }).catch((e) => {
           console.warn(`[ThreadStore] Failed to reset isLoading:`, e);
