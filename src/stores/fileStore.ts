@@ -404,6 +404,35 @@ export const useFileStore = create<FileState>()(
             state.openedFiles.forEach(file => {
               delete (file as any)._hasPersistedContent;
             });
+
+            // 🔥 修复文件选中状态:同步 activeFileId 到 layoutStore 的窗格
+            if (state.activeFileId) {
+              try {
+                // 延迟执行以确保 layoutStore 已经初始化
+                setTimeout(() => {
+                  import('./layoutStore').then(({ useLayoutStore }) => {
+                    const layoutStore = useLayoutStore.getState();
+                    const panes = layoutStore.panes;
+
+                    if (panes.length > 0) {
+                      // 找到当前活动的窗格,如果没有则使用第一个窗格
+                      const targetPaneId = layoutStore.activePaneId || panes[0].id;
+                      const targetPane = panes.find(p => p.id === targetPaneId);
+
+                      // 只有当窗格没有关联文件时才重新关联
+                      if (targetPane && !targetPane.fileId) {
+                        console.log(`[FileStore] Assigning active file ${state.activeFileId} to pane ${targetPaneId}`);
+                        layoutStore.assignFileToPane(targetPaneId, state.activeFileId);
+                      }
+                    }
+                  }).catch((e) => {
+                    console.warn('[FileStore] Failed to import layoutStore:', e);
+                  });
+                }, 100);
+              } catch (e) {
+                console.warn('[FileStore] Failed to sync activeFileId to layoutStore:', e);
+              }
+            }
         }
       },
       migrate: (persistedState: any, version: number) => {
