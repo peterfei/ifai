@@ -310,6 +310,19 @@ export const useThreadStore = create<ThreadStore>()(
 
         console.log(`[ThreadStore] Switched to thread: ${threadId}`);
 
+        // 🔥 修复线程加载状态隔离:切换线程时重置 isLoading 状态
+        // 这样可以避免新线程的输入框被旧线程的加载状态禁用
+        try {
+          const { useChatStore } = require('../useChatStore');
+          const chatStore = useChatStore.getState();
+          if (chatStore.isLoading) {
+            console.log(`[ThreadStore] Resetting isLoading state for thread switch`);
+            chatStore.setState({ isLoading: false });
+          }
+        } catch (e) {
+          console.warn(`[ThreadStore] Failed to reset isLoading:`, e);
+        }
+
         // Trigger auto-save
         autoSaveThread(threadId);
       },
@@ -676,3 +689,8 @@ export const selectAllTags = (state: ThreadStore): string[] => {
     .forEach(t => t.tags.forEach(tag => tags.add(tag)));
   return Array.from(tags).sort();
 };
+
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__threadStore = useThreadStore;
+}

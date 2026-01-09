@@ -150,3 +150,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setActiveFileTokenCount: (count) => set({ activeFileTokenCount: count }),
 }));
+
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__editorStore = useEditorStore;
+}

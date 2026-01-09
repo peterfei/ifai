@@ -341,7 +341,19 @@ export const useFileStore = create<FileState>()(
       name: 'file-storage',
       version: 1,
       partialize: (state) => ({
-        openedFiles: state.openedFiles.map(f => ({ ...f, content: '' })),
+        // 🔥 修复编辑器持久化:保留文件内容(限制100KB以内的小文件)
+        openedFiles: state.openedFiles.map(f => {
+          // 保留小文件内容用于持久化,避免重新加载时丢失
+          const contentSize = f.content?.length || 0;
+          const shouldKeepContent = contentSize > 0 && contentSize < 100000; // 100KB
+
+          return {
+            ...f,
+            content: shouldKeepContent ? f.content : '',
+            // 标记是否保存了内容
+            _hasPersistedContent: shouldKeepContent,
+          };
+        }),
         activeFileId: state.activeFileId,
         rootPath: state.rootPath,
         // v0.2.6 新增：持久化预览模式
@@ -367,7 +379,7 @@ export const useFileStore = create<FileState>()(
       }),
 
       onRehydrateStorage: () => (state) => {
-        // Reload file contents after rehydration from localStorage
+        // 🔥 修复编辑器持久化:优先使用持久化的内容,避免不必要的重新加载
         if (state) {
             // 将 expandedPaths 转换回临时的 expandedPaths 变量
             // 稍后在文件树加载完成后使用路径匹配恢复 expandedNodes
@@ -375,10 +387,22 @@ export const useFileStore = create<FileState>()(
               (state as any).pendingExpandedPaths = new Set((state as any).expandedPaths);
               delete (state as any).expandedPaths;
             }
+
+            // 只对没有持久化内容的文件尝试重新加载
             state.openedFiles.forEach(file => {
-                if (file.path) {
-                    state.reloadFileContent(file.id);
-                }
+              const hasPersistedContent = (file as any)._hasPersistedContent;
+
+              if (!hasPersistedContent && file.path && !file.isDirty) {
+                // 只有干净的文件才重新加载(避免覆盖用户的未保存更改)
+                state.reloadFileContent(file.id);
+              } else if (hasPersistedContent) {
+                console.log(`[FileStore] Restored content from persistence for: ${file.name}`);
+              }
+            });
+
+            // 清理临时标记
+            state.openedFiles.forEach(file => {
+              delete (file as any)._hasPersistedContent;
             });
         }
       },

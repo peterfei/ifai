@@ -24,6 +24,8 @@ import { useProposalStore } from '../../stores/proposalStore';
 import { ProposalReviewModal } from '../ProposalWorkflow';
 // v0.2.6: Agent Store
 import { useAgentStore } from '../../stores/agentStore';
+// 🔥 修复版本显示:导入版本配置
+import { IS_COMMERCIAL } from '../../config/edition';
 
 interface AIChatProps {
   width?: number;
@@ -64,6 +66,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const openFile = useFileStore(state => state.openFile);
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
+  // 🔥 修复版本显示硬编码:动态获取版本号
+  const [appVersion, setAppVersion] = useState<string>('0.2.6');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +114,22 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       isUserScrolling.current = false;
     }
   };
+
+  // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const { getVersion } = await import('@tauri-apps/api/app');
+        const version = await getVersion();
+        setAppVersion(version);
+      } catch (error) {
+        console.warn('[AIChat] Failed to get version from Tauri:', error);
+        // 保留默认版本号
+      }
+    };
+
+    fetchVersion();
+  }, []);
 
   // Auto-scroll to bottom when messages update, with throttling during streaming
   useEffect(() => {
@@ -1173,7 +1193,9 @@ ${context}
           </div>
           <div className="flex flex-col">
             <span className="text-[11px] font-black text-gray-100 tracking-tight leading-none">IfAI Editor</span>
-            <span className="text-[9px] font-bold text-blue-500/80 tracking-widest uppercase mt-0.5">V0.2.6 PRO</span>
+            <span className="text-[9px] font-bold text-blue-500/80 tracking-widest uppercase mt-0.5">
+              V{appVersion}{IS_COMMERCIAL ? ' PRO' : ''}
+            </span>
           </div>
         </div>
         

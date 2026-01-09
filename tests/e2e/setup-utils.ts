@@ -715,15 +715,41 @@ export async function setupE2ETestEnvironment(page: Page) {
     
     const configurations: Record<string, any> = {
         'ifai_onboarding_state': { completed: true, skipped: true },
-        'file-storage': { state: { rootPath: '/Users/mac/mock-project' }, version: 0 },
+        // 🔥 修复持久化测试:只设置 rootPath,保留 openedFiles 等其他状态的持久化
+        'file-storage': (existing: any) => ({
+          ...existing,
+          state: {
+            ...(existing?.state || {}),
+            rootPath: '/Users/mac/mock-project',
+          },
+          version: existing?.version || 0,
+        }),
         'settings-storage': { state: { currentProviderId: 'ollama-e2e', currentModel: 'mock-model', providers }, version: 0 },
         'thread-storage': { state: { activeThreadId: 'e2e-thread-1', threads: [{ id: 'e2e-thread-1', messages: [] }] }, version: 0 },
-        'layout-storage': { state: { isChatOpen: true, isSidebarOpen: true }, version: 0 }
+        // 🔥 修复持久化测试:保留 panes 等状态的持久化
+        'layout-storage': (existing: any) => ({
+          ...existing,
+          state: {
+            ...(existing?.state || {}),
+            isChatOpen: true,
+            isSidebarOpen: true,
+          },
+          version: existing?.version || 0,
+        }),
     };
 
     const originalGetItem = window.localStorage.getItem.bind(window.localStorage);
     window.localStorage.getItem = (key: string) => {
-        if (configurations[key]) return JSON.stringify(configurations[key]);
+        if (configurations[key]) {
+          const config = configurations[key];
+          // 如果是函数,调用它并传入现有值
+          if (typeof config === 'function') {
+            const existingValue = originalGetItem(key);
+            const existing = existingValue ? JSON.parse(existingValue) : undefined;
+            return JSON.stringify(config(existing));
+          }
+          return JSON.stringify(config);
+        }
         return originalGetItem(key);
     };
 
