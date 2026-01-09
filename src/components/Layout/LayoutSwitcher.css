@@ -1,0 +1,138 @@
+.layout-switcher-container {
+  position: relative;
+  display: inline-block;
+}
+
+.layout-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.layout-button:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.layout-button:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.3);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+.layout-icon {
+  flex-shrink: 0;
+}
+
+.layout-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  background: var(--bg-secondary, #1e1e1e);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  z-index: 1000;
+}
+
+.layout-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  color: inherit;
+}
+
+.layout-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.layout-menu-item.active {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.layout-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  font-size: 13px;
+}
+
+.layout-english-label {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.check-icon {
+  flex-shrink: 0;
+  color: var(--accent-color, #4CAF50);
+}
+
+/* Tooltip样式（可选，使用浏览器原生title属性） */
+.layout-button[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 深色主题 */
+@media (prefers-color-scheme: dark) {
+  .layout-menu {
+    background: #2d2d2d;
+    border-color: #4c4c4c;
+  }
+
+  .layout-menu-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .layout-menu-item.active {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+/* 浅色主题 */
+@media (prefers-color-scheme: light) {
+  .layout-button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .layout-menu {
+    background: #ffffff;
+    border-color: #e0e0e0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .layout-menu-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .layout-menu-item.active {
+    background-color: rgba(0, 0, 0, 0.08);
+  }
+}

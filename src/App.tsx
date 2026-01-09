@@ -48,6 +48,8 @@ function App() {
     sidebarPosition,
     sidebarWidth,
     setSidebarWidth,
+    // 新增：布局模式
+    layoutMode,
   } = useLayoutStore();
   const [isResizingChat, setIsResizingChat] = React.useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
@@ -283,9 +285,9 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#1e1e1e] text-white overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#1e1e1e] text-white overflow-hidden" data-layout={layoutMode}>
       <Titlebar onToggleChat={toggleChat} isChatOpen={isChatOpen} onToggleTerminal={toggleTerminal} isTerminalOpen={isTerminalOpen} />
-      
+
       {/* Main content area: Sidebar + Editor/Terminal + AIChat */}
       <div className="flex flex-1 overflow-hidden">
         {/* v0.2.6 新增：侧栏宽度拖拽 */}
@@ -320,6 +322,11 @@ function App() {
           />
         )}
 
+        {/* 新增：自定义布局模式下，聊天面板在左侧 */}
+        {layoutMode === 'custom' && isChatOpen && (
+          <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />
+        )}
+
         <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
           <TabBar />
           <div className="flex-1 relative overflow-hidden">
@@ -336,6 +343,9 @@ function App() {
           )}
           <Statusbar />
         </div>
+
+        {/* 默认布局模式下，聊天面板在右侧 */}
+        {layoutMode === 'default' && isChatOpen && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
 
         {/* v0.2.6 新增：右侧侧栏位置 */}
         {isSidebarOpen && sidebarPosition === 'right' && (
@@ -366,8 +376,6 @@ function App() {
             <Sidebar />
           </>
         )}
-
-        {isChatOpen && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
       </div>
       
       <Fragment>

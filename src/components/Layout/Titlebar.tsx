@@ -10,6 +10,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { detectLanguageFromPath } from '../../utils/languageDetection';
+import { LayoutSwitcher } from './LayoutSwitcher';
 
 interface TitlebarProps {
   onToggleChat?: () => void;
@@ -209,6 +210,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       </div>
 
       <div className="flex items-center space-x-2">
+        <LayoutSwitcher />
         <button
           className={`p-1 rounded ${isSidebarOpen ? 'text-purple-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
           onClick={toggleSidebar}

@@ -25,6 +25,9 @@ export interface LayoutState {
   sidebarWidth: number;
   sidebarActiveTab: 'explorer' | 'search' | 'snippets' | 'tasks';  // 侧边栏活动标签页
 
+  // 新增：布局模式
+  layoutMode: 'default' | 'custom';
+
   // 分屏状态
   panes: Pane[];
   activePaneId: string | null;
@@ -49,6 +52,9 @@ export interface LayoutState {
   setSidebarPosition: (position: 'left' | 'right') => void;
   setSidebarWidth: (width: number) => void;
   setSidebarActiveTab: (tab: 'explorer' | 'search' | 'snippets' | 'tasks') => void;
+
+  // 新增：布局模式操作
+  setLayoutMode: (mode: 'default' | 'custom') => void;
 
   // 分屏操作
   splitPane: (direction: 'horizontal' | 'vertical', targetPaneId?: string) => void;
@@ -80,6 +86,9 @@ export const useLayoutStore = create<LayoutState>()(
       sidebarPosition: 'left',
       sidebarWidth: 250,
       sidebarActiveTab: 'explorer',
+
+      // 新增：布局模式初始状态
+      layoutMode: 'default',
 
       // 分屏状态
       panes: [
@@ -114,6 +123,9 @@ export const useLayoutStore = create<LayoutState>()(
       setSidebarPosition: (position) => set({ sidebarPosition: position }),
       setSidebarWidth: (width) => set({ sidebarWidth: Math.max(150, Math.min(500, width)) }),
       setSidebarActiveTab: (tab) => set({ sidebarActiveTab: tab }),
+
+      // 新增：布局模式操作函数
+      setLayoutMode: (mode) => set({ layoutMode: mode }),
 
       // 分屏操作
       splitPane: (direction, targetPaneId) => {
@@ -275,6 +287,8 @@ export const useLayoutStore = create<LayoutState>()(
         isSidebarOpen: state.isSidebarOpen,
         sidebarPosition: state.sidebarPosition,
         sidebarWidth: state.sidebarWidth,
+        // 新增：持久化布局模式
+        layoutMode: state.layoutMode,
       }),
       migrate: (persistedState: any, version: number) => {
         console.log(`[LayoutStore] Migrating from version ${version} to 1`);

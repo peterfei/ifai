@@ -1154,7 +1154,8 @@ ${context}
   }
 
   return (
-    <div 
+    <div
+        data-testid="chat-panel"
         className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative"
         style={{ width: width ? `${width}px` : '384px', contain: 'layout' }}
     >
@@ -1260,7 +1261,7 @@ ${context}
             />
         )}
         <input
-          data-test-id="chat-input"
+          data-testid="chat-input"
           ref={inputRef}
           type="text"
           className="flex-1 bg-transparent outline-none text-white text-sm placeholder-gray-500 mr-2"
@@ -1271,7 +1272,7 @@ ${context}
           disabled={isLoading}
         />
         <button
-          data-test-id="send-button"
+          data-testid="send-button"
           onClick={handleSend}
           className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors disabled:opacity-50"
           disabled={!input.trim() || isLoading}
