@@ -96,9 +96,10 @@ pub async fn execute_bash_command(
 
     let mut cmd = Command::new(shell);
     cmd.arg(arg).arg(&command);
-    
-    // 设置 kill_on_drop 确保超时或丢弃时清理进程
-    cmd.kill_on_drop(true);
+
+    // 🔥 修复：不 kill 进程，让后台服务器持续运行
+    // 对于长期运行的服务（如 npm run dev），我们希望它们在后台继续运行
+    cmd.kill_on_drop(false);
 
     if let Some(dir) = working_dir {
         if !dir.is_empty() {
@@ -145,8 +146,10 @@ pub async fn execute_bash_command(
 
                             // 🔥 FIX: 检测启动成功标志
                             if detect_startup_success(&combined_output) {
-                                println!("[Bash Command] Detected startup success, killing process...");
-                                let _ = child.start_kill();
+                                println!("[Bash Command] ✅ Detected startup success, forgetting child process to keep it running");
+
+                                // 🔥 修复：放弃 child 所有权，让进程真正在后台运行
+                                std::mem::forget(child);
 
                                 return Ok::<_, String>((true, stdout_lines, stderr_lines));
                             }
@@ -171,8 +174,10 @@ pub async fn execute_bash_command(
 
                             // 🔥 FIX: 检测启动成功标志
                             if detect_startup_success(&combined_output) {
-                                println!("[Bash Command] Detected startup success, killing process...");
-                                let _ = child.start_kill();
+                                println!("[Bash Command] ✅ Detected startup success, forgetting child process to keep it running");
+
+                                // 🔥 修复：放弃 child 所有权，让进程真正在后台运行
+                                std::mem::forget(child);
 
                                 return Ok::<_, String>((true, stdout_lines, stderr_lines));
                             }

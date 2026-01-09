@@ -1895,6 +1895,47 @@ const patchedApproveToolCall = async (
     if (bashTools.includes(toolName)) {
         console.log(`[useChatStore] Bash tool detected: ${toolName}`);
 
+        // 🔥 修复：确保工作目录是项目根目录
+        // 问题：LLM 可能没有指定 working_dir，或指定了错误的目录
+        // 解决：自动修正为项目根目录
+        const rootPath = useFileStore.getState().rootPath;
+
+        if (rootPath) {
+            const args = toolCall.args || {};
+            const providedCwd = args.cwd || args.working_dir;
+
+            // 检查是否需要修正工作目录
+            const needsCorrection = !providedCwd || (providedCwd && !providedCwd.startsWith(rootPath));
+
+            if (needsCorrection) {
+                console.warn(`[useChatStore] ⚠️ Detected incorrect working_dir for bash command`);
+                console.log(`[useChatStore] Project root: ${rootPath}`);
+                console.log(`[useChatStore] Provided cwd: ${providedCwd || '(none)'}`);
+                console.log(`[useChatStore] Auto-correcting working_dir to project root`);
+
+                // 修正 toolCall 的 args
+                coreUseChatStore.setState(state => ({
+                    messages: state.messages.map(m =>
+                        m.id === messageId ? {
+                            ...m,
+                            toolCalls: m.toolCalls?.map(tc =>
+                                tc.id === toolCallId ? {
+                                    ...tc,
+                                    args: {
+                                        ...args,
+                                        working_dir: rootPath,  // 优先使用 working_dir
+                                        cwd: rootPath           // 兼容不同命名
+                                    }
+                                } : tc
+                            )
+                        } : m
+                    )
+                }));
+
+                console.log(`[useChatStore] ✅ Corrected working_dir to: ${rootPath}`);
+            }
+        }
+
         // 🔥 FIX: 先更新状态为 'approved'，让 UI 立即反馈
         // 这样用户可以看到状态变化，而不是一直等待命令执行完成
         coreUseChatStore.setState(state => ({

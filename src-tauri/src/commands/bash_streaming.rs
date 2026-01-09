@@ -142,7 +142,9 @@ pub async fn execute_bash_command_streaming(
 
     let mut cmd = Command::new(shell);
     cmd.arg(arg).arg(&command);
-    cmd.kill_on_drop(true);
+    // 🔥 修复：不 kill 进程，让后台服务器持续运行
+    // 对于长期运行的服务（如 npm run dev），我们希望它们在后台继续运行
+    cmd.kill_on_drop(false);
 
     if let Some(dir) = &working_dir {
         if !dir.is_empty() {
@@ -215,15 +217,15 @@ pub async fn execute_bash_command_streaming(
                                 // 发送成功事件
                                 emit_event(&app_handle, &event_id, BashStreamEvent {
                                     event_type: "complete".to_string(),
-                                    content: "✅ Server started successfully (detected startup pattern)".to_string(),
+                                    content: "✅ Server started successfully and running in background".to_string(),
                                     is_stderr: false,
                                     line_count,
                                 })?;
 
-                                // 🔥 FIX: Kill 掉后台进程（如 npm run dev）
-                                // 使用 start kill 而不是 wait，因为我们不想等待它结束
-                                let _ = child.start_kill();
-                                println!("[Bash Streaming] Killed background process after detecting startup success");
+                                // 🔥 修复：放弃 child 所有权，让进程真正在后台运行
+                                // 使用 forget() 来防止进程被 drop 时终止
+                                std::mem::forget(child);
+                                println!("[Bash Streaming] ✅ Detected startup success, forgot child process to keep it running");
 
                                 // 提前结束循环，返回成功状态
                                 return Ok::<_, String>(true); // true 表示检测到启动成功
@@ -284,14 +286,15 @@ pub async fn execute_bash_command_streaming(
                                 // 发送成功事件
                                 emit_event(&app_handle, &event_id, BashStreamEvent {
                                     event_type: "complete".to_string(),
-                                    content: "✅ Server started successfully (detected startup pattern)".to_string(),
+                                    content: "✅ Server started successfully and running in background".to_string(),
                                     is_stderr: false,
                                     line_count,
                                 })?;
 
-                                // 🔥 FIX: Kill 掉后台进程
-                                let _ = child.start_kill();
-                                println!("[Bash Streaming] Killed background process after detecting startup success");
+                                // 🔥 修复：放弃 child 所有权，让进程真正在后台运行
+                                // 使用 forget() 来防止进程被 drop 时终止
+                                std::mem::forget(child);
+                                println!("[Bash Streaming] ✅ Detected startup success, forgot child process to keep it running");
 
                                 // 提前结束循环，返回成功状态
                                 return Ok::<_, String>(true); // true 表示检测到启动成功
