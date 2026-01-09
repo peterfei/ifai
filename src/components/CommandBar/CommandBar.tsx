@@ -9,19 +9,128 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
+import { useEditorStore } from '../../stores/editorStore';
 import { getCommandLineCore } from '../../core/commandBar/bridge';
-import type { CommandResult, CommandSuggestion } from '../../core/commandBar/types';
+import type { CommandResult, CommandSuggestion, CommandContext } from '../../core/commandBar/types';
+import { writeFileContent } from '../../utils/fileSystem';
 import './CommandBar.css';
 
 export const CommandBar = () => {
   const { isCommandBarOpen, setCommandBarOpen } = useLayoutStore();
-  const { activeFileId } = useFileStore();
+  const { activeFileId, openedFiles, setFileDirty } = useFileStore();
+  const { getActiveEditor } = useEditorStore();
   const [input, setInput] = useState('');
   const [result, setResult] = useState<CommandResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * 构建命令执行上下文（包含 store 回调）
+   */
+  const buildCommandContext = (): CommandContext => {
+    const activeFile = openedFiles.find(f => f.id === activeFileId);
+    const editor = getActiveEditor();
+
+    return {
+      activeFileId,
+      workspace: '',
+      editorState: {
+        readonly: false,
+        language: activeFile?.language || 'plaintext',
+      },
+      stores: {
+        file: {
+          saveCurrentFile: async () => {
+            if (!activeFile || !activeFile.path) {
+              return { success: false, error: '没有活动的文件' };
+            }
+            try {
+              await writeFileContent(activeFile.path, activeFile.content || '');
+              setFileDirty(activeFileId, false);
+              return { success: true, path: activeFile.path };
+            } catch (error) {
+              return { success: false, error: error instanceof Error ? error.message : '保存失败' };
+            }
+          },
+          saveAllFiles: async () => {
+            const dirtyFiles = openedFiles.filter(f => f.isDirty && f.path);
+            let savedCount = 0;
+            for (const file of dirtyFiles) {
+              try {
+                await writeFileContent(file.path!, file.content || '');
+                setFileDirty(file.id, false);
+                savedCount++;
+              } catch (error) {
+                console.error(`Failed to save ${file.path}:`, error);
+              }
+            }
+            return { success: true, count: savedCount };
+          },
+          getOpenedFiles: () => openedFiles.map(f => ({
+            id: f.id,
+            path: f.path || '',
+            name: f.name,
+            isDirty: f.isDirty,
+          })),
+        },
+        editor: {
+          getActiveEditor: () => editor,
+          formatDocument: async () => {
+            if (!editor) {
+              return { success: false, error: '没有活动的编辑器' };
+            }
+            try {
+              // 使用 Monaco 的 formatDocument action
+              const action = editor.getAction('editor.action.formatDocument');
+              if (!action || !action.isSupported()) {
+                return { success: false, error: '格式化不支持' };
+              }
+              action.run();
+              return { success: true };
+            } catch (error) {
+              return { success: false, error: error instanceof Error ? error.message : '格式化失败' };
+            }
+          },
+          executeAction: async (actionId: string) => {
+            if (!editor) {
+              return { success: false, error: '没有活动的编辑器' };
+            }
+            try {
+              const action = editor.getAction(actionId);
+              if (!action) {
+                return { success: false, error: `操作不存在: ${actionId}` };
+              }
+              if (!action.isSupported()) {
+                return { success: false, error: `操作不支持: ${actionId}` };
+              }
+              action.run();
+              return { success: true };
+            } catch (error) {
+              return { success: false, error: error instanceof Error ? error.message : '执行失败' };
+            }
+          },
+        },
+        layout: {
+          splitVertical: async () => {
+            // TODO: 实现视图分割
+            return { success: false, error: '视图分割功能未实现' };
+          },
+          splitHorizontal: async () => {
+            // TODO: 实现视图分割
+            return { success: false, error: '视图分割功能未实现' };
+          },
+        },
+        settings: {
+          set: async (key: string, value: unknown) => {
+            // TODO: 实现配置设置
+            return { success: false, error: '配置功能未实现' };
+          },
+        },
+      },
+    };
+  };
 
   // 全局键盘监听：按下 : 键唤起命令行
   useEffect(() => {
@@ -119,14 +228,7 @@ export const CommandBar = () => {
 
     try {
       const core = await getCommandLineCore();
-      const commandResult = await core.execute(input, {
-        activeFileId,
-        workspace: '',
-        editorState: {
-          readonly: false,
-          language: 'typescript',
-        },
-      });
+      const commandResult = await core.execute(input, buildCommandContext());
 
       setResult(commandResult);
 

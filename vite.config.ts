@@ -14,11 +14,14 @@ export default defineConfig(async ({ mode }) => {
 
   // 🔥 E2E 测试环境强制使用社区模式（私有库不存在）
   const shouldUsePrivateCore = isCommercial && !isE2E;
+  const appEdition = process.env.APP_EDITION || mode;
 
   return {
     plugins: [react()],
     define: {
-      'process.env.APP_EDITION': JSON.stringify(process.env.APP_EDITION || mode)
+      'process.env.APP_EDITION': JSON.stringify(appEdition),
+      'import.meta.env.APP_EDITION': JSON.stringify(appEdition),
+      'import.meta.env.VITE_APP_EDITION': JSON.stringify(appEdition),
     },
     resolve: {
       alias: {

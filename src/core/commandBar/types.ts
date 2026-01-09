@@ -7,6 +7,33 @@
 export type CommandOutputType = 'text' | 'html' | 'error' | 'toast';
 
 /**
+ * Store 操作回调接口
+ */
+export interface StoreCallbacks {
+  file?: {
+    saveCurrentFile?: () => Promise<{ success: boolean; path?: string; error?: string }>;
+    openFile?: (path: string) => Promise<{ success: boolean; error?: string }>;
+    saveAllFiles?: () => Promise<{ success: boolean; count: number; error?: string }>;
+    updateFileContent?: (id: string, content: string) => Promise<void>;
+    setFileDirty?: (id: string, isDirty: boolean) => void;
+    getOpenedFiles?: () => Array<{ id: string; path: string; name: string; isDirty: boolean }>;
+  };
+  editor?: {
+    getActiveEditor?: () => any | null; // Monaco editor instance
+    formatDocument?: () => Promise<{ success: boolean; error?: string }>;
+    executeAction?: (actionId: string) => Promise<{ success: boolean; error?: string }>;
+  };
+  layout?: {
+    splitVertical?: () => Promise<{ success: boolean; error?: string }>;
+    splitHorizontal?: () => Promise<{ success: boolean; error?: string }>;
+  };
+  settings?: {
+    set?: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
+    get?: (key: string) => Promise<unknown>;
+  };
+}
+
+/**
  * 命令执行上下文
  */
 export interface CommandContext {
@@ -21,6 +48,8 @@ export interface CommandContext {
     readonly: boolean;
     language: string;
   };
+  /** Store 操作回调 */
+  stores?: StoreCallbacks;
   /** 额外的上下文数据 */
   metadata?: Record<string, unknown>;
 }
