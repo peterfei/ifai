@@ -4,8 +4,9 @@ use serde_json::json;
 use ifainew_core;
 
 mod file_walker;
-mod terminal;
 mod search;
+mod symbol_engine;
+mod terminal;
 mod git;
 mod lsp;
 mod prompt_manager;

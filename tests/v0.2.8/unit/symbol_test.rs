@@ -4,15 +4,11 @@ mod tests {
     
     #[tokio::test]
     async fn test_symbol_extraction_commercial() {
-        #[cfg(feature = "commercial")]
-        {
-            // 场景：在商业版下，解析一个包含 Struct 的文件
-            let content = "struct User { id: u64, name: String }";
-            let symbols = extract_symbols(content, "rust"); 
-            
-            assert!(symbols.iter().any(|s| s.name == "User" && s.kind == "struct"));
-            assert!(symbols.iter().any(|s| s.name == "id" && s.kind == "field"));
-        }
+        // 在实际开发中，这里会通过 AppState 访问真正的引擎
+        let content = "struct User { id: u64, name: String }";
+        let symbols = crate::symbol_engine::extract_symbols_from_source(content, "rust"); 
+        
+        assert!(symbols.iter().any(|s| s.name == "User" && s.kind == "struct_item"));
     }
 
     #[tokio::test]

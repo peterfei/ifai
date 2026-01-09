@@ -66,6 +66,10 @@ chrono = "0.4.42"
 tiktoken-rs = "0.9.1"
 regex = "1.12.2"
 dirs = "5.0"
+tree-sitter = "0.24.3"
+tree-sitter-rust = "0.23.0"
+tree-sitter-typescript = "0.23.0"
+tree-sitter-python = "0.23.0"
 
 # llama.cpp Rust bindings for local LLM inference
 # Supports GGUF format natively (user's model: qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf)
