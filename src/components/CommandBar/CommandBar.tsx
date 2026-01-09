@@ -12,18 +12,23 @@ import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { getCommandLineCore } from '../../core/commandBar/bridge';
 import type { CommandResult, CommandSuggestion, CommandContext } from '../../core/commandBar/types';
-import { writeFileContent } from '../../utils/fileSystem';
+import { writeFileContent, readFileContent } from '../../utils/fileSystem';
+import { invoke } from '@tauri-apps/api/core';
+import { Command } from '@tauri-apps/plugin-shell';
 import './CommandBar.css';
 
 export const CommandBar = () => {
-  const { isCommandBarOpen, setCommandBarOpen } = useLayoutStore();
-  const { activeFileId, openedFiles, setFileDirty } = useFileStore();
+  const { isCommandBarOpen, setCommandBarOpen, setSidebarActiveTab } = useLayoutStore();
+  const { activeFileId, openedFiles, setFileDirty, rootPath } = useFileStore();
   const { getActiveEditor } = useEditorStore();
   const [input, setInput] = useState('');
   const [result, setResult] = useState<CommandResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedIndex, setSelectedIndex] = useState(-1); // 命令建议选中索引
+  const [searchResults, setSearchResults] = useState<any[]>([]); // 实时搜索结果
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1); // 搜索结果选中索引
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -113,13 +118,77 @@ export const CommandBar = () => {
           },
         },
         layout: {
-          splitVertical: async () => {
+          splitVertical: async (file?: string) => {
             // TODO: 实现视图分割
             return { success: false, error: '视图分割功能未实现' };
           },
-          splitHorizontal: async () => {
+          splitHorizontal: async (file?: string) => {
             // TODO: 实现视图分割
             return { success: false, error: '视图分割功能未实现' };
+          },
+        },
+        search: {
+          searchInProject: async (pattern: string) => {
+            if (!rootPath) {
+              return { success: false, error: '未打开项目' };
+            }
+            try {
+              // 调用 Tauri 后端搜索
+              const matches = await invoke<any[]>('search_in_files', {
+                rootPath,
+                query: pattern,
+                caseSensitive: false
+              });
+              // 将查询存储到 sessionStorage，供 SearchPanel 读取
+              sessionStorage.setItem('commandbar-search-query', pattern);
+              return { success: true, count: matches.length };
+            } catch (error) {
+              return { success: false, error: error instanceof Error ? error.message : '搜索失败' };
+            }
+          },
+          showSearchPanel: async () => {
+            // 切换到搜索标签
+            setSidebarActiveTab('search');
+            // 关闭命令栏
+            setCommandBarOpen(false);
+            return { success: true };
+          },
+        },
+        build: {
+          executeBuild: async (target?: string) => {
+            if (!rootPath) {
+              return { success: false, error: '未打开项目' };
+            }
+
+            try {
+              // 构建命令：npm run build 或 npm run <target>
+              const buildArgs = target ? ['run', target] : ['run', 'build'];
+              const command = Command.create('npm', buildArgs);
+
+              // 在项目目录中执行
+              command.stdout((line) => {
+                console.log('[Build]', line);
+              });
+              command.stderr((line) => {
+                console.error('[Build Error]', line);
+              });
+
+              const output = await command.execute();
+              const exitCode = await output.code;
+
+              if (exitCode === 0) {
+                return { success: true };
+              } else {
+                return { success: false, error: `构建失败 (退出码: ${exitCode})` };
+              }
+            } catch (error) {
+              return { success: false, error: error instanceof Error ? error.message : '构建失败' };
+            }
+          },
+          showBuildOutput: async () => {
+            // TODO: 显示构建输出面板
+            // 可以打开一个 Terminal 或显示构建日志
+            return { success: false, error: '构建输出面板未实现' };
           },
         },
         settings: {
@@ -192,6 +261,63 @@ export const CommandBar = () => {
     return () => clearTimeout(debounceTimer);
   }, [input, isCommandBarOpen]);
 
+  // 实时搜索预览 - 当输入 :grep xxx 时自动执行搜索
+  useEffect(() => {
+    if (!isCommandBarOpen || !input.startsWith(':')) {
+      setSearchResults([]);
+      return;
+    }
+
+    const command = input.slice(1).trim();
+    const grepMatch = command.match(/^grep\s+(.+)$/);
+
+    if (!grepMatch) {
+      setSearchResults([]);
+      return;
+    }
+
+    const pattern = grepMatch[1].trim();
+    if (!pattern || pattern.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    // 防抖执行搜索
+    const searchTimer = setTimeout(async () => {
+      if (!rootPath) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const matches = await invoke<any[]>('search_in_files', {
+          rootPath,
+          query: pattern,
+          caseSensitive: false
+        });
+        // 限制显示前 10 个结果
+        setSearchResults(matches.slice(0, 10));
+      } catch (error) {
+        console.error('[CommandBar] Search failed:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300); // 300ms 防抖
+
+    return () => clearTimeout(searchTimer);
+  }, [input, isCommandBarOpen, rootPath]);
+
+  // 当搜索结果更新时，自动选中第一个结果
+  useEffect(() => {
+    if (searchResults.length > 0) {
+      setSelectedSearchIndex(0);
+    } else {
+      setSelectedSearchIndex(-1);
+    }
+  }, [searchResults]);
+
   const handleClose = () => {
     setCommandBarOpen(false);
   };
@@ -199,20 +325,73 @@ export const CommandBar = () => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       handleClose();
-    } else if (e.key === 'ArrowDown' && suggestions.length > 0) {
+    } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => (prev + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+      // 优先处理搜索结果导航
+      if (searchResults.length > 0) {
+        setSelectedSearchIndex(prev => (prev + 1) % searchResults.length);
+      } else if (suggestions.length > 0) {
+        setSelectedIndex(prev => (prev + 1) % suggestions.length);
+      }
+    } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter' && selectedIndex >= 0 && suggestions[selectedIndex]) {
-      e.preventDefault();
-      // 选择建议
-      const selected = suggestions[selectedIndex];
-      setInput(`:${selected.text}`);
-      setSuggestions([]);
-      setSelectedIndex(-1);
-      inputRef.current?.focus();
+      // 优先处理搜索结果导航
+      if (searchResults.length > 0) {
+        setSelectedSearchIndex(prev => (prev - 1 + searchResults.length) % searchResults.length);
+      } else if (suggestions.length > 0) {
+        setSelectedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+      }
+    } else if (e.key === 'Enter') {
+      // 优先处理搜索结果的回车
+      if (selectedSearchIndex >= 0 && searchResults[selectedSearchIndex]) {
+        e.preventDefault();
+        // 打开选中的搜索结果
+        const match = searchResults[selectedSearchIndex];
+        openSearchResult(match);
+      } else if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        e.preventDefault();
+        // 选择命令建议
+        const selected = suggestions[selectedIndex];
+        setInput(`:${selected.text}`);
+        setSuggestions([]);
+        setSelectedIndex(-1);
+        inputRef.current?.focus();
+      }
+    }
+  };
+
+  // 打开搜索结果的辅助函数
+  const openSearchResult = async (match: any) => {
+    try {
+      const content = await readFileContent(match.path);
+      const fileName = match.path.split('/').pop() || 'unknown';
+      const { openFile } = useFileStore.getState();
+
+      // 使用 v4 生成 ID
+      const { v4: uuidv4 } = await import('uuid');
+      const language = await import(
+        '../../utils/languageDetection'
+      ).then(m => m.detectLanguageFromPath(match.path));
+
+      const openedId = openFile({
+        id: uuidv4(),
+        name: fileName,
+        path: match.path,
+        content,
+        language,
+        isDirty: false,
+        initialLine: match.line_number, // 跳转到对应行
+      });
+
+      // 分配到活动的编辑器窗格
+      const { activePaneId, assignFileToPane } = useLayoutStore.getState();
+      if (activePaneId && assignFileToPane) {
+        assignFileToPane(activePaneId, openedId);
+      }
+
+      handleClose();
+    } catch (error) {
+      console.error('[CommandBar] Failed to open file:', error);
     }
   };
 
@@ -255,8 +434,18 @@ export const CommandBar = () => {
     inputRef.current?.focus();
   };
 
+  // 始终渲染组件以确保键盘监听器正常工作，但使用 CSS 隐藏
+  // 这样可以确保键盘快捷键始终有效
   if (!isCommandBarOpen) {
-    return null;
+    // 返回一个隐藏的 div 以保持组件挂载和键盘监听器激活
+    return (
+      <div
+        className="command-bar-overlay command-bar-hidden"
+        data-test-id="quick-command-bar"
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      />
+    );
   }
 
   return (
@@ -344,6 +533,43 @@ export const CommandBar = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* 实时搜索结果预览 */}
+        {!isLoading && searchResults.length > 0 && (
+          <div className="command-bar-search-preview">
+            <div className="search-preview-header">
+              <span className="search-preview-title">搜索结果</span>
+              <span className="search-preview-count">{searchResults.length}+ 个结果</span>
+            </div>
+            <div className="search-preview-results">
+              {searchResults.map((match, index) => (
+                <div
+                  key={`${match.path}-${match.line_number}-${index}`}
+                  className={`search-preview-item ${
+                    index === selectedSearchIndex ? 'selected' : ''
+                  }`}
+                  onClick={() => {
+                    // 点击时也打开文件
+                    openSearchResult(match);
+                  }}
+                >
+                  <div className="search-preview-file">{match.path}</div>
+                  <div className="search-preview-line">
+                    <span className="search-preview-line-number">{match.line_number}</span>
+                    <span className="search-preview-content">{match.content}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 搜索中状态 */}
+        {isSearching && (
+          <div className="command-bar-feedback">
+            <div className="command-bar-loading">搜索中...</div>
           </div>
         )}
       </div>

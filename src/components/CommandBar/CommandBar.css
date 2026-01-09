@@ -246,3 +246,114 @@
 .command-bar-suggestion-item.selected .command-bar-suggestion-description {
   color: #cccccc;
 }
+
+/* === 实时搜索结果预览 === */
+.command-bar-search-preview {
+  max-height: 300px;
+  overflow-y: auto;
+  border-top: 1px solid #3c3c3c;
+  background-color: #252526;
+}
+
+.search-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #3c3c3c;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.search-preview-title {
+  color: #cccccc;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-preview-count {
+  color: #808080;
+  font-size: 11px;
+}
+
+.search-preview-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-preview-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #2d2d2d;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.search-preview-item:last-child {
+  border-bottom: none;
+}
+
+.search-preview-item:hover {
+  background-color: #2a2d2e;
+}
+
+.search-preview-item.selected {
+  background-color: #094771;
+  border-left: 2px solid #007acc;
+}
+
+.search-preview-file {
+  color: #9cdcfe;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-preview-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.search-preview-line-number {
+  color: #808080;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  min-width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.search-preview-content {
+  color: #d4d4d4;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/* 滚动条样式 */
+.command-bar-search-preview::-webkit-scrollbar {
+  width: 8px;
+}
+
+.command-bar-search-preview::-webkit-scrollbar-track {
+  background-color: #1e1e1e;
+}
+
+.command-bar-search-preview::-webkit-scrollbar-thumb {
+  background-color: #424242;
+  border-radius: 4px;
+}
+
+.command-bar-search-preview::-webkit-scrollbar-thumb:hover {
+  background-color: #4f4f4f;
+}

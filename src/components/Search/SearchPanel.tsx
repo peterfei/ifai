@@ -120,6 +120,18 @@ export const SearchPanel = () => {
     }
   }, []);
 
+  // 检查是否有来自 CommandBar 的搜索查询
+  useEffect(() => {
+    const commandBarQuery = sessionStorage.getItem('commandbar-search-query');
+    if (commandBarQuery) {
+      // 清除存储，避免重复触发
+      sessionStorage.removeItem('commandbar-search-query');
+      // 设置查询并触发搜索
+      setQuery(commandBarQuery);
+      console.log('[SearchPanel] Received query from CommandBar:', commandBarQuery);
+    }
+  }, []);
+
   // Save search history to localStorage
   const saveToHistory = useCallback((q: string) => {
     if (!q.trim()) return;

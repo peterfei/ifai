@@ -17,15 +17,25 @@ export interface StoreCallbacks {
     updateFileContent?: (id: string, content: string) => Promise<void>;
     setFileDirty?: (id: string, isDirty: boolean) => void;
     getOpenedFiles?: () => Array<{ id: string; path: string; name: string; isDirty: boolean }>;
+    changeDirectory?: (path: string) => Promise<{ success: boolean; error?: string }>;
   };
   editor?: {
     getActiveEditor?: () => any | null; // Monaco editor instance
     formatDocument?: () => Promise<{ success: boolean; error?: string }>;
     executeAction?: (actionId: string) => Promise<{ success: boolean; error?: string }>;
+    setBreakpoint?: (line: number) => Promise<{ success: boolean; error?: string }>;
   };
   layout?: {
-    splitVertical?: () => Promise<{ success: boolean; error?: string }>;
-    splitHorizontal?: () => Promise<{ success: boolean; error?: string }>;
+    splitVertical?: (file?: string) => Promise<{ success: boolean; error?: string }>;
+    splitHorizontal?: (file?: string) => Promise<{ success: boolean; error?: string }>;
+  };
+  search?: {
+    searchInProject?: (pattern: string) => Promise<{ success: boolean; count?: number; error?: string }>;
+    showSearchPanel?: () => Promise<{ success: boolean; error?: string }>;
+  };
+  build?: {
+    executeBuild?: (target?: string) => Promise<{ success: boolean; error?: string }>;
+    showBuildOutput?: () => Promise<{ success: boolean; error?: string }>;
   };
   settings?: {
     set?: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
