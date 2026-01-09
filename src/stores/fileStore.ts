@@ -100,6 +100,65 @@ export const useFileStore = create<FileState>()(
         } else {
           useProjectConfigStore.getState().clearConfig();
         }
+
+        // 🔥 修复文件选中状态:恢复展开的节点和选中的节点
+        if (tree) {
+          const state = get();
+
+          // 恢复展开的节点
+          if ((state as any).pendingExpandedPaths) {
+            const expandedPaths = (state as any).pendingExpandedPaths as Set<string>;
+            const newExpandedNodes = new Set<string>();
+            const collectExpandedNodes = (node: FileNode) => {
+              if (expandedPaths.has(node.path) && node.kind === 'directory') {
+                newExpandedNodes.add(node.id);
+              }
+              if (node.children) {
+                node.children.forEach(collectExpandedNodes);
+              }
+            };
+            collectExpandedNodes(tree);
+            set({ expandedNodes: newExpandedNodes });
+            delete (state as any).pendingExpandedPaths;
+            console.log(`[FileStore] Restored ${newExpandedNodes.size} expanded nodes`);
+          }
+
+          // 🔥 恢复选中的节点:根据 activeFileId 在文件树中查找并选中
+          if (state.activeFileId) {
+            const activeFile = state.openedFiles.find(f => f.id === state.activeFileId);
+            if (activeFile && activeFile.path) {
+              console.log(`[FileStore] 🔍 Looking for active file: ${activeFile.path}`);
+              const newSelectedIds: string[] = [];
+
+              const findAndSelectNode = (node: FileNode): boolean => {
+                if (node.path === activeFile.path) {
+                  newSelectedIds.push(node.id);
+                  console.log(`[FileStore] ✅ Found active file node: ${node.path} -> ${node.id}`);
+                  return true;
+                }
+                if (node.children) {
+                  for (const child of node.children) {
+                    if (findAndSelectNode(child)) {
+                      return true;
+                    }
+                  }
+                }
+                return false;
+              };
+              findAndSelectNode(tree);
+
+              if (newSelectedIds.length > 0) {
+                set({
+                  selectedNodeIds: newSelectedIds,
+                  lastSelectedNodeId: newSelectedIds[0]
+                });
+                console.log(`[FileStore] ✅ Selected active file: ${newSelectedIds[0]}`);
+              } else {
+                console.warn(`[FileStore] ⚠️ Active file not found in tree: ${activeFile.path}`);
+              }
+            }
+          }
+        }
       },
       
       setRootPath: async (path) => {
@@ -164,6 +223,29 @@ export const useFileStore = create<FileState>()(
           const newFiles = [...state.openedFiles, file];
           return { openedFiles: newFiles, activeFileId: fileIdToActivate };
         });
+
+        // 🔥 修复文件选中状态:在文件树中自动选中打开的文件
+        const state = get();
+        if (state.fileTree) {
+          const findAndSelectNode = (node: FileNode): boolean => {
+            if (node.path === file.path) {
+              set({
+                selectedNodeIds: [node.id],
+                lastSelectedNodeId: node.id
+              });
+              return true;
+            }
+            if (node.children) {
+              for (const child of node.children) {
+                if (findAndSelectNode(child)) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          };
+          findAndSelectNode(state.fileTree);
+        }
 
         return fileIdToActivate;
       },
@@ -358,6 +440,9 @@ export const useFileStore = create<FileState>()(
         rootPath: state.rootPath,
         // v0.2.6 新增：持久化预览模式
         previewMode: state.previewMode,
+        // 🔥 修复文件选中状态:持久化选中的节点ID和最后选中的节点
+        selectedNodeIds: state.selectedNodeIds,
+        lastSelectedNodeId: state.lastSelectedNodeId,
         // 存储展开的路径而不是 ID，因为 ID 每次重新加载都会变化
         expandedPaths: Array.from(
           (() => {
@@ -379,6 +464,25 @@ export const useFileStore = create<FileState>()(
       }),
 
       onRehydrateStorage: () => (state) => {
+        // 🔥 临时:清空旧缓存以强制重新持久化新字段
+        // 检测旧缓存:没有 selectedNodeIds 字段
+        if (state && !(state as any).selectedNodeIds && state.openedFiles.length > 0) {
+          // 检查是否已经清空过,避免无限刷新
+          if (!sessionStorage.getItem('file-storage-cleared')) {
+            console.warn('[FileStore] Old cache detected, clearing localStorage');
+            localStorage.removeItem('file-storage');
+            sessionStorage.setItem('file-storage-cleared', 'true');
+            location.reload();
+            return;
+          } else {
+            // 已经清空过但仍然是旧结构,清除标记继续运行
+            sessionStorage.removeItem('file-storage-cleared');
+          }
+        } else {
+          // 新缓存正常,清除标记
+          sessionStorage.removeItem('file-storage-cleared');
+        }
+
         // 🔥 修复编辑器持久化:优先使用持久化的内容,避免不必要的重新加载
         if (state) {
             // 将 expandedPaths 转换回临时的 expandedPaths 变量
