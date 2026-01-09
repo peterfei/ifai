@@ -1,138 +1,435 @@
-.layout-switcher-container {
+/* ============================================
+   LayoutSwitcher - 工业级UI样式
+   ============================================ */
+
+/* 容器 */
+.layout-switcher {
   position: relative;
-  display: inline-block;
-}
-
-.layout-button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 6px;
+}
+
+/* ============================================
+   触发按钮
+   ============================================ */
+.layout-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
   background: transparent;
-  border: none;
-  border-radius: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
-  color: inherit;
-  opacity: 0.7;
-  transition: opacity 0.2s, background-color 0.2s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.layout-button:hover {
-  opacity: 1;
-  background-color: rgba(255, 255, 255, 0.1);
+.layout-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.95);
 }
 
-.layout-button:focus {
-  outline: 2px solid rgba(255, 255, 255, 0.3);
+.layout-trigger:active {
+  transform: scale(0.98);
+}
+
+.layout-trigger.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: rgba(255, 255, 255, 1);
+}
+
+.layout-trigger:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
   outline-offset: 2px;
-  opacity: 1;
 }
 
+/* ============================================
+   图标样式
+   ============================================ */
 .layout-icon {
   flex-shrink: 0;
+  color: currentColor;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.layout-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 200px;
-  background: var(--bg-secondary, #1e1e1e);
-  border: 1px solid var(--border-color, #3c3c3c);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  padding: 4px;
-  z-index: 1000;
+.layout-icon-border {
+  stroke: currentColor;
+  stroke-opacity: 0.4;
 }
 
-.layout-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.15s;
-  color: inherit;
+.layout-icon-active {
+  fill: currentColor;
 }
 
-.layout-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+.layout-trigger:hover .layout-icon {
+  transform: scale(1.05);
 }
 
-.layout-menu-item.active {
-  background-color: rgba(255, 255, 255, 0.12);
-}
-
+/* 标签文字 */
 .layout-label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
   font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
-.layout-english-label {
-  font-size: 11px;
+/* 下拉箭头 */
+.dropdown-arrow {
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 0.6;
 }
 
-.check-icon {
-  flex-shrink: 0;
-  color: var(--accent-color, #4CAF50);
+.dropdown-arrow.open {
+  transform: rotate(180deg);
+  opacity: 1;
 }
 
-/* Tooltip样式（可选，使用浏览器原生title属性） */
-.layout-button[title]:hover::after {
+/* ============================================
+   下拉菜单
+   ============================================ */
+.layout-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 280px;
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    0 2px 4px -1px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  z-index: 1000;
+  animation: dropdownSlideIn 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   菜单头部
+   ============================================ */
+.layout-dropdown-header {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+}
+
+.layout-dropdown-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.layout-dropdown-subtitle {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ============================================
+   分隔线
+   ============================================ */
+.layout-dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 8px 0;
+}
+
+/* ============================================
+   菜单选项
+   ============================================ */
+.layout-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  margin-bottom: 2px;
+}
+
+.layout-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.layout-option.selected {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.layout-option.selected:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+
+/* 选项图标 */
+.layout-option-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.layout-option:hover .layout-option-icon {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.layout-option.selected .layout-option-icon {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.layout-option-icon-accent {
+  color: #3b82f6;
+}
+
+/* 选项内容 */
+.layout-option-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layout-option-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.01em;
+}
+
+.layout-option-description {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.01em;
+}
+
+.layout-option.selected .layout-option-description {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* 选中标记 */
+.layout-option-check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+  color: #3b82f6;
+}
+
+/* ============================================
+   菜单底部
+   ============================================ */
+.layout-dropdown-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.layout-dropdown-footer-icon {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.layout-dropdown-footer-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.01em;
+}
+
+/* ============================================
+   响应式设计
+   ============================================ */
+@media (max-width: 768px) {
+  .layout-dropdown {
+    min-width: 260px;
+  }
+
+  .layout-label {
+    display: none;
+  }
+}
+
+/* ============================================
+   深色主题优化
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+  .layout-dropdown {
+    background: #1a1a1a;
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 8px 16px -4px rgba(0, 0, 0, 0.5),
+      0 4px 8px -2px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(0, 0, 0, 0.2);
+  }
+
+  .layout-dropdown-divider {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .layout-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .layout-option.selected {
+    background: rgba(59, 130, 246, 0.15);
+  }
+}
+
+/* ============================================
+   高对比度模式
+   ============================================ */
+@media (prefers-contrast: high) {
+  .layout-trigger {
+    border-width: 2px;
+  }
+
+  .layout-dropdown {
+    border-width: 2px;
+  }
+
+  .layout-option-title {
+    font-weight: 600;
+  }
+
+  .layout-option-description {
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+/* ============================================
+   减少动画模式
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .layout-trigger,
+  .layout-icon,
+  .dropdown-arrow,
+  .layout-option,
+  .layout-dropdown {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ============================================
+   打印样式
+   ============================================ */
+@media print {
+  .layout-switcher {
+    display: none;
+  }
+}
+
+/* ============================================
+   Focus visible 优化
+   ============================================ */
+.layout-option:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+/* ============================================
+   工具提示（可选，使用CSS伪元素）
+   ============================================ */
+.layout-trigger[title]:hover::before {
   content: attr(title);
   position: absolute;
-  bottom: -30px;
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.9);
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.95);
   color: white;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
+  opacity: 0;
+  animation: tooltipFadeIn 0.15s ease-out;
+  z-index: 1001;
 }
 
-/* 深色主题 */
-@media (prefers-color-scheme: dark) {
-  .layout-menu {
-    background: #2d2d2d;
-    border-color: #4c4c4c;
-  }
+.layout-trigger[title]:hover::after {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid rgba(0, 0, 0, 0.95);
+  z-index: 1001;
+}
 
-  .layout-menu-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
   }
-
-  .layout-menu-item.active {
-    background-color: rgba(255, 255, 255, 0.15);
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
-/* 浅色主题 */
-@media (prefers-color-scheme: light) {
-  .layout-button:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+/* ============================================
+   触摸设备优化
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  .layout-trigger {
+    min-height: 44px;
+    min-width: 44px;
   }
 
-  .layout-menu {
-    background: #ffffff;
-    border-color: #e0e0e0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  .layout-option {
+    min-height: 44px;
   }
 
-  .layout-menu-item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+  /* 移除悬停效果，使用触摸反馈 */
+  .layout-trigger:active {
+    background: rgba(255, 255, 255, 0.12);
   }
 
-  .layout-menu-item.active {
-    background-color: rgba(0, 0, 0, 0.08);
+  .layout-option:active {
+    background: rgba(255, 255, 255, 0.1);
   }
 }
