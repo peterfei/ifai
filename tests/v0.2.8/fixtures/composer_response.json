@@ -1,0 +1,22 @@
+{
+  "id": "chatcmpl-v028composer",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "I have refactored the Auth service to use the new Logger trait as requested. This involves updating the model definition and the service implementation.",
+        "tool_calls": [
+          {
+            "id": "call_123",
+            "type": "function",
+            "function": {
+              "name": "composer_edit",
+              "arguments": "{\"changes\": [{\"path\": \"src/services/auth.rs\", \"content\": \"// New implementation\nuse crate::traits::Logger;\nstruct AuthService<L: Logger> { logger: L }\nimpl<L: Logger> AuthService<L> { pub fn login(&self) { self.logger.info(\"login\"); } }\"}, {\"path\": \"src/traits/mod.rs\", \"content\": \"pub trait Logger { fn info(&self, msg: &str); }\"}]}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
+}
