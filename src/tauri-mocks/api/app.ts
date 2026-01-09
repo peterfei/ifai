@@ -8,7 +8,7 @@ export async function getName(): Promise<string> {
 }
 
 export async function getVersion(): Promise<string> {
-  return '0.2.6';
+  return '0.2.7';
 }
 
 export async function getTauriVersion(): Promise<string> {

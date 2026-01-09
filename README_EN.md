@@ -26,6 +26,8 @@
 
 ### 📈 Project Status
 
+- **🎉 v0.2.7 Experience Leap** - Jan 09, 2026 (AI Rollback, Smart Diff, Industrial Layout Switcher, Automated E2E Framework)
+- **🎉 v0.2.6 Agent Evolution** - Jan 07, 2026 (Shell access, Structured Task Tree, OpenSpec Integration, MD Preview)
 - **🎉 v0.2.5 Hybrid Intelligence** - Jan 03, 2026 (Local LLM Support, Intelligence Router, Offline Completion)
 - **🎉 v0.2.4 Optimization Update** - Dec 30, 2025 (Windows Rendering, Flicker Fixes, Stability)
 - **🎉 v0.2.0 Major Update** - Dec 20, 2025 (Interactivity & Performance Milestone)

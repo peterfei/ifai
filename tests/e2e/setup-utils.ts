@@ -592,7 +592,7 @@ export async function setupE2ETestEnvironment(page: Page) {
     // 🔥 Mock Tauri app API
     const mockApp = {
         getName: async () => 'IfAI',
-        getVersion: async () => '0.2.6',
+        getVersion: async () => '0.2.7',
         getTauriVersion: async () => '1.5.0',
     };
 

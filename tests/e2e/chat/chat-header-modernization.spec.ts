@@ -30,7 +30,7 @@ test.describe('Chat UI Industrial Grade Header (Deep Stabilized)', () => {
     const content = await page.content();
     
     // 1. 验证高级版本徽章
-    expect(content).toContain('V0.2.6 PRO');
+    expect(content).toContain('V0.2.7 PRO');
     expect(content).toContain('IfAI Editor');
 
     // 2. 验证现代质感类名

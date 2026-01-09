@@ -67,7 +67,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   // 🔥 修复版本显示硬编码:动态获取版本号
-  const [appVersion, setAppVersion] = useState<string>('0.2.6');
+  const [appVersion, setAppVersion] = useState<string>('0.2.7');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);

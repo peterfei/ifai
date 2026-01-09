@@ -1,7 +1,7 @@
 {
   "name": "ifai",
   "description": "若爱 (IfAI) - 基于 Tauri 2.0 构建的跨平台 AI 代码编辑器 | A cross-platform AI code editor built with Tauri 2.0",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "author": {
     "name": "peterfei",
     "email": "peterfeispace@gmail.com",
