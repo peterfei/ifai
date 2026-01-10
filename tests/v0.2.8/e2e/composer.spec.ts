@@ -65,12 +65,12 @@ test.describe('Composer 2.0: Realistic UI Interaction', () => {
     // 2. 等待 Diff 预览出现
     await page.waitForSelector(COMPOSER_DIFF_CONTAINER);
 
-    // 3. 真实操作：点击“拒绝全部”
+    // 3. 真实操作：点击"拒绝全部"
     await page.click(REJECT_ALL_BTN);
 
     // 4. 验证：文件内容未发生变化
     // 可以通过读取文件树或内存状态来验证
-    await expect(diffContainer).not.toBeVisible();
+    await expect(page.locator(COMPOSER_DIFF_CONTAINER)).not.toBeVisible();
     const hasChanges = await page.evaluate(() => (window as any).__E2E_HAS_UNCOMMITTED_CHANGES__());
     expect(hasChanges).toBeFalsy();
   });

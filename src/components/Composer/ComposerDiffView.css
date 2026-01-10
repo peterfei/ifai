@@ -1,0 +1,456 @@
+/**
+ * v0.2.8 Composer 2.0 - 多文件 Diff 预览组件样式
+ */
+
+/* ============================================================================
+   容器样式
+   ============================================================================ */
+
+.composer-diff-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary, #1e1e1e);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.composer-diff-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text-secondary, #888);
+}
+
+/* ============================================================================
+   头部样式
+   ============================================================================ */
+
+.composer-diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color, #333);
+  background: var(--bg-secondary, #252526);
+}
+
+.composer-diff-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.composer-diff-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.file-count {
+  padding: 2px 8px;
+  background: var(--accent-color, #007acc);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.composer-diff-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================================================
+   按钮样式
+   ============================================================================ */
+
+.composer-diff-actions button,
+.file-item-actions button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.btn-accept-all {
+  background: var(--success-color, #4caf50);
+  color: white;
+}
+
+.btn-accept-all:hover {
+  background: #45a049;
+}
+
+.btn-reject-all {
+  background: var(--error-color, #f44336);
+  color: white;
+}
+
+.btn-reject-all:hover {
+  background: #da190b;
+}
+
+.btn-close {
+  background: transparent;
+  color: var(--text-secondary, #888);
+  font-size: 18px;
+  padding: 4px 8px;
+}
+
+.btn-close:hover {
+  color: var(--text-primary, #fff);
+  background: var(--hover-bg, #3c3c3c);
+}
+
+/* ============================================================================
+   主内容区
+   ============================================================================ */
+
+.composer-diff-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   文件列表
+   ============================================================================ */
+
+.composer-file-list {
+  width: 320px;
+  min-width: 280px;
+  max-width: 400px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-color, #333);
+  background: var(--bg-secondary, #252526);
+}
+
+.composer-file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color, #333);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.composer-file-item:hover {
+  background: var(--hover-bg, #2d2d30);
+}
+
+.composer-file-item.selected {
+  background: var(--selected-bg, #37373d);
+  border-left: 3px solid var(--accent-color, #007acc);
+}
+
+.composer-file-item.applied {
+  opacity: 0.6;
+}
+
+.file-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-dir {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.file-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-accept-single,
+.btn-reject-single {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, #444);
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-accept-single:hover {
+  background: var(--success-color, #4caf50);
+  color: white;
+  border-color: var(--success-color, #4caf50);
+}
+
+.btn-reject-single:hover {
+  background: var(--error-color, #f44336);
+  color: white;
+  border-color: var(--error-color, #f44336);
+}
+
+.applied-badge {
+  font-size: 11px;
+  color: var(--success-color, #4caf50);
+  font-weight: 500;
+  padding: 0 4px;
+}
+
+/* ============================================================================
+   Diff 编辑器区域
+   ============================================================================ */
+
+.composer-diff-editor {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-primary, #1e1e1e);
+}
+
+.monaco-diff-editor-wrapper {
+  height: 100%;
+}
+
+.diff-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary, #888);
+  font-size: 14px;
+}
+
+/* ============================================================================
+   简单 Diff 视图（替代 Monaco Diff Editor 的临时方案）
+   ============================================================================ */
+
+.simple-diff-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--bg-secondary, #252526);
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+.diff-path {
+  font-size: 13px;
+  color: var(--text-primary, #fff);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+.diff-language {
+  padding: 2px 8px;
+  background: var(--bg-tertiary, #3c3c3c);
+  color: var(--text-secondary, #aaa);
+  border-radius: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.diff-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.diff-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.diff-panel:first-child {
+  border-right: 1px solid var(--border-color, #333);
+}
+
+.diff-panel-title {
+  padding: 8px 16px;
+  background: var(--bg-secondary, #252526);
+  border-bottom: 1px solid var(--border-color, #333);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.diff-panel pre {
+  flex: 1;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  background: var(--bg-primary, #1e1e1e);
+  color: var(--text-primary, #d4d4d4);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ============================================================================
+   底部状态栏
+   ============================================================================ */
+
+.composer-diff-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-color, #333);
+  background: var(--bg-secondary, #252526);
+}
+
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
+}
+
+.all-applied-badge {
+  padding: 2px 8px;
+  background: var(--success-color, #4caf50);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ============================================================================
+   变更类型样式
+   ============================================================================ */
+
+.change-type-added .file-name {
+  color: #4ec9b0;
+}
+
+.change-type-deleted .file-name {
+  color: #f48771;
+}
+
+.change-type-modified .file-name {
+  color: #dcdcaa;
+}
+
+/* ============================================================================
+   滚动条样式
+   ============================================================================ */
+
+.composer-file-list::-webkit-scrollbar,
+.diff-panel pre::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.composer-file-list::-webkit-scrollbar-track,
+.diff-panel pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.composer-file-list::-webkit-scrollbar-thumb,
+.diff-panel pre::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #424242);
+  border-radius: 4px;
+}
+
+.composer-file-list::-webkit-scrollbar-thumb:hover,
+.diff-panel pre::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #4f4f4f);
+}
+
+/* ============================================================================
+   响应式设计
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .composer-diff-body {
+    flex-direction: column;
+  }
+
+  .composer-file-list {
+    width: 100%;
+    max-width: none;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color, #333);
+  }
+
+  .composer-diff-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .composer-diff-actions {
+    justify-content: stretch;
+  }
+
+  .composer-diff-actions button {
+    flex: 1;
+  }
+}
+
+/* ============================================================================
+   暗色主题优化
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-tertiary: #3c3c3c;
+    --text-primary: #d4d4d4;
+    --text-secondary: #858585;
+    --border-color: #3c3c3c;
+    --hover-bg: #2d2d30;
+    --selected-bg: #37373d;
+    --accent-color: #007acc;
+    --success-color: #4caf50;
+    --error-color: #f44336;
+  }
+}
