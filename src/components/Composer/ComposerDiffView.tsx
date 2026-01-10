@@ -81,6 +81,12 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
   // 处理单个文件拒绝
   const handleRejectFile = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // 从已应用列表中移除
+    setAppliedFiles(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(path);
+      return newSet;
+    });
     onRejectFile?.(path);
   };
 
@@ -96,6 +102,17 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
     setAppliedFiles(new Set());
     onRejectAll?.();
   };
+
+  // 🔥 同步外部 changes.applied 状态到本地 appliedFiles
+  // 这样当父组件重置 applied 状态时，UI 也会正确更新
+  useEffect(() => {
+    const appliedFromProps = new Set(
+      changes
+        .filter(c => c.applied)
+        .map(c => c.path)
+    );
+    setAppliedFiles(appliedFromProps);
+  }, [changes]);
 
   // 获取变更类型图标
   const getChangeIcon = (change: FileChange) => {
@@ -212,7 +229,19 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
 
                 {/* 单个文件操作按钮 */}
                 <div className="file-item-actions">
-                  {!isApplied ? (
+                  {isApplied ? (
+                    <>
+                      <span className="applied-badge">已应用</span>
+                      {/* 🔥 已应用的文件也可以拒绝（回滚） */}
+                      <button
+                        className="btn-reject-single"
+                        onClick={(e) => handleRejectFile(change.path, e)}
+                        title="拒绝此文件变更（回滚）"
+                      >
+                        ✗
+                      </button>
+                    </>
+                  ) : (
                     <>
                       <button
                         className="btn-accept-single"
@@ -229,8 +258,6 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
                         ✗
                       </button>
                     </>
-                  ) : (
-                    <span className="applied-badge">已应用</span>
                   )}
                 </div>
               </div>
@@ -320,6 +347,7 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
   return (
     <div className="monaco-diff-editor-wrapper">
       <MonacoDiffEditor
+        key={`${path}-${language}`}
         language={language}
         original={original || ''}
         modified={modified || ''}

@@ -1130,6 +1130,9 @@ ${context}
   const extractFileChanges = useCallback((message: any): FileChange[] => {
     const changes: FileChange[] = [];
 
+    console.log('[extractFileChanges] Extracting from message:', message.id);
+    console.log('[extractFileChanges] toolCalls count:', message.toolCalls?.length);
+
     // 遍历消息中的 contentSegments（如果存在）
     if (message.contentSegments && Array.isArray(message.contentSegments)) {
       for (const segment of message.contentSegments) {
@@ -1141,17 +1144,26 @@ ${context}
           const toolName = toolCall.function?.name || toolCall.tool;
           const args = parseToolArgs(toolCall.function?.arguments || toolCall.arguments);
 
+          console.log('[extractFileChanges] Tool call:', toolName, 'args keys:', Object.keys(args || {}));
+
           // 只处理 agent_write_file 工具
-          if (toolName === 'agent_write_file' && args.rel_path && args.content) {
-            const result = parseToolResult(toolCall.result);
-            if (result && result.success) {
-              changes.push({
-                path: args.rel_path,
-                content: args.content,
-                originalContent: result.originalContent,
-                changeType: result.originalContent ? 'modified' : 'added',
-                applied: false,
-              });
+          if (toolName === 'agent_write_file') {
+            // 🔥 支持 rel_path 和 relPath 两种参数名
+            const relPath = args.rel_path || args.relPath;
+            if (relPath && args.content) {
+              const result = parseToolResult(toolCall.result);
+              console.log('[extractFileChanges] Tool result:', result);
+
+              if (result && result.success) {
+                changes.push({
+                  path: relPath,
+                  content: args.content,
+                  originalContent: result.originalContent,
+                  changeType: result.originalContent ? 'modified' : 'added',
+                  applied: false,
+                });
+                console.log('[extractFileChanges] ✓ Change extracted:', relPath);
+              }
             }
           }
         }
@@ -1160,25 +1172,61 @@ ${context}
 
     // 兜底：直接从 toolCalls 提取
     if (changes.length === 0 && message.toolCalls) {
+      console.log('[extractFileChanges] Fallback: direct extraction from toolCalls');
       for (const toolCall of message.toolCalls) {
         const toolName = toolCall.function?.name || toolCall.tool;
-        const args = parseToolArgs(toolCall.function?.arguments || toolCall.arguments);
 
-        if (toolName === 'agent_write_file' && args.rel_path && args.content) {
-          const result = parseToolResult(toolCall.result);
-          if (result && result.success) {
-            changes.push({
-              path: args.rel_path,
-              content: args.content,
-              originalContent: result.originalContent,
-              changeType: result.originalContent ? 'modified' : 'added',
-              applied: false,
-            });
+        // 🔥 详细日志：查看 toolCall 的原始结构
+        console.log('[extractFileChanges] Tool call structure:', {
+          id: toolCall.id,
+          tool: toolCall.tool,
+          functionName: toolCall.function?.name,
+          functionArguments: toolCall.function?.arguments,
+          functionArgumentsType: typeof toolCall.function?.arguments,
+          arguments: toolCall.arguments,
+          argumentsType: typeof toolCall.arguments,
+          // 🔥 添加更多可能的参数位置
+          args: (toolCall as any).args,
+          argsType: typeof (toolCall as any).args,
+          parameters: (toolCall as any).parameters,
+          parametersType: typeof (toolCall as any).parameters,
+          result: toolCall.result,
+        });
+
+        // 🔥 尝试从多个可能的字段提取参数
+        const args = parseToolArgs(
+          toolCall.function?.arguments ||
+          toolCall.arguments ||
+          (toolCall as any).args ||
+          (toolCall as any).parameters ||
+          '{}'
+        );
+
+        console.log('[extractFileChanges] Tool call (fallback):', toolName, 'args keys:', Object.keys(args || {}), 'args:', args);
+
+        if (toolName === 'agent_write_file') {
+          // 🔥 支持 rel_path 和 relPath 两种参数名
+          const relPath = args.rel_path || args.relPath;
+          if (relPath && args.content) {
+            const result = parseToolResult(toolCall.result);
+            console.log('[extractFileChanges] Tool result (fallback):', result);
+
+            if (result && result.success) {
+              changes.push({
+                path: relPath,
+                content: args.content,
+                originalContent: result.originalContent,
+                changeType: result.originalContent ? 'modified' : 'added',
+                applied: false,
+              });
+              console.log('[extractFileChanges] ✓ Change extracted (fallback):', relPath);
+            }
           }
         }
       }
     }
 
+    console.log('[extractFileChanges] Total changes extracted:', changes.length);
     return changes;
   }, [parseToolResult, parseToolArgs]);
 
@@ -1186,14 +1234,23 @@ ${context}
    * 打开 Composer 面板
    */
   const openComposer = useCallback((messageId: string) => {
+    console.log('[openComposer] Opening Composer for message:', messageId);
     const message = rawMessages.find(m => m.id === messageId);
-    if (!message) return;
+    if (!message) {
+      console.warn('[openComposer] Message not found:', messageId);
+      return;
+    }
 
     const changes = extractFileChanges(message);
+    console.log('[openComposer] Changes found:', changes.length);
+
     if (changes.length > 0) {
       setComposerChanges(changes);
       setComposerMessageId(messageId);
       setComposerOpen(true);
+      console.log('[openComposer] ✓ Composer opened with', changes.length, 'changes');
+    } else {
+      console.warn('[openComposer] No file changes found, cannot open Composer');
     }
   }, [rawMessages, extractFileChanges]);
 
@@ -1217,37 +1274,111 @@ ${context}
   }, [openComposer]);
 
   /**
+   * Composer: 刷新已打开的文件内容
+   *
+   * 在 accept/reject 操作后，需要刷新编辑器中打开的文件内容
+   * 这样用户才能看到最新的文件状态
+   */
+  const refreshOpenedFiles = useCallback(async (filePaths: string[]) => {
+    const fileStore = useFileStore.getState();
+    const rootPath = fileStore.rootPath;
+
+    if (!rootPath) {
+      console.log('[Composer] No root path, skipping file refresh');
+      return;
+    }
+
+    // 找出需要刷新的文件（已打开且在 filePaths 列表中）
+    const filesToRefresh = fileStore.openedFiles.filter(file => {
+      if (!file.path) return false;
+      // 将相对路径转换为绝对路径进行比较
+      const fullPath = file.path.startsWith(rootPath)
+        ? file.path
+        : `${rootPath}/${file.path}`;
+      return filePaths.some(path => {
+        const targetPath = path.startsWith(rootPath)
+          ? path
+          : `${rootPath}/${path}`;
+        return fullPath === targetPath || file.path.endsWith(path);
+      });
+    });
+
+    console.log('[Composer] Refreshing opened files:', filesToRefresh.map(f => f.path));
+
+    // 刷新每个文件的内容
+    let refreshedCount = 0;
+    for (const file of filesToRefresh) {
+      try {
+        // 只刷新没有未保存更改的文件
+        if (!file.isDirty) {
+          await fileStore.reloadFileContent(file.id);
+          refreshedCount++;
+          console.log('[Composer] ✓ Refreshed file:', file.path);
+        } else {
+          console.log('[Composer] ⊘ Skipped dirty file:', file.path);
+        }
+      } catch (e) {
+        console.warn('[Composer] Failed to refresh file:', file.path, e);
+      }
+    }
+
+    // 刷新文件树（显示最新的 git 状态）
+    try {
+      await fileStore.refreshFileTree();
+      console.log('[Composer] ✓ Refreshed file tree');
+    } catch (e) {
+      console.warn('[Composer] Failed to refresh file tree (non-critical):', e);
+    }
+
+    console.log(`[Composer] File refresh complete: ${refreshedCount}/${filesToRefresh.length} files refreshed`);
+  }, []);
+
+  /**
    * Composer: 接受所有文件变更
    */
   const handleComposerAcceptAll = useCallback(async () => {
+    console.log('[Composer] Accept All clicked, changes:', composerChanges.length);
     const operations = composerChanges.map(fileChangeToOperation);
+    console.log('[Composer] Operations to execute:', operations.map(op => ({ path: op.path, op: op.op_type })));
 
     try {
-      // 执行原子写入
+      // 🔥 Composer 上下文中跳过冲突检测
+      // 用户已经在预览界面中看到了变更，直接应用
       const result = await atomicWriteService.executeAtomicWrite(operations, {
-        onConflict: async (conflicts) => {
-          // 检测到冲突，询问用户
-          const message = `以下文件已被修改：\n${conflicts.join('\n')}\n\n是否覆盖？`;
-          return confirm(message);
-        }
+        skipConflictCheck: true
       });
 
+      console.log('[Composer] Accept All result:', result);
+
       if (result.success) {
+        // 刷新已打开的文件内容
+        const changedPaths = composerChanges.map(c => c.path);
+        await refreshOpenedFiles(changedPaths);
+
         setComposerOpen(false);
         setComposerChanges([]);
         setComposerMessageId(null);
+        toast.success(`已应用 ${result.applied_files?.length || operations.length} 个文件变更`);
+      } else {
+        console.error('[Composer] Accept All failed:', result);
+        toast.error(`应用失败: ${result.errors?.join(', ') || '未知错误'}`);
       }
     } catch (error) {
       console.error('[Composer] Failed to apply changes:', error);
-      // 不关闭面板，让用户可以重试
+      toast.error(`应用失败: ${error}`);
     }
-  }, [composerChanges]);
+  }, [composerChanges, refreshOpenedFiles]);
 
   /**
    * Composer: 拒绝所有文件变更（回滚文件内容）
    */
   const handleComposerRejectAll = useCallback(async () => {
+    console.log('[Composer] Reject All clicked, changes:', composerChanges.length);
+
     try {
+      let rolledBack = 0;
+      let deleted = 0;
+
       // 对每个变更执行回滚操作
       for (const change of composerChanges) {
         if (change.changeType === 'modified' && change.originalContent) {
@@ -1260,6 +1391,7 @@ ${context}
               content: change.originalContent
             });
             console.log('[Composer] Rolled back modified file:', change.path);
+            rolledBack++;
           }
         } else if (change.changeType === 'added') {
           // 新增的文件：删除
@@ -1271,6 +1403,7 @@ ${context}
                 relPath: change.path
               });
               console.log('[Composer] Deleted new file:', change.path);
+              deleted++;
             } catch (e) {
               // 文件可能不存在，忽略错误
               console.warn('[Composer] Failed to delete file (may not exist):', change.path);
@@ -1279,15 +1412,27 @@ ${context}
         }
       }
 
+      // 刷新已打开的文件内容
+      const changedPaths = composerChanges.map(c => c.path);
+      await refreshOpenedFiles(changedPaths);
+
       setComposerOpen(false);
       setComposerChanges([]);
       setComposerMessageId(null);
-      toast.success('已拒绝所有文件变更，文件已恢复');
+
+      const message = `已拒绝所有文件变更`;
+      if (rolledBack > 0 || deleted > 0) {
+        toast.success(`${message}（回滚 ${rolledBack} 个，删除 ${deleted} 个）`);
+      } else {
+        toast.info(message);
+      }
+
+      console.log('[Composer] Reject All completed:', { rolledBack, deleted });
     } catch (error) {
       console.error('[Composer] Failed to rollback changes:', error);
       toast.error(`回滚失败: ${error}`);
     }
-  }, [composerChanges]);
+  }, [composerChanges, refreshOpenedFiles]);
 
   /**
    * Composer: 接受单个文件变更
@@ -1299,9 +1444,17 @@ ${context}
     try {
       // 创建单文件操作的原子写入
       const operation = fileChangeToOperation(change);
-      const result = await atomicWriteService.executeAtomicWrite([operation]);
+
+      // 🔥 Composer 上下文中跳过冲突检测
+      // 因为用户在 Composer 中可以反复"接受→拒绝"，每次都是有意操作
+      const result = await atomicWriteService.executeAtomicWrite([operation], {
+        skipConflictCheck: true
+      });
 
       if (result.success) {
+        // 刷新已打开的文件内容
+        await refreshOpenedFiles([path]);
+
         setComposerChanges(prev =>
           prev.map(c =>
             c.path === path ? { ...c, applied: true } : c
@@ -1312,10 +1465,10 @@ ${context}
     } catch (error) {
       console.error(`[Composer] Failed to apply ${path}:`, error);
     }
-  }, [composerChanges]);
+  }, [composerChanges, refreshOpenedFiles]);
 
   /**
-   * Composer: 拒绝单个文件变更
+   * Composer: 拒绝单个文件变更（回滚文件内容，但保留在列表中以便重新接受）
    */
   const handleComposerRejectFile = useCallback(async (path: string) => {
     try {
@@ -1354,14 +1507,21 @@ ${context}
         }
       }
 
-      // 从变更列表中移除
-      setComposerChanges(prev => prev.filter(c => c.path !== path));
+      // 刷新已打开的文件内容
+      await refreshOpenedFiles([path]);
+
+      // 重置 applied 状态为 false，保留文件在列表中以便重新接受
+      setComposerChanges(prev =>
+        prev.map(c =>
+          c.path === path ? { ...c, applied: false } : c
+        )
+      );
       toast.success(`已拒绝并回滚: ${path}`);
     } catch (error) {
       console.error('[Composer] Failed to rollback file:', error);
       toast.error(`回滚失败: ${error}`);
     }
-  }, [composerChanges]);
+  }, [composerChanges, refreshOpenedFiles]);
 
   /**
    * Composer: 关闭面板
