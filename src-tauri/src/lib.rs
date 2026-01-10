@@ -38,6 +38,8 @@ use lsp::LspManager;
 use agent_system::Supervisor;
 use crate::core_traits::ai::{Message, Content, ContentPart};
 use crate::commands::symbol_commands::SymbolIndexState;
+use crate::commands::atomic_commands::SessionStore;
+use crate::commands::error_commands::ErrorParserState;
 
 pub struct AppState {
     pub ai_service: Arc<dyn core_traits::ai::AIService>,
@@ -679,6 +681,14 @@ pub fn run() {
         // v0.2.8: 符号索引状态
         app.manage(Arc::new(std::sync::Mutex::new(SymbolIndexState::new())));
 
+        // v0.2.8: 原子操作会话存储
+        app.manage(std::sync::Mutex::new(SessionStore::new()));
+
+        // v0.2.8: 错误解析器状态
+        let error_parser = ErrorParserState::new()
+            .map_err(|e| format!("Failed to create ErrorParserState: {}", e))?;
+        app.manage(std::sync::Mutex::new(error_parser));
+
         #[cfg(feature = "commercial")]
         {
             app.manage(ifainew_core::RagState::new());
@@ -791,7 +801,23 @@ pub fn run() {
             commands::symbol_commands::index_project_symbols,
             commands::symbol_commands::find_symbol_references,
             commands::symbol_commands::find_implementations,
-            commands::symbol_commands::clear_symbol_index
+            commands::symbol_commands::clear_symbol_index,
+            // v0.2.8 新增：原子文件操作
+            commands::atomic_commands::atomic_write_start,
+            commands::atomic_commands::atomic_write_add_operation,
+            commands::atomic_commands::atomic_write_detect_conflicts,
+            commands::atomic_commands::atomic_write_commit,
+            commands::atomic_commands::atomic_write_rollback,
+            commands::atomic_commands::atomic_write_get_session,
+            commands::atomic_commands::atomic_file_hash,
+            commands::atomic_commands::atomic_check_conflict,
+            // v0.2.8 新增：终端错误解析
+            commands::error_commands::parse_terminal_errors,
+            commands::error_commands::generate_error_fix_context,
+            commands::error_commands::quick_parse_error_line,
+            commands::error_commands::detect_terminal_language,
+            commands::error_commands::batch_parse_errors,
+            commands::error_commands::get_error_file_content
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

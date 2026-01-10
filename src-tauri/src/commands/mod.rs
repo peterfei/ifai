@@ -9,3 +9,7 @@ pub mod proposal_commands;
 pub mod bash_commands;
 // v0.2.8 新增：符号索引与跨文件关联
 pub mod symbol_commands;
+// v0.2.8 新增：原子文件操作
+pub mod atomic_commands;
+// v0.2.8 新增：终端错误解析
+pub mod error_commands;
