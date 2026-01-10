@@ -44,6 +44,7 @@ export default defineConfig(async ({ mode }) => {
           '@tauri-apps/api/event': path.resolve(__dirname, './src/tauri-mocks/api/event'),
           '@tauri-apps/api/window': path.resolve(__dirname, './src/tauri-mocks/api/window'),
           '@tauri-apps/api/app': path.resolve(__dirname, './src/tauri-mocks/api/app'),
+          '@tauri-apps/api/core': path.resolve(__dirname, './src/tauri-mocks/api/core'),
         } : {})
       }
     },

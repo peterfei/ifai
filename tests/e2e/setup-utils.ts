@@ -1,25 +1,77 @@
 import { Page } from '@playwright/test';
 
 /**
- * 设置 E2E 测试环境，强力锁定应用状态
+ * E2E 测试环境配置选项
  */
-export async function setupE2ETestEnvironment(page: Page) {
-  // 1. Mock API
-  await page.route('**/v1/chat/completions', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: 'mock-' + Date.now(),
-        choices: [{ index: 0, message: { role: 'assistant', content: 'Starting task implementation...' }, finish_reason: 'stop' }],
-        usage: { total_tokens: 10 }
-      }),
+export interface E2ETestEnvironmentOptions {
+  /**
+   * 是否使用真实 AI（不 Mock AI API）
+   * @default false
+   */
+  useRealAI?: boolean;
+
+  /**
+   * 真实 AI 的 API Key（可选，如果使用真实 AI 但不想在 localStorage 中配置）
+   */
+  realAIApiKey?: string;
+
+  /**
+   * 真实 AI 的 Base URL（可选）
+   */
+  realAIBaseUrl?: string;
+
+  /**
+   * 真实 AI 的模型名称（可选）
+   */
+  realAIModel?: string;
+}
+
+/**
+ * 设置 E2E 测试环境，强力锁定应用状态
+ *
+ * @param page Playwright Page 对象
+ * @param options 配置选项
+ */
+export async function setupE2ETestEnvironment(
+  page: Page,
+  options: E2ETestEnvironmentOptions = {}
+) {
+  const { useRealAI = false, realAIApiKey, realAIBaseUrl, realAIModel } = options;
+
+  // 1. Mock API（除非使用真实 AI）
+  if (!useRealAI) {
+    await page.route('**/v1/chat/completions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'mock-' + Date.now(),
+          choices: [{ index: 0, message: { role: 'assistant', content: 'Starting task implementation...' }, finish_reason: 'stop' }],
+          usage: { total_tokens: 10 }
+        }),
+      });
     });
-  });
+  } else {
+    // 真实 AI 模式：不拦截 AI API，让真实的 AI 请求通过
+    console.log('[E2E] 🤖 Using REAL AI mode - API calls will not be mocked');
+    if (realAIApiKey) {
+      console.log('[E2E] 🔑 Real AI API Key provided:', realAIApiKey?.substring(0, 10) + '...');
+    }
+    if (realAIBaseUrl) {
+      console.log('[E2E] 🌐 Real AI Base URL:', realAIBaseUrl);
+    }
+    if (realAIModel) {
+      console.log('[E2E] 🤖 Real AI Model:', realAIModel);
+    }
+  }
 
   // 2. 注入核心拦截与锁定脚本
-  await page.addInitScript(() => {
-    // A. 深度 Mock Tauri with event support
+  await page.addInitScript((realAIConfigParam) => {
+    // A. 设置真实 AI 配置（必须在最前面）
+    console.log('[E2E Init] Received config:', JSON.stringify(realAIConfigParam));
+    (window as any).__E2E_REAL_AI_CONFIG__ = realAIConfigParam;
+
+    // B. 深度 Mock Tauri with event support
     // Put eventListeners on window so it's accessible from Mock code
     (window as any).__TAURI_EVENT_LISTENERS__ = {};
 
@@ -497,6 +549,97 @@ export async function setupE2ETestEnvironment(page: Page) {
         }
 
         if (cmd === 'ai_chat') {
+            // 🔥 检查是否使用真实 AI
+            const realAIConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+            const useRealAI = realAIConfig.useRealAI === true;
+
+            // 设置标志，让测试可以检查
+            (window as any).__E2E_AI_CHAT_CALL_INFO__ = {
+                called: true,
+                useRealAI,
+                hasConfig: !!realAIConfig,
+                hasBaseUrl: !!realAIConfig.realAIBaseUrl,
+                hasApiKey: !!realAIConfig.realAIApiKey
+            };
+
+            console.log('[E2E Mock] ai_chat called, useRealAI:', useRealAI, 'config:', realAIConfig);
+
+            if (useRealAI && realAIConfig.realAIBaseUrl && realAIConfig.realAIApiKey) {
+                // 🔥 真实 AI 模式：调用真实的 API
+                const eventId = args?.event_id || 'real-ai-event-id';
+                const messages = args?.messages || [];
+                const providerId = args?.provider_id || 'real-ai-e2e';
+                const model = realAIConfig.realAIModel || 'moonshot-v1-8k';
+
+                console.log('[E2E Real AI] Calling real AI API:', {
+                    baseUrl: realAIConfig.realAIBaseUrl,
+                    model: model,
+                    messagesCount: messages.length
+                });
+
+                // 使用 fetch 调用真实 API
+                fetch(realAIConfig.realAIBaseUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${realAIConfig.realAIApiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messages.map(m => ({
+                            role: m.role,
+                            content: m.content?.Text || m.content || ''
+                        })),
+                        stream: false
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('[E2E Real AI] API response:', {
+                        id: data.id,
+                        hasChoices: !!data.choices,
+                        finishReason: data.choices?.[0]?.finish_reason
+                    });
+
+                    const streamListeners = (window as any).__TAURI_EVENT_LISTENERS__[eventId] || [];
+                    const finishListeners = (window as any).__TAURI_EVENT_LISTENERS__[`${eventId}_finish`] || [];
+
+                    if (data.choices && data.choices[0]) {
+                        const choice = data.choices[0];
+                        const content = choice.message?.content || '';
+
+                        // 发送内容
+                        streamListeners.forEach(fn => fn({ payload: content }));
+
+                        // 发送完成事件
+                        setTimeout(() => {
+                            finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                        }, 100);
+                    } else {
+                        console.error('[E2E Real AI] Invalid response format:', data);
+                        // 发送错误消息
+                        streamListeners.forEach(fn => fn({ payload: 'Error: Invalid AI response format' }));
+                        setTimeout(() => {
+                            finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                        }, 100);
+                    }
+                })
+                .catch(error => {
+                    console.error('[E2E Real AI] API call failed:', error);
+                    const streamListeners = (window as any).__TAURI_EVENT_LISTENERS__[eventId] || [];
+                    const finishListeners = (window as any).__TAURI_EVENT_LISTENERS__[`${eventId}_finish`] || [];
+
+                    // 发送错误消息
+                    streamListeners.forEach(fn => fn({ payload: `Error: ${error.message}` }));
+                    setTimeout(() => {
+                        finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                    }, 100);
+                });
+
+                return { success: true, eventId };
+            }
+
+            // 🔥 Mock 模式：使用模拟响应
             // Mock streaming response that sends content and triggers _finish event
             const eventId = args?.event_id || 'mock-event-id';
             const messages = args?.messages || [];
@@ -504,6 +647,7 @@ export async function setupE2ETestEnvironment(page: Page) {
             const query = lastUserMsg?.content?.Text || lastUserMsg?.content || '';
 
             // 🔥 Debug logging
+            console.log('[E2E Mock] Using MOCK AI mode');
             console.log('[E2E Mock] ai_chat called with eventId:', eventId);
             console.log('[E2E Mock] query:', query);
 
@@ -769,6 +913,12 @@ export function formatDate(date: Date): string {
       }
     };
 
+    // 🔥 设置 Tauri Core API mock 的 invoke handler
+    if ((window as any).setInvokeHandler) {
+      (window as any).setInvokeHandler(mockInvoke);
+      console.log('[E2E Init] Set invoke handler for @tauri-apps/api/core');
+    }
+
     // Mock proposal commands to auto-load v0.2.6-demo-vue-login
     const mockListProposals = async () => {
       const mockProposal = {
@@ -817,19 +967,76 @@ export function formatDate(date: Date): string {
 
     // Override mockInvoke for proposal commands
     const originalMockInvoke = mockInvoke;
-    (window as any).__TAURI_INTERNALS__.invoke = async (cmd: string, args?: any) => {
+    const enhancedMockInvoke = async (cmd: string, args?: any) => {
+      // 通用日志：记录 ai_chat 和 proposal 相关调用
+      if (cmd === 'ai_chat' || cmd.includes('proposal')) {
+        console.log('[E2E Invoke] cmd:', cmd, 'hasArgs:', !!args);
+      }
+
       if (cmd === 'list_proposals') return await mockListProposals();
       if (cmd === 'load_proposal') return await mockLoadProposal(args);
       return originalMockInvoke(cmd, args);
     };
 
+    // 更新两个 invoke 引用
+    (window as any).__TAURI_INTERNALS__.invoke = enhancedMockInvoke;
+    (window as any).__TAURI__.core.invoke = enhancedMockInvoke;
+
     // B. 强力劫持 LocalStorage 防止被 SettingsStore 初始化覆盖
-    const providers = [{
-        id: 'ollama-e2e', name: 'Ollama Mock', protocol: 'openai', 
-        baseUrl: 'http://localhost:11434/v1/chat/completions', 
-        apiKey: 'e2e-token', models: ['mock-model'], enabled: true
-    }];
-    
+    // 读取真实 AI 配置（如果存在）
+    const realAIConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+    console.log('[E2E Init] realAIConfig:', JSON.stringify(realAIConfig));
+
+    // 默认 providers（Mock 模式）
+    const defaultProviders = [
+        {
+            id: 'kimi-e2e',
+            name: 'Kimi (Moonshot)',
+            protocol: 'openai',
+            baseUrl: 'https://api.moonshot.cn/v1/chat/completions',
+            apiKey: 'sk-sDj3JEEB21A0BlRIncaphsF7sWQALkAIIhjhRfMddzxNahXV',
+            models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-k2-thinking'],
+            enabled: true
+        },
+        {
+            id: 'ollama-e2e',
+            name: 'Ollama Mock',
+            protocol: 'openai',
+            baseUrl: 'http://localhost:11434/v1/chat/completions',
+            apiKey: 'e2e-token',
+            models: ['mock-model'],
+            enabled: true
+        }
+    ];
+
+    // 真实 AI providers（真实 AI 模式）
+    let providers = defaultProviders;
+    let currentProviderId = 'kimi-e2e';
+    let currentModel = 'moonshot-v1-8k';
+
+    console.log('[E2E Init] useRealAI check:', realAIConfig.useRealAI, 'type:', typeof realAIConfig.useRealAI);
+
+    if (realAIConfig.useRealAI) {
+      console.log('[E2E Init] Using REAL AI mode for providers');
+      // 使用真实 AI 配置
+      const realAIProvider: any = {
+        id: 'real-ai-e2e',
+        name: realAIConfig.realAIBaseUrl?.includes('ollama') ? 'Ollama (Real)' : 'Real AI Provider',
+        protocol: 'openai',
+        baseUrl: realAIConfig.realAIBaseUrl || 'https://api.openai.com/v1/chat/completions',
+        apiKey: realAIConfig.realAIApiKey || '',
+        models: realAIConfig.realAIModel ? [realAIConfig.realAIModel] : ['gpt-4', 'gpt-3.5-turbo'],
+        enabled: true,
+        isCustom: true
+      };
+
+      providers = [realAIProvider];
+      currentProviderId = 'real-ai-e2e';
+      currentModel = realAIConfig.realAIModel || realAIProvider.models[0];
+
+      console.log('[E2E Init] 🤖 Using Real AI Provider:', realAIProvider);
+    }
+
     const configurations: Record<string, any> = {
         'ifai_onboarding_state': { completed: true, skipped: true },
         // 🔥 修复持久化测试:只设置 rootPath,保留 openedFiles 等其他状态的持久化
@@ -841,7 +1048,14 @@ export function formatDate(date: Date): string {
           },
           version: existing?.version || 0,
         }),
-        'settings-storage': { state: { currentProviderId: 'ollama-e2e', currentModel: 'mock-model', providers }, version: 0 },
+        'settings-storage': {
+            state: {
+                currentProviderId,
+                currentModel,
+                providers
+            },
+            version: 0
+        },
         'thread-storage': { state: { activeThreadId: 'e2e-thread-1', threads: [{ id: 'e2e-thread-1', messages: [] }] }, version: 0 },
         // 🔥 修复持久化测试:保留 panes 等状态的持久化
         'layout-storage': (existing: any) => ({
@@ -875,7 +1089,7 @@ export function formatDate(date: Date): string {
         const store = (window as any).__chatStore?.getState();
         if (store) {
             console.log(`[E2E] Direct Store Send: ${text}`);
-            await store.sendMessage(text, 'ollama-e2e', 'mock-model');
+            await store.sendMessage(text, 'kimi-e2e', 'kimi-k2-thinking');
         }
     };
 
@@ -989,10 +1203,10 @@ export class TestApp {
     // D. 运行时状态稳定器 (防止组件挂载后的状态偏移)
     setInterval(() => {
         if ((window as any).__E2E_SKIP_STABILIZER__) return;
-        
+
         const settings = (window as any).__settingsStore?.getState();
-        if (settings && settings.currentProviderId !== 'ollama-e2e') {
-            settings.updateSettings({ currentProviderId: 'ollama-e2e', currentModel: 'mock-model' });
+        if (settings && settings.currentProviderId !== 'kimi-e2e') {
+            settings.updateSettings({ currentProviderId: 'kimi-e2e', currentModel: 'kimi-k2-thinking' });
         }
         const file = (window as any).__fileStore?.getState();
         if (file && (!file.rootPath || !file.fileTree)) {
@@ -1060,5 +1274,5 @@ export class TestApp {
       };
       console.log('[E2E] atomicWriteService mocked');
     }, 1000);
-  });
+  }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel });
 }
