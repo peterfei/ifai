@@ -4,6 +4,9 @@
  * 提供核心 API 的 Mock 实现，包括 invoke 函数
  */
 
+// 🔥 调试：确认模块被加载
+console.log('[tauri-mocks/core] Module loaded');
+
 /**
  * SERIALIZE_TO_IPC_FN 符号 - 必须在类定义之前
  */
@@ -17,6 +20,33 @@ let invokeHandler: ((cmd: string, args?: any) => any) | null = null;
  */
 export function setInvokeHandler(handler: (cmd: string, args?: any) => any) {
   invokeHandler = handler;
+}
+
+// 🔥 暴露到 window 对象以便 E2E 测试可以访问
+if (typeof window !== 'undefined') {
+  (window as any).__tauriSetInvokeHandler__ = setInvokeHandler;
+  console.log('[tauri-mocks/core] __tauriSetInvokeHandler__ exposed to window');
+} else {
+  console.log('[tauri-mocks/core] window is undefined, skipping exposure');
+}
+
+// 🔥 如果 window 上有 __E2E_REAL_AI_CONFIG__，说明是 E2E 测试环境
+// 需要延迟注册 handler，因为 setup-utils 可能在模块加载之后执行
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    const config = (window as any).__E2E_REAL_AI_CONFIG__;
+    if (config && config.useRealAI) {
+      console.log('[tauri-mocks/core] Detected E2E Real AI mode, checking for invoke handler...');
+      // 等待 setup-utils 设置 handler
+      setTimeout(() => {
+        const handler = (window as any).__E2E_INVOKE_HANDLER__;
+        if (handler && invokeHandler !== handler) {
+          invokeHandler = handler;
+          console.log('[tauri-mocks/core] ✅ E2E invoke handler registered from __E2E_INVOKE_HANDLER__');
+        }
+      }, 200);
+    }
+  }, 100);
 }
 
 /**
