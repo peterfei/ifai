@@ -41,12 +41,12 @@ pub struct FileOperationRequest {
 }
 
 /// 原子写入会话状态
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct AtomicWriteSession {
     pub id: String,
     pub operations: Vec<FileOperationRequest>,
     pub temp_dir: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: i64, // 使用时间戳而不是 DateTime
 }
 
 /// 原子写入结果
@@ -83,10 +83,11 @@ pub fn atomic_write_start(
         id: session_id.clone(),
         operations: Vec::new(),
         temp_dir: temp_dir.to_string_lossy().to_string(),
-        created_at: chrono::Utc::now(),
+        created_at: chrono::Utc::now().timestamp(),
     };
 
-    let mut store = sessions.lock();
+    let mut store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     store.insert(session_id.clone(), session);
 
     Ok(session_id)
@@ -99,7 +100,8 @@ pub fn atomic_write_add_operation(
     session_id: String,
     operation: FileOperationRequest,
 ) -> Result<(), String> {
-    let mut store = sessions.lock();
+    let mut store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     let session = store.get_mut(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
@@ -119,7 +121,8 @@ pub fn atomic_write_detect_conflicts(
     sessions: State<std::sync::Mutex<SessionStore>>,
     session_id: String,
 ) -> Result<Vec<String>, String> {
-    let store = sessions.lock();
+    let store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     let session = store.get(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
@@ -172,7 +175,8 @@ pub fn atomic_write_commit(
     sessions: State<std::sync::Mutex<SessionStore>>,
     session_id: String,
 ) -> Result<AtomicWriteResult, String> {
-    let mut store = sessions.lock();
+    let mut store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     let session = store.remove(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
@@ -267,7 +271,8 @@ pub fn atomic_write_rollback(
     sessions: State<std::sync::Mutex<SessionStore>>,
     session_id: String,
 ) -> Result<(), String> {
-    let store = sessions.lock();
+    let store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     let session = store.get(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
@@ -280,7 +285,8 @@ pub fn atomic_write_rollback(
 
     // 从存储中移除会话
     drop(store);
-    let mut store = sessions.lock();
+    let mut store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     store.remove(&session_id);
 
     Ok(())
@@ -292,7 +298,8 @@ pub fn atomic_write_get_session(
     sessions: State<std::sync::Mutex<SessionStore>>,
     session_id: String,
 ) -> Result<AtomicWriteSession, String> {
-    let store = sessions.lock();
+    let store = sessions.lock()
+        .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     let session = store.get(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 

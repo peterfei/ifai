@@ -9,6 +9,7 @@ import { readFileContent } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
 import { MessageItem } from './MessageItem';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
 import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
@@ -26,6 +27,12 @@ import { ProposalReviewModal } from '../ProposalWorkflow';
 import { useAgentStore } from '../../stores/agentStore';
 // 🔥 修复版本显示:导入版本配置
 import { IS_COMMERCIAL } from '../../config/edition';
+// v0.2.8: Composer 2.0 多文件 Diff 预览
+import { ComposerDiffView } from '../Composer';
+import type { FileChange } from '../Composer';
+import { atomicWriteService, fileChangeToOperation } from '../../services/atomicWriteService';
+// v0.2.8: 错误修复服务
+import { errorFixService, type ParsedError, type AIFixSuggestion, isFixableError } from '../../services/errorFixService';
 
 interface AIChatProps {
   width?: number;
@@ -76,6 +83,16 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { currentBreakdown, isPanelOpen, setPanelOpen } = useTaskBreakdownStore();
   // v0.2.6: 提案审核弹窗状态
   const { isReviewModalOpen, pendingReviewProposalId, closeReviewModal } = useProposalStore();
+
+  // v0.2.8: Composer 2.0 状态
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerChanges, setComposerChanges] = useState<FileChange[]>([]);
+  const [composerMessageId, setComposerMessageId] = useState<string | null>(null);
+
+  // v0.2.8: 错误修复状态
+  const [errorFixOpen, setErrorFixOpen] = useState(false);
+  const [errorFixSuggestions, setErrorFixSuggestions] = useState<AIFixSuggestion[]>([]);
+  const [selectedError, setSelectedError] = useState<ParsedError | null>(null);
 
   // Track user manual scrolling to disable auto-scroll
   const isUserScrolling = useRef(false);
@@ -1064,6 +1081,281 @@ ${context}
     rejectToolCall(messageId, toolCallId);
   }, [rejectToolCall]);
 
+  // v0.2.8: Composer 2.0 辅助函数
+  /**
+   * 从消息中提取文件变更信息
+   */
+  const extractFileChanges = useCallback((message: any): FileChange[] => {
+    const changes: FileChange[] = [];
+
+    // 遍历消息中的 contentSegments（如果存在）
+    if (message.contentSegments && Array.isArray(message.contentSegments)) {
+      for (const segment of message.contentSegments) {
+        if (segment.type === 'tool' && segment.toolCallId) {
+          // 查找对应的 toolCall
+          const toolCall = message.toolCalls?.find((tc: any) => tc.id === segment.toolCallId);
+          if (!toolCall) continue;
+
+          const toolName = toolCall.function?.name || toolCall.tool;
+          const args = toolCall.function?.arguments || toolCall.arguments || {};
+
+          // 只处理 agent_write_file 工具
+          if (toolName === 'agent_write_file' && args.rel_path && args.content) {
+            const result = toolCall.result;
+            if (result && result.success) {
+              changes.push({
+                path: args.rel_path,
+                content: args.content,
+                originalContent: result.originalContent,
+                changeType: result.originalContent ? 'modified' : 'added',
+                applied: false,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 兜底：直接从 toolCalls 提取
+    if (changes.length === 0 && message.toolCalls) {
+      for (const toolCall of message.toolCalls) {
+        const toolName = toolCall.function?.name || toolCall.tool;
+        const args = toolCall.function?.arguments || toolCall.arguments || {};
+
+        if (toolName === 'agent_write_file' && args.rel_path && args.content) {
+          const result = toolCall.result;
+          if (result && result.success) {
+            changes.push({
+              path: args.rel_path,
+              content: args.content,
+              originalContent: result.originalContent,
+              changeType: result.originalContent ? 'modified' : 'added',
+              applied: false,
+            });
+          }
+        }
+      }
+    }
+
+    return changes;
+  }, []);
+
+  /**
+   * 打开 Composer 面板
+   */
+  const openComposer = useCallback((messageId: string) => {
+    const message = rawMessages.find(m => m.id === messageId);
+    if (!message) return;
+
+    const changes = extractFileChanges(message);
+    if (changes.length > 0) {
+      setComposerChanges(changes);
+      setComposerMessageId(messageId);
+      setComposerOpen(true);
+    }
+  }, [rawMessages, extractFileChanges]);
+
+  /**
+   * Composer: 接受所有文件变更
+   */
+  const handleComposerAcceptAll = useCallback(async () => {
+    const operations = composerChanges.map(fileChangeToOperation);
+
+    try {
+      // 执行原子写入
+      const result = await atomicWriteService.executeAtomicWrite(operations, {
+        onConflict: async (conflicts) => {
+          // 检测到冲突，询问用户
+          const message = `以下文件已被修改：\n${conflicts.join('\n')}\n\n是否覆盖？`;
+          return confirm(message);
+        }
+      });
+
+      if (result.success) {
+        setComposerOpen(false);
+        setComposerChanges([]);
+        setComposerMessageId(null);
+      }
+    } catch (error) {
+      console.error('[Composer] Failed to apply changes:', error);
+      // 不关闭面板，让用户可以重试
+    }
+  }, [composerChanges]);
+
+  /**
+   * Composer: 拒绝所有文件变更
+   */
+  const handleComposerRejectAll = useCallback(() => {
+    setComposerOpen(false);
+    setComposerChanges([]);
+    setComposerMessageId(null);
+    toast.info('已拒绝所有文件变更');
+  }, []);
+
+  /**
+   * Composer: 接受单个文件变更
+   */
+  const handleComposerAcceptFile = useCallback(async (path: string) => {
+    const change = composerChanges.find(c => c.path === path);
+    if (!change) return;
+
+    try {
+      // 创建单文件操作的原子写入
+      const operation = fileChangeToOperation(change);
+      const result = await atomicWriteService.executeAtomicWrite([operation]);
+
+      if (result.success) {
+        setComposerChanges(prev =>
+          prev.map(c =>
+            c.path === path ? { ...c, applied: true } : c
+          )
+        );
+        toast.success(`已应用: ${path}`);
+      }
+    } catch (error) {
+      console.error(`[Composer] Failed to apply ${path}:`, error);
+    }
+  }, [composerChanges]);
+
+  /**
+   * Composer: 拒绝单个文件变更
+   */
+  const handleComposerRejectFile = useCallback((path: string) => {
+    setComposerChanges(prev => prev.filter(change => change.path !== path));
+    toast.info(`已跳过: ${path}`);
+  }, []);
+
+  /**
+   * Composer: 关闭面板
+   */
+  const handleComposerClose = useCallback(() => {
+    setComposerOpen(false);
+    setComposerChanges([]);
+    setComposerMessageId(null);
+  }, []);
+
+  // v0.2.8: 错误修复处理函数
+  /**
+   * 从终端输出中检测错误并打开修复面板
+   */
+  const handleDetectErrors = useCallback(async (terminalOutput: string) => {
+    try {
+      const errors = await errorFixService.parseTerminalErrors(terminalOutput);
+
+      // 过滤可修复的错误
+      const fixableErrors = errors.filter(isFixableError);
+
+      if (fixableErrors.length === 0) {
+        toast.info('未发现可修复的错误');
+        return;
+      }
+
+      // 生成修复建议
+      const suggestions: AIFixSuggestion[] = [];
+
+      for (const error of fixableErrors) {
+        const fixContext = await errorFixService.generateFixContext(error);
+        if (fixContext) {
+          // 构造 AI 提示并生成建议
+          const prompt = `
+请分析以下错误并提供修复建议：
+
+**错误信息：**
+- 代码：${error.code}
+- 消息：${error.message}
+- 文件：${fixContext.file_path}:${fixContext.line_number}
+- 语言：${fixContext.language}
+
+**代码上下文：**
+\`\`\`${fixContext.language.toLowerCase()}
+${fixContext.code_context}
+\`\`\`
+
+请提供：
+1. 错误原因分析
+2. 具体的修复方案
+3. 修复后的代码示例（如果适用）
+`;
+
+          suggestions.push({
+            error,
+            fixContext,
+            suggestion: prompt, // 将被 AI 处理
+            confidence: 'medium'
+          });
+        }
+      }
+
+      setErrorFixSuggestions(suggestions);
+      setSelectedError(fixableErrors[0]);
+      setErrorFixOpen(true);
+
+      toast.success(`检测到 ${fixableErrors.length} 个可修复错误`);
+    } catch (error) {
+      console.error('[ErrorFix] 检测错误失败:', error);
+      toast.error('错误检测失败');
+    }
+  }, []);
+
+  /**
+   * 应用 AI 修复建议（发送到聊天）
+   */
+  const handleApplyErrorFix = useCallback((suggestion: AIFixSuggestion) => {
+    const fixPrompt = `
+请帮我修复以下错误：
+
+**错误代码：** ${suggestion.error.code}
+**错误消息：** ${suggestion.error.message}
+**文件位置：** ${suggestion.fixContext.file_path}:${suggestion.fixContext.line_number}
+
+**代码上下文：**
+\`\`\`${suggestion.fixContext.language.toLowerCase()}
+${suggestion.fixContext.code_context}
+\`\`\`
+
+请提供修复方案并直接修改文件。`;
+
+    // 发送到 AI 聊天
+    setInput(fixPrompt);
+    setErrorFixOpen(false);
+
+    toast.info('已将错误发送到 AI 助手');
+  }, [setInput]);
+
+  /**
+   * 跳转到错误位置
+   */
+  const handleGoToError = useCallback(async (error: ParsedError) => {
+    try {
+      const content = await readFileContent(error.file);
+      const fileName = error.file.split('/').pop() || error.file;
+
+      openFile({
+        id: error.file,
+        path: error.file,
+        name: fileName,
+        content,
+        isDirty: false,
+        language: error.language.toLowerCase(),
+        initialLine: error.line
+      });
+
+      toast.info(`已跳转到 ${error.file}:${error.line}`);
+    } catch (error) {
+      console.error('[ErrorFix] 跳转失败:', error);
+      toast.error('无法打开文件');
+    }
+  }, [openFile]);
+
+  /**
+   * 关闭错误修复面板
+   */
+  const handleErrorFixClose = useCallback(() => {
+    setErrorFixOpen(false);
+    setErrorFixSuggestions([]);
+    setSelectedError(null);
+  }, []);
+
   // Auto-approve tool calls when enabled
   const agentAutoApprove = useSettingsStore(state => state.agentAutoApprove);
 
@@ -1264,6 +1556,7 @@ ${context}
           onApprove={handleApprove}
           onReject={handleReject}
           onOpenFile={handleOpenFile}
+          onOpenComposer={openComposer}
           isLoading={isLoading}
           parentRef={scrollContainerRef}
         />
@@ -1347,6 +1640,22 @@ ${context}
                 关闭
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* v0.2.8: Composer 2.0 多文件 Diff 预览 */}
+      {composerOpen && composerChanges.length > 0 && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black bg-opacity-60">
+          <div className="w-[95vw] h-[90vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+            <ComposerDiffView
+              changes={composerChanges}
+              onAcceptAll={handleComposerAcceptAll}
+              onRejectAll={handleComposerRejectAll}
+              onAcceptFile={handleComposerAcceptFile}
+              onRejectFile={handleComposerRejectFile}
+              onClose={handleComposerClose}
+            />
           </div>
         </div>
       )}

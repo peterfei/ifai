@@ -61,6 +61,7 @@ interface MessageItemProps {
     onApprove: (messageId: string, toolCallId: string) => void;
     onReject: (messageId: string, toolCallId: string) => void;
     onOpenFile: (path: string) => void;
+    onOpenComposer?: (messageId: string) => void; // v0.2.8: 打开 Composer 面板
     isStreaming?: boolean;
 }
 
@@ -96,7 +97,7 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     return true;
 };
 
-export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, isStreaming }: MessageItemProps) => {
+export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
     const isUser = message.role === 'user';
 
@@ -129,6 +130,25 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     
     // 强制使用外部传进来的 isStreaming 作为主要判定依据
     const effectivelyStreaming = isStreaming || isActivelyStreaming;
+
+    // v0.2.8: Composer 2.0 - 检测消息中是否有文件变更
+    const hasFileChanges = React.useMemo(() => {
+        if (!message.toolCalls || isStreaming) return false;
+        return message.toolCalls.some(tc => {
+            const toolName = tc.function?.name || tc.tool || '';
+            const result = tc.result;
+            // result 可能是字符串或对象
+            if (typeof result === 'string') {
+                try {
+                    const parsed = JSON.parse(result);
+                    return toolName === 'agent_write_file' && parsed.success;
+                } catch {
+                    return false;
+                }
+            }
+            return toolName === 'agent_write_file' && (result as any)?.success;
+        });
+    }, [message.toolCalls, isStreaming]);
 
     // ⚡️ FIX: 辅助函数 - 判断toolCall是否是最新的bash命令
     const isLatestBashTool = useCallback((toolCallId: string): boolean => {
@@ -756,6 +776,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 <div className="h-12" aria-hidden="true" />  // 占位高度
                             )}
                         </div>
+
+                        {/* v0.2.8: Composer 2.0 - 查看 Diff 按钮 */}
+                        {hasFileChanges && onOpenComposer && !effectivelyStreaming && (
+                            <div className="mt-3 flex items-center gap-2">
+                                <button
+                                    onClick={() => onOpenComposer(message.id)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm hover:shadow"
+                                    title="查看所有文件变更的 Diff 预览"
+                                >
+                                    <FileCode size={16} />
+                                    <span>查看 Diff ({message.toolCalls?.filter(tc => {
+                                        const toolName = tc.function?.name || tc.tool || '';
+                                        return toolName === 'agent_write_file';
+                                    }).length || 0} 个文件)</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

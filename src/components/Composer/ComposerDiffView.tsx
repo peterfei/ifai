@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useEditor } from '@monaco-editor/react';
+import { DiffEditor as MonacoDiffEditor } from '@monaco-editor/react';
 import './ComposerDiffView.css';
 
 // ============================================================================
@@ -288,24 +288,16 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
   path,
   readOnly = true,
 }) => {
-  const editorRef = useRef<any>(null);
+  const [isMonacoLoaded, setIsMonacoLoaded] = useState(false);
 
-  const { Editor } = useEditor();
+  useEffect(() => {
+    // Monaco 需要一点时间来初始化
+    const timer = setTimeout(() => setIsMonacoLoaded(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-  // 使用 @monaco-editor/react 的 Diff 组件
-  const handleMount = (editor: any) => {
-    editorRef.current = editor;
-
-    // 设置编辑器为只读模式
-    if (readOnly) {
-      editor.updateOptions({ readOnly: true });
-    }
-  };
-
-  return (
-    <div className="monaco-diff-editor-wrapper">
-      {/* 这里需要安装 @monaco-editor/react */}
-      {/* 临时使用简单的文本对比显示 */}
+  if (!isMonacoLoaded) {
+    return (
       <div className="simple-diff-view">
         <div className="diff-header">
           <span className="diff-path">{path}</span>
@@ -322,6 +314,26 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
           </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="monaco-diff-editor-wrapper">
+      <MonacoDiffEditor
+        language={language}
+        original={original || ''}
+        modified={modified || ''}
+        theme="vs-dark"
+        options={{
+          readOnly: readOnly,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          wordWrap: 'on',
+          lineNumbers: 'on',
+          renderSideBySide: true,
+          enableSplitViewResizing: false,
+        }}
+      />
     </div>
   );
 };

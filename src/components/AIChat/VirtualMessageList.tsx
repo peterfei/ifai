@@ -14,6 +14,7 @@ interface VirtualMessageListProps {
   onApprove: (messageId: string, toolCallId: string) => void;
   onReject: (messageId: string, toolCallId: string) => void;
   onOpenFile: (path: string) => Promise<void>;
+  onOpenComposer?: (messageId: string) => void; // v0.2.8: 打开 Composer 面板
   isLoading: boolean;
   parentRef?: React.RefObject<HTMLDivElement>; // 外部滚动容器引用
 }
@@ -28,6 +29,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   onApprove,
   onReject,
   onOpenFile,
+  onOpenComposer,
   isLoading,
   parentRef,
 }) => {
@@ -70,6 +72,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
             onApprove={onApprove}
             onReject={onReject}
             onOpenFile={onOpenFile}
+            onOpenComposer={onOpenComposer}
             isStreaming={isLoading && message.role === 'assistant'}
           />
         ))}
@@ -118,6 +121,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 onApprove={onApprove}
                 onReject={onReject}
                 onOpenFile={onOpenFile}
+                onOpenComposer={onOpenComposer}
                 isStreaming={false}
               />
             </div>

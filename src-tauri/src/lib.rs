@@ -808,7 +808,6 @@ pub fn run() {
             commands::atomic_commands::atomic_write_detect_conflicts,
             commands::atomic_commands::atomic_write_commit,
             commands::atomic_commands::atomic_write_rollback,
-            commands::atomic_commands::atomic_write_get_session,
             commands::atomic_commands::atomic_file_hash,
             commands::atomic_commands::atomic_check_conflict,
             // v0.2.8 新增：终端错误解析
