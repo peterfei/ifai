@@ -89,6 +89,18 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [composerChanges, setComposerChanges] = useState<FileChange[]>([]);
   const [composerMessageId, setComposerMessageId] = useState<string | null>(null);
 
+  // 🔥 使用 refs 存储 E2E 测试需要的最新值（解决闭包问题）
+  const composerOpenRef = useRef(composerOpen);
+  const composerChangesRef = useRef(composerChanges);
+  const composerMessageIdRef = useRef(composerMessageId);
+
+  // 同步 ref 值
+  useEffect(() => {
+    composerOpenRef.current = composerOpen;
+    composerChangesRef.current = composerChanges;
+    composerMessageIdRef.current = composerMessageId;
+  }, [composerOpen, composerChanges, composerMessageId]);
+
   // v0.2.8: 错误修复状态
   const [errorFixOpen, setErrorFixOpen] = useState(false);
   const [errorFixSuggestions, setErrorFixSuggestions] = useState<AIFixSuggestion[]>([]);
@@ -1085,6 +1097,36 @@ ${context}
   /**
    * 从消息中提取文件变更信息
    */
+  /**
+   * 解析 toolCall result（处理字符串或对象格式）
+   */
+  const parseToolResult = useCallback((result: any): any => {
+    if (!result) return null;
+    if (typeof result === 'string') {
+      try {
+        return JSON.parse(result);
+      } catch {
+        return null;
+      }
+    }
+    return result;
+  }, []);
+
+  /**
+   * 解析 toolCall args（处理字符串或对象格式）
+   */
+  const parseToolArgs = useCallback((args: any): any => {
+    if (!args) return {};
+    if (typeof args === 'string') {
+      try {
+        return JSON.parse(args);
+      } catch {
+        return {};
+      }
+    }
+    return args;
+  }, []);
+
   const extractFileChanges = useCallback((message: any): FileChange[] => {
     const changes: FileChange[] = [];
 
@@ -1097,11 +1139,11 @@ ${context}
           if (!toolCall) continue;
 
           const toolName = toolCall.function?.name || toolCall.tool;
-          const args = toolCall.function?.arguments || toolCall.arguments || {};
+          const args = parseToolArgs(toolCall.function?.arguments || toolCall.arguments);
 
           // 只处理 agent_write_file 工具
           if (toolName === 'agent_write_file' && args.rel_path && args.content) {
-            const result = toolCall.result;
+            const result = parseToolResult(toolCall.result);
             if (result && result.success) {
               changes.push({
                 path: args.rel_path,
@@ -1120,10 +1162,10 @@ ${context}
     if (changes.length === 0 && message.toolCalls) {
       for (const toolCall of message.toolCalls) {
         const toolName = toolCall.function?.name || toolCall.tool;
-        const args = toolCall.function?.arguments || toolCall.arguments || {};
+        const args = parseToolArgs(toolCall.function?.arguments || toolCall.arguments);
 
         if (toolName === 'agent_write_file' && args.rel_path && args.content) {
-          const result = toolCall.result;
+          const result = parseToolResult(toolCall.result);
           if (result && result.success) {
             changes.push({
               path: args.rel_path,
@@ -1138,7 +1180,7 @@ ${context}
     }
 
     return changes;
-  }, []);
+  }, [parseToolResult, parseToolArgs]);
 
   /**
    * 打开 Composer 面板
@@ -1154,6 +1196,25 @@ ${context}
       setComposerOpen(true);
     }
   }, [rawMessages, extractFileChanges]);
+
+  // 🔥 E2E 测试辅助函数 - 暴露到 window 对象（必须在 openComposer 之后）
+  useEffect(() => {
+    (window as any).__E2E_COMPOSER__ = {
+      openComposer: (messageId: string) => {
+        openComposer(messageId);
+      },
+      setComposerState: (changes: any[], msgId: string) => {
+        setComposerChanges(changes);
+        setComposerMessageId(msgId);
+        setComposerOpen(true);
+      },
+      getComposerState: () => ({
+        isOpen: composerOpenRef.current,
+        changesCount: composerChangesRef.current.length,
+        messageId: composerMessageIdRef.current
+      })
+    };
+  }, [openComposer]);
 
   /**
    * Composer: 接受所有文件变更

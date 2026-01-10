@@ -152,6 +152,12 @@ class AtomicWriteService {
             onConflict?: (conflicts: string[]) => Promise<boolean>; // 返回 true 继续，false 取消
         }
     ): Promise<AtomicWriteResult> {
+        // 🔥 E2E 测试支持：检查是否有 window mock
+        if (typeof window !== 'undefined' && (window as any).__atomicWriteService) {
+            console.log('[AtomicWrite] Using window mock for E2E tests');
+            return await (window as any).__atomicWriteService.executeAtomicWrite(operations, options);
+        }
+
         // 1. 创建会话
         const sessionId = await this.startSession();
 

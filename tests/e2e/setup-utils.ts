@@ -274,9 +274,13 @@ export async function setupE2ETestEnvironment(page: Page) {
                 newContent: args.content.substring(0, 50)
             });
 
-            // 返回简单消息（避免嵌套结构）
-            // 🔥 前端的 enhancedResult 会包含 originalContent 和 newContent
-            return `File written: ${args.relPath}`;
+            // 🔥 返回 JSON 字符串格式的结果（前端会 JSON.parse）
+            // 包含 success 和 originalContent 以支持 Composer 功能
+            return JSON.stringify({
+                success: true,
+                filePath: args.relPath,
+                originalContent: originalContent
+            });
         }
         if (cmd === 'agent_list_dir') {
             console.log('[E2E Mock] agent_list_dir:', args);
@@ -499,6 +503,10 @@ export async function setupE2ETestEnvironment(page: Page) {
             const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
             const query = lastUserMsg?.content?.Text || lastUserMsg?.content || '';
 
+            // 🔥 Debug logging
+            console.log('[E2E Mock] ai_chat called with eventId:', eventId);
+            console.log('[E2E Mock] query:', query);
+
             // Check if this is a bash command request
             const isBashCommand = query.includes('执行') || query.includes('运行') ||
                                  query.includes('python') || query.includes('java') ||
@@ -506,13 +514,122 @@ export async function setupE2ETestEnvironment(page: Page) {
                                  query.includes('sleep') || query.includes('git') ||
                                  query.includes('npm') || query.includes('cargo');
 
+            // 🔥 Check if this is a Composer test (Refactor/Update/Add documentation)
+            const isComposerTest = query.includes('Refactor') || query.includes('Update imports') ||
+                                   query.includes('Add documentation');
+
+            console.log('[E2E Mock] isComposerTest:', isComposerTest);
+
             let responseContent = 'Mock AI response: Task completed successfully.';
 
             // Simulate async streaming
             setTimeout(() => {
                 const streamListeners = (window as any).__TAURI_EVENT_LISTENERS__[eventId] || [];
+                console.log('[E2E Mock] Stream listeners count:', streamListeners.length);
 
-                if (isBashCommand) {
+                if (isComposerTest) {
+                    // 🔥 Composer 测试：返回多个 agent_write_file tool_calls
+                    // 使用前端期望的自定义格式
+                    const toolCalls = [
+                        {
+                            id: 'call_write_1',
+                            function: {
+                                name: 'agent_write_file',
+                                arguments: JSON.stringify({
+                                    rootPath: '/Users/mac/mock-project',
+                                    relPath: 'src/services/AuthService.ts',
+                                    content: `/**
+ * Refactored Auth Service with new Logger trait
+ */
+export class AuthService {
+    constructor(private logger: Logger) {}
+
+    login(user: string, pass: string) {
+        this.logger.info(\`Login attempt for \${user}\`);
+        // ... implementation
+    }
+}`
+                                })
+                            }
+                        },
+                        {
+                            id: 'call_write_2',
+                            function: {
+                                name: 'agent_write_file',
+                                arguments: JSON.stringify({
+                                    rootPath: '/Users/mac/mock-project',
+                                    relPath: 'src/traits/Logger.ts',
+                                    content: `/**
+ * Logger trait for consistent logging across services
+ */
+export trait Logger {
+    fn info(message: &str);
+    fn error(message: &str);
+    fn debug(message: &str);
+}`
+                                })
+                            }
+                        },
+                        {
+                            id: 'call_write_3',
+                            function: {
+                                name: 'agent_write_file',
+                                arguments: JSON.stringify({
+                                    rootPath: '/Users/mac/mock-project',
+                                    relPath: 'src/utils/helpers.ts',
+                                    content: `// Utility functions with documentation
+
+/**
+ * Format a date string
+ */
+export function formatDate(date: Date): string {
+    return date.toISOString();
+}`
+                                })
+                            }
+                        }
+                    ];
+
+                    // Send tool_calls using custom format expected by frontend
+                    toolCalls.forEach((tc, idx) => {
+                        setTimeout(() => {
+                            const toolCallPayload = {
+                                type: 'tool_call',
+                                toolCall: tc
+                            };
+                            streamListeners.forEach(fn => fn({ payload: toolCallPayload }));
+                        }, idx * 100);
+                    });
+
+                    // After tool calls, send results and finish message
+                    setTimeout(() => {
+                        // Send results for each tool call
+                        toolCalls.forEach((tc, idx) => {
+                            setTimeout(() => {
+                                const resultPayload = {
+                                    type: 'content',
+                                    content: `\n✅ File ${idx + 1} written successfully.\n`
+                                };
+                                streamListeners.forEach(fn => fn({ payload: resultPayload }));
+                            }, idx * 100);
+                        });
+
+                        // Send final completion message
+                        setTimeout(() => {
+                            const completionPayload = {
+                                type: 'content',
+                                content: `\n\n✨ **Refactoring Complete!**\n\nModified 3 files:\n- \`src/services/AuthService.ts\` - Added Logger trait\n- \`src/traits/Logger.ts\` - Created new trait\n- \`src/utils/helpers.ts\` - Added documentation\n`
+                            };
+                            streamListeners.forEach(fn => fn({ payload: completionPayload }));
+
+                            // Trigger _finish event
+                            setTimeout(() => {
+                                const finishListeners = (window as any).__TAURI_EVENT_LISTENERS__[`${eventId}_finish`] || [];
+                                finishListeners.forEach(fn => fn({ payload: 'DONE' }));
+                            }, 100);
+                        }, 500);
+                    }, 500);
+                } else if (isBashCommand) {
                     // Simulate tool_calls for bash commands
                     const toolCallPayload = JSON.stringify({
                         choices: [{
@@ -928,6 +1045,20 @@ export class TestApp {
       } else {
         console.log('[E2E] __chatStore already available');
       }
+
+      // 🔥 Mock atomicWriteService for E2E tests
+      (window as any).__atomicWriteService = {
+        executeAtomicWrite: async (operations: any[], options?: any) => {
+          console.log('[E2E Mock] atomicWriteService.executeAtomicWrite called with', operations.length, 'operations');
+          // 模拟成功执行
+          return {
+            success: true,
+            applied: operations.length,
+            conflicts: []
+          };
+        }
+      };
+      console.log('[E2E] atomicWriteService mocked');
     }, 1000);
   });
 }
