@@ -1244,14 +1244,50 @@ ${context}
   }, [composerChanges]);
 
   /**
-   * Composer: 拒绝所有文件变更
+   * Composer: 拒绝所有文件变更（回滚文件内容）
    */
-  const handleComposerRejectAll = useCallback(() => {
-    setComposerOpen(false);
-    setComposerChanges([]);
-    setComposerMessageId(null);
-    toast.info('已拒绝所有文件变更');
-  }, []);
+  const handleComposerRejectAll = useCallback(async () => {
+    try {
+      // 对每个变更执行回滚操作
+      for (const change of composerChanges) {
+        if (change.changeType === 'modified' && change.originalContent) {
+          // 修改的文件：恢复原始内容
+          const rootPath = useFileStore.getState().rootPath;
+          if (rootPath) {
+            await invoke('agent_write_file', {
+              rootPath,
+              relPath: change.path,
+              content: change.originalContent
+            });
+            console.log('[Composer] Rolled back modified file:', change.path);
+          }
+        } else if (change.changeType === 'added') {
+          // 新增的文件：删除
+          const rootPath = useFileStore.getState().rootPath;
+          if (rootPath) {
+            try {
+              await invoke('agent_delete_file', {
+                rootPath,
+                relPath: change.path
+              });
+              console.log('[Composer] Deleted new file:', change.path);
+            } catch (e) {
+              // 文件可能不存在，忽略错误
+              console.warn('[Composer] Failed to delete file (may not exist):', change.path);
+            }
+          }
+        }
+      }
+
+      setComposerOpen(false);
+      setComposerChanges([]);
+      setComposerMessageId(null);
+      toast.success('已拒绝所有文件变更，文件已恢复');
+    } catch (error) {
+      console.error('[Composer] Failed to rollback changes:', error);
+      toast.error(`回滚失败: ${error}`);
+    }
+  }, [composerChanges]);
 
   /**
    * Composer: 接受单个文件变更
@@ -1281,10 +1317,51 @@ ${context}
   /**
    * Composer: 拒绝单个文件变更
    */
-  const handleComposerRejectFile = useCallback((path: string) => {
-    setComposerChanges(prev => prev.filter(change => change.path !== path));
-    toast.info(`已跳过: ${path}`);
-  }, []);
+  const handleComposerRejectFile = useCallback(async (path: string) => {
+    try {
+      // 查找要拒绝的变更
+      const change = composerChanges.find(c => c.path === path);
+      if (!change) {
+        toast.error(`未找到文件变更: ${path}`);
+        return;
+      }
+
+      const rootPath = useFileStore.getState().rootPath;
+      if (!rootPath) {
+        toast.error('未打开项目文件夹');
+        return;
+      }
+
+      // 执行回滚操作
+      if (change.changeType === 'modified' && change.originalContent) {
+        // 修改的文件：恢复原始内容
+        await invoke('agent_write_file', {
+          rootPath,
+          relPath: path,
+          content: change.originalContent
+        });
+        console.log('[Composer] Rolled back single file:', path);
+      } else if (change.changeType === 'added') {
+        // 新增的文件：删除
+        try {
+          await invoke('agent_delete_file', {
+            rootPath,
+            relPath: path
+          });
+          console.log('[Composer] Deleted new file:', path);
+        } catch (e) {
+          console.warn('[Composer] Failed to delete file (may not exist):', path);
+        }
+      }
+
+      // 从变更列表中移除
+      setComposerChanges(prev => prev.filter(c => c.path !== path));
+      toast.success(`已拒绝并回滚: ${path}`);
+    } catch (error) {
+      console.error('[Composer] Failed to rollback file:', error);
+      toast.error(`回滚失败: ${error}`);
+    }
+  }, [composerChanges]);
 
   /**
    * Composer: 关闭面板
