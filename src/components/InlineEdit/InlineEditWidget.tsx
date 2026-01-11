@@ -1,99 +1,130 @@
 /**
- * v0.2.9 行内编辑小部件组件
+ * v0.2.9 行内编辑小部件
  *
- * 功能：
- * - Cmd+K 触发的 AI 编辑输入框
- * - 显示在编辑器中当前行下方
- * - 输入自然语言指令后提交给 AI
+ * 当用户按 Cmd+K 时显示，允许输入编辑指令
+ * 使用 Zustand store 管理状态
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, X, Sparkles } from 'lucide-react';
-import { useEditorStore } from '../../stores/editorStore';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useInlineEditStore } from '../../stores/inlineEditStore';
+import { Sparkles, X } from 'lucide-react';
 
-// ============================================================================
-// Props
-// ============================================================================
+export const InlineEditWidget = () => {
+  // 使用 useSyncExternalStore 直接订阅 Zustand store
+  // 这是确保 React 能正确追踪状态变化的最可靠方法
+  const storeState = useSyncExternalStore(
+    useInlineEditStore.subscribe,
+    () => useInlineEditStore.getState(),
+    () => useInlineEditStore.getState()
+  );
 
-interface InlineEditWidgetProps {
-  /** 是否显示小部件 */
-  isVisible: boolean;
+  const { isInlineEditVisible, selectedText, position, hideInlineEdit, submitInstruction } = storeState;
 
-  /** 当前选中的文本（如果有） */
-  selectedText?: string;
+  console.log('[InlineEditWidget] Render, isInlineEditVisible:', isInlineEditVisible);
 
-  /** 当前位置（行号、列号） */
-  position?: { lineNumber: number; column: number };
-
-  /** 提交回调 */
-  onSubmit: (instruction: string) => void;
-
-  /** 取消回调 */
-  onCancel: () => void;
-}
-
-// ============================================================================
-// 组件
-// ============================================================================
-
-export const InlineEditWidget: React.FC<InlineEditWidgetProps> = ({
-  isVisible,
-  selectedText = '',
-  position,
-  onSubmit,
-  onCancel,
-}) => {
-  const [instruction, setInstruction] = useState(selectedText);
+  const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [widgetStyle, setWidgetStyle] = useState<React.CSSProperties>({
+    display: 'none',
+    top: 100,
+    left: 100,
+  });
 
-  // 当显示时自动聚焦输入框
+  // 当显示状态或位置改变时，更新样式
   useEffect(() => {
-    if (isVisible && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isVisible]);
+    console.log('[InlineEditWidget] Position effect triggered, isInlineEditVisible:', isInlineEditVisible, 'position:', position);
 
-  // 当选中文本改变时更新输入
+    if (isInlineEditVisible) {
+      const editor = (window as any).__activeEditor;
+      console.log('[InlineEditWidget] editor:', !!editor, 'position:', position);
+
+      if (editor && position) {
+        try {
+          // 使用 getTopForPosition 获取位置
+          const top = editor.getTopForPosition(position.lineNumber, position.column);
+          console.log('[InlineEditWidget] Calculated top:', top);
+
+          setWidgetStyle({
+            display: 'flex',
+            flexDirection: 'column',
+            top: top + 30,
+            left: 100,
+          });
+
+          // 延迟聚焦输入框
+          setTimeout(() => {
+            console.log('[InlineEditWidget] Focusing input');
+            inputRef.current?.focus();
+          }, 50);
+        } catch (e) {
+          console.warn('[InlineEditWidget] Failed to get position:', e);
+          setWidgetStyle({
+            display: 'flex',
+            flexDirection: 'column',
+            top: 100,
+            left: 100,
+          });
+        }
+      } else {
+        console.warn('[InlineEditWidget] No editor or position, showing at default position');
+        setWidgetStyle({
+          display: 'flex',
+          flexDirection: 'column',
+          top: 100,
+          left: 100,
+        });
+      }
+    } else {
+      console.log('[InlineEditWidget] Hiding widget');
+      setWidgetStyle({ display: 'none' });
+      setInput('');
+    }
+  }, [isInlineEditVisible, position]);
+
+  // 当选中的文本改变时，预填充输入框
   useEffect(() => {
     if (selectedText) {
-      setInstruction(selectedText);
+      setInput(selectedText);
     }
   }, [selectedText]);
 
-  // 处理键盘事件
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && instruction.trim()) {
+  const handleSubmit = () => {
+    console.log('[InlineEditWidget] handleSubmit called, input:', input);
+    if (!input.trim()) {
+      hideInlineEdit();
+      return;
+    }
+    console.log('[InlineEditWidget] Calling submitInstruction with:', input);
+    submitInstruction(input);
+    setInput('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onSubmit(instruction.trim());
-      setInstruction('');
+      handleSubmit();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      onCancel();
-      setInstruction('');
+      hideInlineEdit();
     }
   };
 
-  if (!isVisible) {
-    return null;
-  }
+  console.log('[InlineEditWidget] Rendering, widgetStyle.display:', widgetStyle.display);
 
+  // 始终渲染组件，通过 style 控制可见性（而不是条件返回 null）
   return (
     <div
-      className="inline-edit-widget fixed z-[300] bg-[#252526] border border-blue-500/50 rounded-lg shadow-2xl"
-      data-testid="inline-edit-widget"
-      style={{
-        boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.5), 0 4px 20px rgba(0, 0, 0, 0.5)',
-      }}
+      className="absolute z-[280] bg-[#252526] border border-blue-500/50 rounded-lg shadow-2xl w-[400px] inline-edit-widget"
+      style={widgetStyle}
+      data-testid="inline-input-container"
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700">
         <Sparkles className="text-blue-400" size={16} />
         <span className="text-xs font-medium text-gray-300">AI 编辑</span>
         <button
-          onClick={onCancel}
+          onClick={hideInlineEdit}
           className="ml-auto text-gray-400 hover:text-white transition-colors"
-          data-testid="cancel-inline-edit"
         >
           <X size={14} />
         </button>
@@ -104,26 +135,13 @@ export const InlineEditWidget: React.FC<InlineEditWidgetProps> = ({
         <input
           ref={inputRef}
           type="text"
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
+          className="flex-1 bg-[#1e1e1e] text-white text-sm px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+          placeholder="描述您想要的修改... (e.g., 'Add error handling')"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="描述您想要的修改..."
-          className="flex-1 bg-[#1e1e1e] text-white text-sm px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none min-w-[300px]"
           data-testid="inline-input"
         />
-        <button
-          onClick={() => {
-            if (instruction.trim()) {
-              onSubmit(instruction.trim());
-              setInstruction('');
-            }
-          }}
-          disabled={!instruction.trim()}
-          className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition-colors"
-          data-testid="submit-inline-edit"
-        >
-          <Send size={16} />
-        </button>
       </div>
 
       {/* Footer hint */}

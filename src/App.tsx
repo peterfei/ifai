@@ -67,15 +67,13 @@ function App() {
     isHistoryPanelOpen,
   } = useCodeReviewStore();
 
-  // v0.2.9: Inline Edit Store
+  // v0.2.9: Inline Edit Store - 使用简单的选择器
+  const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
+  const originalCode = useInlineEditStore(state => state.originalCode);
+  const modifiedCode = useInlineEditStore(state => state.modifiedCode);
+  const currentFilePath = useInlineEditStore(state => state.currentFilePath);
+
   const {
-    isInlineEditVisible,
-    isDiffEditorVisible,
-    originalCode,
-    modifiedCode,
-    currentFilePath,
-    selectedText,
-    showInlineEdit,
     hideInlineEdit,
     showDiffEditor,
     hideDiffEditor,
@@ -209,43 +207,15 @@ function App() {
     // For E2E testing, the test manually dispatches review-complete event
   };
 
-  // v0.2.9: Cmd+K inline edit handling
+  // v0.2.9: Cmd+Z/Cmd+Shift+Z for Undo/Redo (inline edit history)
+  // Note: Cmd+K is handled by Monaco Editor's internal command system
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+K or Ctrl+K for inline edit
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k' && !e.shiftKey) {
-        console.log('[App] Cmd+K triggered!');
-        console.log('[App] activeFileId:', activeFileId);
-        console.log('[App] openedFiles:', openedFiles.map(f => ({ id: f.id, name: f.name })));
-        e.preventDefault();
-        const activeFile = openedFiles.find(f => f.id === activeFileId);
-        console.log('[App] activeFile:', activeFile);
-        if (activeFile) {
-          // Get selected text from Monaco Editor
-          const editor = (window as any).__activeEditor;
-          const selectedText = editor?.getSelection()?.getModel()?.getValueInRange(
-            editor?.getSelection()
-          ) || '';
-          const position = editor?.getPosition() || { lineNumber: 1, column: 1 };
-
-          console.log('[App] Calling showInlineEdit with selectedText:', selectedText, 'position:', position);
-          showInlineEdit(selectedText, {
-            lineNumber: position.lineNumber,
-            column: position.column,
-          });
-        } else {
-          console.log('[App] No active file found, skipping inline edit');
-        }
-      }
-
       // Cmd+Z or Ctrl+Z for undo
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         console.log('[App] Cmd+Z triggered for undo');
-        const inlineEditState = (window as any).__inlineEditStore?.getState();
-        console.log('[App] inlineEditState:', inlineEditState);
         undo();
-        console.log('[App] undo() called');
       }
 
       // Cmd+Shift+Z or Ctrl+Shift+Z for redo
@@ -261,7 +231,7 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [activeFileId, openedFiles, showInlineEdit, undo, redo]);
+  }, [undo, redo]);
 
   // v0.2.9: Inline edit event listeners
   useEffect(() => {
@@ -614,57 +584,8 @@ function App() {
         {/* v0.2.9: Review History Panel */}
         <ReviewHistoryPanel isOpen={isHistoryPanelOpen} />
 
-        {/* v0.2.9: Inline Edit Widget */}
-        <InlineEditWidget
-          isVisible={isInlineEditVisible}
-          selectedText={selectedText}
-          position={undefined} // Position is handled internally by the widget
-          onSubmit={(instruction) => {
-            // Mock AI response for E2E testing
-            const activeFile = openedFiles.find(f => f.id === activeFileId);
-            if (activeFile) {
-              const editor = (window as any).__activeEditor;
-              const originalContent = editor?.getValue() || '';
-
-              // For E2E testing, dispatch event to simulate AI response
-              window.dispatchEvent(new CustomEvent('inline-edit-submit', {
-                detail: { instruction, originalCode: originalContent }
-              }));
-
-              // Generate mock modified code for E2E tests
-              let modifiedContent = originalContent;
-              if (instruction.includes('error handling')) {
-                // Add error handling pattern
-                modifiedContent = originalContent.replace(
-                  /function handleClick\(\) \{[\s\S]*?\n    \}/,
-                  `function handleClick() {
-        try {
-            setCount(count + 1);
-        } catch (error) {
-            console.error('Error in handleClick:', error);
-        }
-    }`
-                );
-              } else if (instruction.includes('Add')) {
-                // Generic add pattern
-                modifiedContent = originalContent + '\n    // Added: ' + instruction;
-              }
-
-              // If still no change, add comment
-              if (modifiedContent === originalContent) {
-                modifiedContent = originalContent + '\n    // ' + instruction;
-              }
-
-              showDiffEditor(
-                originalContent,
-                modifiedContent,
-                activeFile.path,
-                instruction
-              );
-            }
-          }}
-          onCancel={hideInlineEdit}
-        />
+        {/* v0.2.9: Inline Edit Widget (uses useInlineEditStore internally) */}
+        <InlineEditWidget />
 
         {/* v0.2.9: Diff Editor Modal */}
         <DiffEditorModal

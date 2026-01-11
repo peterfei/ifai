@@ -5,8 +5,10 @@ import { useFileStore } from '../../stores/fileStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { InlineEditWidget } from './InlineEditWidget';
+import { useInlineEditStore } from '../../stores/inlineEditStore';
 import { WelcomeScreen } from './WelcomeScreen';
+import { setupSymbolCompletion } from './SymbolCompletionProvider';
+import { symbolIndexer } from '../../core/indexer/SymbolIndexer';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateTokens } from '../../utils/tokenCounter';
@@ -24,7 +26,9 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const { t } = useTranslation();
   const setEditorInstance = useEditorStore(state => state.setEditorInstance);
   const getEditorInstance = useEditorStore(state => state.getEditorInstance);
-  const setInlineEdit = useEditorStore(state => state.setInlineEdit);
+
+  // v0.2.9: Inline Edit Store
+  const showInlineEdit = useInlineEditStore(state => state.showInlineEdit);
   
   const openedFiles = useFileStore(state => state.openedFiles);
   const panes = useLayoutStore(state => state.panes);
@@ -113,6 +117,20 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         }
       }
     });
+
+    // ========================================================================
+    // v0.2.9: 符号索引和补全系统
+    // ========================================================================
+
+    // 索引当前文件的符号
+    if (file?.path && file?.content) {
+      symbolIndexer.indexFile(file.path, file.content).catch(console.error);
+    }
+
+    // 注册符号补全提供者
+    const disposeSymbolCompletion = setupSymbolCompletion(monaco, file?.path);
+
+    // ========================================================================
 
     // Register Inline Completion Provider (applies to all languages)
     const completionProvider = monaco.languages.registerInlineCompletionsProvider('*', {
@@ -227,24 +245,43 @@ ${textBefore}[CURSOR]${textAfter}
       }
     });
 
-    // Add Inline Edit Command (Cmd+K)
+    // ========================================================================
+    // v0.2.9: Cmd+K Inline Edit Command
+    // ========================================================================
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+      console.log('[MonacoEditor] Cmd+K command triggered!');
       const position = editor.getPosition();
       const selection = editor.getSelection();
-      if (position && selection && !selection.isEmpty()) {
-        setInlineEdit({
-          isVisible: true,
-          position: { lineNumber: position.lineNumber, column: position.column },
-          selection: selection
-        });
+      const model = editor.getModel();
+
+      if (!position || !model) {
+        console.log('[MonacoEditor] No position or model, skipping Cmd+K');
+        return;
       }
+
+      // Get selected text if any
+      let selectedText = '';
+      if (selection && !selection.isEmpty()) {
+        selectedText = model.getValueInRange(selection);
+      }
+
+      console.log('[MonacoEditor] Calling showInlineEdit with:', {
+        selectedText,
+        position: { lineNumber: position.lineNumber, column: position.column }
+      });
+
+      showInlineEdit(selectedText, {
+        lineNumber: position.lineNumber,
+        column: position.column,
+      });
     });
 
     // Cleanup on unmount
     return () => {
       completionProvider.dispose();
+      disposeSymbolCompletion?.();
     };
-  }, [paneId, file?.language, setEditorInstance, setChatOpen, sendMessage, setInlineEdit, t]);
+  }, [paneId, file?.path, file?.content, file?.language, setEditorInstance, setChatOpen, sendMessage, showInlineEdit, t]);
 
   const handleChange = (value: string | undefined) => {
     if (fileId && value !== undefined) {
@@ -398,7 +435,6 @@ ${textBefore}[CURSOR]${textAfter}
         onMount={handleEditorDidMount}
         options={getOptimizedOptions()}
       />
-      <InlineEditWidget />
     </div>
   );
 };

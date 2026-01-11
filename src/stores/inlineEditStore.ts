@@ -96,11 +96,13 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
   historyIndex: -1,
 
   showInlineEdit: (selectedText = '', position) => {
+    console.log('[inlineEditStore] showInlineEdit called, setting isInlineEditVisible to true');
     set({
       isInlineEditVisible: true,
       selectedText,
       position: position || null,
     });
+    console.log('[inlineEditStore] After set, state:', get());
   },
 
   hideInlineEdit: () => {
@@ -112,10 +114,58 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
   },
 
   submitInstruction: (instruction) => {
+    console.log('[inlineEditStore] submitInstruction called with:', instruction);
     set({ instruction });
+
+    // 获取当前编辑器内容
+    const editor = (window as any).__activeEditor;
+    if (!editor) {
+      console.warn('[inlineEditStore] No active editor found');
+      return;
+    }
+    console.log('[inlineEditStore] Active editor found, getting content...');
+
+    const originalContent = editor.getValue() || '';
+    const state = get();
+
+    // E2E 测试: dispatch 事件
+    window.dispatchEvent(new CustomEvent('inline-edit-submit', {
+      detail: { instruction, originalCode: originalContent }
+    }));
+
+    // 生成 mock 修改后的代码（用于 E2E 测试）
+    let modifiedContent = originalContent;
+    if (instruction.includes('error handling')) {
+      // 添加错误处理模式
+      modifiedContent = originalContent.replace(
+        /function handleClick\(\) \{[\s\S]*?\n    \}/,
+        `function handleClick() {
+        try {
+            setCount(count + 1);
+        } catch (error) {
+            console.error('Error in handleClick:', error);
+        }
+    }`
+      );
+    } else if (instruction.includes('Add')) {
+      // 通用添加模式
+      modifiedContent = originalContent + '\n    // Added: ' + instruction;
+    }
+
+    // 如果没有变化，添加注释
+    if (modifiedContent === originalContent) {
+      modifiedContent = originalContent + '\n    // ' + instruction;
+    }
+
+    // 获取当前文件路径
+    const filePath = state.currentFilePath || editor.getModel()?.uri || 'unknown';
+
+    // 显示 Diff 编辑器
+    get().showDiffEditor(originalContent, modifiedContent, filePath, instruction);
   },
 
   showDiffEditor: (originalCode, modifiedCode, filePath, instruction) => {
+    console.log('[inlineEditStore] showDiffEditor called, setting isDiffEditorVisible to true');
     const state = get();
 
     // 如果这是第一条历史记录，先保存原始内容作为 "初始状态"

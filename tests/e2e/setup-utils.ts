@@ -1408,11 +1408,43 @@ export class TestApp {
         const inlineEditStore = (window as any).__inlineEditStore;
         if (inlineEditStore) {
             console.log('[E2E] Triggering inline edit with:', { selectedText, position });
+            console.log('[E2E] inlineEditStore state BEFORE:', inlineEditStore.getState());
+
             inlineEditStore.getState().showInlineEdit(selectedText, position);
+
+            // 等待状态更新并检查
+            setTimeout(() => {
+                const state = inlineEditStore.getState();
+                console.log('[E2E] inlineEditStore state AFTER:', state);
+                console.log('[E2E] isInlineEditVisible:', state.isInlineEditVisible);
+
+                // 检查 DOM 中是否有 widget
+                const widget = document.querySelector('.inline-edit-widget');
+                const input = document.querySelector('[data-testid="inline-input"]');
+                console.log('[E2E] DOM check - widget:', !!widget, 'input:', !!input);
+            }, 100);
+
             return true;
         }
         console.error('[E2E] inlineEditStore not found!');
         return false;
+    };
+
+    // 🔥 v0.2.9: E2E 辅助函数 - 检查 InlineEdit 状态
+    (window as any).__E2E_CHECK_INLINE_EDIT_STATE__ = () => {
+        const store = (window as any).__inlineEditStore;
+        if (!store) return { error: 'no store' };
+
+        const state = store.getState();
+        const widget = document.querySelector('.inline-edit-widget');
+        const input = document.querySelector('[data-testid="inline-input"]');
+
+        return {
+            storeState: state,
+            widgetExists: !!widget,
+            inputExists: !!input,
+            widgetHTML: widget ? widget.outerHTML : null,
+        };
     };
 
     // E. Mock IndexedDB for thread persistence testing

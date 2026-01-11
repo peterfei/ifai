@@ -7,10 +7,11 @@
  * - 支持查看修改详情
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { X, Check, XCircle, Diff } from 'lucide-react';
 import Editor, { Monaco, DiffEditor } from '@monaco-editor/react';
 import { toast } from 'sonner';
+import { useInlineEditStore } from '../../stores/inlineEditStore';
 
 // 简单的 diff 行计算
 function computeLineDiff(original: string, modified: string): {
@@ -91,9 +92,22 @@ interface DiffEditorModalProps {
 
 /**
  * 根据文件路径推断语言
+ * @param path 文件路径（字符串或 Monaco Uri 对象）
  */
-function getLanguageFromPath(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase();
+function getLanguageFromPath(path: string | { path: string; toString(): string }): string {
+  // 处理 Monaco Uri 对象
+  let pathStr: string;
+  if (typeof path === 'string') {
+    pathStr = path;
+  } else if (path && typeof path.toString === 'function') {
+    pathStr = path.toString();
+    // 移除 Monaco Uri 的 scheme (如 "file://")
+    pathStr = pathStr.replace(/^file:\/\//, '');
+  } else {
+    return 'typescript';
+  }
+
+  const ext = pathStr.split('.').pop()?.toLowerCase();
   const languageMap: Record<string, string> = {
     'ts': 'typescript',
     'tsx': 'typescript',
@@ -121,8 +135,25 @@ function getLanguageFromPath(path: string): string {
     'css': 'css',
     'scss': 'scss',
     'md': 'markdown',
+    'vue': 'vue',
+    'svelte': 'svelte',
   };
   return languageMap[ext || ''] || 'typescript';
+}
+
+/**
+ * 将文件路径转换为可显示的字符串
+ * @param path 文件路径（字符串或 Monaco Uri 对象）
+ */
+function filePathToString(path: string | { path: string; toString(): string } | undefined | null): string {
+  if (!path) return 'unknown';
+  if (typeof path === 'string') return path;
+  if (typeof path.toString === 'function') {
+    const str = path.toString();
+    // 移除 Monaco Uri 的 scheme (如 "file://")
+    return str.replace(/^file:\/\//, '');
+  }
+  return String(path);
 }
 
 /**
@@ -145,15 +176,40 @@ function calculateDiffStats(original: string, modified: string): {
 // ============================================================================
 
 export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
-  isVisible,
-  originalCode,
-  modifiedCode,
-  filePath = 'unknown',
+  isVisible: propIsVisible,
+  originalCode: propOriginalCode,
+  modifiedCode: propModifiedCode,
+  filePath: propFilePath,
   language,
-  instruction = '',
+  instruction: propInstruction,
   onAccept,
   onReject,
 }) => {
+  // 直接订阅 store 状态，完全绕过 props 传递
+  const storeState = useSyncExternalStore(
+    useInlineEditStore.subscribe,
+    () => {
+      const state = useInlineEditStore.getState();
+      console.log('[DiffEditorModal] Store snapshot:', {
+        isDiffEditorVisible: state.isDiffEditorVisible,
+        hasOriginalCode: !!state.originalCode,
+        hasModifiedCode: !!state.modifiedCode,
+        currentFilePath: state.currentFilePath,
+      });
+      return state;
+    },
+    () => useInlineEditStore.getState()
+  );
+
+  // 优先使用 props，如果没有 props 则使用 store 状态
+  const isVisible = storeState.isDiffEditorVisible;
+  const originalCode = storeState.originalCode || propOriginalCode || '';
+  const modifiedCode = storeState.modifiedCode || propModifiedCode || '';
+  const filePath = storeState.currentFilePath || propFilePath || 'unknown';
+  const instruction = storeState.instruction || propInstruction || '';
+
+  console.log('[DiffEditorModal] Render, isVisible:', isVisible, 'filePath:', filePath);
+
   const [monaco, setMonaco] = useState<Monaco | null>(null);
   const diffStats = calculateDiffStats(originalCode, modifiedCode);
   const actualLanguage = language || getLanguageFromPath(filePath);
@@ -171,12 +227,15 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   }, [isVisible, onReject]);
 
   if (!isVisible) {
+    console.log('[DiffEditorModal] Returning null because isVisible is false');
     return null;
   }
 
+  console.log('[DiffEditorModal] Rendering modal content');
+
   return (
     <div
-      className="fixed inset-0 z-[290] flex items-center justify-center bg-black bg-opacity-70"
+      className="fixed inset-0 z-[295] flex items-center justify-center bg-black bg-opacity-70"
       data-testid="diff-modal"
     >
       <div className="w-[90vw] max-w-6xl h-[80vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
@@ -208,13 +267,14 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
             <span className="text-red-400">-{diffStats.deletions} 行</span>
           </div>
           <div className="ml-auto text-xs text-gray-500">
-            {filePath}
+            {filePathToString(filePath)}
           </div>
         </div>
 
         {/* Diff Editor */}
         <div className="flex-1 overflow-hidden" data-testid="diff-editor">
           <DiffEditor
+            key={`${filePathToString(filePath)}-${originalCode.length}-${modifiedCode.length}`}
             height="100%"
             language={actualLanguage}
             theme="vs-dark"
