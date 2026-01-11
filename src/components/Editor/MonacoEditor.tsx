@@ -75,6 +75,9 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     // 存储编辑器实例
     setEditorInstance(paneId, editor);
 
+    // 🔥 v0.2.9: 设置全局编辑器实例（用于 Cmd+K 等功能）
+    (window as any).__activeEditor = editor;
+
     // Add "Explain Code" Action
     editor.addAction({
       id: 'explain-code',
@@ -382,7 +385,7 @@ ${textBefore}[CURSOR]${textAfter}
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full" data-testid="monaco-editor-container">
       <Editor
         height="100%"
         path={file?.path || `untitled-${paneId}-${file?.id}`} // Guarantee uniqueness

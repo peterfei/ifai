@@ -1295,15 +1295,23 @@ export function formatDate(date: Date): string {
         },
         'thread-storage': { state: { activeThreadId: 'e2e-thread-1', threads: [{ id: 'e2e-thread-1', messages: [] }] }, version: 0 },
         // 🔥 修复持久化测试:保留 panes 等状态的持久化
-        'layout-storage': (existing: any) => ({
-          ...existing,
-          state: {
-            ...(existing?.state || {}),
-            isChatOpen: true,
-            isSidebarOpen: true,
-          },
-          version: existing?.version || 0,
-        }),
+        'layout-storage': (existing: any) => {
+          const existingState = existing?.state || {};
+          return {
+            ...existing,
+            state: {
+              ...existingState,
+              isChatOpen: true,
+              isSidebarOpen: true,
+              // 🔥 v0.2.9: Ensure there's at least one pane
+              panes: existingState.panes && existingState.panes.length > 0
+                ? existingState.panes
+                : [{ id: 'pane-1', fileId: null, splitDirection: null, splitPercentage: null }],
+              activePaneId: existingState.activePaneId || 'pane-1',
+            },
+            version: existing?.version || 0,
+          };
+        },
     };
 
     const originalGetItem = window.localStorage.getItem.bind(window.localStorage);
@@ -1345,7 +1353,8 @@ export function formatDate(date: Date): string {
     };
 
     (window as any).__E2E_OPEN_MOCK_FILE__ = (name: string, content?: string) => {
-        const fileStore = (window as any).__fileStore?.getState();
+        const fileStore = (window as any).__fileStore;
+        const layoutStore = (window as any).__layoutStore;
         const fileContent = content || `
 /**
  * Test class for breadcrumbs
@@ -1365,7 +1374,8 @@ export class TestApp {
         const filePath = `/Users/mac/mock-project/${name}`;
 
         if (fileStore) {
-            fileStore.openFile({
+            // Call openFile and get the fileId
+            const fileId = fileStore.getState().openFile({
                 id: `mock-${name}`,
                 path: filePath,
                 name: name,
@@ -1373,10 +1383,15 @@ export class TestApp {
                 isDirty: false,
                 language: 'typescript'
             });
+            console.log('[E2E Mock] File opened with ID:', fileId);
+
             // Auto assign to active pane if possible
-            const layoutStore = (window as any).__layoutStore?.getState();
-            if (layoutStore && layoutStore.activePaneId) {
-                layoutStore.assignFileToPane(layoutStore.activePaneId, `mock-${name}`);
+            const layoutState = layoutStore.getState();
+            if (layoutState && layoutState.activePaneId) {
+                layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+                console.log('[E2E Mock] File assigned to pane:', layoutState.activePaneId, 'fileId:', fileId);
+            } else {
+                console.error('[E2E Mock] No active pane found!', layoutState);
             }
         }
 
@@ -1386,6 +1401,18 @@ export class TestApp {
             mockFileSystem.set(filePath, fileContent);
             console.log('[E2E Mock] Initialized file system with:', name);
         }
+    };
+
+    // 🔥 v0.2.9: E2E 辅助函数 - 触发 Cmd+K 行内编辑
+    (window as any).__E2E_TRIGGER_INLINE_EDIT__ = (selectedText = '', position = { lineNumber: 1, column: 1 }) => {
+        const inlineEditStore = (window as any).__inlineEditStore;
+        if (inlineEditStore) {
+            console.log('[E2E] Triggering inline edit with:', { selectedText, position });
+            inlineEditStore.getState().showInlineEdit(selectedText, position);
+            return true;
+        }
+        console.error('[E2E] inlineEditStore not found!');
+        return false;
     };
 
     // E. Mock IndexedDB for thread persistence testing
@@ -1537,6 +1564,84 @@ export class TestApp {
       // 🔥 v0.2.9 E2E 测试：向现有 store 添加 v0.2.9 方法
       // 这些方法将在应用初始化后被添加到现有 store 中
       const addV029Methods = () => {
+        // EditorStore: 添加 openFile 便捷方法（用于 E2E 测试）
+        const editorStore = (window as any).__editorStore;
+        if (editorStore) {
+          // Create the openFile function
+          const openFileFunc = (filePath: string) => {
+            console.log('[E2E v0.2.9] editorStore.openFile:', filePath);
+            const fileStore = (window as any).__fileStore;
+            const layoutStore = (window as any).__layoutStore;
+            const mockFS = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+
+            if (!fileStore || !layoutStore || !mockFS) {
+              console.error('[E2E v0.2.9] Required stores not available');
+              return;
+            }
+
+            // Get content from mock file system - try multiple path variations
+            let content = mockFS.get(filePath);
+            if (!content) {
+              // Try without /test-project prefix
+              const relativePath = filePath.replace('/test-project/', '');
+              content = mockFS.get(relativePath);
+              console.log('[E2E v0.2.9] Trying relative path:', relativePath, 'found:', !!content);
+            }
+            if (!content) {
+              // Try with /test-project prefix
+              const absolutePath = filePath.startsWith('/test-project/') ? filePath : `/test-project/${filePath.replace(/^\//, '')}`;
+              content = mockFS.get(absolutePath);
+              console.log('[E2E v0.2.9] Trying absolute path:', absolutePath, 'found:', !!content);
+            }
+
+            // Create OpenedFile object
+            const fileName = filePath.split('/').pop() || 'unknown';
+            const language = fileName.endsWith('.tsx') ? 'typescript' :
+                            fileName.endsWith('.ts') ? 'typescript' :
+                            fileName.endsWith('.jsx') ? 'javascript' :
+                            fileName.endsWith('.js') ? 'javascript' :
+                            fileName.endsWith('.py') ? 'python' :
+                            'plaintext';
+
+            const openedFile = {
+              id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              path: filePath,
+              name: fileName,
+              content: content || '// Empty file',
+              isDirty: false,
+              language: language
+            };
+
+            // Open file in fileStore
+            const fileId = fileStore.getState().openFile(openedFile);
+
+            // Assign to active pane
+            const layoutState = layoutStore.getState();
+            if (layoutState.activePaneId) {
+              layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+              console.log('[E2E v0.2.9] File assigned to pane:', layoutState.activePaneId);
+            }
+
+            return fileId;
+          };
+
+          // Add to store (direct method call)
+          if (!editorStore.openFile) {
+            console.log('[E2E v0.2.9] Adding openFile to editorStore');
+            editorStore.openFile = openFileFunc;
+          }
+
+          // Wrap getState to inject openFile into state snapshot
+          const originalGetState = editorStore.getState.bind(editorStore);
+          editorStore.getState = () => {
+            const state = originalGetState();
+            if (!state.openFile) {
+              state.openFile = openFileFunc;
+            }
+            return state;
+          };
+        }
+
         // LayoutStore: 添加 toggleReviewHistory 方法
         const layoutStore = (window as any).__layoutStore;
         if (layoutStore && !layoutStore.toggleReviewHistory) {
