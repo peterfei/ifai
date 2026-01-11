@@ -8,7 +8,8 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
 import { shallow } from 'zustand/shallow';
 import { WelcomeScreen } from './WelcomeScreen';
-import { InlineEditWidget } from './InlineEditWidget';
+// 🔥 InlineEditWidget 已移至 App.tsx 全局渲染，避免重复订阅导致无限循环
+// import { InlineEditWidget } from './InlineEditWidget';
 import { setupSymbolCompletion } from './SymbolCompletionProvider';
 import { symbolIndexer } from '../../core/indexer/SymbolIndexer';
 import { useTranslation } from 'react-i18next';
@@ -30,9 +31,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const getEditorInstance = useEditorStore(state => state.getEditorInstance);
 
   // v0.2.9: Inline Edit Store
-  // 🔥 暂时禁用以调试无限循环问题
-  // const showInlineEdit = useInlineEditStore(state => state.showInlineEdit);
-  const showInlineEdit = (_selectedText?: string, _position?: { lineNumber: number; column: number }) => {};
+  const showInlineEdit = useInlineEditStore(state => state.showInlineEdit);
 
   // 🔥 修复无限循环：使用 shallow 比较避免不必要的重新渲染
   const openedFiles = useFileStore(state => state.openedFiles);
@@ -464,9 +463,7 @@ ${textBefore}[CURSOR]${textAfter}
         onMount={handleEditorDidMount}
         options={getOptimizedOptions()}
       />
-      {/* v0.2.9: Inline Edit Widget - 显示在 Cmd+K 快捷键触发时 */}
-      {/* 🔥 暂时禁用以调试无限循环问题 */}
-      {false && <InlineEditWidget />}
+      {/* v0.2.9: Inline Edit Widget 已移至 App.tsx 全局渲染，避免重复订阅 */}
     </div>
   );
 };

@@ -989,6 +989,100 @@ export function formatDate(date: Date): string {
             }, 100);
             return {};
         }
+
+        // 🔥 ai_completion 命令 - 用于 InlineEdit 功能
+        if (cmd === 'ai_completion') {
+            console.log('[E2E Mock] ai_completion called:', args);
+
+            // 检查是否使用真实 AI
+            const realAIConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+            const useRealAI = realAIConfig.useRealAI === true;
+
+            const providerConfig = args?.providerConfig;
+            const messages = args?.messages || [];
+
+            console.log('[E2E Mock] ai_completion - useRealAI:', useRealAI);
+            console.log('[E2E Mock] ai_completion - messages:', messages.length);
+
+            if (useRealAI && realAIConfig.realAIBaseUrl && realAIConfig.realAIApiKey) {
+                // 真实 AI 模式：调用真实的 API
+                let apiBaseUrl = realAIConfig.realAIBaseUrl;
+                if (!apiBaseUrl.endsWith('/chat/completions')) {
+                    apiBaseUrl = apiBaseUrl.replace(/\/+$/, '') + '/chat/completions';
+                }
+
+                const model = realAIConfig.realAIModel || providerConfig?.models?.[0]?.name || 'gpt-4o-mini';
+
+                console.log('[E2E Real AI] ai_completion calling API:', {
+                    baseUrl: apiBaseUrl,
+                    model,
+                    messagesCount: messages.length
+                });
+
+                try {
+                    const response = await fetch(apiBaseUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${realAIConfig.realAIApiKey}`
+                        },
+                        body: JSON.stringify({
+                            model,
+                            messages: messages.map(m => ({
+                                role: m.role,
+                                content: m.content || ''
+                            })),
+                            stream: false
+                        })
+                    });
+
+                    const data = await response.json();
+                    console.log('[E2E Real AI] ai_completion response:', {
+                        id: data.id,
+                        hasChoices: !!data.choices
+                    });
+
+                    if (data.choices && data.choices[0]) {
+                        const content = data.choices[0].message?.content || '';
+                        console.log('[E2E Real AI] ai_completion content length:', content.length);
+                        return content; // 返回字符串
+                    } else {
+                        console.error('[E2E Real AI] ai_completion invalid response');
+                        return '// Error: Invalid AI response';
+                    }
+                } catch (error: any) {
+                    console.error('[E2E Real AI] ai_completion API call failed:', error);
+                    return `// Error: ${error.message}`;
+                }
+            }
+
+            // Mock 模式：返回模拟响应
+            const lastMessage = messages[messages.length - 1];
+            const userPrompt = lastMessage?.content || '';
+
+            // 根据用户指令生成模拟响应
+            let mockResponse = '';
+
+            if (userPrompt.includes('error handling') || userPrompt.includes('错误处理')) {
+                mockResponse = `try {
+    // Your code here
+} catch (error) {
+    console.error('Error:', error);
+    throw error;
+}`;
+            } else if (userPrompt.includes('comment') || userPrompt.includes('注释')) {
+                mockResponse = `// ${userPrompt}\n// Your code here`;
+            } else if (userPrompt.includes('type') || userPrompt.includes('TypeScript')) {
+                mockResponse = `function example(param: string): void {\n    // implementation\n}`;
+            } else {
+                // 默认响应
+                mockResponse = `// Modified based on: ${userPrompt.substring(0, 50)}...\n// Your code here`;
+            }
+
+            console.log('[E2E Mock] ai_completion returning mock response');
+            return mockResponse;
+        }
+
         return {};
     };
 

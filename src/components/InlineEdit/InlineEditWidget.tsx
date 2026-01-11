@@ -3,15 +3,16 @@
  *
  * 当用户按 Cmd+K 时显示，允许输入编辑指令
  * 使用 Zustand store 管理状态
+ *
+ * 🔥 修复无限循环：使用 CSS class 控制显示/隐藏，避免动态 style 对象
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
 import { Sparkles, X } from 'lucide-react';
-import { shallow } from 'zustand/shallow';
 
 export const InlineEditWidget = () => {
-  // 🔥 修复无限循环：使用单独的选择器，避免对象选择器导致引用不稳定
+  // 🔥 使用选择器订阅 store
   const isInlineEditVisible = useInlineEditStore(state => state.isInlineEditVisible);
   const selectedText = useInlineEditStore(state => state.selectedText);
   const position = useInlineEditStore(state => state.position);
@@ -20,100 +21,29 @@ export const InlineEditWidget = () => {
 
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const [widgetStyle, setWidgetStyle] = useState<React.CSSProperties>({
-    display: 'none',
-    top: 100,
-    left: 100,
-  });
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 修复无限循环：使用 ref 追踪上一次的状态，避免不必要的状态更新
-  const lastStateRef = useRef({
-    isInlineEditVisible: false,
-    positionLineNumber: 0,
-    positionColumn: 0,
-  });
+  // 🔥 使用 useState 存储 top 位置，而不是整个 style 对象
+  const [topPosition, setTopPosition] = useState(100);
 
-  // 当显示状态或位置改变时，更新样式
-  useEffect(() => {
-    console.log('[InlineEditWidget] Position effect triggered, isInlineEditVisible:', isInlineEditVisible, 'position:', position);
+  // 🔥 使用 ref 追踪上一次的 position，避免重复计算
+  const lastPositionRef = useRef<string>('');
 
-    // 🔥 检查状态是否真正改变
-    const hasChanged =
-      lastStateRef.current.isInlineEditVisible !== isInlineEditVisible ||
-      lastStateRef.current.positionLineNumber !== (position?.lineNumber ?? 0) ||
-      lastStateRef.current.positionColumn !== (position?.column ?? 0);
+  // 🔥 使用 useCallback 缓存事件处理函数
+  const handleClose = useCallback(() => {
+    hideInlineEdit();
+  }, [hideInlineEdit]);
 
-    if (!hasChanged) {
-      console.log('[InlineEditWidget] State unchanged, skipping update');
-      return;
-    }
-
-    // 更新 ref
-    lastStateRef.current = {
-      isInlineEditVisible,
-      positionLineNumber: position?.lineNumber ?? 0,
-      positionColumn: position?.column ?? 0,
-    };
-
-    if (isInlineEditVisible) {
-      const editor = (window as any).__activeEditor;
-      console.log('[InlineEditWidget] editor:', !!editor, 'position:', position);
-
-      let newTop = 100;
-      if (editor && position) {
-        try {
-          newTop = editor.getTopForPosition(position.lineNumber, position.column) + 30;
-          console.log('[InlineEditWidget] Calculated top:', newTop);
-        } catch (e) {
-          console.warn('[InlineEditWidget] Failed to get position:', e);
-          newTop = 100;
-        }
-      }
-
-      // 🔥 只在样式真正需要改变时才更新
-      const newStyle = {
-        display: 'flex' as const,
-        flexDirection: 'column' as const,
-        top: newTop,
-        left: 100,
-      };
-
-      if (widgetStyle.display !== newStyle.display || widgetStyle.top !== newStyle.top) {
-        setWidgetStyle(newStyle);
-      }
-
-      // 延迟聚焦输入框
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-    } else {
-      console.log('[InlineEditWidget] Hiding widget');
-      if (widgetStyle.display !== 'none') {
-        setWidgetStyle({ display: 'none' });
-        setInput('');
-      }
-    }
-  }, [isInlineEditVisible, position?.lineNumber, position?.column]);
-
-  // 当选中的文本改变时，预填充输入框
-  useEffect(() => {
-    if (selectedText) {
-      setInput(selectedText);
-    }
-  }, [selectedText]);
-
-  const handleSubmit = () => {
-    console.log('[InlineEditWidget] handleSubmit called, input:', input);
+  const handleSubmit = useCallback(() => {
     if (!input.trim()) {
       hideInlineEdit();
       return;
     }
-    console.log('[InlineEditWidget] Calling submitInstruction with:', input);
     submitInstruction(input);
     setInput('');
-  };
+  }, [input, hideInlineEdit, submitInstruction]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -121,15 +51,69 @@ export const InlineEditWidget = () => {
       e.preventDefault();
       hideInlineEdit();
     }
-  };
+  }, [handleSubmit, hideInlineEdit]);
 
-  console.log('[InlineEditWidget] Rendering, widgetStyle.display:', widgetStyle.display);
+  // 🔥 使用 useMemo 缓存 position 的字符串表示，用于比较
+  const positionKey = useMemo(() => {
+    return position ? `${position.lineNumber}:${position.column}` : '';
+  }, [position]);
 
-  // 始终渲染组件，通过 style 控制可见性（而不是条件返回 null）
+  // 当显示状态或位置改变时，更新位置
+  useEffect(() => {
+    if (!isInlineEditVisible) {
+      setTopPosition(100);
+      setInput('');
+      return;
+    }
+
+    // 🔥 检查 position 是否真正改变
+    if (positionKey === lastPositionRef.current) {
+      return;
+    }
+
+    lastPositionRef.current = positionKey;
+
+    const editor = (window as any).__activeEditor;
+    let newTop = 100;
+
+    if (editor && position) {
+      try {
+        newTop = editor.getTopForPosition(position.lineNumber, position.column) + 30;
+      } catch (e) {
+        console.warn('[InlineEditWidget] Failed to get position:', e);
+      }
+    }
+
+    setTopPosition(newTop);
+
+    // 延迟聚焦输入框
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  }, [isInlineEditVisible, positionKey]); // 🔥 只依赖 positionKey 而不是 position 对象
+
+  // 当选中的文本改变时，预填充输入框
+  useEffect(() => {
+    if (selectedText && isInlineEditVisible) {
+      setInput(selectedText);
+    }
+  }, [selectedText, isInlineEditVisible]);
+
+  // 🔥 使用 CSS class 控制显示/隐藏，而不是动态 style 对象
+  const containerClassName = `absolute z-[280] bg-[#252526] border border-blue-500/50 rounded-lg shadow-2xl w-[400px] inline-edit-widget transition-opacity duration-200 ${
+    isInlineEditVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+  }`;
+
+  const containerStyle = useMemo(() => ({
+    top: topPosition,
+    left: 100,
+  }), [topPosition]); // 🔥 只依赖 topPosition
+
   return (
     <div
-      className="absolute z-[280] bg-[#252526] border border-blue-500/50 rounded-lg shadow-2xl w-[400px] inline-edit-widget"
-      style={widgetStyle}
+      ref={containerRef}
+      className={containerClassName}
+      style={containerStyle}
       data-testid="inline-input-container"
     >
       {/* Header */}
@@ -137,8 +121,9 @@ export const InlineEditWidget = () => {
         <Sparkles className="text-blue-400" size={16} />
         <span className="text-xs font-medium text-gray-300">AI 编辑</span>
         <button
-          onClick={hideInlineEdit}
+          onClick={handleClose}
           className="ml-auto text-gray-400 hover:text-white transition-colors"
+          aria-label="关闭"
         >
           <X size={14} />
         </button>

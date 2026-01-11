@@ -196,8 +196,6 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   const filePath = storeFilePath || propFilePath || 'unknown';
   const instruction = storeInstruction || propInstruction || '';
 
-  console.log('[DiffEditorModal] Render, isVisible:', isVisible, 'filePath:', filePath);
-
   const [monaco, setMonaco] = useState<Monaco | null>(null);
   const diffStats = calculateDiffStats(originalCode, modifiedCode);
   const actualLanguage = language || getLanguageFromPath(filePath);
@@ -229,11 +227,8 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   }, [isVisible]); // 🔥 移除 onReject 依赖，使用 ref 代替
 
   if (!isVisible) {
-    console.log('[DiffEditorModal] Returning null because isVisible is false');
     return null;
   }
-
-  console.log('[DiffEditorModal] Rendering modal content');
 
   return (
     <div

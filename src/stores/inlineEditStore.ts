@@ -10,7 +10,9 @@
 
 import { create } from 'zustand';
 import { MockInlineEditor } from '../core/mock-core/v0.2.9/MockInlineEditor';
+import { RealInlineEditor } from '../core/real-core/v0.2.9/RealInlineEditor';
 import type { IInlineEditor, InlineEditorRequest } from '../core/interfaces/v0.2.9/IInlineEditor';
+import { IS_COMMERCIAL } from '../config/edition';
 
 // ============================================================================
 // 服务注入
@@ -19,10 +21,18 @@ import type { IInlineEditor, InlineEditorRequest } from '../core/interfaces/v0.2
 /**
  * 创建默认的编辑器服务实例
  *
- * 社区版使用 MockInlineEditor，商业版可以替换为真实的 LLM 服务
+ * 🔥 版本区分：
+ * - 社区版: 使用 MockInlineEditor（模拟响应）
+ * - 商业版: 使用 RealInlineEditor（真实 LLM API）
  */
 function createEditorService(): IInlineEditor {
-  return new MockInlineEditor({ delay: 100 }); // 降低延迟以提升体验
+  if (IS_COMMERCIAL) {
+    console.log('[inlineEditStore] 🏢 Commercial edition: Using RealInlineEditor with LLM API');
+    return new RealInlineEditor();
+  } else {
+    console.log('[inlineEditStore] 🆓 Community edition: Using MockInlineEditor');
+    return new MockInlineEditor({ delay: 100 });
+  }
 }
 
 // 默认服务实例

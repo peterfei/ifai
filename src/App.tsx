@@ -78,24 +78,14 @@ function App() {
   } = useCodeReviewStore();
 
   // v0.2.9: Inline Edit Store
-  // 🔥 暂时注释掉所有 inlineEditStore 订阅以调试无限循环问题
-  // const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
-  // const hideInlineEdit = useInlineEditStore(state => state.hideInlineEdit);
-  // const showDiffEditor = useInlineEditStore(state => state.showDiffEditor);
-  // const hideDiffEditor = useInlineEditStore(state => state.hideDiffEditor);
-  // const acceptDiff = useInlineEditStore(state => state.acceptDiff);
-  // const rejectDiff = useInlineEditStore(state => state.rejectDiff);
-  // const undo = useInlineEditStore(state => state.undo);
-  // const redo = useInlineEditStore(state => state.redo);
-
-  // 临时使用空函数避免编译错误
-  const hideInlineEdit = () => {};
-  const showDiffEditor = () => {};
-  const hideDiffEditor = () => {};
-  const acceptDiff = () => {};
-  const rejectDiff = () => {};
-  const undo = () => {};
-  const redo = () => {};
+  // 🔥 使用单独的选择器订阅，避免对象选择器导致引用不稳定
+  const hideInlineEdit = useInlineEditStore(state => state.hideInlineEdit);
+  const showDiffEditor = useInlineEditStore(state => state.showDiffEditor);
+  const hideDiffEditor = useInlineEditStore(state => state.hideDiffEditor);
+  const acceptDiff = useInlineEditStore(state => state.acceptDiff);
+  const rejectDiff = useInlineEditStore(state => state.rejectDiff);
+  const undo = useInlineEditStore(state => state.undo);
+  const redo = useInlineEditStore(state => state.redo);
 
   const [isResizingChat, setIsResizingChat] = React.useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
@@ -599,15 +589,13 @@ function App() {
         <ReviewHistoryPanel isOpen={isHistoryPanelOpen} />
 
         {/* v0.2.9: Inline Edit Widget (uses useInlineEditStore internally) */}
-        {/* 🔥 暂时禁用 InlineEditWidget 以调试无限循环问题 */}
-        {false && <InlineEditWidget />}
+        <InlineEditWidget />
 
         {/* v0.2.9: Diff Editor Modal */}
-        {/* 🔥 暂时禁用 DiffEditorModal 以调试无限循环问题 */}
-        {false && <DiffEditorModal
+        <DiffEditorModal
           onAccept={acceptDiff}
           onReject={rejectDiff}
-        />}
+        />
 
         {/* v0.2.9: Git Commit Button (shows when files are staged) */}
         {showCommitButton && (
