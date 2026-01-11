@@ -61,7 +61,7 @@ export interface IndexerConfig {
 // SymbolIndexer 实现
 // ============================================================================
 
-class SymbolIndexer {
+export class SymbolIndexer {
   private fileIndex: Map<string, FileIndex> = new Map();
   private symbolIndex: Map<string, SymbolInfo[]> = new Map(); // symbol name -> symbols
   private recentFiles: string[] = []; // LRU cache for recently accessed files
@@ -224,7 +224,7 @@ class SymbolIndexer {
     }
 
     // export const Name = value OR const Name = value (v0.2.9: also index non-exported consts)
-    const constMatch = line.match(/(?:export\s+)?(?:const|let)\s+(\w+)\s*=/);
+    const constMatch = line.match(/(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=/);
     if (constMatch) {
       symbols.push({
         name: constMatch[1],
