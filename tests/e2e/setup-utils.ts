@@ -1,4 +1,11 @@
 import { Page } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// ES 模块兼容：获取 __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * E2E 测试环境配置选项
@@ -24,6 +31,52 @@ export interface E2ETestEnvironmentOptions {
    * 真实 AI 的模型名称（可选）
    */
   realAIModel?: string;
+
+  /**
+   * 配置文件路径（默认为 tests/e2e/.env.e2e.local）
+   */
+  configPath?: string;
+}
+
+/**
+ * 从 .env.e2e.local 文件加载配置
+ *
+ * @param configPath 配置文件路径
+ * @returns 配置对象
+ */
+function loadE2EConfig(configPath?: string): Record<string, string> {
+  const defaultPath = resolve(__dirname, '.env.e2e.local');
+  const filePath = configPath || defaultPath;
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const config: Record<string, string> = {};
+
+    content.split('\n').forEach(line => {
+      const trimmedLine = line.trim();
+      // 跳过空行和注释
+      if (!trimmedLine || trimmedLine.startsWith('#')) {
+        return;
+      }
+      // 解析 KEY=VALUE 格式
+      const match = trimmedLine.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim();
+        // 移除值两端的引号（如果有）
+        config[key] = value.replace(/^['"]|['"]$/g, '');
+      }
+    });
+
+    return config;
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // 文件不存在，返回空配置
+      return {};
+    }
+    console.warn(`[E2E] Warning: Failed to load config from ${filePath}:`, error.message);
+    return {};
+  }
 }
 
 /**
@@ -36,7 +89,33 @@ export async function setupE2ETestEnvironment(
   page: Page,
   options: E2ETestEnvironmentOptions = {}
 ) {
-  const { useRealAI = false, realAIApiKey, realAIBaseUrl, realAIModel } = options;
+  // 🔥 首先从配置文件加载 AI API 配置
+  const fileConfig = loadE2EConfig(options.configPath);
+
+  // 合并配置优先级：命令行参数 > 环境变量 > 配置文件
+  const useRealAI = options.useRealAI ?? (fileConfig.E2E_AI_API_KEY ? true : false);
+  const realAIApiKey = options.realAIApiKey ?? process.env.E2E_AI_API_KEY ?? fileConfig.E2E_AI_API_KEY;
+  const realAIBaseUrl = options.realAIBaseUrl ?? process.env.E2E_AI_BASE_URL ?? fileConfig.E2E_AI_BASE_URL;
+  const realAIModel = options.realAIModel ?? process.env.E2E_AI_MODEL ?? fileConfig.E2E_AI_MODEL;
+
+  // 🔥 检查是否需要真实 AI 但没有配置
+  if (useRealAI && !realAIApiKey) {
+    console.warn(`[E2E] ⚠️  真实 AI 模式已启用，但未配置 API Key。`);
+    console.warn(`[E2E] 🔑 请创建 ${options.configPath || 'tests/e2e/.env.e2e.local'} 文件并配置：`);
+    console.warn(`[E2E]`);
+    console.warn(`[E2E]   E2E_AI_API_KEY=your-api-key-here`);
+    console.warn(`[E2E]   E2E_AI_BASE_URL=https://api.deepseek.com`);
+    console.warn(`[E2E]   E2E_AI_MODEL=deepseek-chat`);
+    console.warn(`[E2E]`);
+    console.warn(`[E2E] 💡 或者参考 tests/e2e/.env.e2e.example 模板文件。`);
+    console.warn(`[E2E]`);
+    console.warn(`[E2E] 🔄 测试将自动跳过或使用 Mock AI。`);
+  } else if (useRealAI && realAIApiKey) {
+    console.log(`[E2E] 🤖 使用真实 AI 模式`);
+    console.log(`[E2E]    API: ${realAIBaseUrl || 'default'}`);
+    console.log(`[E2E]    模型: ${realAIModel || 'default'}`);
+    console.log(`[E2E]    Key: ${realAIApiKey ? realAIApiKey.substring(0, 10) + '...' : 'N/A'}`);
+  }
 
   // 1. Mock API（除非使用真实 AI）
   if (!useRealAI) {
@@ -79,6 +158,8 @@ export async function setupE2ETestEnvironment(
     const mockFileSystem = new Map<string, string>();
     // 暴露到 window 以便其他函数可以访问
     (window as any).__E2E_MOCK_FILE_SYSTEM__ = mockFileSystem;
+    // 别名：兼容测试中的不同命名约定
+    (window as any).__E2E_MOCK_FILE_SYSTEM = mockFileSystem;
 
     // 🔥 暴露格式化函数用于测试
     (window as any).__formatToolResultToMarkdown = (result: any, toolCall?: any) => {
@@ -1452,6 +1533,119 @@ export class TestApp {
         }
       };
       console.log('[E2E] atomicWriteService mocked');
+
+      // 🔥 v0.2.9 E2E 测试：向现有 store 添加 v0.2.9 方法
+      // 这些方法将在应用初始化后被添加到现有 store 中
+      const addV029Methods = () => {
+        // LayoutStore: 添加 toggleReviewHistory 方法
+        const layoutStore = (window as any).__layoutStore;
+        if (layoutStore && !layoutStore.toggleReviewHistory) {
+          console.log('[E2E v0.2.9] Adding toggleReviewHistory to layoutStore');
+          const originalGetState = layoutStore.getState.bind(layoutStore);
+          layoutStore.toggleReviewHistory = () => {
+            const state = originalGetState();
+            state.isReviewHistoryVisible = !state.isReviewHistoryVisible;
+            console.log('[E2E v0.2.9] toggleReviewHistory:', state.isReviewHistoryVisible);
+          };
+          // 同时添加到 state 对象（向后兼容）
+          const state = layoutStore.getState();
+          if (!state.toggleReviewHistory) {
+            state.toggleReviewHistory = layoutStore.toggleReviewHistory;
+          }
+        }
+
+        // ReviewStore: 如果不存在则创建 mock（v0.2.9 新功能）
+        const reviewStore = (window as any).__reviewStore;
+        if (!reviewStore) {
+          console.log('[E2E v0.2.9] Creating __reviewStore mock');
+          (window as any).__reviewStore = {
+            getState: () => ({
+              reviewHistory: [],
+              customRules: [],
+              addReviewHistory: (review: any) => {
+                console.log('[E2E v0.2.9] addReviewHistory:', review.id);
+                const history = (window as any).__reviewHistory || [];
+                history.push(review);
+                (window as any).__reviewHistory = history;
+              },
+              setCustomRules: (rules: any[]) => {
+                console.log('[E2E v0.2.9] setCustomRules:', rules.length, 'rules');
+                (window as any).__customRules = rules;
+              },
+              getReviewHistory: () => (window as any).__reviewHistory || [],
+              getCustomRules: () => (window as any).__customRules || [],
+              toggleReviewHistory: () => {
+                console.log('[E2E v0.2.9] ReviewStore.toggleReviewHistory');
+                (window as any).__reviewHistoryVisible = !((window as any).__reviewHistoryVisible || false);
+              }
+            })
+          };
+        }
+
+        // TerminalStore: 如果不存在则创建 mock（v0.2.9 新功能）
+        const terminalStore = (window as any).__terminalStore;
+        if (!terminalStore) {
+          console.log('[E2E v0.2.9] Creating __terminalStore mock');
+          (window as any).__terminalStore = {
+            getState: () => ({
+              isFixApplied: false,
+              lastCommand: '',
+              setFixApplied: (applied: boolean) => {
+                console.log('[E2E v0.2.9] setFixApplied:', applied);
+                (window as any).__isFixApplied = applied;
+              },
+              executeCommand: async (command: string) => {
+                console.log('[E2E v0.2.9] executeCommand:', command);
+                (window as any).__lastCommand = command;
+                return { stdout: 'Mock output', stderr: '', exitCode: 0 };
+              }
+            })
+          };
+        }
+
+        // SymbolIndexer: 如果不存在则创建 mock（v0.2.9 新功能）
+        const symbolIndexer = (window as any).__symbolIndexer;
+        if (!symbolIndexer) {
+          console.log('[E2E v0.2.9] Creating __symbolIndexer mock');
+          (window as any).__symbolIndexer = {
+            indexFile: async (filePath: string, content: string) => {
+              console.log('[E2E v0.2.9] symbolIndexer.indexFile:', filePath);
+              const symbols = (window as any).__symbolIndex || new Map();
+              // 简单解析 exports
+              const exportRegex = /export\s+(?:function|class|const|let|var)\s+(\w+)/g;
+              let match;
+              while ((match = exportRegex.exec(content)) !== null) {
+                symbols.set(match[1], { name: match[1], file: filePath, kind: 'function' });
+              }
+              (window as any).__symbolIndex = symbols;
+            },
+            queryInScope: async (scope: any) => {
+              console.log('[E2E v0.2.9] symbolIndexer.queryInScope');
+              return Array.from(((window as any).__symbolIndex || new Map()).values());
+            }
+          };
+        }
+
+        console.log('[E2E v0.2.9] ✅ v0.2.9 methods added to stores');
+      };
+
+      // 首次尝试添加
+      addV029Methods();
+
+      // 如果第一次失败，继续尝试直到成功（最多 10 次）
+      let attempts = 0;
+      const v029Interval = setInterval(() => {
+        attempts++;
+        const layoutStore = (window as any).__layoutStore;
+        if (layoutStore && !layoutStore.toggleReviewHistory) {
+          console.log(`[E2E v0.2.9] Retrying to add methods (attempt ${attempts})`);
+          addV029Methods();
+        }
+        if (attempts >= 10 || (layoutStore && layoutStore.toggleReviewHistory)) {
+          clearInterval(v029Interval);
+          console.log('[E2E v0.2.9] Finished adding v0.2.9 methods');
+        }
+      }, 500);
     }, 1000);
   }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel });
 }

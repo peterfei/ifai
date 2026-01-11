@@ -55,6 +55,10 @@ TOUTIAO_v0.2.5.md
 playwright-report/
 test-results/
 
+# E2E Test Configuration (contains sensitive API keys)
+.env.e2e.local
+.env.e2e
+
 # OpenSpec 提案运行时数据
 .ifai/archive/
 .ifai/changes/
