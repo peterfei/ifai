@@ -17,6 +17,15 @@ test.describe('Native Editing Experience (v0.2.9)', () => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForTimeout(2000);
+
+    // 🔥 重置 symbolIndexer 状态（单例，测试间会共享状态）
+    await page.evaluate(() => {
+      const symbolIndexer = (window as any).__symbolIndexer;
+      if (symbolIndexer && symbolIndexer.clear) {
+        symbolIndexer.clear();
+        console.log('[E2E] symbolIndexer cleared');
+      }
+    });
   });
 
   test('EDT-E2E-01: 行内编辑 (Cmd+K) 触发及 Diff 显示', async ({ page }) => {
@@ -241,8 +250,8 @@ export default calculate;
       const editorStore = (window as any).__editorStore;
       const fileStore = (window as any).__fileStore;
 
-      // 创建定义文件
-      mockFS.set('/hooks/useCustom.ts', `
+      // 创建定义文件（路径需要与文件树一致）
+      mockFS.set('/test-project/hooks/useCustom.ts', `
 import { useState, useEffect } from 'react';
 
 export function useCustomHook(initialValue: number) {
@@ -261,9 +270,9 @@ export function useCustomHook(initialValue: number) {
 export const CONSTANT_VALUE = 42;
 `);
 
-      // 建立符号索引
+      // 建立符号索引（路径需要与文件树一致）
       if (symbolIndexer) {
-        await symbolIndexer.indexFile('/hooks/useCustom.ts', mockFS.get('/hooks/useCustom.ts'));
+        await symbolIndexer.indexFile('/test-project/hooks/useCustom.ts', mockFS.get('/test-project/hooks/useCustom.ts'));
       }
 
       // 创建使用文件
@@ -342,22 +351,22 @@ export const CONSTANT_VALUE = 42;
   });
 
   test('EDT-E2E-05: 基于最近打开文件的上下文补全', async ({ page }) => {
-    // Given: 按顺序打开几个文件
+    // Given: 按顺序打开几个文件（路径需要与文件树一致）
     const files = [
       {
-        path: '/components/Button.tsx',
+        path: '/test-project/components/Button.tsx',
         content: `export function Button({ children, onClick }) {
   return <button onClick={onClick}>{children}</button>;
 }`
       },
       {
-        path: '/components/Input.tsx',
+        path: '/test-project/components/Input.tsx',
         content: `export function Input({ value, onChange }) {
   return <input value={value} onChange={onChange} />;
 }`
       },
       {
-        path: '/pages/Home.tsx',
+        path: '/test-project/pages/Home.tsx',
         content: `// Home page content`
       }
     ];
@@ -601,17 +610,19 @@ export const CONSTANT_VALUE = 42;
       const editorStore = (window as any).__editorStore;
       const fileStore = (window as any).__fileStore;
 
-      mockFS.set('/utils.ts', `
+      // 创建项目目录下的文件
+      mockFS.set('/test-project/utils.ts', `
 export function util1() {}
 export function util2() {}
 export function util3() {}
 `);
 
       if (symbolIndexer) {
-        await symbolIndexer.indexFile('/utils.ts', mockFS.get('/utils.ts'));
+        // 索引路径需要与文件树路径一致
+        await symbolIndexer.indexFile('/test-project/utils.ts', mockFS.get('/test-project/utils.ts'));
       }
 
-      mockFS.set('/test.ts', '');
+      mockFS.set('/test-project/test.ts', '');
 
       const currentTree = fileStore.getState().fileTree || { children: [] };
       fileStore.getState().setFileTree({
