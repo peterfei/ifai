@@ -59,6 +59,9 @@ export interface LayoutState {
   // 新增：布局模式操作
   setLayoutMode: (mode: 'default' | 'custom') => void;
 
+  // v0.2.9 新增：审查历史操作
+  toggleReviewHistory: () => void;
+
   // 分屏操作
   splitPane: (direction: 'horizontal' | 'vertical', targetPaneId?: string) => void;
   closePane: (paneId: string) => void;
@@ -136,6 +139,14 @@ export const useLayoutStore = create<LayoutState>()(
 
       // 新增：布局模式操作函数
       setLayoutMode: (mode) => set({ layoutMode: mode }),
+
+      // v0.2.9 新增：审查历史操作
+      toggleReviewHistory: () => {
+        // 委托给 codeReviewStore (通过全局窗口对象避免循环依赖)
+        if (typeof window !== 'undefined' && (window as any).__codeReviewStore) {
+          (window as any).__codeReviewStore.getState().toggleHistoryPanel();
+        }
+      },
 
       // 分屏操作
       splitPane: (direction, targetPaneId) => {

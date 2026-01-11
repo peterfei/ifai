@@ -18,6 +18,17 @@ test.describe('Smart Terminal Loop (v0.2.9)', () => {
     await page.goto('/');
     // 确保应用核心组件已加载
     await page.waitForTimeout(2000);
+
+    // 打开终端面板（测试需要 TerminalPanel 组件渲染）
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      if (layoutStore) {
+        layoutStore.getState().toggleTerminal();
+      }
+    });
+
+    // 等待终端面板打开
+    await page.waitForTimeout(500);
   });
 
   test('TRM-E2E-01: 检测终端错误并触发 AI 修复', async ({ page }) => {
