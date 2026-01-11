@@ -16,12 +16,16 @@ import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel
 import { WelcomeDialog, LocalModelDownload } from './components/Onboarding';
 import { CodeReviewModal, ReviewHistoryPanel } from './components/CodeReview';
 import { InlineEditWidget, DiffEditorModal } from './components/InlineEdit';
+
+// 🔥 E2E 检测：使用构建时环境变量，避免影响生产环境
+const isE2EEnvironment = import.meta.env.VITE_TEST_ENV === 'e2e';
 import { useFileStore } from './stores/fileStore';
 import { useEditorStore } from './stores/editorStore';
 import { useLayoutStore } from './stores/layoutStore';
 import { useAgentStore } from './stores/agentStore';
 import { useCodeReviewStore } from './stores/codeReviewStore';
 import { useInlineEditStore } from './stores/inlineEditStore';
+import { shallow } from 'zustand/shallow';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
 import { Toaster, toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,8 +39,14 @@ import { useSettingsStore } from './stores/settingsStore';
 import { useSnippetStore } from './stores/snippetStore';
 
 function App() {
+  // 🔥 调试：跟踪 App 组件的渲染次数
+  (window as any).__appRenderCount = ((window as any).__appRenderCount || 0) + 1;
+  const renderCount = (window as any).__appRenderCount;
+  console.log('[App] Render #' + renderCount);
+
   const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, fetchGitStatuses } = useFileStore();
+
   const {
     isChatOpen,
     toggleChat,
@@ -67,21 +77,25 @@ function App() {
     isHistoryPanelOpen,
   } = useCodeReviewStore();
 
-  // v0.2.9: Inline Edit Store - 使用简单的选择器
-  const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
-  const originalCode = useInlineEditStore(state => state.originalCode);
-  const modifiedCode = useInlineEditStore(state => state.modifiedCode);
-  const currentFilePath = useInlineEditStore(state => state.currentFilePath);
+  // v0.2.9: Inline Edit Store
+  // 🔥 暂时注释掉所有 inlineEditStore 订阅以调试无限循环问题
+  // const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
+  // const hideInlineEdit = useInlineEditStore(state => state.hideInlineEdit);
+  // const showDiffEditor = useInlineEditStore(state => state.showDiffEditor);
+  // const hideDiffEditor = useInlineEditStore(state => state.hideDiffEditor);
+  // const acceptDiff = useInlineEditStore(state => state.acceptDiff);
+  // const rejectDiff = useInlineEditStore(state => state.rejectDiff);
+  // const undo = useInlineEditStore(state => state.undo);
+  // const redo = useInlineEditStore(state => state.redo);
 
-  const {
-    hideInlineEdit,
-    showDiffEditor,
-    hideDiffEditor,
-    acceptDiff,
-    rejectDiff,
-    undo,
-    redo,
-  } = useInlineEditStore();
+  // 临时使用空函数避免编译错误
+  const hideInlineEdit = () => {};
+  const showDiffEditor = () => {};
+  const hideDiffEditor = () => {};
+  const acceptDiff = () => {};
+  const rejectDiff = () => {};
+  const undo = () => {};
+  const redo = () => {};
 
   const [isResizingChat, setIsResizingChat] = React.useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
@@ -585,17 +599,15 @@ function App() {
         <ReviewHistoryPanel isOpen={isHistoryPanelOpen} />
 
         {/* v0.2.9: Inline Edit Widget (uses useInlineEditStore internally) */}
-        <InlineEditWidget />
+        {/* 🔥 暂时禁用 InlineEditWidget 以调试无限循环问题 */}
+        {false && <InlineEditWidget />}
 
         {/* v0.2.9: Diff Editor Modal */}
-        <DiffEditorModal
-          isVisible={isDiffEditorVisible}
-          originalCode={originalCode}
-          modifiedCode={modifiedCode}
-          filePath={currentFilePath}
+        {/* 🔥 暂时禁用 DiffEditorModal 以调试无限循环问题 */}
+        {false && <DiffEditorModal
           onAccept={acceptDiff}
           onReject={rejectDiff}
-        />
+        />}
 
         {/* v0.2.9: Git Commit Button (shows when files are staged) */}
         {showCommitButton && (

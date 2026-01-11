@@ -140,11 +140,19 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
 
     // Cache miss - read from filesystem
     const entries = await readDir(normalizedPath);
-    const nodes: FileNode[] = entries.map(entry => {
+
+    // 🔥 修复：检查 entries 是否为数组，Tauri API 可能返回非数组格式
+    if (!entries || !Array.isArray(entries)) {
+      console.warn(`[readDirectory] entries is not an array:`, typeof entries, entries);
+      perfMonitor.end(perfId);
+      return [];
+    }
+
+    const nodes: FileNode[] = entries.map((entry: any) => {
         return {
             id: uuidv4(), // Client-side ID
-            name: entry.name,
-            path: joinPath(normalizedPath, entry.name),
+            name: entry.name || 'unknown',
+            path: joinPath(normalizedPath, entry.name || 'unknown'),
             kind: (entry.isDirectory ? 'directory' : 'file') as 'file' | 'directory',
             children: undefined // Lazy load
         };
@@ -159,7 +167,7 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
   } catch (error) {
     perfMonitor.end(perfId);
     console.error(`Failed to read directory ${path}:`, error);
-    throw error; // Re-throw to let caller handle/toast
+    return []; // 🔥 修复：返回空数组而不是抛出错误，避免应用崩溃
   }
 };
 

@@ -7,11 +7,12 @@
  * - 支持查看修改详情
  */
 
-import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, XCircle, Diff } from 'lucide-react';
 import Editor, { Monaco, DiffEditor } from '@monaco-editor/react';
 import { toast } from 'sonner';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
+import { shallow } from 'zustand/shallow';
 
 // 简单的 diff 行计算
 function computeLineDiff(original: string, modified: string): {
@@ -61,22 +62,19 @@ function computeLineDiff(original: string, modified: string): {
 // ============================================================================
 
 interface DiffEditorModalProps {
-  /** 是否显示模态框 */
-  isVisible: boolean;
+  /** 原始代码（可选，优先使用 store 中的值） */
+  originalCode?: string;
 
-  /** 原始代码 */
-  originalCode: string;
+  /** 修改后的代码（可选，优先使用 store 中的值） */
+  modifiedCode?: string;
 
-  /** 修改后的代码 */
-  modifiedCode: string;
-
-  /** 文件路径 */
+  /** 文件路径（可选，优先使用 store 中的值） */
   filePath?: string;
 
   /** 语言 */
   language?: string;
 
-  /** 用户指令 */
+  /** 用户指令（可选，优先使用 store 中的值） */
   instruction?: string;
 
   /** 接受修改回调 */
@@ -176,7 +174,6 @@ function calculateDiffStats(original: string, modified: string): {
 // ============================================================================
 
 export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
-  isVisible: propIsVisible,
   originalCode: propOriginalCode,
   modifiedCode: propModifiedCode,
   filePath: propFilePath,
@@ -185,28 +182,19 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   onAccept,
   onReject,
 }) => {
-  // 直接订阅 store 状态，完全绕过 props 传递
-  const storeState = useSyncExternalStore(
-    useInlineEditStore.subscribe,
-    () => {
-      const state = useInlineEditStore.getState();
-      console.log('[DiffEditorModal] Store snapshot:', {
-        isDiffEditorVisible: state.isDiffEditorVisible,
-        hasOriginalCode: !!state.originalCode,
-        hasModifiedCode: !!state.modifiedCode,
-        currentFilePath: state.currentFilePath,
-      });
-      return state;
-    },
-    () => useInlineEditStore.getState()
-  );
+  // 🔥 修复无限循环：使用单独的选择器，避免对象选择器导致引用不稳定
+  const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
+  const storeOriginalCode = useInlineEditStore(state => state.originalCode);
+  const storeModifiedCode = useInlineEditStore(state => state.modifiedCode);
+  const storeFilePath = useInlineEditStore(state => state.currentFilePath);
+  const storeInstruction = useInlineEditStore(state => state.instruction);
 
   // 优先使用 props，如果没有 props 则使用 store 状态
-  const isVisible = storeState.isDiffEditorVisible;
-  const originalCode = storeState.originalCode || propOriginalCode || '';
-  const modifiedCode = storeState.modifiedCode || propModifiedCode || '';
-  const filePath = storeState.currentFilePath || propFilePath || 'unknown';
-  const instruction = storeState.instruction || propInstruction || '';
+  const isVisible = isDiffEditorVisible;
+  const originalCode = storeOriginalCode || propOriginalCode || '';
+  const modifiedCode = storeModifiedCode || propModifiedCode || '';
+  const filePath = storeFilePath || propFilePath || 'unknown';
+  const instruction = storeInstruction || propInstruction || '';
 
   console.log('[DiffEditorModal] Render, isVisible:', isVisible, 'filePath:', filePath);
 
@@ -214,17 +202,31 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   const diffStats = calculateDiffStats(originalCode, modifiedCode);
   const actualLanguage = language || getLanguageFromPath(filePath);
 
+  // 🔥 修复无限循环：使用 useMemo 缓存文件路径字符串，避免每次渲染都重新计算
+  const filePathStr = React.useMemo(() => filePathToString(filePath), [filePath]);
+  // 🔥 修复无限循环：使用 useMemo 缓存 DiffEditor 的 key，避免不必要的 remount
+  const diffEditorKey = React.useMemo(
+    () => `${filePathStr}-${originalCode.length}-${modifiedCode.length}`,
+    [filePathStr, originalCode.length, modifiedCode.length]
+  );
+
+  // 🔥 修复无限循环：使用 ref 存储 onReject/onAccept，避免 useEffect 依赖变化
+  const onRejectRef = useRef(onReject);
+  const onAcceptRef = useRef(onAccept);
+  onRejectRef.current = onReject;
+  onAcceptRef.current = onAccept;
+
   // Esc 键关闭模态框
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isVisible) {
-        onReject();
+        onRejectRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isVisible, onReject]);
+  }, [isVisible]); // 🔥 移除 onReject 依赖，使用 ref 代替
 
   if (!isVisible) {
     console.log('[DiffEditorModal] Returning null because isVisible is false');
@@ -267,14 +269,14 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
             <span className="text-red-400">-{diffStats.deletions} 行</span>
           </div>
           <div className="ml-auto text-xs text-gray-500">
-            {filePathToString(filePath)}
+            {filePathStr}
           </div>
         </div>
 
         {/* Diff Editor */}
         <div className="flex-1 overflow-hidden" data-testid="diff-editor">
           <DiffEditor
-            key={`${filePathToString(filePath)}-${originalCode.length}-${modifiedCode.length}`}
+            key={diffEditorKey}
             height="100%"
             language={actualLanguage}
             theme="vs-dark"
@@ -298,7 +300,7 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg">
           <button
-            onClick={onReject}
+            onClick={() => onRejectRef.current()}
             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
             data-testid="reject-diff-button"
           >
@@ -309,7 +311,7 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
           <div className="flex gap-2">
             <button
               onClick={() => {
-                onAccept();
+                onAcceptRef.current();
                 toast.success('已应用代码修改');
               }}
               className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"

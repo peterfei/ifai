@@ -5,22 +5,18 @@
  * 使用 Zustand store 管理状态
  */
 
-import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
 import { Sparkles, X } from 'lucide-react';
+import { shallow } from 'zustand/shallow';
 
 export const InlineEditWidget = () => {
-  // 使用 useSyncExternalStore 直接订阅 Zustand store
-  // 这是确保 React 能正确追踪状态变化的最可靠方法
-  const storeState = useSyncExternalStore(
-    useInlineEditStore.subscribe,
-    () => useInlineEditStore.getState(),
-    () => useInlineEditStore.getState()
-  );
-
-  const { isInlineEditVisible, selectedText, position, hideInlineEdit, submitInstruction } = storeState;
-
-  console.log('[InlineEditWidget] Render, isInlineEditVisible:', isInlineEditVisible);
+  // 🔥 修复无限循环：使用单独的选择器，避免对象选择器导致引用不稳定
+  const isInlineEditVisible = useInlineEditStore(state => state.isInlineEditVisible);
+  const selectedText = useInlineEditStore(state => state.selectedText);
+  const position = useInlineEditStore(state => state.position);
+  const hideInlineEdit = useInlineEditStore(state => state.hideInlineEdit);
+  const submitInstruction = useInlineEditStore(state => state.submitInstruction);
 
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,56 +26,74 @@ export const InlineEditWidget = () => {
     left: 100,
   });
 
+  // 🔥 修复无限循环：使用 ref 追踪上一次的状态，避免不必要的状态更新
+  const lastStateRef = useRef({
+    isInlineEditVisible: false,
+    positionLineNumber: 0,
+    positionColumn: 0,
+  });
+
   // 当显示状态或位置改变时，更新样式
   useEffect(() => {
     console.log('[InlineEditWidget] Position effect triggered, isInlineEditVisible:', isInlineEditVisible, 'position:', position);
+
+    // 🔥 检查状态是否真正改变
+    const hasChanged =
+      lastStateRef.current.isInlineEditVisible !== isInlineEditVisible ||
+      lastStateRef.current.positionLineNumber !== (position?.lineNumber ?? 0) ||
+      lastStateRef.current.positionColumn !== (position?.column ?? 0);
+
+    if (!hasChanged) {
+      console.log('[InlineEditWidget] State unchanged, skipping update');
+      return;
+    }
+
+    // 更新 ref
+    lastStateRef.current = {
+      isInlineEditVisible,
+      positionLineNumber: position?.lineNumber ?? 0,
+      positionColumn: position?.column ?? 0,
+    };
 
     if (isInlineEditVisible) {
       const editor = (window as any).__activeEditor;
       console.log('[InlineEditWidget] editor:', !!editor, 'position:', position);
 
+      let newTop = 100;
       if (editor && position) {
         try {
-          // 使用 getTopForPosition 获取位置
-          const top = editor.getTopForPosition(position.lineNumber, position.column);
-          console.log('[InlineEditWidget] Calculated top:', top);
-
-          setWidgetStyle({
-            display: 'flex',
-            flexDirection: 'column',
-            top: top + 30,
-            left: 100,
-          });
-
-          // 延迟聚焦输入框
-          setTimeout(() => {
-            console.log('[InlineEditWidget] Focusing input');
-            inputRef.current?.focus();
-          }, 50);
+          newTop = editor.getTopForPosition(position.lineNumber, position.column) + 30;
+          console.log('[InlineEditWidget] Calculated top:', newTop);
         } catch (e) {
           console.warn('[InlineEditWidget] Failed to get position:', e);
-          setWidgetStyle({
-            display: 'flex',
-            flexDirection: 'column',
-            top: 100,
-            left: 100,
-          });
+          newTop = 100;
         }
-      } else {
-        console.warn('[InlineEditWidget] No editor or position, showing at default position');
-        setWidgetStyle({
-          display: 'flex',
-          flexDirection: 'column',
-          top: 100,
-          left: 100,
-        });
       }
+
+      // 🔥 只在样式真正需要改变时才更新
+      const newStyle = {
+        display: 'flex' as const,
+        flexDirection: 'column' as const,
+        top: newTop,
+        left: 100,
+      };
+
+      if (widgetStyle.display !== newStyle.display || widgetStyle.top !== newStyle.top) {
+        setWidgetStyle(newStyle);
+      }
+
+      // 延迟聚焦输入框
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
     } else {
       console.log('[InlineEditWidget] Hiding widget');
-      setWidgetStyle({ display: 'none' });
-      setInput('');
+      if (widgetStyle.display !== 'none') {
+        setWidgetStyle({ display: 'none' });
+        setInput('');
+      }
     }
-  }, [isInlineEditVisible, position]);
+  }, [isInlineEditVisible, position?.lineNumber, position?.column]);
 
   // 当选中的文本改变时，预填充输入框
   useEffect(() => {

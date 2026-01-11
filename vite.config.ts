@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import fs from "fs";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -9,8 +10,26 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async ({ mode }) => {
   // 同时检查 Vite mode 和环境变量 APP_EDITION
   const isCommercial = mode === 'commercial' || process.env.APP_EDITION === 'commercial';
-  // 🔥 检测是否在 E2E 测试环境
-  const isE2E = process.env.NODE_ENV === 'test' || process.env.VITE_TEST_ENV === 'e2e';
+
+  // 🔥 检测是否在 E2E 测试环境（多种检测方式，确保可靠性）
+  // 1. 检查环境变量（NODE_ENV 或 VITE_TEST_ENV）
+  // 2. 检查 .env.e2e 标记文件是否存在（作为后备方案）
+  const hasTestEnv = process.env.NODE_ENV === 'test' || process.env.VITE_TEST_ENV === 'e2e';
+  const e2eFlagPath = path.resolve(__dirname, './tests/e2e/.env.e2e');
+  const hasE2EFlagFile = fs.existsSync(e2eFlagPath);
+  const isE2E = hasTestEnv || hasE2EFlagFile;
+
+  // 🔥 调试日志：总是输出 E2E 检测结果
+  console.log('[Vite Config] E2E detection:', {
+    NODE_ENV: process.env.NODE_ENV,
+    VITE_TEST_ENV: process.env.VITE_TEST_ENV,
+    APP_EDITION: process.env.APP_EDITION,
+    mode,
+    hasTestEnv,
+    hasE2EFlagFile,
+    e2eFlagPath,
+    isE2E: isE2E
+  });
 
   // 🔥 E2E 测试环境强制使用社区模式（私有库不存在）
   const shouldUsePrivateCore = isCommercial && !isE2E;
@@ -45,6 +64,10 @@ export default defineConfig(async ({ mode }) => {
           '@tauri-apps/api/window': path.resolve(__dirname, './src/tauri-mocks/api/window'),
           '@tauri-apps/api/app': path.resolve(__dirname, './src/tauri-mocks/api/app'),
           '@tauri-apps/api/core': path.resolve(__dirname, './src/tauri-mocks/api/core'),
+          '@tauri-apps/plugin-fs': path.resolve(__dirname, './src/tauri-mocks/plugin-fs'),
+          '@tauri-apps/plugin-dialog': path.resolve(__dirname, './src/tauri-mocks/plugin-dialog'),
+          '@tauri-apps/plugin-shell': path.resolve(__dirname, './src/tauri-mocks/plugin-shell'),
+          '@tauri-apps/plugin-os': path.resolve(__dirname, './src/tauri-mocks/plugin-os'),
         } : {})
       }
     },
@@ -76,8 +99,11 @@ export default defineConfig(async ({ mode }) => {
       plugins: () => [react()],
     },
     // Optimize dependencies
+    // 🔥 E2E 测试环境：不要排除 Tauri API，让别名生效
     optimizeDeps: {
-      exclude: ['@tauri-apps/api', '@tauri-apps/plugin-fs'],
+      exclude: isE2E
+        ? []  // E2E: 允许所有 Tauri API 被处理（应用别名）
+        : ['@tauri-apps/api', '@tauri-apps/plugin-fs'],  // 非E2E: 排除真实 Tauri API
       include: ['monaco-editor'],
     },
     // Build options for Tauri

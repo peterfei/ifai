@@ -18,10 +18,14 @@ async function globalSetup(config: FullConfig) {
     process.env.NODE_ENV = 'test';
     process.env.E2E_TEST = 'true';
 
-    // 可以在这里添加其他全局设置：
-    // - 启动mock服务器
-    // - 准备测试数据
-    // - 清理旧的测试结果
+    // 🔥 创建 E2E 标记文件，让 Vite 检测到 E2E 环境
+    const e2eFlagPath = path.join(process.cwd(), 'tests/e2e/.env.e2e');
+    try {
+      await fs.writeFile(e2eFlagPath, Date.now().toString());
+      console.log(`✅ E2E 标记文件已创建: ${e2eFlagPath}`);
+    } catch (err) {
+      console.warn(`⚠️ 无法创建 E2E 标记文件:`, err);
+    }
 
     // 确保test-results目录存在
     const testResultsDir = path.join(process.cwd(), 'test-results');

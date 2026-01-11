@@ -14,10 +14,15 @@ async function globalTeardown(config: FullConfig) {
   const startTime = Date.now();
 
   try {
-    // 可以在这里添加其他全局清理：
-    // - 关闭mock服务器
-    // - 清理测试数据
-    // - 生成测试报告
+    // 🔥 删除 E2E 标记文件，避免影响正常开发
+    const e2eFlagPath = path.join(process.cwd(), 'tests/e2e/.env.e2e');
+    try {
+      await fs.unlink(e2eFlagPath);
+      console.log(`✅ E2E 标记文件已删除: ${e2eFlagPath}`);
+    } catch (err) {
+      // 文件可能不存在，忽略错误
+      console.log(`ℹ️ E2E 标记文件不存在或已删除`);
+    }
 
     // 清理临时文件（可选）
     // 清理超过7天的test-results（可选，谨慎使用）

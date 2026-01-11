@@ -144,6 +144,7 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
       isInlineEditVisible: false,
       instruction: '',
       selectedText: '',
+      position: null, // 🔥 修复无限循环：隐藏时重置 position
     });
   },
 
