@@ -2,9 +2,39 @@
  * v0.2.9 行内编辑 Store
  *
  * 管理行内编辑 (Cmd+K) 功能的状态
+ *
+ * 集成说明:
+ * - 社区版: 使用 MockInlineEditor 提供模拟响应
+ * - 商业版: 可配置为使用真实的 InlineEditorService
  */
 
 import { create } from 'zustand';
+import { MockInlineEditor } from '../core/mock-core/v0.2.9/MockInlineEditor';
+import type { IInlineEditor, InlineEditorRequest } from '../core/interfaces/v0.2.9/IInlineEditor';
+
+// ============================================================================
+// 服务注入
+// ============================================================================
+
+/**
+ * 创建默认的编辑器服务实例
+ *
+ * 社区版使用 MockInlineEditor，商业版可以替换为真实的 LLM 服务
+ */
+function createEditorService(): IInlineEditor {
+  return new MockInlineEditor({ delay: 100 }); // 降低延迟以提升体验
+}
+
+// 默认服务实例
+let editorService: IInlineEditor = createEditorService();
+
+/**
+ * 设置编辑器服务（用于依赖注入）
+ */
+export function setInlineEditorService(service: IInlineEditor): void {
+  editorService = service;
+  console.log('[inlineEditStore] Editor service set to:', service.getProviderInfo().name);
+}
 
 // ============================================================================
 // 类型定义
@@ -46,6 +76,9 @@ export interface InlineEditState {
   /** 当前历史索引 */
   historyIndex: number;
 
+  /** 是否正在处理请求 */
+  isProcessing: boolean;
+
   // Actions
 
   /** 显示行内编辑小部件 */
@@ -55,7 +88,7 @@ export interface InlineEditState {
   hideInlineEdit: () => void;
 
   /** 提交编辑指令 */
-  submitInstruction: (instruction: string) => void;
+  submitInstruction: (instruction: string) => Promise<void>;
 
   /** 显示 Diff 编辑器 */
   showDiffEditor: (originalCode: string, modifiedCode: string, filePath: string, instruction: string) => void;
@@ -94,6 +127,7 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
   currentFilePath: '',
   editHistory: [],
   historyIndex: -1,
+  isProcessing: false,
 
   showInlineEdit: (selectedText = '', position) => {
     console.log('[inlineEditStore] showInlineEdit called, setting isInlineEditVisible to true');
@@ -113,14 +147,15 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
     });
   },
 
-  submitInstruction: (instruction) => {
+  submitInstruction: async (instruction) => {
     console.log('[inlineEditStore] submitInstruction called with:', instruction);
-    set({ instruction });
+    set({ instruction, isProcessing: true });
 
     // 获取当前编辑器内容
     const editor = (window as any).__activeEditor;
     if (!editor) {
       console.warn('[inlineEditStore] No active editor found');
+      set({ isProcessing: false });
       return;
     }
     console.log('[inlineEditStore] Active editor found, getting content...');
@@ -133,35 +168,44 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
       detail: { instruction, originalCode: originalContent }
     }));
 
-    // 生成 mock 修改后的代码（用于 E2E 测试）
-    let modifiedContent = originalContent;
-    if (instruction.includes('error handling')) {
-      // 添加错误处理模式
-      modifiedContent = originalContent.replace(
-        /function handleClick\(\) \{[\s\S]*?\n    \}/,
-        `function handleClick() {
-        try {
-            setCount(count + 1);
-        } catch (error) {
-            console.error('Error in handleClick:', error);
-        }
-    }`
-      );
-    } else if (instruction.includes('Add')) {
-      // 通用添加模式
-      modifiedContent = originalContent + '\n    // Added: ' + instruction;
-    }
-
-    // 如果没有变化，添加注释
-    if (modifiedContent === originalContent) {
-      modifiedContent = originalContent + '\n    // ' + instruction;
-    }
-
     // 获取当前文件路径
     const filePath = state.currentFilePath || editor.getModel()?.uri || 'unknown';
+    const language = detectLanguage(filePath);
 
-    // 显示 Diff 编辑器
-    get().showDiffEditor(originalContent, modifiedContent, filePath, instruction);
+    // 构建编辑请求
+    const request: InlineEditorRequest = {
+      instruction,
+      code: originalContent,
+      language,
+      filePath: typeof filePath === 'string' ? filePath : String(filePath),
+      selectedCode: state.selectedText || undefined,
+      cursorPosition: state.position ? {
+        line: state.position.lineNumber,
+        column: state.position.column,
+      } : undefined,
+    };
+
+    try {
+      // 调用编辑器服务
+      console.log('[inlineEditStore] Calling editor service...');
+      const response = await editorService.applyEdit(request);
+
+      if (!response.success) {
+        console.error('[inlineEditStore] Editor service failed:', response.error);
+        set({ isProcessing: false });
+        return;
+      }
+
+      const modifiedContent = response.modifiedCode;
+
+      console.log('[inlineEditStore] Editor service returned modified code, length:', modifiedContent.length);
+
+      // 显示 Diff 编辑器
+      get().showDiffEditor(originalContent, modifiedContent, filePath, instruction);
+    } catch (error) {
+      console.error('[inlineEditStore] Error calling editor service:', error);
+      set({ isProcessing: false });
+    }
   },
 
   showDiffEditor: (originalCode, modifiedCode, filePath, instruction) => {
@@ -204,6 +248,7 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
       instruction,
       editHistory: newHistory,
       historyIndex: newHistory.length - 1,
+      isProcessing: false,
     });
   },
 
@@ -293,6 +338,59 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
     });
   },
 }));
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/**
+ * 根据文件路径检测编程语言
+ */
+function detectLanguage(filePath: string | { path?: string; toString(): string }): string {
+  let pathStr: string;
+  if (typeof filePath === 'string') {
+    pathStr = filePath;
+  } else if (filePath && typeof filePath.toString === 'function') {
+    pathStr = filePath.toString();
+    // 移除 Monaco Uri 的 scheme (如 "file://")
+    pathStr = pathStr.replace(/^file:\/\//, '');
+  } else {
+    return 'typescript';
+  }
+
+  const ext = pathStr.split('.').pop()?.toLowerCase();
+  const languageMap: Record<string, string> = {
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'js': 'javascript',
+    'jsx': 'javascript',
+    'py': 'python',
+    'go': 'go',
+    'rs': 'rust',
+    'c': 'c',
+    'cpp': 'cpp',
+    'h': 'c',
+    'hpp': 'cpp',
+    'java': 'java',
+    'kt': 'kotlin',
+    'swift': 'swift',
+    'rb': 'ruby',
+    'php': 'php',
+    'sql': 'sql',
+    'sh': 'shell',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'json': 'json',
+    'xml': 'xml',
+    'html': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'md': 'markdown',
+    'vue': 'vue',
+    'svelte': 'svelte',
+  };
+  return languageMap[ext || ''] || 'typescript';
+}
 
 // ============================================================================
 // E2E 测试辅助
