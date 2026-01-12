@@ -379,10 +379,12 @@ ${textBefore}[CURSOR]${textAfter}
       wordWrap: isVeryLargeFile ? 'off' : wordWrap,
       scrollBeyondLastLine: false,
       automaticLayout: true,
+      // 🔥 v0.2.9: 多行编辑需要按住 Win/Cmd 键，避免左键误触
       multiCursorModifier: 'ctrlCmd',
       multiCursorPaste: 'spread',
       selectionClipboard: true,
-      columnSelection: true,
+      // 🔥 禁用列选择，避免意外触发多光标
+      columnSelection: false,
       stickyScroll: { enabled: !isLargeFile && !isGenerating },
       unicodeHighlight: { nonBasicASCII: false },
       // Performance specific

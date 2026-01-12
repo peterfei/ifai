@@ -5,9 +5,6 @@ import { setupE2ETestEnvironment } from '../setup-utils';
  * 编辑器核心功能回归测试
  */
 test.describe('Editor Core Functionality Regression', () => {
-  // Skip breadcrumbs test - feature not implemented yet
-  test.skip(true, 'Breadcrumbs feature not implemented - see FAILED_TESTS_LIST.md');
-
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
@@ -20,17 +17,17 @@ test.describe('Editor Core Functionality Regression', () => {
     });
 
     // 等待编辑器加载
-    await page.waitForSelector('.monaco-editor', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 15000 });
   });
 
-  test('should be able to see breadcrumbs', async ({ page }) => {
-    // 验证面包屑是否已启用
+  test.skip('should be able to see breadcrumbs', async ({ page }) => {
+    // Breadcrumbs feature not implemented yet - see FAILED_TESTS_LIST.md
     const breadcrumb = page.locator('.monaco-breadcrumbs');
     await expect(breadcrumb).toBeVisible();
   });
 
   test('should have quick suggestions enabled', async ({ page }) => {
-    const editor = page.locator('.monaco-editor').first();
+    const editor = page.locator('[data-testid="monaco-editor-container"]').first();
     await editor.click();
     await page.keyboard.type('exp');
     // 验证建议列表是否弹出
