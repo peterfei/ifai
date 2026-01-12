@@ -38,6 +38,29 @@ export interface SymbolInfo {
   lastAccessed?: number;
 }
 
+/**
+ * 符号引用信息
+ */
+export interface SymbolReference {
+  /** 引用所在的文件路径 */
+  filePath: string;
+
+  /** 引用所在的行号（1-based） */
+  line: number;
+
+  /** 引用所在的列号（1-based） */
+  column: number;
+
+  /** 引用的代码上下文 */
+  context: string;
+
+  /** 引用的符号名称 */
+  symbolName: string;
+
+  /** 是否是定义位置 */
+  isDefinition?: boolean;
+}
+
 export interface FileIndex {
   /** 文件路径 */
   filePath: string;
@@ -65,6 +88,7 @@ export class SymbolIndexer {
   private fileIndex: Map<string, FileIndex> = new Map();
   private symbolIndex: Map<string, SymbolInfo[]> = new Map(); // symbol name -> symbols
   private recentFiles: string[] = []; // LRU cache for recently accessed files
+  private fileContentCache: Map<string, string> = new Map(); // v0.3.0: 文件内容缓存
   private config: IndexerConfig;
 
   constructor(config: IndexerConfig = {}) {
@@ -90,6 +114,9 @@ export class SymbolIndexer {
       indexedAt: Date.now(),
     };
     this.fileIndex.set(filePath, fileIndex);
+
+    // v0.3.0: 缓存文件内容（用于 findReferences）
+    this.fileContentCache.set(filePath, content);
 
     // 更新符号索引
     for (const symbol of symbols) {
@@ -436,6 +463,134 @@ export class SymbolIndexer {
   }
 
   /**
+   * v0.3.0: 查找符号的所有引用
+   *
+   * @param symbolName 符号名称
+   * @returns 符号引用列表
+   */
+  findReferences(symbolName: string): SymbolReference[] {
+    const references: SymbolReference[] = [];
+
+    // 获取符号定义
+    const definition = this.getSymbolDefinition(symbolName);
+    if (definition) {
+      // 添加定义位置作为引用
+      references.push({
+        filePath: definition.filePath,
+        line: definition.line,
+        column: definition.column || 1,
+        context: this.extractLineContext(definition.filePath, definition.line),
+        symbolName: symbolName,
+        isDefinition: true,
+      });
+    }
+
+    // 搜索所有已索引文件中的引用
+    for (const [filePath, fileIndex] of this.fileIndex) {
+      // 跳过定义位置（已经添加过）
+      if (definition && filePath === definition.filePath) {
+        continue;
+      }
+
+      const fileReferences = this.findReferencesInFile(filePath, symbolName);
+      references.push(...fileReferences);
+    }
+
+    return references;
+  }
+
+  /**
+   * 在文件中查找符号引用
+   */
+  private findReferencesInFile(filePath: string, symbolName: string): SymbolReference[] {
+    const references: SymbolReference[] = [];
+    const fileIndex = this.fileIndex.get(filePath);
+
+    if (!fileIndex) {
+      return references;
+    }
+
+    // 读取文件内容（这里需要从 fileStore 获取）
+    // 注意：这是一个简化实现，实际应该缓存文件内容
+    const fileContent = this.getCachedFileContent(filePath);
+    if (!fileContent) {
+      return references;
+    }
+
+    const lines = fileContent.split('\n');
+
+    // 创建正则表达式来匹配符号
+    // 需要确保匹配的是完整的单词，而不是部分匹配
+    const regex = new RegExp(`\\b${this.escapeRegex(symbolName)}\\b`, 'g');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineNumber = i + 1;
+
+      // 跳过注释行
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || trimmedLine.startsWith('*')) {
+        continue;
+      }
+
+      // 查找匹配
+      let match;
+      while ((match = regex.exec(line)) !== null) {
+        const column = match.index + 1; // Monaco 使用 1-based 列号
+
+        // 排除定义行（已经在前面添加过）
+        const isDef = fileIndex.symbols.some(
+          s => s.name === symbolName && s.line === lineNumber
+        );
+
+        if (!isDef) {
+          references.push({
+            filePath,
+            line: lineNumber,
+            column,
+            context: this.extractLineContext(filePath, lineNumber),
+            symbolName,
+            isDefinition: false,
+          });
+        }
+      }
+    }
+
+    return references;
+  }
+
+  /**
+   * 提取行上下文
+   */
+  private extractLineContext(filePath: string, lineNumber: number): string {
+    const fileContent = this.getCachedFileContent(filePath);
+    if (!fileContent) {
+      return '';
+    }
+
+    const lines = fileContent.split('\n');
+    if (lineNumber > 0 && lineNumber <= lines.length) {
+      return lines[lineNumber - 1].trim();
+    }
+
+    return '';
+  }
+
+  /**
+   * 获取缓存的文件内容
+   */
+  private getCachedFileContent(filePath: string): string | null {
+    return this.fileContentCache.get(filePath) || null;
+  }
+
+  /**
+   * 转义正则表达式特殊字符
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
    * 计算符号权重（基于最近访问文件）
    */
   private calculateSymbolScore(symbol: SymbolInfo): number {
@@ -507,6 +662,7 @@ export class SymbolIndexer {
     this.fileIndex.clear();
     this.symbolIndex.clear();
     this.recentFiles = [];
+    this.fileContentCache.clear(); // v0.3.0: 清除文件内容缓存
   }
 
   /**

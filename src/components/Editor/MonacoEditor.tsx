@@ -12,6 +12,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 // import { InlineEditWidget } from './InlineEditWidget';
 import { setupSymbolCompletion } from './SymbolCompletionProvider';
 import { setupDefinitionProvider } from './DefinitionProvider';
+import { setupReferencesProvider } from './ReferencesProvider';
 import { symbolIndexer } from '../../core/indexer/SymbolIndexer';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
@@ -203,6 +204,16 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     );
 
     // ========================================================================
+    // v0.3.0: Find References 支持
+    // ========================================================================
+
+    // 注册引用提供者（支持跨文件引用查找）
+    const disposeReferencesProvider = setupReferencesProvider(
+      monaco,
+      currentFile?.path
+    );
+
+    // ========================================================================
 
     // ========================================================================
 
@@ -355,6 +366,7 @@ ${textBefore}[CURSOR]${textAfter}
       completionProvider.dispose();
       disposeSymbolCompletion?.();
       disposeDefinitionProvider?.();
+      disposeReferencesProvider?.();
     };
   }, [paneId, setEditorInstance, setChatOpen, sendMessage, showInlineEdit, t]); // 🔥 修复无限循环：移除 file?.path, file?.content, file?.language 依赖（使用 fileRef.current 代替）
 
