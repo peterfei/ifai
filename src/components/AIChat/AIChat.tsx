@@ -33,6 +33,9 @@ import type { FileChange } from '../Composer';
 import { atomicWriteService, fileChangeToOperation } from '../../services/atomicWriteService';
 // v0.2.8: 错误修复服务
 import { errorFixService, type ParsedError, type AIFixSuggestion, isFixableError } from '../../services/errorFixService';
+// v0.3.0: 多模态图片输入
+import { ImageInput } from '../Multimodal';
+import type { ImageAttachment } from '../../types/multimodal';
 
 interface AIChatProps {
   width?: number;
@@ -88,6 +91,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerChanges, setComposerChanges] = useState<FileChange[]>([]);
   const [composerMessageId, setComposerMessageId] = useState<string | null>(null);
+
+  // v0.3.0: 多模态图片附件状态
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
 
   // 🔥 使用 refs 存储 E2E 测试需要的最新值（解决闭包问题）
   const composerOpenRef = useRef(composerOpen);
@@ -1012,7 +1018,18 @@ ${context}
     setInput('');
     setShowCommands(false);
     await sendMessage(msg, currentProviderId, currentModel);
+    // v0.3.0: 发送消息后清空图片附件
+    setImageAttachments([]);
   };
+
+  // v0.3.0: 图片附件处理函数
+  const handleAddImageAttachment = useCallback((attachment: ImageAttachment) => {
+    setImageAttachments(prev => [...prev, attachment]);
+  }, []);
+
+  const handleRemoveImageAttachment = useCallback((id: string) => {
+    setImageAttachments(prev => prev.filter(a => a.id !== id));
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -1864,34 +1881,66 @@ ${suggestion.fixContext.code_context}
       {/* v0.2.6 新增：Token 使用量指示器 */}
       <TokenUsageIndicator />
 
-      <div className="border-t border-gray-700 p-3 bg-[#252526] flex items-center relative">
-        {showCommands && (
-            <SlashCommandList 
+      {/* v0.3.0 多模态图片输入区域 */}
+      {imageAttachments.length > 0 && (
+        <div className="border-t border-gray-700 p-2 bg-[#1e1e1e]">
+          <ImageInput
+            attachments={imageAttachments}
+            onAddAttachment={handleAddImageAttachment}
+            onRemoveAttachment={handleRemoveImageAttachment}
+            disabled={isLoading}
+            maxImages={3}
+            maxFileSize={5}
+          />
+        </div>
+      )}
+
+      <div className="border-t border-gray-700 p-3 bg-[#252526]">
+        {/* v0.3.0: 图片输入 + 文本输入容器 */}
+        <div className="flex flex-col gap-2">
+          {/* 图片输入工具栏（无图片时显示提示） */}
+          {imageAttachments.length === 0 && (
+            <ImageInput
+              attachments={imageAttachments}
+              onAddAttachment={handleAddImageAttachment}
+              onRemoveAttachment={handleRemoveImageAttachment}
+              disabled={isLoading}
+              maxImages={3}
+              maxFileSize={5}
+            />
+          )}
+
+          {/* 文本输入 + 发送按钮 */}
+          <div className="flex items-center relative">
+            {showCommands && (
+              <SlashCommandList
                 ref={commandListRef}
-                filter={input} 
+                filter={input}
                 onSelect={handleSelectCommand}
                 onClose={() => setShowCommands(false)}
+              />
+            )}
+            <input
+              data-testid="chat-input"
+              ref={inputRef}
+              type="text"
+              className="flex-1 bg-transparent outline-none text-white text-sm placeholder-gray-500 mr-2"
+              placeholder={t('chat.placeholder')}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              disabled={isLoading}
             />
-        )}
-        <input
-          data-testid="chat-input"
-          ref={inputRef}
-          type="text"
-          className="flex-1 bg-transparent outline-none text-white text-sm placeholder-gray-500 mr-2"
-          placeholder={t('chat.placeholder')}
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          disabled={isLoading}
-        />
-        <button
-          data-testid="send-button"
-          onClick={handleSend}
-          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors disabled:opacity-50"
-          disabled={!input.trim() || isLoading}
-        >
-          <Send size={16} />
-        </button>
+            <button
+              data-testid="send-button"
+              onClick={handleSend}
+              className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full transition-colors disabled:opacity-50"
+              disabled={(!input.trim() && imageAttachments.length === 0) || isLoading}
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* v0.2.6: 提案审核弹窗 */}

@@ -24,6 +24,7 @@ mod local_model;
 mod intelligence_router;
 mod token_counter; // v0.2.6 新增：Token 计数模块
 mod openspec; // v0.2.6 新增：OpenSpec 集成
+mod multimodal; // v0.3.0 新增：多模态功能
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
@@ -816,7 +817,10 @@ pub fn run() {
             commands::error_commands::quick_parse_error_line,
             commands::error_commands::detect_terminal_language,
             commands::error_commands::batch_parse_errors,
-            commands::error_commands::get_error_file_content
+            commands::error_commands::get_error_file_content,
+            // v0.3.0 新增：多模态功能
+            multimodal::multimodal_analyze_image,
+            multimodal::multimodal_is_vision_supported
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
