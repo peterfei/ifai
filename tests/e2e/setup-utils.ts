@@ -2042,21 +2042,102 @@ export class TestApp {
         const symbolIndexer = (window as any).__symbolIndexer;
         if (!symbolIndexer) {
           console.log('[E2E v0.2.9] Creating __symbolIndexer mock');
+          // 使用 Map 来存储索引数据
+          const fileIndex = new Map(); // filePath -> { symbols: [], content: '' }
+          const symbolIndex = new Map(); // symbolName -> [{ filePath, line, kind }]
+
           (window as any).__symbolIndexer = {
             indexFile: async (filePath: string, content: string) => {
               console.log('[E2E v0.2.9] symbolIndexer.indexFile:', filePath);
-              const symbols = (window as any).__symbolIndex || new Map();
+              const symbols = [];
               // 简单解析 exports
               const exportRegex = /export\s+(?:function|class|const|let|var)\s+(\w+)/g;
               let match;
-              while ((match = exportRegex.exec(content)) !== null) {
-                symbols.set(match[1], { name: match[1], file: filePath, kind: 'function' });
-              }
-              (window as any).__symbolIndex = symbols;
+              const lines = content.split('\n');
+              lines.forEach((line, lineIndex) => {
+                exportRegex.lastIndex = 0; // 重置 regex
+                const execMatch = exportRegex.exec(line);
+                if (execMatch) {
+                  const symbolName = execMatch[1];
+                  const symbolInfo = {
+                    name: symbolName,
+                    filePath,
+                    line: lineIndex + 1,
+                    kind: line.includes('class') ? 'class' : 'function'
+                  };
+                  symbols.push(symbolInfo);
+
+                  // 更新符号索引
+                  if (!symbolIndex.has(symbolName)) {
+                    symbolIndex.set(symbolName, []);
+                  }
+                  symbolIndex.get(symbolName).push(symbolInfo);
+                }
+              });
+
+              // 存储文件索引（包含内容用于 findReferences）
+              fileIndex.set(filePath, {
+                symbols,
+                content
+              });
             },
+
+            getSymbolDefinition: (symbolName: string) => {
+              const defs = symbolIndex.get(symbolName);
+              return defs && defs.length > 0 ? defs[0] : undefined;
+            },
+
+            findReferences: (symbolName: string) => {
+              const references = [];
+              const definition = (window as any).__symbolIndexer.getSymbolDefinition(symbolName);
+
+              // 添加定义位置
+              if (definition) {
+                references.push({
+                  filePath: definition.filePath,
+                  line: definition.line,
+                  column: 1,
+                  context: 'Definition',
+                  symbolName,
+                  isDefinition: true
+                });
+              }
+
+              // 搜索所有文件中的引用
+              for (const [filePath, fileData] of fileIndex) {
+                // 跳过定义文件
+                if (definition && filePath === definition.filePath) continue;
+
+                const lines = fileData.content.split('\n');
+                lines.forEach((line, lineIndex) => {
+                  const regex = new RegExp(`\\b${symbolName}\\b`);
+                  if (regex.test(line)) {
+                    references.push({
+                      filePath,
+                      line: lineIndex + 1,
+                      column: line.indexOf(symbolName) + 1,
+                      context: line.trim(),
+                      symbolName,
+                      isDefinition: false
+                    });
+                  }
+                });
+              }
+
+              return references;
+            },
+
             queryInScope: async (scope: any) => {
               console.log('[E2E v0.2.9] symbolIndexer.queryInScope');
-              return Array.from(((window as any).__symbolIndex || new Map()).values());
+              return Array.from(symbolIndex.values()).flat();
+            },
+
+            getStats: () => {
+              return {
+                filesIndexed: fileIndex.size,
+                totalSymbols: symbolIndex.size,
+                recentFiles: Array.from(fileIndex.keys()).slice(0, 10)
+              };
             }
           };
         }
