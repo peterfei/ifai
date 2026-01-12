@@ -227,6 +227,47 @@
           "**↑ / ↓** - 在输入框中快速唤回历史提问"
         ],
         "footer": "您可以直接对我下达指令，或使用上述斜杠命令启动特定的智能体。祝您编程愉快！"
+      },
+      "help": {
+        "keyboardShortcuts": "快捷键",
+        "about": "关于",
+        "tagline": "AI 驱动的代码编辑器",
+        "description": "一款由 AI 驱动的智能代码编辑器，旨在帮助您更快速地编写更好的代码。",
+        "repository": "源代码仓库",
+        "documentation": "文档",
+        "changelog": "更新日志",
+        "community": "社区讨论",
+        "allRightsReserved": "版权所有"
+      },
+      "shortcuts": {
+        "category": {
+          "file": "文件操作",
+          "edit": "编辑操作",
+          "navigation": "导航",
+          "ai": "AI 功能",
+          "view": "视图"
+        },
+        "newFile": "新建文件",
+        "openFile": "打开文件",
+        "save": "保存",
+        "saveAs": "另存为",
+        "closeFile": "关闭文件",
+        "undo": "撤销",
+        "redo": "重做",
+        "find": "查找",
+        "replace": "替换",
+        "selectWord": "选择当前单词",
+        "quickOpen": "快速打开文件",
+        "commandPalette": "命令面板",
+        "goToDefinition": "转到定义",
+        "findReferences": "查找所有引用",
+        "goToLine": "跳转到行",
+        "openChat": "打开 AI 聊天",
+        "inlineEdit": "内联 AI 编辑",
+        "toggleTerminal": "切换终端",
+        "toggleSidebar": "切换侧边栏",
+        "toggleSettings": "切换设置",
+        "toggleExplorer": "切换资源管理器",
+        "tip": "提示：按 ? 键可快速打开此快捷键列表"
       }
     }
-    

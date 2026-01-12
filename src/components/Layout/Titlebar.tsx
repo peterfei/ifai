@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { detectLanguageFromPath } from '../../utils/languageDetection';
 import { LayoutSwitcher } from './LayoutSwitcher';
+import { HelpMenu } from '../Help/HelpMenu';
 
 // v0.3.0: 工作区菜单分隔线组件
 const MenuSeparator = () => <div className="border-t border-gray-600 my-1" />;
@@ -273,6 +274,9 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
             </div>
           )}
         </div>
+
+        {/* v0.3.0: 帮助菜单 */}
+        <HelpMenu className="ml-2" />
       </div>
 
       <div className="flex items-center space-x-2">

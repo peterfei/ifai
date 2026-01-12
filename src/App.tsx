@@ -25,6 +25,7 @@ import { useLayoutStore } from './stores/layoutStore';
 import { useAgentStore } from './stores/agentStore';
 import { useCodeReviewStore } from './stores/codeReviewStore';
 import { useInlineEditStore } from './stores/inlineEditStore';
+import { useHelpStore } from './stores/helpStore';
 import { shallow } from 'zustand/shallow';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
 import { Toaster, toast } from 'sonner';
@@ -246,6 +247,30 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [undo, redo]);
+
+  // v0.3.0: 全局快捷键 - 按 ? 打开键盘快捷键列表
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger ? key when not typing in an input field
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' ||
+                          target.tagName === 'TEXTAREA' ||
+                          target.contentEditable === 'true';
+
+      if (!isInputField && e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const { openKeyboardShortcuts } = useHelpStore.getState();
+        openKeyboardShortcuts();
+        console.log('[App] ? key pressed, opening keyboard shortcuts');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // v0.2.9: Inline edit event listeners
   useEffect(() => {

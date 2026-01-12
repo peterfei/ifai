@@ -1,6 +1,7 @@
 {
   "menu": {
     "file": "File",
+    "help": "Help",
     "newFile": "New File",
     "newWindow": "New Window",
     "openFile": "Open File",
@@ -225,5 +226,47 @@
       "**↑ / ↓** - Quickly recall previous command history"
     ],
     "footer": "You can chat with me normally or use the slash commands above to launch specific Agents. Happy coding!"
+  },
+  "help": {
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "about": "About",
+    "tagline": "AI-Powered Code Editor",
+    "description": "An intelligent code editor powered by AI, designed to help you write better code faster.",
+    "repository": "Source Repository",
+    "documentation": "Documentation",
+    "changelog": "Changelog & Releases",
+    "community": "Community Discussions",
+    "allRightsReserved": "All rights reserved."
+  },
+  "shortcuts": {
+    "category": {
+      "file": "File Operations",
+      "edit": "Edit Operations",
+      "navigation": "Navigation",
+      "ai": "AI Features",
+      "view": "View"
+    },
+    "newFile": "New File",
+    "openFile": "Open File",
+    "save": "Save",
+    "saveAs": "Save As",
+    "closeFile": "Close File",
+    "undo": "Undo",
+    "redo": "Redo",
+    "find": "Find",
+    "replace": "Replace",
+    "selectWord": "Select Word at Cursor",
+    "quickOpen": "Quick Open File",
+    "commandPalette": "Command Palette",
+    "goToDefinition": "Go to Definition",
+    "findReferences": "Find All References",
+    "goToLine": "Go to Line",
+    "openChat": "Open AI Chat",
+    "inlineEdit": "Inline AI Edit",
+    "toggleTerminal": "Toggle Terminal",
+    "toggleSidebar": "Toggle Sidebar",
+    "toggleSettings": "Toggle Settings",
+    "toggleExplorer": "Toggle Explorer",
+    "tip": "Tip: Use ? to quickly open this shortcut list"
   }
 }
