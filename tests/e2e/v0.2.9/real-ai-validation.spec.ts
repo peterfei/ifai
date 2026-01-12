@@ -254,11 +254,12 @@ export function Counter() {
     await page.waitForTimeout(1000);
 
     // When: 用户要求 AI 添加一个重置按钮
+    // 🔥 使用 [CHAT] 标记跳过意图识别，避免触发 Demo Agent
     await page.evaluate(async () => {
       const chatStore = (window as any).__chatStore;
       if (chatStore) {
         await chatStore.getState().sendMessage(
-          '给 Counter 组件添加一个重置按钮，点击后计数器归零',
+          '[CHAT] 给 Counter 组件添加一个重置按钮，点击后计数器归零',
           'real-ai-e2e',
           'deepseek-chat'
         );
@@ -339,11 +340,12 @@ export class UserService {
     await page.waitForTimeout(1000);
 
     // When: 用户要求 AI 审查代码安全问题
+    // 🔥 使用 [CHAT] 标记跳过意图识别，避免触发 Demo Agent
     await page.evaluate(async () => {
       const chatStore = (window as any).__chatStore;
       if (chatStore) {
         await chatStore.getState().sendMessage(
-          '审查当前代码的安全问题，特别是 SQL 注入风险',
+          '[CHAT] 审查当前代码的安全问题，特别是 SQL 注入风险',
           'real-ai-e2e',
           'deepseek-chat'
         );
