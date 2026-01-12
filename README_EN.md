@@ -6,6 +6,7 @@
 
 [简体中文](./README.md) | English
 
+[![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-blue)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-19-61dafb)](https://reactjs.org/)
@@ -26,8 +27,9 @@
 
 ### 📈 Project Status
 
+- **🎉 v0.2.9 Agent Intelligence** - Jan 12, 2026 (Smart Terminal Loop, Inline Editing Experience, AI Code Review)
+- **🎉 v0.2.8 Industrial Evolution** - Jan 10, 2026 (Composer 2.0, RAG Symbol-Aware, Command Palette)
 - **🎉 v0.2.7 Experience Leap** - Jan 09, 2026 (AI Rollback, Smart Diff, Industrial Layout Switcher, Automated E2E Framework)
-- **🎉 v0.2.6 Agent Evolution** - Jan 07, 2026 (Shell access, Structured Task Tree, OpenSpec Integration, MD Preview)
 - **🎉 v0.2.5 Hybrid Intelligence** - Jan 03, 2026 (Local LLM Support, Intelligence Router, Offline Completion)
 - **🎉 v0.2.4 Optimization Update** - Dec 30, 2025 (Windows Rendering, Flicker Fixes, Stability)
 - **🎉 v0.2.0 Major Update** - Dec 20, 2025 (Interactivity & Performance Milestone)

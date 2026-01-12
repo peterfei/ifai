@@ -7,6 +7,7 @@
 
   [简体中文](README.md) | [English](README_EN.md) | [📖 完整文档](./docs) | [🎯 下载发布页](https://github.com/peterfei/ifai/releases)
 
+  [![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![Tauri](https://img.shields.io/badge/Tauri-2.0-orange)](https://tauri.app/)
   [![AI Native](https://img.shields.io/badge/AI-Native-green)](https://ai-native.dev)
@@ -36,6 +37,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.2.9** | **Agent Intelligence** | **智能终端闭环 (错误自动修复)、原生编辑体验 (Cmd+K 行内编辑/上下文补全)、AI 代码审查 (提交前自动检查)** |
 | **v0.2.8** | **工业级进化** | **Composer 2.0 (AI 多文件编辑)、RAG 符号感知 (代码结构理解)、命令栏 (专业级命令执行)** |
 | **v0.2.7** | **体验跃迁** | **AI 代码回滚、智能 Diff 算法、工业级 UI 布局切换、全链路自动化测试框架** |
 | **v0.2.6** | **Agent 进化** | **Shell 能力解锁、结构化任务树、OpenSpec 深度融合、Markdown 预览** |

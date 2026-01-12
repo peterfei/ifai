@@ -6,6 +6,10 @@ import fs from "fs";
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+// 🔥 读取 package.json 获取版本号
+const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, './package.json'), 'utf-8'));
+const appVersion = packageJson.version;
+
 // https://vite.dev/config/
 export default defineConfig(async ({ mode }) => {
   // 同时检查 Vite mode 和环境变量 APP_EDITION
@@ -41,6 +45,9 @@ export default defineConfig(async ({ mode }) => {
       'process.env.APP_EDITION': JSON.stringify(appEdition),
       'import.meta.env.APP_EDITION': JSON.stringify(appEdition),
       'import.meta.env.VITE_APP_EDITION': JSON.stringify(appEdition),
+      // 🔥 注入版本号
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+      'process.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
     resolve: {
       alias: {
