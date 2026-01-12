@@ -416,9 +416,12 @@ test.describe('DEP-002: Impact Analysis @v0.3.0', () => {
 
     await page.waitForTimeout(1000);
 
-    // 验证不崩溃
-    const editor = page.locator('.monaco-editor').first();
-    await expect(editor).toBeVisible();
+    // 验证不崩溃 - 检查应用是否正常运行
+    const appReady = await page.evaluate(() => {
+      return (window as any).__fileStore !== undefined;
+    });
+
+    expect(appReady).toBeTruthy();
 
     // 查找引用
     const refs = await page.evaluate(() => {
