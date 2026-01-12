@@ -115,4 +115,60 @@ mod tests {
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].title, "Example Refactor");
     }
+
+    // ==========================================
+    // 模块三：多模态理解
+    // ==========================================
+
+    #[derive(Debug)]
+    pub struct ImageContent {
+        pub data: Vec<u8>,
+        pub mime_type: String,
+    }
+
+    #[derive(Debug)]
+    pub struct VisionAnalysisResult {
+        pub description: String,
+        pub detected_code: Option<String>,
+        pub suggestion: Option<String>,
+    }
+
+    #[async_trait]
+    pub trait MultimodalEngine: Send + Sync {
+        /// 分析上传的图片
+        async fn analyze_image(&self, image: ImageContent, prompt: &str) -> Result<VisionAnalysisResult, String>;
+        
+        /// 检查是否支持 Vision 模型
+        fn is_vision_supported(&self) -> bool;
+    }
+
+    pub struct MockMultimodalEngine;
+
+    #[async_trait]
+    impl MultimodalEngine for MockMultimodalEngine {
+        async fn analyze_image(&self, _image: ImageContent, prompt: &str) -> Result<VisionAnalysisResult, String> {
+            // Mock 实现：返回固定的占位符
+            Ok(VisionAnalysisResult {
+                description: format!("(Mock) I see an image. Prompt was: {}", prompt),
+                detected_code: None,
+                suggestion: Some("Upgrade to Commercial Edition for real vision analysis.".to_string()),
+            })
+        }
+
+        fn is_vision_supported(&self) -> bool {
+            false // 社区版默认不支持真实 Vision
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multimodal_mock() {
+        let engine = MockMultimodalEngine;
+        let result = engine.analyze_image(
+            ImageContent { data: vec![], mime_type: "image/png".into() }, 
+            "Describe this"
+        ).await.unwrap();
+        
+        assert!(result.description.contains("(Mock)"));
+        assert!(!engine.is_vision_supported());
+    }
 }
