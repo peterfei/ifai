@@ -187,20 +187,108 @@ describe('DefinitionProvider', () => {
    * GTD-UNIT-05: 支持的语言
    */
   describe('supported languages', () => {
-    it('应该支持 TypeScript', () => {
-      const languages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'python', 'rust'];
-      expect(languages).toContain('typescript');
-      expect(languages).toContain('typescriptreact');
+    // 定义支持的所有主流编程语言
+    const supportedLanguages = [
+      // JavaScript/TypeScript 生态
+      'typescript',
+      'javascript',
+      'typescriptreact',
+      'javascriptreact',
+      'jsx',
+      'tsx',
+      // 系统编程语言
+      'c',
+      'cpp',
+      'go',
+      'rust',
+      'java',
+      'csharp',
+      // 脚本语言
+      'python',
+      'php',
+      'ruby',
+      'perl',
+      'lua',
+      // 移动/现代语言
+      'swift',
+      'kotlin',
+      'dart',
+      'scala',
+      // Web/前端
+      'html',
+      'css',
+      'scss',
+      'less',
+      // 数据/配置
+      'json',
+      'yaml',
+      'xml',
+      'toml',
+      // 标记语言
+      'markdown',
+      // 数据库
+      'sql',
+      'postgresql',
+      'mysql',
+      // Shell
+      'shell',
+      'bash',
+      'powershell',
+      // 其他
+      'graphql',
+      'dockerfile',
+      'terraform',
+    ];
+
+    it('应该支持 TypeScript/JavaScript 生态', () => {
+      expect(supportedLanguages).toContain('typescript');
+      expect(supportedLanguages).toContain('javascript');
+      expect(supportedLanguages).toContain('typescriptreact');
+      expect(supportedLanguages).toContain('javascriptreact');
+      expect(supportedLanguages).toContain('jsx');
+      expect(supportedLanguages).toContain('tsx');
     });
 
-    it('应该支持 Python', () => {
-      const languages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'python', 'rust'];
-      expect(languages).toContain('python');
+    it('应该支持系统编程语言', () => {
+      expect(supportedLanguages).toContain('c');
+      expect(supportedLanguages).toContain('cpp');
+      expect(supportedLanguages).toContain('go');
+      expect(supportedLanguages).toContain('rust');
+      expect(supportedLanguages).toContain('java');
+      expect(supportedLanguages).toContain('csharp');
     });
 
-    it('应该支持 Rust', () => {
-      const languages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'python', 'rust'];
-      expect(languages).toContain('rust');
+    it('应该支持脚本语言', () => {
+      expect(supportedLanguages).toContain('python');
+      expect(supportedLanguages).toContain('php');
+      expect(supportedLanguages).toContain('ruby');
+      expect(supportedLanguages).toContain('perl');
+      expect(supportedLanguages).toContain('lua');
+    });
+
+    it('应该支持移动/现代语言', () => {
+      expect(supportedLanguages).toContain('swift');
+      expect(supportedLanguages).toContain('kotlin');
+      expect(supportedLanguages).toContain('dart');
+      expect(supportedLanguages).toContain('scala');
+    });
+
+    it('应该支持 Web/前端语言', () => {
+      expect(supportedLanguages).toContain('html');
+      expect(supportedLanguages).toContain('css');
+      expect(supportedLanguages).toContain('scss');
+      expect(supportedLanguages).toContain('less');
+    });
+
+    it('应该支持数据/配置格式', () => {
+      expect(supportedLanguages).toContain('json');
+      expect(supportedLanguages).toContain('yaml');
+      expect(supportedLanguages).toContain('xml');
+      expect(supportedLanguages).toContain('toml');
+    });
+
+    it('应该支持至少 30 种语言', () => {
+      expect(supportedLanguages.length).toBeGreaterThanOrEqual(30);
     });
   });
 

@@ -132,12 +132,62 @@ export class DefinitionProvider implements monaco.languages.DefinitionProvider {
 /**
  * 注册定义提供者
  *
- * @param languages 要注册的语言列表
+ * @param languages 要注册的语言列表（默认支持所有主流语言）
  * @param options 提供者选项
  * @returns 清理函数
  */
 export function registerDefinitionProvider(
-  languages: string[] = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'python', 'rust'],
+  languages: string[] = [
+    // JavaScript/TypeScript 生态
+    'typescript',
+    'javascript',
+    'typescriptreact',
+    'javascriptreact',
+    'jsx',
+    'tsx',
+    // 系统编程语言
+    'c',
+    'cpp',
+    'go',
+    'rust',
+    'java',
+    'csharp',
+    // 脚本语言
+    'python',
+    'php',
+    'ruby',
+    'perl',
+    'lua',
+    // 移动/现代语言
+    'swift',
+    'kotlin',
+    'dart',
+    'scala',
+    // Web/前端
+    'html',
+    'css',
+    'scss',
+    'less',
+    // 数据/配置
+    'json',
+    'yaml',
+    'xml',
+    'toml',
+    // 标记语言
+    'markdown',
+    // 数据库
+    'sql',
+    'postgresql',
+    'mysql',
+    // Shell
+    'shell',
+    'bash',
+    'powershell',
+    // 其他
+    'graphql',
+    'dockerfile',
+    'terraform',
+  ],
   options?: DefinitionProviderOptions
 ): () => void {
   const providers: monaco.IDisposable[] = [];
@@ -182,11 +232,64 @@ export function setupDefinitionProvider(
     onCrossFileJump,
   });
 
-  // 注册到所有支持的语言
-  const languages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'python', 'rust'];
+  // 注册到所有支持的主流编程语言
+  const languages = [
+    // JavaScript/TypeScript 生态
+    'typescript',
+    'javascript',
+    'typescriptreact',
+    'javascriptreact',
+    'jsx',
+    'tsx',
+    // 系统编程语言
+    'c',
+    'cpp',
+    'go',
+    'rust',
+    'java',
+    'csharp',
+    // 脚本语言
+    'python',
+    'php',
+    'ruby',
+    'perl',
+    'lua',
+    // 移动/现代语言
+    'swift',
+    'kotlin',
+    'dart',
+    'scala',
+    // Web/前端
+    'html',
+    'css',
+    'scss',
+    'less',
+    // 数据/配置
+    'json',
+    'yaml',
+    'xml',
+    'toml',
+    // 标记语言
+    'markdown',
+    // 数据库
+    'sql',
+    'postgresql',
+    'mysql',
+    // Shell
+    'shell',
+    'bash',
+    'powershell',
+    // 其他
+    'graphql',
+    'dockerfile',
+    'terraform',
+  ];
+
   const disposables = languages.map(lang =>
     monaco.languages.registerDefinitionProvider(lang, provider)
   );
+
+  console.log(`[DefinitionProvider] Registered for ${languages.length} languages`);
 
   return () => {
     for (const d of disposables) {
