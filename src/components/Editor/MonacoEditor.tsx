@@ -11,6 +11,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 // 🔥 InlineEditWidget 已移至 App.tsx 全局渲染，避免重复订阅导致无限循环
 // import { InlineEditWidget } from './InlineEditWidget';
 import { setupSymbolCompletion } from './SymbolCompletionProvider';
+import { setupDefinitionProvider } from './DefinitionProvider';
 import { symbolIndexer } from '../../core/indexer/SymbolIndexer';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
@@ -149,6 +150,59 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
     // 注册符号补全提供者
     const disposeSymbolCompletion = setupSymbolCompletion(monaco, currentFile?.path);
+
+    // ========================================================================
+    // v0.3.0: Go to Definition 支持
+    // ========================================================================
+
+    // 注册定义提供者（支持跨文件跳转）
+    const disposeDefinitionProvider = setupDefinitionProvider(
+      monaco,
+      currentFile?.path,
+      // 跨文件跳转回调
+      async (definition) => {
+        try {
+          console.log('[MonacoEditor] Cross-file definition jump:', definition);
+
+          // 读取目标文件内容
+          const { readFileContent } = await import('../../utils/fileSystem');
+          const content = await readFileContent(definition.filePath);
+
+          // 提取文件名和语言
+          const fileName = definition.filePath.split('/').pop() || 'unknown';
+          const language = (window as any).__detectLanguageFromPath?.(definition.filePath) ||
+            monaco.languages.getEncodedLanguageId?.(definition.filePath) ||
+            'plaintext';
+
+          // 打开文件（使用 fileStore）
+          const { useFileStore } = await import('../../stores/fileStore');
+          const { openFile, setActiveFile } = useFileStore.getState();
+
+          const fileId = openFile({
+            id: `file-${definition.filePath}-${Date.now()}`,
+            path: definition.filePath,
+            name: fileName,
+            content: content,
+            isDirty: false,
+            language: language,
+            initialLine: definition.line, // 设置初始行号
+          });
+
+          // 激活文件
+          setActiveFile(fileId);
+
+          // 显示提示
+          const { toast } = await import('sonner');
+          toast.success(`Opened ${fileName}:${definition.line}`);
+        } catch (e) {
+          console.error('[MonacoEditor] Failed to open definition file:', e);
+          const { toast } = await import('sonner');
+          toast.error(`Failed to open definition: ${String(e)}`);
+        }
+      }
+    );
+
+    // ========================================================================
 
     // ========================================================================
 
@@ -300,6 +354,7 @@ ${textBefore}[CURSOR]${textAfter}
     return () => {
       completionProvider.dispose();
       disposeSymbolCompletion?.();
+      disposeDefinitionProvider?.();
     };
   }, [paneId, setEditorInstance, setChatOpen, sendMessage, showInlineEdit, t]); // 🔥 修复无限循环：移除 file?.path, file?.content, file?.language 依赖（使用 fileRef.current 代替）
 
