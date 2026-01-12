@@ -260,7 +260,7 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
           {results.length > 0 ? (
             results.map((result, index) => (
               <div
-                key={result.id}
+                key={`${result.type}-${result.id}-${index}`}
                 className={`px-4 py-2 text-sm cursor-pointer transition-colors flex items-center gap-3 ${
                   index === selectedIndex
                     ? 'bg-blue-600 text-white'

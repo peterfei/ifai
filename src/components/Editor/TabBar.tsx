@@ -78,9 +78,9 @@ export const TabBar = () => {
       <div
         className="flex items-center flex-1 overflow-x-auto min-w-0 horizontal-scrollbar"
       >
-        {openedFiles.map(file => (
+        {openedFiles.map((file, index) => (
           <div
-            key={file.id}
+            key={`${file.path}-${index}`}
             className={clsx(
               "flex items-center px-3 h-full cursor-pointer select-none group border-r border-[#1e1e1e] transition-colors flex-shrink-0 max-w-[180px]",
               file.id === activeFileId

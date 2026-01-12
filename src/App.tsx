@@ -26,6 +26,9 @@ import { useAgentStore } from './stores/agentStore';
 import { useCodeReviewStore } from './stores/codeReviewStore';
 import { useInlineEditStore } from './stores/inlineEditStore';
 import { useHelpStore } from './stores/helpStore';
+// v0.3.0: Code Analysis Panel
+import { useCodeSmellStore } from './stores/codeSmellStore';
+import { CodeSmellPanel } from './components/CodeAnalysis/CodeSmellPanel';
 import { shallow } from 'zustand/shallow';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
 import { Toaster, toast } from 'sonner';
@@ -454,6 +457,12 @@ function App() {
     'layout.toggleSidebar': (e: KeyboardEvent) => {
       e.preventDefault();
       toggleSidebar();
+    },
+    // v0.3.0: 切换代码分析面板
+    'view.toggleCodeAnalysis': (e: KeyboardEvent) => {
+      e.preventDefault();
+      const { isPanelOpen, setPanelOpen } = useCodeSmellStore.getState();
+      setPanelOpen(!isPanelOpen);
     }
   };
 
@@ -551,6 +560,13 @@ function App() {
 
         {/* 默认布局模式下，聊天面板在右侧 */}
         {layoutMode === 'default' && isChatOpen && <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />}
+
+        {/* v0.3.0: 代码分析面板 */}
+        {useCodeSmellStore((state) => state.isPanelOpen) && (
+          <div className="w-96 border-l border-gray-700">
+            <CodeSmellPanel onClose={() => useCodeSmellStore.getState().setPanelOpen(false)} />
+          </div>
+        )}
 
         {/* v0.2.6 新增：右侧侧栏位置 */}
         {isSidebarOpen && sidebarPosition === 'right' && (

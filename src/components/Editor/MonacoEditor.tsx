@@ -15,6 +15,10 @@ import { setupDefinitionProvider } from './DefinitionProvider';
 import { setupReferencesProvider } from './ReferencesProvider';
 import { symbolIndexer } from '../../core/indexer/SymbolIndexer';
 import { useTranslation } from 'react-i18next';
+// v0.3.0: Code Analysis integration
+import { useCodeSmellStore } from '../../stores/codeSmellStore';
+import { CodeSmellDecorationProvider } from '../CodeAnalysis/CodeSmellDecorations';
+import { injectCodeSmellStyles } from '../CodeAnalysis/CodeSmellDecorations';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
@@ -490,6 +494,31 @@ ${textBefore}[CURSOR]${textAfter}
     }
   }, [file?.id, paneId]); // 🔥 修复无限循环：移除 getEditorInstance 依赖，使用 ref 代替
 
+  // v0.3.0: 代码异味自动分析
+  const analyzeFile = useCodeSmellStore(state => state.analyzeFile);
+  const autoAnalyze = useCodeSmellStore(state => state.autoAnalyze);
+
+  // 注入代码异味装饰器样式
+  useEffect(() => {
+    injectCodeSmellStyles();
+  }, []);
+
+  // 当文件内容变化时触发分析（防抖）
+  useEffect(() => {
+    if (!file?.path || !file?.content || !autoAnalyze) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await analyzeFile(file.path, file.content, file.language || 'plaintext');
+        console.log('[MonacoEditor] Code analysis completed for:', file.path);
+      } catch (error) {
+        console.error('[MonacoEditor] Code analysis failed:', error);
+      }
+    }, 1000); // 1秒防抖
+
+    return () => clearTimeout(timer);
+  }, [file?.id, file?.content, file?.language, analyzeFile, autoAnalyze]);
+
   // Jump to initial line when specified (for search results, file tree clicks, etc.)
   useEffect(() => {
     const editor = editorRef.current;
@@ -537,6 +566,8 @@ ${textBefore}[CURSOR]${textAfter}
         options={getOptimizedOptions()}
       />
       {/* v0.2.9: Inline Edit Widget 已移至 App.tsx 全局渲染，避免重复订阅 */}
+      {/* v0.3.0: Code Smell Decoration Provider */}
+      <CodeSmellDecorationProvider />
     </div>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Sun, Moon, MessageSquare, Terminal, Settings, Sidebar } from 'lucide-react';
+import { ChevronDown, Sun, Moon, MessageSquare, Terminal, Settings, Sidebar, Shield } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useCodeSmellStore } from '../../stores/codeSmellStore';
 import { v4 as uuidv4 } from 'uuid';
 import { openDirectory, readFileContent, writeFileContent, saveFileAs } from '../../utils/fileSystem';
 import { toast } from 'sonner';
@@ -30,6 +31,8 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty, fetchGitStatuses, addWorkspaceRoot, saveWorkspaceConfig, loadWorkspaceConfig } = useFileStore();
   const { theme, setTheme } = useEditorStore();
   const { toggleSettings, isSidebarOpen, toggleSidebar } = useLayoutStore();
+  // v0.3.0: Code Smell Store
+  const { isPanelOpen: isCodeAnalysisOpen, setPanelOpen: setCodeAnalysisOpen } = useCodeSmellStore();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -287,6 +290,14 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
           title="切换侧边栏 (Cmd+B)"
         >
           <Sidebar size={16} />
+        </button>
+        {/* v0.3.0: 代码分析面板按钮 */}
+        <button
+          className={`p-1 rounded ${isCodeAnalysisOpen ? 'text-amber-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          onClick={() => setCodeAnalysisOpen(!isCodeAnalysisOpen)}
+          title="代码分析 (检测代码异味)"
+        >
+          <Shield size={16} />
         </button>
         <button
           className={`p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700`}

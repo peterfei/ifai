@@ -601,6 +601,16 @@ export const useFileStore = create<FileState>()(
             return { openedFiles: updatedFiles, activeFileId: fileIdToActivate };
           }
 
+          // v0.3.0: 确保不会添加重复路径的文件
+          const hasDuplicatePath = state.openedFiles.some(f => f.path === file.path);
+          if (hasDuplicatePath) {
+            console.warn('[fileStore] Attempted to add duplicate file path:', file.path);
+            // 使用已存在文件的 ID
+            const existingFile = state.openedFiles.find(f => f.path === file.path);
+            fileIdToActivate = existingFile!.id;
+            return { openedFiles: state.openedFiles, activeFileId: fileIdToActivate };
+          }
+
           // If not existing, add it
           const newFiles = [...state.openedFiles, file];
           return { openedFiles: newFiles, activeFileId: fileIdToActivate };
