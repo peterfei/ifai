@@ -19,6 +19,8 @@ import { useTranslation } from 'react-i18next';
 import { useCodeSmellStore } from '../../stores/codeSmellStore';
 import { CodeSmellDecorationProvider } from '../CodeAnalysis/CodeSmellDecorations';
 import { injectCodeSmellStyles } from '../CodeAnalysis/CodeSmellDecorations';
+// v0.3.0: Refactoring integration
+import { useRefactoringStore } from '../../stores/refactoringStore';
 import { invoke } from '@tauri-apps/api/core';
 import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
@@ -140,6 +142,82 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
           const { currentProviderId, currentModel } = useSettingsStore.getState();
           await sendMessage(prompt, currentProviderId, currentModel);
         }
+      }
+    });
+
+    // ========================================================================
+    // v0.3.0: 结构化重构命令
+    // ========================================================================
+
+    // 重命名符号
+    editor.addAction({
+      id: 'refactor.rename',
+      label: '重命名符号',
+      contextMenuGroupId: 'modification',
+      contextMenuOrder: 1.5,
+      run: async (ed) => {
+        const position = ed.getPosition();
+        const model = ed.getModel();
+        if (!position || !model) return;
+
+        const wordAtPos = model.getWordAtPosition(position);
+        if (!wordAtPos) return;
+
+        const word = wordAtPos.word;
+        const currentFile = fileRef.current;
+        if (!currentFile?.path) return;
+
+        // 简化版：使用 prompt 获取新名称
+        // TODO: 实现内联重命名 UI
+        const newName = prompt(`重命名 "${word}" 为:`, word);
+        if (!newName || newName === word) return;
+
+        const { previewRename } = useRefactoringStore.getState();
+        await previewRename({
+          filePath: currentFile.path,
+          oldName: word,
+          newName,
+          kind: 'variable', // TODO: 检测实际类型
+        });
+      }
+    });
+
+    // 提取函数
+    editor.addAction({
+      id: 'refactor.extractFunction',
+      label: '提取函数',
+      contextMenuGroupId: 'modification',
+      contextMenuOrder: 1.6,
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
+      run: async (ed) => {
+        const selection = ed.getSelection();
+        const model = ed.getModel();
+        if (!selection || !model || selection.isEmpty()) return;
+
+        const selectedText = model.getValueInRange(selection);
+        if (!selectedText || selectedText.trim().length < 10) {
+          // TODO: 显示提示
+          return;
+        }
+
+        const currentFile = fileRef.current;
+        if (!currentFile?.path) return;
+
+        // 简化版：使用 prompt 获取函数名
+        const functionName = prompt('新函数名称:', 'extractedFunction');
+        if (!functionName) return;
+
+        const { previewExtractFunction } = useRefactoringStore.getState();
+        await previewExtractFunction({
+          filePath: currentFile.path,
+          range: {
+            startLineNumber: selection.startLineNumber,
+            startColumn: selection.startColumn,
+            endLineNumber: selection.endLineNumber,
+            endColumn: selection.endColumn,
+          },
+          functionName,
+        });
       }
     });
 

@@ -324,7 +324,7 @@ export class CodeAnalysisService {
    */
   private analyzeRust(content: string, filePath: string, analysisId: string): CodeSmell[] {
     // TODO: 实现 Rust 特定的分析
-    return this.analyzeGeneric(content, filePath);
+    return this.analyzeGeneric(content, filePath, analysisId);
   }
 
   /**
@@ -332,7 +332,7 @@ export class CodeAnalysisService {
    */
   private analyzeGo(content: string, filePath: string, analysisId: string): CodeSmell[] {
     // TODO: 实现 Go 特定的 的分析
-    return this.analyzeGeneric(content, filePath);
+    return this.analyzeGeneric(content, filePath, analysisId);
   }
 
   /**

@@ -97,7 +97,7 @@ export class DefinitionProvider implements monaco.languages.DefinitionProvider {
 
     // 5. 同文件跳转 - 返回 location
     return {
-      uri: model.uri.toString(),
+      uri: model.uri,
       range: {
         startLineNumber: definition.line,
         startColumn: definition.column || 1,

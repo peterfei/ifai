@@ -29,6 +29,9 @@ import { useHelpStore } from './stores/helpStore';
 // v0.3.0: Code Analysis Panel
 import { useCodeSmellStore } from './stores/codeSmellStore';
 import { CodeSmellPanel } from './components/CodeAnalysis/CodeSmellPanel';
+// v0.3.0: Refactoring Panel
+import { useRefactoringStore } from './stores/refactoringStore';
+import { RefactoringPreviewPanel } from './components/Refactoring/RefactoringPreviewPanel';
 import { shallow } from 'zustand/shallow';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
 import { Toaster, toast } from 'sonner';
@@ -565,6 +568,13 @@ function App() {
         {useCodeSmellStore((state) => state.isPanelOpen) && (
           <div className="w-96 border-l border-gray-700">
             <CodeSmellPanel onClose={() => useCodeSmellStore.getState().setPanelOpen(false)} />
+          </div>
+        )}
+
+        {/* v0.3.0: 重构预览面板 */}
+        {useRefactoringStore((state) => state.isPreviewOpen) && (
+          <div className="w-[500px] border-l border-gray-700">
+            <RefactoringPreviewPanel onClose={() => useRefactoringStore.getState().clearPreview()} />
           </div>
         )}
 

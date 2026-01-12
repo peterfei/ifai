@@ -78,7 +78,7 @@ export class ReferencesProvider implements monaco.languages.ReferenceProvider {
       }
 
       // 创建 URI（Monaco 使用 file:// 协议）
-      const uri = monaco.Uri.file(ref.filePath).toString();
+      const uri = monaco.Uri.file(ref.filePath);
 
       locations.push({
         uri,
