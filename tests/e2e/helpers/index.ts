@@ -15,5 +15,14 @@ export * from './data-generators';
 // 清理函数
 export * from './cleanup-helpers';
 
+// Page Object Models
+export * from './editor-page';
+
+// v0.3.0 专用测试工具
+export * from './v0-3-0-test-utils';
+
+// 环境配置
+export * from '../config/test-environment';
+
 // 重新导出setup-utils（向后兼容）
 export { setupE2ETestEnvironment } from '../setup-utils';

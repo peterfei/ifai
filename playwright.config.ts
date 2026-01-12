@@ -1,4 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
+import { getTestEnvironmentConfig } from './tests/e2e/config/test-environment';
+
+/**
+ * 读取测试环境配置
+ */
+const testConfig = getTestEnvironmentConfig();
 
 /**
  * Playwright E2E测试配置
@@ -9,6 +15,8 @@ import { defineConfig, devices } from '@playwright/test';
  * - CI/CD环境优化
  * - 失败时截图、视频、trace记录
  * - 合理的超时和重试策略
+ * - 环境变量统一管理
+ * - 测试覆盖率报告支持
  */
 export default defineConfig({
   // 测试目录
@@ -21,17 +29,17 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
 
   // 重试策略
-  retries: process.env.CI ? 2 : 0,
+  retries: testConfig.retries,
 
   // 并发工作进程数
-  workers: process.env.CI ? 2 : 4,
+  workers: testConfig.workers,
 
   // 全局超时设置（单个测试的最大执行时间）
-  timeout: 60 * 1000, // 60秒
+  timeout: testConfig.timeouts.test,
 
   // 期望超时（断言超时）
   expect: {
-    timeout: 10 * 1000, // 10秒
+    timeout: testConfig.timeouts.expectation,
   },
 
   // 报告器配置
@@ -54,26 +62,26 @@ export default defineConfig({
   // 测试用例默认配置
   use: {
     // 基础URL
-    baseURL: 'http://localhost:1420',
+    baseURL: testConfig.baseURL,
 
     // 截图配置
-    screenshot: 'only-on-failure',
+    screenshot: testConfig.screenshot,
 
     // 视频录制配置
-    video: 'retain-on-failure',
+    video: testConfig.recordVideo ? 'retain-on-failure' : 'off',
 
     // Trace配置（用于调试）
-    trace: 'retain-on-failure',
+    trace: testConfig.debug ? 'retain-on-failure' : 'on-first-retry',
 
     // 浏览器上下文配置
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
 
     // 导航超时
-    navigationTimeout: 30 * 1000, // 30秒
+    navigationTimeout: testConfig.timeouts.navigation,
 
     // 动作超时
-    actionTimeout: 15 * 1000, // 15秒
+    actionTimeout: testConfig.timeouts.action,
   },
 
   // 测试项目配置
@@ -102,9 +110,11 @@ export default defineConfig({
 
   // 开发服务器配置
   webServer: {
-    // 启动命令（商业模式 + E2E环境）
-    command: 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run dev',
-    url: 'http://localhost:1420',
+    // 启动命令（根据版本选择）
+    command: testConfig.edition === 'commercial'
+      ? 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run dev'
+      : 'APP_EDITION=community VITE_TEST_ENV=e2e npm run dev',
+    url: testConfig.baseURL,
     // 重用已存在的服务器（本地开发时）
     reuseExistingServer: !process.env.CI,
     // 服务器启动超时
@@ -117,7 +127,8 @@ export default defineConfig({
   // 测试元数据
   metadata: {
     'E2E Test Suite': 'IFA Editor',
-    'Test Environment': process.env.CI ? 'CI' : 'Local',
+    'Test Environment': testConfig.environment,
+    'App Edition': testConfig.edition,
   },
 
   // 全局设置

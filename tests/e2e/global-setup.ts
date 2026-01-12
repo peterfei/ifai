@@ -1,6 +1,7 @@
 import { FullConfig } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getEnvironmentSummary, validateEnvironmentConfig } from './config/test-environment';
 
 /**
  * 全局测试设置
@@ -9,14 +10,25 @@ import path from 'path';
 async function globalSetup(config: FullConfig) {
   console.log('\n========================================');
   console.log('🚀 E2E测试环境初始化');
-  console.log('========================================\n');
+  console.log('========================================');
 
   const startTime = Date.now();
 
   try {
-    // 设置环境变量
-    process.env.NODE_ENV = 'test';
+    // 验证环境配置
+    const validation = validateEnvironmentConfig();
+    if (!validation.valid) {
+      console.error('❌ 环境配置验证失败:');
+      validation.errors.forEach((error) => console.error(`  - ${error}`));
+      throw new Error(`Invalid environment configuration: ${validation.errors.join(', ')}`);
+    }
+
+    // 打印环境摘要
+    console.log(getEnvironmentSummary());
+
+    // 设置 E2E 测试标记
     process.env.E2E_TEST = 'true';
+    process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 
     // 🔥 创建 E2E 标记文件，让 Vite 检测到 E2E 环境
     const e2eFlagPath = path.join(process.cwd(), 'tests/e2e/.env.e2e');
@@ -34,6 +46,14 @@ async function globalSetup(config: FullConfig) {
       await fs.mkdir(testResultsDir, { recursive: true });
     } catch (err) {
       // 目录可能已存在，忽略错误
+    }
+
+    // 确保覆盖率目录存在
+    const coverageDir = path.join(process.cwd(), 'coverage');
+    try {
+      await fs.mkdir(coverageDir, { recursive: true });
+    } catch (err) {
+      // 忽略错误
     }
 
     const duration = Date.now() - startTime;
