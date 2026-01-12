@@ -130,6 +130,16 @@ function App() {
       } catch (error) {
         console.error('[App] ❌ Failed to show window:', error);
       }
+
+      // v0.3.0: 暴露 stores 到 window 对象供 E2E 测试使用
+      try {
+        const { useFileStore } = await import('./stores/fileStore');
+        // Zustand store 本身就是一个对象，可以直接暴露
+        (window as any).__fileStore = useFileStore;
+        console.log('[App] ✅ FileStore exposed to window.__fileStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose FileStore:', error);
+      }
     };
 
     init();

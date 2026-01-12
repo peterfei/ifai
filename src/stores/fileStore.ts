@@ -2,13 +2,19 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { debounce } from 'lodash-es';
-import { FileNode, OpenedFile, GitStatus } from './types';
+import { FileNode, OpenedFile, GitStatus, WorkspaceRoot } from './types';
 import { readFileContent, readDirectory } from '../utils/fileSystem';
 import { useProjectConfigStore } from './projectConfigStore';
 
 interface FileState {
+  // v0.3.0: 多工作区支持
+  workspaceRoots: WorkspaceRoot[];
+  activeRootId: string | null;
+
+  // 向后兼容: 单目录模式 (deprecated)
   fileTree: FileNode | null;
   rootPath: string | null;
+
   openedFiles: OpenedFile[];
   activeFileId: string | null;
   gitStatuses: Map<string, GitStatus>;
@@ -18,6 +24,15 @@ interface FileState {
   // v0.2.6 新增：Markdown 预览模式
   previewMode: 'editor' | 'preview' | 'split';
 
+  // v0.3.0: 多工作区操作
+  addWorkspaceRoot: (path: string) => Promise<WorkspaceRoot>;
+  removeWorkspaceRoot: (rootId: string) => void;
+  setActiveRoot: (rootId: string) => void;
+  getActiveRoot: () => WorkspaceRoot | null;
+  refreshRoot: (rootId: string) => Promise<void>;
+  getRootByPath: (path: string) => WorkspaceRoot | null;
+
+  // 向后兼容: 单目录操作
   setFileTree: (tree: FileNode) => void;
   setRootPath: (path: string | null) => Promise<void>;
   openFile: (file: OpenedFile) => string;
@@ -54,8 +69,14 @@ const updateGitStatusRecursive = (node: FileNode, statuses: Map<string, GitStatu
 export const useFileStore = create<FileState>()(
   persist(
     (set, get) => ({
+      // v0.3.0: 多工作区支持
+      workspaceRoots: [],
+      activeRootId: null,
+
+      // 向后兼容: 单目录模式
       fileTree: null,
       rootPath: null,
+
       openedFiles: [],
       activeFileId: null,
       gitStatuses: new Map(),
@@ -66,6 +87,183 @@ export const useFileStore = create<FileState>()(
       previewMode: 'editor',
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
+
+      // ============================================================
+      // v0.3.0: 多工作区操作
+      // ============================================================
+
+      /**
+       * 添加工作区根目录
+       */
+      addWorkspaceRoot: async (path: string) => {
+        // 检查路径是否已存在
+        const existing = get().workspaceRoots.find(r => r.path === path);
+        if (existing) {
+          throw new Error(`Path already exists in workspace: ${path}`);
+        }
+
+        // 提取目录名
+        const name = path.split('/').filter(Boolean).pop() || path;
+
+        // 创建新的工作区根目录
+        const root: WorkspaceRoot = {
+          id: `root-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          path,
+          name,
+          fileTree: null,
+          isActive: get().workspaceRoots.length === 0, // 第一个自动设为活动
+          indexedAt: null,
+        };
+
+        // 读取文件树
+        try {
+          const children = await readDirectory(path);
+          root.fileTree = {
+            id: root.id,
+            name,
+            path,
+            kind: 'directory',
+            children
+          };
+          root.indexedAt = new Date();
+        } catch (e) {
+          console.warn(`Failed to read directory ${path}:`, e);
+          // 即使读取失败也添加根目录（fileTree 为 null）
+        }
+
+        set((state) => {
+          const newRoots = [...state.workspaceRoots, root];
+          const newActiveId = state.activeRootId || (newRoots.length === 1 ? root.id : state.activeRootId);
+
+          return {
+            workspaceRoots: newRoots,
+            activeRootId: newActiveId,
+          };
+        });
+
+        // 初始化 RAG 索引
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          await invoke('init_rag_index', { rootPath: path });
+        } catch (e) {
+          console.warn('[Workspace] RAG initialization failed:', e);
+        }
+
+        // 加载项目配置
+        try {
+          await useProjectConfigStore.getState().loadConfig(path);
+        } catch (e) {
+          console.error('[Workspace] Failed to load config:', e);
+        }
+
+        return root;
+      },
+
+      /**
+       * 移除工作区根目录
+       */
+      removeWorkspaceRoot: (rootId: string) => {
+        set((state) => {
+          const index = state.workspaceRoots.findIndex(r => r.id === rootId);
+          if (index === -1) {
+            throw new Error(`Workspace root not found: ${rootId}`);
+          }
+
+          const newRoots = state.workspaceRoots.filter(r => r.id !== rootId);
+          let newActiveId = state.activeRootId;
+
+          // 如果移除的是活动根目录，切换到另一个
+          if (state.activeRootId === rootId) {
+            newActiveId = newRoots.length > 0 ? newRoots[0].id : null;
+
+            // 更新所有根目录的 isActive 状态
+            newRoots.forEach((r, i) => {
+              r.isActive = (i === 0);
+            });
+          }
+
+          return {
+            workspaceRoots: newRoots,
+            activeRootId: newActiveId,
+          };
+        });
+      },
+
+      /**
+       * 设置活动根目录
+       */
+      setActiveRoot: (rootId: string) => {
+        set((state) => {
+          const root = state.workspaceRoots.find(r => r.id === rootId);
+          if (!root) {
+            throw new Error(`Workspace root not found: ${rootId}`);
+          }
+
+          // 更新所有根目录的 isActive 状态
+          const updatedRoots = state.workspaceRoots.map(r => ({
+            ...r,
+            isActive: r.id === rootId
+          }));
+
+          return {
+            activeRootId: rootId,
+            workspaceRoots: updatedRoots,
+            // v0.3.0: 同时更新全局 fileTree 为活动根目录的 fileTree
+            fileTree: root.fileTree,
+            rootPath: root.path,
+          };
+        });
+      },
+
+      /**
+       * 获取当前活动根目录
+       */
+      getActiveRoot: () => {
+        const { activeRootId, workspaceRoots } = get();
+        if (!activeRootId) return null;
+        return workspaceRoots.find(r => r.id === activeRootId) || null;
+      },
+
+      /**
+       * 刷新根目录的文件树
+       */
+      refreshRoot: async (rootId: string) => {
+        const root = get().workspaceRoots.find(r => r.id === rootId);
+        if (!root) {
+          throw new Error(`Workspace root not found: ${rootId}`);
+        }
+
+        try {
+          const children = await readDirectory(root.path);
+          const newTree: FileNode = {
+            id: root.id,
+            name: root.name,
+            path: root.path,
+            kind: 'directory',
+            children
+          };
+
+          set((state) => ({
+            workspaceRoots: state.workspaceRoots.map(r =>
+              r.id === rootId ? { ...r, fileTree: newTree, indexedAt: new Date() } : r
+            ),
+          }));
+        } catch (e) {
+          console.error(`Failed to refresh root ${rootId}:`, e);
+          throw e;
+        }
+      },
+
+      /**
+       * 根据路径查找根目录
+       */
+      getRootByPath: (path: string) => {
+        return get().workspaceRoots.find(r => r.path === path) || null;
+      },
+
+      // ============================================================
+      // 向后兼容: 单目录操作
+      // ============================================================
 
       toggleExpandedNode: (nodeId: string) => set((state) => {
         const newExpanded = new Set(state.expandedNodes);
@@ -87,10 +285,54 @@ export const useFileStore = create<FileState>()(
         const treeWithStatus = tree ? updateGitStatusRecursive(tree, get().gitStatuses) : null;
         const newRootPath = tree ? tree.path : null;
 
-        set((state) => ({
-          fileTree: treeWithStatus,
-          rootPath: newRootPath,
-        }));
+        set((state) => {
+          const newState = {
+            fileTree: treeWithStatus,
+            rootPath: newRootPath,
+          };
+
+          // v0.3.0: 向后兼容 - 同步更新 workspaceRoots
+          if (treeWithStatus && newRootPath) {
+            // 检查是否已存在该路径的工作区根目录
+            const existingRoot = state.workspaceRoots.find(r => r.path === newRootPath);
+
+            if (!existingRoot) {
+              // 不存在则创建新的工作区根目录
+              const name = newRootPath.split('/').filter(Boolean).pop() || 'Project';
+              const root: WorkspaceRoot = {
+                id: `root-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                path: newRootPath,
+                name,
+                fileTree: treeWithStatus,
+                isActive: true,
+                indexedAt: new Date(),
+              };
+
+              // 如果有其他根目录，将它们的 isActive 设为 false
+              const updatedRoots = state.workspaceRoots.map(r => ({ ...r, isActive: false }));
+
+              return {
+                ...newState,
+                workspaceRoots: [...updatedRoots, root],
+                activeRootId: root.id,
+              };
+            } else {
+              // 已存在则更新该根目录的 fileTree
+              const updatedRoots = state.workspaceRoots.map(r =>
+                r.path === newRootPath
+                  ? { ...r, fileTree: treeWithStatus, indexedAt: new Date() }
+                  : r
+              );
+
+              return {
+                ...newState,
+                workspaceRoots: updatedRoots,
+              };
+            }
+          }
+
+          return newState;
+        });
 
         // Load project config asynchronously (don't block or fail on error)
         if (newRootPath) {
@@ -423,6 +665,9 @@ export const useFileStore = create<FileState>()(
       name: 'file-storage',
       version: 1,
       partialize: (state) => ({
+        // v0.3.0: 多工作区支持
+        workspaceRoots: state.workspaceRoots,
+        activeRootId: state.activeRootId,
         // 🔥 修复编辑器持久化:保留文件内容(限制100KB以内的小文件)
         openedFiles: state.openedFiles.map(f => {
           // 保留小文件内容用于持久化,避免重新加载时丢失

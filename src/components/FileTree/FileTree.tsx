@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
-import { ChevronRight, ChevronDown, File, Folder } from 'lucide-react';
-import { FileNode, GitStatus } from '../../stores/types';
+import { ChevronRight, ChevronDown, File, Folder, FolderPlus, Layers } from 'lucide-react';
+import { FileNode, GitStatus, WorkspaceRoot } from '../../stores/types';
 import { readFileContent, readDirectory, openDirectory } from '../../utils/fileSystem';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
@@ -11,10 +11,38 @@ import { ContextMenu } from './ContextMenu';
 import { VirtualFileTree, useVirtualization } from './VirtualFileTree';
 import { detectLanguageFromPath } from '../../utils/languageDetection';
 
+// v0.3.0: 根目录项组件
+interface WorkspaceRootItemProps {
+  root: WorkspaceRoot;
+  isActive: boolean;
+  onClick: () => void;
+  onContextMenu: (e: React.MouseEvent, root: WorkspaceRoot) => void;
+}
+
+const WorkspaceRootItem: React.FC<WorkspaceRootItemProps> = ({ root, isActive, onClick, onContextMenu }) => {
+  return (
+    <div
+      data-testid="workspace-root"
+      data-active={isActive}
+      data-root-id={root.id}
+      className={`flex items-center py-2 px-3 cursor-pointer text-sm select-none transition-colors border-b border-gray-800 ${
+        isActive ? 'bg-blue-600/20 text-white' : 'hover:bg-gray-800 text-gray-400'
+      }`}
+      onClick={onClick}
+      onContextMenu={(e) => onContextMenu(e, root)}
+    >
+      <Layers size={16} className="mr-2" />
+      <span className="font-medium">{root.name}</span>
+      <span className="ml-auto text-xs text-gray-600">{root.path}</span>
+    </div>
+  );
+};
+
 interface ContextMenuState {
   x: number;
   y: number;
   node: FileNode | null;
+  root: WorkspaceRoot | null;  // v0.3.0: 支持根目录菜单
 }
 
 interface FileTreeItemProps {
@@ -194,9 +222,35 @@ const getLanguageFromPath = (path: string): string => {
 };
 
 export const FileTree = () => {
-  const { fileTree, refreshFileTree, refreshFileTreePreserveExpanded, rootPath, setGitStatuses, gitStatuses, openFile, setFileTree, setRootPath, expandedNodes, toggleExpandedNode, setExpandedNodes, openedFiles, setActiveFile, selectedNodeIds, setSelectedNodeIds, lastSelectedNodeId, setLastSelectedNodeId } = useFileStore();
+  // v0.3.0: 多工作区支持
+  const {
+    fileTree,
+    refreshFileTree,
+    refreshFileTreePreserveExpanded,
+    rootPath,
+    setGitStatuses,
+    gitStatuses,
+    openFile,
+    setFileTree,
+    setRootPath,
+    expandedNodes,
+    toggleExpandedNode,
+    setExpandedNodes,
+    openedFiles,
+    setActiveFile,
+    selectedNodeIds,
+    setSelectedNodeIds,
+    lastSelectedNodeId,
+    setLastSelectedNodeId,
+    workspaceRoots,
+    activeRootId,
+    addWorkspaceRoot,
+    removeWorkspaceRoot,
+    setActiveRoot,
+    refreshRoot,
+  } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null });
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null, root: null });
   const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -498,18 +552,18 @@ export const FileTree = () => {
   const handleContextMenu = (e: React.MouseEvent, node: FileNode) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // If the node is not already part of the selection, select only this node
     if (!selectedNodeIds.includes(node.id)) {
       setSelectedNodeIds([node.id]);
       setLastSelectedNodeId(node.id);
     }
-    
-    setContextMenu({ x: e.clientX, y: e.clientY, node });
+
+    setContextMenu({ x: e.clientX, y: e.clientY, node, root: null });
   };
 
   const handleCloseContextMenu = useCallback(() => {
-    setContextMenu({ x: 0, y: 0, node: null });
+    setContextMenu({ x: 0, y: 0, node: null, root: null });
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -520,6 +574,56 @@ export const FileTree = () => {
   const handleRefreshForAction = useCallback(async () => {
     await handleRefreshPreserveExpanded();
   }, [handleRefreshPreserveExpanded]);
+
+  // ============================================================
+  // v0.3.0: 多工作区操作
+  // ============================================================
+
+  // 添加新目录到工作区
+  const handleAddFolder = useCallback(async () => {
+    try {
+      const tree = await openDirectory();
+      if (tree) {
+        await addWorkspaceRoot(tree.path);
+        invoke('init_rag_index', { rootPath: tree.path }).catch(e => console.warn('RAG init warning:', e));
+        toast.success(`Added folder: ${tree.name}`);
+      }
+    } catch (e) {
+      console.error('[FileTree] Failed to add folder:', e);
+      toast.error(`Failed to add folder: ${String(e)}`);
+    }
+  }, [addWorkspaceRoot]);
+
+  // 移除工作区根目录
+  const handleRemoveFolder = useCallback(async (rootId: string) => {
+    try {
+      const root = workspaceRoots.find(r => r.id === rootId);
+      if (root) {
+        removeWorkspaceRoot(rootId);
+        toast.success(`Removed folder: ${root.name}`);
+      }
+    } catch (e) {
+      console.error('[FileTree] Failed to remove folder:', e);
+      toast.error(`Failed to remove folder: ${String(e)}`);
+    }
+  }, [workspaceRoots, removeWorkspaceRoot]);
+
+  // 点击根目录切换活动状态
+  const handleRootClick = useCallback((rootId: string) => {
+    try {
+      setActiveRoot(rootId);
+    } catch (e) {
+      console.error('[FileTree] Failed to switch root:', e);
+      toast.error(`Failed to switch folder: ${String(e)}`);
+    }
+  }, [setActiveRoot]);
+
+  // 根目录右键菜单
+  const handleRootContextMenu = useCallback((e: React.MouseEvent, root: WorkspaceRoot) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, node: null, root });
+  }, []);
 
   // Determine if virtualization should be used (for large trees)
   const shouldVirtualize = useVirtualization(visibleNodes.length, 500);
@@ -553,6 +657,9 @@ export const FileTree = () => {
     }
   };
 
+  // v0.3.0: 判断是否有多工作区
+  const hasMultiWorkspace = workspaceRoots.length > 0;
+
   if (!fileTree) return (
     <div className="p-4 text-gray-500 text-sm text-center flex flex-col items-center gap-4">
       <p className="text-gray-400">No folder open</p>
@@ -580,70 +687,100 @@ export const FileTree = () => {
   return (
     <div
       ref={containerRef}
-      className="py-2 h-full focus:outline-none"
+      className="h-full focus:outline-none flex flex-col"
       onContextMenu={(e) => e.preventDefault()}
       tabIndex={0}
     >
-      {shouldVirtualize ? (
-        // Use virtual scrolling for large trees (>500 nodes)
-        <VirtualFileTree
-          visibleNodes={visibleNodes}
-          renderNode={(node, index) => {
-            const level = getLevelFromPath(node.path, rootPath);
-            const isSelected = selectedNodeIds.includes(node.id);
-            const isExpanded = expandedNodes.has(node.id);
-
-            return (
-              <div
-                key={node.id}
-                data-testid="file-tree-item"
-                data-node-id={node.id}
-                data-selected={isSelected}
-                className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
-                  isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
-                }`}
-                style={{ paddingLeft: `${level * 12 + 8}px` }}
-                onClick={(e) => {
-                  handleNodeSelect(node.id, e.ctrlKey || e.metaKey, e.shiftKey);
-                  if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                    activateNode(node);
-                  }
-                }}
-                onContextMenu={(e) => handleContextMenu(e, node)}
-              >
-                <span className="mr-1 text-gray-500">
-                  {node.kind === 'directory' && (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
-                  {node.kind === 'file' && <File size={14} />}
-                </span>
-                {node.kind === 'directory' && !isExpanded && <Folder size={14} className="mr-1" />}
-                <span className={`truncate ${getStatusColorClassInline(node.path)}`}>{node.name}</span>
-              </div>
-            );
-          }}
-        />
-      ) : (
-        // Use regular rendering for small trees
-        <FileTreeItem
-          node={fileTree}
-          level={0}
-          onContextMenu={handleContextMenu}
-          onReload={() => {}}
-          selectedNodeIds={selectedNodeIds}
-          onNodeSelect={handleNodeSelect}
-          onNodeActivate={activateNode}
-          expandedNodes={expandedNodes}
-          onToggleExpand={handleToggleExpand}
-          onChildrenLoaded={handleChildrenLoaded}
-        />
+      {/* v0.3.0: 多工作区根目录列表 */}
+      {hasMultiWorkspace && (
+        <div className="border-b border-gray-700">
+          {workspaceRoots.map(root => (
+            <WorkspaceRootItem
+              key={root.id}
+              root={root}
+              isActive={root.id === activeRootId}
+              onClick={() => handleRootClick(root.id)}
+              onContextMenu={handleRootContextMenu}
+            />
+          ))}
+          {/* Add Folder 按钮 */}
+          <button
+            data-testid="add-folder-btn"
+            onClick={handleAddFolder}
+            className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
+          >
+            <FolderPlus size={16} className="mr-2" />
+            <span>Add Folder</span>
+          </button>
+        </div>
       )}
 
-      {contextMenu.node && (
+      {/* 文件树内容 */}
+      <div className="flex-1 overflow-auto py-2">
+        {shouldVirtualize ? (
+          // Use virtual scrolling for large trees (>500 nodes)
+          <VirtualFileTree
+            visibleNodes={visibleNodes}
+            renderNode={(node, index) => {
+              const level = getLevelFromPath(node.path, rootPath);
+              const isSelected = selectedNodeIds.includes(node.id);
+              const isExpanded = expandedNodes.has(node.id);
+
+              return (
+                <div
+                  key={node.id}
+                  data-testid="file-tree-item"
+                  data-node-id={node.id}
+                  data-selected={isSelected}
+                  className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
+                    isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
+                  }`}
+                  style={{ paddingLeft: `${level * 12 + 8}px` }}
+                  onClick={(e) => {
+                    handleNodeSelect(node.id, e.ctrlKey || e.metaKey, e.shiftKey);
+                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                      activateNode(node);
+                    }
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e, node)}
+                >
+                  <span className="mr-1 text-gray-500">
+                    {node.kind === 'directory' && (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+                    {node.kind === 'file' && <File size={14} />}
+                  </span>
+                  {node.kind === 'directory' && !isExpanded && <Folder size={14} className="mr-1" />}
+                  <span className={`truncate ${getStatusColorClassInline(node.path)}`}>{node.name}</span>
+                </div>
+              );
+            }}
+          />
+        ) : (
+          // Use regular rendering for small trees
+          <FileTreeItem
+            node={fileTree}
+            level={0}
+            onContextMenu={handleContextMenu}
+            onReload={() => {}}
+            selectedNodeIds={selectedNodeIds}
+            onNodeSelect={handleNodeSelect}
+            onNodeActivate={activateNode}
+            expandedNodes={expandedNodes}
+            onToggleExpand={handleToggleExpand}
+            onChildrenLoaded={handleChildrenLoaded}
+          />
+        )}
+      </div>
+
+      {/* 上下文菜单 */}
+      {(contextMenu.node || contextMenu.root) && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           node={contextMenu.node}
+          root={contextMenu.root}
           onClose={handleCloseContextMenu}
           onRefresh={handleRefreshForAction}
+          onRemoveFolder={contextMenu.root ? () => handleRemoveFolder(contextMenu.root!.id) : undefined}
           rootPath={rootPath}
         />
       )}

@@ -30,3 +30,16 @@ export interface OpenedFile {
   language: string;
   initialLine?: number;
 }
+
+/**
+ * 多工作区根目录
+ * @since v0.3.0
+ */
+export interface WorkspaceRoot {
+  id: string;
+  path: string;
+  name: string;
+  fileTree: FileNode | null;
+  isActive: boolean;
+  indexedAt: Date | null;
+}

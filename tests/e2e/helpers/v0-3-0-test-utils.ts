@@ -5,7 +5,12 @@
  */
 
 import { Page, Locator, expect } from '@playwright/test';
-import { EditorPage, AppEdition } from './editor-page';
+import { EditorPage } from './editor-page';
+import type { AppEdition } from './editor-page';
+
+// 重新导出 EditorPage 供 v0.3.0 测试使用
+export { EditorPage };
+export type { AppEdition };
 
 // ========== 常量定义 ==========
 

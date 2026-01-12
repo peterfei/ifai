@@ -28,14 +28,16 @@ import {
 import { toast } from 'sonner';
 import { platform } from '@tauri-apps/plugin-os';
 import { ask } from '@tauri-apps/plugin-dialog';
-import { FileNode } from '../../stores/types';
+import { FileNode, WorkspaceRoot } from '../../stores/types';
 
 interface ContextMenuProps {
   x: number;
   y: number;
   node: FileNode | null;
+  root: WorkspaceRoot | null;  // v0.3.0: 支持根目录菜单
   onClose: () => void;
   onRefresh: () => void;
+  onRemoveFolder?: (rootId: string) => void;  // v0.3.0: 移除根目录回调
   rootPath?: string;
 }
 
@@ -172,8 +174,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   x,
   y,
   node,
+  root,
   onClose,
   onRefresh,
+  onRemoveFolder,
   rootPath,
 }) => {
   const { t } = useTranslation();
@@ -228,7 +232,33 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose, inputDialog]);
 
-  if (!node) return null;
+  // v0.3.0: 支持根目录菜单或文件节点菜单
+  if (!node && !root) return null;
+
+  // v0.3.0: 处理根目录菜单
+  const isRootMenu = !!root;
+  const handleRemoveFolder = async () => {
+    if (root && onRemoveFolder) {
+      // 确认删除
+      const confirmMessage = `Remove folder "${root.name}" from workspace?`;
+      let confirmed = false;
+      try {
+        confirmed = await ask(confirmMessage, {
+          title: 'Remove Folder',
+          kind: 'warning',
+          okLabel: 'Remove',
+          cancelLabel: 'Cancel'
+        });
+      } catch (e) {
+        confirmed = window.confirm(confirmMessage);
+      }
+
+      if (confirmed) {
+        onRemoveFolder(root.id);
+        onClose();
+      }
+    }
+  };
 
   const handleCopyPath = async () => {
     try {
@@ -483,47 +513,97 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         className="fixed bg-gray-800 border border-gray-700 rounded shadow-xl z-50 py-1 min-w-48"
         style={{ left: pos.left, top: pos.top }}
       >
-        {/* Copy Section */}
-        <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
-          {t('contextMenu.copy')}
-        </div>
-        <MenuItem icon={<Copy size={14} />} label={t('contextMenu.copyPath')} onClick={handleCopyPath} />
-        <MenuItem icon={<Copy size={14} />} label={t('contextMenu.copyRelativePath')} onClick={handleCopyRelativePath} />
-        <MenuItem icon={<FileText size={14} />} label={t('contextMenu.copyName')} onClick={handleCopyName} />
+        {isRootMenu ? (
+          // v0.3.0: 根目录菜单
+          <>
+            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+              Workspace
+            </div>
+            {root && (
+              <>
+                <MenuItem
+                  icon={<Terminal size={14} />}
+                  label="Open in Terminal"
+                  onClick={async () => {
+                    try {
+                      await openInTerminal(root.path);
+                      toast.success('Terminal opened');
+                    } catch (e) {
+                      toast.error('Failed to open terminal');
+                    }
+                    onClose();
+                  }}
+                />
+                <MenuItem
+                  icon={<ExternalLink size={14} />}
+                  label={getRevealLabel()}
+                  onClick={async () => {
+                    try {
+                      await revealInFileManager(root.path);
+                      toast.success('Folder revealed');
+                    } catch (e) {
+                      toast.error('Failed to reveal folder');
+                    }
+                    onClose();
+                  }}
+                />
+                <div className="my-1 border-t border-gray-700" />
+                <MenuItem
+                  icon={<Trash2 size={14} />}
+                  label="Remove Folder"
+                  onClick={handleRemoveFolder}
+                  className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                  data-testid="context-menu-item-remove"
+                />
+              </>
+            )}
+          </>
+        ) : (
+          // 原有的文件节点菜单
+          <>
+            {/* Copy Section */}
+            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+              {t('contextMenu.copy')}
+            </div>
+            <MenuItem icon={<Copy size={14} />} label={t('contextMenu.copyPath')} onClick={handleCopyPath} />
+            <MenuItem icon={<Copy size={14} />} label={t('contextMenu.copyRelativePath')} onClick={handleCopyRelativePath} />
+            <MenuItem icon={<FileText size={14} />} label={t('contextMenu.copyName')} onClick={handleCopyName} />
 
-        <div className="my-1 border-t border-gray-700" />
+            <div className="my-1 border-t border-gray-700" />
 
-        {/* External Applications Section */}
-        <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
-          {t('contextMenu.external')}
-        </div>
-        <MenuItem icon={<Terminal size={14} />} label={t('contextMenu.openInTerminal')} onClick={handleOpenInTerminal} />
-        <MenuItem icon={<ExternalLink size={14} />} label={getRevealLabel()} onClick={handleRevealInFileManager} />
+            {/* External Applications Section */}
+            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+              {t('contextMenu.external')}
+            </div>
+            <MenuItem icon={<Terminal size={14} />} label={t('contextMenu.openInTerminal')} onClick={handleOpenInTerminal} />
+            <MenuItem icon={<ExternalLink size={14} />} label={getRevealLabel()} onClick={handleRevealInFileManager} />
 
-        <div className="my-1 border-t border-gray-700" />
+            <div className="my-1 border-t border-gray-700" />
 
-        {/* Create Section */}
-        <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
-          {t('contextMenu.new')}
-        </div>
-        <MenuItem icon={<FilePlus size={14} />} label={t('contextMenu.newFile')} onClick={handleNewFile} />
-        <MenuItem icon={<FolderPlus size={14} />} label={t('contextMenu.newFolder')} onClick={handleNewFolder} />
+            {/* Create Section */}
+            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+              {t('contextMenu.new')}
+            </div>
+            <MenuItem icon={<FilePlus size={14} />} label={t('contextMenu.newFile')} onClick={handleNewFile} />
+            <MenuItem icon={<FolderPlus size={14} />} label={t('contextMenu.newFolder')} onClick={handleNewFolder} />
 
-        <div className="my-1 border-t border-gray-700" />
+            <div className="my-1 border-t border-gray-700" />
 
-        {/* File Operations Section */}
-        <MenuItem icon={<Edit3 size={14} />} label={t('common.rename')} onClick={handleRename} />
-        <MenuItem icon={<RefreshCw size={14} />} label={t('contextMenu.refresh')} onClick={handleRefresh} />
+            {/* File Operations Section */}
+            <MenuItem icon={<Edit3 size={14} />} label={t('common.rename')} onClick={handleRename} />
+            <MenuItem icon={<RefreshCw size={14} />} label={t('contextMenu.refresh')} onClick={handleRefresh} />
 
-        <div className="my-1 border-t border-gray-700" />
+            <div className="my-1 border-t border-gray-700" />
 
-        {/* Delete Section */}
-        <MenuItem
-          icon={<Trash2 size={14} />}
-          label={t('common.delete')}
-          onClick={handleDelete}
-          className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
-        />
+            {/* Delete Section */}
+            <MenuItem
+              icon={<Trash2 size={14} />}
+              label={t('common.delete')}
+              onClick={handleDelete}
+              className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
+            />
+          </>
+        )}
       </div>
     </>
   );
