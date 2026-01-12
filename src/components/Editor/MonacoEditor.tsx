@@ -437,16 +437,20 @@ ${textBefore}[CURSOR]${textAfter}
     }
   }, [file?.initialLine, file?.id, paneId]); // 🔥 修复无限循环：移除 getEditorInstance 依赖，使用 ref 代替
 
+  // 🔥 E2E: 符号级智能补全测试需要真实的 Monaco Editor
+  // 只有在没有打开文件时才显示 WelcomeScreen
+  // E2E 模式检测用于跳过一些不必要的初始化，但不影响编辑器渲染
+  const isE2E = import.meta.env.VITE_TEST_ENV === 'e2e';
+
   if (!file) {
+    if (isE2E) {
+      console.log('[MonacoEditor] E2E mode detected (build-time), no file open, returning WelcomeScreen');
+    }
     return <WelcomeScreen />;
   }
 
-  // 🔥 E2E: 只在构建时检测到的 E2E 环境下跳过 Monaco Editor
-  // 使用 VITE_TEST_ENV 环境变量，而不是运行时标志，避免影响正常使用
-  const isE2E = import.meta.env.VITE_TEST_ENV === 'e2e';
   if (isE2E) {
-    console.log('[MonacoEditor] E2E mode detected (build-time), returning WelcomeScreen');
-    return <WelcomeScreen />;
+    console.log('[MonacoEditor] E2E mode detected (build-time), but rendering Monaco Editor for testing');
   }
 
   return (

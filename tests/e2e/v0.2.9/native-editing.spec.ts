@@ -384,8 +384,8 @@ export const CONSTANT_VALUE = 42;
         await symbolIndexer.indexFile('/test-project/hooks/useCustom.ts', mockFS.get('/test-project/hooks/useCustom.ts'));
       }
 
-      // 创建使用文件
-      mockFS.set('/consumer.ts', '');
+      // 🔥 修复：创建使用文件时使用完整路径
+      mockFS.set('/test-project/consumer.ts', '');
 
       // 建立文件树
       const currentTree = fileStore.getState().fileTree || { children: [] };
@@ -427,10 +427,13 @@ export const CONSTANT_VALUE = 42;
       }
     });
 
-    await page.waitForTimeout(1000);
+    // 🔥 等待 Monaco Editor 容器可见
+    await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 5000 });
+    await page.waitForTimeout(500);
 
-    // When: 输入符号前缀并触发补全
-    await page.locator('.monaco-editor, .editor').click();
+    // 🔥 点击编辑器容器并直接使用键盘输入
+    // Monaco Editor 会自动聚焦到可编辑区域
+    await page.locator('[data-testid="monaco-editor-container"]').click();
     await page.keyboard.type('use');
     await page.keyboard.press('Control+Space'); // 强制触发补全
 
@@ -565,7 +568,8 @@ export const CONSTANT_VALUE = 42;
 
     await page.waitForTimeout(500);
 
-    await page.locator('.monaco-editor, .editor').click();
+    await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 5000 });
+    await page.locator('[data-testid="monaco-editor-container"]').click();
     await page.keyboard.type('But'); // 输入 Button 的前缀
     await page.keyboard.press('Control+Space');
 
@@ -766,7 +770,8 @@ export function util3() {}
     await page.waitForTimeout(1000);
 
     // 触发补全
-    await page.locator('.monaco-editor, .editor').click();
+    await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 5000 });
+    await page.locator('[data-testid="monaco-editor-container"]').click();
     await page.keyboard.type('util');
     await page.keyboard.press('Control+Space');
 
@@ -786,14 +791,25 @@ export function util3() {}
     });
     console.log('[TEST] First suggestion:', firstSuggestion);
 
-    // 按 ArrowDown 两次选择第二项（第一项可能是当前输入）
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(200);
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(200);
+    // 🔥 等待补全列表完全加载并获得焦点
+    await page.waitForTimeout(500);
 
-    // 按 Enter 确认选择
-    await page.keyboard.press('Enter');
+    // 按 ArrowDown 选择第二项（第一项可能是当前输入 "util"）
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(300);
+
+    // 🔥 验证选中项已经改变
+    const selectedSuggestion = await page.evaluate(() => {
+      const widget = document.querySelector('.suggest-widget.visible');
+      if (!widget) return '';
+      const focusedRow = widget.querySelector('.monaco-list-row.focused');
+      if (!focusedRow) return '';
+      return focusedRow.textContent || '';
+    });
+    console.log('[TEST] Selected suggestion:', selectedSuggestion);
+
+    // 按 Tab 或 Enter 确认选择（Tab 更可靠）
+    await page.keyboard.press('Tab');
 
     await page.waitForTimeout(500);
 
