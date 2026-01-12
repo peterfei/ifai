@@ -5,7 +5,10 @@
     "newWindow": "新建窗口",
     "openFile": "打开文件",
     "save": "保存",
-    "saveAs": "另存为"
+    "saveAs": "另存为",
+    "addFolderToWorkspace": "添加文件夹到工作区",
+    "saveWorkspaceAs": "工作区另存为...",
+    "openWorkspace": "打开工作区..."
   },
   "sidebar": {
     "explorer": "资源管理器",

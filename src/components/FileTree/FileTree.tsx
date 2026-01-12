@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
-import { ChevronRight, ChevronDown, File, Folder, FolderPlus, Layers } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FolderPlus, Layers, Save, FolderOpen } from 'lucide-react';
 import { FileNode, GitStatus, WorkspaceRoot } from '../../stores/types';
 import { readFileContent, readDirectory, openDirectory } from '../../utils/fileSystem';
 import { toast } from 'sonner';
@@ -248,6 +248,8 @@ export const FileTree = () => {
     removeWorkspaceRoot,
     setActiveRoot,
     refreshRoot,
+    saveWorkspaceConfig,
+    loadWorkspaceConfig,
   } = useFileStore();
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null, root: null });
@@ -625,6 +627,36 @@ export const FileTree = () => {
     setContextMenu({ x: e.clientX, y: e.clientY, node: null, root });
   }, []);
 
+  // v0.3.0: 保存工作区配置
+  const handleSaveWorkspace = useCallback(async () => {
+    try {
+      const savedPath = await saveWorkspaceConfig();
+      toast.success(`Workspace saved to: ${savedPath}`);
+    } catch (e: any) {
+      // 用户取消操作不显示错误
+      if (e?.message?.includes('cancelled')) {
+        return;
+      }
+      console.error('[FileTree] Failed to save workspace:', e);
+      toast.error(`Failed to save workspace: ${String(e)}`);
+    }
+  }, [saveWorkspaceConfig]);
+
+  // v0.3.0: 打开工作区配置
+  const handleOpenWorkspace = useCallback(async () => {
+    try {
+      const result = await loadWorkspaceConfig();
+      toast.success(`Workspace loaded: ${result.rootsCount} folder(s)`);
+    } catch (e: any) {
+      // 用户取消操作不显示错误
+      if (e?.message?.includes('cancelled')) {
+        return;
+      }
+      console.error('[FileTree] Failed to open workspace:', e);
+      toast.error(`Failed to open workspace: ${String(e)}`);
+    }
+  }, [loadWorkspaceConfig]);
+
   // Determine if virtualization should be used (for large trees)
   const shouldVirtualize = useVirtualization(visibleNodes.length, 500);
 
@@ -711,6 +743,24 @@ export const FileTree = () => {
           >
             <FolderPlus size={16} className="mr-2" />
             <span>Add Folder</span>
+          </button>
+          {/* Save Workspace 按钮 */}
+          <button
+            data-testid="save-workspace-btn"
+            onClick={handleSaveWorkspace}
+            className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
+          >
+            <Save size={16} className="mr-2" />
+            <span>Save Workspace As...</span>
+          </button>
+          {/* Open Workspace 按钮 */}
+          <button
+            data-testid="open-workspace-btn"
+            onClick={handleOpenWorkspace}
+            className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
+          >
+            <FolderOpen size={16} className="mr-2" />
+            <span>Open Workspace...</span>
           </button>
         </div>
       )}

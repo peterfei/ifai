@@ -12,6 +12,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { detectLanguageFromPath } from '../../utils/languageDetection';
 import { LayoutSwitcher } from './LayoutSwitcher';
 
+// v0.3.0: 工作区菜单分隔线组件
+const MenuSeparator = () => <div className="border-t border-gray-600 my-1" />;
+
 interface TitlebarProps {
   onToggleChat?: () => void;
   isChatOpen?: boolean;
@@ -23,7 +26,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty, fetchGitStatuses } = useFileStore();
+  const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty, fetchGitStatuses, addWorkspaceRoot, saveWorkspaceConfig, loadWorkspaceConfig } = useFileStore();
   const { theme, setTheme } = useEditorStore();
   const { toggleSettings, isSidebarOpen, toggleSidebar } = useLayoutStore();
 
@@ -160,6 +163,49 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
     return detectLanguageFromPath(path);
   };
 
+  // v0.3.0: 工作区管理处理函数
+  const handleAddFolderToWorkspace = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    try {
+      const tree = await openDirectory();
+      if (tree) {
+        await addWorkspaceRoot(tree.path);
+        invoke('init_rag_index', { rootPath: tree.path }).catch(err => console.warn('RAG init warning:', err));
+        toast.success(`Added folder: ${tree.name}`);
+      }
+    } catch (err) {
+      console.error('[Titlebar] Failed to add folder:', err);
+      toast.error(`Failed to add folder: ${String(err)}`);
+    }
+  };
+
+  const handleSaveWorkspace = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    try {
+      const savedPath = await saveWorkspaceConfig();
+      toast.success(`Workspace saved to: ${savedPath}`);
+    } catch (err: any) {
+      if (err?.message?.includes('cancelled')) return;
+      console.error('[Titlebar] Failed to save workspace:', err);
+      toast.error(`Failed to save workspace: ${String(err)}`);
+    }
+  };
+
+  const handleOpenWorkspace = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    try {
+      const result = await loadWorkspaceConfig();
+      toast.success(`Workspace loaded: ${result.rootsCount} folder(s)`);
+    } catch (err: any) {
+      if (err?.message?.includes('cancelled')) return;
+      console.error('[Titlebar] Failed to open workspace:', err);
+      toast.error(`Failed to open workspace: ${String(err)}`);
+    }
+  };
+
   return (
     <div className="h-8 bg-gray-800 flex items-center px-4 border-b border-gray-700 select-none justify-between">
       <div className="flex items-center">
@@ -173,7 +219,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
             {t('menu.file')} <ChevronDown size={14} className="ml-1" />
           </button>
           {isMenuOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-gray-700 rounded shadow-lg z-50 py-1 w-40">
+            <div className="absolute top-full left-0 mt-1 bg-gray-700 rounded shadow-lg z-50 py-1 w-56">
               <div
                 className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
                 onClick={handleNewFile}
@@ -203,6 +249,26 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
                 onClick={handleSaveFileAs}
               >
                 {t('menu.saveAs')}
+              </div>
+              <MenuSeparator />
+              {/* v0.3.0: 工作区管理菜单 */}
+              <div
+                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer whitespace-nowrap"
+                onClick={handleAddFolderToWorkspace}
+              >
+                {t('menu.addFolderToWorkspace')}
+              </div>
+              <div
+                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer whitespace-nowrap"
+                onClick={handleSaveWorkspace}
+              >
+                {t('menu.saveWorkspaceAs')}
+              </div>
+              <div
+                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer whitespace-nowrap"
+                onClick={handleOpenWorkspace}
+              >
+                {t('menu.openWorkspace')}
               </div>
             </div>
           )}

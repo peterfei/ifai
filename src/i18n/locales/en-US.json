@@ -5,7 +5,10 @@
     "newWindow": "New Window",
     "openFile": "Open File",
     "save": "Save",
-    "saveAs": "Save As"
+    "saveAs": "Save As",
+    "addFolderToWorkspace": "Add Folder to Workspace",
+    "saveWorkspaceAs": "Save Workspace As...",
+    "openWorkspace": "Open Workspace..."
   },
   "sidebar": {
     "explorer": "Explorer",

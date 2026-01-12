@@ -32,6 +32,10 @@ interface FileState {
   refreshRoot: (rootId: string) => Promise<void>;
   getRootByPath: (path: string) => WorkspaceRoot | null;
 
+  // v0.3.0: 工作区配置管理
+  saveWorkspaceConfig: (filePath?: string) => Promise<string>;
+  loadWorkspaceConfig: (filePath?: string) => Promise<{ rootsCount: number; activeRootId: string | null }>;
+
   // 向后兼容: 单目录操作
   setFileTree: (tree: FileNode) => void;
   setRootPath: (path: string | null) => Promise<void>;
@@ -259,6 +263,142 @@ export const useFileStore = create<FileState>()(
        */
       getRootByPath: (path: string) => {
         return get().workspaceRoots.find(r => r.path === path) || null;
+      },
+
+      // ============================================================
+      // v0.3.0: 工作区配置管理
+      // ============================================================
+
+      /**
+       * 保存工作区配置到文件
+       * @param filePath 保存路径（可选，默认弹出保存对话框）
+       */
+      saveWorkspaceConfig: async (filePath?: string) => {
+        const { workspaceRoots, activeRootId, expandedNodes } = get();
+
+        // 导入 saveWorkspaceFile 函数
+        const { saveWorkspaceFile } = await import('../utils/workspaceConfig');
+
+        // 使用第一个根目录的名称作为工作区名称
+        const workspaceName = workspaceRoots.length > 0
+          ? workspaceRoots[0].name
+          : 'My Workspace';
+
+        // 转换为配置格式
+        const config = {
+          version: '1.0.0',
+          name: workspaceName,
+          description: `Workspace with ${workspaceRoots.length} folder(s)`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          roots: workspaceRoots.map(root => ({
+            path: root.path,
+            name: root.name,
+            index: {
+              enabled: true,
+              lastIndexedAt: root.indexedAt
+                ? typeof root.indexedAt === 'string'
+                  ? root.indexedAt
+                  : root.indexedAt.toISOString()
+                : undefined
+            }
+          })),
+          settings: {
+            activeRootId,
+            expandedPaths: Array.from(expandedNodes)
+          }
+        };
+
+        const savedPath = await saveWorkspaceFile(config, filePath);
+        console.log('[FileStore] Workspace config saved to:', savedPath);
+        return savedPath;
+      },
+
+      /**
+       * 从文件加载工作区配置
+       * @param filePath 配置文件路径（可选，默认弹出打开对话框）
+       */
+      loadWorkspaceConfig: async (filePath?: string) => {
+        // 导入 loadWorkspaceFile 函数
+        const { loadWorkspaceFile } = await import('../utils/workspaceConfig');
+
+        const config = await loadWorkspaceFile(filePath);
+        console.log('[FileStore] Loading workspace config:', config);
+
+        // 清除现有工作区
+        set({
+          workspaceRoots: [],
+          activeRootId: null,
+          fileTree: null,
+          rootPath: null,
+        });
+
+        // 加载每个根目录
+        const loadedRoots: WorkspaceRoot[] = [];
+        let newActiveRootId: string | null = null;
+
+        for (const rootConfig of config.roots) {
+          try {
+            // 读取目录内容
+            const { readDirectory } = await import('../utils/fileSystem');
+            const children = await readDirectory(rootConfig.path);
+
+            const root: WorkspaceRoot = {
+              id: `root-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              path: rootConfig.path,
+              name: rootConfig.name || rootConfig.path.split('/').filter(Boolean).pop() || 'Project',
+              fileTree: {
+                id: `root-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                name: rootConfig.name || rootConfig.path.split('/').filter(Boolean).pop() || 'Project',
+                path: rootConfig.path,
+                kind: 'directory',
+                children
+              },
+              isActive: false,
+              indexedAt: rootConfig.index?.lastIndexedAt ? new Date(rootConfig.index.lastIndexedAt) : new Date(),
+            };
+
+            loadedRoots.push(root);
+          } catch (e) {
+            console.error(`[FileStore] Failed to load root: ${rootConfig.path}`, e);
+          }
+        }
+
+        // 设置活动根目录
+        if (config.settings?.activeRootId) {
+          // 尝试匹配原有的 activeRootId
+          const matchedRoot = loadedRoots.find(r => r.path === config.settings.activeRootId);
+          if (matchedRoot) {
+            newActiveRootId = matchedRoot.id;
+            loadedRoots.forEach(r => r.isActive = (r.id === newActiveRootId));
+          } else {
+            // 如果匹配失败，使用第一个根目录
+            if (loadedRoots.length > 0) {
+              newActiveRootId = loadedRoots[0].id;
+              loadedRoots[0].isActive = true;
+            }
+          }
+        } else if (loadedRoots.length > 0) {
+          // 如果没有指定活动根目录，使用第一个
+          newActiveRootId = loadedRoots[0].id;
+          loadedRoots[0].isActive = true;
+        }
+
+        // 更新状态
+        set({
+          workspaceRoots: loadedRoots,
+          activeRootId: newActiveRootId,
+          fileTree: loadedRoots.find(r => r.id === newActiveRootId)?.fileTree || null,
+          rootPath: loadedRoots.find(r => r.id === newActiveRootId)?.path || null,
+        });
+
+        // 恢复展开的节点
+        if (config.settings?.expandedPaths) {
+          set({ expandedNodes: new Set(config.settings.expandedPaths) });
+        }
+
+        console.log('[FileStore] Workspace config loaded successfully');
+        return { rootsCount: loadedRoots.length, activeRootId: newActiveRootId };
       },
 
       // ============================================================
