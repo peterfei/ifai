@@ -22,6 +22,28 @@ interface KeyboardShortcutsModalProps {
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ isOpen, onClose }) => {
   const { t, i18n } = useTranslation();
 
+  // 🔍 调试：打印当前语言和翻译值
+  React.useEffect(() => {
+    if (isOpen) {
+      console.log('=== KeyboardShortcutsModal 调试信息 ===');
+      console.log('1. 当前语言 (i18n.language):', i18n.language);
+      console.log('2. localStorage i18nextLng:', localStorage.getItem('i18nextLng'));
+
+      const titleText = t('help.keyboardShortcuts');
+      console.log('3. t("help.keyboardShortcuts") 返回值:', titleText);
+
+      // 检查 i18n store 中的实际值
+      const storeData = i18n.store.data;
+      console.log('4. i18n.store.data 键:', Object.keys(storeData || {}));
+
+      const zhCNData = storeData?.['zh-CN']?.translation?.help;
+      const enUSData = storeData?.['en-US']?.translation?.help;
+      console.log('5. zh-CN translation.help.keyboardShortcuts:', zhCNData?.keyboardShortcuts);
+      console.log('6. en-US translation.help.keyboardShortcuts:', enUSData?.keyboardShortcuts);
+      console.log('7. 实际渲染的标题文本:', titleText);
+    }
+  }, [isOpen, i18n, t]);
+
   if (!isOpen) return null;
 
   const shortcuts: ShortcutItem[] = [
@@ -68,7 +90,10 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+      <div
+        className="bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+        data-testid="keyboard-shortcuts-dialog"
+      >
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <h2 className="text-lg font-semibold text-white">{t('help.keyboardShortcuts')}</h2>

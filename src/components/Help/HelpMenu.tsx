@@ -91,6 +91,7 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
       <button
         className="flex items-center text-gray-400 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700"
         onClick={handleMenuToggle}
+        data-testid="help-menu-button"
       >
         {t('menu.help')} <ChevronDown size={14} className="ml-1" />
       </button>

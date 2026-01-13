@@ -17,6 +17,7 @@ import { WelcomeDialog, LocalModelDownload } from './components/Onboarding';
 import { OnboardingTour } from './components/Onboarding/OnboardingTour';
 import { CodeReviewModal, ReviewHistoryPanel } from './components/CodeReview';
 import { InlineEditWidget, DiffEditorModal } from './components/InlineEdit';
+import { KeyboardShortcutsModal } from './components/Help/KeyboardShortcutsModal';
 
 // 🔥 E2E 检测：使用构建时环境变量，避免影响生产环境
 const isE2EEnvironment = import.meta.env.VITE_TEST_ENV === 'e2e';
@@ -45,6 +46,12 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useChatStore } from './stores/useChatStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useSnippetStore } from './stores/snippetStore';
+
+// v0.3.0: 暴露 i18n 到 window 对象供 E2E 测试使用
+// 在模块加载时立即暴露，确保在测试运行时可用
+import i18nInstance from './i18n/config';
+(window as any).i18n = i18nInstance;
+console.log('[App] i18n exposed at module load, language:', i18nInstance.language);
 
 function App() {
   // 🔥 调试：跟踪 App 组件的渲染次数
@@ -98,6 +105,9 @@ function App() {
   const [isResizingChat, setIsResizingChat] = React.useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
   const [showCacheStats, setShowCacheStats] = useState(false);
+
+  // Keyboard shortcuts modal state
+  const { isKeyboardShortcutsOpen, closeKeyboardShortcuts } = useHelpStore();
 
   // Onboarding state
   const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | null>(null);
@@ -156,6 +166,24 @@ function App() {
         console.log('[App] ✅ DragDropStore exposed to window.__dragDropStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose DragDropStore:', error);
+      }
+
+      // v0.3.0: 暴露 helpStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useHelpStore } = await import('./stores/helpStore');
+        (window as any).__helpStore = { useHelpStore };
+        console.log('[App] ✅ HelpStore exposed to window.__helpStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose HelpStore:', error);
+      }
+
+      // v0.3.0: 暴露 layoutStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useLayoutStore } = await import('./stores/layoutStore');
+        (window as any).__layoutStore = { useLayoutStore };
+        console.log('[App] ✅ LayoutStore exposed to window.__layoutStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose LayoutStore:', error);
       }
     };
 
@@ -285,6 +313,63 @@ function App() {
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // v0.3.0: 全局快捷键 - Cmd+K 然后 Cmd+S 打开键盘快捷键列表
+  useEffect(() => {
+    let cmdKPressed = false;
+    let cmdKTimer: NodeJS.Timeout | null = null;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k' && !e.shiftKey) {
+        e.preventDefault();
+        cmdKPressed = true;
+        console.log('[App] Cmd+K pressed, waiting for Cmd+S...');
+
+        // Clear any existing timer
+        if (cmdKTimer) {
+          clearTimeout(cmdKTimer);
+        }
+
+        // Reset after 2 seconds if no Cmd+S is pressed
+        cmdKTimer = setTimeout(() => {
+          cmdKPressed = false;
+          console.log('[App] Cmd+K timeout, resetting');
+        }, 2000);
+      }
+
+      // If Cmd+K was pressed and now Cmd+S is pressed
+      if (cmdKPressed && (e.metaKey || e.ctrlKey) && e.key === 's' && !e.shiftKey) {
+        e.preventDefault();
+        if (cmdKTimer) {
+          clearTimeout(cmdKTimer);
+        }
+        cmdKPressed = false;
+        const { openKeyboardShortcuts } = useHelpStore.getState();
+        openKeyboardShortcuts();
+        console.log('[App] Cmd+K then Cmd+S pressed, opening keyboard shortcuts');
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Reset Cmd+K state if Cmd/Ctrl is released (before full combo completes)
+      if ((e.key === 'Meta' || e.key === 'Control') && cmdKPressed) {
+        // Only reset if no S key was detected, but let keydown handler handle the combo
+        // This is just cleanup in case user releases modifiers before S
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (cmdKTimer) {
+        clearTimeout(cmdKTimer);
+      }
     };
   }, []);
 
@@ -623,6 +708,10 @@ function App() {
         <CommandPalette onSelect={handleSelectFileFromPalette} />
         <CommandBar />
         <SettingsModal />
+        <KeyboardShortcutsModal
+          isOpen={isKeyboardShortcutsOpen}
+          onClose={closeKeyboardShortcuts}
+        />
         <GlobalAgentMonitor />
         {useSettingsStore((state) => state.showPerformanceMonitor) && (
           <PerformancePanel

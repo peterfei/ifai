@@ -371,9 +371,6 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       padding: '16px 20px 20px',
       marginTop: '0',
     },
-    options: {
-      zIndex: 10000,
-    },
   };
 
   const steps = getTourSteps(t);

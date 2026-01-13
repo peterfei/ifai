@@ -191,7 +191,36 @@
     "export": "导出",
     "importSuccess": "快捷键导入成功",
     "importError": "快捷键导入失败：格式无效",
-    "exportSuccess": "快捷键导出成功"
+    "exportSuccess": "快捷键导出成功",
+    "category": {
+      "file": "文件操作",
+      "edit": "编辑操作",
+      "navigation": "导航",
+      "ai": "AI 功能",
+      "view": "视图"
+    },
+    "newFile": "新建文件",
+    "openFile": "打开文件",
+    "save": "保存",
+    "saveAs": "另存为",
+    "closeFile": "关闭文件",
+    "undo": "撤销",
+    "redo": "重做",
+    "find": "查找",
+    "replace": "替换",
+    "selectWord": "选择当前单词",
+    "quickOpen": "快速打开文件",
+    "commandPalette": "命令面板",
+    "goToDefinition": "转到定义",
+    "findReferences": "查找所有引用",
+    "goToLine": "跳转到行",
+    "openChat": "打开 AI 聊天",
+    "inlineEdit": "内联 AI 编辑",
+    "toggleTerminal": "切换终端",
+    "toggleSidebar": "切换侧边栏",
+    "toggleSettings": "切换设置",
+    "toggleExplorer": "切换资源管理器",
+    "tip": "提示：按 ? 键可快速打开此快捷键列表"
   },
   "commands": {
     "title": "系统命令",
@@ -206,91 +235,59 @@
     "index": { "label": "重建索引", "description": "手动强制为项目代码库建立 RAG 语义索引" },
     "task": { "label": "任务拆解", "description": "AI 驱动的任务分解与可视化" }
   },
-        
-      "help_message": {
-        "title": "🚀 欢迎使用 若爱 (IfAI) v0.2.0",
-        "intro": "我是您的 AI 编程伙伴，旨在通过深度集成的智能体（Agents）提升您的开发效率。",
-        "commands_title": "💡 智能指令",
-        "commands": [
-          "**@codebase** - 在提问中加入此指令可进行全局代码语义搜索",
-          "**/explore** - 深度探索代码库，分析架构与逻辑",
-          "**/review** - 审查当前文件的代码质量与安全建议",
-          "**/test** - 自动为代码生成单元测试用例",
-          "**/doc** - 编写技术文档、README 或详细代码注释"
-        ],
-        "shortcuts_title": "⌨️ 核心快捷键",
-        "shortcuts": [
-          "**Cmd/Ctrl + P** - 快速搜索并打开项目文件",
-          "**Cmd/Ctrl + K** - 在编辑器中唤起内联 AI 编辑",
-          "**Cmd/Ctrl + L** - 快速切换/显示聊天面板",
-          "**Cmd/Ctrl + Alt + P** - 开启/关闭性能监控面板",
-          "**↑ / ↓** - 在输入框中快速唤回历史提问"
-        ],
-        "footer": "您可以直接对我下达指令，或使用上述斜杠命令启动特定的智能体。祝您编程愉快！"
-      },
-      "help": {
-        "keyboardShortcuts": "快捷键",
-        "about": "关于",
-        "tagline": "AI 驱动的代码编辑器",
-        "description": "一款由 AI 驱动的智能代码编辑器，旨在帮助您更快速地编写更好的代码。",
-        "repository": "源代码仓库",
-        "documentation": "文档",
-        "changelog": "更新日志",
-        "community": "社区讨论",
-        "allRightsReserved": "版权所有"
-      },
-      "shortcuts": {
-        "category": {
-          "file": "文件操作",
-          "edit": "编辑操作",
-          "navigation": "导航",
-          "ai": "AI 功能",
-          "view": "视图"
-        },
-        "newFile": "新建文件",
-        "openFile": "打开文件",
-        "save": "保存",
-        "saveAs": "另存为",
-        "closeFile": "关闭文件",
-        "undo": "撤销",
-        "redo": "重做",
-        "find": "查找",
-        "replace": "替换",
-        "selectWord": "选择当前单词",
-        "quickOpen": "快速打开文件",
-        "commandPalette": "命令面板",
-        "goToDefinition": "转到定义",
-        "findReferences": "查找所有引用",
-        "goToLine": "跳转到行",
-        "openChat": "打开 AI 聊天",
-        "inlineEdit": "内联 AI 编辑",
-        "toggleTerminal": "切换终端",
-        "toggleSidebar": "切换侧边栏",
-        "toggleSettings": "切换设置",
-        "toggleExplorer": "切换资源管理器",
-        "tip": "提示：按 ? 键可快速打开此快捷键列表"
-      },
-      "onboarding": {
-        "steps": {
-          "welcome": "欢迎使用 IfAI Editor！这是一个功能强大的 AI 代码编辑器，让我们花一点时间了解核心功能。",
-          "welcomeTitle": "欢迎使用 IfAI Editor",
-          "commandBar": "⌨️ CommandBar 命令行\n\n这是类似 Vim 的命令行模式！按 **:** 键即可唤起。\n\n常用命令：\n• **:w** - 保存当前文件\n• **:q** - 关闭当前文件\n• **:wq** - 保存并关闭\n• **:grep 关键词** - 在文件中搜索",
-          "commandBarTitle": "Vim 风格命令行",
-          "settingsGuide": "⚙️ 设置面板\n\n在这里您可以：\n• 配置 AI 提供商和 API 密钥\n• 调整编辑器外观和行为\n• 查看和自定义快捷键\n• 管理性能和显示选项",
-          "settingsGuideTitle": "设置说明",
-          "layoutSwitcher": "点击这里可以切换不同的布局模式，适应不同的工作场景。",
-          "layoutSwitcherTitle": "布局切换"
-        },
-        "buttons": {
-          "back": "上一步",
-          "close": "关闭",
-          "last": "完成",
-          "next": "下一步",
-          "open": "打开对话框",
-          "skip": "跳过"
-        },
-        "resetTutorial": "重置新手引导",
-        "resetConfirm": "确定要重置新手引导吗？",
-        "resetMessage": "页面将重新加载以显示新手引导"
-      }
-    }
+  "help_message": {
+    "title": "🚀 欢迎使用 若爱 (IfAI) v0.2.0",
+    "intro": "我是您的 AI 编程伙伴，旨在通过深度集成的智能体（Agents）提升您的开发效率。",
+    "commands_title": "💡 智能指令",
+    "commands": [
+      "**@codebase** - 在提问中加入此指令可进行全局代码语义搜索",
+      "**/explore** - 深度探索代码库，分析架构与逻辑",
+      "**/review** - 审查当前文件的代码质量与安全建议",
+      "**/test** - 自动为代码生成单元测试用例",
+      "**/doc** - 编写技术文档、README 或详细代码注释"
+    ],
+    "shortcuts_title": "⌨️ 核心快捷键",
+    "shortcuts_list": [
+      "**Cmd/Ctrl + P** - 快速搜索并打开项目文件",
+      "**Cmd/Ctrl + K** - 在编辑器中唤起内联 AI 编辑",
+      "**Cmd/Ctrl + L** - 快速切换/显示聊天面板",
+      "**Cmd/Ctrl + Alt + P** - 开启/关闭性能监控面板",
+      "**↑ / ↓** - 在输入框中快速唤回历史提问"
+    ],
+    "footer": "您可以直接对我下达指令，或使用上述斜杠命令启动特定的智能体。祝您编程愉快！"
+  },
+  "help": {
+    "keyboardShortcuts": "键盘快捷键",
+    "about": "关于",
+    "tagline": "AI 驱动的代码编辑器",
+    "description": "一款由 AI 驱动的智能代码编辑器，旨在帮助您更快速地编写更好的代码。",
+    "repository": "源代码仓库",
+    "documentation": "文档",
+    "changelog": "更新日志",
+    "community": "社区讨论",
+    "allRightsReserved": "版权所有"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": "欢迎使用 IfAI Editor！这是一个功能强大的 AI 代码编辑器，让我们花一点时间了解核心功能。",
+      "welcomeTitle": "欢迎使用 IfAI Editor",
+      "commandBar": "⌨️ CommandBar 命令行\n\n这是类似 Vim 的命令行模式！按 **:** 键即可唤起。\n\n常用命令：\n• **:w** - 保存当前文件\n• **:q** - 关闭当前文件\n• **:wq** - 保存并关闭\n• **:grep 关键词** - 在文件中搜索",
+      "commandBarTitle": "Vim 风格命令行",
+      "settingsGuide": "⚙️ 设置面板\n\n在这里您可以：\n• 配置 AI 提供商和 API 密钥\n• 调整编辑器外观和行为\n• 查看和自定义快捷键\n• 管理性能和显示选项",
+      "settingsGuideTitle": "设置说明",
+      "layoutSwitcher": "点击这里可以切换不同的布局模式，适应不同的工作场景。",
+      "layoutSwitcherTitle": "布局切换"
+    },
+    "buttons": {
+      "back": "上一步",
+      "close": "关闭",
+      "last": "完成",
+      "next": "下一步",
+      "open": "打开对话框",
+      "skip": "跳过"
+    },
+    "resetTutorial": "重置新手引导",
+    "resetConfirm": "确定要重置新手引导吗？",
+    "resetMessage": "页面将重新加载以显示新手引导"
+  }
+}

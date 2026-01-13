@@ -10,10 +10,34 @@ import { LocalModelSettings } from './LocalModelSettings';
 import { CustomProviderSettings } from './CustomProviderSettings';
 
 export const SettingsModal = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
   const settings = useSettingsStore();
   const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider'>('general');
+
+  // 🔍 调试：打印翻译值
+  React.useEffect(() => {
+    if (isSettingsOpen) {
+      console.log('=== SettingsModal 调试信息 ===');
+      console.log('1. 当前语言 (i18n.language):', i18n.language);
+      console.log('2. localStorage i18nextLng:', localStorage.getItem('i18nextLng'));
+
+      // 检查 shortcuts.keyboardShortcuts 翻译
+      const shortcutsKeyboardShortcuts = t('shortcuts.keyboardShortcuts');
+      console.log('3. t("shortcuts.keyboardShortcuts") 返回值:', shortcutsKeyboardShortcuts);
+
+      // 检查 i18n store 中的实际值
+      const storeData = i18n.store.data;
+      const zhCNData = storeData?.['zh-CN']?.translation?.shortcuts;
+      const enUSData = storeData?.['en-US']?.translation?.shortcuts;
+      console.log('4. zh-CN translation.shortcuts.keyboardShortcuts:', zhCNData?.keyboardShortcuts);
+      console.log('5. en-US translation.shortcuts.keyboardShortcuts:', enUSData?.keyboardShortcuts);
+
+      // 检查 tabs 数组中的 label 值
+      console.log('6. 活动的 tab:', activeTab);
+      console.log('7. 当前渲染的 keybindings 标签文本:', shortcutsKeyboardShortcuts);
+    }
+  }, [isSettingsOpen, activeTab, i18n, t]);
 
   if (!isSettingsOpen) return null;
 
