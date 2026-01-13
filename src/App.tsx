@@ -14,6 +14,7 @@ import { GlobalAgentMonitor } from './components/AIChat/GlobalAgentMonitor';
 import { PerformancePanel } from './components/DevTools/PerformancePanel';
 import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel';
 import { WelcomeDialog, LocalModelDownload } from './components/Onboarding';
+import { OnboardingTour } from './components/Onboarding/OnboardingTour';
 import { CodeReviewModal, ReviewHistoryPanel } from './components/CodeReview';
 import { InlineEditWidget, DiffEditorModal } from './components/InlineEdit';
 
@@ -645,6 +646,8 @@ function App() {
             onError={handleDownloadError}
           />
         )}
+        {/* v0.3.0: Onboarding Tour */}
+        <OnboardingTour />
 
         {/* v0.2.9: Code Review Modal */}
         <CodeReviewModal

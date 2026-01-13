@@ -268,5 +268,28 @@
     "toggleSettings": "Toggle Settings",
     "toggleExplorer": "Toggle Explorer",
     "tip": "Tip: Use ? to quickly open this shortcut list"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": "Welcome to IfAI Editor! This is a powerful AI-powered code editor. Let's take a quick tour of the core features.",
+      "welcomeTitle": "Welcome to IfAI Editor",
+      "commandBar": "⌨️ CommandBar\n\nThis is a Vim-style command line! Press **:** to open it.\n\nCommon commands:\n• **:w** - Save current file\n• **:q** - Close current file\n• **:wq** - Save and close\n• **:grep keyword** - Search in files",
+      "commandBarTitle": "Vim-Style Command Line",
+      "settingsGuide": "⚙️ Settings Panel\n\nHere you can:\n• Configure AI providers and API keys\n• Adjust editor appearance and behavior\n• View and customize keyboard shortcuts\n• Manage performance and display options",
+      "settingsGuideTitle": "Settings Guide",
+      "layoutSwitcher": "Click here to switch between different layout modes to adapt to different work scenarios.",
+      "layoutSwitcherTitle": "Layout Switcher"
+    },
+    "buttons": {
+      "back": "Back",
+      "close": "Close",
+      "last": "Finish",
+      "next": "Next",
+      "open": "Open Dialog",
+      "skip": "Skip"
+    },
+    "resetTutorial": "Reset Tutorial",
+    "resetConfirm": "Are you sure you want to reset the tutorial?",
+    "resetMessage": "The page will reload to show the onboarding tour"
   }
 }

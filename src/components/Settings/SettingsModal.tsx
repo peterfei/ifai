@@ -30,7 +30,7 @@ export const SettingsModal = () => {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-50" onClick={() => setSettingsOpen(false)}>
-      <div className="bg-[#252526] w-[700px] h-[500px] rounded-lg shadow-xl flex overflow-hidden border border-gray-700" onClick={e => e.stopPropagation()}>
+      <div className="bg-[#252526] w-[700px] h-[500px] rounded-lg shadow-xl flex overflow-hidden border border-gray-700" onClick={e => e.stopPropagation()} data-testid="settings-modal">
         {/* Sidebar */}
         <div className="w-48 bg-[#1e1e1e] border-r border-gray-700 p-2 flex flex-col flex-shrink-0">
           <div className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-4 px-2 mt-2">{t('chat.settings')}</div>

@@ -5,11 +5,13 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Book, Keyboard, Info } from 'lucide-react';
+import { ChevronDown, Book, Keyboard, Info, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { AboutModal } from './AboutModal';
 import { useHelpStore } from '../../stores/helpStore';
+import { resetTutorialCommand } from '../Onboarding/OnboardingTour';
+import { toast } from 'sonner';
 
 interface HelpMenuProps {
   className?: string;
@@ -75,6 +77,15 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
     window.open('https://github.com/anthropics/claude-code/issues', '_blank');
   };
 
+  const handleResetTutorial = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    if (confirm(t('onboarding.resetConfirm') || '确定要重置新手引导吗？')) {
+      resetTutorialCommand();
+      toast.info(t('onboarding.resetMessage') || '页面将重新加载以显示新手引导');
+    }
+  };
+
   return (
     <div className={`relative ${className}`} ref={menuRef}>
       <button
@@ -85,7 +96,10 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1 bg-gray-700 rounded shadow-lg z-50 py-1 w-56">
+        <div
+          role="menu"
+          className="absolute top-full right-0 mt-1 bg-gray-700 rounded shadow-lg z-50 py-1 w-56 dropdown-menu"
+        >
           <div
             className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
             onClick={handleOpenShortcuts}
@@ -127,6 +141,17 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
           >
             Report Issue
             <span className="ml-auto text-xs text-gray-500">GitHub</span>
+          </div>
+
+          <div className="border-t border-gray-600 my-1"></div>
+
+          <div
+            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
+            onClick={handleResetTutorial}
+            data-testid="reset-tutorial"
+          >
+            <RotateCcw size={14} />
+            {t('onboarding.resetTutorial') || '重置新手引导'}
           </div>
         </div>
       )}
