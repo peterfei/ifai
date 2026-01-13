@@ -1,0 +1,335 @@
+/**
+ * OnboardingTour - 工业级 UI 样式
+ *
+ * 设计原则：
+ * - 现代简洁的视觉风格
+ * - 清晰的视觉层次
+ * - 流畅的动画效果
+ * - 优秀的可读性和对比度
+ */
+
+/* ============================================
+   Tooltip 容器
+============================================ */
+.react-joyride__tooltip {
+  max-width: 560px;
+  min-width: 400px;
+  padding: 0;
+  border-radius: 16px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.2),
+    0 0 1px rgba(255, 255, 255, 0.1) inset;
+  background: linear-gradient(135deg, #1e1e1e 0%, #252526 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: tourTooltipFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes tourTooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 居中模式的特殊样式 */
+.react-joyride__tooltip[data-placement*="center"] {
+  max-width: 560px;
+}
+
+/* ============================================
+   Tooltip 头部
+============================================ */
+.react-joyride__tooltip .react-joyride__tooltip__header {
+  padding: 24px 32px 20px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+}
+
+.react-joyride__tooltip h4 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+/* ============================================
+   Tooltip 内容区域
+============================================ */
+.react-joyride__tooltip .react-joyride__tooltip__body {
+  padding: 20px 32px 24px;
+}
+
+.react-joyride__tooltip .react-joyride__tooltip__content {
+  font-size: 15px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.react-joyride__tooltip .react-joyride__tooltip__content strong {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+/* 代码样式 */
+.react-joyride__tooltip .react-joyride__tooltip__content code {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+}
+
+/* 列表样式 */
+.react-joyride__tooltip .react-joyride__tooltip__content ul {
+  margin: 20px 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.react-joyride__tooltip .react-joyride__tooltip__content li {
+  margin: 14px 0;
+  padding-left: 24px;
+  position: relative;
+  line-height: 1.6;
+}
+
+.react-joyride__tooltip .react-joyride__tooltip__content li::before {
+  content: "•";
+  color: #60a5fa;
+  font-weight: bold;
+  position: absolute;
+  left: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* ============================================
+   Tooltip 底部操作区
+============================================ */
+.react-joyride__tooltip .react-joyride__tooltip__footer {
+  padding: 16px 20px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 16px 16px;
+}
+
+/* ============================================
+   按钮样式
+============================================ */
+.react-joyride__tooltip button {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  margin: 0 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.react-joyride__tooltip button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.react-joyride__tooltip button:hover::before {
+  opacity: 1;
+}
+
+/* Primary 按钮 (Next/Finish) */
+.react-joyride__tooltip .react-joyride__button__primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  box-shadow:
+    0 4px 12px rgba(37, 99, 235, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.react-joyride__tooltip .react-joyride__button__primary:hover {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  border-color: rgba(96, 165, 250, 0.6);
+  box-shadow:
+    0 6px 16px rgba(37, 99, 235, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  transform: translateY(-1px);
+}
+
+.react-joyride__tooltip .react-joyride__button__primary:active {
+  transform: translateY(0);
+  box-shadow:
+    0 2px 8px rgba(37, 99, 235, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+/* Secondary 按钮 (Back) */
+.react-joyride__tooltip .react-joyride__button__secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.react-joyride__tooltip .react-joyride__button__secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Skip 按钮 */
+.react-joyride__tooltip .react-joyride__button__skip {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 10px 16px;
+  margin-left: 0;
+}
+
+.react-joyride__tooltip .react-joyride__button__skip:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ============================================
+   进度指示器
+============================================ */
+.react-joyride__tooltip .react-joyride__tooltip__counter {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+}
+
+/* ============================================
+   工具提示箭头
+============================================ */
+.react-joyride__beacon {
+  display: none;
+}
+
+.react-joyride__tooltip__arrow {
+  width: 12px;
+  height: 12px;
+}
+
+.react-joyride__tooltip__arrow * {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ============================================
+   遮罩层
+============================================ */
+.react-joyride__overlay {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+/* ============================================
+   响应式调整
+============================================ */
+@media (max-width: 640px) {
+  .react-joyride__tooltip {
+    max-width: calc(100vw - 32px);
+    min-width: 320px;
+    border-radius: 12px;
+  }
+
+  .react-joyride__tooltip .react-joyride__tooltip__header {
+    padding: 18px 24px 16px;
+  }
+
+  .react-joyride__tooltip h4 {
+    font-size: 17px;
+  }
+
+  .react-joyride__tooltip .react-joyride__tooltip__body {
+    padding: 16px 24px 20px;
+  }
+
+  .react-joyride__tooltip .react-joyride__tooltip__content {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .react-joyride__tooltip .react-joyride__tooltip__footer {
+    padding: 14px 18px 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .react-joyride__tooltip button {
+    font-size: 13px;
+    padding: 9px 18px;
+    margin: 0 2px;
+  }
+}
+
+/* ============================================
+   暗色模式优化
+============================================ */
+@media (prefers-color-scheme: dark) {
+  .react-joyride__tooltip {
+    /* 已经是暗色主题，保持不变 */
+  }
+}
+
+/* ============================================
+   高对比度模式支持
+============================================ */
+@media (prefers-contrast: high) {
+  .react-joyride__tooltip {
+    border: 2px solid #ffffff;
+  }
+
+  .react-joyride__tooltip h4 {
+    color: #ffffff;
+  }
+
+  .react-joyride__tooltip .react-joyride__tooltip__content {
+    color: #ffffff;
+  }
+}
+
+/* ============================================
+   减少动画模式
+============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .react-joyride__tooltip {
+    animation: none;
+  }
+
+  .react-joyride__tooltip button {
+    transition: none;
+  }
+
+  .react-joyride__tooltip button::before {
+    transition: none;
+  }
+}
