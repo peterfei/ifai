@@ -767,60 +767,64 @@ pub async fn local_model_preprocess(
             })
         }
         crate::intelligence_router::RouteDecision::Hybrid { reason } => {
-            // 混合模式：尝试解析工具调用
+            // 混合模式：先尝试解析，然后让本地模型推理
             println!("[LocalModel] 🔄 Route: Hybrid - {}", reason);
-            try_parse_tool_calls(messages, reason).await
+            process_with_local_model(messages, reason).await
         }
     }
 }
 
-/// 使用本地模型处理（直接调用工具解析）
+/// 使用本地模型处理（进行推理后再判断）
 async fn process_with_local_model(
     messages: Vec<crate::core_traits::ai::Message>,
     reason: String,
 ) -> Result<PreprocessResult, String> {
-    // 直接调用工具解析（无本地推理）
-    try_parse_tool_calls(messages, reason).await
-}
-
-/// 尝试解析工具调用
-async fn try_parse_tool_calls(
-    messages: Vec<crate::core_traits::ai::Message>,
-    reason: String,
-) -> Result<PreprocessResult, String> {
-    // 获取最后一条用户消息
-    let user_message = messages
-        .iter()
-        .filter(|m| m.role == "user")
-        .last()
-        .ok_or("No user message found")?;
-
-    let text = extract_text_content(&user_message.content);
-    println!("[LocalModel] User input: '{}'", text.chars().take(50).collect::<String>());
-
-    // 使用正则表达式解析工具调用
-    let tool_calls = test_tool_parse(text.clone());
+    // 策略变更：对于简单任务，先尝试解析显式工具调用
+    // 如果解析不到，则返回 should_use_local: true 让本地模型进行推理
+    let tool_calls = try_parse_tool_calls_from_messages(&messages).await;
 
     if !tool_calls.is_empty() {
-        // 解析到工具调用，直接返回（本地执行）
-        println!("[LocalModel] ✅ Parsed {} tool calls", tool_calls.len());
-        Ok(PreprocessResult {
+        // 解析到显式工具调用，直接返回（本地执行）
+        println!("[LocalModel] ✅ Parsed {} explicit tool calls", tool_calls.len());
+        return Ok(PreprocessResult {
             should_use_local: true,
             has_tool_calls: true,
             tool_calls: tool_calls.clone(),
             local_response: None,
             route_reason: format!("{} - 解析到 {} 个工具调用", reason, tool_calls.len()),
-        })
+        });
+    }
+
+    // 没有解析到显式工具调用，但这是简单任务
+    // 让本地模型进行推理，根据模型输出决定后续操作
+    println!("[LocalModel] No explicit tool calls, will use local model for inference");
+    Ok(PreprocessResult {
+        should_use_local: true,
+        has_tool_calls: false,
+        tool_calls: vec![],
+        local_response: None,
+        route_reason: format!("{} - 需要本地模型推理来判断", reason),
+    })
+}
+
+/// 尝试从消息中解析显式工具调用（不进行推理）
+async fn try_parse_tool_calls_from_messages(
+    messages: &[crate::core_traits::ai::Message],
+) -> Vec<ParsedToolCall> {
+    use crate::core_traits::ai::Message;
+
+    // 获取最后一条用户消息
+    let user_message = messages
+        .iter()
+        .filter(|m| m.role == "user")
+        .last();
+
+    if let Some(msg) = user_message {
+        let text = extract_text_content(&msg.content);
+        println!("[LocalModel] Checking for explicit tool calls in: '{}'", text.chars().take(50).collect::<String>());
+        test_tool_parse(text)
     } else {
-        // 无工具调用，转发到云端 API
-        println!("[LocalModel] No tool calls, routing to cloud API");
-        Ok(PreprocessResult {
-            should_use_local: false,
-            has_tool_calls: false,
-            tool_calls: vec![],
-            local_response: None,
-            route_reason: format!("{} - 无工具调用，转发云端", reason),
-        })
+        vec![]
     }
 }
 
