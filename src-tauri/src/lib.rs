@@ -820,7 +820,8 @@ pub fn run() {
             commands::error_commands::get_error_file_content,
             // v0.3.0 新增：多模态功能
             multimodal::multimodal_analyze_image,
-            multimodal::multimodal_is_vision_supported
+            multimodal::multimodal_is_vision_supported,
+            multimodal::read_file_as_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

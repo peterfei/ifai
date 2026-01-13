@@ -147,6 +147,15 @@ function App() {
       } catch (error) {
         console.error('[App] ❌ Failed to expose FileStore:', error);
       }
+
+      // v0.3.0: 暴露 dragDropStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useDragDropStore } = await import('./stores/dragDropStore');
+        (window as any).__dragDropStore = useDragDropStore;
+        console.log('[App] ✅ DragDropStore exposed to window.__dragDropStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose DragDropStore:', error);
+      }
     };
 
     init();

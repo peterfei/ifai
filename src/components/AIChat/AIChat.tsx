@@ -5,10 +5,27 @@ import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
+import { useDragDropStore } from '../../stores/dragDropStore';
 import { readFileContent } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+
+// v0.3.0: 根据文件扩展名获取 MIME 类型
+function getMimeType(filePath: string): string {
+  const ext = filePath.toLowerCase().split('.').pop();
+  const mimeTypes: Record<string, string> = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'bmp': 'image/bmp',
+    'svg': 'image/svg+xml'
+  };
+  return mimeTypes[ext || ''] || 'image/png';
+}
+import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { MessageItem } from './MessageItem';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
@@ -74,6 +91,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
   const openFile = useFileStore(state => state.openFile);
+  // v0.3.0: 拖拽状态管理
+  const setDragOverChat = useDragDropStore(state => state.setDragOverChat);
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   // 🔥 动态版本号：优先使用 Tauri API，回退到构建时注入的版本号
@@ -82,6 +101,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
+  // v0.3.0: 聊天输入区域 ref（用于判断拖拽位置）
+  const chatInputAreaRef = useRef<HTMLDivElement>(null);
   // v0.2.6: 任务拆解 Store
   const { currentBreakdown, isPanelOpen, setPanelOpen } = useTaskBreakdownStore();
   // v0.2.6: 提案审核弹窗状态
@@ -94,6 +115,16 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
   // v0.3.0: 多模态图片附件状态
   const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
+  // v0.3.0: 拖拽高亮状态（用于视觉反馈）
+  const [isDragHighlight, setIsDragHighlight] = useState(false);
+
+  // v0.3.0: 订阅 dragDropStore 状态变化，用于外部文件拖拽时的视觉反馈
+  useEffect(() => {
+    const unsubscribe = useDragDropStore.subscribe((state) => {
+      setIsDragHighlight(state.isDragOverChat);
+    });
+    return unsubscribe;
+  }, []);
 
   // 🔥 使用 refs 存储 E2E 测试需要的最新值（解决闭包问题）
   const composerOpenRef = useRef(composerOpen);
@@ -1023,13 +1054,227 @@ ${context}
   };
 
   // v0.3.0: 图片附件处理函数
-  const handleAddImageAttachment = useCallback((attachment: ImageAttachment) => {
-    setImageAttachments(prev => [...prev, attachment]);
+  const handleAddImageAttachment = useCallback(async (fileOrAttachment: File | ImageAttachment) => {
+    // 🔥 v0.3.0: 如果是 File 对象，先转换为 ImageAttachment
+    if (fileOrAttachment instanceof File) {
+      const file = fileOrAttachment;
+
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        console.warn('[AIChat] 跳过非图片文件:', file.name);
+        return;
+      }
+
+      // 验证文件大小 (5MB)
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        const attachment: ImageAttachment = {
+          id: crypto.randomUUID(),
+          content: {
+            data: '',
+            mime_type: file.type,
+            name: file.name,
+            size: file.size,
+          },
+          previewUrl: '',
+          status: 'error',
+          error: '文件过大 (5MB 限制)',
+        };
+        setImageAttachments(prev => [...prev, attachment]);
+        return;
+      }
+
+      // 读取文件为 Base64
+      try {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]); // 移除 data:image/xxx;base64, 前缀
+          };
+          reader.onerror = reject;
+        });
+        reader.readAsDataURL(file);
+
+        const base64Data = await base64Promise;
+
+        // 创建预览 URL
+        const previewUrl = `data:${file.type};base64,${base64Data}`;
+
+        // 创建 ImageAttachment
+        const attachment: ImageAttachment = {
+          id: crypto.randomUUID(),
+          content: {
+            data: base64Data,
+            mime_type: file.type,
+            name: file.name,
+            size: file.size,
+          },
+          previewUrl,
+          status: 'ready',
+        };
+
+        setImageAttachments(prev => [...prev, attachment]);
+      } catch (error) {
+        console.error('[AIChat] 处理图片失败:', error);
+        const attachment: ImageAttachment = {
+          id: crypto.randomUUID(),
+          content: {
+            data: '',
+            mime_type: file.type,
+            name: file.name,
+            size: file.size,
+          },
+          previewUrl: '',
+          status: 'error',
+          error: '处理失败',
+        };
+        setImageAttachments(prev => [...prev, attachment]);
+      }
+    } else {
+      // 直接是 ImageAttachment 对象
+      setImageAttachments(prev => [...prev, fileOrAttachment]);
+    }
   }, []);
 
   const handleRemoveImageAttachment = useCallback((id: string) => {
     setImageAttachments(prev => prev.filter(a => a.id !== id));
   }, []);
+
+  // v0.3.0: Tauri file-drop 事件拦截（用于聊天输入区域的图片拖拽）
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let unlistenHover: (() => void) | null = null;
+    let fileDragActive = false; // 标记是否有文件拖拽正在进行
+
+    // 清理函数：移除所有事件监听器
+    const cleanup = () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('dragend', handleDragEnd);
+    };
+
+    // v0.3.0: 监听窗口级别的 dragenter 事件
+    // 当任何文件被拖入窗口时，显示聊天区域的蓝色边框
+    const handleDragEnter = (e: DragEvent) => {
+      // 检查是否有文件被拖拽
+      const hasFiles = e.dataTransfer?.types.includes('Files');
+
+      if (hasFiles) {
+        console.log('[AIChat] 文件拖拽进入窗口，显示蓝色边框');
+        fileDragActive = true;
+        setDragOverChat(true); // 显示蓝色边框
+      }
+    };
+
+    // 监听 dragleave 事件（文件拖拽离开窗口）
+    const handleDragLeave = (e: DragEvent) => {
+      // 只在真正离开窗口时清除状态
+      if (fileDragActive && e.target === window) {
+        console.log('[AIChat] 文件拖拽离开窗口');
+        fileDragActive = false;
+        setDragOverChat(false);
+      }
+    };
+
+    // 监听 dragend 事件（拖拽结束）
+    const handleDragEnd = () => {
+      if (fileDragActive) {
+        console.log('[AIChat] 文件拖拽结束');
+        fileDragActive = false;
+        setDragOverChat(false);
+      }
+    };
+
+    // 添加窗口级别的事件监听
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('dragend', handleDragEnd);
+
+    const setupFileDropListener = async () => {
+      try {
+        // v0.3.0: 尝试监听 Tauri 的 file-drop-hover 事件（如果存在）
+        try {
+          unlistenHover = await listen<any>('tauri://file-drop-hover', (event) => {
+            console.log('[AIChat] Tauri file-drop-hover event:', event);
+            // Tauri file-drop-hover 事件触发时，也显示蓝色边框
+            fileDragActive = true;
+            setDragOverChat(true);
+          });
+        } catch (err) {
+          console.log('[AIChat] Tauri file-drop-hover not available:', err);
+        }
+
+        unlisten = await listen<string[]>('tauri://file-drop', async (event) => {
+          const filePaths = event.payload;
+
+          console.log('[AIChat] Tauri file-drop received:', filePaths);
+
+          // 拖拽结束，清除蓝色边框状态
+          fileDragActive = false;
+          setDragOverChat(false);
+
+          // 检查是否在加载中
+          if (isLoading) {
+            console.log('[AIChat] 正在加载中，忽略图片拖拽');
+            return;
+          }
+
+          // 过滤出图片文件
+          const imageFiles = filePaths.filter(path => {
+            const ext = path.toLowerCase().split('.').pop();
+            return ext && ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+          });
+
+          // 如果有图片文件，处理它们
+          if (imageFiles.length > 0) {
+            console.log('[AIChat] 处理图片拖拽:', imageFiles);
+
+            // 读取图片文件并添加附件
+            for (const filePath of imageFiles) {
+              try {
+                // 使用 Tauri invoke 读取文件并转换为 base64
+                const base64Data = await invoke<string>('read_file_as_base64', { path: filePath });
+
+                // 创建 File 对象
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: getMimeType(filePath) });
+                const file = new File([blob], filePath.split('/').pop() || 'image.png', { type: blob.type });
+
+                // 添加图片附件
+                await handleAddImageAttachment(file);
+              } catch (error) {
+                console.error('[AIChat] 读取图片失败:', filePath, error);
+              }
+            }
+          } else {
+            console.log('[AIChat] 拖拽的文件中没有图片');
+          }
+        });
+
+        console.log('[AIChat] Tauri file-drop 监听器已设置');
+      } catch (error) {
+        console.warn('[AIChat] 设置 file-drop 监听器失败:', error);
+      }
+    };
+
+    setupFileDropListener();
+
+    return () => {
+      cleanup();
+      if (unlisten) {
+        unlisten();
+      }
+      if (unlistenHover) {
+        unlistenHover();
+      }
+    };
+  }, [isLoading, handleAddImageAttachment]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -1783,8 +2028,41 @@ ${suggestion.fixContext.code_context}
   return (
     <div
         data-testid="chat-panel"
-        className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative"
+        className={`flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative transition-colors ${isDragHighlight ? 'border-blue-500 bg-blue-900/20' : ''}`}
         style={{ width: width ? `${width}px` : '384px', contain: 'layout' }}
+        onDragEnter={(e) => {
+          // 🔥 v0.3.0: 标记拖拽进入聊天面板区域
+          setIsDragHighlight(true);
+          setDragOverChat(true);
+          console.log('[AIChat] 拖拽进入聊天面板');
+        }}
+        onDragOver={(e) => {
+          // 🔥 v0.3.0: 拖拽悬停时保持状态
+          if (e.dataTransfer) {
+            e.preventDefault(); // 允许 drop
+          }
+          setIsDragHighlight(true);
+          setDragOverChat(true);
+        }}
+        onDragLeave={(e) => {
+          // 🔥 v0.3.0: 标记拖拽离开聊天面板区域
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const x = e.clientX;
+          const y = e.clientY;
+          if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+            setIsDragHighlight(false);
+            setDragOverChat(false);
+            console.log('[AIChat] 拖拽离开聊天面板');
+          }
+        }}
+        onDrop={(e) => {
+          // 🔥 v0.3.0: 拖拽结束时（DOM 层）
+          setIsDragHighlight(false);
+          console.log('[AIChat] DOM onDrop 触发');
+          // 阻止默认行为，避免重复处理
+          e.preventDefault();
+          e.stopPropagation();
+        }}
     >
       {onResizeStart && (
         <div 
@@ -1911,7 +2189,79 @@ ${suggestion.fixContext.code_context}
           )}
 
           {/* 文本输入 + 发送按钮 */}
-          <div className="flex items-center relative">
+          <div
+            ref={chatInputAreaRef}
+            className="flex items-center relative"
+            onDragEnter={(e) => {
+              // 🔥 v0.3.0: 标记拖拽进入聊天输入区域
+              const hasImage = Array.from(e.dataTransfer?.items || []).some(
+                item => item.kind === 'file' && item.type.startsWith('image/')
+              );
+              if (hasImage) {
+                setDragOverChat(true);
+              }
+            }}
+            onDragLeave={(e) => {
+              // 🔥 v0.3.0: 标记拖拽离开聊天输入区域
+              // 检查是否真的离开了容器（不是进入子元素）
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              const x = e.clientX;
+              const y = e.clientY;
+              if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+                setDragOverChat(false);
+              }
+            }}
+            onPaste={async (e) => {
+              // 🔥 v0.3.0: 处理聊天输入框中的图片粘贴
+              if (isLoading) return;
+              const items = e.clipboardData?.items;
+              if (!items) return;
+
+              const files: File[] = [];
+              for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                  const file = item.getAsFile();
+                  if (file) files.push(file);
+                }
+              }
+
+              if (files.length > 0) {
+                e.preventDefault();
+                for (const file of files) {
+                  await handleAddImageAttachment(file);
+                }
+              }
+            }}
+            onDragOver={(e) => {
+              // 🔥 v0.3.0: 处理图片拖拽
+              if (isLoading) return;
+              const hasImage = Array.from(e.dataTransfer?.items || []).some(
+                item => item.kind === 'file' && item.type.startsWith('image/')
+              );
+              if (hasImage) {
+                e.preventDefault();
+              }
+            }}
+            onDrop={async (e) => {
+              // 🔥 v0.3.0: 处理图片拖拽放下（浏览器内拖拽）
+              if (isLoading) return;
+              const files = Array.from(e.dataTransfer?.files || []).filter(
+                file => file.type.startsWith('image/')
+              );
+
+              if (files.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                for (const file of files) {
+                  await handleAddImageAttachment(file);
+                }
+              }
+
+              // 重置拖拽状态
+              setDragOverChat(false);
+            }}
+          >
             {showCommands && (
               <SlashCommandList
                 ref={commandListRef}

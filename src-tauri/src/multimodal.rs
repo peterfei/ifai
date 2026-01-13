@@ -133,6 +133,31 @@ pub fn multimodal_is_vision_supported() -> bool {
     }
 }
 
+/// v0.3.0: 读取文件并转换为 base64（用于拖拽图片）
+#[tauri::command]
+pub async fn read_file_as_base64(path: String) -> Result<String, String> {
+    use std::fs;
+    use std::io::Read;
+
+    println!("[Multimodal] read_file_as_base64 called with path: {}", path);
+
+    // 读取文件
+    let mut file = fs::File::open(&path)
+        .map_err(|e| format!("Failed to open file: {}", e))?;
+
+    // 读取文件内容
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+
+    // 转换为 base64
+    let base64_string = base64::encode(&buffer);
+
+    println!("[Multimodal] File size: {} bytes, base64 length: {}", buffer.len(), base64_string.len());
+
+    Ok(base64_string)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
