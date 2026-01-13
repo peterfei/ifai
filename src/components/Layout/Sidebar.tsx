@@ -133,7 +133,7 @@ export const Sidebar = () => {
             setSidebarActiveTab('snippets');
             if (isPromptManagerOpen) togglePromptManager();
           }}
-          title="Snippet Manager"
+          title={t('sidebar.snippets')}
         >
           <Code2 size={24} />
         </button>
@@ -143,7 +143,7 @@ export const Sidebar = () => {
             setSidebarActiveTab('tasks');
             if (isPromptManagerOpen) togglePromptManager();
           }}
-          title="Mission Control"
+          title={t('sidebar.tasks')}
         >
           <ListChecks size={24} />
         </button>

@@ -154,7 +154,7 @@ export const useSettingsStore = create<SettingsState>()(
         },
         {
           id: 'zhipu',
-          name: '智谱AI',
+          name: 'Zhipu AI',
           protocol: 'openai',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
           apiKey: '',

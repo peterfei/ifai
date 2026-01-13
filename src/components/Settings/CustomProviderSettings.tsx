@@ -3,9 +3,11 @@ import { Plus, Trash2, Edit2, Check, X, Globe, Sliders, RefreshCw } from 'lucide
 import { useSettingsStore, PresetTemplate, MODEL_PARAM_PRESETS, PRESET_ENDPOINTS } from '../../stores/settingsStore';
 import { AIProviderConfig } from '../../stores/settingsStore';
 import { ModelParamsConfigComponent } from './ModelParamsConfig';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 export const CustomProviderSettings = () => {
+  const { t } = useTranslation();
   const settings = useSettingsStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,13 +31,13 @@ export const CustomProviderSettings = () => {
     { value: 'vllm', label: 'vLLM', description: 'http://localhost:8000' },
     { value: 'localai', label: 'LocalAI', description: 'http://localhost:8080' },
     { value: 'lmstudio', label: 'LM Studio', description: 'http://localhost:1234' },
-    { value: 'custom', label: '自定义', description: '完全自定义端点' },
+    { value: 'custom', label: t('customProviderSettings.custom'), description: t('customProviderSettings.customEndpointDesc') },
   ];
 
   // 添加自定义提供商
   const handleAddProvider = () => {
     if (!newProvider.name.trim()) {
-      alert('请输入提供商名称');
+      alert(t('customProviderSettings.pleaseEnterName'));
       return;
     }
 
@@ -59,7 +61,7 @@ export const CustomProviderSettings = () => {
 
   // 删除提供商
   const handleDeleteProvider = (providerId: string) => {
-    if (confirm('确定要删除此提供商吗？')) {
+    if (confirm(t('customProviderSettings.confirmDelete'))) {
       settings.removeProvider(providerId);
     }
   };
@@ -90,17 +92,17 @@ export const CustomProviderSettings = () => {
       const models = data.models?.map((m: any) => m.name) || [];
 
       if (models.length === 0) {
-        alert('未找到任何模型。请确保 Ollama 已安装模型。');
+        alert(t('customProviderSettings.noModelsFound'));
         return;
       }
 
       // 更新提供商的模型列表
       settings.updateProviderConfig(provider.id, { models });
 
-      alert(`成功获取 ${models.length} 个模型:\n${models.slice(0, 5).join('\n')}${models.length > 5 ? '\n...' : ''}`);
+      alert(t('customProviderSettings.refreshSuccess', { count: models.length, models: models.slice(0, 5).join(', ') }));
     } catch (error) {
       console.error('刷新模型列表失败:', error);
-      alert(`刷新失败: ${error}\n\n请确保:\n1. Ollama 正在运行\n2. 端点地址正确 (${provider.baseUrl})\n3. 已安装至少一个模型`);
+      alert(t('customProviderSettings.refreshFailed', { error, baseUrl: provider.baseUrl }));
     } finally {
       setRefreshingProvider(null);
     }
@@ -140,13 +142,13 @@ export const CustomProviderSettings = () => {
                 onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
                 className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
               >
-                设为默认
+                {t('settings.setAsDefault')}
               </button>
             )}
             <button
               onClick={() => handleToggleEdit(provider.id)}
               className="p-1 hover:bg-gray-700 rounded transition-colors"
-              title={isEditing ? '取消编辑' : '编辑'}
+              title={isEditing ? t('customProviderSettings.cancelEdit') : t('customProviderSettings.edit')}
             >
               {isEditing ? <X size={14} /> : <Edit2 size={14} />}
             </button>
@@ -156,7 +158,7 @@ export const CustomProviderSettings = () => {
                 "p-1 hover:bg-gray-700 rounded transition-colors",
                 showParamsEditor === provider.id ? "text-blue-400" : "text-gray-400"
               )}
-              title="模型参数"
+              title={t('customProviderSettings.modelParams')}
             >
               <Sliders size={14} />
             </button>
@@ -168,7 +170,7 @@ export const CustomProviderSettings = () => {
                   "p-1 hover:bg-gray-700 rounded transition-colors",
                   refreshingProvider === provider.id ? "text-yellow-400 animate-spin" : "text-green-400"
                 )}
-                title="从 Ollama 刷新模型列表"
+                title={t('customProviderSettings.refreshFromOllama')}
                 disabled={refreshingProvider === provider.id}
               >
                 <RefreshCw size={14} />
@@ -177,7 +179,7 @@ export const CustomProviderSettings = () => {
             <button
               onClick={() => handleDeleteProvider(provider.id)}
               className="p-1 hover:bg-red-900/50 rounded transition-colors text-red-400"
-              title="删除"
+              title={t('customProviderSettings.delete')}
             >
               <Trash2 size={14} />
             </button>
@@ -188,7 +190,7 @@ export const CustomProviderSettings = () => {
           // 编辑模式
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">提供商名称</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.providerName')}</label>
               <input
                 type="text"
                 value={provider.displayName || provider.name}
@@ -197,7 +199,7 @@ export const CustomProviderSettings = () => {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">API 地址</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.apiUrl')}</label>
               <input
                 type="text"
                 value={provider.baseUrl}
@@ -215,7 +217,7 @@ export const CustomProviderSettings = () => {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">可用模型（逗号分隔）</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.availableModels')}</label>
               <input
                 type="text"
                 value={provider.models.join(', ')}
@@ -235,20 +237,20 @@ export const CustomProviderSettings = () => {
           // 查看模式
           <div className="space-y-2 text-xs text-gray-400">
             <div className="flex justify-between">
-              <span>状态:</span>
+              <span>{t('customProviderSettings.statusLabel')}:</span>
               <span className={provider.enabled ? 'text-green-400' : 'text-gray-500'}>
-                {provider.enabled ? '已启用' : '已禁用'}
+                {provider.enabled ? t('customProviderSettings.enabled') : t('customProviderSettings.disabled')}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>端点:</span>
+              <span>{t('settings.endpoint')}:</span>
               <span className="font-mono truncate max-w-[200px]" title={provider.baseUrl}>
                 {provider.baseUrl}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>模型:</span>
-              <span>{provider.models.length > 0 ? provider.models[0] + ' 等' : '未配置'}</span>
+              <span>{t('settings.modelLabel')}:</span>
+              <span>{provider.models.length > 0 ? provider.models[0] + t('customProviderSettings.etc') : t('customProviderSettings.notConfigured')}</span>
             </div>
 
             {/* 模型参数配置器 */}
@@ -284,9 +286,9 @@ export const CustomProviderSettings = () => {
       {/* 标题和添加按钮 */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-gray-300">自定义 API 提供商</h3>
+          <h3 className="text-sm font-bold text-gray-300">{t('settings.customProvider')}</h3>
           <p className="text-xs text-gray-500 mt-1">
-            添加 Ollama、vLLM、LocalAI 等本地或自定义端点
+            {t('customProviderSettings.customProviderDesc')}
           </p>
         </div>
         <button
@@ -299,28 +301,28 @@ export const CustomProviderSettings = () => {
           )}
         >
           <Plus size={16} className="mr-1" />
-          添加提供商
+          {t('customProviderSettings.addProvider')}
         </button>
       </div>
 
       {/* 添加表单 */}
       {showAddForm && (
         <div className="border border-blue-500/50 rounded p-4 bg-blue-900/10 space-y-3">
-          <h4 className="text-sm font-medium text-gray-300">添加新提供商</h4>
+          <h4 className="text-sm font-medium text-gray-300">{t('customProviderSettings.addNewProvider')}</h4>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">提供商名称</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.providerName')}</label>
             <input
               type="text"
               value={newProvider.name}
               onChange={(e) => setNewProvider({ ...newProvider, name: e.target.value })}
-              placeholder="例如：我的 Ollama"
+              placeholder={t('customProviderSettings.providerNamePlaceholder')}
               className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">预设模板</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.presetTemplate')}</label>
             <select
               value={newProvider.presetTemplate}
               onChange={(e) => setNewProvider({ ...newProvider, presetTemplate: e.target.value as PresetTemplate })}
@@ -336,7 +338,7 @@ export const CustomProviderSettings = () => {
 
           {newProvider.presetTemplate === 'custom' && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">自定义端点地址</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.customEndpoint')}</label>
               <input
                 type="text"
                 value={newProvider.customEndpoint}
@@ -348,12 +350,12 @@ export const CustomProviderSettings = () => {
           )}
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">API Key（可选）</label>
+            <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.apiKeyOptional')}</label>
             <input
               type="password"
               value={newProvider.apiKey}
               onChange={(e) => setNewProvider({ ...newProvider, apiKey: e.target.value })}
-              placeholder="如果需要认证"
+              placeholder={t('customProviderSettings.apiKeyPlaceholder')}
               className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -378,7 +380,7 @@ export const CustomProviderSettings = () => {
               }}
               className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded transition-colors"
             >
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -387,7 +389,7 @@ export const CustomProviderSettings = () => {
       {/* 提供商列表 */}
       {customProviders.length === 0 ? (
         <div className="text-center py-8 text-gray-500 text-sm">
-          暂无自定义提供商，点击上方按钮添加
+          {t('customProviderSettings.noCustomProviders')}
         </div>
       ) : (
         <div className="space-y-3">

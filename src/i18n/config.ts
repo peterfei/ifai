@@ -4,6 +4,23 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import zhCN from './locales/zh-CN.json';
 import enUS from './locales/en-US.json';
 
+// 🔥 v0.3.0 修复：同步读取 localStorage 中的语言设置
+// 这样可以避免在 Vite 生产构建中，组件在语言检测完成前就渲染的竞态条件
+const getInitialLanguage = (): string | undefined => {
+  try {
+    // 优先读取 localStorage 中保存的语言
+    const saved = localStorage.getItem('i18nextLng');
+    if (saved && (saved === 'zh-CN' || saved === 'en-US' || saved === 'en' || saved === 'zh')) {
+      console.log('[i18n] Initial language from localStorage:', saved);
+      return saved;
+    }
+  } catch (e) {
+    console.warn('[i18n] Failed to read localStorage:', e);
+  }
+  // 返回 undefined，让 LanguageDetector 继续检测
+  return undefined;
+};
+
 // Initialize i18n with global defaults
 i18n
   .use(LanguageDetector)
@@ -15,8 +32,18 @@ i18n
       'en': { translation: enUS },
       'en-US': { translation: enUS }
     },
-    lng: 'zh-CN', // Default to Chinese
+    // 🔥 v0.3.0 修复：使用同步读取的初始语言，避免竞态条件
+    // 如果 localStorage 中有保存的语言，直接使用；否则让 LanguageDetector 检测
+    lng: getInitialLanguage(),
     fallbackLng: 'en-US',
+    detection: {
+      // 语言检测顺序：localStorage -> navigator -> htmlTag
+      order: ['localStorage', 'navigator'],
+      // localStorage 中存储语言的 key
+      caches: ['localStorage'],
+      // localStorage key 名称
+      lookupLocalStorage: 'i18nextLng'
+    },
     interpolation: {
       escapeValue: false // React handles escaping
     }

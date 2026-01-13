@@ -10,8 +10,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
 import { Sparkles, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const InlineEditWidget = () => {
+  const { t } = useTranslation();
   // 🔥 使用选择器订阅 store
   const isInlineEditVisible = useInlineEditStore(state => state.isInlineEditVisible);
   const selectedText = useInlineEditStore(state => state.selectedText);
@@ -119,11 +121,11 @@ export const InlineEditWidget = () => {
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700">
         <Sparkles className="text-blue-400" size={16} />
-        <span className="text-xs font-medium text-gray-300">AI 编辑</span>
+        <span className="text-xs font-medium text-gray-300">{t('editor.inlineWidget.title')}</span>
         <button
           onClick={handleClose}
           className="ml-auto text-gray-400 hover:text-white transition-colors"
-          aria-label="关闭"
+          aria-label={t('common.close')}
         >
           <X size={14} />
         </button>
@@ -135,7 +137,7 @@ export const InlineEditWidget = () => {
           ref={inputRef}
           type="text"
           className="flex-1 bg-[#1e1e1e] text-white text-sm px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-          placeholder="描述您想要的修改... (e.g., 'Add error handling')"
+          placeholder={t('editor.inlineWidget.placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -148,11 +150,11 @@ export const InlineEditWidget = () => {
         <div className="flex items-center gap-3 text-xs text-gray-500">
           <span>
             <kbd className="px-1.5 py-0.5 bg-[#333] rounded text-[10px]">Enter</kbd>
-            <span className="ml-1">提交</span>
+            <span className="ml-1">{t('editor.inlineWidget.submit')}</span>
           </span>
           <span>
             <kbd className="px-1.5 py-0.5 bg-[#333] rounded text-[10px]">Esc</kbd>
-            <span className="ml-1">取消</span>
+            <span className="ml-1">{t('editor.inlineWidget.cancel')}</span>
           </span>
         </div>
       </div>

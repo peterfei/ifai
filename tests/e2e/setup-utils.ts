@@ -1487,9 +1487,9 @@ export class TestApp {
             console.log('[E2E Mock] File opened with ID:', fileId);
 
             // Auto assign to active pane if possible
-            const layoutState = layoutStore.getState();
+            const layoutState = layoutStore.useLayoutStore.getState();
             if (layoutState && layoutState.activePaneId) {
-                layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+                layoutStore.useLayoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
                 console.log('[E2E Mock] File assigned to pane:', layoutState.activePaneId, 'fileId:', fileId);
             } else {
                 console.error('[E2E Mock] No active pane found!', layoutState);
@@ -1946,9 +1946,9 @@ export class TestApp {
             const fileId = fileStore.getState().openFile(openedFile);
 
             // Assign to active pane
-            const layoutState = layoutStore.getState();
+            const layoutState = layoutStore.useLayoutStore.getState();
             if (layoutState.activePaneId) {
-              layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+              layoutStore.useLayoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
               console.log('[E2E v0.2.9] File assigned to pane:', layoutState.activePaneId);
             }
 
@@ -1974,18 +1974,18 @@ export class TestApp {
 
         // LayoutStore: 添加 toggleReviewHistory 方法
         const layoutStore = (window as any).__layoutStore;
-        if (layoutStore && !layoutStore.toggleReviewHistory) {
+        if (layoutStore && !layoutStore.useLayoutStore.toggleReviewHistory) {
           console.log('[E2E v0.2.9] Adding toggleReviewHistory to layoutStore');
-          const originalGetState = layoutStore.getState.bind(layoutStore);
-          layoutStore.toggleReviewHistory = () => {
+          const originalGetState = layoutStore.useLayoutStore.getState.bind(layoutStore.useLayoutStore);
+          layoutStore.useLayoutStore.toggleReviewHistory = () => {
             const state = originalGetState();
             state.isReviewHistoryVisible = !state.isReviewHistoryVisible;
             console.log('[E2E v0.2.9] toggleReviewHistory:', state.isReviewHistoryVisible);
           };
           // 同时添加到 state 对象（向后兼容）
-          const state = layoutStore.getState();
+          const state = layoutStore.useLayoutStore.getState();
           if (!state.toggleReviewHistory) {
-            state.toggleReviewHistory = layoutStore.toggleReviewHistory;
+            state.toggleReviewHistory = layoutStore.useLayoutStore.toggleReviewHistory;
           }
         }
 

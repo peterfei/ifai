@@ -287,7 +287,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
         <button
           className={`p-1 rounded ${isSidebarOpen ? 'text-purple-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
           onClick={toggleSidebar}
-          title="切换侧边栏 (Cmd+B)"
+          title={t('titlebar.toggleSidebar') + ' (Cmd+B)'}
         >
           <Sidebar size={16} />
         </button>
@@ -295,7 +295,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
         <button
           className={`p-1 rounded ${isCodeAnalysisOpen ? 'text-amber-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
           onClick={() => setCodeAnalysisOpen(!isCodeAnalysisOpen)}
-          title="代码分析 (检测代码异味)"
+          title={t('titlebar.codeAnalysis')}
         >
           <Shield size={16} />
         </button>
@@ -323,7 +323,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
         <button
           className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded"
           onClick={handleThemeToggle}
-          title="Toggle Theme"
+          title={t('titlebar.toggleTheme')}
         >
           {theme === 'vs-dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>

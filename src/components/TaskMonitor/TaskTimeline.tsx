@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useTaskStore } from '../../stores/taskStore';
 import { CheckCircle2, Clock, PlayCircle, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-
+import { useTranslation } from 'react-i18next';
 import { TaskStatus, TaskMetadata } from './types';
 
 export interface TaskTimelineProps {
@@ -15,6 +15,7 @@ export interface TaskTimelineProps {
 
 export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
   const tasks = useTaskStore(state => state.tasks);
+  const { t } = useTranslation();
 
   // Memoize the sorted array
   const sortedTasks = useMemo(() => {
@@ -22,7 +23,7 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
   }, [tasks]);
 
   if (sortedTasks.length === 0) {
-    return <div className="p-8 text-center text-gray-500 text-xs">No activity recorded yet</div>;
+    return <div className="p-8 text-center text-gray-500 text-xs">{t('taskTimeline.noActivity')}</div>;
   }
 
   return (

@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Types
@@ -98,6 +99,7 @@ export const completeOnboarding = () => {
 // ============================================================================
 
 export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose }) => {
+  const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -150,35 +152,35 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold">欢迎使用 IfAI Editor</h1>
+            <h1 className="text-2xl font-bold">{t('welcomeDialog.title')}</h1>
           </div>
           <p className="text-white/90 text-sm">
-            是否下载本地 AI 模型？使用本地模型可以获得更快的响应速度和更好的隐私保护。
+            {t('welcomeDialog.description')}
           </p>
         </div>
 
         {/* Content */}
         <div className="px-6 py-6">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-blue-900 mb-2">本地模型优势</h3>
+            <h3 className="font-semibold text-blue-900 mb-2">{t('welcomeDialog.advantagesTitle')}</h3>
             <ul className="space-y-2 text-sm text-blue-800">
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>离线使用：</strong>无需联网，完全本地运行</span>
+                <span><strong>{t('welcomeDialog.advantages.offline')}</strong>{t('welcomeDialog.advantages.offlineDesc')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>代码补全：</strong>实时代码补全和智能建议</span>
+                <span><strong>{t('welcomeDialog.advantages.autocomplete')}</strong>{t('welcomeDialog.advantages.autocompleteDesc')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>完全免费：</strong>无 token 消耗，无使用限制</span>
+                <span><strong>{t('welcomeDialog.advantages.free')}</strong>{t('welcomeDialog.advantages.freeDesc')}</span>
               </li>
             </ul>
           </div>
@@ -189,8 +191,8 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose 
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
               <div className="text-sm text-amber-800">
-                <p className="font-medium">注意事项</p>
-                <p>需要下载约 379MB 的模型文件，下载时间取决于网络速度。</p>
+                <p className="font-medium">{t('welcomeDialog.noticeTitle')}</p>
+                <p>{t('welcomeDialog.noticeDesc')}</p>
               </div>
             </div>
           </div>
@@ -205,7 +207,7 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose 
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            立即下载
+            {t('welcomeDialog.downloadNow')}
           </button>
 
           <div className="grid grid-cols-2 gap-3">
@@ -213,20 +215,20 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose 
               onClick={() => handleChoice('remind')}
               className="py-2.5 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors text-sm"
             >
-              稍后提醒我
+              {t('welcomeDialog.remindLater')}
             </button>
             <button
               onClick={() => handleChoice('skip')}
               className="py-2.5 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors text-sm"
             >
-              跳过，使用云端
+              {t('welcomeDialog.skipCloud')}
             </button>
           </div>
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t text-center text-xs text-gray-500">
-          您可以随时在设置中手动下载本地模型
+          {t('welcomeDialog.footerText')}
         </div>
       </div>
     </div>

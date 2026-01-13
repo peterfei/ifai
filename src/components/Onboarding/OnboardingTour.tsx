@@ -190,7 +190,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   onTourComplete,
   onTourSkip,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [run, setRun] = useState(false);
   const { setCommandBarOpen, setSettingsOpen } = useLayoutStore();
 
@@ -377,6 +377,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
   return (
     <Joyride
+      key={`onboarding-${i18n.language}`}
       steps={steps}
       run={run}
       continuous

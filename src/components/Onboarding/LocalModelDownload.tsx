@@ -15,6 +15,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Types
@@ -55,9 +56,9 @@ const formatSpeed = (bytesPerSecond: number): string => {
 
 const formatETA = (seconds: number): string => {
   if (seconds === 0) return '--';
-  if (seconds < 60) return `${seconds}秒`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
-  return `${Math.floor(seconds / 3600)}小时${Math.floor((seconds % 3600) / 60)}分`;
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 };
 
 // ============================================================================
@@ -69,11 +70,12 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
   onCancel,
   onError,
 }) => {
+  const { t } = useTranslation();
   const [state, setState] = useState<DownloadState>({
     status: 'NotStarted',
     progress: 0,
     bytes_downloaded: 0,
-    total_bytes: 379 * 1024 * 1024, // 默认 379MB
+    total_bytes: 379 * 1024 * 1024, // Default 379MB
     speed: 0,
     eta: 0,
   });
@@ -88,9 +90,9 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
       const error = err as string;
       setState(prev => ({ ...prev, status: 'Failed' }));
       onError(error);
-      toast.error(`下载失败: ${error}`);
+      toast.error(`${t('localModel.downloadFailed')}: ${error}`);
     }
-  }, [onError]);
+  }, [onError, t]);
 
   // 取消下载
   const handleCancel = async () => {
@@ -99,14 +101,14 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
       setState(prev => ({ ...prev, status: 'Cancelled' }));
       onCancel();
     } catch (err) {
-      toast.error(`取消失败: ${err}`);
+      toast.error(`${t('localModel.cancelFailed')}: ${err}`);
     }
   };
 
   // 后台下载
   const handleBackground = () => {
     setIsInBackground(true);
-    toast.info('下载正在后台进行，完成后将通知您');
+    toast.info(t('localModel.backgroundDownloadNotice'));
   };
 
   // 监听下载进度事件
@@ -118,7 +120,7 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
     const unlistenComplete = listen<DownloadState>('model-download-complete', (event) => {
       setState(event.payload);
       if (event.payload.status === 'Completed') {
-        toast.success('本地模型下载完成！');
+        toast.success(t('localModel.downloadComplete'));
         setTimeout(() => onComplete(), 1000);
       }
     });
@@ -127,7 +129,7 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
       unlistenProgress.then(f => f());
       unlistenComplete.then(f => f());
     };
-  }, [onComplete]);
+  }, [onComplete, t]);
 
   // 自动开始下载
   useEffect(() => {
@@ -152,7 +154,7 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">正在下载本地模型</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{t('localModel.downloading')}</p>
             <p className="text-xs text-gray-500">
               {state.progress}% • {formatSpeed(state.speed)}
             </p>
@@ -161,7 +163,7 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
             onClick={() => setIsInBackground(false)}
             className="text-blue-600 text-sm hover:underline"
           >
-            查看
+            {t('localModel.view')}
           </button>
         </div>
       </div>
@@ -178,13 +180,13 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">下载完成！</h2>
-          <p className="text-gray-600 mb-6">本地模型已成功下载并启用，您现在可以享受本地 AI 功能了。</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{t('localModel.downloadCompleteTitle')}</h2>
+          <p className="text-gray-600 mb-6">{t('localModel.downloadCompleteMessage')}</p>
           <button
             onClick={onComplete}
             className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all"
           >
-            开始使用
+            {t('localModel.start')}
           </button>
         </div>
       </div>
@@ -202,18 +204,18 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
             </svg>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">
-            {state.status === 'Failed' ? '下载失败' : '下载已取消'}
+            {state.status === 'Failed' ? t('localModel.downloadFailedTitle') : t('localModel.downloadCancelledTitle')}
           </h2>
           <p className="text-gray-600 mb-6">
             {state.status === 'Failed'
-              ? '下载过程中出现错误，请稍后重试或在设置中手动下载。'
-              : '您可以稍后在设置中手动下载本地模型。'}
+              ? t('localModel.downloadFailedMessage')
+              : t('localModel.downloadCancelledMessage')}
           </p>
           <button
             onClick={onComplete}
             className="w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
           >
-            继续
+            {t('localModel.continue')}
           </button>
         </div>
       </div>
@@ -240,8 +242,8 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
               )}
             </div>
             <div>
-              <h2 className="text-lg font-bold">正在下载本地 AI 模型</h2>
-              <p className="text-sm text-white/80">请稍候，这可能需要几分钟...</p>
+              <h2 className="text-lg font-bold">{t('localModel.downloadingModel')}</h2>
+              <p className="text-sm text-white/80">{t('localModel.pleaseWait')}</p>
             </div>
           </div>
         </div>
@@ -251,7 +253,7 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
           {/* 进度条 */}
           <div className="mb-6">
             <div className="flex justify-between text-sm mb-2">
-              <span className="font-medium text-gray-900">下载进度</span>
+              <span className="font-medium text-gray-900">{t('localModel.downloadProgress')}</span>
               <span className="text-blue-600 font-semibold">{state.progress}%</span>
             </div>
             <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
@@ -265,13 +267,13 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
           {/* 统计信息 */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-xs text-gray-500 mb-1">已下载</div>
+              <div className="text-xs text-gray-500 mb-1">{t('localModel.downloaded')}</div>
               <div className="font-semibold text-gray-900">
                 {formatBytes(state.bytes_downloaded)} / {formatBytes(state.total_bytes)}
               </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-xs text-gray-500 mb-1">下载速度</div>
+              <div className="text-xs text-gray-500 mb-1">{t('localModel.downloadSpeed')}</div>
               <div className="font-semibold text-gray-900">{formatSpeed(state.speed)}</div>
             </div>
           </div>
@@ -283,7 +285,7 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>预计剩余时间: <strong>{formatETA(state.eta)}</strong></span>
+                <span>{t('localModel.estimatedTime')}: <strong>{formatETA(state.eta)}</strong></span>
               </div>
             </div>
           )}
@@ -295,13 +297,13 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
             onClick={handleBackground}
             className="flex-1 py-2.5 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
           >
-            后台下载
+            {t('localModel.background')}
           </button>
           <button
             onClick={handleCancel}
             className="flex-1 py-2.5 px-4 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors"
           >
-            取消
+            {t('localModel.cancel')}
           </button>
         </div>
       </div>

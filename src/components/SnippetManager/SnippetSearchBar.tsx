@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Database } from 'lucide-react';
 import { useSnippetStore } from '../../stores/snippetStore';
 import { TestDataGenerator } from '../../utils/testDataGenerator';
+import { useTranslation } from 'react-i18next';
 
 export const SnippetSearchBar: React.FC = () => {
   const { setFilter, filter, clearAll, bulkAddSnippets } = useSnippetStore();
+  const { t } = useTranslation();
   const [searchValue, setSearchValue] = useState(filter.search || '');
 
   // Debounced search
@@ -16,11 +18,11 @@ export const SnippetSearchBar: React.FC = () => {
   }, [searchValue, setFilter]);
 
   const handleGenerateData = async () => {
-    if (confirm("Generate 1000 test snippets? This will clear existing ones.")) {
+    if (confirm(t('snippetSearch.confirmGenerate'))) {
       await clearAll();
-      const mockSnippets = TestDataGenerator.generateSnippets({ 
-        count: 1000, 
-        complexity: 'medium' 
+      const mockSnippets = TestDataGenerator.generateSnippets({
+        count: 1000,
+        complexity: 'medium'
       });
       // Add more randomness to data for search testing
       const snippets = mockSnippets.map(s => ({
@@ -52,13 +54,13 @@ export const SnippetSearchBar: React.FC = () => {
           <input
             type="text"
             className="w-full bg-[#1e1e1e] border border-gray-700 rounded py-1.5 pl-8 pr-2 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
-            placeholder="Search snippets..."
+            placeholder={t('snippetSearch.placeholder')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
           />
         </div>
-        <button 
-          title="New Snippet"
+        <button
+          title={t('snippetSearch.newSnippet')}
           onClick={handleAddSnippet}
           className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded transition-colors text-white"
         >
@@ -68,21 +70,21 @@ export const SnippetSearchBar: React.FC = () => {
 
       <div className="flex items-center justify-between text-[10px]">
         <div className="flex items-center gap-2">
-           <button 
+           <button
              onClick={handleGenerateData}
              className="flex items-center gap-1 text-gray-400 hover:text-green-500 transition-colors"
-             title="Generate 1000 Mock Snippets"
+             title={t('snippetSearch.genDataTitle')}
            >
              <Database size={12} />
-             <span>Gen Data</span>
+             <span>{t('snippetSearch.genData')}</span>
            </button>
         </div>
-        <button 
-          onClick={() => confirm("Clear all snippets?") && clearAll()}
+        <button
+          onClick={() => confirm(t('snippetSearch.confirmClear')) && clearAll()}
           className="flex items-center gap-1 text-gray-500 hover:text-red-500 transition-colors"
         >
           <Trash2 size={12} />
-          <span>Clear All</span>
+          <span>{t('snippetSearch.clearAll')}</span>
         </button>
       </div>
     </div>

@@ -8,6 +8,7 @@ import type { TaskFilter, TaskCardMode } from './types';
 import { TaskStatus, TaskCategory } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // 子组件：筛选控制
@@ -78,6 +79,7 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
 // ============================================================================
 
 const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
+  const { t } = useTranslation();
   const chartData = useMemo(() => [
     { name: 'R', value: counts.running, color: '#3b82f6' },
     { name: 'P', value: counts.pending, color: '#6b7280' },
@@ -90,7 +92,7 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
             <Activity size={14} className="text-blue-500" />
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Mission Control</span>
+            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{t('taskMonitor.title')}</span>
         </div>
         <div className="flex bg-black/20 rounded p-0.5 border border-gray-800">
             <button 

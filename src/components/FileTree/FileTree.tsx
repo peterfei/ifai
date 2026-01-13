@@ -694,7 +694,7 @@ export const FileTree = () => {
 
   if (!fileTree) return (
     <div className="p-4 text-gray-500 text-sm text-center flex flex-col items-center gap-4">
-      <p className="text-gray-400">No folder open</p>
+      <p className="text-gray-400">{t('fileTree.noFolderOpen')}</p>
       <button
         onClick={async () => {
           try {
@@ -710,9 +710,9 @@ export const FileTree = () => {
         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors"
       >
         <Folder size={16} />
-        <span>Open Folder</span>
+        <span>{t('fileTree.openFolder')}</span>
       </button>
-      <p className="text-xs text-gray-600">Or click the folder icon in the title bar above</p>
+      <p className="text-xs text-gray-600">{t('fileTree.orClickFolderIcon')}</p>
     </div>
   );
 
@@ -742,7 +742,7 @@ export const FileTree = () => {
             className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
           >
             <FolderPlus size={16} className="mr-2" />
-            <span>Add Folder</span>
+            <span>{t('fileTree.addFolder')}</span>
           </button>
           {/* Save Workspace 按钮 */}
           <button
@@ -751,7 +751,7 @@ export const FileTree = () => {
             className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
           >
             <Save size={16} className="mr-2" />
-            <span>Save Workspace As...</span>
+            <span>{t('fileTree.saveWorkspaceAs')}</span>
           </button>
           {/* Open Workspace 按钮 */}
           <button
@@ -760,7 +760,7 @@ export const FileTree = () => {
             className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
           >
             <FolderOpen size={16} className="mr-2" />
-            <span>Open Workspace...</span>
+            <span>{t('fileTree.openWorkspace')}</span>
           </button>
         </div>
       )}

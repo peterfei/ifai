@@ -3,9 +3,11 @@ import { SnippetList } from './SnippetList';
 import { SnippetSearchBar } from './SnippetSearchBar';
 import { useSnippetStore } from '../../stores/snippetStore';
 import { Code2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const SnippetManager: React.FC = () => {
   const { fetchSnippets } = useSnippetStore();
+  const { t } = useTranslation();
 
   useEffect(() => {
     fetchSnippets();
@@ -16,7 +18,7 @@ export const SnippetManager: React.FC = () => {
       {/* Header */}
       <div className="flex items-center gap-2 p-3 bg-[#252526] border-b border-gray-700">
         <Code2 className="w-4 h-4 text-blue-400" />
-        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Snippet Manager</span>
+        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('snippetManager.title')}</span>
       </div>
 
       {/* Toolbar / Search */}
@@ -35,10 +37,11 @@ export const SnippetManager: React.FC = () => {
 
 const SnippetStats: React.FC = () => {
   const snippets = useSnippetStore(state => state.snippets);
+  const { t } = useTranslation();
   return (
     <div className="p-1.5 px-3 bg-[#007acc] text-[10px] text-white flex justify-between items-center shrink-0">
-      <span>{snippets.length} items</span>
-      <span className="opacity-70">IndexedDB Storage</span>
+      <span>{snippets.length} {t('snippetManager.items')}</span>
+      <span className="opacity-70">{t('snippetManager.storage')}</span>
     </div>
   );
 };

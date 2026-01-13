@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useTranslation } from 'react-i18next';
 import './LayoutSwitcher.css';
 
 /**
@@ -13,6 +14,7 @@ import './LayoutSwitcher.css';
  * - 优秀的可访问性
  */
 export const LayoutSwitcher: React.FC = () => {
+  const { t } = useTranslation();
   const { layoutMode, setLayoutMode } = useLayoutStore();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ export const LayoutSwitcher: React.FC = () => {
         className={`layout-trigger ${isOpen ? 'active' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
-        aria-label="切换布局模式"
+        aria-label={t('layout.switcher.toggleLayout')}
         aria-haspopup="menu"
         aria-expanded={isOpen}
       >
@@ -103,7 +105,7 @@ export const LayoutSwitcher: React.FC = () => {
 
         {/* 标签文字 */}
         <span className="layout-label">
-          {layoutMode === 'default' ? '默认' : '自定义'}
+          {layoutMode === 'default' ? t('layout.switcher.default') : t('layout.switcher.custom')}
         </span>
 
         {/* 下拉箭头 */}
@@ -130,11 +132,11 @@ export const LayoutSwitcher: React.FC = () => {
           className="layout-dropdown"
           data-testid="layout-menu"
           role="menu"
-          aria-label="选择布局模式"
+          aria-label={t('layout.switcher.selectLayout')}
         >
           {/* 菜单标题 */}
           <div className="layout-dropdown-header">
-            <span className="layout-dropdown-title">布局模式</span>
+            <span className="layout-dropdown-title">{t('layout.switcher.layoutMode')}</span>
             <span className="layout-dropdown-subtitle">Layout Mode</span>
           </div>
 
@@ -158,8 +160,8 @@ export const LayoutSwitcher: React.FC = () => {
               </svg>
             </div>
             <div className="layout-option-content">
-              <span className="layout-option-title">默认布局</span>
-              <span className="layout-option-description">聊天面板在右侧</span>
+              <span className="layout-option-title">{t('layout.switcher.defaultLayout')}</span>
+              <span className="layout-option-description">{t('layout.switcher.defaultLayoutDesc')}</span>
             </div>
             {layoutMode === 'default' && (
               <div className="layout-option-check">
@@ -193,8 +195,8 @@ export const LayoutSwitcher: React.FC = () => {
               </svg>
             </div>
             <div className="layout-option-content">
-              <span className="layout-option-title">自定义布局</span>
-              <span className="layout-option-description">聊天面板在左侧</span>
+              <span className="layout-option-title">{t('layout.switcher.customLayout')}</span>
+              <span className="layout-option-description">{t('layout.switcher.customLayoutDesc')}</span>
             </div>
             {layoutMode === 'custom' && (
               <div className="layout-option-check">
@@ -220,7 +222,7 @@ export const LayoutSwitcher: React.FC = () => {
               <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/>
               <path d="M7 4V8M7 10V10.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
-            <span className="layout-dropdown-footer-text">设置会自动保存</span>
+            <span className="layout-dropdown-footer-text">{t('layout.switcher.autoSave')}</span>
           </div>
         </div>
       )}

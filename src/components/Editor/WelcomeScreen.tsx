@@ -62,7 +62,7 @@ export const WelcomeScreen: React.FC = () => {
         <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e1e1e] select-none">
             <div className="mb-8 flex flex-col items-center">
                 <img src={ifaiLogo} alt="IfAI Logo" className="w-24 h-24 mb-4 opacity-80" />
-                <div className="text-2xl font-light text-gray-300">IfAI Editor</div>
+                <div className="text-2xl font-light text-gray-300">{t('editor.welcome')}</div>
             </div>
 
             <div className="flex flex-col space-y-2 w-64">
@@ -86,11 +86,11 @@ export const WelcomeScreen: React.FC = () => {
 
             <div className="mt-8 text-xs text-gray-600">
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 max-w-md">
-                    <span>Show All Commands</span> <span>Cmd+Shift+P</span>
-                    <span>Go to File</span> <span>Cmd+P</span>
-                    <span>Find in Files</span> <span>Cmd+Shift+F</span>
-                    <span>Toggle Chat</span> <span>Cmd+L</span>
-                    <span>Inline Edit</span> <span>Cmd+K</span>
+                    <span>{t('editor.shortcuts.showCommands')}</span> <span>Cmd+Shift+P</span>
+                    <span>{t('editor.shortcuts.goToFile')}</span> <span>Cmd+P</span>
+                    <span>{t('editor.shortcuts.findInFiles')}</span> <span>Cmd+Shift+F</span>
+                    <span>{t('editor.shortcuts.toggleChat')}</span> <span>Cmd+L</span>
+                    <span>{t('editor.shortcuts.inlineEdit')}</span> <span>Cmd+K</span>
                 </div>
             </div>
         </div>

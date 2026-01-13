@@ -14,6 +14,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Types
@@ -83,6 +84,7 @@ const formatETA = (seconds: number): string => {
 // ============================================================================
 
 export const LocalModelSettings: React.FC = () => {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<LocalModelConfig | null>(null);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -112,7 +114,7 @@ export const LocalModelSettings: React.FC = () => {
     const unlistenComplete = listen<DownloadState>('model-download-complete', (event) => {
       setDownloadState(event.payload);
       if (event.payload.status === 'Completed') {
-        toast.success('本地模型下载完成！');
+        toast.success(t('localModelSettings.downloadComplete'));
         loadInfo(); // 刷新模型状态
       }
     });
@@ -164,7 +166,7 @@ export const LocalModelSettings: React.FC = () => {
     } catch (err) {
       const error = err as string;
       setError(error);
-      toast.error(`下载失败: ${error}`);
+      toast.error(t('localModelSettings.downloadFailed', { error }));
     }
   };
 
@@ -175,7 +177,7 @@ export const LocalModelSettings: React.FC = () => {
       setDownloadState(prev => ({ ...prev, status: 'Cancelled' }));
       setShowDownloadDialog(false);
     } catch (err) {
-      toast.error(`取消失败: ${err}`);
+      toast.error(t('localModelSettings.cancelFailed', { error: err }));
     }
   };
 
@@ -187,7 +189,7 @@ export const LocalModelSettings: React.FC = () => {
     setConfig({ ...config, enabled: newEnabled });
 
     // TODO: 调用后端 API 保存配置
-    toast.success(newEnabled ? '本地模型已启用' : '本地模型已禁用');
+    toast.success(newEnabled ? t('localModelSettings.enabled') : t('localModelSettings.disabled'));
   };
 
   // 验证模型
@@ -196,7 +198,7 @@ export const LocalModelSettings: React.FC = () => {
       const info = await invoke<ModelInfo>('validate_local_model');
       setModelInfo(info);
       setError(null);
-      toast.success('模型验证成功');
+      toast.success(t('localModelSettings.validateSuccess'));
     } catch (err) {
       setError(err as string);
       setModelInfo(null);
@@ -216,10 +218,10 @@ export const LocalModelSettings: React.FC = () => {
     try {
       const result = await invoke<any[]>('test_tool_parse', { text: testText });
       console.log('Tool parse result:', result);
-      toast.success(`解析成功！\n${JSON.stringify(result, null, 2)}`);
+      toast.success(`${t('localModelSettings.parseSuccess')}\n${JSON.stringify(result, null, 2)}`);
     } catch (err) {
       console.error(err);
-      toast.error('解析失败');
+      toast.error(t('localModelSettings.parseFailed'));
     }
   };
 
@@ -230,7 +232,7 @@ export const LocalModelSettings: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-gray-500">加载中...</div>
+        <div className="text-gray-500">{t('common.loading')}</div>
       </div>
     );
   }
@@ -239,9 +241,9 @@ export const LocalModelSettings: React.FC = () => {
     <div className="space-y-6">
       {/* 标题 */}
       <div className="border-b pb-4">
-        <h2 className="text-xl font-semibold">本地模型设置</h2>
+        <h2 className="text-xl font-semibold">{t('localModelSettings.title')}</h2>
         <p className="text-sm text-gray-500 mt-1">
-          配置 Qwen2.5-Coder 微调模型，支持本地推理和工具调用
+          {t('localModelSettings.description')}
         </p>
       </div>
 
@@ -254,41 +256,41 @@ export const LocalModelSettings: React.FC = () => {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-semibold text-gray-900">模型状态</h3>
+              <h3 className="font-semibold text-gray-900">{t('localModelSettings.modelStatus')}</h3>
               {modelInfo && (
-                <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">已下载</span>
+                <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">{t('localModelSettings.downloaded')}</span>
               )}
               {downloadState.status === 'Downloading' && (
-                <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full animate-pulse">下载中</span>
+                <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full animate-pulse">{t('localModelSettings.downloading')}</span>
               )}
               {!modelInfo && downloadState.status !== 'Downloading' && (
-                <span className="px-2 py-0.5 text-xs bg-yellow-600 text-white rounded-full">未下载</span>
+                <span className="px-2 py-0.5 text-xs bg-yellow-600 text-white rounded-full">{t('localModelSettings.notDownloaded')}</span>
               )}
             </div>
 
             {modelInfo ? (
               <div className="mt-3 text-sm space-y-2 bg-white/50 rounded-lg p-3">
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">文件:</span>
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.file')}:</span>
                   <span className="text-gray-900 break-all font-mono text-xs">{modelInfo.path}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">大小:</span>
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.size')}:</span>
                   <span className="text-gray-900 font-medium">{modelInfo.size_mb.toFixed(2)} MB</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">格式:</span>
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.format')}:</span>
                   <span className="text-gray-900 font-medium">{modelInfo.format}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">模型:</span>
+                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.model')}:</span>
                   <span className="text-gray-900 font-medium">{modelInfo.model}</span>
                 </div>
               </div>
             ) : downloadState.status === 'Downloading' ? (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="font-medium">下载进度</span>
+                  <span className="font-medium">{t('localModelSettings.downloadProgress')}</span>
                   <span className="text-blue-600 font-semibold">{downloadState.progress}%</span>
                 </div>
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -305,7 +307,7 @@ export const LocalModelSettings: React.FC = () => {
               </div>
             ) : (
               <p className="mt-2 text-sm text-yellow-700">
-                模型文件未找到。点击下方按钮下载模型（约 379MB）。
+                {t('localModelSettings.modelNotFound')}
               </p>
             )}
           </div>
@@ -317,13 +319,13 @@ export const LocalModelSettings: React.FC = () => {
                   onClick={handleValidate}
                   className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
                 >
-                  刷新
+                  {t('localModelSettings.refresh')}
                 </button>
                 <button
                   onClick={handleOpenModelDir}
                   className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
                 >
-                  打开目录
+                  {t('localModelSettings.openDir')}
                 </button>
               </>
             )}
@@ -335,7 +337,7 @@ export const LocalModelSettings: React.FC = () => {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                下载模型
+                {t('localModelSettings.downloadModel')}
               </button>
             )}
             {downloadState.status === 'Downloading' && (
@@ -343,7 +345,7 @@ export const LocalModelSettings: React.FC = () => {
                 onClick={handleCancelDownload}
                 className="px-3 py-1.5 text-sm bg-red-500 text-white rounded hover:bg-red-600"
               >
-                取消
+                {t('localModelSettings.cancel')}
               </button>
             )}
           </div>
@@ -355,9 +357,9 @@ export const LocalModelSettings: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900">启用本地模型</h3>
+              <h3 className="font-semibold text-gray-900">{t('localModelSettings.enableLocalModel')}</h3>
               <p className="text-sm text-gray-600 mt-1">
-                启用后，简单的代码问答和工具解析将使用本地模型处理
+                {t('localModelSettings.enableLocalModelDesc')}
               </p>
             </div>
             <button
@@ -379,18 +381,18 @@ export const LocalModelSettings: React.FC = () => {
       {/* 系统信息 */}
       {systemInfo && (
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold text-gray-900 mb-3">系统信息</h3>
+          <h3 className="font-semibold text-gray-900 mb-3">{t('localModelSettings.systemInfo')}</h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="flex items-baseline gap-2">
-              <span className="font-semibold text-gray-700">操作系统:</span>
+              <span className="font-semibold text-gray-700">{t('localModelSettings.os')}:</span>
               <span className="text-gray-900">{systemInfo.os}</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="font-semibold text-gray-700">架构:</span>
+              <span className="font-semibold text-gray-700">{t('localModelSettings.arch')}:</span>
               <span className="text-gray-900">{systemInfo.arch}</span>
             </div>
             <div className="col-span-2 flex items-baseline gap-2">
-              <span className="font-semibold text-gray-700">模型目录:</span>
+              <span className="font-semibold text-gray-700">{t('localModelSettings.modelDir')}:</span>
               <span className="text-gray-900 break-all font-mono text-xs">{systemInfo.model_dir}</span>
             </div>
           </div>
@@ -407,7 +409,7 @@ export const LocalModelSettings: React.FC = () => {
       {/* 推理参数 */}
       {config && modelInfo && (
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-4">
-          <h3 className="font-semibold text-gray-900">推理参数</h3>
+          <h3 className="font-semibold text-gray-900">{t('localModelSettings.inferenceParams')}</h3>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -421,7 +423,7 @@ export const LocalModelSettings: React.FC = () => {
                 onChange={(e) => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1.5">控制随机性 (0.0 - 2.0)</p>
+              <p className="text-xs text-gray-500 mt-1.5">{t('localModelSettings.temperatureDesc')}</p>
             </div>
 
             <div>
@@ -435,7 +437,7 @@ export const LocalModelSettings: React.FC = () => {
                 onChange={(e) => setConfig({ ...config, top_p: parseFloat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1.5">核采样参数 (0.0 - 1.0)</p>
+              <p className="text-xs text-gray-500 mt-1.5">{t('localModelSettings.topPDesc')}</p>
             </div>
           </div>
         </div>
@@ -443,52 +445,52 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 测试按钮 */}
       <div className="border-t border-gray-200 pt-4">
-        <h3 className="font-semibold text-gray-900 mb-3">测试功能</h3>
+        <h3 className="font-semibold text-gray-900 mb-3">{t('localModelSettings.testFeatures')}</h3>
         <div className="flex gap-2">
           <button
             onClick={handleTestToolParse}
             className="px-4 py-2 text-sm font-medium bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
           >
-            测试工具调用解析
+            {t('localModelSettings.testToolParse')}
           </button>
         </div>
       </div>
 
       {/* 功能说明 */}
       <div className="bg-white border border-blue-200 rounded-lg p-4 text-sm shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-3">当前支持</h3>
+        <h3 className="font-semibold text-gray-900 mb-3">{t('localModelSettings.currentlySupported')}</h3>
         <ul className="list-disc list-inside space-y-2 text-gray-700">
           <li className="flex items-start gap-2">
             <span className="text-blue-500 mt-0.5">•</span>
-            <span>模型文件验证</span>
+            <span>{t('localModelSettings.supportFeature1')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-blue-500 mt-0.5">•</span>
-            <span>模型下载管理</span>
+            <span>{t('localModelSettings.supportFeature2')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-blue-500 mt-0.5">•</span>
-            <span>工具调用解析测试</span>
+            <span>{t('localModelSettings.supportFeature3')}</span>
           </li>
         </ul>
 
-        <h3 className="font-semibold text-gray-900 mt-5 mb-3">即将推出</h3>
+        <h3 className="font-semibold text-gray-900 mt-5 mb-3">{t('localModelSettings.comingSoon')}</h3>
         <ul className="list-disc list-inside space-y-2 text-gray-700">
           <li className="flex items-start gap-2">
             <span className="text-purple-500 mt-0.5">•</span>
-            <span>纯 Rust 本地推理（无需外部依赖）</span>
+            <span>{t('localModelSettings.comingFeature1')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-purple-500 mt-0.5">•</span>
-            <span>流式生成</span>
+            <span>{t('localModelSettings.comingFeature2')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-purple-500 mt-0.5">•</span>
-            <span>Agent 工具调用集成</span>
+            <span>{t('localModelSettings.comingFeature3')}</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-purple-500 mt-0.5">•</span>
-            <span>智能代码补全（FIM）</span>
+            <span>{t('localModelSettings.comingFeature4')}</span>
           </li>
         </ul>
       </div>

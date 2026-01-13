@@ -132,7 +132,7 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
             className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
             onClick={handleOpenGitHub}
           >
-            Documentation
+            {t('help.githubRepository')}
             <span className="ml-auto text-xs text-gray-500">GitHub</span>
           </div>
 
@@ -140,7 +140,7 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
             className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
             onClick={handleOpenIssues}
           >
-            Report Issue
+            {t('help.reportIssue')}
             <span className="ml-auto text-xs text-gray-500">GitHub</span>
           </div>
 

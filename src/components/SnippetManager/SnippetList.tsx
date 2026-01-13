@@ -3,15 +3,17 @@ import { Virtuoso } from 'react-virtuoso';
 import { useSnippetStore } from '../../stores/snippetStore';
 import { SnippetItem } from './SnippetItem';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const SnippetList: React.FC = () => {
   const { snippets, isLoading, activeSnippetId, openSnippetAsFile } = useSnippetStore();
+  const { t } = useTranslation();
 
   if (isLoading && snippets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
         <Loader2 className="animate-spin w-6 h-6" />
-        <span className="text-xs">Loading snippets...</span>
+        <span className="text-xs">{t('snippetList.loading')}</span>
       </div>
     );
   }
@@ -19,7 +21,7 @@ export const SnippetList: React.FC = () => {
   if (snippets.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500 italic text-xs">
-        No snippets found
+        {t('snippetList.noSnippets')}
       </div>
     );
   }

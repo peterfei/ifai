@@ -45,11 +45,11 @@ export const SettingsModal = () => {
     { id: 'general', label: t('settings.general'), icon: Monitor },
     { id: 'editor', label: t('settings.editor'), icon: Type },
     { id: 'ai', label: t('settings.ai'), icon: Cpu },
-    { id: 'customProvider', label: '自定义提供商', icon: Globe },
+    { id: 'customProvider', label: t('settings.customProvider'), icon: Globe },
     { id: 'performance', label: t('settings.performance'), icon: Zap },
     { id: 'keybindings', label: t('shortcuts.keyboardShortcuts'), icon: Keyboard },
-    { id: 'data', label: '数据管理', icon: Database },
-    { id: 'localModel', label: '本地模型', icon: LocalLLM },
+    { id: 'data', label: t('settings.dataManagement'), icon: Database },
+    { id: 'localModel', label: t('settings.localModelSettings'), icon: LocalLLM },
   ] as const;
 
   return (
@@ -78,7 +78,10 @@ export const SettingsModal = () => {
           <div className="flex justify-between items-center p-4 border-b border-gray-700 bg-[#252526]">
             <h2 className="text-lg font-medium text-white">
               {activeTab === 'keybindings' ? t('shortcuts.keyboardShortcuts') :
-               activeTab === 'ai' ? t('settings.ai') : 
+               activeTab === 'ai' ? t('settings.ai') :
+               activeTab === 'data' ? t('settings.dataManagement') :
+               activeTab === 'localModel' ? t('settings.localModelSettings') :
+               activeTab === 'customProvider' ? t('settings.customProvider') :
                `${t(`settings.${activeTab}`)} ${t('chat.settings')}`}
             </h2>
             <button onClick={() => setSettingsOpen(false)} className="text-gray-400 hover:text-white">
@@ -89,6 +92,24 @@ export const SettingsModal = () => {
           <div className={clsx("flex-1 bg-[#252526]", activeTab !== 'keybindings' ? "overflow-y-auto p-6 space-y-6" : "overflow-hidden")}>
             {activeTab === 'general' && (
               <div className="space-y-4">
+                {/* v0.3.0: 语言切换 - 无感知刷新 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">{t('settings.language')}</label>
+                  <select
+                    value={i18n.language}
+                    onChange={(e) => {
+                      const newLang = e.target.value;
+                      // 直接切换语言，无需刷新页面
+                      // React 组件会自动响应语言变化
+                      i18n.changeLanguage(newLang);
+                    }}
+                    className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="zh-CN">简体中文</option>
+                    <option value="en-US">English</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">{t('settings.languageHint')}</p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">{t('settings.theme')}</label>
                   <select
@@ -102,16 +123,16 @@ export const SettingsModal = () => {
                 </div>
                 {/* v0.2.6 新增：侧边栏位置设置 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">侧边栏位置</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">{t('settings.sidebarPosition')}</label>
                   <select
                     value={sidebarPosition}
                     onChange={(e) => setSidebarPosition(e.target.value as 'left' | 'right')}
                     className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                   >
-                    <option value="left">左侧</option>
-                    <option value="right">右侧</option>
+                    <option value="left">{t('settings.sidebarLeft')}</option>
+                    <option value="right">{t('settings.sidebarRight')}</option>
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">快捷键: Cmd/Ctrl+B 切换侧边栏显示/隐藏</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('settings.sidebarPositionHint')}</p>
                 </div>
               </div>
             )}
@@ -164,8 +185,8 @@ export const SettingsModal = () => {
                 {/* 当前激活的供应商提示 */}
                 <div className="bg-blue-900/20 border border-blue-700/50 rounded px-3 py-2 flex items-center">
                     <span className="text-xs text-blue-300">
-                        当前激活：<strong>{settings.providers.find(p => p.id === settings.currentProviderId)?.name || '未选择'}</strong>
-                        （模型：{settings.currentModel}）
+                        {t('settings.currentActive')}：<strong>{settings.providers.find(p => p.id === settings.currentProviderId)?.name || t('settings.notSelected')}</strong>
+                        ({t('settings.modelLabel')}：{settings.currentModel})
                     </span>
                 </div>
 
@@ -188,7 +209,7 @@ export const SettingsModal = () => {
                                   <div className="flex items-center">
                                       <span className="font-semibold text-gray-200">{provider.name}</span>
                                       {isCurrent && (
-                                          <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+                                          <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">{t('settings.current')}</span>
                                       )}
                                       {hasApiKey && !isCurrent && (
                                           <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
@@ -221,7 +242,7 @@ export const SettingsModal = () => {
                                           />
                                           {hasApiKey && (
                                               <div className="mt-1 text-xs text-green-400">
-                                                  ✓ API密钥已配置 - {isCurrent ? '当前激活' : '点击下方设为默认'}
+                                                  ✓ {t('settings.apiKeyConfigured')} - {isCurrent ? t('settings.currentlyActiveLabel') : t('settings.clickToSetDefault')}
                                               </div>
                                           )}
                                       </div>
@@ -240,7 +261,7 @@ export const SettingsModal = () => {
                                               onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
                                               className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
                                           >
-                                              设为默认
+                                              {t('settings.setAsDefault')}
                                           </button>
                                       )}
                                   </div>
@@ -256,13 +277,13 @@ export const SettingsModal = () => {
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-bold text-gray-300 flex items-center">
                           <Globe size={14} className="mr-1" />
-                          自定义提供商
+                          {t('settings.customProvider')}
                         </h3>
                         <button
                           onClick={() => setActiveTab('customProvider')}
                           className="text-xs text-blue-400 hover:text-blue-300"
                         >
-                          管理自定义提供商 →
+                          {t('settings.manageCustomProvider')} →
                         </button>
                     </div>
 
@@ -285,7 +306,7 @@ export const SettingsModal = () => {
                                         {isCurrent && (
                                             <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
                                         )}
-                                        <span className="ml-2 px-2 py-0.5 text-xs bg-purple-600/50 text-purple-300 rounded">自定义</span>
+                                        <span className="ml-2 px-2 py-0.5 text-xs bg-purple-600/50 text-purple-300 rounded">{t('settings.custom')}</span>
                                         {hasApiKey && !isCurrent && (
                                             <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
                                         )}
@@ -304,17 +325,17 @@ export const SettingsModal = () => {
                                 {provider.enabled && (
                                     <div className="space-y-2 mt-2">
                                         <div className="text-xs text-gray-500">
-                                            端点: <span className="font-mono">{provider.baseUrl}</span>
+                                            {t('settings.endpoint')}: <span className="font-mono">{provider.baseUrl}</span>
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                            模型: {provider.models.length > 0 ? provider.models.join(', ') : '未配置'}
+                                            {t('settings.modelLabel')}: {provider.models.length > 0 ? provider.models.join(', ') : t('settings.notConfigured')}
                                         </div>
                                         {!isCurrent && hasApiKey && (
                                             <button
                                                 onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
                                                 className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
                                             >
-                                                设为默认
+                                                {t('settings.setAsDefault')}
                                             </button>
                                         )}
                                     </div>

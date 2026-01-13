@@ -30,13 +30,13 @@ export const DataManagementPanel: React.FC = () => {
     setIsExporting(true);
     try {
       await exportThreadsToFile();
-      toast.success('导出成功', {
-        description: '对话数据已成功导出到文件',
+      toast.success(t('dataManagement.exportSuccess'), {
+        description: t('dataManagement.exportSuccessDesc'),
       });
     } catch (error) {
       console.error('Export failed:', error);
-      toast.error('导出失败', {
-        description: error instanceof Error ? error.message : '未知错误',
+      toast.error(t('dataManagement.exportFailed'), {
+        description: error instanceof Error ? error.message : t('dataManagement.unknownError'),
       });
     } finally {
       setIsExporting(false);
@@ -55,8 +55,8 @@ export const DataManagementPanel: React.FC = () => {
     setIsImporting(true);
     try {
       await importThreadsFromFile(file);
-      toast.success('导入成功', {
-        description: '对话数据已成功导入',
+      toast.success(t('dataManagement.importSuccess'), {
+        description: t('dataManagement.importSuccessDesc'),
       });
       // Refresh the page to reload data
       setTimeout(() => {
@@ -64,8 +64,8 @@ export const DataManagementPanel: React.FC = () => {
       }, 1000);
     } catch (error) {
       console.error('Import failed:', error);
-      toast.error('导入失败', {
-        description: error instanceof Error ? error.message : '文件格式错误或数据损坏',
+      toast.error(t('dataManagement.importFailed'), {
+        description: error instanceof Error ? error.message : t('dataManagement.fileFormatError'),
       });
     } finally {
       setIsImporting(false);
@@ -81,8 +81,8 @@ export const DataManagementPanel: React.FC = () => {
     setIsClearing(true);
     try {
       threadStore.clearDeletedThreads();
-      toast.success('清理完成', {
-        description: '已删除的对话已被永久清除',
+      toast.success(t('dataManagement.clearSuccess'), {
+        description: t('dataManagement.clearSuccessDesc'),
       });
     } finally {
       setIsClearing(false);
@@ -93,28 +93,28 @@ export const DataManagementPanel: React.FC = () => {
     <div className="space-y-6">
       {/* Statistics */}
       <div className="bg-[#1e1e1e] rounded-lg p-4 border border-gray-700">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">数据统计</h3>
+        <h3 className="text-sm font-medium text-gray-300 mb-3">{t('dataManagement.statistics')}</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-400">{activeThreads}</div>
-            <div className="text-xs text-gray-500 mt-1">活跃对话</div>
+            <div className="text-xs text-gray-500 mt-1">{t('dataManagement.activeThreads')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-yellow-400">{archivedThreads}</div>
-            <div className="text-xs text-gray-500 mt-1">已归档</div>
+            <div className="text-xs text-gray-500 mt-1">{t('dataManagement.archivedThreads')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-400">{totalMessages}</div>
-            <div className="text-xs text-gray-500 mt-1">总消息数</div>
+            <div className="text-xs text-gray-500 mt-1">{t('dataManagement.totalMessages')}</div>
           </div>
         </div>
       </div>
 
       {/* Export / Import */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-gray-300">导出/导入</h3>
+        <h3 className="text-sm font-medium text-gray-300">{t('dataManagement.exportImport')}</h3>
         <p className="text-xs text-gray-500">
-          导出可将所有对话数据保存为 JSON 文件，用于备份或迁移。导入可从备份文件恢复对话。
+          {t('dataManagement.exportImportDesc')}
         </p>
 
         <div className="flex gap-3">
@@ -130,7 +130,7 @@ export const DataManagementPanel: React.FC = () => {
             `}
           >
             <Download size={16} />
-            {isExporting ? '导出中...' : '导出对话'}
+            {isExporting ? t('dataManagement.exporting') : t('dataManagement.exportThreads')}
           </button>
 
           <button
@@ -145,7 +145,7 @@ export const DataManagementPanel: React.FC = () => {
             `}
           >
             <Upload size={16} />
-            {isImporting ? '导入中...' : '导入对话'}
+            {isImporting ? t('dataManagement.importing') : t('dataManagement.importThreads')}
           </button>
 
           <input
@@ -160,9 +160,9 @@ export const DataManagementPanel: React.FC = () => {
 
       {/* Storage Management */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-gray-300">存储管理</h3>
+        <h3 className="text-sm font-medium text-gray-300">{t('dataManagement.storageManagement')}</h3>
         <p className="text-xs text-gray-500">
-          删除的对话会被标记为已删除但仍占用存储空间。您可以永久清除这些对话。
+          {t('dataManagement.storageManagementDesc')}
         </p>
 
         <div className="flex gap-3">
@@ -178,7 +178,7 @@ export const DataManagementPanel: React.FC = () => {
             `}
           >
             <Trash2 size={16} />
-            {isClearing ? '清理中...' : '清除已删除对话'}
+            {isClearing ? t('dataManagement.clearing') : t('dataManagement.clearDeletedThreads')}
           </button>
         </div>
       </div>
@@ -188,8 +188,8 @@ export const DataManagementPanel: React.FC = () => {
         <div className="flex gap-2">
           <RefreshCw size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
           <div className="text-xs text-blue-200">
-            <strong className="block mb-1">自动保存</strong>
-            对话数据会自动保存到浏览器存储中。即使关闭浏览器，您的对话也会被保留。
+            <strong className="block mb-1">{t('dataManagement.autoSave')}</strong>
+            {t('dataManagement.autoSaveDesc')}
           </div>
         </div>
       </div>
