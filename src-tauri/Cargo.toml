@@ -11,9 +11,12 @@ community = []  # 社区版使用 Tauri 层的 MockMultimodalEngine
 commercial = ["ifainew-core", "ifainew-core/commercial"]  # Enable ifainew-core + commercial features (不含 local-llm)
 local-llm = ["ifainew-core"]  # Standalone local LLM support (tool parsing only)
 # LLM inference using llama.cpp (GGUF native support)
-llm-inference = ["llama-cpp-2", "num_cpus", "fastembed", "ifainew-core/fastembed"]
-# Combined features (可选，需要解决 ort-sys 问题)
-commercial-local-llm = ["commercial"]  # v0.3.0: 暂时移除 llm-inference 以避免 ort-sys 构建问题
+llm-inference = ["llama-cpp-2", "num_cpus"]  # 本地 LLM 推理（不含 RAG）
+# RAG (Retrieval-Augmented Generation) using fastembed
+rag = ["fastembed", "ifainew-core/fastembed"]  # RAG 功能（需要 ort-sys）
+# Combined features
+commercial-local-llm = ["commercial", "llm-inference"]  # v0.3.0: 本地 LLM 推理（不含 RAG，避免 ort-sys 构建问题）
+commercial-local-llm-rag = ["commercial", "llm-inference", "rag"]  # 完整版：Commercial + 本地 LLM + RAG
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

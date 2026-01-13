@@ -378,7 +378,9 @@ async fn ai_chat(
             }
 
             // 决定是否使用本地处理
-            result.should_use_local && result.has_tool_calls
+            // 情况 1：有明确的工具调用
+            // 情况 2：自然语言命令需要本地模型推理（should_use_local: true 但没有工具调用）
+            result.should_use_local
         }
         Err(e) => {
             eprintln!("[AI Chat] Local model preprocess failed: {}, falling back to cloud", e);
@@ -386,88 +388,197 @@ async fn ai_chat(
         }
     };
 
-    // 如果本地可以处理工具调用，执行并返回
+    // 如果本地可以处理，执行并返回
     if should_use_local {
         println!("[AI Chat] should_use_local is TRUE, checking conditions...");
         println!("[AI Chat] preprocess_result is Ok: {}", preprocess_result.is_ok());
         println!("[AI Chat] project_root: {:?}", project_root);
 
         if let Ok(result) = preprocess_result {
-            println!("[AI Chat] Got preprocess result, {} tool calls", result.tool_calls.len());
-            if let Some(ref root) = project_root {
-                println!("[AI Chat] Executing {} tool calls locally", result.tool_calls.len());
+            println!("[AI Chat] Got preprocess result, {} tool calls, should_use_local: {}",
+                     result.tool_calls.len(), result.should_use_local);
 
-                let overall_start = std::time::Instant::now();
+            // 情况 1：有明确的工具调用，直接执行
+            if result.has_tool_calls {
+                if let Some(ref root) = project_root {
+                    println!("[AI Chat] Executing {} tool calls locally (Case 1: explicit tool calls)",
+                             result.tool_calls.len());
 
-                // 发送开始事件 - 已注释掉，避免在前端显示调试信息
-                // let _ = app.emit(&event_id, json!({
-                //     "type": "thinking",
-                //     "content": "Executing locally..."
-                // }));
+                    let overall_start = std::time::Instant::now();
 
-                // 执行每个工具调用并收集结果
-                let mut all_results = Vec::new();
-                for (idx, tool_call) in result.tool_calls.iter().enumerate() {
-                    println!("[AI Chat] Executing tool {}/{}: {}", idx + 1, result.tool_calls.len(), tool_call.name);
-
-                    let tool_start = std::time::Instant::now();
-
-                    // 构建参数 JSON
-                    let args_json = serde_json::to_string(&tool_call.arguments)
-                        .unwrap_or_else(|_| "{}".to_string());
-                    let args_value: serde_json::Value = serde_json::from_str(&args_json)
-                        .unwrap_or_else(|_| serde_json::json!({}));
-
-                    // 执行工具调用
-                    let tool_result = execute_local_tool(&tool_call.name, &args_value, root).await;
-                    let elapsed = tool_start.elapsed().as_millis();
-
-                    // 格式化单个工具结果
-                    let formatted_result = format!(
-                        "[OK] {} ({}ms)\n{}",
-                        tool_call.name,
-                        elapsed,
-                        tool_result
-                    );
-                    all_results.push(formatted_result);
-
-                    // 发送工具结果事件 - 已注释掉，避免在前端显示调试信息
+                    // 发送开始事件 - 已注释掉，避免在前端显示调试信息
                     // let _ = app.emit(&event_id, json!({
-                    //     "type": "tool-result",
-                    //     "tool_name": tool_call.name,
-                    //     "result": tool_result,
-                    //     "execution_time_ms": elapsed
+                    //     "type": "thinking",
+                    //     "content": "Executing locally..."
                     // }));
-                }
 
-                let total_elapsed = overall_start.elapsed().as_millis();
+                    // 执行每个工具调用并收集结果
+                    let mut all_results = Vec::new();
+                    for (idx, tool_call) in result.tool_calls.iter().enumerate() {
+                        println!("[AI Chat] Executing tool {}/{}: {}", idx + 1, result.tool_calls.len(), tool_call.name);
 
-                // 组合所有结果 - 工业级格式
-                let header = format!("[Local Model] Completed in {}ms\n", total_elapsed);
-                let combined_result = format!("{}{}", header, all_results.join("\n\n"));
+                        let tool_start = std::time::Instant::now();
 
-                // 发送完成事件
-                let _ = app.emit(&event_id, json!({
-                    "type": "content",
-                    "content": combined_result,
-                    "metadata": {
-                        "source": "local_model",
-                        "tool_count": result.tool_calls.len(),
-                        "execution_time_ms": total_elapsed
+                        // 构建参数 JSON
+                        let args_json = serde_json::to_string(&tool_call.arguments)
+                            .unwrap_or_else(|_| "{}".to_string());
+                        let args_value: serde_json::Value = serde_json::from_str(&args_json)
+                            .unwrap_or_else(|_| serde_json::json!({}));
+
+                        // 执行工具调用
+                        let tool_result = execute_local_tool(&tool_call.name, &args_value, root).await;
+                        let elapsed = tool_start.elapsed().as_millis();
+
+                        // 格式化单个工具结果
+                        let formatted_result = format!(
+                            "[OK] {} ({}ms)\n{}",
+                            tool_call.name,
+                            elapsed,
+                            tool_result
+                        );
+                        all_results.push(formatted_result);
+
+                        // 发送工具结果事件 - 已注释掉，避免在前端显示调试信息
+                        // let _ = app.emit(&event_id, json!({
+                        //     "type": "tool-result",
+                        //     "tool_name": tool_call.name,
+                        //     "result": tool_result,
+                        //     "execution_time_ms": elapsed
+                        // }));
                     }
-                }));
-                // 发送 done 事件 - 已注释掉，避免在前端显示调试信息
-                // let _ = app.emit(&event_id, json!({
-                //     "type": "done",
-                //     "metadata": {
-                //         "source": "local_model"
-                //     }
-                // }));
 
-                println!("[AI Chat] Local tool execution completed in {}ms", total_elapsed);
-                return Ok(());
+                    let total_elapsed = overall_start.elapsed().as_millis();
+
+                    // 组合所有结果 - 工业级格式
+                    let header = format!("[Local Model] Completed in {}ms\n", total_elapsed);
+                    let combined_result = format!("{}{}", header, all_results.join("\n\n"));
+
+                    // 发送完成事件
+                    let _ = app.emit(&event_id, json!({
+                        "type": "content",
+                        "content": combined_result,
+                        "metadata": {
+                            "source": "local_model",
+                            "tool_count": result.tool_calls.len(),
+                            "execution_time_ms": total_elapsed
+                        }
+                    }));
+                    // 发送 done 事件 - 已注释掉，避免在前端显示调试信息
+                    // let _ = app.emit(&event_id, json!({
+                    //     "type": "done",
+                    //     "metadata": {
+                    //         "source": "local_model"
+                    //     }
+                    // }));
+
+                    println!("[AI Chat] Local tool execution completed in {}ms", total_elapsed);
+                    return Ok(());
+                } else {
+                    eprintln!("[AI Chat] No project_root provided, cannot execute local tools");
+                }
             } else {
-                eprintln!("[AI Chat] No project_root provided, cannot execute local tools");
+                // 情况 2：should_use_local: true 但 has_tool_calls: false
+                // 说明这是自然语言命令（如"执行git status"），需要本地模型推理
+                println!("[AI Chat] Case 2: Natural language command, using local model inference");
+                println!("[AI Chat] Route reason: {}", result.route_reason);
+
+                // 提取用户消息作为提示词
+                let user_message = messages.iter()
+                    .filter(|m| m.role == "user")
+                    .last()
+                    .and_then(|m| {
+                        if let core_traits::ai::Content::Text(ref text) = m.content {
+                            Some(text.clone())
+                        } else {
+                            None
+                        }
+                    });
+
+                if let Some(prompt) = user_message {
+                    println!("[AI Chat] Calling local model inference with prompt: '{}'",
+                             prompt.chars().take(50).collect::<String>());
+
+                    // 调用本地模型推理
+                    #[cfg(feature = "llm-inference")]
+                    match crate::llm_inference::generate_completion(&prompt, 256) {
+                        Ok(response) => {
+                            println!("[AI Chat] Local model inference succeeded, response length: {}",
+                                     response.len());
+
+                            // 从本地模型输出中解析工具调用
+                            use crate::local_model::test_tool_parse;
+                            let tool_calls = test_tool_parse(response.clone());
+
+                            if !tool_calls.is_empty() {
+                                println!("[AI Chat] Parsed {} tool calls from local model output",
+                                         tool_calls.len());
+
+                                // 执行工具调用并收集结果
+                                let mut all_results = Vec::new();
+                                let overall_start = std::time::Instant::now();
+
+                                for tool_call in tool_calls {
+                                    println!("[AI Chat] Executing tool: {}", tool_call.name);
+
+                                    let args_json = serde_json::to_string(&tool_call.arguments)
+                                        .unwrap_or_else(|_| "{}".to_string());
+                                    let args_value: serde_json::Value = serde_json::from_str(&args_json)
+                                        .unwrap_or_else(|_| serde_json::json!({}));
+
+                                    let tool_start = std::time::Instant::now();
+                                    let tool_result = if let Some(ref root) = project_root {
+                                        execute_local_tool(&tool_call.name, &args_value, root).await
+                                    } else {
+                                        format!("错误: 未提供项目根目录")
+                                    };
+                                    let elapsed = tool_start.elapsed().as_millis();
+
+                                    // 格式化工具结果
+                                    let formatted_result = format!(
+                                        "**{}**: `{}`\n```\n{}\n```",
+                                        tool_call.name,
+                                        args_value["command"].as_str().unwrap_or(""),
+                                        tool_result
+                                    );
+                                    all_results.push(formatted_result);
+                                }
+
+                                let total_elapsed = overall_start.elapsed().as_millis();
+
+                                // 发送结果到前端
+                                let combined_result = all_results.join("\n\n");
+                                let _ = app.emit(&event_id, json!({
+                                    "type": "content",
+                                    "content": combined_result,
+                                    "metadata": {
+                                        "source": "local_model",
+                                        "tool_count": all_results.len(),
+                                        "execution_time_ms": total_elapsed
+                                    }
+                                }));
+                                let _ = app.emit(&event_id, json!({"type": "done"}));
+
+                                println!("[AI Chat] Local tool execution completed in {}ms", total_elapsed);
+                                return Ok(());
+                            } else {
+                                // 没有工具调用，说明本地模型输出不够准确
+                                // 应该降级到云端 API 而不是直接返回本地模型的原始输出
+                                println!("[AI Chat] No tool calls in local model output, falling back to cloud API");
+                                // 不 return，让代码继续执行，调用云端 API
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[AI Chat] Local model inference failed: {}, falling back to cloud API", e);
+                            // 继续执行下面的代码，调用云端 API
+                        }
+                    }
+
+                    #[cfg(not(feature = "llm-inference"))]
+                    {
+                        eprintln!("[AI Chat] llm-inference feature not enabled, falling back to cloud API");
+                        // 继续执行下面的代码，调用云端 API
+                    }
+                }
             }
         } else {
             eprintln!("[AI Chat] Failed to get preprocess result");

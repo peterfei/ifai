@@ -363,8 +363,14 @@ pub fn test_tool_parse(text: String) -> Vec<ParsedToolCall> {
     );
 
     if is_pure_command {
-        // 纯命令应该由 bash agent 处理，返回空列表
-        println!("[LocalModel] Detected pure command '{}', delegating to bash agent", text);
+        // 纯命令应该构造为 bash 工具调用
+        println!("[LocalModel] Detected pure command '{}', creating bash tool call", text);
+        let mut args = HashMap::new();
+        args.insert("command".to_string(), text.to_string());
+        calls.push(ParsedToolCall {
+            name: "bash".to_string(),
+            arguments: args,
+        });
         return calls;
     }
 

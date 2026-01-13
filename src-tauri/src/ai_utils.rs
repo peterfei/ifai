@@ -560,12 +560,14 @@ pub async fn agent_stream_chat_with_root(
                 println!("  - tool_calls: {:?}", result.tool_calls.iter().map(|t| &t.name).collect::<Vec<_>>());
                 println!("  - route_reason: {}", result.route_reason);
 
-                // 如果本地可以处理工具调用
+                // 情况 1：如果本地可以处理工具调用（显式解析到的）
                 if result.should_use_local && result.has_tool_calls {
                     println!("[AgentStream] Executing {} tool calls locally", result.tool_calls.len());
 
                     // 执行工具调用并构造返回的 Message
                     let mut tool_calls_vec = Vec::new();
+                    let mut tool_results_text = String::new();  // 收集工具结果用于显示
+
                     for tool_call in result.tool_calls {
                         println!("[AgentStream] Executing tool: {}", tool_call.name);
 
@@ -606,12 +608,32 @@ pub async fn agent_stream_chat_with_root(
                                     timeout,
                                     None,
                                 ).await {
-                                    Ok(result) => serde_json::to_string(&result).unwrap_or_default(),
+                                    Ok(result) => {
+                                        // 格式化 bash 结果用于显示
+                                        if !result.stdout.is_empty() {
+                                            result.stdout.clone()
+                                        } else if !result.stderr.is_empty() {
+                                            format!("stderr: {}", result.stderr)
+                                        } else {
+                                            format!("命令执行成功 (退出码: {})", result.exit_code)
+                                        }
+                                    }
                                     Err(e) => format!("错误: {}", e)
                                 }
                             }
                             _ => format!("未知的工具: {}", tool_call.name)
                         };
+
+                        // 将结果添加到显示文本中
+                        if !tool_results_text.is_empty() {
+                            tool_results_text.push_str("\n\n");
+                        }
+                        let command_display = args_value["command"].as_str().unwrap_or("");
+                        tool_results_text.push_str(&format!("**{}**: `{}`\n```\n{}\n```",
+                            tool_call.name,
+                            command_display,
+                            tool_result
+                        ));
 
                         // 发送工具结果事件
                         let _ = app.emit(&format!("agent_{}", agent_id), json!({
@@ -631,14 +653,167 @@ pub async fn agent_stream_chat_with_root(
                         });
                     }
 
-                    // 返回带有工具调用的 Message
-                    println!("[AgentStream] Local tool execution completed, returning Message with tool calls");
+                    // 返回带有工具结果内容的 Message（包含实际执行结果）
+                    // 注意：不要包含 tool_calls，否则会导致前端循环调用
+                    println!("[AgentStream] Local tool execution completed, returning result message with content");
+                    let content = if tool_results_text.is_empty() {
+                        format!("执行了 {} 个工具调用", tool_calls_vec.len())
+                    } else {
+                        tool_results_text
+                    };
                     return Ok(Message {
                         role: "assistant".to_string(),
-                        content: Content::Text(format!("已执行 {} 个工具调用", tool_calls_vec.len())),
-                        tool_calls: if tool_calls_vec.is_empty() { None } else { Some(tool_calls_vec) },
+                        content: Content::Text(content),
+                        tool_calls: None,  // 关键修复：设为 None，避免循环
                         tool_call_id: None,
                     });
+                }
+
+                // 情况 2：should_use_local: true 但 has_tool_calls: false
+                // 说明这是自然语言命令（如"执行git status"），需要本地模型推理
+                if result.should_use_local && !result.has_tool_calls {
+                    println!("[AgentStream] Local model inference needed for natural language command");
+                    println!("[AgentStream] Route reason: {}", result.route_reason);
+
+                    // 提取用户消息作为提示词
+                    let user_message = messages.iter()
+                        .filter(|m| m.role == "user")
+                        .last()
+                        .and_then(|m| {
+                            if let Content::Text(ref text) = m.content {
+                                Some(text.clone())
+                            } else {
+                                None
+                            }
+                        });
+
+                    if let Some(prompt) = user_message {
+                        println!("[AgentStream] Calling local model inference with prompt: '{}'",
+                                 prompt.chars().take(50).collect::<String>());
+
+                        // 调用本地模型推理
+                        #[cfg(feature = "llm-inference")]
+                        match crate::llm_inference::generate_completion(&prompt, 256) {
+                            Ok(response) => {
+                                println!("[AgentStream] Local model inference succeeded, response length: {}",
+                                         response.len());
+
+                                // 从本地模型输出中解析工具调用
+                                use crate::local_model::test_tool_parse;
+                                let tool_calls = test_tool_parse(response.clone());
+
+                                if !tool_calls.is_empty() {
+                                    println!("[AgentStream] Parsed {} tool calls from local model output",
+                                             tool_calls.len());
+
+                                    // 执行工具调用并收集结果
+                                    let mut tool_calls_vec = Vec::new();
+                                    let mut tool_results_text = String::new();  // 收集工具结果用于显示
+
+                                    for tool_call in tool_calls {
+                                        println!("[AgentStream] Executing tool: {}", tool_call.name);
+
+                                        let args_json = serde_json::to_string(&tool_call.arguments)
+                                            .unwrap_or_else(|_| "{}".to_string());
+                                        let args_value: serde_json::Value =
+                                            serde_json::from_str(&args_json)
+                                                .unwrap_or_else(|_| serde_json::json!({}));
+
+                                        use crate::commands::core_wrappers;
+                                        let tool_result = match tool_call.name.as_str() {
+                                            "bash" => {
+                                                let command = args_value["command"].as_str().unwrap_or("");
+                                                let working_dir = args_value["working_dir"].as_str()
+                                                    .map(|s| s.to_string());
+                                                let timeout = args_value["timeout"].as_u64();
+                                                match crate::commands::bash_commands::execute_bash_command(
+                                                    command.to_string(),
+                                                    working_dir,
+                                                    timeout,
+                                                    None,
+                                                ).await {
+                                                    Ok(result) => {
+                                                        // 格式化 bash 结果用于显示
+                                                        if !result.stdout.is_empty() {
+                                                            result.stdout.clone()
+                                                        } else if !result.stderr.is_empty() {
+                                                            format!("stderr: {}", result.stderr)
+                                                        } else {
+                                                            format!("命令执行成功 (退出码: {})", result.exit_code)
+                                                        }
+                                                    }
+                                                    Err(e) => format!("错误: {}", e)
+                                                }
+                                            }
+                                            "agent_read_file" => {
+                                                let rel_path = args_value["rel_path"].as_str().unwrap_or("");
+                                                core_wrappers::agent_read_file(
+                                                    root.to_string(),
+                                                    rel_path.to_string()
+                                                ).await.unwrap_or_else(|e| format!("错误: {}", e))
+                                            }
+                                            _ => format!("未知的工具: {}", tool_call.name)
+                                        };
+
+                                        // 将结果添加到显示文本中
+                                        if !tool_results_text.is_empty() {
+                                            tool_results_text.push_str("\n\n");
+                                        }
+                                        let command_display = args_value["command"].as_str().unwrap_or("");
+                                        tool_results_text.push_str(&format!("**{}**: `{}`\n```\n{}\n```",
+                                            tool_call.name,
+                                            command_display,
+                                            tool_result
+                                        ));
+
+                                        // 发送工具结果事件
+                                        let _ = app.emit(&format!("agent_{}", agent_id), json!({
+                                            "type": "tool-result",
+                                            "tool_name": tool_call.name,
+                                            "result": tool_result
+                                        }));
+
+                                        tool_calls_vec.push(crate::core_traits::ai::ToolCall {
+                                            id: format!("call_{}", uuid::Uuid::new_v4()),
+                                            r#type: "function".to_string(),
+                                            function: crate::core_traits::ai::FunctionCall {
+                                                name: tool_call.name,
+                                                arguments: args_json,
+                                            },
+                                        });
+                                    }
+
+                                    // 返回带有工具结果内容的 Message（包含实际执行结果）
+                                    let content = if tool_results_text.is_empty() {
+                                        format!("执行了 {} 个工具调用", tool_calls_vec.len())
+                                    } else {
+                                        tool_results_text
+                                    };
+                                    return Ok(Message {
+                                        role: "assistant".to_string(),
+                                        content: Content::Text(content),
+                                        tool_calls: None,  // 关键修复：设为 None，避免循环
+                                        tool_call_id: None,
+                                    });
+                                } else {
+                                    // 没有工具调用，说明本地模型输出不够准确
+                                    // 应该降级到云端 API 而不是直接返回本地模型的原始输出
+                                    println!("[AgentStream] No tool calls in local model output, falling back to cloud API");
+                                    // 不 return，让代码继续执行，调用云端 API
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[AgentStream] Local model inference failed: {}, falling back to cloud API", e);
+                                // 继续执行下面的代码，调用云端 API
+                            }
+                        }
+
+                        #[cfg(not(feature = "llm-inference"))]
+                        {
+                            eprintln!("[AgentStream] llm-inference feature not enabled, falling back to cloud API");
+                            // 继续执行下面的代码，调用云端 API
+                        }
+                    }
                 }
             }
             Err(e) => {

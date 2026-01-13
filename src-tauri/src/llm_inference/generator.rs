@@ -122,10 +122,8 @@ impl TextGenerator {
             let output_string = String::from_utf8_lossy(&output_bytes);
             result.push_str(&output_string);
 
-            // 如果遇到换行符，提前停止（适合代码补全场景）
-            if output_string.contains('\n') {
-                break;
-            }
+            // 注释：移除换行符停止逻辑，让模型能够生成完整的工具调用格式
+            // 工具调用场景需要模型生成多行内容（如 bash(command='git status')）
 
             // 清空批处理并添加新 token
             batch.clear();
