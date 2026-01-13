@@ -710,6 +710,18 @@ pub fn run() {
                         window.app_handle().exit(0);
                     }
                 }
+                // v0.3.0: 文件拖拽进入窗口 - 显示蓝色边框提示
+                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Enter { .. }) => {
+                    let _ = window.emit("tauri://file-drop-hover", ());
+                }
+                // v0.3.0: 文件拖拽在窗口上悬停 - 持续触发
+                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Over { .. }) => {
+                    // 可以在这里持续发送悬停事件
+                }
+                // v0.3.0: 文件拖拽离开窗口
+                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Leave { .. }) => {
+                    let _ = window.emit("tauri://file-drop-leave", ());
+                }
                 tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) => {
                     let _ = window.emit("tauri://file-drop", paths.clone());
                 }
