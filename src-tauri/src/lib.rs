@@ -690,7 +690,7 @@ pub fn run() {
             .map_err(|e| format!("Failed to create ErrorParserState: {}", e))?;
         app.manage(std::sync::Mutex::new(error_parser));
 
-        #[cfg(feature = "commercial")]
+        #[cfg(all(feature = "commercial", feature = "fastembed"))]
         {
             app.manage(ifainew_core::RagState::new());
         }

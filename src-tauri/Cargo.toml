@@ -7,13 +7,13 @@ edition = "2021"
 
 [features]
 default = ["community"]
-community = []
-commercial = ["ifainew-core"]  # Enable ifainew-core integration
+community = []  # 社区版使用 Tauri 层的 MockMultimodalEngine
+commercial = ["ifainew-core", "ifainew-core/commercial"]  # Enable ifainew-core + commercial features (不含 local-llm)
 local-llm = ["ifainew-core"]  # Standalone local LLM support (tool parsing only)
 # LLM inference using llama.cpp (GGUF native support)
-llm-inference = ["llama-cpp-2", "num_cpus"]
-# Combined features
-commercial-local-llm = ["commercial", "llm-inference"]  # Commercial + local LLM inference
+llm-inference = ["llama-cpp-2", "num_cpus", "fastembed", "ifainew-core/fastembed"]
+# Combined features (可选，需要解决 ort-sys 问题)
+commercial-local-llm = ["commercial"]  # v0.3.0: 暂时移除 llm-inference 以避免 ort-sys 构建问题
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -49,7 +49,7 @@ termcolor = "1.4.1"
 git2 = { version = "0.20.3", features = ["vendored-openssl"] }
 bytes = "1.11.0"
 tokio = { version = "1.48.0", features = ["full"] }
-fastembed = "5.4.0"
+fastembed = { version = "5.4.0", optional = true }
 text-splitter = "0.28.0"
 anyhow = "1.0.100"
 once_cell = "1.21.3"

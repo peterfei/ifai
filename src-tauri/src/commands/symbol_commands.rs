@@ -150,41 +150,39 @@ pub async fn extract_symbols(
     language: String,
     file_path: String,
 ) -> Result<Vec<Symbol>, String> {
-    #[cfg(feature = "commercial")]
-    {
-        // 商业版：使用 ifainew-core
-        use ifainew_core::symbols::extract_symbols as core_extract;
+    // v0.3.0: 暂时都使用本地实现，等待 ifainew-core symbols 模块修复
+    // #[cfg(feature = "commercial")]
+    // {
+    //     // 商业版：使用 ifainew-core
+    //     use ifainew_core::symbols::extract_symbols as core_extract;
+    //
+    //     core_extract(&code, &language, &file_path)
+    //         .map_err(|e| e.to_string())
+    //         .map(|core_symbols| {
+    //             core_symbols.into_iter().map(|s| Symbol {
+    //                 kind: s.kind,
+    //                 name: s.name,
+    //                 line: s.line,
+    //                 end_line: s.end_line,
+    //                 parent: s.parent,
+    //                 qualified_name: s.qualified_name,
+    //             }).collect()
+    //         })
+    // }
 
-        core_extract(&code, &language, &file_path)
-            .map_err(|e| e.to_string())
-            .map(|core_symbols| {
-                core_symbols.into_iter().map(|s| Symbol {
-                    kind: s.kind,
-                    name: s.name,
-                    line: s.line,
-                    end_line: s.end_line,
-                    parent: s.parent,
-                    qualified_name: s.qualified_name,
-                }).collect()
-            })
-    }
+    // 使用本地 symbol_engine
+    use crate::symbol_engine::extract_symbols_from_source as local_extract;
 
-    #[cfg(not(feature = "commercial"))]
-    {
-        // 社区版：使用本地 symbol_engine
-        use crate::symbol_engine::extract_symbols_from_source as local_extract;
+    let local_symbols = local_extract(&code, &language);
 
-        let local_symbols = local_extract(&code, &language);
-
-        Ok(local_symbols.into_iter().map(|s| Symbol {
-            kind: s.kind,
-            name: s.name.clone(),
-            line: (s.range.start_line + 1) as u32,
-            end_line: Some((s.range.end_line + 1) as u32),
-            parent: None,
-            qualified_name: s.name,
-        }).collect())
-    }
+    Ok(local_symbols.into_iter().map(|s| Symbol {
+        kind: s.kind,
+        name: s.name.clone(),
+        line: (s.range.start_line + 1) as u32,
+        end_line: Some((s.range.end_line + 1) as u32),
+        parent: None,
+        qualified_name: s.name,
+    }).collect())
 }
 
 /// 索引整个项目的符号

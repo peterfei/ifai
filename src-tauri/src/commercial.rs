@@ -43,16 +43,19 @@ pub mod impls {
         }
     }
 
+    #[cfg(feature = "fastembed")]
     pub struct CommercialRagService {
         pub app: AppHandle,
     }
 
+    #[cfg(feature = "fastembed")]
     impl CommercialRagService {
         pub fn new(app: AppHandle) -> Self {
             Self { app }
         }
     }
 
+    #[cfg(feature = "fastembed")]
     #[async_trait::async_trait]
     impl RagService for CommercialRagService {
         async fn index_project(&self, root: &str) -> Result<(), String> {
@@ -70,11 +73,40 @@ pub mod impls {
             let state = self.app.state::<ifainew_core::RagState>();
             // ifainew_core::rag::build_context returns its own result type
             let core_res = ifainew_core::rag::build_context(state, query.to_string(), root.to_string()).await?;
-            
+
             // Convert to local RagResult via JSON
             let json = serde_json::to_value(core_res).map_err(|e| e.to_string())?;
             let res: RagResult = serde_json::from_value(json).map_err(|e| e.to_string())?;
             Ok(res)
+        }
+    }
+
+    // v0.3.0: 当没有 fastembed 时，提供空的 RagService 实现
+    #[cfg(not(feature = "fastembed"))]
+    pub struct CommercialRagService {
+        pub app: AppHandle,
+    }
+
+    #[cfg(not(feature = "fastembed"))]
+    impl CommercialRagService {
+        pub fn new(app: AppHandle) -> Self {
+            Self { app }
+        }
+    }
+
+    #[cfg(not(feature = "fastembed"))]
+    #[async_trait::async_trait]
+    impl RagService for CommercialRagService {
+        async fn index_project(&self, _root: &str) -> Result<(), String> {
+            Err("RAG indexing requires fastembed feature".to_string())
+        }
+
+        async fn search(&self, _query: &str, _top_k: usize) -> Result<Vec<String>, String> {
+            Err("RAG search requires fastembed feature".to_string())
+        }
+
+        async fn retrieve_context(&self, _query: &str, _root: &str) -> Result<RagResult, String> {
+            Err("RAG retrieval requires fastembed feature".to_string())
         }
     }
 
