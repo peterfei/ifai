@@ -4,6 +4,11 @@ import App from "./App";
 import "./App.css";
 import './i18n/config';
 
+// v0.3.0: 启动调试日志
+console.log('[Main] 🚀 App starting...');
+console.log('[Main] Mode:', import.meta.env.MODE);
+console.log('[Main] Dev:', import.meta.env.DEV);
+
 // Import type extensions to apply module augmentation
 import './types/chat';
 
@@ -89,3 +94,8 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   // 🔥 E2E: 临时禁用 StrictMode 以避免双重渲染导致的混淆
   <App />
 );
+
+// v0.3.0: 渲染完成日志
+console.log('[Main] ✅ App rendered successfully');
+console.log('[Main] Root element:', document.getElementById("root"));
+console.log('[Main] Document ready state:', document.readyState);

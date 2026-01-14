@@ -561,6 +561,16 @@ function App() {
       e.preventDefault();
       const { isPanelOpen, setPanelOpen } = useCodeSmellStore.getState();
       setPanelOpen(!isPanelOpen);
+    },
+    // v0.3.0: 打开开发者工具 (F12) - 仅开发模式
+    'debug.openDevTools': async (e: KeyboardEvent) => {
+      e.preventDefault();
+      // 仅在开发环境工作
+      if (import.meta.env.DEV) {
+        console.log('[App] F12 pressed - DevTools only available in dev mode');
+      } else {
+        console.log('[App] F12 pressed - Use browser DevTools in dev mode to debug');
+      }
     }
   };
 

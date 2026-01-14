@@ -34,6 +34,7 @@ const IFAI_DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { id: 'view.toggleTerminal', commandId: 'view.toggleTerminal', keys: 'Mod+j', label: 'Toggle Terminal', category: 'View', scheme: 'ifai' },
   { id: 'view.togglePerformanceMonitor', commandId: 'view.togglePerformanceMonitor', keys: 'Mod+Alt+p', label: 'Toggle Performance Monitor', category: 'View', scheme: 'ifai' },
   { id: 'perf.toggleCacheStats', commandId: 'perf.toggleCacheStats', keys: 'Mod+Shift+c', label: 'Toggle Cache Stats', category: 'Developer', scheme: 'ifai' },
+  { id: 'debug.openDevTools', commandId: 'debug.openDevTools', keys: 'F12', label: 'Open DevTools', category: 'Developer', scheme: 'ifai' },
   { id: 'layout.splitVertical', commandId: 'layout.splitVertical', keys: 'Mod+Shift+\\', label: 'Split Vertical', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.splitHorizontal', commandId: 'layout.splitHorizontal', keys: 'Mod+\\', label: 'Split Horizontal', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.closePane', commandId: 'layout.closePane', keys: 'Mod+w', label: 'Close Pane', category: 'Layout', scheme: 'ifai' },
