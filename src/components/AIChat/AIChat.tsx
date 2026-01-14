@@ -2152,6 +2152,17 @@ ${suggestion.fixContext.code_context}
             />
           )}
 
+          {/* 🔥 v0.3.0: 加载状态提示 */}
+          {isLoading && (
+            <div className="flex items-center gap-2 text-sm text-gray-400 animate-pulse px-1">
+              <div className="flex items-center gap-1">
+                {/* 简洁的 spinner 动画 */}
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span>IFAI 正在思考...</span>
+              </div>
+            </div>
+          )}
+
           {/* 文本输入 + 发送按钮 */}
           <div
             ref={chatInputAreaRef}
