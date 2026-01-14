@@ -82,6 +82,11 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
 
+      - name: Increase Node.js memory limit for build
+        shell: bash
+        run: |
+          echo "NODE_OPTIONS=--max-old-space-size=4096" >> $GITHUB_ENV
+
       - name: Verify Tauri CLI
         run: |
           npx tauri --version || npm install @tauri-apps/cli@latest --force
