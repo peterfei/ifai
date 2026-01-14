@@ -490,6 +490,15 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     // --- Local Model Preprocessing (Simple Q&A) ---
     // Check if local model should handle this request
+    // 🔥 v0.3.0 多模态检测：如果当前消息包含图片，跳过本地模型预处理
+    // 因为本地模型不支持 Vision，必须路由到云端 Vision LLM
+    const currentContentHasImages = Array.isArray(content) &&
+        content.some((part: any) => part.type === 'image_url');
+
+    if (currentContentHasImages) {
+        console.log('[AI Chat] 🖼️ Image detected in current message, skipping local model preprocessing');
+    }
+
     // Get current messages for preprocessing
     const allCurrentMessages = coreUseChatStore.getState().messages;
 
@@ -737,12 +746,21 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         messagesToSend = allMessages.slice(0, -1);
     }
 
-    // 辅助函数：确保 content 是字符串（处理 ContentPart[]）
-    const ensureContentString = (content: any): string => {
+    // 🔥 v0.3.0 多模态修复：辅助函数处理消息内容
+    // 如果 content 是 ContentPart[] 数组，保持原样发送给后端
+    // 如果 content 是字符串，清理特殊标记
+    const prepareMessageContent = (content: any): any => {
+        // 如果是 ContentPart[] 数组，直接返回（包含图片）
         if (Array.isArray(content)) {
-            return content.map((part: any) => part.type === 'text' ? part.text : '[image]').join('');
+            return content;
         }
-        return content || '';
+
+        // 如果是字符串，清理特殊标记
+        let contentStr = content || '';
+        if (typeof contentStr === 'string') {
+            contentStr = contentStr.replace(/^\[(CHAT|TASK-EXECUTION)\]\s*/, '');
+        }
+        return contentStr;
     };
 
     // 转换为API格式
@@ -760,10 +778,8 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 }))
             : undefined;
 
-        // 移除特殊标记（如 [CHAT]、[TASK-EXECUTION]）再发送给 AI
-        let content = ensureContentString(m.content);
-        // 清理所有内部标记
-        content = content.replace(/^\[(CHAT|TASK-EXECUTION)\]\s*/, '');
+        // 🔥 v0.3.0: 使用 prepareMessageContent 保持 ContentPart[] 格式
+        const content = prepareMessageContent(m.content);
 
         return {
             role: m.role,
@@ -1292,10 +1308,12 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     // We ignore the `history` arg because we want the latest state including tool outputs we just added
     const messages = coreUseChatStore.getState().messages;
 
-    // 辅助函数：确保 content 是字符串（处理 ContentPart[]）
-    const ensureContentString = (content: any): string => {
+    // 🔥 v0.3.0 多模态修复：辅助函数处理消息内容
+    // 如果 content 是 ContentPart[] 数组，保持原样发送给后端
+    const prepareMessageContent = (content: any): any => {
+        // 如果是 ContentPart[] 数组，直接返回（包含图片）
         if (Array.isArray(content)) {
-            return content.map((part: any) => part.type === 'text' ? part.text : '[image]').join('');
+            return content;
         }
         return content || '';
     };
@@ -1325,9 +1343,10 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                 })
             : undefined;
 
+        // 🔥 v0.3.0: 使用 prepareMessageContent 保持 ContentPart[] 格式
         return {
             role: m.role,
-            content: ensureContentString(m.content),
+            content: prepareMessageContent(m.content),
             tool_calls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
             tool_call_id: m.tool_call_id
         };

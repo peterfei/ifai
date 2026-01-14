@@ -344,9 +344,30 @@ async fn ai_chat(
 
     ai_utils::sanitize_messages(&mut messages);
 
+    // 🔥 v0.3.0 多模态检测：如果消息包含图片，直接跳过本地模型处理
+    // 因为本地模型不支持 Vision，必须路由到云端 Vision LLM
+    let has_image = messages.iter().any(|m| match &m.content {
+        core_traits::ai::Content::Text(_) => false,
+        core_traits::ai::Content::Parts(parts) => {
+            parts.iter().any(|p| matches!(p, core_traits::ai::ContentPart::ImageUrl { .. }))
+        }
+    });
+
+    if has_image {
+        println!("[AI Chat] 🖼️ Image detected in messages, skipping local model, routing to cloud Vision LLM");
+        // 直接跳过本地模型，调用云端 API
+        // 不需要修改 should_use_local，直接让代码继续执行到云端 API 调用
+        // 设置 preprocess_result 为一个空的结果，这样 should_use_local 会是 false
+    }
+
     // 本地模型预处理 - 智能路由决策
     // 先检查是否应该使用本地模型处理
-    let preprocess_result = local_model::local_model_preprocess(messages.clone()).await;
+    let preprocess_result = if has_image {
+        // 如果有图片，不使用本地模型
+        Err("Image content detected, routing to cloud Vision LLM".to_string())
+    } else {
+        local_model::local_model_preprocess(messages.clone()).await
+    };
 
     // 检查是否应该使用本地处理
     let should_use_local = match &preprocess_result {

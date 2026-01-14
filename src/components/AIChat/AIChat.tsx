@@ -1037,7 +1037,44 @@ ${context}
 
     setInput('');
     setShowCommands(false);
-    await sendMessage(msg, currentProviderId, currentModel);
+
+    // 🔥 v0.3.0 多模态修复：如果有图片附件，转换为 ContentPart[] 格式
+    // 这样后端可以检测到图片并跳过本地模型，直接路由到云端 Vision LLM
+    if (imageAttachments.length > 0) {
+      // 构建 ContentPart[]：包含文本 + 图片 URL
+      const contentParts: any[] = [
+        { type: 'text', text: msg }
+      ];
+
+      // 添加每个图片附件
+      imageAttachments.forEach(attachment => {
+        if (attachment.status === 'ready' && attachment.content.data) {
+          // 图片 URL 格式：data:mime_type;base64,base64_data
+          const imageUrl = `data:${attachment.content.mime_type};base64,${attachment.content.data}`;
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: imageUrl }
+          });
+        }
+      });
+
+      console.log('[AIChat] 🖼️ Sending multimodal message:', {
+        textLength: msg.length,
+        imageCount: imageAttachments.length,
+        contentParts: contentParts.map(p => ({
+          type: p.type,
+          hasText: !!p.text,
+          hasImageUrl: !!p.image_url
+        }))
+      });
+
+      // 发送多模态消息
+      await sendMessage(contentParts, currentProviderId, currentModel);
+    } else {
+      // 纯文本消息
+      await sendMessage(msg, currentProviderId, currentModel);
+    }
+
     // v0.3.0: 发送消息后清空图片附件
     setImageAttachments([]);
   };
