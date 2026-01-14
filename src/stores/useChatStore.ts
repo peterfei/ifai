@@ -313,6 +313,11 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     const callId = crypto.randomUUID().slice(0, 8);
     console.log(`>>> [${callId}] patchedSendMessage called:`, typeof content === 'string' ? content.slice(0, 50) : 'array');
 
+    // 追踪用户消息是否已添加，防止双气泡问题
+    let userMessageAdded = false;
+    // 🔥 用户消息 ID（用于 RAG 引用监听器）
+    let userMsgId: string;
+
     // Set loading state immediately to provide UI feedback
     coreUseChatStore.setState({ isLoading: true });
 
@@ -356,7 +361,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             const agentName = agentTypeBase.charAt(0).toUpperCase() + agentTypeBase.slice(1) + " Agent";
             
             const { addMessage } = coreUseChatStore.getState();
-            const userMsgId = crypto.randomUUID();
+            userMsgId = crypto.randomUUID();
             
             addMessage({ 
                 id: userMsgId, 
@@ -401,12 +406,23 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         }
     }
 
+    // 🔥 v0.3.0 多模态检测：如果当前消息包含图片，跳过意图识别和本地模型预处理
+    // 因为本地模型不支持 Vision，必须路由到云端 Vision LLM
+    // 并且图片识别应该由云端 LLM 处理，而不是 Agent
+    const currentContentHasImages = Array.isArray(content) &&
+        content.some((part: any) => part.type === 'image_url');
+
+    if (currentContentHasImages) {
+        console.log('[AI Chat] 🖼️ Image detected in current message, skipping intent recognition and local model preprocessing');
+    }
+
     // --- Natural Language Intent Recognition ---
     // Check if settings enable natural language agent triggering
     const enableNaturalLanguageTrigger = settings.enableNaturalLanguageAgentTrigger !== false; // Default to true
     const confidenceThreshold = settings.agentTriggerConfidenceThreshold || 0.7;
 
-    if (enableNaturalLanguageTrigger && textInput) {
+    // 🔥 如果包含图片，跳过意图识别（图片识别应该由云端 LLM 处理）
+    if (enableNaturalLanguageTrigger && textInput && !currentContentHasImages) {
         const intentResult = recognizeIntent(textInput);
 
         // Log intent recognition result for debugging
@@ -437,7 +453,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             const args = intentResult.args || textInput;
 
             const { addMessage } = coreUseChatStore.getState();
-            const userMsgId = crypto.randomUUID();
+            userMsgId = crypto.randomUUID();
 
             addMessage({
                 id: userMsgId,
@@ -445,6 +461,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 content: textInput,
                 multiModalContent: typeof content === 'string' ? [{type: 'text', text: content}] : content
             });
+            userMessageAdded = true;
 
             try {
                 const assistantMsgId = crypto.randomUUID();
@@ -492,16 +509,13 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     // Check if local model should handle this request
     // 🔥 v0.3.0 多模态检测：如果当前消息包含图片，跳过本地模型预处理
     // 因为本地模型不支持 Vision，必须路由到云端 Vision LLM
-    const currentContentHasImages = Array.isArray(content) &&
-        content.some((part: any) => part.type === 'image_url');
-
-    if (currentContentHasImages) {
-        console.log('[AI Chat] 🖼️ Image detected in current message, skipping local model preprocessing');
-    }
+    //（图片检测已在意图识别之前完成）
 
     // Get current messages for preprocessing
     const allCurrentMessages = coreUseChatStore.getState().messages;
 
+    // 🔥 如果包含图片，跳过本地模型预处理
+    if (!currentContentHasImages) {
     try {
         // Prepare simplified message history for local model (last 10 messages)
         const messagesForLocal = allCurrentMessages.slice(-10).map(m => ({
@@ -533,6 +547,17 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         if (preprocessResult && preprocessResult.should_use_local) {
             const { addMessage } = coreUseChatStore.getState();
 
+            // 🔥 v0.3.0 修复：先检查是否有实际的本地响应或工具调用
+            // 如果没有，说明本地模型实际上无法处理，应该回退到云端 API
+            const hasLocalContent = preprocessResult.local_response ||
+                (preprocessResult.has_tool_calls && preprocessResult.tool_calls && preprocessResult.tool_calls.length > 0);
+
+            if (!hasLocalContent) {
+                console.log('[LocalModel] should_use_local=true but no local_response/tool_calls, falling back to cloud API');
+                // 不添加用户消息，跳过本地处理，让后续云端 API 逻辑处理
+            } else {
+                // 有本地内容，执行本地处理逻辑...
+
             // Add user message
             const userMsgId = crypto.randomUUID();
             addMessage({
@@ -541,6 +566,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 content: textInput,
                 multiModalContent: typeof content === 'string' ? [{type: 'text', text: content}] : content
             });
+            userMessageAdded = true;
 
             // If tool calls were parsed locally
             if (preprocessResult.has_tool_calls && preprocessResult.tool_calls.length > 0) {
@@ -600,11 +626,13 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 coreUseChatStore.setState({ isLoading: false });
                 return;
             }
+            }  // 🔥 关闭 else 分支（hasLocalContent === true）
         }
     } catch (e) {
         console.log('[LocalModel] Preprocess failed, falling back to cloud:', e);
         // Continue to cloud API
     }
+    }  // 🔥 关闭 if (!currentContentHasImages) 分支
 
     // --- Direct Backend Invocation Logic ---
 
@@ -672,24 +700,27 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     coreUseChatStore.setState({ isLoading: true });
 
-    // 2. Add User Message
-    // 移除特殊标记（如 [CHAT]、[TASK-EXECUTION]）用于显示，但保留原始 content 用于意图识别
-    const displayContent = typeof content === 'string'
-        ? content.replace(/^\[(CHAT|TASK-EXECUTION)\]\s*/, '').replace(/\[TASK-EXECUTION\]\s*/g, '')
-        : content;
+    // 2. Add User Message (if not already added by slash commands or local model)
+    if (!userMessageAdded) {
+        // 移除特殊标记（如 [CHAT]、[TASK-EXECUTION]）用于显示，但保留原始 content 用于意图识别
+        const displayContent = typeof content === 'string'
+            ? content.replace(/^\[(CHAT|TASK-EXECUTION)\]\s*/, '').replace(/\[TASK-EXECUTION\]\s*/g, '')
+            : content;
 
-    // 检测是否为任务执行上下文（使用原始 content）
-    const autoApproveTools = typeof content === 'string' && content.includes('[TASK-EXECUTION]');
+        // 检测是否为任务执行上下文（使用原始 content）
+        const autoApproveTools = typeof content === 'string' && content.includes('[TASK-EXECUTION]');
 
-    const userMsg = {
-        id: crypto.randomUUID(),
-        role: 'user' as const,
-        content: displayContent,  // 使用清理后的内容显示
-        // @ts-ignore - 添加自动审批标志
-        autoApproveTools
-    };
-    // @ts-ignore
-    coreUseChatStore.getState().addMessage(userMsg);
+        const userMsg = {
+            id: crypto.randomUUID(),
+            role: 'user' as const,
+            content: displayContent,  // 使用清理后的内容显示
+            // @ts-ignore - 添加自动审批标志
+            autoApproveTools
+        };
+        // @ts-ignore
+        coreUseChatStore.getState().addMessage(userMsg);
+        userMessageAdded = true;
+    }
     
     // 3. Add Assistant Placeholder
     const assistantMsgId = crypto.randomUUID();
@@ -1017,8 +1048,8 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
     // References Listener (RAG)
     const unlistenRefs = await listen<string[]>("codebase-references", (event) => {
         coreUseChatStore.setState(state => ({
-            messages: state.messages.map(m => 
-                m.id === userMsg.id ? { ...m, references: event.payload } : m
+            messages: state.messages.map(m =>
+                m.id === userMsgId ? { ...m, references: event.payload } : m
             )
         }));
     });

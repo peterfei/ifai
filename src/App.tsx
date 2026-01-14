@@ -177,6 +177,24 @@ function App() {
         console.error('[App] ❌ Failed to expose HelpStore:', error);
       }
 
+      // v0.3.0: 暴露 chatStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useChatStore } = await import('./stores/useChatStore');
+        (window as any).__chatStore = useChatStore;
+        console.log('[App] ✅ ChatStore exposed to window.__chatStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose ChatStore:', error);
+      }
+
+      // v0.3.0: 暴露 settingsStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useSettingsStore } = await import('./stores/settingsStore');
+        (window as any).__settingsStore = useSettingsStore;
+        console.log('[App] ✅ SettingsStore exposed to window.__settingsStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose SettingsStore:', error);
+      }
+
       // v0.3.0: 暴露 layoutStore 到 window 对象供 E2E 测试使用
       try {
         const { useLayoutStore } = await import('./stores/layoutStore');
