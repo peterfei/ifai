@@ -73,6 +73,16 @@ pub fn load_model(model_path: &PathBuf) -> Result<Model, InferenceError> {
         )));
     }
 
+    // 检查 CPU 指令集兼容性 (仅针对 x86_64)
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    {
+        if !std::is_x86_feature_detected!("avx2") {
+            return Err(InferenceError::ModelLoadFailed(
+                "当前 CPU 不支持 AVX2 指令集，无法运行本地模型。".to_string()
+            ));
+        }
+    }
+
     // 启用日志
     llama_cpp_2::send_logs_to_tracing(LogOptions::default().with_logs_enabled(false));
 

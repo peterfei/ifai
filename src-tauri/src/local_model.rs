@@ -60,10 +60,17 @@ impl Default for LocalModelConfig {
         let model_path = Self::default_model_path();
         let model_exists = model_path.exists();
 
+        // 🔥 稳定性修复：在 Windows 上，即使模型文件存在也不要自动启用
+        // 防止由于指令集不兼容导致的启动/输入闪退
+        #[cfg(target_os = "windows")]
+        let enabled = false;
+        #[cfg(not(target_os = "windows"))]
+        let enabled = model_exists;
+
         Self {
             model_name: "qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf".to_string(),
             model_path,
-            enabled: model_exists,  // 如果模型文件存在则自动启用
+            enabled,
             max_seq_length: 2048,
             temperature: 0.6,
             top_p: 0.9,
@@ -759,6 +766,23 @@ pub async fn local_model_preprocess(
         crate::intelligence_router::RouteDecision::Local { reason } => {
             // 使用本地模型
             println!("[LocalModel] ✅ Route: Local - {}", reason);
+            
+            // 🔥 针对 Windows 的安全性增强：
+            // 如果本地模型未启用（Windows 默认），且无法直接解析出工具调用，则强制路由到云端
+            if !model_enabled {
+                let tool_calls = try_parse_tool_calls_from_messages(&messages).await;
+                if tool_calls.is_empty() {
+                    println!("[LocalModel] 🛡️ Windows Safety: Local model disabled and no explicit tools found, routing to Cloud");
+                    return Ok(PreprocessResult {
+                        should_use_local: false,
+                        has_tool_calls: false,
+                        tool_calls: vec![],
+                        local_response: None,
+                        route_reason: format!("{} (Windows 安全回退到云端)", reason),
+                    });
+                }
+            }
+            
             process_with_local_model(messages, reason).await
         }
         crate::intelligence_router::RouteDecision::Cloud { reason } => {
