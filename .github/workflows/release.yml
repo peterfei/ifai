@@ -65,6 +65,12 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Set macOS deployment target (local LLM requires 10.15+)
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
+
       - name: Install Core Frontend Dependencies
         run: |
           cd ../ifainew-core/typescript
