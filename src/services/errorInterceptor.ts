@@ -114,7 +114,7 @@ export class ErrorInterceptor {
    * @param params - Interpolation parameters
    */
   showSuccess(message: string, params?: Record<string, any>): void {
-    const translated = i18n.t(message, params);
+    const translated = String(i18n.t(message, params));
 
     toast.success(translated);
   }
@@ -126,7 +126,7 @@ export class ErrorInterceptor {
    * @param params - Interpolation parameters
    */
   showInfo(message: string, params?: Record<string, any>): void {
-    const translated = i18n.t(message, params);
+    const translated = String(i18n.t(message, params));
 
     toast.info(translated);
   }
@@ -138,7 +138,7 @@ export class ErrorInterceptor {
    * @param params - Interpolation parameters
    */
   showWarning(message: string, params?: Record<string, any>): void {
-    const translated = i18n.t(message, params);
+    const translated = String(i18n.t(message, params));
 
     toast.warning(translated);
   }

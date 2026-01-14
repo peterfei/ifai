@@ -129,7 +129,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
         // 自定义 strong/b 样式
         strong: ({ children }) => <strong style={{ fontWeight: '600', color: '#fff' }}>{children}</strong>,
         // 自定义代码样式
-        code: ({ inline, children }) => inline ? (
+        code: ({ inline, children }: any) => inline ? (
           <code style={{
             backgroundColor: 'rgba(255,255,255,0.1)',
             padding: '0.2em 0.4em',
@@ -350,7 +350,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       maxWidth: '480px',
     },
     tooltipContainer: {
-      textAlign: 'left',
+      textAlign: 'left' as const,
     },
     tooltipHeader: {
       padding: '24px 32px 8px',
@@ -392,9 +392,6 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         next: t('onboarding.buttons.next') || 'Next',
         open: t('onboarding.buttons.open') || 'Open the dialog',
         skip: t('onboarding.buttons.skip') || 'Skip',
-      }}
-      floaterProps={{
-        disableAnimation: false,
       }}
       disableCloseOnEsc={false}
       disableOverlayClose={true}

@@ -28,8 +28,8 @@ export const SettingsModal = () => {
 
       // 检查 i18n store 中的实际值
       const storeData = i18n.store.data;
-      const zhCNData = storeData?.['zh-CN']?.translation?.shortcuts;
-      const enUSData = storeData?.['en-US']?.translation?.shortcuts;
+      const zhCNData = (storeData as any)?.['zh-CN']?.translation?.shortcuts;
+      const enUSData = (storeData as any)?.['en-US']?.translation?.shortcuts;
       console.log('4. zh-CN translation.shortcuts.keyboardShortcuts:', zhCNData?.keyboardShortcuts);
       console.log('5. en-US translation.shortcuts.keyboardShortcuts:', enUSData?.keyboardShortcuts);
 

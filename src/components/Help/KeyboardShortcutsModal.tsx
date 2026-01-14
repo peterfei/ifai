@@ -36,8 +36,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
       const storeData = i18n.store.data;
       console.log('4. i18n.store.data 键:', Object.keys(storeData || {}));
 
-      const zhCNData = storeData?.['zh-CN']?.translation?.help;
-      const enUSData = storeData?.['en-US']?.translation?.help;
+      const zhCNData = (storeData as any)?.['zh-CN']?.translation?.help;
+      const enUSData = (storeData as any)?.['en-US']?.translation?.help;
       console.log('5. zh-CN translation.help.keyboardShortcuts:', zhCNData?.keyboardShortcuts);
       console.log('6. en-US translation.help.keyboardShortcuts:', enUSData?.keyboardShortcuts);
       console.log('7. 实际渲染的标题文本:', titleText);
