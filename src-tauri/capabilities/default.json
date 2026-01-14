@@ -11,7 +11,7 @@
     "core:event:default",
     "window-state:default",
     "opener:default",
-    "app:allow-version",
+    "core:app:allow-version",
     "fs:default",
     "dialog:default",
     "shell:allow-open",
