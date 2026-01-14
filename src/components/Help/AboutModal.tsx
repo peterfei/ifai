@@ -20,7 +20,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   // 从 package.json 读取版本信息
-  const version = '0.3.0-alpha'; // 可以从 env 或 package.json 动态读取
+  const version = '0.3.0'; // 可以从 env 或 package.json 动态读取
   const currentYear = new Date().getFullYear();
 
   const openLink = async (url: string) => {
