@@ -12,6 +12,7 @@ import { AboutModal } from './AboutModal';
 import { useHelpStore } from '../../stores/helpStore';
 import { resetTutorialCommand } from '../Onboarding/OnboardingTour';
 import { toast } from 'sonner';
+import { open } from '@tauri-apps/plugin-shell';
 
 interface HelpMenuProps {
   className?: string;
@@ -59,22 +60,37 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
     openAbout();
   };
 
-  const handleOpenDocumentation = (e: React.MouseEvent) => {
+  const handleOpenDocumentation = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsOpen(false);
-    window.open('https://docs.anthropic.com/claude-code', '_blank');
+    try {
+      await open('https://github.com/peterfei/ifai/wiki');
+    } catch (error) {
+      console.error('Failed to open documentation:', error);
+      window.open('https://github.com/peterfei/ifai/wiki', '_blank');
+    }
   };
 
-  const handleOpenGitHub = (e: React.MouseEvent) => {
+  const handleOpenGitHub = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsOpen(false);
-    window.open('https://github.com/anthropics/claude-code', '_blank');
+    try {
+      await open('https://github.com/peterfei/ifai');
+    } catch (error) {
+      console.error('Failed to open GitHub:', error);
+      window.open('https://github.com/peterfei/ifai', '_blank');
+    }
   };
 
-  const handleOpenIssues = (e: React.MouseEvent) => {
+  const handleOpenIssues = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsOpen(false);
-    window.open('https://github.com/anthropics/claude-code/issues', '_blank');
+    try {
+      await open('https://github.com/peterfei/ifai/issues');
+    } catch (error) {
+      console.error('Failed to open issues:', error);
+      window.open('https://github.com/peterfei/ifai/issues', '_blank');
+    }
   };
 
   const handleResetTutorial = (e: React.MouseEvent) => {
