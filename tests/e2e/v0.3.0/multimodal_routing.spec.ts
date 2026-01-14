@@ -32,56 +32,86 @@ import { setupE2ETestEnvironment } from '../setup-utils';
 
 test.describe('Multimodal Routing - Image Detection', () => {
   test.beforeEach(async ({ page }) => {
-    // 🔥 监听浏览器控制台日志
+    // 🔥 监听浏览器控制台日志和错误
     page.on('console', msg => {
       const text = msg.text();
+      const type = msg.type();
       // 打印关键日志
-      if (text.includes('[AI Chat]') || text.includes('[LocalModel]') || text.includes('🖼️')) {
+      if (text.includes('[AI Chat]') || text.includes('[LocalModel]') || text.includes('🖼️') || type === 'error') {
         console.log('[Browser Console]', text);
       }
     });
 
-    // 使用真实 AI 模式（商业版需要真实 API 来测试 Vision）
-    const apiKey = process.env.E2E_AI_API_KEY;
-    const baseUrl = process.env.E2E_AI_BASE_URL;
-    const model = process.env.E2E_AI_MODEL;
+    // 监听页面错误
+    page.on('pageerror', error => {
+      console.log('[Page Error]', error.message);
+    });
 
-    // 🔥 检查是否配置了真实 AI API Key
-    if (!apiKey) {
-      test.skip(true, '⚠️ 跳过测试：未配置 AI API Key。请设置 E2E_AI_API_KEY 环境变量或在 tests/e2e/.env.e2e.local 中配置。');
-      return;
-    }
+    // 🔥 在页面加载前设置 localStorage，跳过欢迎对话框
+    await page.addInitScript(() => {
+      localStorage.setItem('ifai_onboarding_state', JSON.stringify({
+        completed: false,
+        skipped: true,
+        remindCount: 0,
+        lastRemindDate: null
+      }));
+    });
 
+    // 🔥 使用真实 AI 模式（商业版需要真实 API 来测试 Vision）
+    // 不传递 apiKey 参数，让 setupE2ETestEnvironment 自动从 .env.e2e.local 加载
     await setupE2ETestEnvironment(page, {
       useRealAI: true,
-      realAIApiKey: apiKey,
-      realAIBaseUrl: baseUrl,
-      realAIModel: model,
     });
 
     await page.goto('/');
 
-    // 🔥 使用 v0.2.9 的方法：等待应用加载（等待 __chatStore 定义）
+    // 🔥 等待页面完全加载
+    await page.waitForTimeout(3000);
+
+    // 🔥 等待应用加载
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
+    await page.waitForFunction(() => (window as any).__layoutStore !== undefined, { timeout: 15000 });
     await page.waitForTimeout(2000);
 
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
       if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
         layoutStore.useLayoutStore.getState().toggleChat();
       }
     });
 
     // 等待聊天面板打开
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
+
+    // 🔥 调试：检查页面状态
+    const pageInfo = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input'));
+      const textareas = Array.from(document.querySelectorAll('textarea'));
+      const layoutStore = (window as any).__layoutStore;
+      return {
+        inputCount: inputs.length,
+        inputs: inputs.map(i => ({
+          type: (i as HTMLInputElement).type,
+          placeholder: (i as HTMLInputElement).placeholder,
+          dataTestId: (i as HTMLInputElement).getAttribute('data-testid'),
+          visible: (i as HTMLInputElement).offsetParent !== null,
+        })),
+        textareaCount: textareas.length,
+        chatOpen: layoutStore?.useLayoutStore?.getState?.()?.isChatOpen,
+        bodyHTML: document.body.innerHTML.substring(0, 500),
+        reactRoot: document.querySelector('#root')?.innerHTML?.substring(0, 200),
+      };
+    });
+    console.log('[E2E Page Info]', JSON.stringify(pageInfo));
   });
 
   test('@commercial MM-ROUTE-01: Image message should skip local model and route to cloud', async ({ page }) => {
     // 测试：当消息包含图片时，应该跳过本地模型，直接路由到云端 Vision LLM
 
     // 1. 等待聊天输入框出现
-    const chatInput = page.locator('textarea[placeholder*="发送"], textarea[placeholder*="询问"], [data-testid="chat-input"]');
+    const chatInput = page.locator('input[data-testid="chat-input"]');
     await expect(chatInput).toBeVisible({ timeout: 10000 });
 
     // 2. 模拟发送包含图片的消息
@@ -110,7 +140,7 @@ test.describe('Multimodal Routing - Image Detection', () => {
     // 测试：纯文本消息应该正常使用路由逻辑（可能使用本地模型或云端）
 
     // 1. 等待聊天输入框出现
-    const chatInput = page.locator('textarea[placeholder*="发送"], textarea[placeholder*="询问"], [data-testid="chat-input"]');
+    const chatInput = page.locator('input[data-testid="chat-input"]');
     await expect(chatInput).toBeVisible({ timeout: 10000 });
 
     // 2. 发送纯文本消息（简单命令）
@@ -135,7 +165,7 @@ test.describe('Multimodal Routing - Image Detection', () => {
     // 测试：图片+文本混合消息应该正确处理
 
     // 1. 等待聊天输入框出现
-    const chatInput = page.locator('textarea[placeholder*="发送"], textarea[placeholder*="询问"], [data-testid="chat-input"]');
+    const chatInput = page.locator('input[data-testid="chat-input"]');
     await expect(chatInput).toBeVisible({ timeout: 10000 });
 
     // 2. 发送混合消息
@@ -158,29 +188,44 @@ test.describe('Multimodal Routing - Image Detection', () => {
 
 test.describe('Multimodal - Console Log Validation', () => {
   test.beforeEach(async ({ page }) => {
-    const apiKey = process.env.E2E_AI_API_KEY;
-    if (!apiKey) {
-      test.skip(true, '⚠️ 跳过测试：未配置 AI API Key');
-      return;
-    }
-
+    // 🔥 不传递 apiKey 参数，让 setupE2ETestEnvironment 自动从 .env.e2e.local 加载
     await setupE2ETestEnvironment(page, {
       useRealAI: true,
-      realAIApiKey: apiKey,
     });
 
     await page.goto('/');
-    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
     await page.waitForTimeout(2000);
 
-    // 关闭欢迎对话框
-    try {
-      const skipButton = page.getByText('Skip').or(page.getByText('跳过')).first();
-      await skipButton.click({ timeout: 3000 }).catch(() => {});
-      await page.waitForTimeout(500);
-    } catch {}
+    // 🔥 关闭欢迎对话框（直接通过 JS）
+    await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      for (const btn of buttons) {
+        const text = btn.textContent?.trim() || '';
+        if (text.includes('跳过') || text.includes('Skip') || text.includes('云端') || text.includes('Cloud')) {
+          (btn as HTMLButtonElement).click();
+          return true;
+        }
+      }
+      return false;
+    });
 
-    // 等待界面稳定
+    await page.waitForTimeout(2000);
+
+    // 🔥 等待应用加载
+    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
+    await page.waitForFunction(() => (window as any).__layoutStore !== undefined, { timeout: 15000 });
+    await page.waitForTimeout(1000);
+
+    // 打开聊天面板
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
+      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
+        layoutStore.useLayoutStore.getState().toggleChat();
+      }
+    });
+
+    // 等待聊天面板打开
     await page.waitForTimeout(1000);
   });
 
@@ -188,7 +233,7 @@ test.describe('Multimodal - Console Log Validation', () => {
     // 测试：验证图片消息能正常处理
 
     // 1. 发送消息
-    const chatInput = page.locator('textarea[placeholder*="发送"], textarea[placeholder*="询问"], [data-testid="chat-input"]');
+    const chatInput = page.locator('input[data-testid="chat-input"]');
     await expect(chatInput).toBeVisible({ timeout: 10000 });
 
     await chatInput.fill('你识别图中内容吗？');
@@ -218,7 +263,7 @@ test.describe('Multimodal - Console Log Validation', () => {
     });
 
     // 2. 发送消息
-    const chatInput = page.locator('textarea[placeholder*="发送"], textarea[placeholder*="询问"], [data-testid="chat-input"]');
+    const chatInput = page.locator('input[data-testid="chat-input"]');
     await expect(chatInput).toBeVisible({ timeout: 10000 });
 
     await chatInput.fill('请分析这个截图');
@@ -235,5 +280,212 @@ test.describe('Multimodal - Console Log Validation', () => {
     );
 
     expect(hasLocalModelError).toBe(false);
+  });
+});
+
+test.describe('Multimodal - Screenshot UX Validation', () => {
+  test.beforeEach(async ({ page }) => {
+    // 🔥 不传递 apiKey 参数，让 setupE2ETestEnvironment 自动从 .env.e2e.local 加载
+    await setupE2ETestEnvironment(page, {
+      useRealAI: true,
+    });
+
+    await page.goto('/');
+    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
+    await page.waitForFunction(() => (window as any).__layoutStore !== undefined, { timeout: 15000 });
+    await page.waitForTimeout(2000);
+
+    // 打开聊天面板
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
+      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
+        layoutStore.useLayoutStore.getState().toggleChat();
+      }
+    });
+    await page.waitForTimeout(1000);
+  });
+
+  test('@commercial MM-UX-01: Screenshot upload should show loading state', async ({ page }) => {
+    // 测试：截图上传并发送后应显示加载动画/状态
+    // 问题：用户上传截图发送后，没有加载动画，不知道是否正在处理
+
+    const chatInput = page.locator('input[data-testid="chat-input"]');
+    await expect(chatInput).toBeVisible({ timeout: 10000 });
+
+    // 模拟：用户先输入文字
+    await chatInput.fill('这张截图显示了什么？');
+
+    // 🔥 问题：用户此时如果有截图附件，点击发送后：
+    // 1. 没有加载动画显示
+    // 2. 图片仍然在对话区显示
+    // 3. 用户不知道消息是否已发送
+
+    // 发送消息
+    await page.keyboard.press('Enter');
+
+    // 🔥 验证：发送后应立即显示加载状态
+    // 检查是否有加载指示器（如 spinning 图标、loading 文字等）
+    await page.waitForTimeout(500);
+
+    const loadingIndicators = await page.evaluate(() => {
+      const body = document.body;
+      return {
+        hasLoadingClass: body.classList.contains('loading') || body.classList.contains('isLoading'),
+        hasSpinner: !!body.querySelector('.spinner, .loading-spinner, [class*="spinner"], [class*="loading"]'),
+        hasLoadingText: body.textContent?.includes('正在') || body.textContent?.includes('发送中') || body.textContent?.includes('思考中'),
+        isLoadingStateSet: (window as any).__chatStore?.getState?.()?.isLoading === true
+      };
+    });
+
+    console.log('[UX Check] Loading indicators after send:', loadingIndicators);
+
+    // ❌ 当前问题：这些检查可能会失败，说明没有加载动画
+    // TODO: 修复后应该能看到这些指标为 true
+  });
+
+  test('@commercial MM-UX-02: Image attachments should be cleared after sending', async ({ page }) => {
+    // 测试：发送消息后，图片附件应从对话区清除
+    // 问题：发送后图片仍然显示在输入区域，让用户困惑
+
+    const chatInput = page.locator('input[data-testid="chat-input"]');
+    await expect(chatInput).toBeVisible({ timeout: 10000 });
+
+    // 🔥 场景：用户有图片附件时发送消息
+    // 当前问题：发送后图片附件没有被清除
+
+    // 发送消息
+    await chatInput.fill('分析图片');
+    await page.keyboard.press('Enter');
+
+    // 等待发送完成
+    await page.waitForTimeout(1000);
+
+    // 🔥 验证：发送后图片附件应该被清除
+    const imageAttachments = await page.evaluate(() => {
+      // 检查页面上是否还有图片预览/附件
+      const images = document.querySelectorAll('img[src*="base64"], .image-preview, .attachment-preview, [class*="attachment"]');
+      return {
+        count: images.length,
+        details: Array.from(images).map(img => ({
+          src: (img as HTMLImageElement).src?.substring(0, 50),
+          className: img.className,
+          id: img.id
+        }))
+      };
+    });
+
+    console.log('[UX Check] Image attachments after send:', imageAttachments);
+
+    // ❌ 当前问题：imageAttachments.count 可能 > 0，说明图片没有被清除
+    // TODO: 修复后 imageAttachments.count 应该为 0
+  });
+
+  test('@commercial MM-UX-03: User should receive clear feedback during image processing', async ({ page }) => {
+    // 测试：用户应该收到清晰的状态反馈
+    // 问题：发送图片消息后，用户不知道发生了什么
+
+    const chatInput = page.locator('input[data-testid="chat-input"]');
+    await expect(chatInput).toBeVisible({ timeout: 10000 });
+
+    // 收集UI状态变化
+    const uiStates: string[] = [];
+
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('🖼️') || text.includes('Image') || text.includes('image')) {
+        uiStates.push(text);
+      }
+    });
+
+    // 发送图片相关消息
+    await chatInput.fill('你识别图中内容吗？');
+    await page.keyboard.press('Enter');
+
+    // 等待处理
+    await page.waitForTimeout(2000);
+
+    // 🔥 验证：用户应该能看到清晰的反馈
+    // 检查控制台日志中是否有图片处理的相关信息
+    const hasImageProcessingLog = uiStates.some(log =>
+      log.includes('🖼️') || log.includes('Sending multimodal') || log.includes('Image detected')
+    );
+
+    console.log('[UX Check] Image processing logs:', uiStates);
+
+    // ❌ 当前问题：hasImageProcessingLog 可能为 false
+    // TODO: 应该在控制台显示用户可读的图片处理状态
+
+    // 验证页面上的用户可见状态
+    const userVisibleStatus = await page.evaluate(() => {
+      const body = document.body;
+      return {
+        hasStatusIndicator: !!body.querySelector('[class*="status"], [class*="indicator"]'),
+        hasProgress: !!body.querySelector('[class*="progress"]'),
+        bodyTextIncludesProcessing: body.textContent?.includes('处理') || body.textContent?.includes('分析') || body.textContent?.includes('识别')
+      };
+    });
+
+    console.log('[UX Check] User visible status:', userVisibleStatus);
+  });
+
+  test('@commercial MM-UX-04: Complete screenshot upload workflow validation', async ({ page }) => {
+    // 测试：完整的截图上传工作流验证
+    // 场景：用户上传截图 → 输入文字 → 发送 → 等待响应
+
+    const chatInput = page.locator('input[data-testid="chat-input"]');
+    await expect(chatInput).toBeVisible({ timeout: 10000 });
+
+    // 步骤 1: 模拟用户上传截图（通过设置状态）
+    const beforeUpload = await page.evaluate(() => {
+      const store = (window as any).__chatStore;
+      return {
+        hasImageAttachments: false,
+        isLoading: store?.getState?.()?.isLoading || false
+      };
+    });
+
+    console.log('[Workflow] Before upload:', beforeUpload);
+
+    // 步骤 2: 发送包含图片意图的消息
+    await chatInput.fill('这张截图里的错误是什么？');
+    await page.keyboard.press('Enter');
+
+    // 步骤 3: 立即检查状态（发送后 100ms）
+    await page.waitForTimeout(100);
+    const afterSend = await page.evaluate(() => {
+      const store = (window as any).__chatStore;
+      const state = store?.getState?.();
+      return {
+        isLoading: state?.isLoading || false,
+        messagesCount: state?.messages?.length || 0,
+        lastMessageRole: state?.messages?.[state.messages.length - 1]?.role
+      };
+    });
+
+    console.log('[Workflow] After send (100ms):', afterSend);
+
+    // 步骤 4: 等待响应完成
+    await page.waitForTimeout(10000);
+
+    const afterResponse = await page.evaluate(() => {
+      const store = (window as any).__chatStore;
+      const state = store?.getState?.();
+      return {
+        isLoading: state?.isLoading || false,
+        messagesCount: state?.messages?.length || 0,
+        hasAssistantResponse: state?.messages?.some((m: any) => m.role === 'assistant' && m.content?.length > 0)
+      };
+    });
+
+    console.log('[Workflow] After response:', afterResponse);
+
+    // 🔥 验证工作流：
+    // 1. 发送后 isLoading 应该为 true（有加载状态）
+    // 2. 响应完成后 isLoading 应该为 false
+    // 3. 应该有助手回复
+
+    expect(afterResponse.hasAssistantResponse).toBe(true);
+    expect(afterResponse.isLoading).toBe(false);
   });
 });

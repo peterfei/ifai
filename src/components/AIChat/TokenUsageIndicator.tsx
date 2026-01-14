@@ -30,13 +30,28 @@ export const TokenUsageIndicator: React.FC = () => {
       setIsLoading(true);
 
       try {
-        // 简化消息列表进行计数（排除占位符消息）
+        // 🔥 v0.3.0 多模态修复：简化消息列表进行计数（排除占位符消息和图片数据）
         const messagesForCounting = messages
           .filter(m => m.content && m.content.length > 0)
-          .map(m => ({
-            role: m.role,
-            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-          }));
+          .map(m => {
+            // 处理 ContentPart[] 格式（多模态消息）
+            if (Array.isArray(m.content)) {
+              // 只提取文本内容，忽略图片 base64 数据
+              const textParts = m.content
+                .filter((part: any) => part.type === 'text')
+                .map((part: any) => part.text || '');
+              return {
+                role: m.role,
+                content: textParts.join(' ')
+              };
+            }
+            // 处理普通字符串格式
+            return {
+              role: m.role,
+              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+            };
+          })
+          .filter(m => m.content.length > 0); // 再次过滤，移除空内容
 
         const count = await countMessagesTokens(messagesForCounting, currentModel);
         const max = getModelMaxTokens(currentModel);

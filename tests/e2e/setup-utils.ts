@@ -149,9 +149,14 @@ export async function setupE2ETestEnvironment(
     // 🔥 跳过 E2E 稳定器以避免无限循环
     (window as any).__E2E_SKIP_STABILIZER__ = true;
 
-    // 🔥 E2E 调试：禁用 Monaco Editor 以测试是否是它导致无限循环
-    (window as any).__E2E_DISABLE_MONACO = true;
-    console.log('[E2E Init] Monaco Editor disabled for debugging');
+    // 🔥 跳过欢迎对话框（E2E 测试环境）
+    localStorage.setItem('ifai_onboarding_state', JSON.stringify({
+      completed: false,
+      skipped: true,
+      remindCount: 0,
+      lastRemindDate: null
+    }));
+    console.log('[E2E Init] Welcome dialog skipped for E2E tests');
 
     // A. 设置真实 AI 配置（必须在最前面）
     console.log('[E2E Init] Received config:', JSON.stringify(realAIConfigParam));

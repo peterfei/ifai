@@ -15,6 +15,14 @@ import {
 
 test.describe('Drag & Drop @v0.3.0', () => {
   test.beforeEach(async ({ page }) => {
+    // 🔥 监听控制台日志
+    page.on('console', msg => {
+      const text = msg.text();
+      if (text.includes('[DEBUG]')) {
+        console.log('[Browser Console]', text);
+      }
+    });
+
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForFunction(() => (window as any).__fileStore !== undefined, { timeout: 10000 });
@@ -23,8 +31,9 @@ test.describe('Drag & Drop @v0.3.0', () => {
     // 打开聊天面板（参考 RAG 测试模式）
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      if (layoutStore && !layoutStore.getState().isChatOpen) {
-        layoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
+      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
+        layoutStore.useLayoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(1000);
@@ -32,7 +41,7 @@ test.describe('Drag & Drop @v0.3.0', () => {
     // 验证聊天面板已打开
     const chatPanelOpen = await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      return layoutStore ? layoutStore.getState().isChatOpen : false;
+      return layoutStore ? layoutStore.useLayoutStore.getState().isChatOpen : false;
     });
     console.log('[Test] 聊天面板已打开:', chatPanelOpen);
   });
@@ -698,5 +707,150 @@ test.describe('Drag & Drop @v0.3.0', () => {
     });
 
     expect(appReady).toBeTruthy();
+  });
+
+  /**
+   * DD-E2E-08: 验证拖动图片到聊天区域后不会在编辑器中打开二进制文件
+   * Bug: 拖动图片到聊天区域后，编辑区域会打开二进制文件
+   * 预期: 图片应该作为附件添加到聊天输入，而不是在编辑器中打开
+   */
+  test('DD-E2E-08: Image drag to chat should not open binary file in editor', async ({ page }) => {
+    // 步骤 1: 获取初始打开的文件状态
+    const initialState = await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+      const layoutStore = (window as any).__layoutStore;
+      const state = fileStore?.getState?.();
+      const layoutState = layoutStore?.useLayoutStore?.getState?.();
+
+      return {
+        openFileIds: state?.openFiles?.map((f: any) => f.id) || [],
+        activePaneId: layoutState?.activePaneId,
+        panes: layoutState?.panes?.map((p: any) => ({
+          id: p.id,
+          fileId: p.fileId
+        })) || []
+      };
+    });
+
+    console.log('[Image Drag] Initial state:', initialState);
+
+    // 步骤 2: 创建测试图片文件
+    const fileData = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#FF0000';
+      ctx.fillRect(0, 0, 100, 100);
+
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b!), 'image/png');
+      });
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+      return {
+        data: base64,
+        name: 'test-image.png',
+        type: 'image/png'
+      };
+    });
+
+    // 步骤 3: 获取聊天面板位置
+    const chatBounds = await page.evaluate(() => {
+      const chatPanel = document.querySelector('[data-testid="chat-panel"]');
+      if (!chatPanel) return null;
+      const rect = (chatPanel as HTMLElement).getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      };
+    });
+
+    if (!chatBounds) {
+      test.skip(true, 'Chat panel not found');
+      return;
+    }
+
+    // 步骤 4: 模拟拖动图片到聊天区域
+    await page.evaluate(async ({ fileData, posX, posY }) => {
+      // 将 base64 转回 ArrayBuffer
+      const binaryString = atob(fileData.data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const arrayBuffer = bytes.buffer;
+
+      const file = new File([arrayBuffer], fileData.name, { type: fileData.type });
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+
+      // 触发 drop 事件
+      const chatPanel = document.querySelector('[data-testid="chat-panel"]');
+      if (chatPanel) {
+        const dropEvent = new DragEvent('drop', {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer: dataTransfer,
+          clientX: posX,
+          clientY: posY
+        });
+        chatPanel.dispatchEvent(dropEvent);
+        console.log('[Test] Dropped image file to chat panel');
+      }
+    }, {
+      fileData: fileData,
+      posX: chatBounds.x,
+      posY: chatBounds.y
+    });
+
+    // 步骤 5: 等待处理
+    await page.waitForTimeout(2000);
+
+    // 步骤 6: 检查文件是否在编辑器中打开（不应该）
+    const afterDragState = await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+      const layoutStore = (window as any).__layoutStore;
+      const state = fileStore?.getState?.();
+      const layoutState = layoutStore?.useLayoutStore?.getState?.();
+
+      const openFiles = state?.openFiles || [];
+      const panes = layoutState?.panes || [];
+
+      // 检查是否有图片文件被打开
+      const imageFilesOpened = openFiles.filter((f: any) =>
+        f.name?.endsWith('.png') ||
+        f.name?.endsWith('.jpg') ||
+        f.name?.endsWith('.jpeg') ||
+        f.name?.endsWith('.gif') ||
+        f.name?.endsWith('.webp')
+      );
+
+      return {
+        openFileCount: openFiles.length,
+        imageFilesOpened: imageFilesOpened.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          path: f.path
+        })),
+        panes: panes.map((p: any) => ({
+          id: p.id,
+          fileId: p.fileId
+        }))
+      };
+    });
+
+    console.log('[Image Drag] After drag state:', afterDragState);
+
+    // ❌ 当前问题：图片文件可能在编辑器中打开
+    // ✅ 预期行为：图片应该作为聊天附件，不在编辑器中打开
+
+    // 验证：图片文件不应该在编辑器中打开
+    expect(afterDragState.imageFilesOpened.length).toBe(0);
+
+    // 验证：打开的文件数量应该保持不变
+    expect(afterDragState.openFileCount).toBe(initialState.openFileIds.length);
   });
 });

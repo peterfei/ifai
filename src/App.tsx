@@ -724,10 +724,13 @@ function App() {
         </div>
 
         {/* Onboarding */}
-        <WelcomeDialog
-          onChoice={handleWelcomeChoice}
-          onClose={() => setOnboardingStep(null)}
-        />
+        {/* 🔥 E2E 环境跳过欢迎对话框（检查运行时全局变量）*/}
+        {!(isE2EEnvironment || (typeof window !== 'undefined' && (window as any).__E2E_SKIP_STABILIZER__)) && (
+          <WelcomeDialog
+            onChoice={handleWelcomeChoice}
+            onClose={() => setOnboardingStep(null)}
+          />
+        )}
         {onboardingStep === 'download' && (
           <LocalModelDownload
             onComplete={handleDownloadComplete}

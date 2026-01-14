@@ -62,6 +62,12 @@ export const saveOnboardingState = (state: OnboardingState) => {
 };
 
 export const shouldShowOnboarding = (): boolean => {
+  // 🔥 E2E 环境：跳过欢迎对话框
+  if (typeof window !== 'undefined' && (window as any).__E2E_SKIP_STABILIZER__) {
+    console.log('[shouldShowOnboarding] E2E environment detected, skipping');
+    return false;
+  }
+
   const state = loadOnboardingState();
 
   // 已完成或已跳过
@@ -103,6 +109,12 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose 
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // 🔥 E2E 环境：跳过欢迎对话框
+    if (typeof window !== 'undefined' && (window as any).__E2E_SKIP_STABILIZER__) {
+      console.log('[WelcomeDialog] E2E environment detected, skipping welcome dialog');
+      return;
+    }
+
     // 检查是否应该显示
     if (shouldShowOnboarding()) {
       // 延迟显示，确保应用加载完成

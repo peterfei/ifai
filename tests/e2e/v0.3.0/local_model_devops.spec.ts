@@ -75,6 +75,7 @@ test.describe('Local Model - DevOps Command Detection', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
       if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
         layoutStore.useLayoutStore.getState().toggleChat();
       }
@@ -187,6 +188,7 @@ test.describe('Local Model - DevOps Commands Regression Tests', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
       if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
         layoutStore.useLayoutStore.getState().toggleChat();
       }
@@ -276,7 +278,7 @@ test.describe('Local Model - Cloud API Fallback Tests', () => {
 
     // 🔥 关闭欢迎对话框（防止输入框被禁用）
     try {
-      const skipButton = page.getByText('Skip').or(page.getByText('跳过')).first();
+      const skipButton = page.getByText('跳过，使用云端').or(page.getByText('Skip, Use Cloud')).or(page.getByText('跳过')).or(page.getByText('Skip')).first();
       await skipButton.click({ timeout: 3000 }).catch(() => {});
       await page.waitForTimeout(500);
     } catch {}
@@ -284,6 +286,7 @@ test.describe('Local Model - Cloud API Fallback Tests', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
+      // 🔥 __layoutStore 是 { useLayoutStore } 对象
       if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
         layoutStore.useLayoutStore.getState().toggleChat();
       }
