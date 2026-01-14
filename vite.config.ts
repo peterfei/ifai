@@ -116,8 +116,14 @@ export default defineConfig(async ({ mode }) => {
     // Build options for Tauri
     build: {
       rollupOptions: {
-        // Externalize Tauri plugins (provided at runtime)
-        external: ['@tauri-apps/plugin-fs'],
+        // Externalize all Tauri plugins (provided at runtime)
+        external: [
+          '@tauri-apps/plugin-fs',
+          '@tauri-apps/plugin-shell',
+          '@tauri-apps/plugin-dialog',
+          '@tauri-apps/plugin-os',
+          '@tauri-apps/plugin-opener',
+        ],
       },
     },
   };

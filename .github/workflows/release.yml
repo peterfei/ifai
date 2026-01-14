@@ -85,7 +85,7 @@ jobs:
       - name: Increase Node.js memory limit for build
         shell: bash
         run: |
-          echo "NODE_OPTIONS=--max-old-space-size=4096" >> $GITHUB_ENV
+          echo "NODE_OPTIONS=--max-old-space-size=8192" >> $GITHUB_ENV
 
       - name: Verify Tauri CLI
         run: |

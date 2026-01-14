@@ -46,10 +46,18 @@ jobs:
           npm install
 
       - name: Install Frontend Dependencies
-        run: npm install
+        shell: bash
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --legacy-peer-deps
+
+      - name: Increase Node.js memory limit for build
+        shell: bash
+        run: |
+          echo "NODE_OPTIONS=--max-old-space-size=8192" >> $GITHUB_ENV
 
       - name: Build Frontend
-        run: npm run build
+        run: npm run build:commercial
 
       - name: Extract Branch Name
         id: branch_name
