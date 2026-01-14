@@ -116,15 +116,11 @@ export default defineConfig(async ({ mode }) => {
     // Build options for Tauri
     build: {
       rollupOptions: {
-        // Externalize all Tauri plugins (provided at runtime)
-        external: [
-          '@tauri-apps/plugin-fs',
-          '@tauri-apps/plugin-shell',
-          '@tauri-apps/plugin-dialog',
-          '@tauri-apps/plugin-os',
-          '@tauri-apps/plugin-opener',
-        ],
+        // Do not externalize Tauri plugins in production unless using withGlobalTauri
+        // Externalizing them causes "Failed to resolve module specifier" errors in WebView2
+        external: [],
       },
     },
+    base: './',
   };
 });

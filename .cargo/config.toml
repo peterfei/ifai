@@ -1,3 +1,13 @@
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"
 ar = "x86_64-w64-mingw32-ar"
+
+# macOS deployment target for local LLM support (llama-cpp-sys-2 requires 10.15+)
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-mmacosx-version-min=10.15"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-mmacosx-version-min=10.15"]
+
+[env]
+MACOSX_DEPLOYMENT_TARGET = "10.15"
