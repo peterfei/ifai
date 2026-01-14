@@ -41,6 +41,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-os = "2"
 tauri-plugin-log = "2"
+log = "0.4"
 reqwest = { version = "0.12.25", features = ["json", "stream", "rustls-tls"] }
 eventsource-stream = "0.2.3"
 futures = "0.3.31"

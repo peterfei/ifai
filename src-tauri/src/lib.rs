@@ -1,5 +1,6 @@
 use tauri::{Emitter, Manager};
 use serde_json::json;
+use log::LevelFilter;
 #[cfg(feature = "commercial")]
 use ifainew_core;
 use std::sync::Arc;
