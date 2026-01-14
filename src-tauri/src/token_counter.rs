@@ -20,9 +20,11 @@ pub fn count_tokens_openai(text: &str, model: &str) -> usize {
             bpe.encode_with_special_tokens(text).len()
         }
         Err(_) => {
-            // 如果获取失败，使用默认编码器
-            let fallback = cl100k_base().unwrap();
-            fallback.encode_with_special_tokens(text).len()
+            // 🔥 安全回退：不再使用 unwrap()，如果 cl100k_base 也失败，使用字符估算
+            match cl100k_base() {
+                Ok(fallback) => fallback.encode_with_special_tokens(text).len(),
+                Err(_) => estimate_tokens(text)
+            }
         }
     }
 }
@@ -56,10 +58,15 @@ pub fn count_tokens_batch_internal(texts: &[String], model: &str) -> Vec<usize> 
                 .collect()
         }
         Err(_) => {
-            // 如果获取失败，使用默认编码器
-            let fallback = cl100k_base().unwrap();
+            // 🔥 安全回退：不再使用 unwrap()
+            let fallback_bpe = cl100k_base().ok();
             texts.iter()
-                .map(|text| fallback.encode_with_special_tokens(text).len())
+                .map(|text| {
+                    match &fallback_bpe {
+                        Some(f) => f.encode_with_special_tokens(text).len(),
+                        None => estimate_tokens(text)
+                    }
+                })
                 .collect()
         }
     }
