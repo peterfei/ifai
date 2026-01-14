@@ -55,6 +55,7 @@ jobs:
         shell: bash
         run: |
           echo "NODE_OPTIONS=--max-old-space-size=8192" >> $GITHUB_ENV
+          echo "APP_EDITION=commercial" >> $GITHUB_ENV
 
       - name: Build Frontend
         run: npm run build:commercial

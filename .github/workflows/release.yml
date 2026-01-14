@@ -78,6 +78,8 @@ jobs:
 
       - name: Install frontend dependencies
         shell: bash
+        env:
+          NODE_OPTIONS: '--max-old-space-size=8192'
         run: |
           rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
@@ -86,6 +88,7 @@ jobs:
         shell: bash
         run: |
           echo "NODE_OPTIONS=--max-old-space-size=8192" >> $GITHUB_ENV
+          echo "APP_EDITION=commercial" >> $GITHUB_ENV
 
       - name: Verify Tauri CLI
         run: |
@@ -95,6 +98,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: '--max-old-space-size=8192'
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'IfAI v__VERSION__'
