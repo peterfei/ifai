@@ -71,7 +71,13 @@ jobs:
           npm install
 
       - name: Install frontend dependencies
-        run: npm install
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --legacy-peer-deps
+
+      - name: Verify Tauri CLI
+        run: |
+          npx tauri --version || npm install @tauri-apps/cli@latest --force
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
@@ -83,5 +89,5 @@ jobs:
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }} --features commercial
+          args: ${{ matrix.args }} --features commercial-local-llm
           beforeBuildCommand: 'npm run build:commercial'
