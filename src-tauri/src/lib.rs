@@ -795,22 +795,11 @@ pub fn run() {
         .level(log::LevelFilter::Info) // 设置日志级别
         .build());
 
-    builder = builder.setup(|app| {
-        let app_handle = app.handle().clone();
-        
-        // 🔥 DEBUG: 强制开启 DevTools 以定位生产环境黑屏问题
-        // 问题解决后请记得移除或注释掉以下代码
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
-        {
-            use tauri::Manager;
-            if let Some(window) = app.get_webview_window("main") {
-                window.open_devtools();
-            }
-        }
-
-        #[cfg(feature = "commercial")]
-        let (ai, rag, agent) = {
-             let ai = Arc::new(commercial::impls::CommercialAIService::new(app_handle.clone()));
+        builder = builder.setup(|app| {
+            let app_handle = app.handle().clone();
+            
+            #[cfg(feature = "commercial")]
+            let (ai, rag, agent) = {             let ai = Arc::new(commercial::impls::CommercialAIService::new(app_handle.clone()));
              let rag = Arc::new(commercial::impls::CommercialRagService::new(app_handle.clone()));
              let agent = Arc::new(commercial::impls::CommercialAgentService::new());
              (ai, rag, agent)
