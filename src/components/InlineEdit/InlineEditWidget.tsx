@@ -20,6 +20,7 @@ export const InlineEditWidget = () => {
   const position = useInlineEditStore(state => state.position);
   const hideInlineEdit = useInlineEditStore(state => state.hideInlineEdit);
   const submitInstruction = useInlineEditStore(state => state.submitInstruction);
+  const isProcessing = useInlineEditStore(state => state.isProcessing); // 🔥 v0.3.0: 添加加载状态
 
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -141,9 +142,21 @@ export const InlineEditWidget = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          disabled={isProcessing}
           data-testid="inline-input"
         />
       </div>
+
+      {/* 🔥 v0.3.0: 加载状态指示器 */}
+      {isProcessing && (
+        <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 animate-pulse">
+          <div className="flex items-center gap-1">
+            {/* 简洁的 spinner 动画 */}
+            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <span>IFAI 正在处理...</span>
+          </div>
+        </div>
+      )}
 
       {/* Footer hint */}
       <div className="px-3 py-1.5 bg-[#1e1e1e] rounded-b-lg border-t border-gray-700">
