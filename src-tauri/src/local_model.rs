@@ -60,11 +60,6 @@ impl Default for LocalModelConfig {
         let model_path = Self::default_model_path();
         let model_exists = model_path.exists();
 
-        // 🔥 稳定性修复：在 Windows 上，即使模型文件存在也不要自动启用
-        // 防止由于指令集不兼容导致的启动/输入闪退
-        #[cfg(target_os = "windows")]
-        let enabled = false;
-        #[cfg(not(target_os = "windows"))]
         let enabled = model_exists;
 
         Self {
