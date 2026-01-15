@@ -36,6 +36,13 @@ export interface E2ETestEnvironmentOptions {
    * 配置文件路径（默认为 tests/e2e/.env.e2e.local）
    */
   configPath?: string;
+
+  /**
+   * 🔥 是否模拟 DeepSeek API 的流式工具调用行为
+   * 当启用时，后续参数块会使用 id: null, index: 0 的格式
+   * @default false
+   */
+  simulateDeepSeekStreaming?: boolean;
 }
 
 /**
@@ -845,15 +852,71 @@ Always use the tools when the user asks to read or write files.`
                                     console.log(`[E2E Real AI]   Tool call ${index}:`, tc.function?.name, tc.function?.arguments);
                                 });
 
-                                // 🔥 发送 tool_calls 事件
-                                const toolCallsPayload = { type: 'tool_calls', toolCalls };
-                                streamListeners.forEach((fn: any) => {
-                                    try {
-                                        fn({ payload: toolCallsPayload });
-                                    } catch (e) {
-                                        console.error('[E2E Real AI] Error sending tool_calls:', e);
+                                // 🔥 检查是否需要模拟 DeepSeek 流式行为
+                                const simulateDeepSeek = realAIConfig.simulateDeepSeekStreaming === true;
+
+                                if (simulateDeepSeek) {
+                                    console.log('[E2E Real AI] 🔥 Simulating DeepSeek streaming behavior');
+                                    // 🔥 模拟 DeepSeek 的流式工具调用行为
+                                    // 1. 首先发送第一个事件（带有完整的 id, type, function.name）
+                                    for (let i = 0; i < toolCalls.length; i++) {
+                                        const tc = toolCalls[i];
+                                        const firstEvent = {
+                                            index: i,
+                                            id: tc.id,
+                                            type: tc.type,
+                                            function: {
+                                                name: tc.function?.name || '',
+                                                arguments: ''  // 第一个事件 arguments 为空
+                                            }
+                                        };
+                                        // 🔥 FIX: 使用正确的 payload 格式 { type: 'tool_call', toolCall: {...} }
+                                        streamListeners.forEach((fn: any) => {
+                                            try {
+                                                fn({ payload: { type: 'tool_call', toolCall: firstEvent } });
+                                            } catch (e) {
+                                                console.error('[E2E Real AI] Error sending initial tool_call:', e);
+                                            }
+                                        });
+                                        console.log('[E2E Real AI] Sent initial tool_call event for:', tc.function?.name);
+
+                                        // 2. 逐字符发送参数块（id: null, type: null, function.name: null）
+                                        const argsString = tc.function?.arguments || '';
+                                        for (let charIndex = 0; charIndex < argsString.length; charIndex++) {
+                                            const char = argsString[charIndex];
+                                            const chunkEvent = {
+                                                index: i,
+                                                id: null,  // DeepSeek 特点：后续参数块 id 为 null
+                                                type: null,
+                                                function: {
+                                                    name: null,  // DeepSeek 特点：后续参数块 name 为 null
+                                                    arguments: char
+                                                }
+                                            };
+                                            // 🔥 FIX: 使用正确的 payload 格式 { type: 'tool_call', toolCall: {...} }
+                                            streamListeners.forEach((fn: any) => {
+                                                try {
+                                                    fn({ payload: { type: 'tool_call', toolCall: chunkEvent } });
+                                                } catch (e) {
+                                                    console.error('[E2E Real AI] Error sending chunk:', e);
+                                                }
+                                            });
+                                            // 添加小延迟模拟流式效果
+                                            await new Promise(resolve => setTimeout(resolve, 5));
+                                        }
+                                        console.log('[E2E Real AI] Sent', argsString.length, 'character chunks for:', tc.function?.name);
                                     }
-                                });
+                                } else {
+                                    // 🔥 正常模式：一次性发送完整的 tool_calls 事件
+                                    const toolCallsPayload = { type: 'tool_calls', toolCalls };
+                                    streamListeners.forEach((fn: any) => {
+                                        try {
+                                            fn({ payload: toolCallsPayload });
+                                        } catch (e) {
+                                            console.error('[E2E Real AI] Error sending tool_calls:', e);
+                                        }
+                                    });
+                                }
 
                                 // 🔥 对于每个 tool_call，调用 mock 函数并收集结果
                                 const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__ || new Map();
@@ -1412,7 +1475,10 @@ export function formatDate(date: Date): string {
     // 🔥 CRITICAL FIX: Mock @tauri-apps/api/core's invoke function
     // The @tauri-apps/api/core package checks window.__TAURI_INTERNALS__.invoke
     // We need to set this to ensure our mock is used
+    // 🔥 FIX: Preserve transformCallback from earlier initialization
+    const existingInternals = (window as any).__TAURI_INTERNALS__ || {};
     (window as any).__TAURI_INTERNALS__ = {
+        ...existingInternals,  // Preserve existing properties like transformCallback
         invoke: mockInvoke
     };
 
@@ -2426,5 +2492,5 @@ export class TestApp {
         }
       }, 500);
     }, 1000);
-  }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel });
+  }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel, simulateDeepSeekStreaming: options.simulateDeepSeekStreaming || false });
 }

@@ -326,4 +326,150 @@ test.describe('Reproduction: DeepSeek Tool Call Failure', () => {
 
         expect(contentFound, 'Expected file content to be displayed in chat, but it was not found. Tool "agent_read_file" likely failed to trigger.').toBe(true);
     });
+
+    test('should handle DeepSeek streaming tool calls (id: null chunks)', async ({ page }) => {
+        // 🔥 This test specifically verifies the fix for DeepSeek's streaming behavior
+        // where subsequent parameter chunks have id: null and must be matched by index
+
+        // 1. Load Configuration
+        const envPath = path.resolve(__dirname, '.env.e2e.local');
+        const envConfig = loadEnvConfig(envPath);
+
+        const apiKey = envConfig.E2E_AI_API_KEY || envConfig.DEEPSEEK_API_KEY;
+        const baseUrl = envConfig.E2E_AI_BASE_URL || envConfig.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+        const model = envConfig.E2E_AI_MODEL || envConfig.DEEPSEEK_MODEL || 'deepseek-chat';
+
+        if (!apiKey) {
+            test.skip(true, 'Skipping test: No API Key found in .env.e2e.local');
+            return;
+        }
+
+        console.log(`[Repro] 🔥 DeepSeek Streaming Test - Model: ${model}`);
+
+        // 2. Setup Environment with DeepSeek streaming simulation enabled
+        await setupE2ETestEnvironment(page, {
+            useRealAI: true,
+            realAIApiKey: apiKey,
+            realAIBaseUrl: baseUrl,
+            realAIModel: model,
+            simulateDeepSeekStreaming: true  // 🔥 Enable DeepSeek streaming simulation
+        });
+
+        // 3. Initialize Mock Filesystem
+        const targetFileName = 'dev.log';
+        const targetFileContent = 'DeepSeek streaming test: [INFO] System working!';
+        const projectRoot = '/Users/mac/mock-project';
+        const targetPath = path.posix.join(projectRoot, targetFileName);
+
+        // Create mock file
+        await page.evaluate(({ path, content }) => {
+            const mockFS = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+            if (mockFS) {
+                mockFS.set(path, content);
+                console.log(`[Repro] Mock file created: ${path}`);
+            }
+        }, { path: targetPath, content: targetFileContent });
+
+        // 4. Launch App
+        await page.goto('/');
+        await page.reload();
+        await page.waitForTimeout(3000);
+
+        // Re-create mock file after app loads
+        await page.evaluate(({ path, content }) => {
+            const mockFS = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+            if (mockFS) {
+                mockFS.set(path, content);
+            }
+        }, { path: targetPath, content: targetFileContent });
+
+        // 5. Wait for stores to be initialized
+        await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
+        await page.waitForTimeout(2000);
+
+        // 6. Open Chat
+        await page.evaluate(() => {
+            const layoutStore = (window as any).__layoutStore;
+            if (layoutStore) {
+                const store = layoutStore.useLayoutStore || layoutStore;
+                if (store && store.getState && !store.getState().isChatOpen) {
+                    store.getState().toggleChat();
+                }
+            }
+        });
+        await page.waitForTimeout(1000);
+
+        // 7. Send Message
+        const prompt = `Read ${targetFileName}`;
+        console.log(`[Repro] Sending prompt: ${prompt}`);
+
+        // Capture console logs to verify streaming behavior
+        const streamingLogs: string[] = [];
+        page.on('console', msg => {
+            const text = msg.text();
+            if (text.includes('DeepSeek streaming') || text.includes('Sent initial tool_call') || text.includes('character chunks')) {
+                streamingLogs.push(text);
+                console.log('[Repro] 📊 Streaming log:', text);
+            }
+        });
+
+        await page.evaluate(async (text) => {
+            const chatStore = (window as any).__chatStore;
+            if (chatStore) {
+                await chatStore.getState().sendMessage(text);
+            }
+        }, prompt);
+
+        // 8. Wait for AI response and verify streaming simulation worked
+        await page.waitForTimeout(30000);
+
+        // Check if DeepSeek streaming was simulated
+        const hasStreamingSimulation = streamingLogs.some(log =>
+            log.includes('Simulating DeepSeek streaming behavior')
+        );
+
+        console.log('[Repro] 🔍 DeepSeek streaming simulation detected:', hasStreamingSimulation);
+
+        // Verify tool call was processed correctly
+        const messages = await page.evaluate(() => {
+            const chatStore = (window as any).__chatStore;
+            return chatStore ? chatStore.getState().messages : [];
+        });
+
+        const assistantMessages = messages.filter((m: any) => m.role === 'assistant');
+        const toolCalls = await page.evaluate(() => {
+            const chatStore = (window as any).__chatStore;
+            const msgs = chatStore ? chatStore.getState().messages : [];
+            return msgs.flatMap((m: any) => m.toolCalls || []);
+        });
+
+        console.log('[Repro] 🔍 Tool calls found:', toolCalls.length);
+        toolCalls.forEach((tc: any) => {
+            console.log('[Repro]   - Tool:', tc.tool, 'Status:', tc.status, 'Has args:', Object.keys(tc.args || {}).length);
+        });
+
+        // Verify at least one tool call was processed
+        expect(toolCalls.length, 'Expected at least one tool call to be processed').toBeGreaterThan(0);
+
+        // Verify the tool call has the correct arguments (proves the index-based matching worked)
+        const readToolCall = toolCalls.find((tc: any) => tc.tool === 'agent_read_file');
+        if (readToolCall) {
+            console.log('[Repro] 🔍 agent_read_file args:', JSON.stringify(readToolCall.args));
+            expect(readToolCall.args?.rel_path || readToolCall.args?.relPath, 'Expected rel_path argument to be present').toBeDefined();
+        }
+
+        // Verify file content was displayed
+        let contentFound = false;
+        for (const msg of assistantMessages) {
+            const content = msg.content || '';
+            if (content.includes(targetFileContent) || content.includes('[INFO] System working!')) {
+                contentFound = true;
+                console.log('[Repro] ✅ File content found in assistant message');
+                break;
+            }
+        }
+
+        expect(contentFound, 'Expected file content to be displayed. DeepSeek streaming fix may have failed.').toBe(true);
+        console.log('[Repro] ✅ DeepSeek streaming test passed!');
+    });
 });
