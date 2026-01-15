@@ -1479,7 +1479,19 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                         const newArgsChunk = toolCallUpdate.function?.arguments || '';
 
                         const existingCalls = newMsg.toolCalls || [];
-                        const existingIndex = existingCalls.findIndex(tc => tc.id === toolCallUpdate.id);
+                        // 🔥 FIX: DeepSeek sends subsequent chunks with id=null, so we need to match by index as well
+                        const existingIndex = existingCalls.findIndex(tc => {
+                            // First try to match by id
+                            if (toolCallUpdate.id && tc.id === toolCallUpdate.id) {
+                                return true;
+                            }
+                            // Fallback: match by index when id is null (DeepSeek API behavior)
+                            if (toolCallUpdate.id === null && toolCallUpdate.index !== null) {
+                                // Find call with matching index
+                                return (tc as any).index === toolCallUpdate.index;
+                            }
+                            return false;
+                        });
 
                         if (existingIndex !== -1) {
                             const existingCall = existingCalls[existingIndex];
@@ -1550,7 +1562,9 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                                 args: initialArgs,
                                 function: { name: toolName, arguments: newArgsChunk },  // Use toolName directly, no default
                                 status: 'pending' as const,
-                                isPartial: true
+                                isPartial: true,
+                                // 🔥 FIX: Store index for matching subsequent chunks (DeepSeek API sends id=null)
+                                index: toolCallUpdate.index
                             };
                             // @ts-ignore
                             newMsg.toolCalls = [...existingCalls, newToolCall];
@@ -1743,7 +1757,15 @@ const patchedApproveToolCall = async (
     }
 
     // 2. Handle File System Tools (Manual Invocation to fix snake_case args)
-    const fsTools = ['agent_write_file', 'agent_read_file', 'agent_list_dir'];
+    // 🔥 包含所有使用 snake_case 参数的 agent 工具，确保 DeepSeek 流式调用正确解析
+    const fsTools = [
+        'agent_write_file',
+        'agent_read_file',
+        'agent_list_dir',
+        'agent_delete_file',
+        'agent_list_functions',
+        'agent_read_file_range'
+    ];
     const toolName = toolCall.tool || (toolCall as any).function?.name;
     let relPath = '';  // 在 try 块外声明，以便 catch 块也能访问
 
@@ -1802,10 +1824,14 @@ const patchedApproveToolCall = async (
             // Fix arguments: snake_case (LLM) -> camelCase (Tauri)
             relPath = args.rel_path || args.relPath || getDefaultRelPath();
             let content: string = args.content || "";
+            // 🔥 agent_read_file_range 额外参数
+            const startLine = args.start_line ?? args.startLine ?? 1;
+            const endLine = args.end_line ?? args.endLine ?? 100;
 
             console.log('[FS Tool] Final relPath:', relPath);
             console.log('[FS Tool] Final content length:', content.length);
             console.log('[FS Tool] Final content preview:', content.substring(0, 100));
+            console.log('[FS Tool] Start line:', startLine, 'End line:', endLine);
 
             // Debug: log content before unescaping
             console.log('[FS Tool] Content preview (first 200 chars):', content.substring(0, 200));
@@ -1827,11 +1853,19 @@ const patchedApproveToolCall = async (
                 console.log('[FS Tool] Unescaped content preview:', content.substring(0, 200));
             }
 
-            const tauriArgs = {
+            // 🔥 构建参数对象，根据工具类型包含不同的参数
+            const tauriArgs: any = {
                 rootPath,
                 relPath,
-                content
             };
+
+            // 根据工具类型添加特定参数
+            if (toolName === 'agent_write_file') {
+                tauriArgs.content = content;
+            } else if (toolName === 'agent_read_file_range') {
+                tauriArgs.startLine = startLine;
+                tauriArgs.endLine = endLine;
+            }
 
             console.log(`[useChatStore] Invoking ${toolName} with`, tauriArgs);
 

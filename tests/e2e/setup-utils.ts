@@ -711,17 +711,17 @@ export async function setupE2ETestEnvironment(
                             // 在消息开头添加 system prompt，告诉 AI 有工具可用和当前工作目录
                             processedMessages.unshift({
                                 role: 'system',
-                                content: `You have access to tools that can read and write files. The current project root is: ${currentProjectRoot}
-
-When the user asks to read a file, use the agent_read_file tool with:
-- rootPath: "${currentProjectRoot}"
-- relPath: the relative path from the project root (e.g., "dev.log", "src/main.ts")
+                                content: `You have access to file system tools. The current project root is: ${currentProjectRoot}
 
 Available tools:
 - agent_read_file: Read file contents
 - agent_write_file: Write content to a file
+- agent_list_dir: List files in a directory
+- agent_delete_file: Delete a file
+- agent_list_functions: List functions in a TypeScript/JavaScript file
+- agent_read_file_range: Read a specific range of lines from a file
 
-Always use the tools when the user asks to read or write files.`
+Always use the appropriate tool when the user asks to perform file operations.`
                             });
                             console.log('[E2E Real AI] 📝 Added system prompt with tools info');
                         }
@@ -771,6 +771,98 @@ Always use the tools when the user asks to read or write files.`
                                             }
                                         },
                                         required: ['rootPath', 'relPath', 'content']
+                                    }
+                                }
+                            },
+                            {
+                                type: 'function',
+                                function: {
+                                    name: 'agent_list_dir',
+                                    description: 'List files and directories in the specified path',
+                                    parameters: {
+                                        type: 'object',
+                                        properties: {
+                                            rootPath: {
+                                                type: 'string',
+                                                description: 'The root directory path of the project'
+                                            },
+                                            relPath: {
+                                                type: 'string',
+                                                description: 'The relative path from the root directory (use "." for current directory)'
+                                            }
+                                        },
+                                        required: ['rootPath', 'relPath']
+                                    }
+                                }
+                            },
+                            {
+                                type: 'function',
+                                function: {
+                                    name: 'agent_delete_file',
+                                    description: 'Delete a file at the specified path',
+                                    parameters: {
+                                        type: 'object',
+                                        properties: {
+                                            rootPath: {
+                                                type: 'string',
+                                                description: 'The root directory path of the project'
+                                            },
+                                            relPath: {
+                                                type: 'string',
+                                                description: 'The relative path of the file from the root directory'
+                                            }
+                                        },
+                                        required: ['rootPath', 'relPath']
+                                    }
+                                }
+                            },
+                            {
+                                type: 'function',
+                                function: {
+                                    name: 'agent_list_functions',
+                                    description: 'List function signatures in a TypeScript/JavaScript file',
+                                    parameters: {
+                                        type: 'object',
+                                        properties: {
+                                            rootPath: {
+                                                type: 'string',
+                                                description: 'The root directory path of the project'
+                                            },
+                                            relPath: {
+                                                type: 'string',
+                                                description: 'The relative path of the file from the root directory'
+                                            }
+                                        },
+                                        required: ['rootPath', 'relPath']
+                                    }
+                                }
+                            },
+                            {
+                                type: 'function',
+                                function: {
+                                    name: 'agent_read_file_range',
+                                    description: 'Read a specific range of lines from a file',
+                                    parameters: {
+                                        type: 'object',
+                                        properties: {
+                                            rootPath: {
+                                                type: 'string',
+                                                description: 'The root directory path of the project'
+                                            },
+                                            relPath: {
+                                                type: 'string',
+                                                description: 'The relative path of the file from the root directory'
+                                            },
+                                            startLine: {
+                                                type: 'number',
+                                                description: 'The starting line number (1-indexed)'
+                                            },
+                                            endLine: {
+                                                type: 'number',
+                                                description: 'The ending line number (1-indexed)'
+                                            }
+                                        },
+                                        required: ['rootPath', 'relPath', 'startLine', 'endLine']
                                     }
                                 }
                             }
@@ -952,6 +1044,36 @@ Always use the tools when the user asks to read or write files.`
                                             mockFileSystem.set(filePath, functionArgs.content);
                                             result = { success: true, filePath };
                                             console.log('[E2E Real AI] ✅ agent_write_file result:', filePath);
+                                        } else if (functionName === 'agent_list_dir') {
+                                            const dirPath = `${functionArgs.rootPath}/${functionArgs.relPath || '.'}`.replace(/\/\//g, '/');
+                                            // Mock directory listing - return some mock files
+                                            const entries = ['src/', 'tests/', 'package.json', 'README.md', 'tsconfig.json'];
+                                            result = entries.join('\n');
+                                            console.log('[E2E Real AI] ✅ agent_list_dir result:', entries.join(', '));
+                                        } else if (functionName === 'agent_delete_file') {
+                                            const filePath = `${functionArgs.rootPath}/${functionArgs.relPath}`.replace(/\/\//g, '/');
+                                            mockFileSystem.delete(filePath);
+                                            result = `File deleted: ${functionArgs.relPath}`;
+                                            console.log('[E2E Real AI] ✅ agent_delete_file result:', functionArgs.relPath);
+                                        } else if (functionName === 'agent_list_functions') {
+                                            const filePath = `${functionArgs.rootPath}/${functionArgs.relPath}`.replace(/\/\//g, '/');
+                                            // Mock function listing - return some mock functions
+                                            const functions = ['function1\nfunction2\nmain'];
+                                            result = `Found functions:\n${functions}`;
+                                            console.log('[E2E Real AI] ✅ agent_list_functions result:', functions);
+                                        } else if (functionName === 'agent_read_file_range') {
+                                            const filePath = `${functionArgs.rootPath}/${functionArgs.relPath}`.replace(/\/\//g, '/');
+                                            const content = mockFileSystem.get(filePath);
+                                            if (content === undefined) {
+                                                result = `Error: File not found: ${filePath}`;
+                                            } else {
+                                                const lines = content.split('\n');
+                                                const start = (functionArgs.startLine || 1) - 1;
+                                                const end = Math.min(functionArgs.endLine || lines.length, lines.length);
+                                                const range = lines.slice(start, end).join('\n');
+                                                result = range;
+                                            }
+                                            console.log('[E2E Real AI] ✅ agent_read_file_range result:', result?.substring(0, 50));
                                         } else {
                                             result = `Error: Unknown tool: ${functionName}`;
                                             console.warn('[E2E Real AI] Unknown tool:', functionName);
