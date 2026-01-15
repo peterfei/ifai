@@ -853,6 +853,72 @@ async fn try_parse_tool_calls_from_messages(
     }
 }
 
+/// 本地模型 FIM (Fill-In-the-Middle) 代码补全
+#[tauri::command]
+pub async fn local_model_fim(
+    prefix: String,
+    suffix: String,
+    max_tokens: Option<usize>,
+) -> Result<String, String> {
+    use std::time::Instant;
+
+    let start_time = Instant::now();
+    println!("[LocalFIM] Request received");
+
+    // 检查模型是否可用
+    let config = LocalModelConfig::default();
+    if !config.model_path.exists() {
+        return Err("本地模型文件不存在".to_string());
+    }
+
+    // 检查 llm-inference feature 是否启用
+    #[cfg(not(feature = "llm-inference"))]
+    {
+        return Err("本地推理功能未启用".to_string());
+    }
+
+    #[cfg(feature = "llm-inference")]
+    {
+        use crate::llm_inference::generate_completion;
+
+        // 构造 Qwen2.5-Coder 的 FIM Prompt 格式
+        // 格式: <|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>
+        let prompt = format!("<|fim_prefix|>{}{}<|fim_suffix|>{}{}<|fim_middle|>", 
+            if prefix.len() > 1000 { &prefix[prefix.len()-1000..] } else { &prefix },
+            "", // Placeholder for potential middle content if needed
+            if suffix.len() > 500 { &suffix[..500] } else { &suffix },
+            ""
+        );
+
+        let max_tokens_val = max_tokens.unwrap_or(128);
+
+        // 使用 spawn_blocking
+        let result = tokio::task::spawn_blocking(move || {
+            generate_completion(&prompt, max_tokens_val)
+        }).await.map_err(|e| format!("任务调度失败: {}", e))?;
+
+        match result {
+            Ok(text) => {
+                let elapsed = start_time.elapsed();
+                // 清理可能包含的特殊标记（模型有时会重复输出标记）
+                let clean_text = text
+                    .split("<|")
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+                
+                println!("[LocalFIM] ✓ Success: {} chars in {:?}", clean_text.len(), elapsed);
+                Ok(clean_text)
+            }
+            Err(e) => {
+                let elapsed = start_time.elapsed();
+                println!("[LocalFIM] ✗ Failed after {:?}: {}", elapsed, e);
+                Err(format!("本地推理失败: {}", e))
+            }
+        }
+    }
+}
+
 /// 本地模型代码补全
 ///
 /// 使用 llama.cpp 进行本地模型推理。
@@ -893,10 +959,15 @@ pub async fn local_code_completion(
     {
         use crate::llm_inference::generate_completion;
 
-        let max_tokens = max_tokens.unwrap_or(50);
+        let max_tokens_val = max_tokens.unwrap_or(50);
 
-        // 调用本地推理
-        match generate_completion(&prompt, max_tokens) {
+        // 使用 spawn_blocking 在专用线程池中运行同步推理任务
+        // 这样可以避免阻塞 tokio 的工作线程，从而保持 UI 响应
+        let result = tokio::task::spawn_blocking(move || {
+            generate_completion(&prompt, max_tokens_val)
+        }).await.map_err(|e| format!("任务调度失败: {}", e))?;
+
+        match result {
             Ok(text) => {
                 let elapsed = start_time.elapsed();
                 println!("[LocalCompletion] ✓ Success: {} chars in {:?}", text.len(), elapsed);

@@ -693,118 +693,125 @@ pub async fn agent_stream_chat_with_root(
 
                         // 调用本地模型推理
                         #[cfg(feature = "llm-inference")]
-                        match crate::llm_inference::generate_completion(&prompt, 256) {
-                            Ok(response) => {
-                                println!("[AgentStream] Local model inference succeeded, response length: {}",
-                                         response.len());
+                        {
+                            // 使用 spawn_blocking 运行同步推理任务
+                            let inference_result = tokio::task::spawn_blocking(move || {
+                                crate::llm_inference::generate_completion(&prompt, 256)
+                            }).await.map_err(|e| format!("任务调度失败: {}", e))?;
 
-                                // 从本地模型输出中解析工具调用
-                                use crate::local_model::test_tool_parse;
-                                let tool_calls = test_tool_parse(response.clone());
+                            match inference_result {
+                                Ok(response) => {
+                                    println!("[AgentStream] Local model inference succeeded, response length: {}",
+                                             response.len());
 
-                                if !tool_calls.is_empty() {
-                                    println!("[AgentStream] Parsed {} tool calls from local model output",
-                                             tool_calls.len());
+                                    // 从本地模型输出中解析工具调用
+                                    use crate::local_model::test_tool_parse;
+                                    let tool_calls = test_tool_parse(response.clone());
 
-                                    // 执行工具调用并收集结果
-                                    let mut tool_calls_vec = Vec::new();
-                                    let mut tool_results_text = String::new();  // 收集工具结果用于显示
+                                    if !tool_calls.is_empty() {
+                                        println!("[AgentStream] Parsed {} tool calls from local model output",
+                                                 tool_calls.len());
 
-                                    for tool_call in tool_calls {
-                                        println!("[AgentStream] Executing tool: {}", tool_call.name);
+                                        // 执行工具调用并收集结果
+                                        let mut tool_calls_vec = Vec::new();
+                                        let mut tool_results_text = String::new();  // 收集工具结果用于显示
 
-                                        let args_json = serde_json::to_string(&tool_call.arguments)
-                                            .unwrap_or_else(|_| "{}".to_string());
-                                        let args_value: serde_json::Value =
-                                            serde_json::from_str(&args_json)
-                                                .unwrap_or_else(|_| serde_json::json!({}));
+                                        for tool_call in tool_calls {
+                                            println!("[AgentStream] Executing tool: {}", tool_call.name);
 
-                                        use crate::commands::core_wrappers;
-                                        let tool_result = match tool_call.name.as_str() {
-                                            "bash" => {
-                                                let command = args_value["command"].as_str().unwrap_or("");
-                                                let working_dir = args_value["working_dir"].as_str()
-                                                    .map(|s| s.to_string());
-                                                let timeout = args_value["timeout"].as_u64();
-                                                match crate::commands::bash_commands::execute_bash_command(
-                                                    command.to_string(),
-                                                    working_dir,
-                                                    timeout,
-                                                    None,
-                                                ).await {
-                                                    Ok(result) => {
-                                                        // 格式化 bash 结果用于显示
-                                                        if !result.stdout.is_empty() {
-                                                            result.stdout.clone()
-                                                        } else if !result.stderr.is_empty() {
-                                                            format!("stderr: {}", result.stderr)
-                                                        } else {
-                                                            format!("命令执行成功 (退出码: {})", result.exit_code)
+                                            let args_json = serde_json::to_string(&tool_call.arguments)
+                                                .unwrap_or_else(|_| "{}".to_string());
+                                            let args_value: serde_json::Value =
+                                                serde_json::from_str(&args_json)
+                                                    .unwrap_or_else(|_| serde_json::json!({}));
+
+                                            use crate::commands::core_wrappers;
+                                            let tool_result = match tool_call.name.as_str() {
+                                                "bash" => {
+                                                    let command = args_value["command"].as_str().unwrap_or("");
+                                                    let working_dir = args_value["working_dir"].as_str()
+                                                        .map(|s| s.to_string());
+                                                    let timeout = args_value["timeout"].as_u64();
+                                                    match crate::commands::bash_commands::execute_bash_command(
+                                                        command.to_string(),
+                                                        working_dir,
+                                                        timeout,
+                                                        None,
+                                                    ).await {
+                                                        Ok(result) => {
+                                                            // 格式化 bash 结果用于显示
+                                                            if !result.stdout.is_empty() {
+                                                                result.stdout.clone()
+                                                            } else if !result.stderr.is_empty() {
+                                                                format!("stderr: {}", result.stderr)
+                                                            } else {
+                                                                format!("命令执行成功 (退出码: {})", result.exit_code)
+                                                            }
                                                         }
+                                                        Err(e) => format!("错误: {}", e)
                                                     }
-                                                    Err(e) => format!("错误: {}", e)
                                                 }
-                                            }
-                                            "agent_read_file" => {
-                                                let rel_path = args_value["rel_path"].as_str().unwrap_or("");
-                                                core_wrappers::agent_read_file(
-                                                    root.to_string(),
-                                                    rel_path.to_string()
-                                                ).await.unwrap_or_else(|e| format!("错误: {}", e))
-                                            }
-                                            _ => format!("未知的工具: {}", tool_call.name)
-                                        };
+                                                "agent_read_file" => {
+                                                    let rel_path = args_value["rel_path"].as_str().unwrap_or("");
+                                                    core_wrappers::agent_read_file(
+                                                        root.to_string(),
+                                                        rel_path.to_string()
+                                                    ).await.unwrap_or_else(|e| format!("错误: {}", e))
+                                                }
+                                                _ => format!("未知的工具: {}", tool_call.name)
+                                            };
 
-                                        // 将结果添加到显示文本中
-                                        if !tool_results_text.is_empty() {
-                                            tool_results_text.push_str("\n\n");
+                                            // 将结果添加到显示文本中
+                                            if !tool_results_text.is_empty() {
+                                                tool_results_text.push_str("\n\n");
+                                            }
+                                            let command_display = args_value["command"].as_str().unwrap_or("");
+                                            tool_results_text.push_str(&format!("**{}**: `{}`\n```\n{}\n```",
+                                                tool_call.name,
+                                                command_display,
+                                                tool_result
+                                            ));
+
+                                            // 发送工具结果事件
+                                            let _ = app.emit(&format!("agent_{}", agent_id), json!({
+                                                "type": "tool-result",
+                                                "tool_name": tool_call.name,
+                                                "result": tool_result
+                                            }));
+
+                                            tool_calls_vec.push(crate::core_traits::ai::ToolCall {
+                                                id: format!("call_{}", uuid::Uuid::new_v4()),
+                                                r#type: "function".to_string(),
+                                                function: crate::core_traits::ai::FunctionCall {
+                                                    name: tool_call.name,
+                                                    arguments: args_json,
+                                                },
+                                            });
                                         }
-                                        let command_display = args_value["command"].as_str().unwrap_or("");
-                                        tool_results_text.push_str(&format!("**{}**: `{}`\n```\n{}\n```",
-                                            tool_call.name,
-                                            command_display,
-                                            tool_result
-                                        ));
 
-                                        // 发送工具结果事件
-                                        let _ = app.emit(&format!("agent_{}", agent_id), json!({
-                                            "type": "tool-result",
-                                            "tool_name": tool_call.name,
-                                            "result": tool_result
-                                        }));
-
-                                        tool_calls_vec.push(crate::core_traits::ai::ToolCall {
-                                            id: format!("call_{}", uuid::Uuid::new_v4()),
-                                            r#type: "function".to_string(),
-                                            function: crate::core_traits::ai::FunctionCall {
-                                                name: tool_call.name,
-                                                arguments: args_json,
-                                            },
+                                        // 返回带有工具结果内容的 Message（包含实际执行结果）
+                                        let content = if tool_results_text.is_empty() {
+                                            format!("执行了 {} 个工具调用", tool_calls_vec.len())
+                                        } else {
+                                            tool_results_text
+                                        };
+                                        return Ok(Message {
+                                            role: "assistant".to_string(),
+                                            content: Content::Text(content),
+                                            tool_calls: None,  // 关键修复：设为 None，避免循环
+                                            tool_call_id: None,
                                         });
-                                    }
-
-                                    // 返回带有工具结果内容的 Message（包含实际执行结果）
-                                    let content = if tool_results_text.is_empty() {
-                                        format!("执行了 {} 个工具调用", tool_calls_vec.len())
                                     } else {
-                                        tool_results_text
-                                    };
-                                    return Ok(Message {
-                                        role: "assistant".to_string(),
-                                        content: Content::Text(content),
-                                        tool_calls: None,  // 关键修复：设为 None，避免循环
-                                        tool_call_id: None,
-                                    });
-                                } else {
-                                    // 没有工具调用，说明本地模型输出不够准确
-                                    // 应该降级到云端 API 而不是直接返回本地模型的原始输出
-                                    println!("[AgentStream] No tool calls in local model output, falling back to cloud API");
-                                    // 不 return，让代码继续执行，调用云端 API
+                                        // 没有工具调用，说明本地模型输出不够准确
+                                        // 应该降级到云端 API 而不是直接返回本地模型的原始输出
+                                        println!("[AgentStream] No tool calls in local model output, falling back to cloud API");
+                                        // 不 return，让代码继续执行，调用云端 API
+                                    }
                                 }
-                            }
-                            Err(e) => {
-                                eprintln!("[AgentStream] Local model inference failed: {}, falling back to cloud API", e);
-                                // 继续执行下面的代码，调用云端 API
+                                Err(e) => {
+                                    eprintln!("[AgentStream] Local model inference failed: {}, falling back to cloud API", e);
+                                    // 继续执行下面的代码，调用云端 API
+                                }
                             }
                         }
 

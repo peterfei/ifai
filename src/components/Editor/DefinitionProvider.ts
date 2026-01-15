@@ -217,13 +217,13 @@ export function registerDefinitionProvider(
  * @param monaco Monaco 实例
  * @param currentFilePath 当前文件路径
  * @param onCrossFileJump 跨文件跳转回调
- * @returns 清理函数
+ * @returns 清理句柄
  */
 export function setupDefinitionProvider(
   monaco: any,
   currentFilePath?: string,
   onCrossFileJump?: (definition: SymbolInfo) => void | Promise<void>
-): () => void {
+): { dispose: () => void; updatePath: (path: string | undefined) => void } {
   console.log('[DefinitionProvider] Setting up definition provider...');
 
   const provider = new DefinitionProvider({
@@ -291,10 +291,15 @@ export function setupDefinitionProvider(
 
   console.log(`[DefinitionProvider] Registered for ${languages.length} languages`);
 
-  return () => {
-    for (const d of disposables) {
-      d.dispose();
+  return {
+    dispose: () => {
+      for (const d of disposables) {
+        d.dispose();
+      }
+      console.log('[DefinitionProvider] Disposed');
+    },
+    updatePath: (path: string | undefined) => {
+      provider.setCurrentFilePath(path);
     }
-    console.log('[DefinitionProvider] Disposed');
   };
 }

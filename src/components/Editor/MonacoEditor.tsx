@@ -41,18 +41,20 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   // v0.2.9: Inline Edit Store
   const showInlineEdit = useInlineEditStore(state => state.showInlineEdit);
 
-  // 🔥 修复无限循环：使用 shallow 比较避免不必要的重新渲染
-  const openedFiles = useFileStore(state => state.openedFiles);
-  const panes = useLayoutStore(state => state.panes);
+  // 🔥 优化：使用更具体的选择器，只订阅当前 Pane 的 fileId 和对应的文件
+  const pane = useLayoutStore(
+    useCallback(state => state.panes.find(p => p.id === paneId), [paneId])
+  );
+  const fileId = pane?.fileId;
+  
+  const file = useFileStore(
+    useCallback(state => fileId ? state.openedFiles.find(f => f.id === fileId) : null, [fileId])
+  );
+
   const setChatOpen = useLayoutStore(state => state.setChatOpen);
   const setActiveFileTokenCount = useEditorStore(state => state.setActiveFileTokenCount);
 
   const sendMessage = useChatStore(state => state.sendMessage);
-
-  // 获取与此pane关联的文件
-  const pane = panes.find(p => p.id === paneId);
-  const fileId = pane?.fileId;
-  const file = fileId ? openedFiles.find(f => f.id === fileId) : null;
 
   // 🔥 修复无限循环：使用 ref 存储稳定的值，避免依赖变化
   // 注意：fileRef.current 会在每次渲染时更新，这是安全的
@@ -61,6 +63,19 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
   // Sequence ID to prevent race conditions
   const lastRequestId = useRef(0);
+
+  // Handles for providers to update path
+  const symbolCompletionHandleRef = useRef<{ dispose: () => void; updatePath: (path: string | undefined) => void } | null>(null);
+  const definitionProviderHandleRef = useRef<{ dispose: () => void; updatePath: (path: string | undefined) => void } | null>(null);
+  const referencesProviderHandleRef = useRef<{ dispose: () => void; updatePath: (path: string | undefined) => void } | null>(null);
+
+  // 🔥 修复：当文件切换时更新提供者的当前路径
+  useEffect(() => {
+    const path = file?.path;
+    symbolCompletionHandleRef.current?.updatePath(path);
+    definitionProviderHandleRef.current?.updatePath(path);
+    referencesProviderHandleRef.current?.updatePath(path);
+  }, [file?.path]);
 
   // 🔥 修复无限循环：使用 ref 存储编辑器实例，避免依赖 getEditorInstance
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -227,19 +242,17 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
     // 索引当前文件的符号
     const currentFile = fileRef.current;
-    if (currentFile?.path && currentFile?.content) {
-      symbolIndexer.indexFile(currentFile.path, currentFile.content).catch(console.error);
-    }
 
     // 注册符号补全提供者
-    const disposeSymbolCompletion = setupSymbolCompletion(monaco, currentFile?.path);
+    const symbolCompletionHandle = setupSymbolCompletion(monaco, currentFile?.path);
+    symbolCompletionHandleRef.current = symbolCompletionHandle;
 
     // ========================================================================
     // v0.3.0: Go to Definition 支持
     // ========================================================================
 
     // 注册定义提供者（支持跨文件跳转）
-    const disposeDefinitionProvider = setupDefinitionProvider(
+    const definitionProviderHandle = setupDefinitionProvider(
       monaco,
       currentFile?.path,
       // 跨文件跳转回调
@@ -284,16 +297,18 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         }
       }
     );
+    definitionProviderHandleRef.current = definitionProviderHandle;
 
     // ========================================================================
     // v0.3.0: Find References 支持
     // ========================================================================
 
     // 注册引用提供者（支持跨文件引用查找）
-    const disposeReferencesProvider = setupReferencesProvider(
+    const referencesProviderHandle = setupReferencesProvider(
       monaco,
       currentFile?.path
     );
+    referencesProviderHandleRef.current = referencesProviderHandle;
 
     // ========================================================================
 
@@ -328,10 +343,11 @@ ${textBefore}[CURSOR]${textAfter}
         // Try local model first if enabled
         if (useLocalModelForCompletion) {
           try {
-            console.log('[Completion] Trying local model...');
-            const localResult = await invoke<string>('local_code_completion', {
-              prompt,
-              maxTokens: 50,
+            console.log('[Completion] Trying local model (FIM)...');
+            const localResult = await invoke<string>('local_model_fim', {
+              prefix: textBefore,
+              suffix: textAfter,
+              maxTokens: 128,
             });
 
             if (localResult && localResult.trim().length > 0) {
@@ -446,9 +462,9 @@ ${textBefore}[CURSOR]${textAfter}
     // Cleanup on unmount
     return () => {
       completionProvider.dispose();
-      disposeSymbolCompletion?.();
-      disposeDefinitionProvider?.();
-      disposeReferencesProvider?.();
+      symbolCompletionHandleRef.current?.dispose();
+      definitionProviderHandleRef.current?.dispose();
+      referencesProviderHandleRef.current?.dispose();
     };
   }, [paneId, setEditorInstance, setChatOpen, sendMessage, showInlineEdit, t]); // 🔥 修复无限循环：移除 file?.path, file?.content, file?.language 依赖（使用 fileRef.current 代替）
 
@@ -596,6 +612,22 @@ ${textBefore}[CURSOR]${textAfter}
 
     return () => clearTimeout(timer);
   }, [file?.id, file?.content, file?.language, analyzeFile, autoAnalyze]);
+
+  // 当文件内容或路径变化时触发符号索引（防抖）
+  useEffect(() => {
+    if (!file?.path || !file?.content) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await symbolIndexer.indexFile(file.path, file.content);
+        console.log('[MonacoEditor] Symbol indexing completed for:', file.path);
+      } catch (error) {
+        console.error('[MonacoEditor] Symbol indexing failed:', error);
+      }
+    }, 500); // 500ms 防抖
+
+    return () => clearTimeout(timer);
+  }, [file?.id, file?.content, file?.path]);
 
   // Jump to initial line when specified (for search results, file tree clicks, etc.)
   useEffect(() => {

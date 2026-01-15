@@ -196,12 +196,12 @@ export function registerReferencesProvider(
  *
  * @param monaco Monaco 实例
  * @param currentFilePath 当前文件路径
- * @returns 清理函数
+ * @returns 清理句柄
  */
 export function setupReferencesProvider(
   monaco: any,
   currentFilePath?: string
-): () => void {
+): { dispose: () => void; updatePath: (path: string | undefined) => void } {
   console.log('[ReferencesProvider] Setting up references provider...');
 
   const provider = new ReferencesProvider({
@@ -268,10 +268,15 @@ export function setupReferencesProvider(
 
   console.log(`[ReferencesProvider] Registered for ${languages.length} languages`);
 
-  return () => {
-    for (const d of disposables) {
-      d.dispose();
+  return {
+    dispose: () => {
+      for (const d of disposables) {
+        d.dispose();
+      }
+      console.log('[ReferencesProvider] Disposed');
+    },
+    updatePath: (path: string | undefined) => {
+      provider.setCurrentFilePath(path);
     }
-    console.log('[ReferencesProvider] Disposed');
   };
 }

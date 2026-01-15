@@ -217,7 +217,7 @@ export function registerSymbolCompletionProvider(
 export function setupSymbolCompletion(
   monaco: any,
   currentFilePath?: string
-): () => void {
+): { dispose: () => void; updatePath: (path: string | undefined) => void } {
   console.log('[SymbolCompletionProvider] Setting up symbol completion...');
 
   const provider = new SymbolCompletionProvider({
@@ -231,10 +231,15 @@ export function setupSymbolCompletion(
     monaco.languages.registerCompletionItemProvider(lang, provider)
   );
 
-  return () => {
-    for (const d of disposables) {
-      d.dispose();
+  return {
+    dispose: () => {
+      for (const d of disposables) {
+        d.dispose();
+      }
+      console.log('[SymbolCompletionProvider] Disposed');
+    },
+    updatePath: (path: string | undefined) => {
+      provider.setCurrentFilePath(path);
     }
-    console.log('[SymbolCompletionProvider] Disposed');
   };
 }
