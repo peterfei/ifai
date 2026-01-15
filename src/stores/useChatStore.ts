@@ -799,14 +799,19 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         const toolCalls = m.toolCalls
             ? m.toolCalls
                 .filter(tc => tc.tool) // 过滤掉没有 tool 名称的
-                .map(tc => ({
-                    id: tc.id,
-                    type: 'function',
-                    function: {
-                        name: tc.tool,
-                        arguments: typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args || {})
-                    }
-                }))
+                .map(tc => {
+                    // 🔥 FIX: 使用 tc.function.arguments（流式累积的完整 JSON 字符串）而不是 tc.args
+                    // tc.args 可能在 JSON.parse 失败时是空对象 {}，导致参数丢失
+                    const argsString = (tc as any).function?.arguments || '{}';
+                    return {
+                        id: tc.id,
+                        type: 'function',
+                        function: {
+                            name: tc.tool,
+                            arguments: typeof argsString === 'string' ? argsString : JSON.stringify(argsString || {})
+                        }
+                    };
+                })
             : undefined;
 
         // 🔥 v0.3.0: 使用 prepareMessageContent 保持 ContentPart[] 格式
@@ -932,7 +937,19 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                         const newArgsChunk = toolCallUpdate.function?.arguments || '';
 
                         const existingCalls = newMsg.toolCalls || [];
-                        const existingIndex = existingCalls.findIndex(tc => tc.id === toolCallUpdate.id);
+                        // 🔥 FIX: DeepSeek sends subsequent chunks with id=null, so we need to match by index as well
+                        const existingIndex = existingCalls.findIndex(tc => {
+                            // First try to match by id
+                            if (toolCallUpdate.id && tc.id === toolCallUpdate.id) {
+                                return true;
+                            }
+                            // Fallback: match by index when id is null (DeepSeek API behavior)
+                            if (toolCallUpdate.id === null && toolCallUpdate.index !== null) {
+                                // Find call with matching index
+                                return (tc as any).index === toolCallUpdate.index;
+                            }
+                            return false;
+                        });
 
                         if (existingIndex !== -1) {
                             const existingCall = existingCalls[existingIndex];
@@ -1018,7 +1035,9 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                                     arguments: newArgsChunk
                                 },
                                 status: 'pending' as const,
-                                isPartial: true
+                                isPartial: true,
+                                // 🔥 FIX: Store index for matching subsequent chunks (DeepSeek API sends id=null)
+                                index: toolCallUpdate.index
                             };
                             // @ts-ignore
                             newMsg.toolCalls = [...existingCalls, newToolCall];
@@ -1730,6 +1749,12 @@ const patchedApproveToolCall = async (
 
     if (fsTools.includes(toolName)) {
         console.log(`[useChatStore] Intercepting FS tool: ${toolName}`);
+        // 🔥 DEBUG: 输出 toolCall 的完整状态以便诊断
+        console.log('[FS Tool] toolCall.id:', toolCall.id);
+        console.log('[FS Tool] toolCall.tool:', toolCall.tool);
+        console.log('[FS Tool] toolCall.args:', JSON.stringify(toolCall.args));
+        console.log('[FS Tool] toolCall.function:', JSON.stringify((toolCall as any).function));
+        console.log('[FS Tool] toolCall keys:', Object.keys(toolCall));
         
         // Update status to approved
         coreUseChatStore.setState(state => ({
@@ -1747,12 +1772,26 @@ const patchedApproveToolCall = async (
             const rootPath = useFileStore.getState().rootPath;
             if (!rootPath) throw new Error("No project root opened");
 
-            // Fix arguments: snake_case (LLM) -> camelCase (Tauri)
-            const args = toolCall.args || {};
-            console.log('[FS Tool] Raw args:', JSON.stringify(args));
-            console.log('[FS Tool] Raw args keys:', Object.keys(args));
-            console.log('[FS Tool] args.rel_path:', args.rel_path);
-            console.log('[FS Tool] args.relPath:', args.relPath);
+            // 🔥 FIX: 优先使用 tc.function.arguments（流式累积的完整 JSON 字符串）
+            // tc.args 可能在流式解析过程中是空对象，导致参数丢失
+            let args: any = toolCall.args || {};
+
+            // 如果 args 是空对象，尝试从 function.arguments 中解析
+            if (Object.keys(args).length === 0) {
+                const argsString = (toolCall as any).function?.arguments;
+                if (argsString && typeof argsString === 'string') {
+                    try {
+                        args = JSON.parse(argsString);
+                        console.log('[FS Tool] Parsed args from function.arguments:', args);
+                    } catch (e) {
+                        console.warn('[FS Tool] Failed to parse function.arguments:', e);
+                        args = {};
+                    }
+                }
+            }
+
+            console.log('[FS Tool] Final args:', JSON.stringify(args));
+            console.log('[FS Tool] args keys:', Object.keys(args));
 
             // Get default relPath based on tool type
             const getDefaultRelPath = () => {
@@ -1760,6 +1799,7 @@ const patchedApproveToolCall = async (
                 return '';
             };
 
+            // Fix arguments: snake_case (LLM) -> camelCase (Tauri)
             relPath = args.rel_path || args.relPath || getDefaultRelPath();
             let content: string = args.content || "";
 

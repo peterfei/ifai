@@ -1,0 +1,329 @@
+
+import { test, expect } from '@playwright/test';
+import { setupE2ETestEnvironment } from './setup-utils';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ESM 模块兼容：获取 __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/**
+ * Bug Reproduction Script: DeepSeek Tool Call Failure
+ * 
+ * Scenario:
+ * User asks DeepSeek model (e.g., deepseek-chat) to read a file (e.g., dev.log).
+ * The model receives the request but fails to trigger the 'agent_read_file' tool,
+ * resulting in a text-only response or silence regarding the file content.
+ * 
+ * Expected Behavior:
+ * The model should generate a tool_call, which the frontend executes, displaying the file content.
+ */
+
+// Helper to load env config (since we cannot import dotenv or internal helpers easily)
+function loadEnvConfig(configPath: string): Record<string, string> {
+  try {
+    const content = fs.readFileSync(configPath, 'utf-8');
+    const config: Record<string, string> = {};
+    content.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+            config[match[1].trim()] = match[2].trim().replace(/^['"]|['"]$/g, '');
+        }
+    });
+    return config;
+  } catch (e) {
+    console.warn(`[Repro] Failed to load config from ${configPath}`);
+    return {};
+  }
+}
+
+test.describe('Reproduction: DeepSeek Tool Call Failure', () => {
+    test.setTimeout(60000); // Allow enough time for real AI response
+
+    // Capture screenshots and logs on failure for debugging
+    test.afterEach(async ({ page }, testInfo) => {
+        if (testInfo.status !== 'passed') {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const screenshotPath = testInfo.outputPath(`fail-${timestamp}.png`);
+            await page.screenshot({ path: screenshotPath, fullPage: true });
+            console.log(`[Repro] 📸 Screenshot saved: ${screenshotPath}`);
+
+            // Also save console logs if available
+            const logs = await page.evaluate(() => {
+                return (window as any).__E2E_DEBUG_LOGS || [];
+            });
+            if (logs.length > 0) {
+                console.log('[Repro] Console logs:', logs);
+            }
+        }
+    });
+
+    test('should invoke agent_read_file when asked to read a file', async ({ page }) => {
+        // 1. Load Configuration
+        const envPath = path.resolve(__dirname, '.env.e2e.local');
+        const envConfig = loadEnvConfig(envPath);
+
+        // Auto-detect DeepSeek keys if standard E2E keys aren't set
+        const apiKey = envConfig.E2E_AI_API_KEY || envConfig.DEEPSEEK_API_KEY;
+        // Default to deepseek official API if not specified
+        const baseUrl = envConfig.E2E_AI_BASE_URL || envConfig.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+        const model = envConfig.E2E_AI_MODEL || envConfig.DEEPSEEK_MODEL || 'deepseek-chat';
+
+        if (!apiKey) {
+            test.skip(true, 'Skipping reproduction test: No API Key found in .env.e2e.local. Please set E2E_AI_API_KEY or DEEPSEEK_API_KEY.');
+            return;
+        }
+
+        console.log(`[Repro] Target Configuration -> Model: ${model}, BaseURL: ${baseUrl}`);
+
+        // 2. Setup Environment with Real AI
+        // This injects the config and mocks the file system but allows real AI calls
+        await setupE2ETestEnvironment(page, {
+            useRealAI: true,
+            realAIApiKey: apiKey,
+            realAIBaseUrl: baseUrl,
+            realAIModel: model
+        });
+
+        // 3. Initialize Mock Filesystem
+        // We populate the file so that IF the tool is called, it returns valid content.
+        const targetFileName = 'dev.log';
+        const targetFileContent = 'Content of dev.log: [INFO] System initialized successfully. [WARN] Low memory.';
+        // 🔥 Use the actual project root path that will be passed to the tool
+        // The projectRoot comes from useFileStore.getState().rootPath, which defaults to '/Users/mac/mock-project'
+        const projectRoot = '/Users/mac/mock-project';
+        const targetPath = path.posix.join(projectRoot, targetFileName);
+
+        // 🔥 Create mock file AFTER setupE2ETestEnvironment to ensure it's not overwritten
+        await page.evaluate(({ path, content }) => {
+            const mockFS = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+            if (mockFS) {
+                mockFS.set(path, content);
+                console.log(`[Repro] Mock file created: ${path}`);
+                // Verify the file was created
+                const verify = mockFS.get(path);
+                console.log(`[Repro] Mock file verify:`, verify ? 'SUCCESS' : 'FAILED');
+            } else {
+                console.error('[Repro] __E2E_MOCK_FILE_SYSTEM__ not found!');
+            }
+        }, { path: targetPath, content: targetFileContent });
+
+        // 4. Launch App
+        await page.goto('/');
+
+        // 🔥 Force reload to ensure latest tauri-mocks code is loaded
+        await page.reload();
+        await page.waitForTimeout(2000);
+        await page.waitForTimeout(3000);
+
+        // 🔥 RE-CREATE mock file AFTER app is fully loaded (to override any setup-utils init)
+        await page.evaluate(({ path, content }) => {
+            const mockFS = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+            if (mockFS) {
+                mockFS.set(path, content);
+                console.log(`[Repro] Mock file RE-created: ${path}`);
+            } else {
+                console.error('[Repro] __E2E_MOCK_FILE_SYSTEM__ not found!');
+            }
+        }, { path: targetPath, content: targetFileContent });
+
+        // 🔥 Debug: Check if __TAURI__ is properly set up
+        const tauriCheck = await page.evaluate(() => {
+            const tauri = (window as any).__TAURI__;
+            return {
+                hasTauri: !!tauri,
+                hasCore: !!(tauri && tauri.core),
+                hasInvoke: !!(tauri && tauri.core && tauri.core.invoke),
+                invokeType: typeof (tauri && tauri.core && tauri.core.invoke)
+            };
+        });
+        console.log('[Repro] 📎 Tauri setup check:', tauriCheck);
+
+        // 🔥 Debug: Check __E2E_REAL_AI_CONFIG__
+        const configCheck = await page.evaluate(() => {
+            const config = (window as any).__E2E_REAL_AI_CONFIG__;
+            return {
+                hasConfig: !!config,
+                useRealAI: config?.useRealAI,
+                hasApiKey: !!config?.realAIApiKey,
+                apiKeyPrefix: config?.realAIApiKey?.substring(0, 10)
+            };
+        });
+        console.log('[Repro] 📎 E2E Config check:', configCheck);
+
+        // 5. Wait for stores to be initialized - use v0.3.0 pattern
+        await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
+        await page.waitForTimeout(2000);
+
+        // 6. Open Chat (if not open) - use v0.3.0 pattern (layoutStore.useLayoutStore)
+        await page.evaluate(() => {
+            const layoutStore = (window as any).__layoutStore;
+            // Check if it's a wrapped store (has useLayoutStore property) or direct Zustand store
+            if (layoutStore) {
+                const store = layoutStore.useLayoutStore || layoutStore;
+                if (store && store.getState && !store.getState().isChatOpen) {
+                    store.getState().toggleChat();
+                }
+            }
+        });
+        await page.waitForTimeout(1000);
+
+        // 7. Send Message "Read dev.log" - use v0.2.9 pattern with direct sendMessage
+        const providerId = envConfig.E2E_AI_PROVIDER_ID || 'real-ai-e2e';
+        const modelId = envConfig.E2E_AI_MODEL_ID || envConfig.E2E_AI_MODEL || 'deepseek-chat';
+        const prompt = `Read the content of ${targetFileName} file in the current directory`;
+        console.log(`[Repro] Sending prompt: ${prompt} (Provider: ${providerId}, Model: ${modelId})`);
+
+        // 🔥 Debug: Check invoke function source before sending message
+        const invokeSourceCheck = await page.evaluate(() => {
+            return {
+                tauriInvokeType: typeof (window as any).__TAURI__?.core?.invoke,
+                hasModuleCache: !!(window as any).__TAURI_INVOKE_MODULE__,
+                moduleCacheType: typeof (window as any).__TAURI_INVOKE_MODULE__,
+                hasTauriInternals: !!(window as any).__TAURI_INTERNALS__,
+                tauriInternalsInvokeType: typeof (window as any).__TAURI_INTERNALS__?.invoke
+            };
+        });
+        console.log('[Repro] 🔍 Invoke source check:', invokeSourceCheck);
+
+        // 🔥 Debug: Try to directly test the invoke function
+        const invokeTest = await page.evaluate(async () => {
+            try {
+                // Try importing @tauri-apps/api/core
+                const coreModule = await import('@tauri-apps/api/core');
+                return {
+                    hasInvoke: !!coreModule.invoke,
+                    invokeType: typeof coreModule.invoke,
+                    invokeString: coreModule.invoke.toString().substring(0, 200)
+                };
+            } catch (e) {
+                return {
+                    error: (e as Error).message,
+                    errorName: (e as Error).name
+                };
+            }
+        });
+        console.log('[Repro] 🔍 @tauri-apps/api/core invoke test:', invokeTest);
+
+        // 🔥 Debug: Check if tauri-mocks module was loaded
+        const tauriMocksCheck = await page.evaluate(() => {
+            // Check if the module was loaded by looking for its global markers
+            return {
+                hasSetInvokeHandler: !!(window as any).__tauriSetInvokeHandler__,
+                hasE2EInvokeHandler: !!(window as any).__E2E_INVOKE_HANDLER__,
+                hasTauriInternals: !!(window as any).__TAURI_INTERNALS__,
+                hasTauriInvoke: !!(window as any).__TAURI_INVOKE__,
+                hasTauriCoreInvoke: !!(window as any).__TAURI__?.core?.invoke
+            };
+        });
+        console.log('[Repro] 🔍 Tauri mocks check:', tauriMocksCheck);
+
+        // 🔥 Debug: Try to manually call the tauri invoke to see if it works
+        const manualInvokeTest = await page.evaluate(async () => {
+            try {
+                const tauriCoreInvoke = (window as any).__TAURI__?.core?.invoke;
+                if (tauriCoreInvoke) {
+                    const result = await tauriCoreInvoke('get_git_statuses');
+                    return { success: true, result };
+                }
+                return { success: false, error: 'No __TAURI__.core.invoke' };
+            } catch (e) {
+                return { success: false, error: (e as Error).message };
+            }
+        });
+        console.log('[Repro] 🔍 Manual __TAURI__.core.invoke test:', manualInvokeTest);
+
+
+        // 🔥 CRITICAL: Test if tauri-mocks/api/core.ts invoke function works
+        const tauriMocksInvokeTest = await page.evaluate(async () => {
+            const results: any = {};
+
+            // Get the invoke function from tauri-mocks/api/core.ts
+            try {
+                // The module should be loaded since Vite aliases it
+                // Try to access it through the imports
+                const imports = await import('/src/tauri-mocks/api/core.ts');
+                results.hasModule = true;
+                results.hasInvoke = !!imports.invoke;
+
+                if (imports.invoke) {
+                    // Call invoke with a test command
+                    try {
+                        const testResult = await imports.invoke('test_direct_invoke');
+                        results.invokeResult = testResult;
+                        results.invokeWorks = testResult === 'TEST_RESULT_test_direct_invoke' || testResult === '[]' || Array.isArray(testResult);
+                    } catch (e) {
+                        results.invokeError = (e as Error).message;
+                    }
+                }
+            } catch (e) {
+                results.moduleError = (e as Error).message;
+            }
+
+            return results;
+        });
+        console.log('[Repro] 🔍 Tauri mocks invoke test:', tauriMocksInvokeTest);
+
+        // 🔥 Capture all browser console logs
+        const consoleLogs: string[] = [];
+        page.on('console', msg => {
+            const text = msg.text();
+            consoleLogs.push(`[${msg.type()}] ${text}`);
+        });
+
+        // 🔥 Also capture page errors
+        page.on('pageerror', error => {
+            console.log('[Repro] Page error:', error);
+        });
+
+        await page.evaluate(async (payload) => {
+            const chatStore = (window as any).__chatStore;
+            if (chatStore) {
+                await chatStore.getState().sendMessage(payload.text, payload.providerId, payload.modelId);
+            }
+        }, { text: prompt, providerId, modelId });
+
+        // 8. Verify Result - use v0.2.9 pattern: get messages from chatStore
+        // Wait for AI response (DeepSeek may need time to generate tool call)
+        await page.waitForTimeout(30000);
+
+        // 🔥 Print captured console logs
+        console.log('[Repro] 🔍 Captured console logs:', consoleLogs.length);
+        consoleLogs.forEach((log, index) => {
+            console.log(`[Repro]   [${index}] ${log}`);
+        });
+
+        const messages = await page.evaluate(() => {
+            const chatStore = (window as any).__chatStore;
+            return chatStore ? chatStore.getState().messages : [];
+        });
+
+        const assistantMessages = messages.filter((m: any) => m.role === 'assistant');
+        console.log(`[Repro] Got ${assistantMessages.length} assistant messages`);
+
+        // Check if any assistant message contains the file content
+        let contentFound = false;
+        for (const msg of assistantMessages) {
+            const content = msg.content || '';
+            if (content.includes(targetFileContent) || content.includes('[INFO] System initialized')) {
+                contentFound = true;
+                console.log('[Repro] ✅ Found file content in message:', msg.id);
+                break;
+            }
+        }
+
+        if (!contentFound) {
+            console.log('[Repro] ❌ Test Failed: File content was not displayed.');
+            console.log('[Repro] Last assistant message:', assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1].content?.substring(0, 500) : 'No messages');
+        } else {
+            console.log('[Repro] ✅ Test Passed: File content displayed. Tool was called successfully.');
+        }
+
+        expect(contentFound, 'Expected file content to be displayed in chat, but it was not found. Tool "agent_read_file" likely failed to trigger.').toBe(true);
+    });
+});

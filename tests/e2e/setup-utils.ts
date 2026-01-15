@@ -372,6 +372,9 @@ export async function setupE2ETestEnvironment(
     };
 
     const mockInvoke = async (cmd: string, args?: any) => {
+        // 🔥 Debug: Log all invoke calls
+        console.log('[E2E Mock] 📞 invoke called:', { cmd, argsKeys: args ? Object.keys(args) : 'no args' });
+
         if (cmd === 'get_git_statuses') return [];
         if (cmd === 'plugin:fs|read_dir') return [
             { name: 'App.tsx', isDirectory: false, isFile: true },
@@ -644,7 +647,9 @@ export async function setupE2ETestEnvironment(
         if (cmd === 'ai_chat') {
             // 🔥 检查是否使用真实 AI
             const realAIConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+            console.log('[E2E Mock] 🔍 __E2E_REAL_AI_CONFIG__:', JSON.stringify(realAIConfig));
             const useRealAI = realAIConfig.useRealAI === true;
+            console.log('[E2E Mock] 🔍 useRealAI check:', useRealAI, 'raw value:', realAIConfig.useRealAI);
 
             // 设置标志，让测试可以检查
             (window as any).__E2E_AI_CHAT_CALL_INFO__ = {
@@ -674,34 +679,128 @@ export async function setupE2ETestEnvironment(
                 console.log('[E2E Real AI] Calling real AI API:', {
                     baseUrl: apiBaseUrl,
                     model: model,
-                    messagesCount: messages.length
+                    messagesCount: messages.length,
+                    enableTools: args?.enableTools
                 });
 
                 // 🔥 关键修复：返回一个 Promise，等待 AI 响应完成
                 // 这样商业版的 await invoke('ai_chat', ...) 会等待响应
                 return (async () => {
                     try {
+                        // 🔥 检查是否启用工具
+                        const enableTools = args?.enableTools === true;
+
+                        // 🔥 获取当前工作目录（从 projectRoot 或使用默认值）
+                        const currentProjectRoot = args?.projectRoot || '/Users/mac/mock-project';
+                        console.log('[E2E Real AI] 📁 Current project root:', currentProjectRoot);
+
+                        // 🔥 构建消息历史，如果有工具则添加 system prompt
+                        let processedMessages = messages.map((m: any) => ({
+                            role: m.role,
+                            content: m.content?.Text || m.content || ''
+                        }));
+
+                        if (enableTools) {
+                            // 在消息开头添加 system prompt，告诉 AI 有工具可用和当前工作目录
+                            processedMessages.unshift({
+                                role: 'system',
+                                content: `You have access to tools that can read and write files. The current project root is: ${currentProjectRoot}
+
+When the user asks to read a file, use the agent_read_file tool with:
+- rootPath: "${currentProjectRoot}"
+- relPath: the relative path from the project root (e.g., "dev.log", "src/main.ts")
+
+Available tools:
+- agent_read_file: Read file contents
+- agent_write_file: Write content to a file
+
+Always use the tools when the user asks to read or write files.`
+                            });
+                            console.log('[E2E Real AI] 📝 Added system prompt with tools info');
+                        }
+
+                        // 🔥 定义可用工具（OpenAI Function Calling 格式）
+                        const tools = enableTools ? [
+                            {
+                                type: 'function',
+                                function: {
+                                    name: 'agent_read_file',
+                                    description: 'Read the content of a file at the specified path',
+                                    parameters: {
+                                        type: 'object',
+                                        properties: {
+                                            rootPath: {
+                                                type: 'string',
+                                                description: 'The root directory path of the project'
+                                            },
+                                            relPath: {
+                                                type: 'string',
+                                                description: 'The relative path of the file from the root directory'
+                                            }
+                                        },
+                                        required: ['rootPath', 'relPath']
+                                    }
+                                }
+                            },
+                            {
+                                type: 'function',
+                                function: {
+                                    name: 'agent_write_file',
+                                    description: 'Write content to a file at the specified path',
+                                    parameters: {
+                                        type: 'object',
+                                        properties: {
+                                            rootPath: {
+                                                type: 'string',
+                                                description: 'The root directory path of the project'
+                                            },
+                                            relPath: {
+                                                type: 'string',
+                                                description: 'The relative path of the file from the root directory'
+                                            },
+                                            content: {
+                                                type: 'string',
+                                                description: 'The content to write to the file'
+                                            }
+                                        },
+                                        required: ['rootPath', 'relPath', 'content']
+                                    }
+                                }
+                            }
+                        ] : undefined;
+
+                        // 🔥 构建请求体
+                        const requestBody: any = {
+                            model: model,
+                            messages: processedMessages,
+                            stream: false
+                        };
+
+                        // 🔥 如果启用工具，添加 tools 参数
+                        if (tools) {
+                            requestBody.tools = tools;
+                            console.log('[E2E Real AI] 🛠️ Tools enabled, sending', tools.length, 'tools to API');
+                        }
+
                         const response = await fetch(apiBaseUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${realAIConfig.realAIApiKey}`
                             },
-                            body: JSON.stringify({
-                                model: model,
-                                messages: messages.map(m => ({
-                                    role: m.role,
-                                    content: m.content?.Text || m.content || ''
-                                })),
-                                stream: false
-                            })
+                            body: JSON.stringify(requestBody)
                         });
 
                         const data = await response.json();
-                        console.log('[E2E Real AI] API response:', {
+                        console.log('[E2E Real AI] 📥 API full response:', JSON.stringify(data, null, 2));
+                        console.log('[E2E Real AI] API response summary:', {
                             id: data.id,
                             hasChoices: !!data.choices,
                             finishReason: data.choices?.[0]?.finish_reason,
+                            hasToolCalls: !!(data.choices?.[0]?.message?.tool_calls),
+                            toolCallsCount: data.choices?.[0]?.message?.tool_calls?.length || 0,
+                            hasContent: !!(data.choices?.[0]?.message?.content),
+                            contentLength: data.choices?.[0]?.message?.content?.length || 0,
                             hasError: !!data.error,
                             error: data.error
                         });
@@ -735,8 +834,150 @@ export async function setupE2ETestEnvironment(
 
                         if (data.choices && data.choices[0]) {
                             const choice = data.choices[0];
-                            const content = choice.message?.content || '';
+                            const message = choice.message;
+                            const toolCalls = message?.tool_calls;
+                            const content = message?.content || '';
 
+                            // 🔥 检查是否有 tool_calls
+                            if (toolCalls && toolCalls.length > 0) {
+                                console.log('[E2E Real AI] 🛠️ Tool calls detected:', toolCalls.length);
+                                toolCalls.forEach((tc: any, index: number) => {
+                                    console.log(`[E2E Real AI]   Tool call ${index}:`, tc.function?.name, tc.function?.arguments);
+                                });
+
+                                // 🔥 发送 tool_calls 事件
+                                const toolCallsPayload = { type: 'tool_calls', toolCalls };
+                                streamListeners.forEach((fn: any) => {
+                                    try {
+                                        fn({ payload: toolCallsPayload });
+                                    } catch (e) {
+                                        console.error('[E2E Real AI] Error sending tool_calls:', e);
+                                    }
+                                });
+
+                                // 🔥 对于每个 tool_call，调用 mock 函数并收集结果
+                                const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__ || new Map();
+                                const toolResults: any[] = [];
+
+                                for (const tc of toolCalls) {
+                                    const functionName = tc.function?.name;
+                                    let functionArgs = tc.function?.arguments;
+
+                                    // 解析 arguments（如果是字符串）
+                                    if (typeof functionArgs === 'string') {
+                                        try {
+                                            functionArgs = JSON.parse(functionArgs);
+                                        } catch (e) {
+                                            console.error('[E2E Real AI] Failed to parse tool arguments:', functionArgs);
+                                            functionArgs = {};
+                                        }
+                                    }
+
+                                    console.log('[E2E Real AI] Executing tool:', functionName, functionArgs);
+
+                                    let result: any;
+                                    try {
+                                        if (functionName === 'agent_read_file') {
+                                            const filePath = `${functionArgs.rootPath}/${functionArgs.relPath}`.replace(/\/\//g, '/');
+                                            result = mockFileSystem.get(filePath);
+                                            if (result === undefined) {
+                                                result = `Error: File not found: ${filePath}`;
+                                            }
+                                            console.log('[E2E Real AI] ✅ agent_read_file result:', result?.substring(0, 100));
+                                        } else if (functionName === 'agent_write_file') {
+                                            const filePath = `${functionArgs.rootPath}/${functionArgs.relPath}`.replace(/\/\//g, '/');
+                                            mockFileSystem.set(filePath, functionArgs.content);
+                                            result = { success: true, filePath };
+                                            console.log('[E2E Real AI] ✅ agent_write_file result:', filePath);
+                                        } else {
+                                            result = `Error: Unknown tool: ${functionName}`;
+                                            console.warn('[E2E Real AI] Unknown tool:', functionName);
+                                        }
+                                    } catch (e) {
+                                        result = `Error: ${e instanceof Error ? e.message : String(e)}`;
+                                        console.error('[E2E Real AI] Tool execution error:', e);
+                                    }
+
+                                    toolResults.push({
+                                        tool_call_id: tc.id,
+                                        role: 'tool',
+                                        content: typeof result === 'string' ? result : JSON.stringify(result)
+                                    });
+                                }
+
+                                // 🔥 发送工具调用结果到前端
+                                console.log('[E2E Real AI] Sending tool results to frontend:', toolResults.length);
+                                const toolResultsPayload = { type: 'tool_results', results: toolResults };
+                                streamListeners.forEach((fn: any) => {
+                                    try {
+                                        fn({ payload: toolResultsPayload });
+                                    } catch (e) {
+                                        console.error('[E2E Real AI] Error sending tool_results:', e);
+                                    }
+                                });
+
+                                // 🔥 CRITICAL FIX: 将工具结果发送回 DeepSeek API 获取最终响应
+                                // 这是 OpenAI Function Calling 的标准流程
+                                console.log('[E2E Real AI] 🔄 Sending tool results back to API for final response');
+
+                                // 构建新的消息历史，包含原始消息 + assistant 的 tool_calls + tool results
+                                const messagesWithToolResults = [
+                                    ...processedMessages,
+                                    {
+                                        role: 'assistant',
+                                        content: content || '',
+                                        tool_calls: toolCalls
+                                    },
+                                    ...toolResults
+                                ];
+
+                                // 调用 API 获取最终响应
+                                const finalResponse = await fetch(apiBaseUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${realAIConfig.realAIApiKey}`
+                                    },
+                                    body: JSON.stringify({
+                                        model: model,
+                                        messages: messagesWithToolResults
+                                        // 注意：第二次请求不需要发送 tools
+                                    })
+                                });
+
+                                if (!finalResponse.ok) {
+                                    throw new Error(`API request failed: ${finalResponse.status} ${finalResponse.statusText}`);
+                                }
+
+                                const finalData = await finalResponse.json();
+                                console.log('[E2E Real AI] 📥 Final API response:', {
+                                    hasChoices: !!finalData.choices,
+                                    hasContent: !!finalData.choices?.[0]?.message?.content,
+                                    finishReason: finalData.choices?.[0]?.finish_reason
+                                });
+
+                                // 发送最终响应内容到前端
+                                const finalContent = finalData.choices?.[0]?.message?.content || '';
+                                if (finalContent) {
+                                    const finalPayload = { type: 'content', content: finalContent };
+                                    console.log('[E2E Real AI] Sending final content to frontend:', finalContent.substring(0, 100));
+                                    streamListeners.forEach((fn: any) => {
+                                        try {
+                                            fn({ payload: finalPayload });
+                                        } catch (e) {
+                                            console.error('[E2E Real AI] Error sending final content:', e);
+                                        }
+                                    });
+                                }
+
+                                // 🔥 发送完成事件
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                                finishListeners.forEach((fn: any) => fn({ payload: { type: 'done' } }));
+
+                                return { success: true, eventId, toolCalls: true };
+                            }
+
+                            // 🔥 如果没有 tool_calls，发送普通内容
                             // 🔥 商业版期望的 payload 格式: { type: 'content', content: '...' }
                             const payload = { type: 'content', content };
                             console.log('[E2E Real AI] Sending payload:', payload);
@@ -1168,6 +1409,21 @@ export function formatDate(date: Date): string {
     (window as any).__E2E_INVOKE_HANDLER__ = mockInvoke;
     console.log('[E2E Init] Exposed __E2E_INVOKE_HANDLER__ to window');
 
+    // 🔥 CRITICAL FIX: Mock @tauri-apps/api/core's invoke function
+    // The @tauri-apps/api/core package checks window.__TAURI_INTERNALS__.invoke
+    // We need to set this to ensure our mock is used
+    (window as any).__TAURI_INTERNALS__ = {
+        invoke: mockInvoke
+    };
+
+    // Also set it on a well-known location that @tauri-apps/api might check
+    (window as any).__TAURI_INVOKE__ = mockInvoke;
+
+    console.log('[E2E Init] 🔧 Mocked Tauri internals:', {
+        hasTauriInternals: !!(window as any).__TAURI_INTERNALS__,
+        hasTauriInvoke: !!(window as any).__TAURI_INVOKE__
+    });
+
     // 🔥 同时尝试通过 __tauriSetInvokeHandler__ 直接设置（如果可用）
     const trySetInvokeHandler = (attempt: number) => {
       console.log(`[E2E Init] Attempt ${attempt} to set invoke handler via __tauriSetInvokeHandler__...`);
@@ -1179,23 +1435,25 @@ export function formatDate(date: Date): string {
         console.log('[E2E Init] ✅ Set invoke handler using __tauriSetInvokeHandler__');
         return true;
       } else {
-        console.warn(`[E2E Init] ⚠️ __tauriSetInvokeHandler__ not found (attempt ${attempt}), will use __E2E_INVOKE_HANDLER__ fallback`);
+        console.warn(`[E2E Init] ⚠️ __tauriSetInvokeHandler__ not found (attempt ${attempt}), will retry...`);
         return false;
       }
     };
 
-    // 尝试立即设置
-    if (!trySetInvokeHandler(1)) {
-      // 100ms 后重试
-      setTimeout(() => {
-        if (!trySetInvokeHandler(2)) {
-          // 500ms 后再次重试
-          setTimeout(() => {
-            trySetInvokeHandler(3);
-          }, 400);
-        }
-      }, 100);
-    }
+    // 🔥 持续重试直到成功（最多 20 次，每次间隔 100ms）
+    let attempt = 0;
+    const maxAttempts = 20;
+    const checkInterval = setInterval(() => {
+      attempt++;
+      const success = trySetInvokeHandler(attempt);
+      if (success) {
+        console.log(`[E2E Init] ✅ Successfully set invoke handler on attempt ${attempt}`);
+        clearInterval(checkInterval);
+      } else if (attempt >= maxAttempts) {
+        console.error('[E2E Init] ❌ Failed to set invoke handler after 20 attempts, using __E2E_INVOKE_HANDLER__ fallback');
+        clearInterval(checkInterval);
+      }
+    }, 100);
 
     // 🔥 同时设置到全局 __TAURI__ 作为备份
     setTimeout(() => {

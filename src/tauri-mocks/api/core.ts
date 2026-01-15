@@ -60,12 +60,25 @@ export function transformCallback<T = unknown>(callback?: (response: T) => void,
  * invoke 函数 - 调用 Tauri 命令
  */
 export async function invoke<T = any>(cmd: string, args?: any): Promise<T> {
-  console.log('[tauri-mocks/core] invoke called:', cmd, 'hasHandler:', !!invokeHandler);
+  console.log('[tauri-mocks/core] 📞 invoke called:', cmd, 'args:', args ? Object.keys(args) : 'none');
+  console.log('[tauri-mocks/core] hasHandler:', !!invokeHandler);
+  console.log('[tauri-mocks/core] hasE2EHandler:', !!(window as any).__E2E_INVOKE_HANDLER__);
+  console.log('[tauri-mocks/core] hasTauriInternals:', !!(window as any).__TAURI_INTERNALS__);
+  console.log('[tauri-mocks/core] hasWindowTauriCoreInvoke:', !!(window as any).__TAURI__?.core?.invoke);
 
   if (invokeHandler) {
+    console.log('[tauri-mocks/core] ✅ Using invokeHandler');
     return invokeHandler(cmd, args);
   }
 
+  // 🔥 FIX: Fall back to window.__TAURI__.core.invoke if available
+  const windowTauriInvoke = (window as any).__TAURI__?.core?.invoke;
+  if (windowTauriInvoke) {
+    console.log('[tauri-mocks/core] ✅ Using window.__TAURI__.core.invoke as fallback');
+    return windowTauriInvoke(cmd, args);
+  }
+
+  console.warn('[tauri-mocks/core] ⚠️ No invokeHandler and no window.__TAURI__.core.invoke, returning empty object');
   // 默认返回空对象
   return {} as T;
 }
