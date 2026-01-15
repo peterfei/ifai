@@ -1142,7 +1142,18 @@ Always use the appropriate tool when the user asks to perform file operations.`
                                 });
 
                                 // 发送最终响应内容到前端
-                                const finalContent = finalData.choices?.[0]?.message?.content || '';
+                                let finalContent = finalData.choices?.[0]?.message?.content || '';
+
+                                // 🔥 FIX: 移除 DSML 格式的标记（如果存在）
+                                // DeepSeek 可能会在最终响应中包含 DSML 格式的工具调用标记
+                                if (finalContent && finalContent.includes('<｜DSML｜function_calls>')) {
+                                    console.log('[E2E Real AI] 🔍 Detected DSML format in final content, cleaning up...');
+                                    finalContent = finalContent
+                                        .replace(/<｜DSML｜function_calls>[\s\S]*?<\/｜DSML｜function_calls>/g, '')
+                                        .trim();
+                                    console.log('[E2E Real AI] Cleaned final content:', finalContent.substring(0, 100));
+                                }
+
                                 if (finalContent) {
                                     const finalPayload = { type: 'content', content: finalContent };
                                     console.log('[E2E Real AI] Sending final content to frontend:', finalContent.substring(0, 100));
@@ -1162,9 +1173,201 @@ Always use the appropriate tool when the user asks to perform file operations.`
                                 return { success: true, eventId, toolCalls: true };
                             }
 
-                            // 🔥 如果没有 tool_calls，发送普通内容
+                            // 🔥 如果没有 tool_calls，检查 content 是否包含 DSML 格式的工具调用
+                            // DSML 格式是 DeepSeek 的一种特殊格式，例如：
+                            // <｜DSML｜function_calls> <｜DSML｜invoke name="agent_list_dir"> ... </｜DSML｜function_calls>
+
+                            let parsedToolCalls: any[] | null = null;
+                            let processedContent = content;
+
+                            // 🔥 检查是否包含 DSML 格式的工具调用
+                            if (content && content.includes('<｜DSML｜function_calls>')) {
+                                console.log('[E2E Real AI] 🔍 Detected DSML format in content, attempting to parse...');
+
+                                try {
+                                    // DSML 格式解析器
+                                    // 示例: <｜DSML｜invoke name="agent_list_dir"> <｜DSML｜parameter name="rootPath" string="true">/Users/mac/mock-project</｜DSML｜parameter> </｜DSML｜invoke>
+
+                                    // 提取所有 function_calls
+                                    const functionCallsMatch = content.match(/<｜DSML｜function_calls>([\s\S]*?)<\/｜DSML｜function_calls>/);
+                                    if (functionCallsMatch) {
+                                        const functionCallsBlock = functionCallsMatch[1];
+                                        console.log('[E2E Real AI] DSML function_calls block:', functionCallsBlock);
+
+                                        // 匹配所有的 invoke 块
+                                        const invokeRegex = /<｜DSML｜invoke name="([^"]+)"([\s\S]*?)<\/｜DSML｜invoke>/g;
+                                        const invokeMatches = [...functionCallsBlock.matchAll(invokeRegex)];
+
+                                        parsedToolCalls = invokeMatches.map((match, index) => {
+                                            const functionName = match[1];
+                                            const parametersBlock = match[2];
+
+                                            // 解析参数
+                                            const paramRegex = /<｜DSML｜parameter name="([^"]+)"(?: string="([^"]*)"| boolean="([^"]*)"| number="([^"]*)"|>([^<]*)<\/｜DSML｜parameter>)/g;
+                                            const paramMatches = [...parametersBlock.matchAll(paramRegex)];
+
+                                            const args: any = {};
+                                            paramMatches.forEach((paramMatch) => {
+                                                const paramName = paramMatch[1];
+                                                const stringValue = paramMatch[2];  // string 类型
+                                                const booleanValue = paramMatch[3];  // boolean 类型
+                                                const numberValue = paramMatch[4];  // number 类型
+                                                const contentValue = paramMatch[5];  // 标签内容值
+
+                                                if (stringValue !== undefined) {
+                                                    args[paramName] = stringValue;
+                                                } else if (booleanValue !== undefined) {
+                                                    args[paramName] = booleanValue === 'true';
+                                                } else if (numberValue !== undefined) {
+                                                    args[paramName] = parseFloat(numberValue);
+                                                } else if (contentValue !== undefined) {
+                                                    args[paramName] = contentValue.trim();
+                                                }
+                                            });
+
+                                            // 转换为 OpenAI 格式的 tool_call
+                                            return {
+                                                id: `call_dsml_${index}_${Date.now()}`,
+                                                type: 'function',
+                                                function: {
+                                                    name: functionName,
+                                                    arguments: JSON.stringify(args)
+                                                }
+                                            };
+                                        });
+
+                                        console.log('[E2E Real AI] ✅ Parsed DSML tool calls:', parsedToolCalls.length);
+                                        parsedToolCalls.forEach((tc, idx) => {
+                                            console.log(`[E2E Real AI]   Tool call ${idx}:`, tc.function?.name, tc.function?.arguments);
+                                        });
+
+                                        // 移除 DSML 格式的内容，只保留纯文本部分
+                                        // 通常 DSML 格式会在 content 的开头或结尾
+                                        processedContent = content
+                                            .replace(/<｜DSML｜function_calls>[\s\S]*?<\/｜DSML｜function_calls>/g, '')
+                                            .trim();
+                                        console.log('[E2E Real AI] Processed content (DSML removed):', processedContent);
+                                    }
+                                } catch (e) {
+                                    console.error('[E2E Real AI] ❌ Failed to parse DSML format:', e);
+                                    // 如果解析失败，继续使用原始 content
+                                }
+                            }
+
+                            // 🔥 如果成功解析了 DSML 格式的工具调用，使用标准处理流程
+                            if (parsedToolCalls && parsedToolCalls.length > 0) {
+                                console.log('[E2E Real AI] 🛠️ Using parsed DSML tool calls');
+
+                                // 发送工具调用事件（使用正常模式，不模拟 DeepSeek 流式）
+                                const toolCallsPayload = { type: 'tool_calls', toolCalls: parsedToolCalls };
+                                streamListeners.forEach((fn: any) => {
+                                    try {
+                                        fn({ payload: toolCallsPayload });
+                                    } catch (e) {
+                                        console.error('[E2E Real AI] Error sending tool_calls:', e);
+                                    }
+                                });
+
+                                // 🔥 对于每个 tool_call，调用 mock 函数并收集结果
+                                const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__ || new Map();
+                                const toolResults: any[] = [];
+
+                                for (const tc of parsedToolCalls) {
+                                    const functionName = tc.function?.name;
+                                    let functionArgs = tc.function?.arguments;
+
+                                    // 解析 arguments（如果是字符串）
+                                    if (typeof functionArgs === 'string') {
+                                        try {
+                                            functionArgs = JSON.parse(functionArgs);
+                                        } catch (e) {
+                                            console.error('[E2E Real AI] Failed to parse tool arguments:', functionArgs);
+                                            functionArgs = {};
+                                        }
+                                    }
+
+                                    console.log('[E2E Real AI] Executing tool:', functionName, 'with args:', functionArgs);
+
+                                    // 🔥 根据 functionName 执行相应的操作
+                                    let result = '';
+                                    const rootPath = functionArgs.rootPath || '/Users/mac/mock-project';
+                                    const relPath = functionArgs.relPath || '';
+
+                                    if (functionName === 'agent_read_file') {
+                                        const filePath = path.posix.join(rootPath, relPath);
+                                        result = mockFileSystem.get(filePath) || `File not found: ${relPath}`;
+                                        console.log('[E2E Real AI] agent_read_file result:', result.substring(0, 100));
+                                    }
+                                    else if (functionName === 'agent_write_file') {
+                                        const filePath = path.posix.join(rootPath, relPath);
+                                        const content = functionArgs.content || '';
+                                        mockFileSystem.set(filePath, content);
+                                        result = `File written: ${relPath}`;
+                                        console.log('[E2E Real AI] agent_write_file result:', result);
+                                    }
+                                    else if (functionName === 'agent_list_dir') {
+                                        const listPath = relPath ? path.posix.join(rootPath, relPath) : rootPath;
+                                        // 简化的目录列表
+                                        const entries = ['src/', 'tests/', 'package.json', 'README.md', 'tsconfig.json'];
+                                        result = entries.join('\n');
+                                        console.log('[E2E Real AI] agent_list_dir result:', result);
+                                    }
+                                    else if (functionName === 'agent_delete_file') {
+                                        const filePath = path.posix.join(rootPath, relPath);
+                                        mockFileSystem.delete(filePath);
+                                        result = `File deleted: ${relPath}`;
+                                        console.log('[E2E Real AI] agent_delete_file result:', result);
+                                    }
+                                    else if (functionName === 'agent_list_functions') {
+                                        result = `Found functions:\nfunction1\nfunction2\nmain`;
+                                        console.log('[E2E Real AI] agent_list_functions result:', result);
+                                    }
+                                    else if (functionName === 'agent_read_file_range') {
+                                        const filePath = path.posix.join(rootPath, relPath);
+                                        const content = mockFileSystem.get(filePath) || '';
+                                        const lines = content.split('\n');
+                                        const start = (functionArgs.startLine || 1) - 1;
+                                        const end = Math.min(functionArgs.endLine || lines.length, lines.length);
+                                        const range = lines.slice(start, end).join('\n');
+                                        result = range;
+                                        console.log('[E2E Real AI] agent_read_file_range result:', result.substring(0, 100));
+                                    }
+                                    else {
+                                        result = `Unknown tool: ${functionName}`;
+                                        console.log('[E2E Real AI] Unknown tool:', functionName);
+                                    }
+
+                                    toolResults.push({ toolCall: tc, result });
+                                }
+
+                                // 🔥 发送工具结果（模拟 AI 收到工具结果后的最终响应）
+                                setTimeout(() => {
+                                    // 发送最终响应内容到前端
+                                    const finalContent = processedContent || 'Tool calls completed successfully.';
+                                    if (finalContent) {
+                                        const finalPayload = { type: 'content', content: finalContent };
+                                        console.log('[E2E Real AI] Sending final content to frontend:', finalContent.substring(0, 100));
+                                        streamListeners.forEach((fn: any) => {
+                                            try {
+                                                fn({ payload: finalPayload });
+                                            } catch (e) {
+                                                console.error('[E2E Real AI] Error sending final content:', e);
+                                            }
+                                        });
+                                    }
+
+                                    // 发送完成事件
+                                    setTimeout(() => {
+                                        finishListeners.forEach((fn: any) => fn({ payload: { type: 'done' } }));
+                                    }, 100);
+                                }, 500);
+
+                                return { success: true, eventId, toolCalls: true };
+                            }
+
+                            // 🔥 如果没有 tool_calls 且没有 DSML 格式，发送普通内容
                             // 🔥 商业版期望的 payload 格式: { type: 'content', content: '...' }
-                            const payload = { type: 'content', content };
+                            const payload = { type: 'content', content: processedContent };
                             console.log('[E2E Real AI] Sending payload:', payload);
                             console.log('[E2E Real AI] Payload type:', typeof payload, 'keys:', Object.keys(payload));
 
