@@ -203,6 +203,15 @@ function App() {
       } catch (error) {
         console.error('[App] ❌ Failed to expose LayoutStore:', error);
       }
+
+      // v0.3.1: 暴露 agentStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useAgentStore } = await import('./stores/agentStore');
+        (window as any).__agentStore = useAgentStore;
+        console.log('[App] ✅ AgentStore exposed to window.__agentStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose AgentStore:', error);
+      }
     };
 
     init();

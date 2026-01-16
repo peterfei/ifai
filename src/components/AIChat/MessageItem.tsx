@@ -87,13 +87,19 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
         return false;
     }
 
-    // 如果有 toolCalls，深度比较每个 toolCall 的 status 和 result
+    // 如果有 toolCalls，深度比较每个 toolCall 的 status、result、isPartial 和 args
     if (prevToolCalls && nextToolCalls) {
         for (let i = 0; i < prevToolCalls.length; i++) {
             const prevTC = prevToolCalls[i];
             const nextTC = nextToolCalls[i];
-            // 如果 status 或 result 变化，重新渲染
-            if (prevTC.status !== nextTC.status || prevTC.result !== nextTC.result) {
+            // 🔥 FIX: 添加 isPartial 检查，确保工具批准状态变化时触发重新渲染
+            // 🔥 FIX v0.3.2: 添加 args 检查，确保工具参数流式更新时触发重新渲染
+            // 问题：当 Agent 工具调用在流式更新参数时（isPartial=true），UI 没有实时显示更新的内容
+            // 根因：React.memo 比较函数没有检查 toolCall.args 的变化
+            if (prevTC.status !== nextTC.status ||
+                prevTC.result !== nextTC.result ||
+                prevTC.isPartial !== nextTC.isPartial ||
+                JSON.stringify(prevTC.args) !== JSON.stringify(nextTC.args)) {  // 🔥 关键修复：args 变化检测
                 return false;
             }
         }
@@ -116,6 +122,7 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     return true;
 };
 
+// 🔥 FIX: 添加自定义比较函数，确保 toolCalls 变化时触发重新渲染
 export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
     const isUser = message.role === 'user';
@@ -151,13 +158,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const [ignoredActions, setIgnoredActions] = useState<Set<number>>(new Set());
 
     // 强制使用外部传进来的 isStreaming 作为主要判定依据
-    // 🔥 FIX: 如果所有 toolCalls 都完成了，应该认为流式传输结束
-    // 这修复了工具执行完成后仍然显示空气泡的问题
-    const hasPendingToolCalls = message.toolCalls?.some(tc =>
-        tc.status === 'pending' || tc.status === 'running' || tc.isPartial
-    );
-
-    const effectivelyStreaming = (isStreaming || isActivelyStreaming) && hasPendingToolCalls;
+    // 🔥 FIX v0.3.1: 恢复到工作版本（8572973）的逻辑
+    // 问题分析：
+    // - hasPendingToolCalls 逻辑导致：当 partial=false 时立即退出流式模式
+    // - 这破坏了打字机效果，也影响了工具批准 UI 的显示
+    // - 恢复原始逻辑：effectivelyStreaming 只由 isStreaming 和 isActivelyStreaming 控制
+    // - 工具执行完成的检测由 isActivelyStreaming 的 timeout 处理（1500ms）
+    const effectivelyStreaming = isStreaming || isActivelyStreaming;
 
     // v0.2.8: Composer 2.0 - 检测消息中是否有文件变更
     const hasFileChanges = React.useMemo(() => {
@@ -406,12 +413,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const isAgent = !!(message as any).agentId;
     const bubbleClass = isUser ? STYLES.userBubble : (isAgent ? STYLES.agentBubble : STYLES.assistantBubble);
 
-    // 🔥 FIX: 检查是否是只有 toolCalls 但没有实际内容的 assistant 消息
+    // 🔥 FIX: 检查是否是只有 toolCalls 但没有实际内容的消息
     // 如果是，则不显示气泡，只显示 ToolApproval 组件
+    // 这适用于 assistant 和 agent 消息（Agent 消息也可能有工具调用但无内容）
     // 只检查 message.content，不检查 contentSegments（避免复杂的多媒体内容判断）
     const hasContent = message.content && message.content.trim().length > 0;
     const hasToolCalls = message.toolCalls && message.toolCalls.length > 0;
-    const shouldHideBubble = !isUser && !isAgent && !hasContent && hasToolCalls;
+    // 🔥 修复：移除 !isAgent 条件，让 Agent 消息也可以隐藏气泡
+    // 这样 Agent 消息中的工具调用也能直接显示 ToolApproval 组件
+    const shouldHideBubble = !isUser && !hasContent && hasToolCalls;
 //...
 
     // Parse segments from string content (for non-multi-modal or fallback)
@@ -509,13 +519,26 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 <div className="flex items-start gap-3 w-full">
                     {/* Avatar */}
                     <div className="shrink-0 mt-0.5">
-                        <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-700 bg-black/20 flex items-center justify-center">
-                            <img src={ifaiLogo} alt="IfAI Logo" className="w-4 h-4 opacity-90" />
-                        </div>
+                        {isAgent ? (
+                            <div className="w-6 h-6 rounded-full bg-blue-900 flex items-center justify-center border border-blue-500/50 shadow-inner text-blue-400">
+                                <Bot size={14} />
+                            </div>
+                        ) : (
+                            <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-700 bg-black/20 flex items-center justify-center">
+                                <img src={ifaiLogo} alt="IfAI Logo" className="w-4 h-4 opacity-90" />
+                            </div>
+                        )}
                     </div>
 
                     {/* 直接渲染 ToolApproval 组件，不使用气泡容器 */}
                     <div className="flex-1 min-w-0">
+                        {isAgent && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter bg-blue-900/40 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                    Agent Live
+                                </span>
+                            </div>
+                        )}
                         {message.toolCalls && message.toolCalls.map(toolCall => (
                             <ToolApproval
                                 key={toolCall.id}

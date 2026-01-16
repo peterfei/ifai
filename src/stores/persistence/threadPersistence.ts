@@ -62,8 +62,27 @@ function storedToThread(stored: StoredThread): Thread {
 
 /**
  * Convert Message with threadId to StoredMessage
+ *
+ * 🔥 FIX: Validate that message.id exists before conversion.
+ * If message.id is missing, undefined, or null, the IndexedDB save will fail with:
+ * DataError: Failed to store record in an IDBObjectStore: Evaluating the object store's key path did not yield a value.
  */
-function messageToStored(message: Message, threadId: string): StoredMessage {
+function messageToStored(message: Message, threadId: string): StoredMessage | null {
+  // Validate message.id exists and is a valid string
+  if (!message.id || message.id === undefined || message.id === null || message.id === '') {
+    console.warn('[ThreadPersistence] ⚠️ Skipping message without valid ID:', {
+      threadId,
+      role: message.role,
+      contentPreview: typeof message.content === 'string'
+        ? message.content.substring(0, 50)
+        : JSON.stringify(message.content).substring(0, 50),
+      hasId: 'id' in message,
+      idValue: message.id,
+      idType: typeof message.id
+    });
+    return null;  // Return null to indicate this message should be skipped
+  }
+
   return {
     id: message.id,
     threadId,
@@ -153,6 +172,9 @@ class ThreadPersistenceService {
 
   /**
    * Save messages for a thread
+   *
+   * 🔥 FIX: Filter out messages that fail conversion (missing id).
+   * messageToStored now returns null for invalid messages to prevent IndexedDB errors.
    */
   async saveThreadMessages(threadId: string, messages: Message[]): Promise<void> {
     if (!this.initialized) {
@@ -160,9 +182,32 @@ class ThreadPersistenceService {
     }
 
     try {
-      const stored = messages.map(m => messageToStored(m, threadId));
-      await indexedDBHelper.saveMessages(stored);
-      console.log(`[ThreadPersistence] Saved ${messages.length} messages for thread: ${threadId}`);
+      // Convert messages to stored format, filtering out any that return null (invalid)
+      const validStoredMessages: StoredMessage[] = [];
+      const skippedCount = { invalidId: 0 };
+
+      for (const message of messages) {
+        const stored = messageToStored(message, threadId);
+        if (stored !== null) {
+          validStoredMessages.push(stored);
+        } else {
+          skippedCount.invalidId++;
+        }
+      }
+
+      // Log warning if any messages were skipped
+      if (skippedCount.invalidId > 0) {
+        console.warn(`[ThreadPersistence] ⚠️ Skipped ${skippedCount.invalidId} message(s) without valid IDs for thread: ${threadId}`);
+      }
+
+      // Only save if we have valid messages
+      if (validStoredMessages.length > 0) {
+        await indexedDBHelper.saveMessages(validStoredMessages);
+        console.log(`[ThreadPersistence] Saved ${validStoredMessages.length} messages for thread: ${threadId}`);
+      } else if (messages.length > 0) {
+        // All messages were invalid
+        console.warn(`[ThreadPersistence] ⚠️ No valid messages to save for thread: ${threadId} (had ${messages.length} message(s), all skipped)`);
+      }
     } catch (error) {
       console.error('[ThreadPersistence] Failed to save messages:', error);
     }

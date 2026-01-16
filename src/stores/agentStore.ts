@@ -650,6 +650,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                     }
                                 }
                             }, 200);
+                        } else {
+                            // 🔥 DEBUG: 确认工具调用需要手动批准
+                            console.log(`[AgentStore] 🔥 Tool call requires manual approval:`, {
+                                toolCallId: liveToolCall.id,
+                                tool: liveToolCall.tool,
+                                status: liveToolCall.status,
+                                isPartial: liveToolCall.isPartial,
+                                msgId,
+                                agentId: id
+                            });
                         }
                     }
                 }
