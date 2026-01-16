@@ -458,7 +458,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
 
     return (
-        <div className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'}`}>
+        <div className={`group flex flex-col mb-6 ${isUser ? 'items-end' : 'items-start'}`} data-testid={`message-${message.id}`}>
             <div className={bubbleClass}>
                 {/* Actions Toolbar - Floating on top right of assistant messages */}
                 {/* ⚡️ FIX: 始终渲染，使用 opacity 控制可见性，避免布局跳动 */}

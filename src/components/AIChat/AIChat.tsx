@@ -31,6 +31,8 @@ import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
 import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
 import { VirtualMessageList } from './VirtualMessageList';
+// v0.3.1: 时间线视图
+import { MessageTimeline } from './MessageTimeline';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 // v0.2.6: 任务拆解 Store（测试中）
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
@@ -92,6 +94,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const openFile = useFileStore(state => state.openFile);
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
+  // v0.3.1: 视图模式状态（普通视图 vs 时间线视图）
+  const [viewMode, setViewMode] = useState<'normal' | 'timeline'>('normal');
   // 🔥 动态版本号：优先使用 Tauri API，回退到构建时注入的版本号
   const [appVersion, setAppVersion] = useState<string>(import.meta.env.VITE_APP_VERSION || '0.0.0');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -2098,27 +2102,89 @@ ${suggestion.fixContext.code_context}
       {/* Thread Tabs */}
       <ThreadTabs maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />
 
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="min-h-0 overflow-auto p-4"
-        style={{
-          // v0.2.6 性能优化：单一滚动容器，虚拟滚动使用此容器
-          flex: '1 1 0%', // 明确设置 flex 属性，确保正确计算高度
-        }}
-      >
-        {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
-        <VirtualMessageList
-          messages={rawMessages}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onOpenFile={handleOpenFile}
-          onOpenComposer={openComposer}
-          isLoading={isLoading}
-          parentRef={scrollContainerRef}
-        />
-        <div ref={messagesEndRef} />
+      {/* v0.3.1: 视图切换按钮 */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700/50 bg-[#252526]">
+        <span className="text-xs text-gray-400">
+          {viewMode === 'normal' ? '💬 普通视图' : '🕐 时间线视图'}
+        </span>
+        <button
+          onClick={() => setViewMode(viewMode === 'normal' ? 'timeline' : 'normal')}
+          className="
+            px-3
+            py-1.5
+            bg-[#1e1e1e]
+            hover:bg-[#2d2d2d]
+            text-gray-300
+            text-xs
+            rounded-lg
+            transition-colors
+            border
+            border-gray-700/50
+            flex
+            items-center
+            gap-2
+          "
+          data-testid="timeline-view-toggle"
+        >
+          {viewMode === 'normal' ? (
+            <>
+              <span>🕐</span>
+              <span>切换到时间线</span>
+            </>
+          ) : (
+            <>
+              <span>💬</span>
+              <span>切换到普通视图</span>
+            </>
+          )}
+        </button>
       </div>
+
+      {/* v0.3.1: 根据视图模式显示不同的内容 */}
+      {viewMode === 'timeline' ? (
+        <MessageTimeline
+          onBubbleClick={(messageId) => {
+            // 点击气泡切换回普通视图并滚动到对应消息
+            setViewMode('normal');
+            // 等待视图切换完成
+            setTimeout(() => {
+              const messageElement = document.querySelector(`[data-testid="message-${messageId}"]`);
+              if (messageElement) {
+                messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // 高亮消息
+                messageElement.classList.add('ring-2', 'ring-blue-500');
+                setTimeout(() => {
+                  messageElement.classList.remove('ring-2', 'ring-blue-500');
+                }, 2000);
+              }
+            }, 100);
+          }}
+          batchSize={10}
+          timeoutMs={5000}
+        />
+      ) : (
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="min-h-0 overflow-auto p-4"
+          style={{
+            // v0.2.6 性能优化：单一滚动容器，虚拟滚动使用此容器
+            flex: '1 1 0%', // 明确设置 flex 属性，确保正确计算高度
+          }}
+        >
+          {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
+          <VirtualMessageList
+            messages={rawMessages}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onOpenFile={handleOpenFile}
+            onOpenComposer={openComposer}
+            isLoading={isLoading}
+            parentRef={scrollContainerRef}
+          />
+          <div ref={messagesEndRef} />
+        </div>
+      )}
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
       <TokenUsageIndicator />
