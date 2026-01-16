@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Multimodal - Layout & Upload', () => {
   test.beforeEach(async ({ page }) => {

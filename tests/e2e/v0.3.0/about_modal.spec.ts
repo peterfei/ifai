@@ -8,7 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('About Modal and Help Links', () => {
   test.beforeEach(async ({ page }) => {

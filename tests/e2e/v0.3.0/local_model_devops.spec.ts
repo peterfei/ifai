@@ -35,7 +35,7 @@ bash
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Local Model - DevOps Command Detection', () => {
   test.beforeEach(async ({ page }) => {

@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Smart Terminal Loop (v0.2.9)', () => {
   test.beforeEach(async ({ page }) => {
@@ -23,7 +23,10 @@ test.describe('Smart Terminal Loop (v0.2.9)', () => {
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
       if (layoutStore) {
-        layoutStore.getState().toggleTerminal();
+        const store = layoutStore.useLayoutStore || layoutStore;
+        if (store && store.getState && store.getState().toggleTerminal) {
+          store.getState().toggleTerminal();
+        }
       }
     });
 
