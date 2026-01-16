@@ -104,6 +104,8 @@ export async function setupE2ETestEnvironment(
   const realAIApiKey = options.realAIApiKey ?? process.env.E2E_AI_API_KEY ?? fileConfig.E2E_AI_API_KEY;
   const realAIBaseUrl = options.realAIBaseUrl ?? process.env.E2E_AI_BASE_URL ?? fileConfig.E2E_AI_BASE_URL;
   const realAIModel = options.realAIModel ?? process.env.E2E_AI_MODEL ?? fileConfig.E2E_AI_MODEL;
+  // E2E_SKIP_WELCOME 默认为 true（E2E 测试通常不需要新手引导）
+  const skipWelcome = options.skipWelcome ?? (fileConfig.E2E_SKIP_WELCOME === 'false' ? false : true);
 
   // 🔥 检查是否需要真实 AI 但没有配置
   if (useRealAI && !realAIApiKey) {
@@ -156,14 +158,18 @@ export async function setupE2ETestEnvironment(
     // 🔥 跳过 E2E 稳定器以避免无限循环
     (window as any).__E2E_SKIP_STABILIZER__ = true;
 
-    // 🔥 跳过欢迎对话框（E2E 测试环境）
-    localStorage.setItem('ifai_onboarding_state', JSON.stringify({
-      completed: false,
-      skipped: true,
-      remindCount: 0,
-      lastRemindDate: null
-    }));
-    console.log('[E2E Init] Welcome dialog skipped for E2E tests');
+    // 🔥 跳过欢迎对话框（E2E 测试环境）- 根据 skipWelcome 配置
+    if ((realAIConfigParam as any).skipWelcome !== false) {
+      localStorage.setItem('ifai_onboarding_state', JSON.stringify({
+        completed: false,
+        skipped: true,
+        remindCount: 0,
+        lastRemindDate: null
+      }));
+      console.log('[E2E Init] Welcome dialog skipped for E2E tests');
+    } else {
+      console.log('[E2E Init] Welcome dialog enabled (skipWelcome = false)');
+    }
 
     // A. 设置真实 AI 配置（必须在最前面）
     console.log('[E2E Init] Received config:', JSON.stringify(realAIConfigParam));
@@ -2030,7 +2036,10 @@ export function formatDate(date: Date): string {
     }
 
     const configurations: Record<string, any> = {
-        'ifai_onboarding_state': { completed: true, skipped: true },
+        // 🔥 根据 skipWelcome 配置决定是否跳过新手引导
+        'ifai_onboarding_state': (realAIConfig as any).skipWelcome === false
+          ? { completed: false, skipped: false, remindCount: 0, lastRemindDate: null }
+          : { completed: true, skipped: true },
         // 🔥 修复持久化测试:只设置 rootPath,保留 openedFiles 等其他状态的持久化
         'file-storage': (existing: any) => ({
           ...existing,
@@ -2817,5 +2826,5 @@ export class TestApp {
         }
       }, 500);
     }, 1000);
-  }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel, simulateDeepSeekStreaming: options.simulateDeepSeekStreaming || false });
+  }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel, simulateDeepSeekStreaming: options.simulateDeepSeekStreaming || false, skipWelcome });
 }

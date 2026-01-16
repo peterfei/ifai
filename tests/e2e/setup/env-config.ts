@@ -48,6 +48,12 @@ export interface E2ETestEnvironmentOptions {
    * @default false
    */
   simulateDeepSeekStreaming?: boolean;
+
+  /**
+   * 是否跳过新手引导（Welcome Tour）
+   * @default true
+   */
+  skipWelcome?: boolean;
 }
 
 /**
@@ -59,6 +65,7 @@ export interface RealAIConfig {
   realAIBaseUrl?: string;
   realAIModel?: string;
   simulateDeepSeekStreaming?: boolean;
+  skipWelcome?: boolean;
 }
 
 /**
@@ -118,6 +125,8 @@ export function buildRuntimeConfig(options: E2ETestEnvironmentOptions = {}): Rea
   const realAIBaseUrl = options.realAIBaseUrl ?? process.env.E2E_AI_BASE_URL ?? fileConfig.E2E_AI_BASE_URL;
   const realAIModel = options.realAIModel ?? process.env.E2E_AI_MODEL ?? fileConfig.E2E_AI_MODEL;
   const simulateDeepSeekStreaming = options.simulateDeepSeekStreaming ?? false;
+  // E2E_SKIP_WELCOME 默认为 true（E2E 测试通常不需要新手引导）
+  const skipWelcome = options.skipWelcome ?? (fileConfig.E2E_SKIP_WELCOME === 'false' ? false : true);
 
   // 🔥 检查是否需要真实 AI 但没有配置
   if (useRealAI && !realAIApiKey) {
@@ -141,9 +150,10 @@ export function buildRuntimeConfig(options: E2ETestEnvironmentOptions = {}): Rea
     realAIApiKey,
     realAIBaseUrl,
     realAIModel,
-    simulateDeepSeekStreaming
+    simulateDeepSeekStreaming,
+    skipWelcome
   };
-}
+};
 
 /**
  * 获取真实 AI 的 provider 和 model 配置

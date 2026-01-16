@@ -1,13 +1,45 @@
 # E2E测试快速参考指南
 
+> **🚨 强制性规范**: 在创建或修改任何 E2E 测试之前，**必须**阅读并遵守 [E2E 测试编码规范标准](./CODING_STANDARDS.md)。这是项目强制性要求，所有 LLM 生成代码时都必须遵守此标准。
+
 ## 📚 目录
 
+- [强制性规范](#强制性规范) ⚠️
 - [快速开始](#快速开始)
 - [Setup 模块 (新增)](#setup-模块-新增)
 - [测试模板](#测试模板)
 - [辅助工具](#辅助工具)
 - [最佳实践](#最佳实践)
 - [常见问题](#常见问题)
+
+---
+
+## 🚨 强制性规范 ⚠️
+
+### 创建新测试时必须遵守：
+
+1. **从模板复制，不要从头写**:
+   ```bash
+   cp tests/e2e/templates/real-ai-test.template.spec.ts tests/e2e/your-test.spec.ts
+   ```
+
+2. **使用正确的导入**:
+   ```typescript
+   import { setupE2ETestEnvironment, getRealAIConfig } from './setup';
+   // ❌ 禁止: import from './setup-utils'
+   ```
+
+3. **使用动态配置**:
+   ```typescript
+   const config = await getRealAIConfig(page);
+   // ❌ 禁止: 硬编码 'real-ai-e2e', 'deepseek-chat'
+   ```
+
+4. **禁止大量调试代码**:
+   - 不要添加 `console.log('[Test] 🔍 ...')` 等调试代码
+   - 保持测试代码简洁
+
+**完整规范请参阅**: [CODING_STANDARDS.md](./CODING_STANDARDS.md)
 
 ---
 
