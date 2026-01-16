@@ -196,6 +196,57 @@ export async function setupE2ETestEnvironment(
     (window as any).__formatToolResultToMarkdown = (result: any, toolCall?: any) => {
       if (!result) return '';
 
+      // 🔥 FIX: 处理 ifainew_core 返回的字符数组问题
+      // 字符数组特征：每个元素都是单个字符的字符串
+      if (Array.isArray(result)) {
+        if (result.length === 0) {
+          return '_No results_';
+        }
+
+        // 首先检查是否是字符数组
+        const isCharArray = result.length > 0 &&
+                           result.every((item: any) => typeof item === 'string' && item.length <= 10);
+        if (isCharArray) {
+          // 将字符数组拼接成字符串
+          const joinedString = result.join('');
+          // 递归处理拼接后的字符串（可能是JSON）
+          return (window as any).__formatToolResultToMarkdown(joinedString, toolCall);
+        }
+
+        // 🔥 FIX: 检查是否是文件/目录列表（agent_list_dir 的结果）
+        // 特征：大部分元素是字符串，且包含常见文件名模式
+        const allStrings = result.every((item: any) => typeof item === 'string');
+        const hasFilePatterns = result.some((item: any) =>
+          item.includes('.') || item.includes('/') || item.match(/^[a-z_][a-z0-9_]*$/i)
+        );
+
+        if (allStrings && hasFilePatterns && result.length > 1) {
+          // 这是一个文件/目录列表，格式化为 Markdown 列表
+          console.log('[__formatToolResultToMarkdown] 检测到文件列表，元素数量:', result.length);
+          return `## 📁 Files (${result.length})\n\n${result.map((item: any) => `- \`${item}\``).join('\n')}`;
+        }
+
+        // 检查是否是生成的文件路径列表（旧的逻辑，保留兼容）
+        if (result.every((item: any) => typeof item === 'string' && item.includes('/'))) {
+          return `## 📁 Generated Files\n\n${result.map((path: any) => `- \`${path}\``).join('\n')}`;
+        }
+
+        // 普通数组
+        return result.map((item: any) => (window as any).__formatToolResultToMarkdown(item, toolCall)).join('\n\n');
+      }
+
+      // 如果结果是字符串，尝试解析为JSON
+      if (typeof result === 'string') {
+        try {
+          const parsed = JSON.parse(result);
+          // 如果是JSON，递归处理
+          return (window as any).__formatToolResultToMarkdown(parsed, toolCall);
+        } catch {
+          // 不是JSON，返回原字符串
+          return result;
+        }
+      }
+
       // 处理 agent_write_file 的特殊结构
       if (result.filePath && result.success !== undefined) {
         const lines: string[] = [];
@@ -476,7 +527,8 @@ export async function setupE2ETestEnvironment(
             }
 
             console.log('[E2E Mock] Directory listing for', dirPath, ':', entries);
-            return entries.join('\n');
+            // 🔥 FIX: 返回 JSON 数组字符串，匹配实际工具格式
+            return JSON.stringify(entries);
         }
         if (cmd === 'delete_file') {
             console.log('[E2E Mock] delete_file:', args);
@@ -916,6 +968,11 @@ Always use the appropriate tool when the user asks to perform file operations.`
                             error: data.error
                         });
 
+                        // 🔥 FIX: 在使用之前先定义 streamListeners 和 finishListeners
+                        // 避免在错误检查中访问未初始化的变量
+                        const streamListeners = (window as any).__TAURI_EVENT_LISTENERS__[eventId] || [];
+                        const finishListeners = (window as any).__TAURI_EVENT_LISTENERS__[`${eventId}_finish`] || [];
+
                         // 🔥 检查 API 是否返回了错误
                         if (data.error) {
                             console.error('[E2E Real AI] API returned error:', data.error);
@@ -933,9 +990,6 @@ Always use the appropriate tool when the user asks to perform file operations.`
                             finishListeners.forEach(fn => fn({ payload: { type: 'done' } }));
                             return { success: false, eventId, error: errorMsg };
                         }
-
-                        const streamListeners = (window as any).__TAURI_EVENT_LISTENERS__[eventId] || [];
-                        const finishListeners = (window as any).__TAURI_EVENT_LISTENERS__[`${eventId}_finish`] || [];
 
                         // 🔥 详细调试：检查事件监听器状态
                         console.log('[E2E Real AI] Event listeners for eventId:', eventId);
@@ -1058,10 +1112,10 @@ Always use the appropriate tool when the user asks to perform file operations.`
                                             console.log('[E2E Real AI] ✅ agent_write_file result:', filePath);
                                         } else if (functionName === 'agent_list_dir') {
                                             const dirPath = `${functionArgs.rootPath}/${functionArgs.relPath || '.'}`.replace(/\/\//g, '/');
-                                            // Mock directory listing - return some mock files
+                                            // Mock directory listing - return JSON array string (matching actual tool format)
                                             const entries = ['src/', 'tests/', 'package.json', 'README.md', 'tsconfig.json'];
-                                            result = entries.join('\n');
-                                            console.log('[E2E Real AI] ✅ agent_list_dir result:', entries.join(', '));
+                                            result = JSON.stringify(entries);
+                                            console.log('[E2E Real AI] ✅ agent_list_dir result:', result);
                                         } else if (functionName === 'agent_delete_file') {
                                             const filePath = `${functionArgs.rootPath}/${functionArgs.relPath}`.replace(/\/\//g, '/');
                                             mockFileSystem.delete(filePath);
@@ -1100,6 +1154,41 @@ Always use the appropriate tool when the user asks to perform file operations.`
                                         role: 'tool',
                                         content: typeof result === 'string' ? result : JSON.stringify(result)
                                     });
+
+                                    // 🔥 FIX: 更新已存在的 tool 消息（由 patchedApproveToolCall 创建）
+                                    // 或创建新的 tool 消息（如果不存在）
+                                    if (typeof window !== 'undefined') {
+                                        const chatStore = (window as any).__chatStore;
+                                        if (chatStore) {
+                                            const messages = chatStore.getState().messages;
+                                            // 查找已存在的 tool 消息
+                                            const existingToolMsg = messages.find((m: any) => m.role === 'tool' && m.tool_call_id === tc.id);
+
+                                            const content = typeof result === 'string' ? result : JSON.stringify(result);
+
+                                            if (existingToolMsg) {
+                                                // 更新已存在的 tool 消息
+                                                chatStore.setState((state: any) => ({
+                                                    messages: state.messages.map((m: any) =>
+                                                        m.id === existingToolMsg.id
+                                                            ? { ...m, content }
+                                                            : m
+                                                    )
+                                                }));
+                                                console.log('[E2E Real AI] ✅ Tool message updated in store for', tc.id);
+                                            } else {
+                                                // 创建新的 tool 消息
+                                                const crypto = (window as any).crypto || { randomUUID: () => 'test-' + Date.now() };
+                                                chatStore.getState().addMessage({
+                                                    id: crypto.randomUUID(),
+                                                    role: 'tool',
+                                                    content: content,
+                                                    tool_call_id: tc.id
+                                                });
+                                                console.log('[E2E Real AI] ✅ Tool message created in store for', tc.id);
+                                            }
+                                        }
+                                    }
                                 }
 
                                 // 🔥 发送工具调用结果到前端
@@ -1319,9 +1408,9 @@ Always use the appropriate tool when the user asks to perform file operations.`
                                     }
                                     else if (functionName === 'agent_list_dir') {
                                         const listPath = relPath ? path.posix.join(rootPath, relPath) : rootPath;
-                                        // 简化的目录列表
+                                        // Mock directory listing - return JSON array string (matching actual tool format)
                                         const entries = ['src/', 'tests/', 'package.json', 'README.md', 'tsconfig.json'];
-                                        result = entries.join('\n');
+                                        result = JSON.stringify(entries);
                                         console.log('[E2E Real AI] agent_list_dir result:', result);
                                     }
                                     else if (functionName === 'agent_delete_file') {

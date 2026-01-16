@@ -51,7 +51,33 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
       return '_No results_';
     }
 
-    // 检查是否是文件列表
+    // 🔥 FIX: 首先检查是否是字符数组（ifainew_core::agent::agent_read_file 的 bug）
+    // 字符数组特征：每个元素都是单个字符的字符串
+    const isCharArray = result.length > 0 &&
+                       result.every(item => typeof item === 'string' && item.length <= 10);
+    if (isCharArray) {
+      // 将字符数组拼接成字符串
+      console.log('[formatToolResultToMarkdown] 检测到字符数组，拼接为字符串，数组长度:', result.length);
+      const joinedString = result.join('');
+
+      // 递归处理拼接后的字符串（可能是JSON）
+      return formatToolResultToMarkdown(joinedString);
+    }
+
+    // 🔥 FIX: 检查是否是文件/目录列表（agent_list_dir 的结果）
+    // 特征：大部分元素是字符串，且包含常见文件名模式
+    const allStrings = result.every(item => typeof item === 'string');
+    const hasFilePatterns = result.some(item =>
+      item.includes('.') || item.includes('/') || item.match(/^[a-z_][a-z0-9_]*$/i)
+    );
+
+    if (allStrings && hasFilePatterns && result.length > 1) {
+      // 这是一个文件/目录列表，格式化为 Markdown 列表
+      console.log('[formatToolResultToMarkdown] 检测到文件列表，元素数量:', result.length);
+      return `## 📁 Files (${result.length})\n\n${result.map(item => `- \`${item}\``).join('\n')}`;
+    }
+
+    // 检查是否是生成的文件路径列表（旧的逻辑，保留兼容）
     if (result.every(item => typeof item === 'string' && item.includes('/'))) {
       return `## 📁 Generated Files\n\n${result.map(path => `- \`${path}\``).join('\n')}`;
     }
@@ -324,23 +350,66 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
     lines.push(`**💬 Message:** ${result.message}\n`);
   }
 
-  // 处理命令执行结果
-  if (result.command) {
-    lines.push(`**🔧 Command:** \`${result.command}\`\n`);
-  }
+  // 处理命令执行结果（优先级最高，因为这是最常见的情况）
+  if (result.stdout !== undefined || result.stderr !== undefined || result.command !== undefined) {
+    // 🔥 工业化设计：命令执行结果
+    const command = result.command;
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
+    const exitCode = result.exitCode !== undefined ? result.exitCode : result.exit_code;
+    const success = result.success !== undefined ? result.success : (exitCode === 0);
 
-  if (result.stdout) {
-    lines.push(`**📤 Output:**\n\`\`\`\n${result.stdout}\n\`\`\`\n`);
-  }
+    // 执行状态标题
+    if (success) {
+      lines.push(`### ✅ 命令执行成功\n`);
+    } else {
+      lines.push(`### ❌ 命令执行失败\n`);
+    }
 
-  if (result.stderr) {
-    lines.push(`**⚠️ Stderr:**\n\`\`\`\n${result.stderr}\n\`\`\`\n`);
-  }
+    // 执行的命令
+    if (command) {
+      lines.push(`**🔧 执行的命令:**\n`);
+      lines.push(`\`\`\`bash\n${command}\n\`\`\`\n\n`);
+    }
 
-  const exitCode = result.exitCode !== undefined ? result.exitCode : result.exit_code;
-  if (exitCode !== undefined) {
-    const exitIcon = exitCode === 0 ? '✅' : '❌';
-    lines.push(`**🔚 Exit Code:** ${exitIcon} ${exitCode}\n`);
+    // 标准输出（只有有内容时才显示）
+    if (stdout) {
+      const stdoutLines = stdout.split('\n').length;
+      if (stdoutLines > 5) {
+        // 输出较长，显示统计信息
+        lines.push(`**📤 标准输出** (${stdoutLines} 行):\n`);
+      } else {
+        lines.push(`**📤 标准输出:**\n`);
+      }
+      lines.push(`\`\`\`\n${stdout}\n\`\`\`\n\n`);
+    }
+
+    // 标准错误（只有有内容时才显示）
+    if (stderr) {
+      const stderrLines = stderr.split('\n').length;
+      lines.push(`**⚠️ 错误输出** (${stderrLines} 行):\n`);
+      lines.push(`\`\```\n${stderr}\n\`\```\n\n`);
+    }
+
+    // 退出码
+    if (exitCode !== undefined) {
+      const exitIcon = exitCode === 0 ? '✅' : '❌';
+      const exitText = exitCode === 0 ? '成功' : '失败';
+      lines.push(`**🔚 退出码:** ${exitIcon} ${exitCode} (${exitText})\n`);
+    }
+
+    // 执行时间（如果有）
+    if (result.elapsed_ms !== undefined) {
+      const timeInSeconds = (result.elapsed_ms / 1000).toFixed(2);
+      lines.push(`**⏱️ 执行时间:** ${timeInSeconds} 秒\n`);
+    }
+
+    // 如果没有任何输出
+    if (!stdout && !stderr && exitCode === 0) {
+      lines.push(`_命令执行成功，无输出_\n`);
+    }
+
+    return lines.join('\n');
   }
 
   // 处理内容

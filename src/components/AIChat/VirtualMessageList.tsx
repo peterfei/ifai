@@ -36,6 +36,11 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   const localRef = useRef<HTMLDivElement>(null);
   const scrollElementRef = parentRef || localRef;
 
+  // 🔥 FIX: 过滤掉 role === 'tool' 的消息，因为工具结果已经通过 ToolApproval 组件在 assistant 消息中显示
+  // 这避免了重复输出（一次格式化显示，一次原始 JSON 字符串显示）
+  // 注意：不过滤只有 toolCalls 的空 assistant 消息，因为它们需要在 MessageItem 中渲染 ToolApproval
+  const visibleMessages = messages.filter(m => m.role !== 'tool');
+
   // 检测是否有待处理的工具调用
   const hasPendingToolCalls = messages.some(m =>
     m.toolCalls?.some(tc => tc.status === 'pending' || tc.isPartial)
@@ -44,12 +49,12 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   // ⚠️ 重要：始终调用 hooks，不能在条件返回之前
   // 使用 @tanstack/react-virtual 创建虚拟化列表
   const virtualizer = useVirtualizer({
-    count: messages.length,
+    count: visibleMessages.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150, // 估算每条消息高度
     overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
     // 流式输出 或 有待处理工具调用时禁用虚拟滚动
-    enabled: messages.length >= 15 && !isLoading && !hasPendingToolCalls,
+    enabled: visibleMessages.length >= 15 && !isLoading && !hasPendingToolCalls,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -59,13 +64,13 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     if ((isLoading || hasPendingToolCalls) && scrollElementRef.current) {
       scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
     }
-  }, [messages, isLoading, hasPendingToolCalls]);
+  }, [visibleMessages, isLoading, hasPendingToolCalls]);
 
   // 条件渲染：短对话、正在加载、或有待处理工具调用时使用普通列表
-  if (messages.length < 15 || isLoading || hasPendingToolCalls) {
+  if (visibleMessages.length < 15 || isLoading || hasPendingToolCalls) {
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {messages.map((message) => (
+        {visibleMessages.map((message) => (
           <MessageItem
             key={message.id}
             message={message}
@@ -100,7 +105,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
         }}
       >
         {virtualItems.map((virtualRow) => {
-          const message = messages[virtualRow.index];
+          const message = visibleMessages[virtualRow.index];
           return (
             <div
               key={virtualRow.key}

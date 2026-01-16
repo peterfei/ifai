@@ -859,7 +859,21 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             // 策略 A: payload 已经是对象
             if (typeof rawPayload === 'object') {
                 if (rawPayload.type === 'content' && rawPayload.content) {
-                    textChunk = String(rawPayload.content);
+                    const content = String(rawPayload.content);
+
+                    // 🔥 FIX: 过滤掉本地模型工具执行摘要
+                    // 这些摘要会导致工具结果显示两次（一次在 ToolApproval，一次在消息内容中）
+                    const isLocalModelToolSummary =
+                        content.includes('[Local Model] Completed in') ||
+                        (content.includes('[OK] ') && content.includes('ms)\n{')) ||
+                        (rawPayload.metadata?.source === 'local_model' && content.includes('[OK]'));
+
+                    if (isLocalModelToolSummary) {
+                        console.log('[Chat] 🚫 过滤掉本地模型工具执行摘要，避免重复显示');
+                        return;  // 不追加这个内容到消息中
+                    }
+
+                    textChunk = content;
                 } else if (rawPayload.type === 'tool_call' && rawPayload.toolCall) {
                     toolCallUpdate = rawPayload.toolCall;
                 } else if (rawPayload.type === 'thinking' || rawPayload.type === 'tool-result' || rawPayload.type === 'done') {
@@ -871,7 +885,20 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 try {
                     const parsed = JSON.parse(rawPayload);
                     if (parsed && parsed.type === 'content' && parsed.content) {
-                        textChunk = String(parsed.content);
+                        const content = String(parsed.content);
+
+                        // 🔥 FIX: 过滤掉本地模型工具执行摘要
+                        const isLocalModelToolSummary =
+                            content.includes('[Local Model] Completed in') ||
+                            (content.includes('[OK] ') && content.includes('ms)\n{')) ||
+                            (parsed.metadata?.source === 'local_model' && content.includes('[OK]'));
+
+                        if (isLocalModelToolSummary) {
+                            console.log('[Chat] 🚫 过滤掉本地模型工具执行摘要（字符串解析）');
+                            return;
+                        }
+
+                        textChunk = content;
                     } else if (parsed && parsed.type === 'tool_call' && parsed.toolCall) {
                         toolCallUpdate = parsed.toolCall;
                     }
@@ -884,7 +911,20 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                                 try {
                                     const obj = JSON.parse(objects[i]);
                                     if (obj && obj.type === 'content' && obj.content) {
-                                        textChunk = String(obj.content);
+                                        const content = String(obj.content);
+
+                                        // 🔥 FIX: 过滤掉本地模型工具执行摘要（拼接 JSON 模式）
+                                        const isLocalModelToolSummary =
+                                            content.includes('[Local Model] Completed in') ||
+                                            (content.includes('[OK] ') && content.includes('ms)\n{')) ||
+                                            (obj.metadata?.source === 'local_model' && content.includes('[OK]'));
+
+                                        if (isLocalModelToolSummary) {
+                                            console.log('[Chat] 🚫 过滤掉本地模型工具执行摘要（拼接 JSON）');
+                                            continue;  // 跳过这个对象，继续尝试下一个
+                                        }
+
+                                        textChunk = content;
                                         break;
                                     }
                                 } catch (e2) {}
@@ -1343,16 +1383,46 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     coreUseChatStore.setState({ isLoading: true });
 
     // 2. Add Assistant Placeholder
-    const assistantMsgId = crypto.randomUUID();
-    const assistantMsgPlaceholder = {
-        id: assistantMsgId,
-        role: 'assistant' as const,
-        content: '',
-        // @ts-ignore - custom property for tracking stream order
-        contentSegments: [] as ContentSegment[]
-    };
-    // @ts-ignore
-    coreUseChatStore.getState().addMessage(assistantMsgPlaceholder);
+    // 🔥 FIX: 检查是否已经存在一个空的 assistant 消息（由本地模型创建的）
+    // 如果有，就使用它而不是创建新的，避免重复消息导致空气泡
+    //
+    // 关键修复：向后搜索最近的可复用 assistant 消息
+    // 因为工具执行后，最后一条消息可能是 role: 'tool'，而不是 assistant
+    const currentMessages = coreUseChatStore.getState().messages;
+
+    // 向后搜索最近的可复用 assistant 消息
+    // 条件：role === 'assistant' && content 为空 && 有 toolCalls
+    let reusableAssistantMsgId: string | null = null;
+    for (let i = currentMessages.length - 1; i >= 0; i--) {
+        const msg = currentMessages[i];
+        if (msg.role === 'assistant' &&
+            (!msg.content || msg.content.trim().length === 0) &&
+            msg.toolCalls && msg.toolCalls.length > 0) {
+            reusableAssistantMsgId = msg.id;
+            break;  // 找到最近的一个就停止
+        }
+    }
+
+    let assistantMsgId: string;
+
+    if (reusableAssistantMsgId) {
+        // 复用已存在的 assistant 消息
+        assistantMsgId = reusableAssistantMsgId;
+        console.log('[patchedGenerateResponse] 复用本地模型创建的 assistant 消息:', assistantMsgId);
+    } else {
+        // 创建新的占位符消息
+        assistantMsgId = crypto.randomUUID();
+        const assistantMsgPlaceholder = {
+            id: assistantMsgId,
+            role: 'assistant' as const,
+            content: '',
+            // @ts-ignore - custom property for tracking stream order
+            contentSegments: [] as ContentSegment[]
+        };
+        // @ts-ignore
+        coreUseChatStore.getState().addMessage(assistantMsgPlaceholder);
+        console.log('[patchedGenerateResponse] 创建新的 assistant 消息:', assistantMsgId);
+    }
 
     // 3. Prepare History from Store (Source of Truth)
     // We ignore the `history` arg because we want the latest state including tool outputs we just added
@@ -1430,7 +1500,20 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
 
             if (typeof rawPayload === 'object') {
                 if (rawPayload.type === 'content' && rawPayload.content) {
-                    textChunk = String(rawPayload.content);
+                    const content = String(rawPayload.content);
+
+                    // 🔥 FIX: 过滤掉本地模型工具执行摘要
+                    const isLocalModelToolSummary =
+                        content.includes('[Local Model] Completed in') ||
+                        (content.includes('[OK] ') && content.includes('ms)\n{')) ||
+                        (rawPayload.metadata?.source === 'local_model' && content.includes('[OK]'));
+
+                    if (isLocalModelToolSummary) {
+                        console.log('[Chat] 🚫 过滤掉本地模型工具执行摘要，避免重复显示');
+                        return;
+                    }
+
+                    textChunk = content;
                 } else if (rawPayload.type === 'tool_call' && rawPayload.toolCall) {
                     toolCallUpdate = rawPayload.toolCall;
                 }
@@ -1438,7 +1521,20 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                 try {
                     const parsed = JSON.parse(rawPayload);
                     if (parsed && parsed.type === 'content' && parsed.content) {
-                        textChunk = String(parsed.content);
+                        const content = String(parsed.content);
+
+                        // 🔥 FIX: 过滤掉本地模型工具执行摘要
+                        const isLocalModelToolSummary =
+                            content.includes('[Local Model] Completed in') ||
+                            (content.includes('[OK] ') && content.includes('ms)\n{')) ||
+                            (parsed.metadata?.source === 'local_model' && content.includes('[OK]'));
+
+                        if (isLocalModelToolSummary) {
+                            console.log('[Chat] 🚫 过滤掉本地模型工具执行摘要（字符串解析）');
+                            return;
+                        }
+
+                        textChunk = content;
                     } else if (parsed && parsed.type === 'tool_call' && parsed.toolCall) {
                         toolCallUpdate = parsed.toolCall;
                     }
@@ -1450,7 +1546,20 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                                 try {
                                     const obj = JSON.parse(objects[i]);
                                     if (obj && obj.type === 'content' && obj.content) {
-                                        textChunk = String(obj.content);
+                                        const content = String(obj.content);
+
+                                        // 🔥 FIX: 过滤掉本地模型工具执行摘要（拼接 JSON 模式）
+                                        const isLocalModelToolSummary =
+                                            content.includes('[Local Model] Completed in') ||
+                                            (content.includes('[OK] ') && content.includes('ms)\n{')) ||
+                                            (obj.metadata?.source === 'local_model' && content.includes('[OK]'));
+
+                                        if (isLocalModelToolSummary) {
+                                            console.log('[Chat/GenerateResponse] 🚫 过滤掉本地模型工具执行摘要（拼接 JSON）');
+                                            continue;  // 跳过这个对象，继续尝试下一个
+                                        }
+
+                                        textChunk = content;
                                         break;
                                     }
                                 } catch (e2) {}
@@ -1903,7 +2012,25 @@ const patchedApproveToolCall = async (
                 stringResult = JSON.stringify(enhancedResult);
                 console.log('[Rollback] Enhanced result with rollback data and newContent');
             } else {
-                stringResult = typeof result === 'string' ? result : JSON.stringify(result);
+                // 🔥 FIX: 处理 ifainew_core 返回的字符数组问题
+                // agent_read_file 可能返回字符数组而不是字符串
+                if (typeof result === 'string') {
+                    stringResult = result;
+                } else if (Array.isArray(result)) {
+                    // 检查是否是字符数组（每个元素都是单个字符）
+                    const isCharArray = result.length > 0 &&
+                                        result.every((item: any) => typeof item === 'string' && item.length <= 1);
+                    if (isCharArray) {
+                        // 字符数组：拼接成字符串
+                        stringResult = result.join('');
+                    } else {
+                        // 普通数组：使用 JSON.stringify
+                        stringResult = JSON.stringify(result);
+                    }
+                } else {
+                    // 对象或其他类型：使用 JSON.stringify
+                    stringResult = JSON.stringify(result);
+                }
             }
 
             // Update status to completed

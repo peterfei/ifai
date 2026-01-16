@@ -223,23 +223,35 @@ test.describe('v0.3.1 Timeline View', () => {
       return { clicked: true };
     });
 
-    await page.waitForTimeout(500);
+    // 等待视图切换和滚动完成
+    await page.waitForTimeout(3000);
 
     // Then: 验证跳转行为
     const navigationState = await page.evaluate(() => {
       const highlightedMessage = document.querySelector('[data-testid="message-target-message-123"]');
+      const hasHighlightRing = highlightedMessage?.classList.contains('ring-2') || highlightedMessage?.classList.contains('ring-blue-500');
       const chatPanel = document.querySelector('[class*="chat"][class*="panel"]');
+      const messagePanel = document.querySelector('[data-testid="chat-panel"]');
 
       return {
         messageHighlighted: highlightedMessage !== null,
+        hasHighlightRing: hasHighlightRing,
+        messageInViewport: highlightedMessage ? (() => {
+          const rect = highlightedMessage.getBoundingClientRect();
+          const viewport = messagePanel?.getBoundingClientRect();
+          if (!viewport) return false;
+          return rect.top >= viewport.top && rect.bottom <= viewport.bottom;
+        })() : false,
         scrolledToMessage: chatPanel ? chatPanel.scrollTop > 0 : false
       };
     });
 
     console.log('[Test] 跳转状态:', JSON.stringify(navigationState, null, 2));
 
-    // 验证点击气泡跳转
+    // 验证点击气泡跳转 - 消息应该被高亮
     expect(navigationState.messageHighlighted).toBe(true);
+    // 验证高亮样式已应用
+    expect(navigationState.hasHighlightRing || navigationState.messageInViewport).toBe(true);
   });
 
   test('TIMELINE-03: 长消息折叠', async ({ page }) => {

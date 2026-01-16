@@ -266,19 +266,15 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
     const isPending = toolCall.status === 'pending';
     const isPartial = toolCall.isPartial;
 
-    // ⚡️ FIX: 检测是否是bash命令输出
-    const isBashOutput = () => {
+    // ⚡️ FIX: 所有 bash 命令都使用工业级控制台样式
+    // 修改前：只有 isLatestBashTool 时才显示
+    // 修改后：所有 bash 命令输出都使用 BashConsoleOutput 组件
+    const shouldShowConsole = () => {
         const toolName = toolCall.tool?.toLowerCase() || '';
         return toolName.includes('bash') ||
                toolName.includes('execute_command') ||
                toolName.includes('shell') ||
-               toolName.includes('agent_list_dir') ||
-               toolName.includes('agent_read_file');
-    };
-
-    // ⚡️ FIX: 判断是否应该显示控制台（只有最新的bash命令才显示）
-    const shouldShowConsole = () => {
-        return isBashOutput() && isLatestBashTool;
+               toolName === 'execute_bash_command';
     };
 
     // 解析bash命令输出
