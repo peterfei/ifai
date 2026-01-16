@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Tool Result Formatting & Task Summary', () => {
   test.beforeEach(async ({ page }) => {

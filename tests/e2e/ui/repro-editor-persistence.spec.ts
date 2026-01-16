@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 /**
  * 场景 1：还原重启后编辑器内容加载失败的问题。

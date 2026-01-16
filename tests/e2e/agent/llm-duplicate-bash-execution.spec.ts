@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 /**
  * E2E测试: LLM 重复执行 bash 命令问题

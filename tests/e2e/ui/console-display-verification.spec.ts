@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 /**
  * 验证控制台显示功能 - commit 4afdd13a

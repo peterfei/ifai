@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 /**
  * 工业级 AI 代码回滚 (Undo) 全场景覆盖测试

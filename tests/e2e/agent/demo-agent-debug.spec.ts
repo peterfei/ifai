@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Demo Agent Debug - 调试 Demo Agent', () => {
   test('should diagnose demo agent execution', async ({ page }) => {

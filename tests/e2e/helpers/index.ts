@@ -24,5 +24,5 @@ export * from './v0-3-0-test-utils';
 // 环境配置
 export * from '../config/test-environment';
 
-// 重新导出setup-utils（向后兼容）
-export { setupE2ETestEnvironment } from '../setup-utils';
+// 重新导出setup（向后兼容）
+export { setupE2ETestEnvironment } from '../setup';

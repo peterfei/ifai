@@ -7,7 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Agent: Consecutive Task Bug Reproduction', () => {
   test.beforeEach(async ({ page }) => {

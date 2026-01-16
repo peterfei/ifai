@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Proposal Auto-Load - 自动加载提案', () => {
   test.beforeEach(async ({ page }) => {

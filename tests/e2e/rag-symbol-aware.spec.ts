@@ -31,7 +31,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup-utils';
+import { setupE2ETestEnvironment } from './setup';
 
 test.describe('RAG Symbol-Aware Context', () => {
   test.beforeEach(async ({ page }) => {

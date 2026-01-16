@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Message Persistence - Simplified', () => {
   test.beforeEach(async ({ page }) => {

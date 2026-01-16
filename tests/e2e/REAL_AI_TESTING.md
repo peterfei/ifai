@@ -149,7 +149,7 @@ interface E2ETestEnvironmentOptions {
 ### 使用示例
 
 ```typescript
-import { setupE2ETestEnvironment } from './setup-utils';
+import { setupE2ETestEnvironment } from './setup';
 
 // 使用真实 AI
 await setupE2ETestEnvironment(page, {

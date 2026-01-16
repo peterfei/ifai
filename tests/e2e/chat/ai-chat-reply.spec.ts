@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Chat: AI Reply & Virtual Scrolling', () => {
   test.beforeEach(async ({ page }) => {

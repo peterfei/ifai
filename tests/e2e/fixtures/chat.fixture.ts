@@ -1,5 +1,5 @@
 import { Page, TestInfo } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 import { waitForChatReady } from '../helpers/wait-helpers';
 
 /**

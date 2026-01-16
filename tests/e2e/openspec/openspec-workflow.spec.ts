@@ -3,7 +3,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('OpenSpec Workflow E2E', () => {
   test.beforeEach(async ({ page }) => {

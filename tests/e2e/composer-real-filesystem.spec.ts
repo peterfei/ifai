@@ -11,7 +11,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup-utils';
+import { setupE2ETestEnvironment } from './setup';
 
 test.describe('Composer 2.0: Real File System', () => {
   const CHAT_INPUT = '[data-testid="chat-input"]';

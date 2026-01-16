@@ -9,7 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup-utils';
+import { setupE2ETestEnvironment } from './setup';
 
 test.describe('Composer 2.0: Accept/Reject Cycle', () => {
   const COMPOSER_DIFF_CONTAINER = '.composer-diff-container';

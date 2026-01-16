@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup-utils';
+import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('Chat UI Industrial Grade Header (Deep Stabilized)', () => {
   test.beforeEach(async ({ page }) => {
