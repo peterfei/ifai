@@ -21,7 +21,14 @@ test.describe('Agent 工具状态更新', () => {
     await page.goto('/');
 
     await page.waitForFunction(() => !!(window as any).__chatStore, { timeout: 10000 });
-    await page.waitForTimeout(1000);
+
+    // 🔥 等待 React 应用完全渲染
+    await page.waitForFunction(() => {
+      const body = document.body;
+      return body && (body.innerHTML.includes('class') || body.children.length > 0);
+    }, { timeout: 10000 });
+
+    await page.waitForTimeout(500);
   });
 
   test('agent-state-update-01: 验证 toolCall isPartial 更新后组件重新渲染', async ({ page }) => {
@@ -102,11 +109,19 @@ test.describe('Agent 工具状态更新', () => {
       const toolApprovalCards = document.querySelectorAll('[data-test-id="tool-approval-card"]');
       console.log('[Test] DOM 中的 ToolApproval 数量:', toolApprovalCards.length);
 
+      // 检查批准按钮是否存在
+      const approveButtons = Array.from(document.querySelectorAll('button'))
+        .filter(b => b.textContent?.includes('批准') || b.textContent?.includes('Approve'));
+
       return {
         success: true,
         initialState: { isPartial: true },
         storeStateAfterUpdate: { isPartial: tc?.isPartial },
-        toolApprovalCount: toolApprovalCards.length
+        toolApprovalCount: toolApprovalCards.length,
+        approveButtonCount: approveButtons.length,
+        issue: toolApprovalCards.length === 0 ? 'ToolApproval 未渲染' :
+               approveButtons.length === 0 ? '批准按钮未显示' :
+               null
       };
     });
 
@@ -114,5 +129,8 @@ test.describe('Agent 工具状态更新', () => {
 
     expect(result.success).toBe(true);
     expect(result.storeStateAfterUpdate.isPartial).toBe(false);
+    expect(result.toolApprovalCount).toBeGreaterThan(0);
+    expect(result.approveButtonCount).toBeGreaterThan(0);
+    expect(result.issue).toBeNull();
   });
 });

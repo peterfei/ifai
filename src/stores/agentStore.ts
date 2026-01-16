@@ -574,12 +574,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                             // Check if content actually changed (deduplication for streaming updates)
                             const prevContent = (existing[index] as any).args?.content || '';
                             const nextContent = liveToolCall.args?.content || '';
+                            const prevIsPartial = (existing[index] as any).isPartial;
 
                             // If content hasn't changed and both are in partial state, skip this update
+                            // 🔥 FIX v0.3.3: 必须同时检查 isPartial 没有变化，否则会错过状态转换
                             if (prevContent === nextContent &&
+                                prevIsPartial === liveToolCall.isPartial &&
                                 liveToolCall.isPartial &&
-                                (existing[index] as any).isPartial) {
-                                // Content unchanged, skip update to avoid unnecessary re-renders
+                                prevIsPartial) {
+                                // Content and isPartial unchanged, skip update to avoid unnecessary re-renders
                                 return m;
                             }
 

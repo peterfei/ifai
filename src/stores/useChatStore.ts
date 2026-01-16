@@ -1396,7 +1396,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
     for (let i = currentMessages.length - 1; i >= 0; i--) {
         const msg = currentMessages[i];
         if (msg.role === 'assistant' &&
-            (!msg.content || msg.content.trim().length === 0) &&
+            (!msg.content || (typeof msg.content === 'string' && msg.content.trim().length === 0)) &&
             msg.toolCalls && msg.toolCalls.length > 0) {
             reusableAssistantMsgId = msg.id;
             break;  // 找到最近的一个就停止
@@ -1715,7 +1715,9 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         });
 
         // Replace history but keep the currently streaming assistant message
-        coreUseChatStore.setState({ messages: [...compactedMessages, assistantMsgPlaceholder] });
+        // Find the current assistant message that's being streamed
+        const currentStreamingMsg = coreUseChatStore.getState().messages.find(m => m.id === assistantMsgId);
+        coreUseChatStore.setState({ messages: [...compactedMessages, currentStreamingMsg || { id: assistantMsgId, role: 'assistant' as const, content: '' }] });
     });
 
     // Error Listener - Handle stream errors

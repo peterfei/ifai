@@ -388,7 +388,7 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
     if (stderr) {
       const stderrLines = stderr.split('\n').length;
       lines.push(`**⚠️ 错误输出** (${stderrLines} 行):\n`);
-      lines.push(`\`\```\n${stderr}\n\`\```\n\n`);
+      lines.push('```\n' + stderr + '\n```\n\n');
     }
 
     // 退出码

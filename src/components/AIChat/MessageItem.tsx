@@ -417,7 +417,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // 如果是，则不显示气泡，只显示 ToolApproval 组件
     // 这适用于 assistant 和 agent 消息（Agent 消息也可能有工具调用但无内容）
     // 只检查 message.content，不检查 contentSegments（避免复杂的多媒体内容判断）
-    const hasContent = message.content && message.content.trim().length > 0;
+    const hasContent = message.content && typeof message.content === 'string' && message.content.trim().length > 0;
     const hasToolCalls = message.toolCalls && message.toolCalls.length > 0;
     // 🔥 修复：移除 !isAgent 条件，让 Agent 消息也可以隐藏气泡
     // 这样 Agent 消息中的工具调用也能直接显示 ToolApproval 组件

@@ -1147,45 +1147,58 @@ pub async fn agent_stream_chat_with_root(
                                 if !st.name.is_empty() {
                                     let tool_name = &st.name;
                                     // Use consistent index-based ID throughout the stream
-                                    let tool_id = format!("{}_{}", agent_id, idx);
+                                    let tool_id = if !st.id.is_empty() {
+                                        // If API provides an ID, use it (Zhipu provides call_xxx format)
+                                        st.id.clone()
+                                    } else {
+                                        format!("{}_{}", agent_id, idx)
+                                    };
 
                                     // Try full parse first
-                                let args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
-                                    // If not valid JSON, try to extract fields manually for better progressive UI
-                                    let mut map = serde_json::Map::new();
-                                    if let Some(path) = extract_partial_value(&st.arguments, "rel_path") {
-                                        map.insert("rel_path".to_string(), json!(path));
-                                    }
-                                    if let Some(content) = extract_partial_value(&st.arguments, "content") {
-                                        map.insert("content".to_string(), json!(content));
-                                    }
-                                    Value::Object(map)
-                                });
-
-                                // Debug log for streaming tool call
-                                let event_name = format!("agent_{}", agent_id);
-                                eprintln!("[AgentStream] Streaming: tool={}, args_len={}, isPartial=true, event_name={}",
-                                    tool_name,
-                                    st.arguments.len(),
-                                    event_name);
-
-                                let emit_result = app.emit(
-                                    &event_name,
-                                    json!({
-                                        "type": "tool_call",
-                                        "toolCall": {
-                                            "id": tool_id,
-                                            "tool": tool_name,
-                                            "args": args_val,
-                                            "isPartial": true
+                                    let args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
+                                        // If not valid JSON, try to extract fields manually for better progressive UI
+                                        let mut map = serde_json::Map::new();
+                                        if let Some(path) = extract_partial_value(&st.arguments, "rel_path") {
+                                            map.insert("rel_path".to_string(), json!(path));
                                         }
-                                    })
-                                );
-                                if let Err(e) = emit_result {
-                                    eprintln!("[AgentStream] ERROR emitting event: {}", e);
-                                } else {
-                                    eprintln!("[AgentStream] Event emitted successfully");
-                                }
+                                        if let Some(content) = extract_partial_value(&st.arguments, "content") {
+                                            map.insert("content".to_string(), json!(content));
+                                        }
+                                        Value::Object(map)
+                                    });
+
+                                    // 🔥 FIX v0.3.5: 检测 tool_call 是否完整
+                                    // Zhipu GLM 在单个 chunk 中发送完整的 tool_call (id + 完整的 JSON arguments)
+                                    // 当 arguments 是有效 JSON 且有 ID 时，认为是完整的 (isPartial: false)
+                                    let is_complete = !st.id.is_empty() && serde_json::from_str::<Value>(&st.arguments).is_ok();
+
+                                    // Debug log for streaming tool call
+                                    let event_name = format!("agent_{}", agent_id);
+                                    eprintln!("[AgentStream] Streaming: tool={}, args_len={}, isPartial={}, id={}, has_id={}",
+                                        tool_name,
+                                        st.arguments.len(),
+                                        !is_complete,
+                                        st.id,
+                                        !st.id.is_empty()
+                                    );
+
+                                    let emit_result = app.emit(
+                                        &event_name,
+                                        json!({
+                                            "type": "tool_call",
+                                            "toolCall": {
+                                                "id": tool_id,
+                                                "tool": tool_name,
+                                                "args": args_val,
+                                                "isPartial": !is_complete  // 🔥 Complete when ID present and JSON valid
+                                            }
+                                        })
+                                    );
+                                    if let Err(e) = emit_result {
+                                        eprintln!("[AgentStream] ERROR emitting event: {}", e);
+                                    } else {
+                                        eprintln!("[AgentStream] Event emitted successfully (isPartial={})", !is_complete);
+                                    }
                                 }  // End of if !st.name.is_empty()
                             }
                         }
