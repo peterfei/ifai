@@ -3,6 +3,7 @@
 ## 📚 目录
 
 - [快速开始](#快速开始)
+- [Setup 模块 (新增)](#setup-模块-新增)
 - [测试模板](#测试模板)
 - [辅助工具](#辅助工具)
 - [最佳实践](#最佳实践)
@@ -45,6 +46,121 @@ cp tests/e2e/templates/feature-test.template.spec.ts tests/e2e/chat/my-feature.s
 3. 运行测试：
 ```bash
 npx playwright test tests/e2e/chat/my-feature.spec.ts
+```
+
+---
+
+## 🔧 Setup 模块 (新增)
+
+### 概述
+
+新的 `setup/` 模块提供了模块化的 E2E 测试设置功能，支持动态配置和更好的可维护性。
+
+### 目录结构
+
+```
+tests/e2e/
+├── setup/
+│   ├── index.ts              # 统一导出接口（推荐使用）
+│   └── env-config.ts         # 环境配置加载
+├── templates/
+│   ├── real-ai-test.template.spec.ts  # 真实AI测试模板
+│   └── base-e2e-test.template.spec.ts # 基础E2E测试模板
+├── setup-utils.ts            # 向后兼容（已废弃）
+└── .env.e2e.local            # 本地配置（不提交）
+```
+
+### 使用方法
+
+**推荐方式**：使用新的 `setup` 模块
+
+```typescript
+import { test, expect } from '@playwright/test';
+import { setupE2ETestEnvironment, getRealAIConfig } from './setup';
+
+test.describe('你的测试', () => {
+  test.beforeEach(async ({ page }) => {
+    // 自动读取配置文件
+    await setupE2ETestEnvironment(page);
+    await page.goto('/');
+
+    // 打开聊天面板
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
+      }
+    });
+  });
+
+  test('测试用例', async ({ page }) => {
+    // 获取动态配置
+    const config = await getRealAIConfig(page);
+
+    // 发送消息
+    await page.evaluate(async (payload) => {
+      const chatStore = (window as any).__chatStore;
+      await chatStore.getState().sendMessage(
+        payload.text,
+        payload.providerId,
+        payload.modelId
+      );
+    }, { text: '你的提示词', providerId: config.providerId, modelId: config.modelId });
+
+    // 验证结果
+    const messages = await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore;
+      return chatStore ? chatStore.getState().messages : [];
+    });
+
+    expect(messages.filter((m: any) => m.role === 'assistant').length).toBeGreaterThan(0);
+  });
+});
+```
+
+### 配置方式
+
+创建 `.env.e2e.local` 文件：
+
+```bash
+# 真实 AI 配置
+E2E_AI_API_KEY=your-api-key-here
+E2E_AI_BASE_URL=https://api.deepseek.com
+E2E_AI_MODEL=deepseek-chat
+
+# 可选：自定义 provider 和 model ID
+E2E_AI_PROVIDER_ID=real-ai-e2e
+E2E_AI_MODEL_ID=deepseek-chat
+```
+
+### 迁移指南
+
+**旧代码**：
+
+```typescript
+import { setupE2ETestEnvironment } from './setup-utils';
+
+// 手动加载配置
+const envConfig = loadEnvConfig('.env.e2e.local');
+const apiKey = envConfig.E2E_AI_API_KEY;
+
+await setupE2ETestEnvironment(page, {
+  useRealAI: true,
+  realAIApiKey: apiKey,
+  // ...
+});
+```
+
+**新代码**：
+
+```typescript
+import { setupE2ETestEnvironment, getRealAIConfig } from './setup';
+
+// 自动读取配置
+await setupE2ETestEnvironment(page);
+
+// 获取动态配置
+const config = await getRealAIConfig(page);
 ```
 
 ---
