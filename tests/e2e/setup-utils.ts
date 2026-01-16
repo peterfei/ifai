@@ -43,6 +43,12 @@ export interface E2ETestEnvironmentOptions {
    * @default false
    */
   simulateDeepSeekStreaming?: boolean;
+
+  /**
+   * 是否跳过新手引导（Welcome Tour）
+   * @default true
+   */
+  skipWelcome?: boolean;
 }
 
 /**
