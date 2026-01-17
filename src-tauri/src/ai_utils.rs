@@ -1175,14 +1175,22 @@ pub async fn agent_stream_chat_with_root(
                                     // 当 arguments 是有效 JSON 且有 ID 时，认为是完整的 (isPartial: false)
                                     let is_complete = !st.id.is_empty() && serde_json::from_str::<Value>(&st.arguments).is_ok();
 
-                                    // 🔥 FIX v0.3.6: 去重检查 - 防止重复发送相同的 tool_call
-                                    // 智谱 API 可能在流式响应中多次发送相同的 tool_call
-                                    // 使用 tool_name + (st.id 或 idx) 作为去重 key，因为智谱可能第二次不提供 ID
+                                    // 🔥 FIX v0.3.9.1: 去重 key 包含参数内容哈希
+                                    // DeepSeek API 会发送相同 tool_call_id 但参数逐渐增长的事件
+                                    // 如果只使用 tool_name:tool_call_id 作为 key，会导致参数更新被跳过
+                                    // 解决方案：使用 tool_name:tool_call_id:args_hash 作为去重 key
+                                    use std::collections::hash_map::DefaultHasher;
+                                    use std::hash::{Hash, Hasher};
+                                    let mut hasher = DefaultHasher::new();
+                                    st.arguments.hash(&mut hasher);
+                                    let args_hash = hasher.finish();
+
                                     let dedup_key = if !st.id.is_empty() {
-                                        format!("{}:{}", tool_name, st.id)
+                                        format!("{}:{}:{}", tool_name, st.id, args_hash)
                                     } else {
-                                        format!("{}:idx_{}", tool_name, idx)
+                                        format!("{}:idx_{}:{}", tool_name, idx, args_hash)
                                     };
+
                                     if emitted_tool_call_ids.contains(&dedup_key) {
                                         eprintln!("[AgentStream] ⚠️ Skipping duplicate tool_call: tool={}, dedup_key={}", tool_name, dedup_key);
                                         continue;
@@ -1213,9 +1221,11 @@ pub async fn agent_stream_chat_with_root(
                                     if let Err(e) = emit_result {
                                         eprintln!("[AgentStream] ERROR emitting event: {}", e);
                                     } else {
-                                        eprintln!("[AgentStream] Event emitted successfully (isPartial={})", !is_complete);
-                                        // 🔥 FIX v0.3.6: 记录已发送的 tool_call，防止重复
-                                        emitted_tool_call_ids.insert(dedup_key);
+                                        eprintln!("[AgentStream] Event emitted successfully (isPartial={}, args_len={})", !is_complete, st.arguments.len());
+                                        // 🔥 FIX v0.3.9.1: 标记为已发送
+                                        // 使用参数哈希作为 key 的一部分，所以每个不同参数的 tool_call 都会被发送
+                                        emitted_tool_call_ids.insert(dedup_key.clone());
+                                        eprintln!("[AgentStream] Marked as sent: {} (args_len={})", dedup_key, st.arguments.len());
                                     }
                                 }  // End of if !st.name.is_empty()
                             }

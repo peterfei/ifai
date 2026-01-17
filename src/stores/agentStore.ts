@@ -503,41 +503,53 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
                 // ✅ FIX: Also sync to coreUseChatStore.messages for chat display
                 const msgId = get().agentToMessageMap[id];
-                if (msgId) {
-                    const agent = get().runningAgents.find(a => a.id === id);
-                    const { messages } = coreUseChatStore.getState();
-                    const currentMsg = messages.find(m => m.id === msgId);
+                if (!msgId) {
+                    console.warn(`[AgentStore] ⚠️ No msgId mapping for agent ${id}, cannot update thinking content`);
+                    return;
+                }
 
-                    // 对于 task-breakdown agent，使用格式化的 Markdown（增量追加）
-                    if (agent?.type === 'task-breakdown' && currentMsg) {
-                        // 处理 content 可能是数组的情况
-                        let previousContent = '';
-                        if (typeof currentMsg.content === 'string') {
-                            previousContent = currentMsg.content;
-                        } else if (Array.isArray(currentMsg.content)) {
-                            previousContent = currentMsg.content.map(p => p.type === 'text' ? p.text : '').join('');
-                        }
+                const agent = get().runningAgents.find(a => a.id === id);
+                const { messages } = coreUseChatStore.getState();
+                const currentMsg = messages.find(m => m.id === msgId);
 
-                        const newContent = formatStreamToMarkdown(currentBuffer, previousContent);
-                        // 追加新内容
-                        const updatedContent = previousContent + newContent;
-                        const updatedMessages = messages.map(m => {
-                            if (m.id === msgId) {
-                                return { ...m, content: updatedContent };
-                            }
-                            return m;
-                        });
-                        coreUseChatStore.setState({ messages: updatedMessages });
-                    } else if (currentMsg) {
-                        // 其他 agent，使用原始内容
-                        const updatedMessages = messages.map(m => {
-                            if (m.id === msgId) {
-                                return { ...m, content: (m.content || "") + currentBuffer };
-                            }
-                            return m;
-                        });
-                        coreUseChatStore.setState({ messages: updatedMessages });
+                if (!currentMsg) {
+                    console.warn(`[AgentStore] ⚠️ Message ${msgId} not found in chatStore, cannot update thinking content`);
+                    console.warn(`[AgentStore] Current messages count: ${messages.length}`);
+                    return;
+                }
+
+                console.log(`[AgentStore] 📝 Updating thinking content: +${currentBuffer.length} chars, total: ${(currentMsg.content || "").length + currentBuffer.length}`);
+
+                // 对于 task-breakdown agent，使用格式化的 Markdown（增量追加）
+                if (agent?.type === 'task-breakdown') {
+                    // 处理 content 可能是数组的情况
+                    let previousContent = '';
+                    if (typeof currentMsg.content === 'string') {
+                        previousContent = currentMsg.content;
+                    } else if (Array.isArray(currentMsg.content)) {
+                        previousContent = currentMsg.content.map(p => p.type === 'text' ? p.text : '').join('');
                     }
+
+                    const newContent = formatStreamToMarkdown(currentBuffer, previousContent);
+                    // 追加新内容
+                    const updatedContent = previousContent + newContent;
+                    const updatedMessages = messages.map(m => {
+                        if (m.id === msgId) {
+                            return { ...m, content: updatedContent };
+                        }
+                        return m;
+                    });
+                    coreUseChatStore.setState({ messages: updatedMessages });
+                } else {
+                    // 其他 agent，使用原始内容
+                    const updatedMessages = messages.map(m => {
+                        if (m.id === msgId) {
+                            return { ...m, content: (m.content || "") + currentBuffer };
+                        }
+                        return m;
+                    });
+                    coreUseChatStore.setState({ messages: updatedMessages });
+                    console.log(`[AgentStore] ✅ Thinking content updated for agent ${id}`);
                 }
 
                 thinkingBuffer = "";
