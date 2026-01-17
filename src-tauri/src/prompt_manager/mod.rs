@@ -82,14 +82,21 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: 
         format!("agents/{}.md", agent_type.to_lowercase().replace(' ', "-"))
     };
 
+    println!("[PromptManager] 🔍 DEBUG: agent_type={}, template_name={}", agent_type, template_name);
+
     let template = {
         let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(&template_name);
+        println!("[PromptManager] 🔍 DEBUG: local_path={:}, exists={}", local_path.display(), local_path.exists());
+
         if local_path.exists() {
+            println!("[PromptManager] ✅ Using local prompt file: {}", local_path.display());
             storage::load_prompt(&local_path).ok()
         } else if let Some(content_file) = BuiltinPrompts::get(&template_name) {
+            println!("[PromptManager] ✅ Using embedded prompt file: {}", template_name);
             let content = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
             storage::load_prompt_from_str(content, None).ok()
         } else {
+            println!("[PromptManager] ⚠️ No prompt found, using default for agent: {}", agent_type);
             None
         }
     };

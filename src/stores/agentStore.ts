@@ -230,6 +230,9 @@ interface AgentState {
   agentToMessageMap: Record<string, string>;
   // Track tool calls that have been auto-approved to prevent duplicate approvals
   autoApprovedToolCalls: Set<string>;
+  // 🔥 FIX v0.3.7: Track deduplicated tool_call IDs for approval redirection
+  // Key: skipped/duplicate ID, Value: canonical/retained ID
+  deduplicatedToolCallIds: Record<string, string>;
   launchAgent: (agentType: string, task: string, chatMsgId?: string, threadId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;
@@ -251,6 +254,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   activeListeners: {},
   agentToMessageMap: {},
   autoApprovedToolCalls: new Set<string>(),
+  deduplicatedToolCallIds: {},
 
   /**
    * 同步 Agent 动作到 Mission Control
@@ -336,6 +340,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // DEBUG: Log msgId status for all events
         console.log(`[AgentStore] DEBUG - Event type: ${payload.type}, msgId: ${msgId || 'UNDEFINED'}, agentId: ${id}`);
         console.log(`[AgentStore] DEBUG - agentToMessageMap:`, get().agentToMessageMap);
+
+        // 🔥 FIX v0.3.8.2: 检查消息是否仍在当前 thread 中
+        // 如果用户切换了 thread，chatStore.messages 会被替换，不再包含此 agent 的消息
+        if (msgId) {
+            const messageExists = chatState.messages.some(m => m.id === msgId);
+            if (!messageExists) {
+                console.warn(`[AgentStore] ⚠️ Message ${msgId} not found in current thread - skipping event (thread may have switched)`);
+                return;
+            }
+        }
 
         if (!msgId && payload.type === 'tool_call') {
             console.warn(`[AgentStore] No msgId found for agent ${id} - cannot process tool calls`);
@@ -549,6 +563,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             }
 
             if (toolCall && msgId) {
+                // 🔥 FIX v0.3.8.2: 添加诊断日志
+                console.log(`[AgentStore] 🔍 Processing tool_call for message: ${msgId}, tool: ${toolCall.tool}, toolCallId: ${toolCall.id}`);
+                console.log(`[AgentStore] 🔍 Current thread has ${chatState.messages.length} messages`);
+
                 const liveToolCall = {
                     id: toolCall.id,
                     type: 'function' as const,
@@ -568,7 +586,41 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 const updatedMessages = chatState.messages.map(m => {
                     if (m.id === msgId) {
                         const existing = m.toolCalls || [];
-                        const index = existing.findIndex(tc => tc.id === liveToolCall.id);
+
+                        // 🔥 FIX v0.3.6: 基于签名去重 - 处理智谱 API 发送不同 ID 但相同内容的 tool_call
+                        // 先按签名查找，如果找不到再按 ID 查找
+                        const signature = `${liveToolCall.tool}:${JSON.stringify(liveToolCall.args)}`;
+                        const signatureIndex = existing.findIndex(tc =>
+                            tc.tool === liveToolCall.tool &&
+                            JSON.stringify(tc.args) === JSON.stringify(liveToolCall.args)
+                        );
+
+                        const index = signatureIndex !== -1
+                            ? signatureIndex
+                            : existing.findIndex(tc => tc.id === liveToolCall.id);
+
+                        // 🔥 FIX v0.3.6 修正版: 只有在智谱 API 发送具有相同签名但不同 ID 的
+                        // 新 tool_call 时才跳过。如果是对现有 tool_call 的更新（index === signatureIndex），
+                        // 则允许更新以处理 isPartial 等状态变化。
+                        if (index === -1 && signatureIndex !== -1) {
+                            // 🔥 FIX v0.3.7: 记录被跳过的 ID 到保留 ID 的映射
+                            // 这样当用户点击被跳过的 tool_call 的批准按钮时，可以重定向到正确的 ID
+                            const canonicalId = existing[signatureIndex].id;
+                            const skippedId = liveToolCall.id;
+                            console.log(`[AgentStore] 🔥 Skipping duplicate NEW tool_call by signature: tool=${liveToolCall.tool}`);
+                            console.log(`[AgentStore] 📋 Recording ID mapping: ${skippedId} -> ${canonicalId}`);
+
+                            // 记录映射关系
+                            const currentState = get();
+                            set({
+                                deduplicatedToolCallIds: {
+                                    ...currentState.deduplicatedToolCallIds,
+                                    [skippedId]: canonicalId
+                                }
+                            });
+
+                            return m;
+                        }
 
                         if (index !== -1) {
                             // Check if content actually changed (deduplication for streaming updates)
@@ -616,6 +668,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 });
 
                 if (messageUpdated) {
+                    // 🔥 FIX v0.3.8.2: 确认日志
+                    console.log(`[AgentStore] ✅ Tool call added/updated in message: tool=${liveToolCall.tool}, toolCallId: ${liveToolCall.id}, isNew: ${isNewToolCall}`);
                     coreUseChatStore.setState({ messages: updatedMessages });
 
                     // Clear auto-approved flag for new tool calls to allow auto-approve on retry
@@ -1479,3 +1533,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       };
   }
 }));
+
+// 🔥 E2E 测试支持：暴露 agentStore 到 window 对象
+// @ts-ignore
+if (typeof window !== 'undefined') {
+  (window as any).__agentStore = useAgentStore;
+  // 🔥 确保在 DOM 加载后再次设置（应对模块加载时机问题）
+  if (typeof document !== 'undefined') {
+    const setStore = () => {
+      (window as any).__agentStore = useAgentStore;
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setStore);
+    } else {
+      // DOM 已经加载完成，立即设置
+      setTimeout(setStore, 0);
+    }
+  }
+}

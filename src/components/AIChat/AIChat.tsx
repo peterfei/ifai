@@ -1349,12 +1349,34 @@ ${context}
   }, [openFile]);
 
   const handleApprove = useCallback((messageId: string, toolCallId: string) => {
+    // 🔥 FIX v0.3.8.2: 检查消息是否仍然存在于当前 thread 中
+    const message = rawMessages.find(m => m.id === messageId);
+    if (!message) {
+      console.warn(`[AIChat] ⚠️ Cannot approve tool call: message ${messageId} not found in current thread`);
+      return;
+    }
+    const toolCall = message.toolCalls?.find(tc => tc.id === toolCallId);
+    if (!toolCall) {
+      console.warn(`[AIChat] ⚠️ Cannot approve tool call: toolCall ${toolCallId} not found in message ${messageId}`);
+      return;
+    }
     approveToolCall(messageId, toolCallId);
-  }, [approveToolCall]);
+  }, [approveToolCall, rawMessages]);
 
   const handleReject = useCallback((messageId: string, toolCallId: string) => {
+    // 🔥 FIX v0.3.8.2: 检查消息是否仍然存在于当前 thread 中
+    const message = rawMessages.find(m => m.id === messageId);
+    if (!message) {
+      console.warn(`[AIChat] ⚠️ Cannot reject tool call: message ${messageId} not found in current thread`);
+      return;
+    }
+    const toolCall = message.toolCalls?.find(tc => tc.id === toolCallId);
+    if (!toolCall) {
+      console.warn(`[AIChat] ⚠️ Cannot reject tool call: toolCall ${toolCallId} not found in message ${messageId}`);
+      return;
+    }
     rejectToolCall(messageId, toolCallId);
-  }, [rejectToolCall]);
+  }, [rejectToolCall, rawMessages]);
 
   // v0.2.8: Composer 2.0 辅助函数
   /**

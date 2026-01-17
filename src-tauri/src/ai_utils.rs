@@ -1005,6 +1005,9 @@ pub async fn agent_stream_chat_with_root(
     let mut accumulated_tool_calls: HashMap<i32, StreamingToolCall> = HashMap::new();
     let mut event_count = 0;
 
+    // 🔥 FIX v0.3.6: Track emitted tool_calls to prevent duplicates (Zhipu API may send same tool_call twice)
+    let mut emitted_tool_call_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+
     // Stream statistics tracking
     let start_time = Instant::now();
     let mut last_event_time = Instant::now();
@@ -1172,6 +1175,19 @@ pub async fn agent_stream_chat_with_root(
                                     // 当 arguments 是有效 JSON 且有 ID 时，认为是完整的 (isPartial: false)
                                     let is_complete = !st.id.is_empty() && serde_json::from_str::<Value>(&st.arguments).is_ok();
 
+                                    // 🔥 FIX v0.3.6: 去重检查 - 防止重复发送相同的 tool_call
+                                    // 智谱 API 可能在流式响应中多次发送相同的 tool_call
+                                    // 使用 tool_name + (st.id 或 idx) 作为去重 key，因为智谱可能第二次不提供 ID
+                                    let dedup_key = if !st.id.is_empty() {
+                                        format!("{}:{}", tool_name, st.id)
+                                    } else {
+                                        format!("{}:idx_{}", tool_name, idx)
+                                    };
+                                    if emitted_tool_call_ids.contains(&dedup_key) {
+                                        eprintln!("[AgentStream] ⚠️ Skipping duplicate tool_call: tool={}, dedup_key={}", tool_name, dedup_key);
+                                        continue;
+                                    }
+
                                     // Debug log for streaming tool call
                                     let event_name = format!("agent_{}", agent_id);
                                     eprintln!("[AgentStream] Streaming: tool={}, args_len={}, isPartial={}, id={}, has_id={}",
@@ -1198,6 +1214,8 @@ pub async fn agent_stream_chat_with_root(
                                         eprintln!("[AgentStream] ERROR emitting event: {}", e);
                                     } else {
                                         eprintln!("[AgentStream] Event emitted successfully (isPartial={})", !is_complete);
+                                        // 🔥 FIX v0.3.6: 记录已发送的 tool_call，防止重复
+                                        emitted_tool_call_ids.insert(dedup_key);
                                     }
                                 }  // End of if !st.name.is_empty()
                             }

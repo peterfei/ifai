@@ -56,6 +56,8 @@
     "tauri:dev:local-llm": "export APP_EDITION=community && tauri dev --features community,llm-inference",
     "tauri:dev": "export APP_EDITION=community && tauri dev --features community",
     "test:e2e": "playwright test",
+    "test:e2e:tauri": "TAURI_DEV=true playwright test",
+    "test:e2e:tauri:commercial": "TAURI_DEV=true APP_EDITION=commercial playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:fast": "playwright test --grep '@fast'",

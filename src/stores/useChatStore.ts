@@ -1817,12 +1817,41 @@ const patchedApproveToolCall = async (
     console.log(`[useChatStore] patchedApproveToolCall called - messageId: ${messageId}, toolCallId: ${toolCallId}, options:`, options);
 
     const state = coreUseChatStore.getState();
-    const message = state.messages.find(m => m.id === messageId);
-    const toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
+    let message = state.messages.find(m => m.id === messageId);
+    let toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
 
+    // 🔥 FIX v0.3.7: ID 重定向逻辑 - 处理智谱 API 重复 tool_call 导致的 ID 不匹配
     if (!message || !toolCall) {
-        console.error("Message or ToolCall not found");
-        return;
+        const agentStore = useAgentStore.getState();
+        const canonicalId = agentStore.deduplicatedToolCallIds[toolCallId];
+
+        // 🔥 FIX v0.3.8.2: 添加详细诊断日志
+        const threadStore = useThreadStore.getState();
+        console.error(`[useChatStore] ❌ Message or ToolCall not found`, {
+            messageId,
+            toolCallId,
+            messageFound: !!message,
+            toolCallFound: !!toolCall,
+            currentThreadId: threadStore.activeThreadId,
+            totalMessages: state.messages.length,
+            allMessageIds: state.messages.map(m => m.id).slice(0, 5), // 显示前5个消息ID
+        });
+
+        if (canonicalId) {
+            console.log(`[useChatStore] 🔄 ID Redirect: ${toolCallId} -> ${canonicalId}`);
+            message = state.messages.find(m => m.id === messageId);
+            toolCall = message?.toolCalls?.find(tc => tc.id === canonicalId);
+
+            if (toolCall) {
+                console.log(`[useChatStore] ✅ ID Redirect successful: found tool_call with canonical ID`);
+            } else {
+                console.error(`[useChatStore] ❌ ID Redirect failed: canonical ID ${canonicalId} also not found`);
+                return;
+            }
+        } else {
+            console.error("[useChatStore] ❌ No redirect mapping found. This message might belong to a different thread or has been deleted.");
+            return;
+        }
     }
 
     // 1. Handle Agent Tool Calls (delegated to AgentStore)
@@ -2303,9 +2332,28 @@ const patchedApproveToolCall = async (
 };
 
 const patchedRejectToolCall = async (messageId: string, toolCallId: string) => {
-    // Check if this is an Agent tool call
-    const message = coreUseChatStore.getState().messages.find(m => m.id === messageId);
-    const toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
+    // 🔥 FIX v0.3.7: ID 重定向逻辑 - 处理智谱 API 重复 tool_call 导致的 ID 不匹配
+    let message = coreUseChatStore.getState().messages.find(m => m.id === messageId);
+    let toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
+
+    if (!message || !toolCall) {
+        const agentStore = useAgentStore.getState();
+        const canonicalId = agentStore.deduplicatedToolCallIds[toolCallId];
+
+        if (canonicalId) {
+            console.log(`[useChatStore] 🔄 ID Redirect (reject): ${toolCallId} -> ${canonicalId}`);
+            message = coreUseChatStore.getState().messages.find(m => m.id === messageId);
+            toolCall = message?.toolCalls?.find(tc => tc.id === canonicalId);
+
+            if (!toolCall) {
+                console.error(`[useChatStore] ❌ ID Redirect failed: canonical ID ${canonicalId} also not found`);
+                return;
+            }
+        } else {
+            console.error("Message or ToolCall not found");
+            return;
+        }
+    }
 
     if (toolCall && (toolCall as any).agentId) {
         // Agent tool call: use Agent rejection flow
@@ -2385,10 +2433,17 @@ export type { ChatState, ToolCall, Message, ContentPart, ImageUrl, BackendMessag
 // @ts-ignore
 if (typeof window !== 'undefined') {
   (window as any).__chatStore = useChatStore;
+  // 🔥 E2E 测试支持：暴露 thread 辅助函数
+  (window as any).__switchThread = switchThread;
+  (window as any).__getThreadMessages = getThreadMessages;
+  (window as any).__setThreadMessages = setThreadMessages;
   // 🔥 确保在 DOM 加载后再次设置（应对模块加载时机问题）
   if (typeof document !== 'undefined') {
     const setStore = () => {
       (window as any).__chatStore = useChatStore;
+      (window as any).__switchThread = switchThread;
+      (window as any).__getThreadMessages = getThreadMessages;
+      (window as any).__setThreadMessages = setThreadMessages;
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', setStore);

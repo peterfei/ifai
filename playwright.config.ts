@@ -110,10 +110,17 @@ export default defineConfig({
 
   // 开发服务器配置
   webServer: {
-    // 启动命令（根据版本选择）
-    command: testConfig.edition === 'commercial'
-      ? 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run dev'
-      : 'APP_EDITION=community VITE_TEST_ENV=e2e npm run dev',
+    // 🔥 FIX v0.3.8: 支持使用真实 Tauri 后端进行 E2E 测试
+    // 通过环境变量 TAURI_DEV=true 启用真实 Tauri 后端
+    // 例如: TAURI_DEV=true npm run test:e2e
+    //
+    // 🔥 FIX v0.3.8.1: Agent 功能只在 commercial 版本中可用
+    // 当使用 TAURI_DEV=true 时，强制使用 commercial 版本
+    command: process.env.TAURI_DEV === 'true'
+      ? 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run tauri:dev:commercial'
+      : (testConfig.edition === 'commercial'
+          ? 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run dev'
+          : 'APP_EDITION=community VITE_TEST_ENV=e2e npm run dev'),
     url: testConfig.baseURL,
     // 重用已存在的服务器（本地开发时）
     reuseExistingServer: !process.env.CI,

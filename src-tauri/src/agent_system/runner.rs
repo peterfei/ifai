@@ -15,6 +15,30 @@ pub async fn run_agent_task(
     context: AgentContext,
 ) {
     let event_id = format!("agent_{}", id);
+
+    // 🔥 使用 app.emit 发送日志到前端控制台
+    let _ = app.emit(&event_id, json!({
+        "type": "log",
+        "message": format!("[AgentRunner] 🔥🔥🔥 run_agent_task ENTRY - id: {}, agent_type: '{}'", id, agent_type)
+    }));
+    let _ = app.emit(&event_id, json!({
+        "type": "log",
+        "message": format!("[AgentRunner] event_id: {}", event_id)
+    }));
+    let _ = app.emit(&event_id, json!({
+        "type": "log",
+        "message": format!("[AgentRunner] project_root: {}", context.project_root)
+    }));
+    let _ = app.emit(&event_id, json!({
+        "type": "log",
+        "message": format!("[AgentRunner] task_description: {}", context.task_description)
+    }));
+
+    println!("[AgentRunner] 🔥🔥🔥 run_agent_task ENTRY - id: {}, agent_type: '{}'", id, agent_type);
+    println!("[AgentRunner] event_id: {}", event_id);
+    println!("[AgentRunner] project_root: {}", context.project_root);
+    println!("[AgentRunner] task_description: {}", context.task_description);
+    println!("[AgentRunner] provider: {:?}", context.provider_config.protocol);
     println!("[AgentRunner] Starting task for: {} ({}), event_id: {}", id, agent_type, event_id);
     
     let mut history: Vec<Message> = Vec::new();
@@ -287,10 +311,9 @@ pub async fn run_agent_task(
 
                         let (tool_result, _success) = match args_res {
                             Ok(args) => {
-                                // Send final tool_call event with complete arguments (isPartial: false)
-                                // This marks the end of streaming and requests user approval
-                                // FIX: Use index-based ID to match streaming events (agent_id_idx format)
-                                let tool_id = format!("{}_{}", id, idx);
+                                // 🔥 FIX v0.3.8.2: 使用 LLM API 原始返回的 tool_call.id
+                                // 这样可以与 ai_utils.rs 流式响应中的 tool_call ID 保持一致
+                                let tool_id = tool_call.id.clone();
                                 println!("[AgentRunner] Requesting authorization for: {}, event_id={}, tool_id={}", tool_name, event_id, tool_id);
                                 let emit_result = app.emit(&event_id, json!({
                                     "type": "tool_call",
@@ -443,7 +466,8 @@ pub async fn run_agent_task(
 
                         // ⚡️ FIX: 发送 tool_result 事件，让前端能立即显示工具输出
                         // 前端会根据 toolCallId 匹配并更新对应 toolCall 的 result 字段
-                        let tool_id = format!("{}_{}", id, idx);
+                        // 🔥 FIX v0.3.8.2: 使用 LLM API 原始返回的 tool_call.id
+                        let tool_id = tool_call.id.clone();
                         let _ = app.emit(&event_id, json!({
                             "type": "tool_result",
                             "toolCallId": tool_id,
@@ -496,5 +520,8 @@ pub async fn run_agent_task(
 }
 
 fn system_content_with_tools(base: &str) -> String {
-    format!("{}\n\nAlways use tools. Show the code you intend to write clearly. Wait for approval before writing files.", base)
+    // 🔥 FIX v0.3.8: 明确指示 LLM 使用工具，而不是文本请求确认
+    // 问题：智谱 API 将 "Wait for approval before writing files" 理解为文本请求确认
+    // 修复：明确说明使用 agent_write_file 工具，该工具会自动等待用户审批
+    format!("{}\n\n## Tool Usage Guidelines\n\n- **ALWAYS use tools** for file operations (agent_read_file, agent_write_file, etc.)\n- For writing files: use the agent_write_file tool with the full content\n- The agent_write_file tool will **automatically** wait for user approval - you do NOT need to ask for text confirmation\n- Show the code you intend to write clearly in the tool's content parameter\n- Never ask \"请确认是否同意\" or similar text confirmation - always use the tool directly", base)
 }
