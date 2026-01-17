@@ -47,16 +47,52 @@ pub async fn build_context(
 pub async fn agent_write_file(root_path: String, rel_path: String, content: String) -> Result<String, String> {
     #[cfg(feature = "commercial")]
     {
-        return ifainew_core::agent::agent_write_file(root_path, rel_path, content).await;
+        // Call the core library which now returns WriteFileResult
+        let result = ifainew_core::agent::agent_write_file(root_path, rel_path, content).await?;
+
+        // Serialize to JSON string for Tauri transport (maintains Result<String, String> interface)
+        return serde_json::to_string(&result)
+            .map_err(|e| format!("Failed to serialize WriteFileResult: {}", e));
     }
     #[cfg(not(feature = "commercial"))]
     {
+        // Community edition: provide basic implementation with diff data
         let path = std::path::Path::new(&root_path).join(&rel_path);
+
+        // Read original content for diff (before writing)
+        let original_content = if path.exists() {
+            Some(tokio::fs::read_to_string(&path).await.unwrap_or_default())
+        } else {
+            None
+        };
+
+        // Create parent dirs
         if let Some(parent) = path.parent() {
             let _ = tokio::fs::create_dir_all(parent).await;
         }
+
+        // Write new content
         tokio::fs::write(&path, &content).await.map_err(|e| e.to_string())?;
-        Ok("File written successfully".to_string())
+
+        // Get timestamp
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        // Build result with diff data
+        let result = serde_json::json!({
+            "success": true,
+            "message": "File written successfully",
+            "originalContent": original_content,
+            "newContent": content,
+            "filePath": rel_path,
+            "timestamp": timestamp
+        });
+
+        serde_json::to_string(&result)
+            .map_err(|e| format!("Failed to serialize result: {}", e))
     }
 }
 

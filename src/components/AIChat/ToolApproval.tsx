@@ -343,6 +343,22 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
         if (isWriteFile && filePath && !isPartial && oldContent === null) {
             const loadOld = async () => {
                 try {
+                    // 🔥 FIX v0.3.9.2: 优先使用 toolCall.result 中的 originalContent
+                    // 因为文件写入后，文件系统中的内容已经是新内容了
+                    if (toolCall.result) {
+                        try {
+                            const resultData = JSON.parse(toolCall.result);
+                            if (resultData.originalContent !== undefined) {
+                                console.log('[ToolApproval] Using originalContent from toolCall.result');
+                                setOldContent(resultData.originalContent);
+                                return;
+                            }
+                        } catch (e) {
+                            console.warn('[ToolApproval] Failed to parse toolCall.result:', e);
+                        }
+                    }
+
+                    // Fallback: 从文件系统读取
                     const content = await readFileContent(filePath);
                     setOldContent(content || '');
                 } catch (e) {
@@ -352,7 +368,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
             };
             loadOld();
         }
-    }, [isWriteFile, filePath, isPartial, oldContent]);
+    }, [isWriteFile, filePath, isPartial, oldContent, toolCall.result]);
 
     return (
         <div data-test-id="tool-approval-card" className="group/tool mt-4 mb-4 rounded-2xl border border-gray-700/40 bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5">

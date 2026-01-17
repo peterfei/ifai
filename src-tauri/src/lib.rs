@@ -101,7 +101,19 @@ pub async fn execute_local_tool(
             let rel_path = args["rel_path"].as_str().unwrap_or("");
             let content = args["content"].as_str().unwrap_or("");
             match core_wrappers::agent_write_file(project_root.to_string(), rel_path.to_string(), content.to_string()).await {
-                Ok(_) => "文件写入成功".to_string(),
+                // Parse JSON result and return formatted message
+                Ok(json_result) => {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_result) {
+                        if parsed["success"].as_bool().unwrap_or(false) {
+                            format!("文件写入成功: {}", rel_path)
+                        } else {
+                            format!("错误: {}", parsed["message"].as_str().unwrap_or("未知错误"))
+                        }
+                    } else {
+                        // Fallback to raw string for backward compatibility
+                        json_result
+                    }
+                },
                 Err(e) => format!("错误: {}", e)
             }
         }

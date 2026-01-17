@@ -137,7 +137,11 @@ pub async fn execute_tool_internal(
             let unescaped_content = unescape_string(content);
 
             println!("[AgentTools] Writing file: {} (content length: {})", rel_path, unescaped_content.len());
-            agent::agent_write_file(calibrated_root, rel_path.to_string(), unescaped_content).await
+
+            // Call the core library which now returns WriteFileResult, then serialize to JSON
+            let result = agent::agent_write_file(calibrated_root, rel_path.to_string(), unescaped_content).await?;
+            serde_json::to_string(&result)
+                .map_err(|e| format!("Failed to serialize WriteFileResult: {}", e))
         },
         "agent_batch_read" => {
             let paths_array = args["paths"].as_array()
