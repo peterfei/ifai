@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 长期运行命令测试
@@ -51,6 +51,7 @@ test.describe('Long-Running Command Detection', () => {
     });
 
     // 点击批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
 
     // 等待执行完成

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * E2E测试: LLM 重复执行 bash 命令问题
@@ -68,6 +68,7 @@ test.describe('LLM Duplicate Bash Execution Prevention', () => {
 
     // 2. 点击批准执行
     const approveBtn = page.locator('button:has-text("批准执行")').first();
+    await removeJoyrideOverlay(page);
     await approveBtn.click();
 
     // 3. 等待执行完成

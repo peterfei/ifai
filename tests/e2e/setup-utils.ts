@@ -2337,9 +2337,9 @@ export class TestApp {
             console.log('[E2E Mock] File opened with ID:', fileId);
 
             // Auto assign to active pane if possible
-            const layoutState = layoutStore.useLayoutStore.getState();
+            const layoutState = layoutStore.getState();
             if (layoutState && layoutState.activePaneId) {
-                layoutStore.useLayoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+                layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
                 console.log('[E2E Mock] File assigned to pane:', layoutState.activePaneId, 'fileId:', fileId);
             } else {
                 console.error('[E2E Mock] No active pane found!', layoutState);
@@ -2710,6 +2710,7 @@ export class TestApp {
 
     // 🔥 商业版：确保 ifainew-core 的 store 被暴露到 window
     setTimeout(() => {
+      // 暴露 chatStore
       if (!(window as any).__chatStore) {
         console.log('[E2E] __chatStore not found, attempting to set from module...');
         // 尝试从全局作用域获取 ifainew-core 的 useChatStore
@@ -2725,6 +2726,22 @@ export class TestApp {
         }
       } else {
         console.log('[E2E] __chatStore already available');
+      }
+
+      // 🔥 暴露 inlineEditStore（用于原生编辑测试）
+      if (!(window as any).__inlineEditStore) {
+        console.log('[E2E] __inlineEditStore not found, attempting to set from module...');
+        try {
+          const stores = (window as any).___stores___;
+          if (stores && stores.useInlineEditStore) {
+            (window as any).__inlineEditStore = stores.useInlineEditStore;
+            console.log('[E2E] __inlineEditStore set from ___stores___');
+          }
+        } catch (e) {
+          console.warn('[E2E] Could not set __inlineEditStore:', e);
+        }
+      } else {
+        console.log('[E2E] __inlineEditStore already available');
       }
 
       // 🔥 Mock atomicWriteService for E2E tests
@@ -2796,9 +2813,9 @@ export class TestApp {
             const fileId = fileStore.getState().openFile(openedFile);
 
             // Assign to active pane
-            const layoutState = layoutStore.useLayoutStore.getState();
+            const layoutState = layoutStore.getState();
             if (layoutState.activePaneId) {
-              layoutStore.useLayoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+              layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
               console.log('[E2E v0.2.9] File assigned to pane:', layoutState.activePaneId);
             }
 
@@ -2824,18 +2841,18 @@ export class TestApp {
 
         // LayoutStore: 添加 toggleReviewHistory 方法
         const layoutStore = (window as any).__layoutStore;
-        if (layoutStore && !layoutStore.useLayoutStore.toggleReviewHistory) {
+        if (layoutStore && !layoutStore.toggleReviewHistory) {
           console.log('[E2E v0.2.9] Adding toggleReviewHistory to layoutStore');
-          const originalGetState = layoutStore.useLayoutStore.getState.bind(layoutStore.useLayoutStore);
-          layoutStore.useLayoutStore.toggleReviewHistory = () => {
+          const originalGetState = layoutStore.getState.bind(layoutStore);
+          layoutStore.toggleReviewHistory = () => {
             const state = originalGetState();
             state.isReviewHistoryVisible = !state.isReviewHistoryVisible;
             console.log('[E2E v0.2.9] toggleReviewHistory:', state.isReviewHistoryVisible);
           };
           // 同时添加到 state 对象（向后兼容）
-          const state = layoutStore.useLayoutStore.getState();
+          const state = layoutStore.getState();
           if (!state.toggleReviewHistory) {
-            state.toggleReviewHistory = layoutStore.useLayoutStore.toggleReviewHistory;
+            state.toggleReviewHistory = layoutStore.toggleReviewHistory;
           }
         }
 
@@ -3014,4 +3031,75 @@ export class TestApp {
       }, 500);
     }, 1000);
   }, { useRealAI, realAIApiKey, realAIBaseUrl, realAIModel, simulateDeepSeekStreaming: options.simulateDeepSeekStreaming || false, skipWelcome });
+}
+
+/**
+ * 移除 React Joyride Overlay 遮罩层
+ *
+ * Joyride 的 overlay 会阻止 Playwright 的点击操作
+ * 在需要点击被 overlay 遮挡的元素前调用此函数
+ *
+ * @param page Playwright Page 对象
+ */
+export async function removeJoyrideOverlay(page: Page) {
+  await page.evaluate(() => {
+    // 移除 overlay 元素
+    const overlay = document.querySelector('.react-joyride__overlay');
+    if (overlay) {
+      overlay.remove();
+      console.log('[E2E Helper] ✅ Joyride overlay removed');
+    }
+
+    // 移除 portal 容器（包含 tooltip）
+    const portal = document.getElementById('react-joyride-portal');
+    if (portal) {
+      portal.remove();
+      console.log('[E2E Helper] ✅ Joyride portal removed');
+    }
+
+    // 设置标志，防止 Joyride 重新创建
+    (window as any).__JOYRIDE_DISABLED__ = true;
+  });
+}
+
+/**
+ * 安全点击元素（自动移除 Joyride overlay）
+ *
+ * @param page Playwright Page 对象
+ * @param selector CSS 选择器
+ */
+export async function safeClick(page: Page, selector: string) {
+  // 首先移除可能的 overlay
+  await removeJoyrideOverlay(page);
+
+  // 然后执行点击
+  await page.click(selector);
+}
+
+/**
+ * 在 E2E 测试中跳过 onboarding tour
+ *
+ * 这会设置 localStorage 标志，并移除任何已显示的 Joyride 元素
+ *
+ * @param page Playwright Page 对象
+ */
+export async function skipOnboardingTour(page: Page) {
+  await page.evaluate(() => {
+    // 设置 localStorage 标志
+    localStorage.setItem('ifai_onboarding_state', JSON.stringify({
+      completed: true,
+      skipped: true,
+      remindCount: 0,
+      lastRemindDate: null
+    }));
+
+    // 移除任何已显示的 Joyride 元素
+    const overlay = document.querySelector('.react-joyride__overlay');
+    if (overlay) overlay.remove();
+
+    const portal = document.getElementById('react-joyride-portal');
+    if (portal) portal.remove();
+
+    console.log('[E2E Helper] ✅ Onboarding tour skipped');
+  });
 }

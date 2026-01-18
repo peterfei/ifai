@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay, safeClick } from '../setup';
 
 test.describe('AI Code Review (v0.2.9)', () => {
   test.beforeEach(async ({ page }) => {
@@ -57,6 +57,8 @@ index abc123..def456 100644
     await page.waitForTimeout(1000);
 
     // When: 用户点击 Commit 按钮
+    // 首先移除可能的 Joyride overlay 防挡
+    await removeJoyrideOverlay(page);
     const commitBtn = page.locator('button:has-text("Commit"), button[aria-label="Commit Changes"]');
     await commitBtn.click();
 
@@ -191,6 +193,7 @@ index abc123..def456 100644
     await page.waitForTimeout(1000);
 
     // When: 点击"查看修复"按钮
+    await removeJoyrideOverlay(page);
     const viewFixButton = page.locator('button:has-text("View Fix"), button:has-text("查看修复")');
     await viewFixButton.click();
 
@@ -220,6 +223,7 @@ export class UserService {
 
     await page.waitForTimeout(500);
 
+    await removeJoyrideOverlay(page);
     const applyFixButton = page.locator('button:has-text("Apply Fix"), button:has-text("应用修复")');
     await applyFixButton.click();
 
@@ -256,11 +260,13 @@ export class UserService {
     await page.waitForTimeout(1000);
 
     // When: 用户选择忽略问题并强制提交
+    await removeJoyrideOverlay(page);
     const ignoreButton = page.locator('button:has-text("Ignore Issues"), button:has-text("忽略问题")');
     await ignoreButton.click();
 
     await page.waitForTimeout(500);
 
+    await removeJoyrideOverlay(page);
     const commitButton = page.locator('button:has-text("Commit Anyway"), button:has-text("强制提交")');
     await commitButton.click();
 
@@ -312,6 +318,7 @@ export class UserService {
     await page.waitForTimeout(1000);
 
     // Then: 应该显示历史记录列表
+    await removeJoyrideOverlay(page);
     const historyPanel = page.locator('[data-testid="review-history-panel"], .review-history');
     await expect(historyPanel).toBeVisible();
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 按钮状态更新测试
@@ -66,6 +66,7 @@ test.describe('UI: Button State Update - Immediate Feedback', () => {
     expect(initialState.status).toBe('pending');
 
     // 步骤 3：点击批准按钮
+    await removeJoyrideOverlay(page);
     const approveButton = page.locator('button:has-text("批准执行")').first();
     await approveButton.click();
 
@@ -146,6 +147,7 @@ test.describe('UI: Button State Update - Immediate Feedback', () => {
     expect(initialButtonState).toBeTruthy();
 
     // 点击批准按钮
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
 
     // 立即检查按钮状态（可能在 100ms 内）
@@ -199,6 +201,7 @@ test.describe('UI: Button State Update - Immediate Feedback', () => {
     });
 
     // 点击批准
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
 
     // 立即检查状态（0ms）

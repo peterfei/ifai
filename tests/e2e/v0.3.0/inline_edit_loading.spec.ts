@@ -15,7 +15,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Inline Edit Loading Feedback', () => {
   test.beforeEach(async ({ page }) => {

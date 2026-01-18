@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { EditorPage } from '../helpers/v0-3-0-test-utils';
+import { removeJoyrideOverlay } from '../setup';
 
 /**
  * 多目录/工作区功能 E2E 测试
@@ -41,6 +42,7 @@ test.describe('Feature: Multi-Workspace @v0.3.0', () => {
     const addBtnCount = await addFolderBtn.count();
 
     if (addBtnCount > 0) {
+      await removeJoyrideOverlay(page);
       await addFolderBtn.first().click();
 
       // 模拟选择第二个目录
@@ -414,6 +416,7 @@ test.describe('Feature: Multi-Workspace @v0.3.0', () => {
       const removeCount = await removeOption.count();
 
       if (removeCount > 0) {
+        await removeJoyrideOverlay(page);
         await removeOption.first().click();
 
         // 验证: 只剩一个根目录
@@ -470,6 +473,7 @@ const user: User = { name: 'test' };
       const goToDefCount = await goToDef.count();
 
       if (goToDefCount > 0) {
+        await removeJoyrideOverlay(page);
         await goToDef.first().click();
 
         // 验证: 编辑器打开 shared-lib 中的文件
@@ -518,6 +522,7 @@ const user: User = { name: 'test' };
     const findRefsCount = await findRefs.count();
 
     if (findRefsCount > 0) {
+      await removeJoyrideOverlay(page);
       await findRefs.first().click();
 
       // 验证: 影响面面板显示跨仓库引用
@@ -888,6 +893,7 @@ test.describe('Performance: Multi-Workspace @v0.3.0', () => {
 
     for (let i = 1; i < 3; i++) {
       const startTime = Date.now();
+      await removeJoyrideOverlay(page);
       await roots.nth(i).click();
       await page.waitForTimeout(100); // 等待 UI 更新
       const switchTime = Date.now() - startTime;

@@ -198,7 +198,7 @@ function App() {
       // v0.3.0: 暴露 layoutStore 到 window 对象供 E2E 测试使用
       try {
         const { useLayoutStore } = await import('./stores/layoutStore');
-        (window as any).__layoutStore = { useLayoutStore };
+        (window as any).__layoutStore = useLayoutStore;
         console.log('[App] ✅ LayoutStore exposed to window.__layoutStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose LayoutStore:', error);
@@ -211,6 +211,15 @@ function App() {
         console.log('[App] ✅ AgentStore exposed to window.__agentStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose AgentStore:', error);
+      }
+
+      // v0.3.1: 暴露 inlineEditStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useInlineEditStore } = await import('./stores/inlineEditStore');
+        (window as any).__inlineEditStore = useInlineEditStore;
+        console.log('[App] ✅ InlineEditStore exposed to window.__inlineEditStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose InlineEditStore:', error);
       }
     };
 

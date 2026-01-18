@@ -1,20 +1,25 @@
 import { test, expect } from '@playwright/test';
+import { setupE2ETestEnvironment } from '../setup';
 
 // 国际化全覆盖测试集
 test.describe('Feature: I18n Coverage @v0.3.0', () => {
 
+  test.beforeEach(async ({ page }) => {
+    // 使用标准 E2E 环境设置
+    await setupE2ETestEnvironment(page);
+  });
+
   // I18N-E2E-01: 英文环境纯净度检测
   test('I18N-E2E-01: No Chinese characters in English mode', async ({ page }) => {
-    // 1. 强制设置为英文环境 (通过 localStorage 或 URL 参数)
     await page.goto('/');
 
+    // 设置为英文环境
     await page.evaluate(() => {
       localStorage.setItem('i18nextLng', 'en-US');
-      location.reload();
     });
 
-    // 等待重新加载和翻译初始化 - 使用更通用的等待条件
-    await page.waitForLoadState('domcontentloaded');
+    // 重新加载以应用语言设置
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
 
     // 等待应用容器加载 - 不依赖 Monaco 编辑器
@@ -91,12 +96,12 @@ test.describe('Feature: I18n Coverage @v0.3.0', () => {
   // I18N-E2E-02: 动态错误信息翻译
   test('I18N-E2E-02: Backend error translation', async ({ page }) => {
     await page.goto('/');
+
     // 设置为英文
     await page.evaluate(() => {
       localStorage.setItem('i18nextLng', 'en-US');
-      location.reload();
     });
-    await page.waitForLoadState('domcontentloaded');
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
     await expect(page.locator('#root')).toBeVisible();
 

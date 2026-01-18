@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { removeJoyrideOverlay } from '../setup';
 
 // 深度语言支持测试集 (Deep Language Support)
 test.describe('Feature: Deep Language Support (Python/Go) @v0.3.0', () => {
@@ -40,6 +41,7 @@ test.describe('Feature: Deep Language Support (Python/Go) @v0.3.0', () => {
     // ...
 
     // 点击 "Visualize Dependencies"
+    await removeJoyrideOverlay(page);
     await page.getByRole('button', { name: 'Visualize Dependencies' }).click();
 
     // 验证图表渲染

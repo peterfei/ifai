@@ -20,8 +20,8 @@ test.describe('Chat Double Bubble Reproduction', () => {
       
       // 打开聊天面板
       const layoutStore = (window as any).__layoutStore;
-      if (layoutStore && layoutStore.useLayoutStore) {
-        layoutStore.useLayoutStore.getState().updateSettings({ isChatOpen: true });
+      if (layoutStore) {
+        layoutStore.getState().updateSettings({ isChatOpen: true });
       }
     });
 

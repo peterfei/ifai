@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('File Tree Multi-selection', () => {
   test.beforeEach(async ({ page }) => {
@@ -49,6 +49,8 @@ test.describe('File Tree Multi-selection', () => {
     const modifier = isMac ? 'Meta' : 'Control';
 
     // Click file-1
+    await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.getByText('file-1.ts', { exact: true }).click();
     
     // Check if file-1 is selected
@@ -72,7 +74,9 @@ test.describe('File Tree Multi-selection', () => {
 
   test('should select a range of files with Shift key', async ({ page }) => {
     // Click file-1
+    await removeJoyrideOverlay(page);
     await page.getByText('file-1.ts', { exact: true }).click();
+    await removeJoyrideOverlay(page);
     
     // Shift + Click file-3
     await page.keyboard.down('Shift');
@@ -123,10 +127,11 @@ test.describe('File Tree Multi-selection', () => {
     
     
           // 1. Select file-1 and file-2
-    
-    
-    
+
+
+          await removeJoyrideOverlay(page);
           await getTreeItem('file-1.ts').click();
+          await removeJoyrideOverlay(page);
     
     
     
@@ -179,6 +184,7 @@ test.describe('File Tree Multi-selection', () => {
     
     
           await getTreeItem('file-1.ts').click({ button: 'right' });
+          await removeJoyrideOverlay(page);
     
     
     
@@ -190,6 +196,7 @@ test.describe('File Tree Multi-selection', () => {
     
     
     
+          await removeJoyrideOverlay(page);
           await page.getByText('删除').click();
     
     

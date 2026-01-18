@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from './setup';
 
 test.describe('Smart Terminal Loop: Error to Fix', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,6 +24,7 @@ test.describe('Smart Terminal Loop: Error to Fix', () => {
     await expect(debugBtn).toBeVisible();
 
     // 3. 点击修复
+    await removeJoyrideOverlay(page);
     await debugBtn.click();
 
     // 4. 验证 AI 聊天框是否自动开启，并带入了报错上下文

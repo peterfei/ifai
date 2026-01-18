@@ -22,6 +22,11 @@ export default defineConfig({
   // 测试目录
   testDir: './tests/e2e',
 
+  // 排除模板测试文件（这些是模板，不是真正的测试）
+  exclude: [
+    '**/templates/**/*.spec.ts',
+  ],
+
   // 完全并行执行测试
   fullyParallel: true,
 

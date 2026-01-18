@@ -34,8 +34,8 @@ test.describe('Token Progress Bar - Feedback Validation', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(1000);

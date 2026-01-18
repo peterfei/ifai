@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 简单测试：验证格式化函数的输出
@@ -68,6 +68,7 @@ test('简单测试：验证 agent_write_file 结果显示', async ({ page }) => 
   }, { fileName, content: newContent });
 
   // 批准执行
+  await removeJoyrideOverlay(page);
   await page.locator('button:has-text("批准执行")').first().click();
   await page.waitForTimeout(3000);
 

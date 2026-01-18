@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * MM-001/002/003: 多模态理解 E2E 测试
@@ -144,6 +144,7 @@ test.describe('MM-001/002/003: Multimodal Understanding @v0.3.0', () => {
     // 2. 如果按钮存在，验证点击不崩溃
     if (hasUploadButton) {
       try {
+        await removeJoyrideOverlay(page);
         await uploadButton.click();
         await page.waitForTimeout(500);
 

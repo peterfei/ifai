@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Tab Bar Context Menu', () => {
   test.beforeEach(async ({ page }) => {
@@ -30,6 +30,7 @@ test.describe('Tab Bar Context Menu', () => {
   test('should show context menu on right click', async ({ page }) => {
     // Right click on file-1 tab - specifically in the TabBar area
     const tab = page.locator('.horizontal-scrollbar').getByText('file-1.ts').first();
+    await removeJoyrideOverlay(page);
     await tab.click({ button: 'right' });
     
     // Check if options are visible
@@ -40,8 +41,9 @@ test.describe('Tab Bar Context Menu', () => {
   test('should close other tabs', async ({ page }) => {
     // Right click on file-1 tab
     const tab = page.locator('.horizontal-scrollbar').getByText('file-1.ts').first();
+    await removeJoyrideOverlay(page);
     await tab.click({ button: 'right' });
-    
+
     // Click "Close Others"
     await page.getByText('关闭其它').click();
     
@@ -54,8 +56,9 @@ test.describe('Tab Bar Context Menu', () => {
   test('should close all tabs', async ({ page }) => {
     // Right click on any tab
     const tab = page.locator('.horizontal-scrollbar').getByText('file-1.ts').first();
+    await removeJoyrideOverlay(page);
     await tab.click({ button: 'right' });
-    
+
     // Click "Close All"
     await page.getByText('关闭所有').click();
     

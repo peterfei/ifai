@@ -41,9 +41,9 @@ test.describe('Multimodal UI Feedback - Loading State', () => {
     // 打开聊天面板（参考 v0.3.0 drag-drop.spec.ts）
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && layoutStore.useLayoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(2000);
@@ -193,9 +193,9 @@ test.describe('Multimodal UI Feedback - Streaming Output', () => {
     // 打开聊天面板（参考 v0.3.0 drag-drop.spec.ts）
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && layoutStore.useLayoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(2000);

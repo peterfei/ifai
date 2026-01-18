@@ -20,7 +20,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('v0.3.1 Timeline View', () => {
   test.beforeEach(async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('v0.3.1 Timeline View', () => {
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
       if (layoutStore) {
-        const store = layoutStore.useLayoutStore || layoutStore;
+        const store = layoutStore;
         if (store && store.getState && !store.getState().isChatOpen) {
           store.getState().toggleChat();
         }
@@ -126,6 +126,7 @@ test.describe('v0.3.1 Timeline View', () => {
     // When: 切换到时间线视图
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       // 等待时间线组件渲染
       await page.waitForTimeout(2000);
@@ -209,6 +210,7 @@ test.describe('v0.3.1 Timeline View', () => {
     // When: 切换到时间线并点击气泡
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       await page.waitForTimeout(2000);
     } else {
@@ -284,6 +286,7 @@ ${Array.from({ length: 50 }, (_, i) => `const line${i + 1} = "这是第 ${i + 1}
     // When: 切换到时间线视图
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       await page.waitForTimeout(2000);
     } else {
@@ -347,6 +350,7 @@ ${Array.from({ length: 50 }, (_, i) => `const line${i + 1} = "这是第 ${i + 1}
     // When: 切换到时间线
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       await page.waitForTimeout(2000);
     } else {
@@ -397,6 +401,7 @@ ${Array.from({ length: 50 }, (_, i) => `const line${i + 1} = "这是第 ${i + 1}
     // When: 切换到时间线视图
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       await page.waitForTimeout(2000);
     } else {
@@ -462,6 +467,7 @@ ${Array.from({ length: 50 }, (_, i) => `const line${i + 1} = "这是第 ${i + 1}
     // When: 切换到时间线并尝试加载
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       await page.waitForTimeout(6000); // 等待超时（5秒超时保护）
     } else {
@@ -516,6 +522,7 @@ ${Array.from({ length: 50 }, (_, i) => `const line${i + 1} = "这是第 ${i + 1}
     // When: 切换到时间线并发送新消息
     const timelineButton = await page.$('[data-testid="timeline-view-toggle"]');
     if (timelineButton) {
+      await removeJoyrideOverlay(page);
       await timelineButton.click();
       await page.waitForTimeout(1000);
     } else {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 验证控制台显示功能 - commit 4afdd13a
@@ -50,6 +50,7 @@ test.describe('Console Display Verification - Real Scenarios', () => {
     });
 
     // 批准第一个命令
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(1500);
 
@@ -70,6 +71,7 @@ test.describe('Console Display Verification - Real Scenarios', () => {
     });
 
     // 批准第二个命令
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(1500);
 
@@ -149,6 +151,7 @@ test.describe('Console Display Verification - Real Scenarios', () => {
     // 多次点击批准按钮（模拟用户快速点击或网络延迟导致的重复点击）
     console.log('[E2E] Clicking approve button 3 times...');
     for (let i = 0; i < 3; i++) {
+      await removeJoyrideOverlay(page);
       const approveButton = await page.locator('button:has-text("批准执行")').first();
       if (await approveButton.isVisible()) {
         await approveButton.click();
@@ -251,6 +254,7 @@ test.describe('Tool Message Duplication Prevention', () => {
     });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 
@@ -291,6 +295,7 @@ test.describe('Tool Message Duplication Prevention', () => {
 
     // 多次点击批准按钮（模拟用户误操作）
     for (let i = 0; i < 3; i++) {
+      await removeJoyrideOverlay(page);
       const approveButton = await page.locator('button:has-text("批准执行")').first();
       if (await approveButton.isVisible()) {
         await approveButton.click();

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * Tool 消息格式测试
@@ -48,6 +48,7 @@ test.describe('Tool Message Format - LLM Understanding', () => {
     });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 
@@ -111,6 +112,7 @@ test.describe('Tool Message Format - LLM Understanding', () => {
     });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 

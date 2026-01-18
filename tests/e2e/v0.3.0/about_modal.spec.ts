@@ -29,8 +29,8 @@ test.describe('About Modal and Help Links', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      if (layoutStore && layoutStore.useLayoutStore) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      if (layoutStore) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(2000);

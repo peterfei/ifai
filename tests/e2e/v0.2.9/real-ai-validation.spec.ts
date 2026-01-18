@@ -69,7 +69,7 @@ test.describe('v0.2.9 Real AI Validation', () => {
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
       if (layoutStore) {
-        const store = layoutStore.useLayoutStore || layoutStore;
+        const store = layoutStore;
         if (store && store.getState && !store.getState().isChatOpen) {
           store.getState().toggleChat();
         }

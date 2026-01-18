@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * Go to Definition 功能 E2E 测试集
@@ -277,6 +277,7 @@ testFunction();
     const optionCount = await goToDefinitionOption.count();
 
     if (optionCount > 0) {
+      await removeJoyrideOverlay(page);
       await goToDefinitionOption.first().click();
       await page.waitForTimeout(500);
 

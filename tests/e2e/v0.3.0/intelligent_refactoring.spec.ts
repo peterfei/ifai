@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { EditorPage, createEditorPage } from '../helpers/editor-page';
 import { createSmellyCode, CodeSmellType, measureTime } from '../helpers/v0-3-0-test-utils';
 import { waitForEditorReady } from '../helpers/wait-helpers';
+import { removeJoyrideOverlay } from '../setup';
 
 /**
  * 智能重构测试集 (Intelligent Refactoring)
@@ -72,6 +73,7 @@ function processData() {
     if (editorPage.isCommercial()) {
       // 商业版：应该有重构选项
       if (hasExtractOption) {
+        await removeJoyrideOverlay(page);
         await extractOption.click();
 
         // 4. 验证弹出命名对话框
@@ -84,6 +86,7 @@ function processData() {
 
         // 确认重构
         const confirmButton = dialog.getByRole('button', { name: /Refactor|OK|确认/ });
+        await removeJoyrideOverlay(page);
         await confirmButton.click();
 
         // 5. 验证代码变化

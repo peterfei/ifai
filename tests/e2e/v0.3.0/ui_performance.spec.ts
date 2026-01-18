@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { removeJoyrideOverlay } from '../setup';
 
 // UI 性能与体验测试 (Industrial UI)
 test.describe('Feature: Industrial UI Performance @v0.3.0', () => {
@@ -37,6 +38,7 @@ test.describe('Feature: Industrial UI Performance @v0.3.0', () => {
     
     const start = Date.now();
     // 尝试并在高负载下点击按钮
+    await removeJoyrideOverlay(page);
     await page.locator('[data-testid="clear-terminal"]').click();
     const duration = Date.now() - start;
     

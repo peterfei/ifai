@@ -6,6 +6,7 @@ import {
   assertAttribute,
   assertLayout
 } from '../helpers';
+import { removeJoyrideOverlay } from '../setup';
 
 /**
  * ============================================
@@ -41,6 +42,7 @@ test.describe('Feature: Custom Layout Support', () => {
     // Act - 执行布局切换操作
     // ============================================
     // 打开布局菜单
+    await removeJoyrideOverlay(page);
     await layoutButton.click();
 
     // 等待菜单选项可见
@@ -48,6 +50,7 @@ test.describe('Feature: Custom Layout Support', () => {
     await assertVisible(customOption, true);
 
     // 选择自定义布局
+    await removeJoyrideOverlay(page);
     await customOption.click();
 
     // ============================================
@@ -145,10 +148,12 @@ test.describe('Feature: Custom Layout Support', () => {
     // Act - 切换回默认布局
     // ============================================
     const layoutButton = page.locator('button[title*="布局"], button[title*="Layout"], [data-testid="layout-button"]');
+    await removeJoyrideOverlay(page);
     await layoutButton.click();
 
     const defaultOption = page.locator('[data-testid="layout-default"], text="默认布局", text="Default"');
     await assertVisible(defaultOption, true);
+    await removeJoyrideOverlay(page);
     await defaultOption.click();
 
     // ============================================
@@ -170,6 +175,7 @@ test.describe('Feature: Custom Layout Support', () => {
     // Act - 打开布局菜单
     // ============================================
     const layoutButton = page.locator('button[title*="布局"], button[title*="Layout"], [data-testid="layout-button"]');
+    await removeJoyrideOverlay(page);
     await layoutButton.click();
 
     // ============================================
@@ -233,6 +239,7 @@ test.describe('Feature: Custom Layout Support', () => {
     // ============================================
     // Act - 点击页面其他区域
     // ============================================
+    await removeJoyrideOverlay(page);
     await page.click('body', { position: { x: 100, y: 100 } });
 
     // ============================================
@@ -348,9 +355,11 @@ test.describe('Feature: Custom Layout Support', () => {
  */
 async function switchToCustomLayout(page: Page) {
   const layoutButton = page.locator('button[title*="布局"], button[title*="Layout"], [data-testid="layout-button"]');
+  await removeJoyrideOverlay(page);
   await layoutButton.click();
 
   const customOption = page.locator('[data-testid="layout-custom"], text="自定义布局", text="Custom"');
+  await removeJoyrideOverlay(page);
   await customOption.click();
 
   // 等待布局切换完成

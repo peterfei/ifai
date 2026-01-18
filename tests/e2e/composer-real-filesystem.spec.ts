@@ -11,7 +11,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from './setup';
 
 test.describe('Composer 2.0: Real File System', () => {
   const CHAT_INPUT = '[data-testid="chat-input"]';
@@ -214,6 +214,7 @@ test.describe('Composer 2.0: Real File System', () => {
 
     // 4. 点击"全部接受"
     console.log('[E2E] Clicking Accept All button...');
+    await removeJoyrideOverlay(page);
     await page.click(ACCEPT_ALL_BTN);
 
     // 5. 等待原子写入完成
@@ -357,6 +358,7 @@ test.describe('Composer 2.0: Real File System', () => {
 
     // 3. 只接受第一个文件
     const firstFileAcceptBtn = page.locator('.composer-file-item').first().locator('.btn-accept-single');
+    await removeJoyrideOverlay(page);
     await firstFileAcceptBtn.click();
     await page.waitForTimeout(1000);
 
@@ -371,6 +373,7 @@ test.describe('Composer 2.0: Real File System', () => {
 
     // 6. 接受第二个文件
     const secondFileAcceptBtn = page.locator('.composer-file-item').nth(1).locator('.btn-accept-single');
+    await removeJoyrideOverlay(page);
     await secondFileAcceptBtn.click();
     await page.waitForTimeout(2000);
 
@@ -390,9 +393,11 @@ test.describe('Composer 2.0: Real File System', () => {
     console.log('[E2E] Close buttons found:', closeBtnCount);
 
     if (closeBtnCount > 0) {
+      await removeJoyrideOverlay(page);
       await closeBtn.first().click();
     } else {
       // 如果没有关闭按钮，点击 "全部拒绝" 来关闭
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("全部拒绝"), .btn-reject-all').click();
     }
     await page.waitForTimeout(1000);
@@ -486,6 +491,7 @@ test.describe('Composer 2.0: Real File System', () => {
 
     // 3. 点击"全部拒绝"
     const rejectAllBtn = page.locator('button:has-text("全部拒绝"), .btn-reject-all');
+    await removeJoyrideOverlay(page);
     await rejectAllBtn.click();
     await page.waitForTimeout(1000);
 

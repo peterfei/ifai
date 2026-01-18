@@ -3,7 +3,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Help Menu Click Test', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,8 +21,8 @@ test.describe('Help Menu Click Test', () => {
     // 🔥 打开聊天面板（参考其他测试）
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      if (layoutStore && layoutStore.useLayoutStore) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      if (layoutStore) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(3000);

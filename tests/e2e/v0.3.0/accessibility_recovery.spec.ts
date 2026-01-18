@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { testFocusTrap, checkAccessibility, assertNoCriticalA11yViolations } from '../helpers/v0-3-0-test-utils';
 import { waitForEditorReady } from '../helpers/wait-helpers';
+import { removeJoyrideOverlay } from '../setup';
 // import { injectAxe, checkA11y } from 'axe-playwright';
 
 /**
@@ -42,6 +43,7 @@ test.describe('Feature: A11y & Robustness @v0.3.0', () => {
       async () => {
         const settingsButton = page.locator('[data-testid="settings-button"], button:has-text("Settings"), button:has-text("设置")');
         if (await settingsButton.count() > 0) {
+          await removeJoyrideOverlay(page);
           await settingsButton.first().click();
           await page.waitForTimeout(500);
         }
@@ -150,6 +152,7 @@ test.describe('Feature: A11y & Robustness @v0.3.0', () => {
       // 如果 Escape 没有关闭模态框，尝试点击关闭按钮
       const closeButton = modal.locator('[data-testid="close"], [aria-label="Close"], .close-button');
       if (await closeButton.count() > 0) {
+        await removeJoyrideOverlay(page);
         await closeButton.first().click();
         await page.waitForTimeout(500);
       }

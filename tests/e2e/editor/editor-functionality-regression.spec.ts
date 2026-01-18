@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 编辑器核心功能回归测试
@@ -28,6 +28,7 @@ test.describe('Editor Core Functionality Regression', () => {
 
   test('should have quick suggestions enabled', async ({ page }) => {
     const editor = page.locator('[data-testid="monaco-editor-container"]').first();
+    await removeJoyrideOverlay(page);
     await editor.click();
     await page.keyboard.type('exp');
     // 验证建议列表是否弹出

@@ -731,8 +731,8 @@ test.describe('Feature: Help & Onboarding @v0.3.0', () => {
       console.log('Cmd+, did not work, trying layoutStore...');
       const openedViaStore = await page.evaluate(() => {
         const layoutStore = (window as any).__layoutStore;
-        if (layoutStore && layoutStore.useLayoutStore) {
-          const store = layoutStore.useLayoutStore;
+        if (layoutStore) {
+          const store = layoutStore;
           if (typeof store.getState === 'function') {
             store.getState().setSettingsOpen(true);
             return true;

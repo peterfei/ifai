@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * CHANGELOG 行级别 diff 测试
@@ -102,6 +102,7 @@ test.describe('CHANGELOG Line-level Diff', () => {
     }, { fileName, content: newContent });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 

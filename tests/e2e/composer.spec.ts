@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from './setup';
 
 test.describe('Composer 2.0: Realistic UI Interaction', () => {
   const CHAT_INPUT = '[data-testid="chat-input"]';
@@ -284,6 +284,7 @@ export class AuthService {
     expect(count).toBeGreaterThan(1);
 
     // 点击"全部接受"
+    await removeJoyrideOverlay(page);
     await page.click(ACCEPT_ALL_BTN);
 
     // 等待异步操作完成
@@ -407,6 +408,7 @@ export class AuthService {
     await expect(diffContainer).toBeVisible({ timeout: 10000 });
 
     // 点击"全部拒绝"
+    await removeJoyrideOverlay(page);
     await page.click(REJECT_ALL_BTN);
 
     // 等待面板关闭
@@ -554,6 +556,7 @@ import { Logger } from '../logger';`
     expect(count).toBeGreaterThan(1);
 
     // 在 Diff 预览中，只针对第一个文件点击"Accept"
+    await removeJoyrideOverlay(page);
     const firstFileAcceptBtn = page.locator('.composer-file-item').first().locator('.btn-accept-single');
     await firstFileAcceptBtn.click();
 

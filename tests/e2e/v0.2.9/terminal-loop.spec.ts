@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Smart Terminal Loop (v0.2.9)', () => {
   test.beforeEach(async ({ page }) => {
@@ -23,7 +23,7 @@ test.describe('Smart Terminal Loop (v0.2.9)', () => {
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
       if (layoutStore) {
-        const store = layoutStore.useLayoutStore || layoutStore;
+        const store = layoutStore;
         if (store && store.getState && store.getState().toggleTerminal) {
           store.getState().toggleTerminal();
         }
@@ -59,6 +59,7 @@ help: consider declaring this variable with the \`let\` keyword
     }, errorLog);
 
     // Then: 应该在终端出现 "Debug with AI" 按钮
+    await removeJoyrideOverlay(page);
     const fixButton = page.locator('button:has-text("Debug with AI")');
     await expect(fixButton).toBeVisible({ timeout: 5000 });
 
@@ -161,6 +162,7 @@ fn main() {
     await page.waitForTimeout(2000);
 
     // Then: 应该显示 "Apply Fix" 按钮
+    await removeJoyrideOverlay(page);
     const applyButton = page.locator('button:has-text("Apply Fix")');
     await expect(applyButton).toBeVisible({ timeout: 10000 });
 
@@ -272,6 +274,7 @@ fn main() {
       await page.waitForTimeout(500);
 
       // Then: 应该都能被正确解析并显示修复按钮
+      await removeJoyrideOverlay(page);
       const fixButton = page.locator('button:has-text("Debug with AI")');
       await expect(fixButton).toBeVisible();
 
@@ -311,6 +314,7 @@ fn main() {
     await page.waitForTimeout(1000);
 
     // When: 用户点击 "Ignore" 或 "Reject" 按钮
+    await removeJoyrideOverlay(page);
     const rejectButton = page.locator('button:has-text("Ignore"), button:has-text("Reject")');
     await rejectButton.click();
 

@@ -9,7 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from './setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from './setup';
 
 test.describe('Composer 2.0: Accept/Reject Cycle', () => {
   const COMPOSER_DIFF_CONTAINER = '.composer-diff-container';
@@ -133,6 +133,7 @@ test.describe('Composer 2.0: Accept/Reject Cycle', () => {
     console.log('[E2E] Step 1: Composer opened with file');
 
     // 5. 第一次接受
+    await removeJoyrideOverlay(page);
     const acceptBtn1 = page.locator(ACCEPT_FILE_BTN).first();
     await acceptBtn1.click();
     await page.waitForTimeout(1000);
@@ -140,6 +141,7 @@ test.describe('Composer 2.0: Accept/Reject Cycle', () => {
     console.log('[E2E] Step 2: First accept clicked');
 
     // 6. 第一次拒绝（应该回滚）
+    await removeJoyrideOverlay(page);
     const rejectBtn1 = page.locator(REJECT_FILE_BTN).first();
     await rejectBtn1.click();
     await page.waitForTimeout(1000);
@@ -153,6 +155,7 @@ test.describe('Composer 2.0: Accept/Reject Cycle', () => {
     console.log('[E2E] Step 4: File still in list after reject');
 
     // 8. 第二次接受（应该成功）
+    await removeJoyrideOverlay(page);
     const acceptBtn2 = page.locator(ACCEPT_FILE_BTN).first();
     await acceptBtn2.click();
     await page.waitForTimeout(1000);
@@ -275,6 +278,7 @@ test.describe('Composer 2.0: Accept/Reject Cycle', () => {
     console.log('[E2E] Step 1: 2 files in list');
 
     // 4. 接受第一个文件
+    await removeJoyrideOverlay(page);
     const acceptBtn1 = page.locator('.composer-file-item').first().locator(ACCEPT_FILE_BTN);
     await acceptBtn1.click();
     await page.waitForTimeout(1000);
@@ -282,6 +286,7 @@ test.describe('Composer 2.0: Accept/Reject Cycle', () => {
     console.log('[E2E] Step 2: Accepted first file');
 
     // 5. 拒绝第一个文件（回滚）
+    await removeJoyrideOverlay(page);
     const rejectBtn1 = page.locator('.composer-file-item').first().locator(REJECT_FILE_BTN);
     await rejectBtn1.click();
     await page.waitForTimeout(1000);
@@ -295,6 +300,7 @@ test.describe('Composer 2.0: Accept/Reject Cycle', () => {
     console.log('[E2E] Step 4: Both files still in list');
 
     // 7. 再次接受第一个文件
+    await removeJoyrideOverlay(page);
     const acceptBtn2 = page.locator('.composer-file-item').first().locator(ACCEPT_FILE_BTN);
     await acceptBtn2.click();
     await page.waitForTimeout(1000);

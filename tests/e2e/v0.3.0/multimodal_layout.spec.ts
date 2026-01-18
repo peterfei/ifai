@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Multimodal - Layout & Upload', () => {
   test.beforeEach(async ({ page }) => {
@@ -36,6 +36,7 @@ test.describe('Multimodal - Layout & Upload', () => {
         try {
           const button = page.getByRole('button', { name: text, exact: false }).first();
           if (await button.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await removeJoyrideOverlay(page);
             await button.click();
             console.log(`[E2E] Clicked button with text: ${text}`);
             await page.waitForTimeout(500);
@@ -76,9 +77,9 @@ test.describe('Multimodal - Layout & Upload', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(1000);

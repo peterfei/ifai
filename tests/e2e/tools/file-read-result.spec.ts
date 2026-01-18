@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * E2E 测试：文件读取工具结果应该包含实际文件内容
@@ -90,6 +90,7 @@ test.describe('File Read Tool - Content Display', () => {
     await page.waitForTimeout(2000);
 
     // 3. 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -159,6 +160,7 @@ End of file.
     }, { fileName: testFileName });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -211,6 +213,7 @@ End of file.
     }, { fileName: testFileName });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -264,6 +267,7 @@ End of file.
     }, { fileName: testFileName });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -343,6 +347,7 @@ Tech Stack:
     }, { fileName: testFileName });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 

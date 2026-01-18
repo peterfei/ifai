@@ -17,7 +17,7 @@ export {
 
 // 导出主要的设置函数（向后兼容）
 // 这个函数会使用 setup-utils.ts 中的实现
-export { setupE2ETestEnvironment } from '../setup-utils.js';
+export { setupE2ETestEnvironment, removeJoyrideOverlay, safeClick, skipOnboardingTour } from '../setup-utils.js';
 
 // 重新导出类型以保持向后兼容
 export type { E2ETestEnvironmentOptions } from '../setup-utils.js';

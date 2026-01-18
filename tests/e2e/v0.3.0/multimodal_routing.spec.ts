@@ -28,7 +28,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Multimodal Routing - Image Detection', () => {
   test.beforeEach(async ({ page }) => {
@@ -76,9 +76,9 @@ test.describe('Multimodal Routing - Image Detection', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
 
@@ -99,7 +99,7 @@ test.describe('Multimodal Routing - Image Detection', () => {
           visible: (i as HTMLInputElement).offsetParent !== null,
         })),
         textareaCount: textareas.length,
-        chatOpen: layoutStore?.useLayoutStore?.getState?.()?.isChatOpen,
+        chatOpen: layoutStore?.getState?.()?.isChatOpen,
         bodyHTML: document.body.innerHTML.substring(0, 500),
         reactRoot: document.querySelector('#root')?.innerHTML?.substring(0, 200),
       };
@@ -219,9 +219,9 @@ test.describe('Multimodal - Console Log Validation', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
 
@@ -298,9 +298,9 @@ test.describe('Multimodal - Screenshot UX Validation', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(1000);

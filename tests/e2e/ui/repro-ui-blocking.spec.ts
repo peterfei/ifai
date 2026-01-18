@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 场景 3：AI 生成时 UI 主线程卡顿。
@@ -54,6 +54,7 @@ test.describe('Reproduction: UI Thread Blocking During Streaming', () => {
     // 寻找一个文件树中的文件夹并尝试展开
     const fileTreeItem = page.locator('.file-tree-item').first(); // 假设类名
     if (await fileTreeItem.isVisible()) {
+        await removeJoyrideOverlay(page);
         await fileTreeItem.click();
         const latency = Date.now() - startTime;
         console.log(`Click latency during streaming: ${latency}ms`);

@@ -75,9 +75,9 @@ test.describe('Local Model - DevOps Command Detection', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
 
@@ -188,9 +188,9 @@ test.describe('Local Model - DevOps Commands Regression Tests', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(1000);
@@ -286,9 +286,9 @@ test.describe('Local Model - Cloud API Fallback Tests', () => {
     // 打开聊天面板
     await page.evaluate(() => {
       const layoutStore = (window as any).__layoutStore;
-      // 🔥 __layoutStore 是 { useLayoutStore } 对象
-      if (layoutStore && !layoutStore.useLayoutStore.getState().isChatOpen) {
-        layoutStore.useLayoutStore.getState().toggleChat();
+      // 🔥 __layoutStore 现在直接是 Zustand store
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
       }
     });
     await page.waitForTimeout(1000);

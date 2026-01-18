@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * Diff Summary 准确性测试
@@ -89,6 +89,7 @@ End of file.
     }, { fileName, content: fileContent });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 

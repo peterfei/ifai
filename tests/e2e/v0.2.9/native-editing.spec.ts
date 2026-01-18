@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Native Editing Experience (v0.2.9)', () => {
   test.beforeEach(async ({ page }) => {
@@ -208,6 +208,9 @@ export function App() {
     await page.waitForSelector('[data-testid="diff-modal"]', { timeout: 5000 }).catch(() => {
       console.log('[TEST] diff-modal not found, checking store state...');
     });
+
+    // 🔥 移除 Joyride overlay 以避免阻止交互
+    await removeJoyrideOverlay(page);
 
     const diffEditor = page.locator('[data-testid="diff-editor"]');
     await expect(diffEditor).toBeVisible({ timeout: 10000 });
@@ -431,6 +434,9 @@ export const CONSTANT_VALUE = 42;
     await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 5000 });
     await page.waitForTimeout(500);
 
+    // 🔥 移除 Joyride overlay 以避免阻止点击
+    await removeJoyrideOverlay(page);
+
     // 🔥 点击编辑器容器并直接使用键盘输入
     // Monaco Editor 会自动聚焦到可编辑区域
     await page.locator('[data-testid="monaco-editor-container"]').click();
@@ -569,6 +575,10 @@ export const CONSTANT_VALUE = 42;
     await page.waitForTimeout(500);
 
     await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 5000 });
+
+    // 🔥 移除 Joyride overlay 以避免阻止点击
+    await removeJoyrideOverlay(page);
+
     await page.locator('[data-testid="monaco-editor-container"]').click();
     await page.keyboard.type('But'); // 输入 Button 的前缀
     await page.keyboard.press('Control+Space');
@@ -614,6 +624,10 @@ export const CONSTANT_VALUE = 42;
     console.log('[TEST DEBUG] Accept button count:', acceptButtonCount);
 
     const acceptButton = page.locator('[data-testid="accept-diff-button"]');
+
+    // 🔥 移除 Joyride overlay 以避免阻止点击
+    await removeJoyrideOverlay(page);
+
     await acceptButton.click();
 
     // 检查按钮点击后的状态
@@ -771,6 +785,10 @@ export function util3() {}
 
     // 触发补全
     await page.waitForSelector('[data-testid="monaco-editor-container"]', { timeout: 5000 });
+
+    // 🔥 移除 Joyride overlay 以避免阻止点击
+    await removeJoyrideOverlay(page);
+
     await page.locator('[data-testid="monaco-editor-container"]').click();
     await page.keyboard.type('util');
     await page.keyboard.press('Control+Space');

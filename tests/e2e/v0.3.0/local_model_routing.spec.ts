@@ -14,6 +14,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { removeJoyrideOverlay } from '../setup';
 
 test.describe('Local Model Routing - Agent Tool Detection', () => {
   test.beforeEach(async ({ page }) => {
@@ -42,6 +43,7 @@ test.describe('Local Model Routing - Agent Tool Detection', () => {
     // 1. 打开聊天面板
     const chatToggle = page.locator('button').filter({ hasText: /切换.*助手|Toggle Chat/ }).first();
     if (await chatToggle.isVisible()) {
+      await removeJoyrideOverlay(page);
       await chatToggle.click();
     }
     await page.waitForTimeout(500);
@@ -76,6 +78,7 @@ test.describe('Local Model Routing - Agent Tool Detection', () => {
     // 1. 打开聊天面板
     const chatToggle = page.locator('button').filter({ hasText: /切换.*助手/ }).first();
     if (await chatToggle.isVisible()) {
+      await removeJoyrideOverlay(page);
       await chatToggle.click();
     }
     await page.waitForTimeout(500);
@@ -105,6 +108,7 @@ test.describe('Local Model Routing - Agent Tool Detection', () => {
     // 1. 打开聊天面板
     const chatToggle = page.locator('button').filter({ hasText: /切换.*助手/ }).first();
     if (await chatToggle.isVisible()) {
+      await removeJoyrideOverlay(page);
       await chatToggle.click();
     }
     await page.waitForTimeout(500);
@@ -136,6 +140,7 @@ test.describe('Local Model Routing - Regression Tests', () => {
     // 打开聊天面板
     const chatToggle = page.locator('button').filter({ hasText: /切换.*助手/ }).first();
     if (await chatToggle.isVisible()) {
+      await removeJoyrideOverlay(page);
       await chatToggle.click();
     }
     await page.waitForTimeout(500);

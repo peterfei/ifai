@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * E2E测试: 还原"执行vite"命令成功但服务器未实际启动的场景
@@ -71,6 +71,7 @@ test.describe('Vite Command - Wrong Directory Detection', () => {
 
     // 2. 点击批准执行
     const approveBtn = page.locator('button:has-text("批准执行")').first();
+    await removeJoyrideOverlay(page);
     await approveBtn.click();
 
     // 3. 等待执行完成

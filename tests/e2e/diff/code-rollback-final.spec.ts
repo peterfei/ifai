@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * 工业级 AI 代码回滚 (Undo) 全场景覆盖测试
@@ -154,6 +154,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
       }
     }, { file: FILE_MAIN, newContent: CONTENT_AI });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
 
     // 🔥 等待批准完成，检查工具调用状态变为 completed
@@ -287,6 +288,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
       });
     }, { fileA: FILE_MAIN, fileB: FILE_STYLE });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(1000);
 
@@ -324,6 +326,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
       });
     }, { file: NEW_FILE });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').click();
     await page.waitForTimeout(1000);
 
@@ -337,6 +340,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
     expect(fileExistsAfterWrite).toBe(true);
 
     // 🔥 使用更具体的选择器 - ToolApproval 内的撤销按钮
+    await removeJoyrideOverlay(page);
     await page.locator('[data-test-id="tool-approval-card"] button:has-text("撤销")').first().click();
     await page.waitForTimeout(1000);
 
@@ -358,6 +362,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
         toolCalls: [{ id: 'cc', tool: 'agent_write_file', args: { rel_path: file, content: 'ai code' }, status: 'pending' }]
       });
     }, { file: FILE_MAIN });
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').click();
     await page.waitForTimeout(500);
 
@@ -375,12 +380,14 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
     }, { content: CONTENT_USER, file: FILE_MAIN });
 
     // 🔥 使用更具体的选择器 - ToolApproval 内的撤销按钮
+    await removeJoyrideOverlay(page);
     await page.locator('[data-test-id="tool-approval-card"] button:has-text("撤销")').first().click();
 
     // 验证冲突对话框
     const dialog = page.locator('text="检测到手动修改"').or(page.locator('text="Conflict"'));
     await expect(dialog).toBeVisible();
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("确认回滚")').or(page.locator('button:has-text("Confirm")')).click();
     await page.waitForTimeout(500);
 
@@ -477,6 +484,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
     // 🔥 使用更具体的选择器
     const undoBtn = page.locator('[data-test-id="tool-approval-card"] button:has-text("撤销")').first();
     await expect(undoBtn).toBeVisible();
+    await removeJoyrideOverlay(page);
     await undoBtn.click();
 
     await page.waitForTimeout(1000);

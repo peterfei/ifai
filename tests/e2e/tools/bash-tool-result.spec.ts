@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * Bash 工具结果传递测试
@@ -70,6 +70,7 @@ test.describe('Bash Tool Result - Content Display', () => {
     }, { command: testCommand });
 
     // 2. 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -129,6 +130,7 @@ test.describe('Bash Tool Result - Content Display', () => {
     }, { command: testCommand });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -184,6 +186,7 @@ test.describe('Bash Tool Result - Content Display', () => {
       // 等待按钮出现
       await page.waitForSelector('button:has-text("批准执行")', { timeout: 5000 });
       // 点击第一个（当前可见的）按钮
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(500);
     }
@@ -225,6 +228,7 @@ test.describe('Bash Tool Result - Content Display', () => {
       });
     }, { command: testCommand });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -264,6 +268,7 @@ test.describe('Bash Tool Result - Content Display', () => {
       });
     }, { command: testCommand });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
