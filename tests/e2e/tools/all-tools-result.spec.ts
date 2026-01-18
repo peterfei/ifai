@@ -117,6 +117,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       }, { fileName });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -161,6 +162,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -198,6 +200,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -236,6 +239,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       }, { fileName, content });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -283,6 +287,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       }, { fileName, content: newContent });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -321,6 +326,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       }, { command });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -356,6 +362,7 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         });
       }, { command });
 
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 

@@ -33,6 +33,7 @@ test.describe('Editor Core Functionality Regression', () => {
     await page.keyboard.type('exp');
     // 验证建议列表是否弹出
     const suggestWidget = page.locator('.suggest-widget');
+    await page.waitForTimeout(1000);
     await expect(suggestWidget).toBeVisible();
   });
 });

@@ -7,7 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Agent: Consecutive Task Bug Reproduction', () => {
   test.beforeEach(async ({ page }) => {

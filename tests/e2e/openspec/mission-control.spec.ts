@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Mission Control E2E', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,6 +13,8 @@ test.describe('Mission Control E2E', () => {
   });
 
   test('should open Mission Control and toggle views', async ({ page }) => {
+    await removeJoyrideOverlay(page);
+
     // 1. Find and click the Mission Control icon in sidebar
     const missionControlTab = page.locator('button[title="Mission Control"]');
     await expect(missionControlTab).toBeVisible();
@@ -45,6 +47,8 @@ test.describe('Mission Control E2E', () => {
   });
 
   test('should handle Snippet Manager integration', async ({ page }) => {
+    await removeJoyrideOverlay(page);
+
     // Click Snippet Manager tab
     const snippetTab = page.locator('button[title="Snippet Manager"]');
     await snippetTab.click();

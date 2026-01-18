@@ -276,6 +276,7 @@ export class AuthService {
 
     // 等待 Composer 生成 Diff 预览
     const diffContainer = page.locator(COMPOSER_DIFF_CONTAINER);
+    await page.waitForTimeout(1000);
     await expect(diffContainer).toBeVisible({ timeout: 10000 });
 
     // 验证文件列表
@@ -405,6 +406,7 @@ export class AuthService {
 
     // 等待 Composer 生成 Diff 预览
     const diffContainer = page.locator(COMPOSER_DIFF_CONTAINER);
+    await page.waitForTimeout(1000);
     await expect(diffContainer).toBeVisible({ timeout: 10000 });
 
     // 点击"全部拒绝"
@@ -548,6 +550,7 @@ import { Logger } from '../logger';`
 
     // 等待 Composer 生成 Diff 预览
     const diffContainer = page.locator(COMPOSER_DIFF_CONTAINER);
+    await page.waitForTimeout(1000);
     await expect(diffContainer).toBeVisible({ timeout: 10000 });
 
     // 验证文件列表

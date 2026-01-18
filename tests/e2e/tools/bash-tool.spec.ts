@@ -7,13 +7,14 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Tools: Bash Advanced Features', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 10000 });
+    await removeJoyrideOverlay(page);
     await page.waitForTimeout(2000);
   });
 

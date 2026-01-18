@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Tool Result Formatting & Task Summary', () => {
   test.beforeEach(async ({ page }) => {
@@ -17,6 +17,8 @@ test.describe('Tool Result Formatting & Task Summary', () => {
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, {
       timeout: 10000,
     });
+
+    await removeJoyrideOverlay(page);
 
     // 清空数据
     await page.evaluate(() => {

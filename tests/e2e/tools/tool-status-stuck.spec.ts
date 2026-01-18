@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 /**
  * E2E 测试：工具执行完成后状态仍显示"执行中"
@@ -14,6 +14,7 @@ test.describe('工具执行状态卡在"执行中"问题', () => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 10000 });
+    await removeJoyrideOverlay(page);
     await page.waitForTimeout(2000);
   });
 

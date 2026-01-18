@@ -103,6 +103,7 @@ test.describe('CHANGELOG Line-level Diff', () => {
 
     // 批准执行
     await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -196,6 +197,7 @@ Line 5: Last line unchanged`;
       });
     }, { fileName, content: newContent });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 

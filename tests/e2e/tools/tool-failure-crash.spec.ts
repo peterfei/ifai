@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Tool Failure and Crash Prevention', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
+    await removeJoyrideOverlay(page);
     await page.waitForTimeout(3000);
   });
 

@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('流式工具参数显示测试', () => {
     test.beforeEach(async ({ page }) => {
@@ -24,6 +24,7 @@ test.describe('流式工具参数显示测试', () => {
 
     test('应该显示流式参数查看器而非JSON', async ({ page }) => {
         // 发送一个会触发工具调用的消息
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '创建一个测试文件 test.txt，内容为 hello world');
         await page.click('[data-testid="send-button"]');
 
@@ -45,6 +46,7 @@ test.describe('流式工具参数显示测试', () => {
 
     test('流式生成时应显示加载动画而非已完成状态', async ({ page }) => {
         // 发送消息触发工具调用
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '列出当前目录的文件');
         await page.click('[data-testid="send-button"]');
 
@@ -63,6 +65,7 @@ test.describe('流式工具参数显示测试', () => {
 
     test('完成后应显示checkbox选中状态', async ({ page }) => {
         // 发送消息
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '创建文件 hello.txt');
         await page.click('[data-testid="send-button"]');
 
@@ -84,6 +87,7 @@ test.describe('流式工具参数显示测试', () => {
 
     test('不应该显示"正在解析工具参数"提示', async ({ page }) => {
         // 发送消息
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '读取文件 package.json');
         await page.click('[data-testid="send-button"]');
 
@@ -98,6 +102,7 @@ test.describe('流式工具参数显示测试', () => {
 
     test('应该正确显示不同类型的参数图标', async ({ page }) => {
         // 发送涉及多种参数类型的消息
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '在 /tmp 目录创建文件 test.log');
         await page.click('[data-testid="send-button"]');
 
@@ -115,6 +120,7 @@ test.describe('流式工具参数显示测试', () => {
 
     test('流式生成时不应该显示上一个工具的结果', async ({ page }) => {
         // 第一个工具调用
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '创建文件 a.txt');
         await page.click('[data-testid="send-button"]');
 
@@ -123,6 +129,7 @@ test.describe('流式工具参数显示测试', () => {
         await page.waitForSelector('.animate-spin', { state: 'detached', timeout: 10000 });
 
         // 第二个工具调用（在同一个消息中）
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '创建文件 b.txt');
         await page.click('[data-testid="send-button"]');
 
@@ -141,6 +148,7 @@ test.describe('流式工具参数显示测试', () => {
     test('参数值应被正确截断而不是显示完整JSON', async ({ page }) => {
         // 发送会产生长内容的消息
         const longContent = 'x'.repeat(200);
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', `创建文件，内容为：${longContent}`);
         await page.click('[data-testid="send-button"]');
 
@@ -164,6 +172,7 @@ test.describe('流式参数显示UI验证', () => {
         await page.goto('http://localhost:1420');
         await page.waitForLoadState('networkidle');
 
+        await removeJoyrideOverlay(page);
         await page.fill('[data-testid="chat-input"]', '创建测试文件');
         await page.click('[data-testid="send-button"]');
 

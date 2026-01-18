@@ -260,6 +260,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
 
     // 🔥 使用更具体的选择器，只选择 ToolApproval 内的"撤销"按钮，而不是"撤销所有"
     const undoBtn = page.locator('[data-test-id="tool-approval-card"] button:has-text("撤销")').first();
+    await page.waitForTimeout(1000);
     await expect(undoBtn).toBeVisible();
 
     // 点击并检查状态
@@ -294,6 +295,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
 
     // 寻找"撤销所有"按钮
     const undoAllBtn = page.locator('button:has-text("撤销所有")').or(page.locator('button:has-text("Undo All")'));
+    await page.waitForTimeout(1000);
     await expect(undoAllBtn).toBeVisible();
     await undoAllBtn.click();
 
@@ -385,6 +387,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
 
     // 验证冲突对话框
     const dialog = page.locator('text="检测到手动修改"').or(page.locator('text="Conflict"'));
+    await page.waitForTimeout(1000);
     await expect(dialog).toBeVisible();
 
     await removeJoyrideOverlay(page);
@@ -483,6 +486,7 @@ test.describe('Industrial Grade Code Rollback - Full Suite', () => {
 
     // 🔥 使用更具体的选择器
     const undoBtn = page.locator('[data-test-id="tool-approval-card"] button:has-text("撤销")').first();
+    await page.waitForTimeout(1000);
     await expect(undoBtn).toBeVisible();
     await removeJoyrideOverlay(page);
     await undoBtn.click();

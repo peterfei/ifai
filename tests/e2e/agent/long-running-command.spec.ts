@@ -110,6 +110,7 @@ test.describe('Long-Running Command Detection', () => {
       }, testCase.command);
 
       // 点击批准执行
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 
@@ -158,6 +159,7 @@ test.describe('Long-Running Command Detection', () => {
     });
 
     // 批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 

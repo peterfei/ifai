@@ -178,6 +178,7 @@ test.describe('LLM Duplicate Bash Execution Prevention', () => {
     });
 
     await page.waitForTimeout(500);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 
@@ -245,6 +246,7 @@ test.describe('LLM Duplicate Bash Execution Prevention', () => {
     });
 
     await page.waitForTimeout(500);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 
@@ -320,6 +322,7 @@ test.describe('LLM Duplicate Bash Execution Prevention', () => {
     const startTime = Date.now();
 
     await page.waitForTimeout(500);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
 
     // 2. 监控状态变化

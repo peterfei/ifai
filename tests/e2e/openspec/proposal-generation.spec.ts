@@ -4,6 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Proposal 生成测试', () => {
     test.beforeEach(async ({ page }) => {
@@ -11,6 +12,7 @@ test.describe('Proposal 生成测试', () => {
         await page.goto('http://localhost:1420');
         // 等待应用加载
         await page.waitForLoadState('networkidle');
+        await removeJoyrideOverlay(page);
     });
 
     test('斜杠命令 /proposal 应该生成 Markdown 格式而不是 JSON', async ({ page }) => {

@@ -3,7 +3,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('OpenSpec Workflow E2E', () => {
   test.beforeEach(async ({ page }) => {
@@ -34,10 +34,12 @@ test.describe('OpenSpec Workflow E2E', () => {
 
   test('should toggle task status and reflect in Mission Control', async ({ page }) => {
     await page.evaluate(() => (window as any).__E2E_SEND__('/task:demo'));
-    
+
     // 等待数据加载
     await page.waitForTimeout(3000);
-    
+
+    await removeJoyrideOverlay(page);
+
     // 切换到 Mission Control
     await page.locator('button[title="Mission Control"]').click();
     await page.waitForTimeout(1000);

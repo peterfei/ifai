@@ -188,6 +188,7 @@ VITE v7.2.7  ready in 927 ms
     await page.waitForTimeout(1000);
 
     // 点击批准执行
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 
@@ -270,6 +271,7 @@ VITE v7.2.7  ready in 927 ms
       }, testCase);
 
       await page.waitForTimeout(500);
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(2000);
 

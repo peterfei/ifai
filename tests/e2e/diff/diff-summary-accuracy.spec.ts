@@ -90,6 +90,7 @@ End of file.
 
     // 批准执行
     await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -154,6 +155,7 @@ End of file.
       });
     }, { fileName, content: largeContent });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -192,6 +194,8 @@ End of file.
       });
     }, { fileName, content });
 
+    await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -246,6 +250,8 @@ End of file.
       });
     }, { fileName, content: newContent });
 
+    await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -303,6 +309,7 @@ End of file.
 
     // 批准所有工具调用
     for (let i = 0; i < files.length; i++) {
+      await removeJoyrideOverlay(page);
       await page.locator('button:has-text("批准执行")').first().click();
       await page.waitForTimeout(500);
     }
@@ -356,6 +363,8 @@ End of file.
       });
     }, { fileName, content });
 
+    await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 
@@ -397,6 +406,8 @@ End of file.
       });
     }, { fileName, content: fileContent });
 
+    await removeJoyrideOverlay(page);
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(2000);
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment } from '../setup';
+import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
 test.describe('Demo Agent Debug - 调试 Demo Agent', () => {
   test('should diagnose demo agent execution', async ({ page }) => {

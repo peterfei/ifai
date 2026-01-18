@@ -186,6 +186,7 @@ test.describe('LLM Tool Call Loop Prevention', () => {
       });
     });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 
@@ -235,6 +236,7 @@ test.describe('LLM Tool Call Loop Prevention', () => {
       });
     });
 
+    await removeJoyrideOverlay(page);
     await page.locator('button:has-text("批准执行")').first().click();
     await page.waitForTimeout(3000);
 

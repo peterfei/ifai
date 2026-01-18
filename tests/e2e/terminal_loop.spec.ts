@@ -21,6 +21,7 @@ test.describe('Smart Terminal Loop: Error to Fix', () => {
 
     // 2. 验证修复按钮是否出现在报错行附近或侧边栏
     const debugBtn = page.locator('button:has-text("Debug with AI"), .terminal-fix-hint');
+    await page.waitForTimeout(500);
     await expect(debugBtn).toBeVisible();
 
     // 3. 点击修复
