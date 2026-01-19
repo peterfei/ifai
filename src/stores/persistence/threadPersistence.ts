@@ -369,10 +369,14 @@ class ThreadPersistenceService {
       console.log('[ThreadPersistence] Starting restore from storage...');
       const threads = await this.loadAllThreads();
 
-      if (threads.length === 0) {
-        console.log('[ThreadPersistence] No threads found, creating default thread');
-        // Create default thread when no threads exist
-        const { useThreadStore } = await import('../threadStore');
+      // 🔥 FIX: 检查 store 中是否已有 threads，避免重复创建
+      const { useThreadStore } = await import('../threadStore');
+      const currentStore = useThreadStore.getState();
+      const hasExistingThreads = Object.keys(currentStore.threads).length > 0;
+
+      if (threads.length === 0 && !hasExistingThreads) {
+        console.log('[ThreadPersistence] No threads found in storage or store, creating default thread');
+        // Create default thread when no threads exist in storage AND store
         const uuid = await import('uuid');
         const uuidv4 = uuid.v4;
         const defaultThread = {
@@ -387,9 +391,13 @@ class ThreadPersistenceService {
         return;
       }
 
-      // Import threadStore dynamically to avoid circular dependency
-      const { useThreadStore } = await import('../threadStore');
-      const threadStore = useThreadStore.getState();
+      if (threads.length === 0 && hasExistingThreads) {
+        console.log('[ThreadPersistence] No threads in storage but store has threads, skipping restore');
+        return;
+      }
+
+      // threadStore already imported above, reuse it
+      const threadStore = currentStore;
 
       // Restore threads one by one (filter out deleted threads)
       const threadsMap: Record<string, Thread> = {};

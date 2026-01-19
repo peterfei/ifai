@@ -294,15 +294,19 @@ export const useThreadStore = create<ThreadStore>()(
           return;
         }
 
-        const now = Date.now();
-
+        // 🔥 FIX: Don't update lastActiveAt on switch
+        // This prevents the clicked tab from jumping to the first position
+        // lastActiveAt should only be updated for actual "active" operations like:
+        // - Creating a new thread
+        // - Sending/receiving messages
+        // - Updating thread content
         set(state => ({
           activeThreadId: threadId,
           threads: {
             ...state.threads,
             [threadId]: {
               ...thread,
-              lastActiveAt: now,
+              // lastActiveAt: now,  // ← REMOVED: Don't update on click/switch
               hasUnreadActivity: false, // Clear unread flag when switching to thread
             },
           },
@@ -391,7 +395,10 @@ export const useThreadStore = create<ThreadStore>()(
             // Pinned threads first, then by lastActiveAt
             if (a.pinned && !b.pinned) return -1;
             if (!a.pinned && b.pinned) return 1;
-            return b.lastActiveAt - a.lastActiveAt;
+            // 🔥 FIX: 如果 lastActiveAt 相同，使用 createdAt 作为 secondary sort key
+            const timeDiff = b.lastActiveAt - a.lastActiveAt;
+            if (timeDiff !== 0) return timeDiff;
+            return b.createdAt - a.createdAt;
           });
       },
 
@@ -649,6 +656,24 @@ export const useThreadStore = create<ThreadStore>()(
       migrate: (persistedState: any, version: number) => {
         console.log(`[ThreadStore] Migrating from version ${version} to 1`);
         return persistedState;
+      },
+      // 🔥 FIX: 在 rehydration 后验证状态
+      onRehydrateStorage: () => (state) => {
+        console.log('[ThreadStore] Rehydration completed', {
+          activeThreadId: state?.activeThreadId,
+          threadCount: Object.keys(state?.threads || {}).length
+        });
+        // 如果 rehydration 后 activeThreadId 为 null 但有 threads，设置第一个为活跃
+        if (state && !state.activeThreadId && Object.keys(state.threads).length > 0) {
+          const threads = Object.values(state.threads);
+          const mostRecent = threads.sort((a, b) => {
+            const timeDiff = b.lastActiveAt - a.lastActiveAt;
+            if (timeDiff !== 0) return timeDiff;
+            return b.createdAt - a.createdAt;
+          })[0];
+          state.activeThreadId = mostRecent.id;
+          console.log('[ThreadStore] Auto-set activeThreadId after rehydration:', mostRecent.id);
+        }
       },
     }
   )

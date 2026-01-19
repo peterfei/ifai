@@ -133,7 +133,8 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
 
   return (
     <div
-      key={thread.id}
+      // 🔥 FIX: 移除内部 key - key 应该只在父组件的 map 中使用
+      // 重复的 key 会导致 React 协调机制出现问题
       data-thread-id={thread.id}
       className={`
         group relative flex items-center gap-2 px-3 py-2 rounded-t-lg cursor-pointer transition-all min-w-[140px] max-w-[200px]
@@ -293,7 +294,11 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
         // Pinned threads first, then by lastActiveAt
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
-        return b.lastActiveAt - a.lastActiveAt;
+        // 🔥 FIX: 如果 lastActiveAt 相同，使用 createdAt 作为 secondary sort key
+        // 这确保了快速创建的多个 thread 有稳定的排序顺序
+        const timeDiff = b.lastActiveAt - a.lastActiveAt;
+        if (timeDiff !== 0) return timeDiff;
+        return b.createdAt - a.createdAt;
       });
   }, [threads, searchQuery, tagFilter]);
 
@@ -514,7 +519,10 @@ export const useThreadKeyboardShortcuts = () => {
       .sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
-        return b.lastActiveAt - a.lastActiveAt;
+        // 🔥 FIX: 如果 lastActiveAt 相同，使用 createdAt 作为 secondary sort key
+        const timeDiff = b.lastActiveAt - a.lastActiveAt;
+        if (timeDiff !== 0) return timeDiff;
+        return b.createdAt - a.createdAt;
       });
   }, [threads, searchQuery, tagFilter]);
 
