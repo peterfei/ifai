@@ -58,8 +58,8 @@
         "installerIcon": "icons/icon.ico",
         "license": "LICENSE",
         "languages": [
-          "en-US",
-          "zh-CN"
+          "English",
+          "SimpChinese"
         ]
       }
     }
