@@ -91,3 +91,6 @@ tests/acceptance/v0_3_0/local_model_acceptance.sh
 FAILED_TESTS_ANALYSIS.md
 AGENT_DIFF_TEST_REPORT.md
 test-results.json
+BASELINE.md
+E2E_BASELINE_REPORT.md
+HIGH_PRIORITY_FIXES_SUMMARY.md
