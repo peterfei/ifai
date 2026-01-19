@@ -357,11 +357,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
     // 🔥 回滚功能 - 检查 result 是否有回滚数据
     // 🔥 必须在 hasRollbackableFiles 之前定义，避免初始化顺序错误
+    // 🔥 FIX: 同时支持 Rust 后端的 snake_case (original_content) 和 camelCase (originalContent)
     const hasRollbackData = (result: string | undefined): boolean => {
         if (!result) return false;
         try {
             const data = JSON.parse(result);
-            return data.originalContent !== undefined;
+            // 检查 snake_case（Rust 后端返回）或 camelCase（向后兼容）
+            return data.originalContent !== undefined || data.original_content !== undefined;
         } catch {
             return false;
         }

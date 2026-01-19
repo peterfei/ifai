@@ -196,12 +196,14 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
 
     // 🔥 检查是否有回滚数据
     // 🔥 使用稳定的依赖，避免初始化顺序问题
+    // 🔥 FIX: 同时支持 Rust 后端的 snake_case (original_content) 和 camelCase (originalContent)
     const resultForRollback = toolCall?.result;
     const hasRollbackData = useMemo(() => {
       if (!resultForRollback) return false;
       try {
         const data = JSON.parse(resultForRollback);
-        return data && data.originalContent !== undefined;
+        // 检查 snake_case（Rust 后端返回）或 camelCase（向后兼容）
+        return data && (data.originalContent !== undefined || data.original_content !== undefined);
       } catch {
         return false;
       }
