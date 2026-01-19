@@ -1,0 +1,13 @@
+{
+  "bundle": {
+    "publisher": "peterfei",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      },
+      "digestAlgorithm": "sha256",
+      "certificateThumbprint": null,
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
+  }
+}

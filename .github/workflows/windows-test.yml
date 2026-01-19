@@ -6,10 +6,11 @@ on:
       - 'hotfix/**'  # 推送到 hotfix 前缀的分支时自动触发
   workflow_dispatch:  # 同时保留手动触发
 
+permissions:
+  contents: write
+
 jobs:
   windows-only:
-    permissions:
-      contents: write
     runs-on: windows-latest
 
     steps:
