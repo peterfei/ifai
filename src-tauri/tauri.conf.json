@@ -33,8 +33,6 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis",
-      "msi",
       "msix"
     ],
     "icon": [
@@ -50,19 +48,16 @@
     "resources": [
       ".fastembed_cache/"
     ],
+    "msix": {
+      "languages": [
+        "en-US",
+        "zh-CN"
+      ]
+    },
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": "http://timestamp.digicert.com",
-      "nsis": {
-        "installMode": "currentUser",
-        "installerIcon": "icons/icon.ico",
-        "license": "LICENSE",
-        "languages": [
-          "English",
-          "SimpChinese"
-        ]
-      }
+      "timestampUrl": "http://timestamp.digicert.com"
     }
   }
 }
