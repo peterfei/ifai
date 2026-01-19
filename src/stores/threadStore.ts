@@ -69,6 +69,8 @@ interface ThreadState {
   searchQuery: string;
   /** Tag filter for filtering threads */
   tagFilter: string | null;
+  /** Title counters for each time period to avoid duplicate default titles */
+  titleCounters: Record<string, number>;
 }
 
 interface ThreadActions {
@@ -80,6 +82,8 @@ interface ThreadActions {
   switchThread: (threadId: string) => void;
   /** Update thread properties */
   updateThread: (threadId: string, updates: Partial<Thread>) => void;
+  /** Update thread title from message content (similar to Doubao) */
+  updateThreadTitleFromMessage: (threadId: string, messageContent: string | any[]) => void;
   /** Set active thread (internal use) */
   setActiveThread: (threadId: string | null) => void;
   /** Get thread by ID */
@@ -131,11 +135,21 @@ function generateThreadId(): string {
 
 /**
  * Generate a default title for a thread
+ * @param counters - Title counters for each time period
+ * @returns Generated default title
  */
-function generateDefaultTitle(): string {
+function generateDefaultTitle(counters: Record<string, number>): string {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? '上午' : hour < 18 ? '下午' : '晚上';
-  return `${greeting}的新对话`;
+
+  // 获取当前时间段的计数
+  const count = counters[greeting] || 0;
+
+  // 第一个线程使用"新对话"，后续使用递增编号
+  if (count === 0) {
+    return `${greeting}的新对话`;
+  }
+  return `${greeting}的对话 ${count}`;
 }
 
 /**
@@ -171,6 +185,7 @@ const INITIAL_THREAD_STATE: ThreadState = {
   maxThreads: 20,
   searchQuery: '',
   tagFilter: null,
+  titleCounters: { '上午': 0, '下午': 0, '晚上': 0 },
 };
 
 export const useThreadStore = create<ThreadStore>()(
@@ -206,9 +221,12 @@ export const useThreadStore = create<ThreadStore>()(
         const threadId = generateThreadId();
         const now = Date.now();
 
+        // 生成默认标题（如果未提供自定义标题）
+        const defaultTitle = options.title || generateDefaultTitle(state.titleCounters);
+
         const newThread: Thread = {
           id: threadId,
-          title: options.title || generateDefaultTitle(),
+          title: defaultTitle,
           createdAt: now,
           updatedAt: now,
           lastActiveAt: now,
@@ -221,6 +239,18 @@ export const useThreadStore = create<ThreadStore>()(
           description: options.description,
         };
 
+        // 如果使用默认标题，递增计数器
+        if (!options.title) {
+          const hour = new Date().getHours();
+          const greeting = hour < 12 ? '上午' : hour < 18 ? '下午' : '晚上';
+          set(state => ({
+            titleCounters: {
+              ...state.titleCounters,
+              [greeting]: (state.titleCounters[greeting] || 0) + 1
+            }
+          }));
+        }
+
         set(state => ({
           threads: {
             ...state.threads,
@@ -229,7 +259,7 @@ export const useThreadStore = create<ThreadStore>()(
           activeThreadId: threadId,
         }));
 
-        console.log(`[ThreadStore] Created thread: ${threadId}`);
+        console.log(`[ThreadStore] Created thread: ${threadId} with title: "${defaultTitle}"`);
 
         // Trigger auto-save
         autoSaveThread(threadId);
@@ -353,6 +383,48 @@ export const useThreadStore = create<ThreadStore>()(
         }));
 
         console.log(`[ThreadStore] Updated thread: ${threadId}`, updates);
+
+        // Trigger auto-save
+        autoSaveThread(threadId);
+      },
+
+      updateThreadTitleFromMessage: (threadId: string, messageContent: string | any[]) => {
+        const state = get();
+        const thread = state.threads[threadId];
+
+        if (!thread) {
+          console.warn(`[ThreadStore] Thread not found: ${threadId}`);
+          return;
+        }
+
+        // 只更新默认标题，不覆盖用户自定义的标题
+        // 默认标题格式：上午/下午/晚上 + (新对话|的对话 \d+)
+        const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(thread.title);
+
+        if (!isDefaultTitle) {
+          console.log(`[ThreadStore] Thread ${threadId} has custom title "${thread.title}", skipping auto-update`);
+          return;
+        }
+
+        // 从消息内容生成标题
+        const newTitle = generateTitleFromMessage(messageContent);
+
+        if (newTitle === thread.title) {
+          return; // 标题没有变化，不需要更新
+        }
+
+        set(state => ({
+          threads: {
+            ...state.threads,
+            [threadId]: {
+              ...thread,
+              title: newTitle,
+              updatedAt: Date.now(),
+            },
+          },
+        }));
+
+        console.log(`[ThreadStore] Updated thread ${threadId} title from "${thread.title}" to "${newTitle}"`);
 
         // Trigger auto-save
         autoSaveThread(threadId);
@@ -650,6 +722,7 @@ export const useThreadStore = create<ThreadStore>()(
           threads: activeThreads,
           activeThreadId: state.activeThreadId,
           maxThreads: state.maxThreads,
+          titleCounters: state.titleCounters,  // 持久化标题计数器
           // Don't persist search/filter state
         };
       },

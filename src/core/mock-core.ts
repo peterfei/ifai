@@ -85,10 +85,12 @@ export interface BackendMessage {
 
 let getFileStore: any = () => ({ projectRoot: null });
 let getSettingsStore: any = () => ({ providers: [] });
+let getThreadStore: any = () => ({ threads: {} });
 
-export const registerStores = (fs: any, ss: any) => {
+export const registerStores = (fs: any, ss: any, ts?: any) => {
     getFileStore = fs;
     getSettingsStore = ss;
+    if (ts) getThreadStore = ts;
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({

@@ -109,7 +109,7 @@ export function switchThread(threadId: string): void {
 
 // Register stores on first import
 // Pass getState functions so core library can access current state
-registerStores(useFileStore.getState, useSettingsStore.getState);
+registerStores(useFileStore.getState, useSettingsStore.getState, useThreadStore.getState);
 
 // --- Monkey-patching Core Store ---
 // Fixes for API errors and UI updates that reside in the core library
@@ -363,12 +363,22 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             const { addMessage } = coreUseChatStore.getState();
             userMsgId = crypto.randomUUID();
             
-            addMessage({ 
-                id: userMsgId, 
-                role: 'user', 
+            addMessage({
+                id: userMsgId,
+                role: 'user',
                 content: textInput,
                 multiModalContent: typeof content === 'string' ? [{type: 'text', text: content}] : content
             });
+
+            // 🔥 自动更新线程标题（斜杠命令也触发）
+            const currentThread = threadStore.getThread(activeThreadId!);
+            if (currentThread) {
+                const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+                if (isDefaultTitle) {
+                    console.log('[ChatStore] Auto-updating thread title from slash command:', textInput);
+                    threadStore.updateThreadTitleFromMessage(activeThreadId!, textInput);
+                }
+            }
 
             try {
                 const assistantMsgId = crypto.randomUUID();
@@ -568,6 +578,16 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
             });
             userMessageAdded = true;
 
+            // 🔥 自动更新线程标题（本地模型路径也触发）
+            const currentThread = threadStore.getThread(activeThreadId!);
+            if (currentThread) {
+                const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+                if (isDefaultTitle) {
+                    console.log('[ChatStore] Auto-updating thread title from local model:', textInput);
+                    threadStore.updateThreadTitleFromMessage(activeThreadId!, textInput);
+                }
+            }
+
             // If tool calls were parsed locally
             if (preprocessResult.has_tool_calls && preprocessResult.tool_calls.length > 0) {
                 const assistantMsgId = crypto.randomUUID();
@@ -720,6 +740,17 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         // @ts-ignore
         coreUseChatStore.getState().addMessage(userMsg);
         userMessageAdded = true;
+
+        // 🔥 自动更新线程标题（类似豆包，使用首条消息内容作为标题）
+        // 检查是否是默认标题，如果是则更新为消息内容
+        const currentThread = threadStore.getThread(activeThreadId!);
+        if (currentThread) {
+            const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+            if (isDefaultTitle) {
+                console.log('[ChatStore] Auto-updating thread title from first message:', displayContent);
+                threadStore.updateThreadTitleFromMessage(activeThreadId!, displayContent);
+            }
+        }
     }
     
     // 3. Add Assistant Placeholder
