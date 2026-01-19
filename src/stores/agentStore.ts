@@ -13,6 +13,9 @@ import { toast } from 'sonner';
 import { openFileFromPath } from '../utils/fileActions';
 import { useTaskStore } from './taskStore';
 import { TaskStatus as MonitorStatus, TaskCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
+// 🔥 模块化导入
+import { createAgentListeners, type AgentEventListener } from './agent/AgentListeners';
+import { createToolCallDeduplicator, type ToolCallDeduplicator } from './agent/AgentDeduplication';
 
 /**
  * 任务树节点接口（用于解析）
@@ -226,13 +229,13 @@ function formatStreamToMarkdown(buffer: string, previousContent: string = ''): s
 
 interface AgentState {
   runningAgents: Agent[];
-  activeListeners: Record<string, UnlistenFn>;
+  // 🔥 模块化：使用 AgentEventListener 接口
+  listeners: AgentEventListener;
   agentToMessageMap: Record<string, string>;
   // Track tool calls that have been auto-approved to prevent duplicate approvals
   autoApprovedToolCalls: Set<string>;
-  // 🔥 FIX v0.3.7: Track deduplicated tool_call IDs for approval redirection
-  // Key: skipped/duplicate ID, Value: canonical/retained ID
-  deduplicatedToolCallIds: Record<string, string>;
+  // 🔥 模块化：使用 ToolCallDeduplicator 接口
+  deduplicator: ToolCallDeduplicator;
   launchAgent: (agentType: string, task: string, chatMsgId?: string, threadId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;
@@ -251,10 +254,12 @@ function unescapeToolArguments(args: any): any {
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   runningAgents: [],
-  activeListeners: {},
+  // 🔥 模块化：使用监听器工厂
+  listeners: createAgentListeners(),
   agentToMessageMap: {},
   autoApprovedToolCalls: new Set<string>(),
-  deduplicatedToolCallIds: {},
+  // 🔥 模块化：使用去重器工厂
+  deduplicator: createToolCallDeduplicator(),
 
   /**
    * 同步 Agent 动作到 Mission Control
@@ -622,14 +627,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                             console.log(`[AgentStore] 🔥 Skipping duplicate NEW tool_call by signature: tool=${liveToolCall.tool}`);
                             console.log(`[AgentStore] 📋 Recording ID mapping: ${skippedId} -> ${canonicalId}`);
 
-                            // 记录映射关系
+                            // 🔥 模块化：使用 deduplicator 记录映射关系
                             const currentState = get();
-                            set({
-                                deduplicatedToolCallIds: {
-                                    ...currentState.deduplicatedToolCallIds,
-                                    [skippedId]: canonicalId
-                                }
-                            });
+                            currentState.deduplicator.addDuplicate(skippedId, canonicalId);
 
                             return m;
                         }
@@ -1413,8 +1413,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
     });
 
-    // Store listener cleanup
-    set(state => ({ activeListeners: { ...state.activeListeners, [id]: unlisten } }));
+    // 🔥 模块化：使用 listeners.register() 存储 unlisten 函数
+    const { listeners } = get();
+    listeners.register(id, unlisten);
 
     console.log(`[AgentStore] ✅ Listener registered for eventId: ${eventId}`);
 
@@ -1486,7 +1487,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   removeAgent: (id: string) => {
-      const { activeListeners, runningAgents } = get();
+      const { listeners, runningAgents } = get();
       const agent = runningAgents.find(a => a.id === id);
 
       // Remove from thread store if associated
@@ -1495,13 +1496,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           console.log(`[AgentStore] Removed agent ${id} from thread ${agent.threadId}`);
       }
 
-      if (activeListeners[id]) activeListeners[id]();
+      // 🔥 模块化：使用 listeners.cleanup()
+      listeners.cleanup(id);
       set(state => {
-          const { [id]: _, ...remainingListeners } = state.activeListeners;
           const { [id]: __, ...remainingMap } = state.agentToMessageMap;
           return {
               runningAgents: state.runningAgents.filter(a => a.id !== id),
-              activeListeners: remainingListeners,
               agentToMessageMap: remainingMap
           };
       });
@@ -1515,10 +1515,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
               if (a.status === 'completed' || a.status === 'failed') completed.push(a);
               else running.push(a);
           });
-          completed.forEach(a => { if (state.activeListeners[a.id]) state.activeListeners[a.id](); });
-          const newListeners = { ...state.activeListeners };
-          completed.forEach(a => delete newListeners[a.id]);
-          return { runningAgents: running, activeListeners: newListeners };
+          // 🔥 模块化：使用 listeners.cleanup() 批量清理
+          const { listeners } = get();
+          completed.forEach(a => listeners.cleanup(a.id));
+          return { runningAgents: running };
       });
   },
 

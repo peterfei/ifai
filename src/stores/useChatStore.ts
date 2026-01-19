@@ -14,6 +14,8 @@ import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage }
 import i18n from '../i18n/config';
 // 🔥 版本区分:根据版本显示不同的提示
 import { IS_COMMERCIAL } from '../config/edition';
+// 🔥 工具注册表
+import { toolRegistry } from './tool/builtinTools';
 
 // ============================================================================
 // 统一日志工具 - 规范化日志格式，便于调试和问题追踪
