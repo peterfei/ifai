@@ -11,10 +11,12 @@ import type {
   ReadFileArgs,
   ListDirArgs,
   DeleteFileArgs,
+  BashArgs,
   WriteFileResult,
   ReadFileResult,
   ListDirResult,
-  DeleteFileResult
+  DeleteFileResult,
+  BashResult
 } from '@/types/toolTypes';
 
 /** 全局工具注册表实例 */
@@ -143,6 +145,46 @@ toolRegistry.register<DeleteFileArgs, DeleteFileResult>({
         path: args.path
       });
       return { success: true, output: `File deleted: ${args.path}` };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+});
+
+// ============================================================================
+// Bash 工具
+// ============================================================================
+
+/**
+ * agent_bash - 执行 Shell 命令
+ */
+toolRegistry.register<BashArgs, BashResult>({
+  name: 'agent_bash',
+  category: 'bash',
+  description: 'Execute shell commands',
+  schema: {
+    type: 'object',
+    properties: {
+      command: { type: 'string', description: 'Shell 命令' },
+      cwd: { type: 'string', description: '工作目录' },
+      env: { type: 'object', description: '环境变量' }
+    },
+    required: ['command']
+  },
+  requiresApproval: true,
+  isDangerous: true,
+  handler: async (args, context) => {
+    try {
+      const result = await invoke<string>('agent_bash', {
+        messageId: context.messageId,
+        command: args.command,
+        cwd: args.cwd || context.projectRoot,
+        env: args.env
+      });
+      return { success: true, output: result };
     } catch (error) {
       return {
         success: false,
