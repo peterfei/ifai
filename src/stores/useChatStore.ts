@@ -1922,7 +1922,7 @@ const patchedApproveToolCall = async (
     // 🔥 FIX v0.3.7: ID 重定向逻辑 - 处理智谱 API 重复 tool_call 导致的 ID 不匹配
     if (!message || !toolCall) {
         const agentStore = useAgentStore.getState();
-        const canonicalId = agentStore.deduplicatedToolCallIds[toolCallId];
+        const canonicalId = agentStore.deduplicator.getCanonicalId(toolCallId);
 
         // 🔥 FIX v0.3.8.2: 添加详细诊断日志
         const threadStore = useThreadStore.getState();
@@ -2452,7 +2452,7 @@ const patchedRejectToolCall = async (messageId: string, toolCallId: string) => {
 
     if (!message || !toolCall) {
         const agentStore = useAgentStore.getState();
-        const canonicalId = agentStore.deduplicatedToolCallIds[toolCallId];
+        const canonicalId = agentStore.deduplicator.getCanonicalId(toolCallId);
 
         if (canonicalId) {
             console.log(`[useChatStore] 🔄 ID Redirect (reject): ${toolCallId} -> ${canonicalId}`);

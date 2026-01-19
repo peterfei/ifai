@@ -12,220 +12,18 @@ import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import { openFileFromPath } from '../utils/fileActions';
 import { useTaskStore } from './taskStore';
-import { TaskStatus as MonitorStatus, TaskCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
 // 🔥 模块化导入 - 从核心库
 import { createAgentListeners, type IAgentEventListener } from 'ifainew-core';
 import { createToolCallDeduplicator, type IToolCallDeduplicator } from 'ifainew-core';
+// 🔥 格式化器导入
+import { buildTaskTreeLogs, type ParsedTaskNode } from './agent/formatters/taskTree';
+import { extractTaskTitlesIncremental } from './agent/formatters/incrementalParser';
+import { formatStreamToMarkdown } from './agent/formatters/markdownFormatter';
+// 🔥 服务导入
+import { syncAgentActionToTaskMonitor } from './agent/services/taskMonitorSync';
 
-/**
- * 任务树节点接口（用于解析）
- */
-interface ParsedTaskNode {
-  id: string;
-  title: string;
-  children?: ParsedTaskNode[];
-}
-
-/**
- * 从任务树构建树状日志显示
- * @param node 任务节点
- * @param depth 深度（用于缩进）
- * @param prefix 前缀（用于树状连接线）
- * @param isRoot 是否是根节点
- * @returns 日志数组
- */
-function buildTaskTreeLogs(node: ParsedTaskNode, depth: number = 0, prefix: string = '', isRoot: boolean = false): string[] {
-  const logs: string[] = [];
-
-  // 如果是根节点，直接显示标题
-  if (isRoot) {
-    logs.push(`📋 ${node.title}`);
-    // 处理子节点
-    if (node.children && node.children.length > 0) {
-      node.children.forEach((child, index) => {
-        const isLast = index === node.children!.length - 1;
-        const childPrefix = isLast ? '  └─ ' : '  ├─ ';
-        const childLogs = buildTaskTreeLogs(child, depth + 1, childPrefix, false);
-        logs.push(...childLogs);
-      });
-    }
-  } else {
-    // 非根节点，添加前缀
-    logs.push(`${prefix}📋 ${node.title}`);
-
-    // 处理子节点（递归）
-    if (node.children && node.children.length > 0) {
-      // 计算子节点的前缀
-      const parentIsLast = prefix.includes('└─');
-      const childBasePrefix = parentIsLast ? '    ' : '│   ';
-
-      node.children.forEach((child, index) => {
-        const isLast = index === node.children!.length - 1;
-        const childPrefix = `${childBasePrefix}${isLast ? '└─ ' : '├─ '}`;
-        const childLogs = buildTaskTreeLogs(child, depth + 1, childPrefix, false);
-        logs.push(...childLogs);
-      });
-    }
-  }
-
-  return logs;
-}
-
-/**
- * 从不完整的 JSON 中增量提取任务标题（带层级关系）
- * @param buffer 当前的文本缓冲区
- * @param existingLogs 已存在的日志（用于去重）
- * @returns 新提取的日志行（带树状结构）
- */
-function extractTaskTitlesIncremental(buffer: string, existingLogs: string[]): string[] {
-  const newLogs: string[] = [];
-  const seenTitles = new Set(existingLogs.filter(log => log.includes('📋')).map(log => log.replace(/^[├│└─ ]+📋 /, '')));
-
-  // 尝试解析部分 JSON 结构来构建层级关系
-  try {
-    // 找到所有 { ... "title": "...", "children": [ ... ] ... } 模式
-    // 使用栈来跟踪嵌套层级
-    const stack: Array<{ title: string; depth: number; parentIsLast: boolean }> = [];
-    let depth = 0;
-    let inChildren = false;
-    let currentTitle = '';
-
-    // 简单的 token 匹配
-    const tokens = buffer.split(/([{}[\]",])/).filter(t => t.trim());
-    let i = 0;
-
-    while (i < tokens.length) {
-      const token = tokens[i];
-
-      if (token === '{') {
-        depth++;
-      } else if (token === '}') {
-        if (currentTitle && depth > 0) {
-          // 检查是否已经显示过
-          if (!seenTitles.has(currentTitle)) {
-            // 构建前缀
-            const parent = stack[stack.length - 1];
-            let prefix = '';
-            if (parent) {
-              prefix = parent.parentIsLast ? '    ' : '│   ';
-            }
-            const isLast = i < tokens.length - 1 && tokens[i + 1]?.trim() === ']';
-            prefix += isLast ? '└─ ' : '├─ ';
-
-            newLogs.push(`${prefix}📋 ${currentTitle}`);
-            seenTitles.add(currentTitle);
-          }
-        }
-        currentTitle = '';
-        depth--;
-      } else if (token === '[') {
-        inChildren = true;
-      } else if (token === ']') {
-        inChildren = false;
-        if (stack.length > 0) {
-          stack.pop();
-        }
-      } else if (token === '"title"') {
-        // 下一个 token 应该是 :
-        if (tokens[i + 1]?.trim() === ':') {
-          // 再下一个应该是字符串值
-          const valueToken = tokens[i + 2];
-          if (valueToken) {
-            currentTitle = valueToken.replace(/^["']|["']$/g, '');
-          }
-        }
-      }
-
-      i++;
-    }
-
-    // 如果上面解析失败，回退到简单模式
-    if (newLogs.length === 0) {
-      const titleRegex = /"title"\s*:\s*"([^"]+)"/g;
-      let match;
-      while ((match = titleRegex.exec(buffer)) !== null) {
-        const title = match[1];
-        if (!seenTitles.has(title) && !newLogs.some(log => log.includes(title))) {
-          newLogs.push(`📋 ${title}`);
-          seenTitles.add(title);
-        }
-      }
-    }
-  } catch (e) {
-    // 出错时回退到简单模式
-    const titleRegex = /"title"\s*:\s*"([^"]+)"/g;
-    let match;
-    while ((match = titleRegex.exec(buffer)) !== null) {
-      const title = match[1];
-      if (!seenTitles.has(title) && !newLogs.some(log => log.includes(title))) {
-        newLogs.push(`📋 ${title}`);
-        seenTitles.add(title);
-      }
-    }
-  }
-
-  return newLogs;
-}
-
-/**
- * 将流式内容格式化为 Markdown（只显示 title 和 description）
- * @param buffer 原始 JSON 缓冲区
- * @param previousContent 之前的内容（用于去重）
- * @returns Markdown 格式的文本
- */
-function formatStreamToMarkdown(buffer: string, previousContent: string = ''): string {
-  try {
-    // 移除 markdown 代码块标记
-    const cleanBuffer = buffer.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    // 提取所有的 title 和 description
-    const titleRegex = /"title"\s*:\s*"([^"]+)"/g;
-    const descRegex = /"description"\s*:\s*"([^"]+)"/g;
-
-    const tasks: Array<{ title: string; description: string }> = [];
-    let match;
-
-    // 提取所有任务
-    while ((match = titleRegex.exec(cleanBuffer)) !== null) {
-      tasks.push({ title: match[1], description: '' });
-    }
-
-    // 重置并提取 description
-    titleRegex.lastIndex = 0;
-    let descIndex = 0;
-    while ((match = descRegex.exec(cleanBuffer)) !== null) {
-      if (descIndex < tasks.length) {
-        tasks[descIndex].description = match[1];
-        descIndex++;
-      }
-    }
-
-    // 只返回新增的任务（去重）
-    const previousTitles = new Set();
-    const prevTitleRegex = /"title"\s*:\s*"([^"]+)"/g;
-    let prevMatch;
-    while ((prevMatch = prevTitleRegex.exec(previousContent)) !== null) {
-      previousTitles.add(prevMatch[1]);
-    }
-
-    const newTasks = tasks.filter(t => !previousTitles.has(t.title));
-
-    // 格式化为 Markdown
-    const lines: string[] = [];
-    for (const task of newTasks) {
-      lines.push(`**${task.title}**`);
-      if (task.description) {
-        lines.push(`> ${task.description}`);
-      }
-      lines.push(''); // 空行分隔
-    }
-
-    return lines.join('\n');
-  } catch (e) {
-    // 失败时返回空字符串（避免显示乱码）
-    return '';
-  }
-}
+// buildTaskTreeLogs, extractTaskTitlesIncremental, formatStreamToMarkdown 已从格式化器模块导入
+// syncAgentActionToTaskMonitor 已从服务模块导入
 
 interface AgentState {
   runningAgents: Agent[];
@@ -261,40 +59,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   // 🔥 模块化：使用去重器工厂
   deduplicator: createToolCallDeduplicator(),
 
-  /**
-   * 同步 Agent 动作到 Mission Control
-   */
-  syncAgentActionToTaskMonitor: (id: string, agentType: string, status: any, log?: string) => {
-    const taskStore = useTaskStore.getState();
-    const existing = taskStore.tasks.find(t => t.id === id);
+  // 🔥 从服务模块导入
+  syncAgentActionToTaskMonitor,
 
-    let monitorStatus = MonitorStatus.RUNNING;
-    if (status === 'completed') monitorStatus = MonitorStatus.SUCCESS;
-    if (status === 'failed') monitorStatus = MonitorStatus.FAILED;
-
-    const metadata: TaskMetadata = {
-      id,
-      title: `${agentType} Agent`,
-      description: log || existing?.description || `Executing ${agentType} logic...`,
-      status: monitorStatus,
-      category: TaskCategory.GENERATION,
-      priority: TaskPriority.HIGH,
-      createdAt: existing ? existing.createdAt : Date.now(),
-      progress: {
-        current: status === 'completed' ? 100 : 50,
-        total: 100,
-        percentage: status === 'completed' ? 100 : 50
-      },
-      logs: log ? [{ timestamp: Date.now(), level: 'info' as any, message: log }] : existing?.logs
-    };
-
-    if (existing) {
-      taskStore.updateTask(id, metadata);
-    } else {
-      taskStore.addTask(metadata);
-    }
-  },
-  
   launchAgent: async (agentType: string, task: string, chatMsgId?: string, threadId?: string) => {
     // 1. Pre-generate ID
     const id = uuidv4();
