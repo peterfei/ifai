@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createAgentListeners } from '../AgentListeners';
+import { createAgentListeners } from 'ifainew-core';
 import { listen } from '@tauri-apps/api/event';
 
 vi.mock('@tauri-apps/api/event');

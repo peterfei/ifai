@@ -13,9 +13,9 @@ import { toast } from 'sonner';
 import { openFileFromPath } from '../utils/fileActions';
 import { useTaskStore } from './taskStore';
 import { TaskStatus as MonitorStatus, TaskCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
-// 🔥 模块化导入
-import { createAgentListeners, type AgentEventListener } from './agent/AgentListeners';
-import { createToolCallDeduplicator, type ToolCallDeduplicator } from './agent/AgentDeduplication';
+// 🔥 模块化导入 - 从核心库
+import { createAgentListeners, type IAgentEventListener } from 'ifainew-core';
+import { createToolCallDeduplicator, type IToolCallDeduplicator } from 'ifainew-core';
 
 /**
  * 任务树节点接口（用于解析）
@@ -230,12 +230,12 @@ function formatStreamToMarkdown(buffer: string, previousContent: string = ''): s
 interface AgentState {
   runningAgents: Agent[];
   // 🔥 模块化：使用 AgentEventListener 接口
-  listeners: AgentEventListener;
+  listeners: IAgentEventListener;
   agentToMessageMap: Record<string, string>;
   // Track tool calls that have been auto-approved to prevent duplicate approvals
   autoApprovedToolCalls: Set<string>;
   // 🔥 模块化：使用 ToolCallDeduplicator 接口
-  deduplicator: ToolCallDeduplicator;
+  deduplicator: IToolCallDeduplicator;
   launchAgent: (agentType: string, task: string, chatMsgId?: string, threadId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;

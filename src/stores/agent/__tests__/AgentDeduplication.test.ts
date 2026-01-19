@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createToolCallDeduplicator } from '../AgentDeduplication';
+import { createToolCallDeduplicator } from 'ifainew-core';
 
 describe('ToolCallDeduplicator', () => {
   it('应该添加重复映射', () => {

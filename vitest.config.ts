@@ -8,10 +8,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      'ifainew-core': path.resolve(__dirname, './src/core/mock-core'),
+      'ifainew-core': path.resolve(__dirname, '../ifainew-core/typescript/src'),
       // 在测试中，私有库指向占位模块
       '@ifai/core/commandBar': path.resolve(__dirname, './src/core/commandBar/pro-placeholder'),
+      // 确保 Tauri API 从应用层解析
+      '@tauri-apps/api': path.resolve(__dirname, './node_modules/@tauri-apps/api'),
     },
+    // 确保从应用层的 node_modules 解析依赖
+    conditions: ['module', 'import', 'browser'],
+  },
+  optimizeDeps: {
+    include: ['@tauri-apps/api'],
+    exclude: ['ifainew-core'],
   },
   test: {
     globals: true,

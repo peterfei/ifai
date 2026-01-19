@@ -23,7 +23,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "ifainew-core": ["src/core/mock-core"]
+      "ifainew-core": ["../ifainew-core/typescript/src"]
     }
   },
   "include": ["src"],

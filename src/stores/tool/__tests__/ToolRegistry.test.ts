@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ToolRegistry } from '../ToolRegistry';
-import type { ToolDefinition } from '../../../types/toolRegistry';
+import { ToolRegistry } from 'ifainew-core';
+import type { ToolDefinition } from 'ifainew-core';
 
 describe('ToolRegistry - 基础功能', () => {
   let registry: ToolRegistry;

@@ -4,8 +4,8 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { ToolRegistry } from './ToolRegistry';
-import type { ToolDefinition } from '../../types/toolRegistry';
+import { ToolRegistry } from 'ifainew-core';
+import type { ToolDefinition } from 'ifainew-core';
 
 /** 全局工具注册表实例 */
 export const toolRegistry = new ToolRegistry();
