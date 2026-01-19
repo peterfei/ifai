@@ -313,7 +313,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     rejectToolCall: async (messageId, toolCallId) => {
-        console.log("Mock core: rejectToolCall", messageId, toolCallId);
+        console.log("[Mock Core] rejectToolCall", messageId, toolCallId);
+
+        // 🔥 FIX: 更新工具状态为 rejected（即使不实际执行，状态应该正确更新）
+        set(state => ({
+            messages: state.messages.map(m =>
+                m.id === messageId ? {
+                    ...m,
+                    toolCalls: m.toolCalls?.map(tc =>
+                        tc.id === toolCallId ? { ...tc, status: 'rejected' as const } : tc
+                    )
+                } : m
+            )
+        }));
     },
 
     // 🔥 社区版: rollback 函数返回不可用提示

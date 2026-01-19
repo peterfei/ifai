@@ -15,6 +15,59 @@ import i18n from '../i18n/config';
 // 🔥 版本区分:根据版本显示不同的提示
 import { IS_COMMERCIAL } from '../config/edition';
 
+// ============================================================================
+// 统一日志工具 - 规范化日志格式，便于调试和问题追踪
+// ============================================================================
+
+type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+type LogCategory = 'Chat' | 'Thread' | 'Tool' | 'Agent' | 'Context' | 'Stream' | 'LocalModel' | 'Intent';
+
+const LOG_EMOJIS: Record<LogLevel, string> = {
+  info: 'ℹ️',
+  warn: '⚠️',
+  error: '❌',
+  debug: '🔍'
+};
+
+const LOG_COLORS: Record<LogLevel, string> = {
+  info: '#3498db',   // 蓝色
+  warn: '#f39c12',   // 橙色
+  error: '#e74c3c',  // 红色
+  debug: '#95a5a6'   // 灰色
+};
+
+/**
+ * 统一的日志输出函数
+ * @param category 日志分类
+ * @param level 日志级别
+ * @param message 日志消息
+ * @param data 附加数据（可选）
+ */
+function log(category: LogCategory, level: LogLevel, message: string, data?: any): void {
+  const emoji = LOG_EMOJIS[level];
+  const prefix = `[${category}] ${emoji}`;
+  const timestamp = new Date().toISOString().split('T')[1].slice(0, 12); // HH:MM:SS.mmm
+
+  const logMessage = `${timestamp} ${prefix} ${message}`;
+
+  // 根据日志级别选择输出方法
+  const consoleMethod = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+
+  if (data !== undefined) {
+    consoleMethod(logMessage, data);
+  } else {
+    consoleMethod(logMessage);
+  }
+}
+
+/**
+ * 便捷的日志函数
+ */
+const logInfo = (category: LogCategory, message: string, data?: any) => log(category, 'info', message, data);
+const logWarn = (category: LogCategory, message: string, data?: any) => log(category, 'warn', message, data);
+const logError = (category: LogCategory, message: string, data?: any) => log(category, 'error', message, data);
+const logDebug = (category: LogCategory, message: string, data?: any) => log(category, 'debug', message, data);
+
 // Content segment interface for tracking stream reception order
 export interface ContentSegment {
   type: 'text' | 'tool';
@@ -1851,6 +1904,19 @@ const patchedApproveToolCall = async (
     let message = state.messages.find(m => m.id === messageId);
     let toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
 
+    // 🔥 FIX: 终端状态保护 - 防止覆盖已完成/失败/拒绝的工具调用
+    // 与 agentStore.ts 中的保护逻辑保持一致
+    const TERMINAL_STATES = ['completed', 'failed', 'rejected'] as const;
+
+    if (toolCall && TERMINAL_STATES.includes(toolCall.status as any)) {
+        console.warn(`[useChatStore] ⚠️ ToolCall already in terminal state: ${toolCall.status}, skipping approval`, {
+            toolCallId,
+            currentStatus: toolCall.status,
+            toolName: toolCall.tool
+        });
+        return;
+    }
+
     // 🔥 FIX v0.3.7: ID 重定向逻辑 - 处理智谱 API 重复 tool_call 导致的 ID 不匹配
     if (!message || !toolCall) {
         const agentStore = useAgentStore.getState();
@@ -2363,9 +2429,24 @@ const patchedApproveToolCall = async (
 };
 
 const patchedRejectToolCall = async (messageId: string, toolCallId: string) => {
+    console.log(`[useChatStore] patchedRejectToolCall called - messageId: ${messageId}, toolCallId: ${toolCallId}`);
+
     // 🔥 FIX v0.3.7: ID 重定向逻辑 - 处理智谱 API 重复 tool_call 导致的 ID 不匹配
     let message = coreUseChatStore.getState().messages.find(m => m.id === messageId);
     let toolCall = message?.toolCalls?.find(tc => tc.id === toolCallId);
+
+    // 🔥 FIX: 终端状态保护 - 防止拒绝已完成/失败的工具调用
+    // 与 approveToolCall 和 agentStore.ts 中的保护逻辑保持一致
+    const TERMINAL_STATES = ['completed', 'failed', 'rejected'] as const;
+
+    if (toolCall && TERMINAL_STATES.includes(toolCall.status as any)) {
+        console.warn(`[useChatStore] ⚠️ ToolCall already in terminal state: ${toolCall.status}, skipping rejection`, {
+            toolCallId,
+            currentStatus: toolCall.status,
+            toolName: toolCall.tool
+        });
+        return;
+    }
 
     if (!message || !toolCall) {
         const agentStore = useAgentStore.getState();
