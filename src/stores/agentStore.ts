@@ -23,6 +23,8 @@ import { formatStreamToMarkdown } from './agent/formatters/markdownFormatter';
 import { syncAgentActionToTaskMonitor } from './agent/services/taskMonitorSync';
 // 🔥 事件处理器辅助函数
 import { sliceLogs, shouldUpdateStatus, extractTaskTreeFromBuffer, extractTitleFromBuffer, isTitleAlreadyShown } from './agent/handlers/handlerHelpers';
+// 🔥 Agent 启动辅助函数
+import { convertProviderConfigToBackend, validateLaunchPrerequisites, generateAgentId, generateEventId } from './agent/handlers/agentLaunch';
 
 // 辅助函数已从 handlers 模块导入
 
@@ -64,38 +66,31 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   syncAgentActionToTaskMonitor,
 
   launchAgent: async (agentType: string, task: string, chatMsgId?: string, threadId?: string) => {
-    // 1. Pre-generate ID
-    const id = uuidv4();
-    const eventId = `agent_${id}`;
+    // 1. 生成 ID
+    const id = generateAgentId();
+    const eventId = generateEventId(id);
 
     // Get current thread ID if not provided
     const currentThreadId = threadId || useThreadStore.getState().activeThreadId;
 
+    // 2. 验证前置条件
     const projectRoot = useFileStore.getState().rootPath;
-    if (!projectRoot) throw new Error("No project root available");
-
     const settingsStore = useSettingsStore.getState();
     const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
-    if (!providerConfig) throw new Error("No AI provider configured");
 
-    // Convert frontend providerConfig to backend format
-    // We spread the original config first to include all fields (like 'enabled', 'name', 'id')
-    // Then add compatibility aliases (snake_case, provider/id)
-    const backendProviderConfig = {
-      ...providerConfig,
-      provider: providerConfig.protocol, // Alias for backend compatibility
-      api_key: providerConfig.apiKey,    // snake_case alias
-      base_url: providerConfig.baseUrl,  // snake_case alias
-    };
+    validateLaunchPrerequisites({ projectRoot, providerConfig });
 
-    // 2. Setup message mapping if needed
+    // 3. 转换 provider 配置
+    const backendProviderConfig = convertProviderConfigToBackend(providerConfig!);
+
+    // 4. Setup message mapping if needed
     if (chatMsgId) {
         set(state => ({ agentToMessageMap: { ...state.agentToMessageMap, [id]: chatMsgId } }));
     }
 
     console.log(`[AgentStore] launchAgent - id: ${id}, eventId: ${eventId}, chatMsgId: ${chatMsgId || 'NONE'}, threadId: ${currentThreadId || 'NONE'}`);
 
-    // 3. Setup Listener FIRST - This is critical for industrial grade reliability
+    // 5. Setup Listener FIRST - This is critical for industrial grade reliability
     // We register the listener BEFORE calling the backend to catch the very first event.
     let thinkingBuffer = "";
     let lastFlush = 0;
