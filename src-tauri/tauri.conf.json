@@ -49,19 +49,19 @@
     "resources": [
       ".fastembed_cache/"
     ],
-    "nsis": {
-      "installMode": "currentUser",
-      "installerIcon": "icons/icon.ico",
-      "license": "LICENSE",
-      "languages": [
-        "English",
-        "SimpChinese"
-      ]
-    },
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": "http://timestamp.digicert.com"
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "license": "LICENSE",
+        "languages": [
+          "en-US",
+          "zh-CN"
+        ]
+      }
     }
   }
 }
