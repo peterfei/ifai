@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "IfAI",
-  "version": "0.3.0",
-  "identifier": "com.ifai.editor",
+  "version": "0.3.1",
+  "identifier": "peterfei.IfAI",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -32,7 +32,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "msi",
+      "msix"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -45,6 +49,20 @@
     ],
     "resources": [
       ".fastembed_cache/"
-    ]
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "license": "LICENSE",
+        "languages": [
+          "English",
+          "SimpChinese"
+        ]
+      }
+    }
   }
 }

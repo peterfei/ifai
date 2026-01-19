@@ -94,11 +94,25 @@ jobs:
         run: |
           npx tauri --version || npm install @tauri-apps/cli@latest --force
 
+      # Windows-specific: Create self-signed certificate for MSIX
+      - name: Create self-signed certificate (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: powershell
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=BFB76822-8992-4D24-B38C-71F0C2BABD49" -KeyUsage DigitalSignature -FriendlyName "IfAI Self Signed" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+          $password = ConvertTo-SecureString -String "Password123!" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath "my-cert.pfx" -Password $password
+          echo "TAURI_SIGNING_PRIVATE_KEY=$(pwd)\my-cert.pfx" >> $env:GITHUB_ENV
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=Password123!" >> $env:GITHUB_ENV
+
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: '--max-old-space-size=8192'
+          # Windows signing env vars (will be empty/ignored on non-Windows)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'IfAI v__VERSION__'
