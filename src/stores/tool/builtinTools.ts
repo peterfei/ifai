@@ -6,6 +6,16 @@
 import { invoke } from '@tauri-apps/api/core';
 import { ToolRegistry } from 'ifainew-core';
 import type { ToolDefinition } from 'ifainew-core';
+import type {
+  WriteFileArgs,
+  ReadFileArgs,
+  ListDirArgs,
+  DeleteFileArgs,
+  WriteFileResult,
+  ReadFileResult,
+  ListDirResult,
+  DeleteFileResult
+} from '@/types/toolTypes';
 
 /** 全局工具注册表实例 */
 export const toolRegistry = new ToolRegistry();
@@ -17,7 +27,7 @@ export const toolRegistry = new ToolRegistry();
 /**
  * agent_write_file - 写入文件
  */
-toolRegistry.register({
+toolRegistry.register<WriteFileArgs, WriteFileResult>({
   name: 'agent_write_file',
   category: 'fs',
   description: 'Write content to a file',
@@ -46,12 +56,12 @@ toolRegistry.register({
       };
     }
   }
-} as ToolDefinition<{ path: string; content: string }, { output: string }>);
+});
 
 /**
  * agent_read_file - 读取文件
  */
-toolRegistry.register({
+toolRegistry.register<ReadFileArgs, ReadFileResult>({
   name: 'agent_read_file',
   category: 'fs',
   description: 'Read content from a file',
@@ -77,12 +87,12 @@ toolRegistry.register({
       };
     }
   }
-} as ToolDefinition<{ path: string }, { output: string }>);
+});
 
 /**
  * agent_list_dir - 列出目录内容
  */
-toolRegistry.register({
+toolRegistry.register<ListDirArgs, ListDirResult>({
   name: 'agent_list_dir',
   category: 'fs',
   description: 'List directory contents',
@@ -108,12 +118,12 @@ toolRegistry.register({
       };
     }
   }
-} as ToolDefinition<{ path: string }, { output: string }>);
+});
 
 /**
  * agent_delete_file - 删除文件
  */
-toolRegistry.register({
+toolRegistry.register<DeleteFileArgs, DeleteFileResult>({
   name: 'agent_delete_file',
   category: 'fs',
   description: 'Delete a file',
@@ -140,4 +150,4 @@ toolRegistry.register({
       };
     }
   }
-} as ToolDefinition<{ path: string }, { output: string }>);
+});

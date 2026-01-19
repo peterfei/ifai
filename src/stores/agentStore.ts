@@ -25,6 +25,8 @@ import { syncAgentActionToTaskMonitor } from './agent/services/taskMonitorSync';
 import { sliceLogs, shouldUpdateStatus, extractTaskTreeFromBuffer, extractTitleFromBuffer, isTitleAlreadyShown } from './agent/handlers/handlerHelpers';
 // 🔥 Agent 启动辅助函数
 import { convertProviderConfigToBackend, validateLaunchPrerequisites, generateAgentId, generateEventId } from './agent/handlers/agentLaunch';
+// 🔥 资源限制器
+import { createAgentResourceLimiter, type IAgentResourceLimiter } from './agent/agentResourceLimiter';
 
 // 辅助函数已从 handlers 模块导入
 
@@ -37,6 +39,8 @@ interface AgentState {
   autoApprovedToolCalls: Set<string>;
   // 🔥 模块化：使用 ToolCallDeduplicator 接口
   deduplicator: IToolCallDeduplicator;
+  // 🔥 资源限制器
+  resourceLimiter: IAgentResourceLimiter;
   launchAgent: (agentType: string, task: string, chatMsgId?: string, threadId?: string) => Promise<string>;
   removeAgent: (id: string) => void;
   initEventListeners: () => Promise<() => void>;
@@ -61,6 +65,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   autoApprovedToolCalls: new Set<string>(),
   // 🔥 模块化：使用去重器工厂
   deduplicator: createToolCallDeduplicator(),
+  // 🔥 资源限制器
+  resourceLimiter: createAgentResourceLimiter(),
 
   // 🔥 从服务模块导入
   syncAgentActionToTaskMonitor,
@@ -70,17 +76,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const id = generateAgentId();
     const eventId = generateEventId(id);
 
+    // 2. 资源限制检查
+    const { resourceLimiter } = get();
+    const resourceCheck = resourceLimiter.validateLaunch(id);
+    if (!resourceCheck.canLaunch) {
+      throw new Error(`Resource limit reached: ${resourceCheck.reason}`);
+    }
+
     // Get current thread ID if not provided
     const currentThreadId = threadId || useThreadStore.getState().activeThreadId;
 
-    // 2. 验证前置条件
+    // 3. 验证前置条件
     const projectRoot = useFileStore.getState().rootPath;
     const settingsStore = useSettingsStore.getState();
     const providerConfig = settingsStore.providers.find(p => p.id === settingsStore.currentProviderId);
 
     validateLaunchPrerequisites({ projectRoot, providerConfig });
 
-    // 3. 转换 provider 配置
+    // 4. 转换 provider 配置
     const backendProviderConfig = convertProviderConfigToBackend(providerConfig!);
 
     // 4. Setup message mapping if needed
@@ -1140,6 +1153,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     };
     set(state => ({ runningAgents: [newAgent, ...state.runningAgents] }));
 
+    // 🔥 资源限制器：记录启动
+    get().resourceLimiter.recordLaunch(id);
+
     // Sync to Mission Control
     get().syncAgentActionToTaskMonitor(id, agentType, 'initializing', `🚀 ${agentType} agent 启动...`);
 
@@ -1190,7 +1206,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   removeAgent: (id: string) => {
-      const { listeners, runningAgents } = get();
+      const { listeners, runningAgents, resourceLimiter } = get();
       const agent = runningAgents.find(a => a.id === id);
 
       // Remove from thread store if associated
@@ -1201,6 +1217,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
       // 🔥 模块化：使用 listeners.cleanup()
       listeners.cleanup(id);
+      // 🔥 资源限制器：记录完成
+      resourceLimiter.recordCompletion(id);
       set(state => {
           const { [id]: __, ...remainingMap } = state.agentToMessageMap;
           return {
@@ -1219,8 +1237,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
               else running.push(a);
           });
           // 🔥 模块化：使用 listeners.cleanup() 批量清理
-          const { listeners } = get();
-          completed.forEach(a => listeners.cleanup(a.id));
+          const { listeners, resourceLimiter } = get();
+          completed.forEach(a => {
+              listeners.cleanup(a.id);
+              resourceLimiter.recordCompletion(a.id);
+          });
           return { runningAgents: running };
       });
   },
