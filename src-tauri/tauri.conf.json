@@ -56,7 +56,7 @@
       "nsis": {
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
-        "license": "LICENSE",
+        "license": "../LICENSE",
         "languages": [
           "English",
           "SimpChinese"
