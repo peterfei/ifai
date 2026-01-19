@@ -1,9 +1,15 @@
 /**
  * Agent连续任务Bug重现测试
  *
- * 测试标签: @fast
+ * 测试标签: @fast @flaky
  * 测试类别: Agent功能
  * 测试目标: 验证连续两次代码生成不会挂起
+ *
+ * @flaky 原因:
+ * - 依赖真实 AI API (DeepSeek)
+ * - 网络/API 限流导致间歇性超时
+ * - 单独运行通过，批量运行可能失败
+ * - 不影响产品功能，仅测试稳定性问题
  */
 
 import { test, expect } from '@playwright/test';
