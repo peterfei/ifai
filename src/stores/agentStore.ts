@@ -21,9 +21,10 @@ import { extractTaskTitlesIncremental } from './agent/formatters/incrementalPars
 import { formatStreamToMarkdown } from './agent/formatters/markdownFormatter';
 // 🔥 服务导入
 import { syncAgentActionToTaskMonitor } from './agent/services/taskMonitorSync';
+// 🔥 事件处理器辅助函数
+import { sliceLogs, shouldUpdateStatus, extractTaskTreeFromBuffer, extractTitleFromBuffer, isTitleAlreadyShown } from './agent/handlers/handlerHelpers';
 
-// buildTaskTreeLogs, extractTaskTitlesIncremental, formatStreamToMarkdown 已从格式化器模块导入
-// syncAgentActionToTaskMonitor 已从服务模块导入
+// 辅助函数已从 handlers 模块导入
 
 interface AgentState {
   runningAgents: Agent[];
@@ -144,10 +145,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             set(state => ({
                 runningAgents: state.runningAgents.map(a => {
                     if (a.id !== id) return a;
-                    const newLogs = [...a.logs, message].slice(-100);
-                    // Defensive status fix: if we get logs, the agent is definitely active.
-                    // Only fix initializing and idle states, preserve waitingfortool (valid state)
-                    const needsStatusFix = a.status === 'initializing' || a.status === 'idle';
+                    const newLogs = sliceLogs([...a.logs, message], 100);
+                    // 🔥 使用辅助函数判断状态修复
+                    const needsStatusFix = shouldUpdateStatus(a.status);
                     return { ...a, logs: newLogs, status: needsStatusFix ? 'running' : a.status };
                 })
             }));
@@ -175,95 +175,36 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         let newLogs = a.logs;
 
                         if (shouldShowStreaming && currentBuffer.trim().length > 0) {
-                            // 尝试解析完整的 taskTree JSON 结构
-                            try {
-                                // 移除可能的 markdown 代码块标记
-                                const cleanBuffer = currentBuffer
-                                    .replace(/```json\s*/g, '')
-                                    .replace(/```\s*/g, '')
-                                    .trim();
-
-                                // 尝试找到完整的 taskTree 对象（使用括号匹配）
-                                const taskTreeStart = cleanBuffer.indexOf('"taskTree"');
-                                if (taskTreeStart !== -1) {
-                                    // 从 taskTree 开始找完整的对象
-                                    let braceCount = 0;
-                                    let startPos = -1;
-                                    let endPos = -1;
-
-                                    for (let i = taskTreeStart; i < cleanBuffer.length; i++) {
-                                        if (cleanBuffer[i] === '{') {
-                                            if (startPos === -1) startPos = i;
-                                            braceCount++;
-                                        } else if (cleanBuffer[i] === '}') {
-                                            braceCount--;
-                                            if (braceCount === 0 && startPos !== -1) {
-                                                endPos = i + 1;
-                                                break;
-                                            }
-                                        }
+                            // 🔥 使用辅助函数解析 taskTree
+                            const taskTree = extractTaskTreeFromBuffer(currentBuffer);
+                            if (taskTree) {
+                                console.log('[AgentStore] Parsed taskTree:', JSON.stringify(taskTree, (key, value) => {
+                                    if (key === 'children' && Array.isArray(value)) {
+                                        return `[${value.length} children]`;
                                     }
+                                    return value;
+                                }, 2));
 
-                                    if (startPos !== -1 && endPos !== -1) {
-                                        const taskTreeJson = cleanBuffer.substring(startPos, endPos);
-                                        try {
-                                            const parsed = JSON.parse(`{"taskTree":${taskTreeJson}}`);
-                                            if (parsed.taskTree) {
-                                                // 调试：打印解析结果
-                                                console.log('[AgentStore] Parsed taskTree:', JSON.stringify(parsed.taskTree, (key, value) => {
-                                                    if (key === 'children' && Array.isArray(value)) {
-                                                        return `[${value.length} children]`;
-                                                    }
-                                                    return value;
-                                                }, 2));
-
-                                                // 构建树状显示
-                                                const treeLogs = buildTaskTreeLogs(parsed.taskTree, 0, '', true);
-                                                console.log('[AgentStore] Tree logs:', treeLogs);
-
-                                                // 只保留前 3 条日志（启动日志）
-                                                const baseLogs = a.logs.slice(0, 3);
-                                                newLogs = [...baseLogs, ...treeLogs];
-                                            }
-                                        } catch (e2) {
-                                            // JSON 还不完整，使用增量解析
-                                            const incrementalLogs = extractTaskTitlesIncremental(cleanBuffer, a.logs);
-                                            if (incrementalLogs.length > 0) {
-                                                const baseLogs = a.logs.slice(0, 3);
-                                                newLogs = [...baseLogs, ...incrementalLogs];
-                                            }
-                                        }
-                                    } else {
-                                        // 还没找到完整的 taskTree，使用增量解析
-                                        const incrementalLogs = extractTaskTitlesIncremental(cleanBuffer, a.logs);
-                                        if (incrementalLogs.length > 0) {
-                                            const baseLogs = a.logs.slice(0, 3);
-                                            newLogs = [...baseLogs, ...incrementalLogs];
-                                        }
-                                    }
+                                const treeLogs = buildTaskTreeLogs(taskTree, 0, '', true);
+                                const baseLogs = a.logs.slice(0, 3);
+                                newLogs = [...baseLogs, ...treeLogs];
+                            } else {
+                                // 使用增量解析
+                                const incrementalLogs = extractTaskTitlesIncremental(currentBuffer, a.logs);
+                                if (incrementalLogs.length > 0) {
+                                    const baseLogs = a.logs.slice(0, 3);
+                                    newLogs = [...baseLogs, ...incrementalLogs];
                                 } else {
-                                    // 还没有 taskTree，使用增量解析
-                                    const incrementalLogs = extractTaskTitlesIncremental(cleanBuffer, a.logs);
-                                    if (incrementalLogs.length > 0) {
-                                        const baseLogs = a.logs.slice(0, 3);
-                                        newLogs = [...baseLogs, ...incrementalLogs];
-                                    }
-                                }
-                            } catch (e) {
-                                // 解析失败，回退到简单模式
-                                console.log('[AgentStore] Parse error, using fallback:', e);
-                                const titleMatch = currentBuffer.match(/"title"\s*:\s*"([^"]+)"/);
-                                if (titleMatch && titleMatch[1]) {
-                                    const title = titleMatch[1];
-                                    const alreadyShown = a.logs.some(log => log.includes(title));
-                                    if (!alreadyShown) {
+                                    // 回退到简单模式
+                                    const title = extractTitleFromBuffer(currentBuffer);
+                                    if (title && !isTitleAlreadyShown(a.logs, title)) {
                                         newLogs = [...a.logs, `📋 ${title}`];
                                     }
                                 }
                             }
                         }
 
-                        const latestLogs = newLogs.slice(-50); // 只保留最近 50 条
+                        const latestLogs = sliceLogs(newLogs, 50); // 只保留最近 50 条
 
                         return {
                             ...a,
