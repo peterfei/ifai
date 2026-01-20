@@ -241,6 +241,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
                 console.log(`[AgentStore] 📝 Updating thinking content: +${currentBuffer.length} chars, total: ${(currentMsg.content || "").length + currentBuffer.length}`);
 
+                // 🔥 FIX: 检测是否是占位文本（如 "🤔 正在思考..."），如果是则清除
+                // 当实际 LLM 内容开始出现时，应该清除之前的占位文本
+                const placeholderPatterns = ['🤔 正在思考', '🔧 正在处理工具', '🚀 正在执行'];
+                const currentContent = currentMsg.content || '';
+                const hasPlaceholder = placeholderPatterns.some(p => currentContent.includes(p));
+                const isRealContent = !placeholderPatterns.some(p => currentBuffer.includes(p));
+
+                // Helper to strip placeholder text with surrounding newlines
+                const stripPlaceholder = (content: string): string => {
+                    let cleaned = content;
+                    for (const pattern of placeholderPatterns) {
+                        const regex = new RegExp(`\\n?${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\n]*\\n?`, 'g');
+                        cleaned = cleaned.replace(regex, '');
+                    }
+                    // Clean up leading/trailing newlines
+                    return cleaned.replace(/^\n+|\n+$/g, '');
+                };
+
                 // 对于 task-breakdown agent，使用格式化的 Markdown（增量追加）
                 if (agent?.type === 'task-breakdown') {
                     // 处理 content 可能是数组的情况
@@ -265,7 +283,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     // 其他 agent，使用原始内容
                     const updatedMessages = messages.map(m => {
                         if (m.id === msgId) {
-                            return { ...m, content: (m.content || "") + currentBuffer };
+                            // 🔥 FIX: 如果有占位文本且这是真实内容，清除占位文本
+                            let finalContent = (m.content || "") + currentBuffer;
+                            if (hasPlaceholder && isRealContent && currentContent.length < 200) {
+                                // 清除占位文本，只保留新内容
+                                finalContent = currentBuffer;
+                                console.log(`[AgentStore] 🔥 Clearing placeholder, using real content: "${currentBuffer.slice(0, 30)}..."`);
+                            }
+                            return { ...m, content: finalContent };
                         }
                         return m;
                     });

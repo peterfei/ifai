@@ -2241,7 +2241,8 @@ ${suggestion.fixContext.code_context}
           )}
 
           {/* 🔥 v0.3.0: 加载状态提示 */}
-          {isLoading && (
+          {/* 只有在 isLoading 且最后一条消息没有内容时才显示 */}
+          {isLoading && (!rawMessages.length || !rawMessages[rawMessages.length - 1]?.content) && (
             <div className="flex items-center gap-2 text-sm text-gray-400 animate-pulse px-1">
               <div className="flex items-center gap-1">
                 {/* 简洁的 spinner 动画 */}
