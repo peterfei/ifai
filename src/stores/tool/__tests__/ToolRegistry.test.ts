@@ -144,7 +144,7 @@ describe('ToolRegistry - 执行功能', () => {
   });
 
   it('应该传递上下文到处理器', async () => {
-    let capturedContext: import('../../../types/toolRegistry').ToolContext | undefined;
+    let capturedContext: any | undefined;
 
     registry.register({
       name: 'context_test',

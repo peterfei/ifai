@@ -248,7 +248,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     if (typeof currentMsg.content === 'string') {
                         previousContent = currentMsg.content;
                     } else if (Array.isArray(currentMsg.content)) {
-                        previousContent = currentMsg.content.map(p => p.type === 'text' ? p.text : '').join('');
+                        previousContent = (currentMsg.content as any).map((p: any) => p.type === 'text' ? p.text : '').join('');
                     }
 
                     const newContent = formatStreamToMarkdown(currentBuffer, previousContent);
@@ -947,7 +947,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 // Sync to message for UI display
                 // Try to find message by msgId first, then by agentId as fallback
                 const { messages } = coreUseChatStore.getState();
-                const targetMsgId = msgId || messages.find(m => m.agentId === id)?.id;
+                const targetMsgId = msgId || (messages as any[]).find(m => m.agentId === id)?.id;
 
                 if (targetMsgId) {
                     const currentMsg = messages.find(m => m.id === targetMsgId);
@@ -1022,7 +1022,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 // Sync findings to message for UI display
                 // Try to find message by msgId first, then by agentId as fallback
                 const { messages } = coreUseChatStore.getState();
-                const targetMsgId = msgId || messages.find(m => m.agentId === id)?.id;
+                const targetMsgId = msgId || (messages as any[]).find(m => m.agentId === id)?.id;
 
                 // Get the agent's latest exploreProgress (with scannedFiles)
                 const agent = get().runningAgents.find(a => a.id === id);

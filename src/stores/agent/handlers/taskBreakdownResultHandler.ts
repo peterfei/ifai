@@ -5,6 +5,7 @@
  */
 
 import { toast } from 'sonner';
+import { v4 } from 'uuid';
 import { useTaskBreakdownStore } from '@/stores/taskBreakdownStore';
 import { useFileStore } from '@/stores/fileStore';
 import { openFileFromPath } from '@/utils/fileActions';
@@ -99,12 +100,16 @@ export async function handleTaskBreakdownResult(
 
     const breakdown = {
       ...breakdownData,
+      id: breakdownData.id || v4(),
+      title: breakdownData.title || '任务拆解',
+      description: breakdownData.description || '',
+      originalPrompt: breakdownData.originalPrompt || '',
       createdAt: Date.now(),
       status: 'draft' as const,
     };
 
     console.log('[TaskBreakdownResultHandler] 📋 Saving task breakdown...');
-    await taskBreakdownStore.saveBreakdown(breakdown);
+    await taskBreakdownStore.saveBreakdown(breakdown as any);
 
     console.log('[TaskBreakdownResultHandler] ✅ Task breakdown saved:', breakdown.id);
 

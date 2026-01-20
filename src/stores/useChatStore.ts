@@ -713,7 +713,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     // ✅ 修复：检查是否有正在流式传输的消息，避免重复创建占位符
     const { messages: currentMessages } = coreUseChatStore.getState();
-    const lastAssistantMsg = currentMessages.filter(m => m.role === 'assistant').pop();
+    const lastAssistantMsg = currentMessages.filter(m => m.role === 'assistant').pop() as any;
     const isLastMessageStreaming = lastAssistantMsg && (
         !lastAssistantMsg.content ||
         (typeof lastAssistantMsg.content === 'string' && lastAssistantMsg.content.trim() === '') ||
@@ -1120,14 +1120,14 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                             updatedCalls[existingIndex] = {
                                 ...existingCall,
                                 id: toolCallUpdate.id || existingCall.id,
-                                tool: toolName || existingCall.tool,
+                                tool: toolName || (existingCall as any).tool,
                                 args: parsedArgs,
                                 function: {
                                     name: toolName || (existingCall as any).function?.name,
                                     arguments: updatedArgsString
                                 },
                                 isPartial: true
-                            };
+                            } as any;
                             newMsg.toolCalls = updatedCalls;
                         } else {
                             // New tool call
@@ -1221,7 +1221,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
                 toolCalls: m.tool_calls,
                 tool_call_id: m.tool_call_id,
                 // Preserve other properties from existing message
-                ...(existingMsg ? { agentId: existingMsg.agentId, isAgentLive: existingMsg.isAgentLive } : {})
+                ...(existingMsg ? { agentId: (existingMsg as any).agentId, isAgentLive: (existingMsg as any).isAgentLive } : {})
             };
         });
 
@@ -1719,15 +1719,29 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                                 }
                             }
 
-                            const updatedCalls = [...existingCalls];
-                            updatedCalls[existingIndex] = {
-                                ...existingCall,
-                                id: toolCallUpdate.id || existingCall.id,
-                                tool: toolName || existingCall.tool,
-                                args: parsedArgs,
-                                function: { name: toolName || (existingCall as any).function?.name, arguments: updatedArgsString },
-                                isPartial: true
-                            };
+                                                        const updatedCalls = [...existingCalls] as any[];
+
+                                                        updatedCalls[existingIndex] = {
+
+                                                            ...existingCall,
+
+                                                            id: toolCallUpdate.id || existingCall.id,
+
+                                                            tool: toolName || (existingCall as any).tool,
+
+                                                            args: parsedArgs,
+
+                                                            function: {
+
+                                                                name: toolName || (existingCall as any).function?.name,
+
+                                                                arguments: updatedArgsString
+
+                                                            },
+
+                                                            isPartial: true
+
+                                                        };
                             newMsg.toolCalls = updatedCalls;
                         } else {
                             // New tool call
@@ -1796,7 +1810,7 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
                 toolCalls: m.tool_calls,
                 tool_call_id: m.tool_call_id,
                 // Preserve other properties from existing message
-                ...(existingMsg ? { agentId: existingMsg.agentId, isAgentLive: existingMsg.isAgentLive } : {})
+                ...(existingMsg ? { agentId: (existingMsg as any).agentId, isAgentLive: (existingMsg as any).isAgentLive } : {})
             };
         });
 

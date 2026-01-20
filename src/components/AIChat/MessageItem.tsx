@@ -170,7 +170,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const hasFileChanges = React.useMemo(() => {
         if (!message.toolCalls || isStreaming) return false;
         return message.toolCalls.some(tc => {
-            const toolName = tc.function?.name || tc.tool || '';
+            const toolName = (tc as any).function?.name || (tc as any).toolName || (tc as any).tool || '';
             const result = tc.result;
             // result 可能是字符串或对象
             if (typeof result === 'string') {
@@ -890,7 +890,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 >
                                     <FileCode size={16} />
                                     <span>查看 Diff ({message.toolCalls?.filter(tc => {
-                                        const toolName = tc.function?.name || tc.tool || '';
+                                        const toolName = (tc as any).function?.name || (tc as any).toolName || (tc as any).tool || '';
                                         return toolName === 'agent_write_file';
                                     }).length || 0} 个文件)</span>
                                 </button>

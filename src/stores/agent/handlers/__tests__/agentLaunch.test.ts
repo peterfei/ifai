@@ -54,7 +54,7 @@ describe('agentLaunch', () => {
     it('应该通过有效的前置条件', () => {
       const prerequisites = {
         projectRoot: '/project',
-        providerConfig: { id: 'provider-1', name: 'Test' }
+        providerConfig: { id: 'provider-1', name: 'Test', protocol: 'openai', apiKey: 'test-key' }
       };
 
       expect(() => validateLaunchPrerequisites(prerequisites)).not.toThrow();
@@ -63,7 +63,7 @@ describe('agentLaunch', () => {
     it('应该抛出错误当没有 projectRoot', () => {
       const prerequisites = {
         projectRoot: undefined,
-        providerConfig: { id: 'provider-1', name: 'Test' }
+        providerConfig: { id: 'provider-1', name: 'Test', protocol: 'openai', apiKey: 'test-key' }
       };
 
       expect(() => validateLaunchPrerequisites(prerequisites)).toThrow('No project root available');

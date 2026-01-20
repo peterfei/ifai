@@ -10,6 +10,13 @@ export interface ToolCall {
   id: string;
   toolName: string;
   arguments: any;
+  function?: {
+    name: string;
+    arguments: string;
+  };
+  type?: string;
+  tool?: string;
+  result?: any;
 }
 
 export interface ToolResult {

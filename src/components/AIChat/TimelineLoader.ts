@@ -181,8 +181,8 @@ export class TimelineLoader {
     return {
       id: `timeline-${message.id}`,
       messageId: message.id,
-      timestamp: message.timestamp || Date.now(),
-      timeLabel: this.formatTimeLabel(message.timestamp || Date.now()),
+      timestamp: (message as any).timestamp || Date.now(),
+      timeLabel: this.formatTimeLabel((message as any).timestamp || Date.now()),
       type: message.role as 'user' | 'assistant',
       preview: this.truncateContent(content, 100),
       hasCode: codeInfo.hasCode,

@@ -176,7 +176,7 @@ describe('AgentEventHandler', () => {
               function: { name: 'agent_bash', arguments: '{"command":"ls"}' },
               status: 'pending',
               isPartial: true,
-            },
+            } as any,
           ],
         },
       ];
@@ -262,7 +262,7 @@ describe('AgentEventHandler', () => {
               function: { name: 'agent_bash', arguments: '{"command":"ls"}' },
               status: 'approved',
               isPartial: false,
-            },
+            } as any,
           ],
         },
       ];

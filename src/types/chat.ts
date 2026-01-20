@@ -4,6 +4,7 @@
  */
 
 import type { ExplorePhase } from './agent';
+import type { ToolCall } from './tool';
 
 // Module augmentation to extend the core Message type from ifainew-core
 declare module 'ifainew-core' {
@@ -40,6 +41,11 @@ declare module 'ifainew-core' {
 
     // Agent streaming state
     isAgentLive?: boolean;
+
+    // UI and state management fields
+    contentSegments?: any[];
+    timestamp?: number;
+    agentId?: string;
   }
 }
 
