@@ -27,6 +27,8 @@
 
 ### 📈 Project Status
 
+- **🎉 v0.3.1 Stability & Zhipu Integration** - Jan 20, 2026 (Zhipu AI Native Support, Agent Architecture Refactor, Bash Tool, Resource Limits, Timeline UI)
+- **🎉 v0.3.0 Multimodal Vision Upgrade** - Jan 14, 2026 (Vision LLM, Hybrid Scheduling, Code Navigation, Onboarding Tour)
 - **🎉 v0.2.9 Agent Intelligence** - Jan 12, 2026 (Smart Terminal Loop, Inline Editing Experience, AI Code Review)
 - **🎉 v0.2.8 Industrial Evolution** - Jan 10, 2026 (Composer 2.0, RAG Symbol-Aware, Command Palette)
 - **🎉 v0.2.7 Experience Leap** - Jan 09, 2026 (AI Rollback, Smart Diff, Industrial Layout Switcher, Automated E2E Framework)

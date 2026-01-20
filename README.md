@@ -2,10 +2,10 @@
 
 <div align="center">
   <img src="imgs/ifai.png" alt="IfAI Logo" width="120" />
-  <p><strong>🤖 不只是编辑器，更是你的自主编程伙伴</strong></p>
-  <p>基于 Tauri 2.0 + React 19 构建的高性能、本地优先的混合智能编辑器</p>
-
-  [简体中文](README.md) | [English](README_EN.md) | [📖 完整文档](./docs) | [🎯 下载发布页](https://github.com/peterfei/ifai/releases)
+    <p><strong>不只是编辑器，更是你的自主编程伙伴</strong></p>
+    <p>基于 Tauri 2.0 + React 19 构建的高性能、本地优先的混合智能编辑器</p>
+  
+    [简体中文](README.md) | [English](README_EN.md) | [📖 完整文档](https://docs.ifai.today/) | [🎯  下载发布页](https://github.com/peterfei/ifai/releases)
 
   [![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -36,7 +36,11 @@
 我们保持极速迭代，平均每周发布一个重磅版本。
 
 | 版本 | 主题 | 核心突破 |
+
 | :--- | :--- | :--- |
+
+| **v0.3.1** | **稳定性与智谱集成** | **智谱 AI 原生支持、Agent 核心架构重构、Bash 工具集成、资源限制系统、UI 时间线风格** |
+
 | **v0.3.0** | **多模态智能升级** | **Vision LLM 图像理解、本地/远程混合调度、代码分析重构、新手引导 Tour** |
 | **v0.2.9** | **Agent Intelligence** | **智能终端闭环 (错误自动修复)、原生编辑体验 (Cmd+K 行内编辑/上下文补全)、AI 代码审查 (提交前自动检查)** |
 | **v0.2.8** | **工业级进化** | **Composer 2.0 (AI 多文件编辑)、RAG 符号感知 (代码结构理解)、命令栏 (专业级命令执行)** |
