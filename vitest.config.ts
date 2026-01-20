@@ -8,7 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      'ifainew-core': path.resolve(__dirname, '../ifainew-core/typescript/src'),
+      // 🔥 社区版: 测试环境使用 mock-core，不依赖私有库
+      'ifainew-core': path.resolve(__dirname, './src/core/mock-core.ts'),
       // 在测试中，私有库指向占位模块
       '@ifai/core/commandBar': path.resolve(__dirname, './src/core/commandBar/pro-placeholder'),
       // 确保 Tauri API 从应用层解析

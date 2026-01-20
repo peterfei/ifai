@@ -377,13 +377,15 @@ export interface IAgentEventListener {
 }
 
 /**
- * 创建 Agent 事件监听器 (Mock 版本)
+ * 创建 Agent 事件监听器 (Mock 版本 - 社区版简化实现)
+ * 注意：社区版使用简化实现，不实际监听 Tauri 事件
  */
 export function createAgentListeners(): IAgentEventListener {
     const activeListeners: Record<string, () => void> = {};
 
     return {
         init: async (agentId: string) => {
+            // 社区版：返回模拟的 unlisten 函数
             const unlisten = () => {
                 console.log('[Mock AgentListeners] Unlistening:', agentId);
                 delete activeListeners[agentId];
@@ -437,13 +439,17 @@ export function createToolCallDeduplicator(): IToolCallDeduplicator {
 }
 
 /**
- * 工具注册表 (Mock 版本 - 简化实现)
+ * 工具注册表 (Mock 版本 - 社区版实现)
  */
 export class ToolRegistry {
     private tools = new Map<string, any>();
 
     register<TArgs = any, TResult = any>(definition: any): void {
-        this.tools.set(definition.name, definition);
+        const { name } = definition;
+        if (this.tools.has(name)) {
+            throw new Error(`Tool "${name}" is already registered`);
+        }
+        this.tools.set(name, definition);
     }
 
     has(name: string): boolean {
@@ -454,8 +460,13 @@ export class ToolRegistry {
         return this.tools.get(name);
     }
 
-    list(): any[] {
-        return Array.from(this.tools.values());
+    list(category?: string): any[] {
+        const allTools = Array.from(this.tools.values());
+        if (!category) {
+            return allTools;
+        }
+        // 按分类过滤
+        return allTools.filter((tool: any) => tool.category === category);
     }
 
     async execute<TArgs = any, TResult = any>(
@@ -467,6 +478,10 @@ export class ToolRegistry {
         if (!tool) {
             return { success: false, error: `Tool "${name}" not found` };
         }
-        return tool.handler(args, context);
+        try {
+            return await tool.handler(args, context);
+        } catch (e) {
+            return { success: false, error: e instanceof Error ? e.message : String(e) };
+        }
     }
 }

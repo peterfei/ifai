@@ -316,7 +316,7 @@ export class MockCommandLineCore implements ICommandLineCore {
 
     // 显示所有可用命令的帮助
     const helpText = `
-# 编辑器命令行 - 商业版
+# 编辑器命令行 - 社区版
 
 ## 文件操作 (FILE)
 
@@ -403,7 +403,7 @@ export class MockCommandLineCore implements ICommandLineCore {
   private executeVersion(): CommandResult {
     return {
       success: true,
-      message: `Editor Command Bar v1.0.0-commercial\n\n商业版功能`,
+      message: `Editor Command Bar v${this.version}\n\n社区版功能`,
       outputType: 'text',
       data: { version: this.version },
       timestamp: Date.now(),
