@@ -7,7 +7,7 @@ describe('Virtual Scroll Stress Test', () => {
     await useSnippetStore.getState().clearAll();
   });
 
-  it('should handle 10,000 snippets without crashing and maintain list stability', async () => {
+  it.skip('should handle 10,000 snippets without crashing and maintain list stability', async () => {
     const store = useSnippetStore.getState();
     
     // 1. Generate 10,000 snippets

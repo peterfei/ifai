@@ -4,9 +4,8 @@
  */
 
 import type { ExplorePhase } from './agent';
-import type { ToolCall } from './tool';
 
-// Module augmentation to extend the core Message type from ifainew-core
+// Module augmentation to extend the core types from ifainew-core
 declare module 'ifainew-core' {
   export interface Message {
     // Explore agent specific fields
@@ -46,6 +45,11 @@ declare module 'ifainew-core' {
     contentSegments?: any[];
     timestamp?: number;
     agentId?: string;
+  }
+
+  export interface ToolCall {
+    // 兼容不同的工具命名约定
+    toolName?: string;
   }
 }
 
