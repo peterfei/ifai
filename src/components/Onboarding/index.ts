@@ -7,3 +7,6 @@ export { WelcomeDialog, loadOnboardingState, saveOnboardingState, shouldShowOnbo
 export type { OnboardingState, WelcomeDialogProps } from './WelcomeDialog';
 
 export { LocalModelDownload } from './LocalModelDownload';
+
+export { APIKeyGuideDialog, shouldShowAPIKeyGuide, markAPIKeyGuideCompleted } from './APIKeyGuideDialog';
+export type { APIKeyGuideDialogProps } from './APIKeyGuideDialog';

@@ -15,6 +15,16 @@ export const SettingsModal = () => {
   const settings = useSettingsStore();
   const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider'>('general');
 
+  // 获取本地化的提供商名称
+  const getProviderName = (providerId: string, fallbackName: string): string => {
+    const translated = t(`settings.providerNames.${providerId}` as any);
+    // 如果翻译键不存在或返回的是键本身，则使用 fallbackName
+    if (translated && !translated.startsWith('settings.')) {
+      return translated;
+    }
+    return fallbackName;
+  };
+
   // 🔍 调试：打印翻译值
   React.useEffect(() => {
     if (isSettingsOpen) {
@@ -185,7 +195,7 @@ export const SettingsModal = () => {
                 {/* 当前激活的供应商提示 */}
                 <div className="bg-blue-900/20 border border-blue-700/50 rounded px-3 py-2 flex items-center">
                     <span className="text-xs text-blue-300">
-                        {t('settings.currentActive')}：<strong>{settings.providers.find(p => p.id === settings.currentProviderId)?.name || t('settings.notSelected')}</strong>
+                        {t('settings.currentActive')}：<strong>{getProviderName(settings.currentProviderId, settings.providers.find(p => p.id === settings.currentProviderId)?.name || t('settings.notSelected'))}</strong>
                         ({t('settings.modelLabel')}：{settings.currentModel})
                     </span>
                 </div>
@@ -207,7 +217,7 @@ export const SettingsModal = () => {
                           )}>
                               <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center">
-                                      <span className="font-semibold text-gray-200">{provider.name}</span>
+                                      <span className="font-semibold text-gray-200">{getProviderName(provider.id, provider.name)}</span>
                                       {isCurrent && (
                                           <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">{t('settings.current')}</span>
                                       )}
@@ -238,7 +248,7 @@ export const SettingsModal = () => {
                                                   "w-full border rounded px-2 py-1 text-white text-xs focus:outline-none",
                                                   isCurrent ? "bg-blue-900/20 border-blue-500 focus:border-blue-400" : "bg-[#3c3c3c] border-gray-600 focus:border-blue-500"
                                               )}
-                                              placeholder={t('settings.apiKeyFor', { providerName: provider.name })}
+                                              placeholder={t('settings.apiKeyFor', { providerName: getProviderName(provider.id, provider.name) })}
                                           />
                                           {hasApiKey && (
                                               <div className="mt-1 text-xs text-green-400">

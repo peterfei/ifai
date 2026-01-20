@@ -169,6 +169,14 @@
   },
   "settings": {
     "general": "通用",
+    "providerNames": {
+      "deepseek": "DeepSeek",
+      "openai": "OpenAI",
+      "zhipu": "智谱",
+      "anthropic": "Anthropic",
+      "kimi": "Kimi (Moonshot)",
+      "openrouter": "OpenRouter"
+    },
     "editor": "编辑器",
     "ai": "AI",
     "theme": "主题",
@@ -398,6 +406,33 @@
     "resetTutorial": "重置新手引导",
     "resetConfirm": "确定要重置新手引导吗？",
     "resetMessage": "页面将重新加载以显示新手引导"
+  },
+  "apiKeyGuide": {
+    "title": "配置 AI 提供商",
+    "description": "要使用 AI 功能，需要配置 API 密钥。我们推荐智谱 AI 的 GLM-4.7-Flash - 快速且对新用户免费！",
+    "zhipuSection": {
+      "title": "推荐：智谱 AI",
+      "description": "GLM-4.7-Flash 是快速高效的模型，新用户可享免费额度",
+      "step1": "访问智谱 AI 开放平台",
+      "step2": "注册新账号（需要手机验证）",
+      "step3": "进入设置中的 API Keys 页面",
+      "step4": "创建新的 API Key",
+      "step5": "复制并粘贴密钥到下方"
+    },
+    "benefits": {
+      "title": "为什么选择智谱 AI？",
+      "fast": "闪电般快速响应",
+      "free": "新用户免费额度",
+      "stable": "稳定可靠的服务"
+    },
+    "apiKeyLabel": "在此粘贴您的 API Key",
+    "apiKeyPlaceholder": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
+    "saveAndContinue": "保存并继续",
+    "skipForNow": "稍后设置",
+    "skipWarning": "您可以稍后在设置中配置",
+    "openZhipuPlatform": "打开智谱 AI 平台 →",
+    "otherProviders": "其他提供商",
+    "otherProvidersDesc": "您也可以在设置中使用 OpenAI、DeepSeek、Kimi 或自定义提供商。"
   },
   "welcomeDialog": {
     "title": "欢迎使用 IfAI Editor",

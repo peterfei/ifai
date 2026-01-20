@@ -168,6 +168,14 @@
   },
   "settings": {
     "general": "General",
+    "providerNames": {
+      "deepseek": "DeepSeek",
+      "openai": "OpenAI",
+      "zhipu": "Zhipu AI",
+      "anthropic": "Anthropic",
+      "kimi": "Kimi (Moonshot)",
+      "openrouter": "OpenRouter"
+    },
     "editor": "Editor",
     "ai": "AI",
     "theme": "Theme",
@@ -399,6 +407,33 @@
     "resetTutorial": "Reset Tutorial",
     "resetConfirm": "Are you sure you want to reset the tutorial?",
     "resetMessage": "The page will reload to show the onboarding tour"
+  },
+  "apiKeyGuide": {
+    "title": "Set Up AI Provider",
+    "description": "To use AI features, you need to configure an API key. We recommend Zhipu AI (智谱AI) GLM-4.7-Flash - it's fast and free for new users!",
+    "zhipuSection": {
+      "title": "Recommended: Zhipu AI (智谱AI)",
+      "description": "GLM-4.7-Flash is a fast, efficient model with free tier for new users",
+      "step1": "Visit Zhipu AI Platform",
+      "step2": "Register a new account (phone verification required)",
+      "step3": "Go to API Keys section in settings",
+      "step4": "Create a new API Key",
+      "step5": "Copy and paste the key below"
+    },
+    "benefits": {
+      "title": "Why Zhipu AI?",
+      "fast": "Lightning Fast Response",
+      "free": "Free Tier Available",
+      "stable": "Reliable Service"
+    },
+    "apiKeyLabel": "Paste your API Key here",
+    "apiKeyPlaceholder": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
+    "saveAndContinue": "Save and Continue",
+    "skipForNow": "Skip for Now",
+    "skipWarning": "You can set it up later in Settings",
+    "openZhipuPlatform": "Open Zhipu AI Platform →",
+    "otherProviders": "Other Providers",
+    "otherProvidersDesc": "You can also use OpenAI, DeepSeek, Kimi, or custom providers in settings."
   },
   "welcomeDialog": {
     "title": "Welcome to IfAI Editor",

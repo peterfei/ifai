@@ -13,7 +13,7 @@ import { SettingsModal } from './components/Settings/SettingsModal';
 import { GlobalAgentMonitor } from './components/AIChat/GlobalAgentMonitor';
 import { PerformancePanel } from './components/DevTools/PerformancePanel';
 import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel';
-import { WelcomeDialog, LocalModelDownload } from './components/Onboarding';
+import { WelcomeDialog, LocalModelDownload, APIKeyGuideDialog } from './components/Onboarding';
 import { OnboardingTour } from './components/Onboarding/OnboardingTour';
 import { CodeReviewModal, ReviewHistoryPanel } from './components/CodeReview';
 import { InlineEditWidget, DiffEditorModal } from './components/InlineEdit';
@@ -110,7 +110,7 @@ function App() {
   const { isKeyboardShortcutsOpen, closeKeyboardShortcuts } = useHelpStore();
 
   // Onboarding state
-  const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | null>(null);
+  const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | 'apikey' | null>(null);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -624,16 +624,26 @@ function App() {
     if (choice === 'download') {
       setOnboardingStep('download');
     } else {
-      // remind or skip - close onboarding
-      setOnboardingStep(null);
+      // remind or skip - go to API key guide
+      setOnboardingStep('apikey');
     }
   };
 
   const handleDownloadComplete = () => {
-    setOnboardingStep(null);
+    // Download complete, now show API key guide
+    setOnboardingStep('apikey');
   };
 
   const handleDownloadCancel = () => {
+    // User cancelled download, still show API key guide
+    setOnboardingStep('apikey');
+  };
+
+  const handleAPIKeyComplete = () => {
+    setOnboardingStep(null);
+  };
+
+  const handleAPIKeySkip = () => {
     setOnboardingStep(null);
   };
 
@@ -782,6 +792,12 @@ function App() {
             onComplete={handleDownloadComplete}
             onCancel={handleDownloadCancel}
             onError={handleDownloadError}
+          />
+        )}
+        {onboardingStep === 'apikey' && (
+          <APIKeyGuideDialog
+            onComplete={handleAPIKeyComplete}
+            onSkip={handleAPIKeySkip}
           />
         )}
         {/* v0.3.0: Onboarding Tour */}
