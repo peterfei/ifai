@@ -213,13 +213,34 @@ export function handleToolResultEvent(
     return chatMessages;
   }
 
+  // 🔥 FIX: Parse JSON string result if applicable
+  // The backend sends tool results as JSON strings for structured data (agent_write_file, etc.)
+  // Or sometimes sends arrays directly (agent_list_dir in commercial edition)
+  let parsedResult = result;
+  if (typeof result === 'string') {
+    try {
+      // Try to parse as JSON
+      parsedResult = JSON.parse(result);
+      console.log(`[handleToolResultEvent] ✅ Parsed tool result as JSON:`, typeof parsedResult);
+    } catch {
+      // Not JSON, keep as string
+      console.log(`[handleToolResultEvent] ⚠️ Tool result is not JSON, keeping as string`);
+    }
+  } else if (Array.isArray(result)) {
+    // Result is already an array (agent_list_dir, etc.)
+    console.log(`[handleToolResultEvent] 📋 Result is already an array with ${result.length} elements`);
+    parsedResult = result;
+  } else {
+    console.log(`[handleToolResultEvent] 🔍 Result type: ${typeof result}, isArray: ${Array.isArray(result)}`);
+  }
+
   return chatMessages.map((m) => {
     if (m.id === msgId && m.toolCalls) {
       return {
         ...m,
         toolCalls: m.toolCalls.map((tc) => {
           if (tc.id === toolCallId) {
-            return { ...tc, result: result };
+            return { ...tc, result: parsedResult };
           }
           return tc;
         }),

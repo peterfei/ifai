@@ -809,6 +809,29 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             console.log(`[AgentStore] Tool result received: toolCallId=${toolCallId}, success=${success}`);
 
             if (toolCallId && msgId) {
+                // 🔥 FIX: Parse JSON string result if applicable
+                // The backend sends tool results as JSON strings for structured data (agent_write_file, etc.)
+                console.log(`[AgentStore] 🔍 Debug result type:`, typeof result);
+                console.log(`[AgentStore] 🔍 Debug result isArray?:`, Array.isArray(result));
+                console.log(`[AgentStore] 🔍 Debug result:`, result);
+
+                let parsedResult: any = result;
+                if (typeof result === 'string') {
+                    try {
+                        // Try to parse as JSON
+                        parsedResult = JSON.parse(result);
+                        console.log(`[AgentStore] ✅ Parsed tool result as JSON:`, typeof parsedResult);
+                    } catch {
+                        // Not JSON, keep as string
+                        console.log(`[AgentStore] ⚠️ Tool result is not JSON, keeping as string`);
+                    }
+                } else if (Array.isArray(result)) {
+                    // Result is already an array (agent_list_dir, etc.)
+                    // The formatter can handle arrays directly
+                    console.log(`[AgentStore] 📋 Result is already an array with ${(result as any[]).length} elements`);
+                    parsedResult = result;
+                }
+
                 // ⚡️ FIX: 只更新 result 字段，不修改 status
                 // 让 Agent 的 result 事件处理器统一管理 status，避免破坏 Agent 流程
                 const { messages } = coreUseChatStore.getState();
@@ -824,7 +847,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                         // status 会在 Agent 完成时由 result 事件处理器统一更新
                                         return {
                                             ...tc,
-                                            result: result
+                                            result: parsedResult,
+                                            success: success
                                         };
                                     }
                                     return tc;

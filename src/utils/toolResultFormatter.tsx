@@ -29,6 +29,8 @@ export interface ToolResult {
 export function formatToolResultToMarkdown(result: any, toolCall?: any): string {
   if (!result) return '';
 
+  console.log('[formatToolResultToMarkdown] 🔍 Debug result type:', typeof result);
+  console.log('[formatToolResultToMarkdown] 🔍 Debug result:', result);
   console.log('[formatToolResultToMarkdown] result keys:', Object.keys(result));
   console.log('[formatToolResultToMarkdown] result.newContent:', result.newContent ? result.newContent.substring(0, 50) : 'undefined');
   console.log('[formatToolResultToMarkdown] result.originalContent:', result.originalContent ? result.originalContent.substring(0, 50) : 'undefined');
@@ -68,7 +70,7 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
     // 特征：大部分元素是字符串，且包含常见文件名模式
     const allStrings = result.every(item => typeof item === 'string');
     const hasFilePatterns = result.some(item =>
-      item.includes('.') || item.includes('/') || item.match(/^[a-z_][a-z0-9_]*$/i)
+      typeof item === 'string' && (item.includes('.') || item.includes('/') || item.match(/^[a-z_][a-z0-9_]*$/i))
     );
 
     if (allStrings && hasFilePatterns && result.length > 1) {
@@ -79,6 +81,14 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
 
     // 检查是否是生成的文件路径列表（旧的逻辑，保留兼容）
     if (result.every(item => typeof item === 'string' && item.includes('/'))) {
+      // 已有类型检查，这里保持不变
+      return `## 📁 Generated Files\n\n${result.map(path => `- \`${path}\``).join('\n')}`;
+    }
+
+    // 🔥 FIX: 如果数组包含非字符串元素，使用 JSON 格式显示
+    if (!allStrings) {
+      console.log('[formatToolResultToMarkdown] 检测到混合类型数组，使用 JSON 格式');
+      return `## 📊 Array (${result.length} items)\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
       return `## 📁 Generated Files\n\n${result.map(path => `- \`${path}\``).join('\n')}`;
     }
 

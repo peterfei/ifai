@@ -1109,10 +1109,6 @@ pub async fn agent_stream_chat_with_root(
                                         }
                                     }
                                 }
-
-                                // 🔥 FIX: Clean the XML tags from accumulated_content so they don't affect subsequent checks
-                                // Without this, all subsequent content chunks would be suppressed
-                                accumulated_content = re_full.replace_all(&accumulated_content, "").to_string();
                             } else {
                                 // Normal text content
                                 let _ = app.emit(
@@ -1179,23 +1175,14 @@ pub async fn agent_stream_chat_with_root(
                                     // 当 arguments 是有效 JSON 且有 ID 时，认为是完整的 (isPartial: false)
                                     let is_complete = !st.id.is_empty() && serde_json::from_str::<Value>(&st.arguments).is_ok();
 
-                                    // 🔥 FIX v0.3.9.2: 去重 key 包含参数内容哈希
+                                    // 🔥 FIX v0.3.9.1: 去重 key 包含参数内容哈希
                                     // DeepSeek API 会发送相同 tool_call_id 但参数逐渐增长的事件
                                     // 如果只使用 tool_name:tool_call_id 作为 key，会导致参数更新被跳过
                                     // 解决方案：使用 tool_name:tool_call_id:args_hash 作为去重 key
                                     use std::collections::hash_map::DefaultHasher;
                                     use std::hash::{Hash, Hasher};
                                     let mut hasher = DefaultHasher::new();
-
-                                    // 🔥 FIX: 对于空参数或非常短的参数，使用固定的哈希值
-                                    // 避免因空字符串 "" 和 "{}" 的哈希不同导致重复事件
-                                    let args_for_hash = if st.arguments.trim().is_empty() || st.arguments == "{}" {
-                                        "__EMPTY_ARGS__"  // 固定值用于空参数
-                                    } else {
-                                        &st.arguments
-                                    };
-
-                                    args_for_hash.hash(&mut hasher);
+                                    st.arguments.hash(&mut hasher);
                                     let args_hash = hasher.finish();
 
                                     let dedup_key = if !st.id.is_empty() {
@@ -1205,8 +1192,7 @@ pub async fn agent_stream_chat_with_root(
                                     };
 
                                     if emitted_tool_call_ids.contains(&dedup_key) {
-                                        eprintln!("[AgentStream] ⚠️ Skipping duplicate tool_call: tool={}, dedup_key={}, args_len={}",
-                                            tool_name, dedup_key, st.arguments.len());
+                                        eprintln!("[AgentStream] ⚠️ Skipping duplicate tool_call: tool={}, dedup_key={}", tool_name, dedup_key);
                                         continue;
                                     }
 

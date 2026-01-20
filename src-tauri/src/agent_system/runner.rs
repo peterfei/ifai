@@ -281,6 +281,8 @@ pub async fn run_agent_task(
         loop_count += 1;
         let _ = app.emit("agent:status", json!({ "id": id, "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
         let _ = app.emit(&event_id, json!({ "type": "status", "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
+        // 🔥 FIX: Send 'thinking' event instead of 'log' to enable streaming content in message
+        let _ = app.emit(&event_id, json!({ "type": "thinking", "content": "🤔 正在思考..." }));
         let _ = app.emit(&event_id, json!({ "type": "log", "message": "Thinking..." }));
 
         match ai_utils::agent_stream_chat_with_root(
@@ -307,6 +309,8 @@ pub async fn run_agent_task(
                         let tool_name = &tool_call.function.name;
                         let args_res: Result<Value, _> = serde_json::from_str(&tool_call.function.arguments);
 
+                        // 🔥 FIX: Send 'thinking' event to show progress in message
+                        let _ = app.emit(&event_id, json!({ "type": "thinking", "content": format!("🔧 正在处理工具: {}...", tool_name) }));
                         let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("Processing tool: {}", tool_name) }));
 
                         let (tool_result, _success) = match args_res {
@@ -341,6 +345,8 @@ pub async fn run_agent_task(
                                 if approved {
                                     let _ = app.emit("agent:status", json!({ "id": id, "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "status", "status": "running" }));
+                                    // 🔥 FIX: Send 'thinking' event to show execution progress
+                                    let _ = app.emit(&event_id, json!({ "type": "thinking", "content": format!("🚀 正在执行: {}...", tool_name) }));
                                     let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("🚀 Executing {}...", tool_name) }));
                                     println!("[AgentRunner] Starting execution of {}", tool_name);
                                 }
