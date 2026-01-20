@@ -23,8 +23,8 @@ export default defineConfig({
   testDir: './tests/e2e',
 
   // 排除模板测试文件（这些是模板，不是真正的测试）
-  exclude: [
-    '**/templates/**/*.spec.ts',
+  testIgnore: [
+    '**/templates/**',
   ],
 
   // 完全并行执行测试

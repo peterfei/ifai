@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
+import { setupE2ETestEnvironment } from '../setup';
 
 /**
  * 全场景 Agent 工具结果传递测试
@@ -11,45 +11,49 @@ import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
  * 2. agent_list_dir - 目录列表
  * 3. agent_write_file - 文件写入
  * 4. bash - Bash 命令执行
+ *
+ * 🔥 FIX: ifainew-core 的 approveToolCall 不会立即创建 tool 消息
+ * tool 消息只在调用 generateResponse 时才会创建
+ * 因此我们检查 toolCall.result 字段来验证工具执行结果
  */
 
-test.describe.skip('All Tools Result - TODO: Fix this test', () => {
+test.describe.skip('Agent Tools - Result Content Transmission - TODO: Fix Tauri invoke mocking', () => {
   test.beforeEach(async ({ page }) => {
-  page.on('console', msg => {
-    const text = msg.text();
-    const type = msg.type();
-    if (type === 'error') {
-      console.log('[Browser Error]', text);
-    } else if (text.includes('[E2E]') || text.includes('[Chat]') || text.includes('[useChatStore]')) {
-      console.log('[Browser]', text);
-    }
-  });
-
-  await setupE2ETestEnvironment(page);
-  await page.goto('/');
-  await page.waitForTimeout(5000);
-
-  // 确保聊天面板打开
-  await page.evaluate(() => {
-    const layoutStore = (window as any).__layoutStore;
-    if (layoutStore && !layoutStore.getState().isChatOpen) {
-      layoutStore.getState().toggleChat();
-    }
-  });
-  await page.waitForTimeout(2000);
-
-  // 等待 store 可用
-  for (let i = 0; i < 3; i++) {
-    await page.waitForTimeout(2000);
-    const hasChatStore = await page.evaluate(() => {
-      const store = (window as any).__chatStore;
-      return store && typeof store.getState === 'function';
+    // 设置控制台日志监听
+    page.on('console', msg => {
+      const text = msg.text();
+      const type = msg.type();
+      if (type === 'error') {
+        console.log('[Browser Error]', text);
+      } else if (text.includes('[E2E]') || text.includes('[Chat]') || text.includes('[useChatStore]')) {
+        console.log('[Browser]', text);
+      }
     });
-    if (hasChatStore) break;
-  }
-});
 
-test.describe('Agent Tools - Result Content Transmission', () => {
+    // 设置 E2E 测试环境
+    await setupE2ETestEnvironment(page);
+    await page.goto('/');
+    await page.waitForTimeout(5000);
+
+    // 确保聊天面板打开
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
+      }
+    });
+    await page.waitForTimeout(2000);
+
+    // 等待 store 可用
+    for (let i = 0; i < 10; i++) {
+      await page.waitForTimeout(1000);
+      const hasChatStore = await page.evaluate(() => {
+        const store = (window as any).__chatStore;
+        return store && typeof store.getState === 'function';
+      });
+      if (hasChatStore) break;
+    }
+  });
 
   test.describe('agent_read_file', () => {
 
@@ -63,10 +67,13 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         mockFileSystem.set(`/Users/mac/mock-project/${name}`, content);
       }, { name: fileName, content: fileContent });
 
-      // 添加文件读取工具调用
-      await page.evaluate(({ fileName }) => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+      // 添加文件读取工具调用并直接批准
+      const result = await page.evaluate(async ({ fileName }) => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        // 添加消息
+        state.addMessage({
           id: 'msg-read',
           role: 'assistant',
           content: '读取文件',
@@ -77,35 +84,43 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        // 直接调用批准工具
+        await state.approveToolCall('msg-read', 'read-call');
+
+        // 等待一下让工具执行完成
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 🔥 FIX: 检查 toolCall.result 而不是 tool 消息
+        const msg = state.messages.find((m: any) => m.id === 'msg-read');
+        const toolCall = msg?.toolCalls?.[0];
+
+        return {
+          hasToolCall: !!toolCall,
+          toolCallStatus: toolCall?.status,
+          toolCallResult: toolCall?.result,
+          resultContainsContent: toolCall?.result?.includes(fileContent)
+        };
       }, { fileName });
 
-      // 批准执行
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      // 验证 tool 消息包含文件内容
-      const toolMessageContent = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const toolMsg = chatStore?.messages.find((m: any) =>
-          m.tool_call_id === 'read-call' && m.role === 'tool'
-        );
-        return toolMsg?.content;
-      });
-
-      console.log('[E2E] File content:', toolMessageContent);
-      expect(toolMessageContent).toBeTruthy();
-      expect(toolMessageContent).toContain(fileContent);
+      console.log('[E2E] File content result:', result);
+      expect(result.hasToolCall).toBe(true);
+      expect(result.toolCallStatus).toBe('completed');
+      expect(result.toolCallResult).toBeTruthy();
+      expect(result.resultContainsContent).toBe(true);
     });
 
     test('空文件应该返回空字符串', async ({ page }) => {
       const fileName = 'empty.txt';
 
-      await page.evaluate(({ fileName }) => {
+      const result = await page.evaluate(async ({ fileName }) => {
         const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__;
         mockFileSystem.set(`/Users/mac/mock-project/${fileName}`, '');
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-empty',
           role: 'assistant',
           content: '读取空文件',
@@ -116,23 +131,24 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        await state.approveToolCall('msg-empty', 'empty-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const msg = state.messages.find((m: any) => m.id === 'msg-empty');
+        const toolCall = msg?.toolCalls?.[0];
+
+        return {
+          toolCallStatus: toolCall?.status,
+          toolCallResult: toolCall?.result,
+          resultLength: toolCall?.result?.length || 0
+        };
       }, { fileName });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      const toolMessageContent = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const toolMsg = chatStore?.messages.find((m: any) =>
-          m.tool_call_id === 'empty-call' && m.role === 'tool'
-        );
-        return toolMsg?.content;
-      });
-
-      console.log('[E2E] Empty file content length:', toolMessageContent?.length);
-      expect(toolMessageContent).toBeDefined();
-      expect(toolMessageContent.length).toBe(0);
+      console.log('[E2E] Empty file result:', result);
+      expect(result.toolCallStatus).toBe('completed');
+      expect(result.toolCallResult).toBeDefined();
+      expect(result.resultLength).toBe(0);
     });
   });
 
@@ -147,10 +163,11 @@ test.describe('Agent Tools - Result Content Transmission', () => {
         mockFileSystem.set('/Users/mac/mock-project/subdir/file3.txt', 'content3');
       });
 
-      // 添加目录列表工具调用
-      await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+      const result = await page.evaluate(async () => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-list',
           role: 'assistant',
           content: '列出目录',
@@ -161,34 +178,38 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        await state.approveToolCall('msg-list', 'list-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const msg = state.messages.find((m: any) => m.id === 'msg-list');
+        const toolCall = msg?.toolCalls?.[0];
+
+        return {
+          hasToolCall: !!toolCall,
+          toolCallStatus: toolCall?.status,
+          toolCallResult: toolCall?.result,
+          containsFile1: toolCall?.result?.includes('file1.txt'),
+          containsFile2: toolCall?.result?.includes('file2.txt'),
+          notContainsFile3: !toolCall?.result?.includes('file3.txt')
+        };
       });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      // 验证 tool 消息包含目录列表
-      const toolMessageContent = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const toolMsg = chatStore?.messages.find((m: any) =>
-          m.tool_call_id === 'list-call' && m.role === 'tool'
-        );
-        return toolMsg?.content;
-      });
-
-      console.log('[E2E] Dir list:', toolMessageContent);
-      expect(toolMessageContent).toBeTruthy();
-      expect(toolMessageContent).toContain('file1.txt');
-      expect(toolMessageContent).toContain('file2.txt');
-      // 不应该包含子目录中的文件
-      expect(toolMessageContent).not.toContain('file3.txt');
+      console.log('[E2E] Dir list result:', result);
+      expect(result.hasToolCall).toBe(true);
+      expect(result.toolCallStatus).toBe('completed');
+      expect(result.toolCallResult).toBeTruthy();
+      expect(result.containsFile1).toBe(true);
+      expect(result.containsFile2).toBe(true);
+      expect(result.notContainsFile3).toBe(true);
     });
 
     test('空目录应该返回空字符串或非常短的内容', async ({ page }) => {
-      // 列出根目录（mock 文件系统中可能为空或只有少量文件）
-      await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+      const result = await page.evaluate(async () => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-list-empty',
           role: 'assistant',
           content: '列出空目录',
@@ -199,23 +220,23 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        await state.approveToolCall('msg-list-empty', 'list-empty-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const msg = state.messages.find((m: any) => m.id === 'msg-list-empty');
+        const toolCall = msg?.toolCalls?.[0];
+
+        return {
+          toolCallStatus: toolCall?.status,
+          toolCallResult: toolCall?.result,
+          resultLength: toolCall?.result?.length || 0
+        };
       });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      const toolMessageContent = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const toolMsg = chatStore?.messages.find((m: any) =>
-          m.tool_call_id === 'list-empty-call' && m.role === 'tool'
-        );
-        return toolMsg?.content;
-      });
-
-      console.log('[E2E] Empty dir list length:', toolMessageContent?.length);
+      console.log('[E2E] Empty dir list result:', result);
       // 空目录应该返回空或很短的内容
-      expect(toolMessageContent).toBeDefined();
+      expect(result.toolCallResult).toBeDefined();
     });
   });
 
@@ -225,9 +246,11 @@ test.describe('Agent Tools - Result Content Transmission', () => {
       const fileName = 'new-file.txt';
       const content = 'New file content';
 
-      await page.evaluate(({ fileName, content }) => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+      const result = await page.evaluate(async ({ fileName, content }) => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-write',
           role: 'assistant',
           content: '写入文件',
@@ -238,27 +261,42 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        await state.approveToolCall('msg-write', 'write-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 获取工具调用状态
+        const msg = state.messages.find((m: any) => m.id === 'msg-write');
+        const toolCall = msg?.toolCalls?.[0];
+        const toolCallStatus = toolCall?.status;
+        const resultStr = toolCall?.result;
+
+        // 验证文件确实被写入
+        const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+        const fileContent = mockFileSystem.get(`/Users/mac/mock-project/${fileName}`);
+
+        // 解析 result
+        let resultData;
+        try {
+          resultData = JSON.parse(resultStr || '{}');
+        } catch (e) {
+          resultData = { success: false };
+        }
+
+        return {
+          toolCallStatus,
+          resultData,
+          fileContent,
+          statusMatches: toolCallStatus === 'completed',
+          contentMatches: fileContent === content,
+          isSuccess: resultData.success === true
+        };
       }, { fileName, content });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      // 验证工具调用状态
-      const toolCallStatus = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const msg = chatStore?.messages.find((m: any) => m.id === 'msg-write');
-        return msg?.toolCalls?.[0]?.status;
-      });
-      expect(toolCallStatus).toBe('completed');
-
-      // 验证文件确实被写入
-      const fileContent = await page.evaluate(({ fileName }) => {
-        const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__;
-        return mockFileSystem.get(`/Users/mac/mock-project/${fileName}`);
-      }, { fileName });
-
-      expect(fileContent).toBe(content);
+      console.log('[E2E] Write result:', result);
+      expect(result.statusMatches).toBe(true);
+      expect(result.isSuccess).toBe(true);
+      expect(result.contentMatches).toBe(true);
     });
 
     test('应该捕获原始内容用于回滚', async ({ page }) => {
@@ -266,43 +304,53 @@ test.describe('Agent Tools - Result Content Transmission', () => {
       const originalContent = 'Original content';
       const newContent = 'New content';
 
-      // 先创建文件
-      await page.evaluate(({ fileName, content }) => {
+      const result = await page.evaluate(async ({ fileName, originalContent, newContent }) => {
+        // 先创建文件
         const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__;
-        mockFileSystem.set(`/Users/mac/mock-project/${fileName}`, content);
-      }, { fileName, content: originalContent });
+        mockFileSystem.set(`/Users/mac/mock-project/${fileName}`, originalContent);
 
-      // 然后写入新内容
-      await page.evaluate(({ fileName, content }) => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-write-rollback',
           role: 'assistant',
           content: '修改文件',
           toolCalls: [{
             id: 'write-rollback-call',
             tool: 'agent_write_file',
-            args: { rel_path: fileName, content },
+            args: { rel_path: fileName, content: newContent },
             status: 'pending'
           }]
         });
-      }, { fileName, content: newContent });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
+        await state.approveToolCall('msg-write-rollback', 'write-rollback-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 验证 result 中包含原始内容
-      const result = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const msg = chatStore?.messages.find((m: any) => m.id === 'msg-write-rollback');
-        return msg?.toolCalls?.[0]?.result;
-      });
+        // 获取 result
+        const msg = state.messages.find((m: any) => m.id === 'msg-write-rollback');
+        const resultStr = msg?.toolCalls?.[0]?.result;
 
-      console.log('[E2E] Write result:', result);
-      const resultData = JSON.parse(result || '{}');
-      expect(resultData.originalContent).toBe(originalContent);
-      expect(resultData.success).toBe(true);
+        let resultData;
+        try {
+          resultData = JSON.parse(resultStr || '{}');
+        } catch (e) {
+          resultData = {};
+        }
+
+        return {
+          resultStr,
+          resultData,
+          hasOriginalContent: !!resultData.originalContent,
+          originalContentMatches: resultData.originalContent === originalContent,
+          isSuccess: resultData.success === true
+        };
+      }, { fileName, originalContent, newContent });
+
+      console.log('[E2E] Rollback result:', result);
+      expect(result.hasOriginalContent).toBe(true);
+      expect(result.originalContentMatches).toBe(true);
+      expect(result.isSuccess).toBe(true);
     });
   });
 
@@ -312,9 +360,11 @@ test.describe('Agent Tools - Result Content Transmission', () => {
       const command = 'echo "Test Output"';
       const expectedOutput = 'Test Output';
 
-      await page.evaluate(({ command }) => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+      const result = await page.evaluate(async ({ command }) => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-bash',
           role: 'assistant',
           content: '执行命令',
@@ -325,32 +375,36 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        await state.approveToolCall('msg-bash', 'bash-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const msg = state.messages.find((m: any) => m.id === 'msg-bash');
+        const toolCall = msg?.toolCalls?.[0];
+
+        return {
+          hasToolCall: !!toolCall,
+          toolCallStatus: toolCall?.status,
+          toolCallResult: toolCall?.result,
+          containsExpected: toolCall?.result?.includes(expectedOutput)
+        };
       }, { command });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      // 验证 tool 消息包含命令输出
-      const toolMessageContent = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const toolMsg = chatStore?.messages.find((m: any) =>
-          m.tool_call_id === 'bash-call' && m.role === 'tool'
-        );
-        return toolMsg?.content;
-      });
-
-      console.log('[E2E] Bash output:', toolMessageContent);
-      expect(toolMessageContent).toBeTruthy();
-      expect(toolMessageContent).toContain(expectedOutput);
+      console.log('[E2E] Bash output result:', result);
+      expect(result.hasToolCall).toBe(true);
+      expect(result.toolCallStatus).toBe('completed');
+      expect(result.toolCallResult).toBeTruthy();
+      expect(result.containsExpected).toBe(true);
     });
 
     test('应该包含 stderr 输出', async ({ page }) => {
       const command = 'echo "stdout" && echo "stderr" >&2';
 
-      await page.evaluate(({ command }) => {
-        const chatStore = (window as any).__chatStore?.getState();
-        chatStore.addMessage({
+      const result = await page.evaluate(async ({ command }) => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
+
+        state.addMessage({
           id: 'msg-stderr',
           role: 'assistant',
           content: '执行命令',
@@ -361,23 +415,25 @@ test.describe('Agent Tools - Result Content Transmission', () => {
             status: 'pending'
           }]
         });
+
+        await state.approveToolCall('msg-stderr', 'stderr-call');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const msg = state.messages.find((m: any) => m.id === 'msg-stderr');
+        const toolCall = msg?.toolCalls?.[0];
+
+        return {
+          toolCallStatus: toolCall?.status,
+          toolCallResult: toolCall?.result,
+          hasStdout: toolCall?.result?.includes('stdout'),
+          hasStderr: toolCall?.result?.includes('stderr')
+        };
       }, { command });
 
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      const toolMessageContent = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        const toolMsg = chatStore?.messages.find((m: any) =>
-          m.tool_call_id === 'stderr-call' && m.role === 'tool'
-        );
-        return toolMsg?.content;
-      });
-
-      console.log('[E2E] Stderr output:', toolMessageContent);
-      expect(toolMessageContent).toContain('stdout');
-      expect(toolMessageContent).toContain('stderr');
+      console.log('[E2E] Stderr result:', result);
+      expect(result.toolCallStatus).toBe('completed');
+      expect(result.hasStdout).toBe(true);
+      expect(result.hasStderr).toBe(true);
     });
   });
 
@@ -397,19 +453,19 @@ Version: 1.0.0
         mockFileSystem.set('/Users/mac/mock-project/README.md', 'readme content');
       }, { fileName, content: fileContent });
 
-      // 用户询问项目结构
-      await page.evaluate(({ fileName }) => {
-        const chatStore = (window as any).__chatStore?.getState();
+      const result = await page.evaluate(async ({ fileName }) => {
+        const chatStore = (window as any).__chatStore;
+        const state = chatStore.getState();
 
         // 用户消息
-        chatStore.addMessage({
+        state.addMessage({
           id: 'msg-user',
           role: 'user',
           content: `分析 ${fileName} 并列出当前目录的文件`
         });
 
         // AI 响应（包含多个工具调用）
-        chatStore.addMessage({
+        state.addMessage({
           id: 'msg-assistant',
           role: 'assistant',
           content: '我来读取文件并列出目录',
@@ -428,31 +484,35 @@ Version: 1.0.0
             }
           ]
         });
+
+        // 批准两个工具调用
+        await state.approveToolCall('msg-assistant', 'read-info');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await state.approveToolCall('msg-assistant', 'list-dir');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 获取工具调用结果
+        const msg = state.messages.find((m: any) => m.id === 'msg-assistant');
+        const toolCalls = msg?.toolCalls || [];
+
+        const readCall = toolCalls.find((tc: any) => tc.id === 'read-info');
+        const listCall = toolCalls.find((tc: any) => tc.id === 'list-dir');
+
+        return {
+          readCallStatus: readCall?.status,
+          listCallStatus: listCall?.status,
+          readCallResult: readCall?.result,
+          listCallResult: listCall?.result,
+          readHasVersion: readCall?.result?.includes('Version: 1.0.0'),
+          listHasReadme: listCall?.result?.includes('README.md')
+        };
       }, { fileName });
 
-      // 批准两个工具调用
-      await removeJoyrideOverlay(page);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(500);
-      await page.locator('button:has-text("批准执行")').first().click();
-      await page.waitForTimeout(2000);
-
-      // 验证两个 tool 消息都包含正确的内容
-      const toolMessages = await page.evaluate(() => {
-        const chatStore = (window as any).__chatStore?.getState();
-        return chatStore?.messages.filter((m: any) => m.role === 'tool').map((m: any) => ({
-          content: m.content,
-          toolCallId: m.tool_call_id
-        }));
-      });
-
-      console.log('[E2E] Tool messages:', toolMessages);
-
-      const readMsg = toolMessages?.find((m: any) => m.toolCallId === 'read-info');
-      const listMsg = toolMessages?.find((m: any) => m.toolCallId === 'list-dir');
-
-      expect(readMsg?.content).toContain('Version: 1.0.0');
-      expect(listMsg?.content).toContain('README.md');
+      console.log('[E2E] Combined scenario result:', result);
+      expect(result.readCallStatus).toBe('completed');
+      expect(result.listCallStatus).toBe('completed');
+      expect(result.readHasVersion).toBe(true);
+      expect(result.listHasReadme).toBe(true);
     });
   });
 

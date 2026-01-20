@@ -361,3 +361,112 @@ export const parseToolCalls = (content: any): { segments: MessageSegment[] } => 
         segments: [{ type: 'text', content }]
     };
 };
+
+// ============================================================================
+// 🔥 Agent 相关导出 (用于 E2E 测试环境)
+// ============================================================================
+
+/**
+ * Agent 事件监听器接口 (Mock 版本)
+ */
+export interface IAgentEventListener {
+    init: (agentId: string) => Promise<() => void>;
+    register: (agentId: string, unlisten: () => void) => void;
+    cleanup: (agentId: string) => void;
+    cleanupAll: () => void;
+}
+
+/**
+ * 创建 Agent 事件监听器 (Mock 版本)
+ */
+export function createAgentListeners(): IAgentEventListener {
+    const activeListeners: Record<string, () => void> = {};
+
+    return {
+        init: async (agentId: string) => {
+            const unlisten = () => {
+                console.log('[Mock AgentListeners] Unlistening:', agentId);
+                delete activeListeners[agentId];
+            };
+            activeListeners[agentId] = unlisten;
+            return unlisten;
+        },
+        register: (agentId: string, unlisten: () => void) => {
+            activeListeners[agentId] = unlisten;
+        },
+        cleanup: (agentId: string) => {
+            const unlisten = activeListeners[agentId];
+            if (unlisten) {
+                unlisten();
+                delete activeListeners[agentId];
+            }
+        },
+        cleanupAll: () => {
+            Object.values(activeListeners).forEach(unlisten => unlisten());
+            Object.keys(activeListeners).forEach(k => delete activeListeners[k]);
+        }
+    };
+}
+
+/**
+ * 工具调用去重器接口 (Mock 版本)
+ */
+export interface IToolCallDeduplicator {
+    addDuplicate: (skippedId: string, canonicalId: string) => void;
+    getCanonicalId: (id: string) => string | undefined;
+    clearAll: () => void;
+}
+
+/**
+ * 创建工具调用去重器 (Mock 版本)
+ */
+export function createToolCallDeduplicator(): IToolCallDeduplicator {
+    const deduplicatedIds: Record<string, string> = {};
+
+    return {
+        addDuplicate: (skippedId: string, canonicalId: string) => {
+            deduplicatedIds[skippedId] = canonicalId;
+        },
+        getCanonicalId: (id: string) => {
+            return deduplicatedIds[id];
+        },
+        clearAll: () => {
+            Object.keys(deduplicatedIds).forEach(k => delete deduplicatedIds[k]);
+        }
+    };
+}
+
+/**
+ * 工具注册表 (Mock 版本 - 简化实现)
+ */
+export class ToolRegistry {
+    private tools = new Map<string, any>();
+
+    register<TArgs = any, TResult = any>(definition: any): void {
+        this.tools.set(definition.name, definition);
+    }
+
+    has(name: string): boolean {
+        return this.tools.has(name);
+    }
+
+    get(name: string): any {
+        return this.tools.get(name);
+    }
+
+    list(): any[] {
+        return Array.from(this.tools.values());
+    }
+
+    async execute<TArgs = any, TResult = any>(
+        name: string,
+        args: TArgs,
+        context: any
+    ): Promise<any> {
+        const tool = this.tools.get(name);
+        if (!tool) {
+            return { success: false, error: `Tool "${name}" not found` };
+        }
+        return tool.handler(args, context);
+    }
+}

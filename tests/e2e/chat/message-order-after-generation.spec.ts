@@ -1,15 +1,39 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from '../setup';
 
+/**
+ * Message Order After Code Generation
+ *
+ * 测试标签: @flaky
+ * 测试类别: Chat 消息顺序
+ * 测试目标: 验证连续生成代码时消息顺序正确，新消息追加到底部而不是替换旧消息
+ *
+ * @flaky 原因:
+ * - 依赖真实 AI API (DeepSeek)
+ * - 可能与其他测试产生状态污染
+ * - 单独运行通过，批量运行可能失败
+ */
 test.describe('Message Order After Code Generation', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 10000 });
     await page.waitForTimeout(2000);
+
+    // 清理聊天状态，确保测试隔离
+    await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore;
+      if (chatStore) {
+        chatStore.setState({
+          messages: [],
+          isLoading: false
+        });
+      }
+    });
+    await page.waitForTimeout(500);
   });
 
-  test('should append new messages to bottom instead of replacing old ones', async ({ page }) => {
+  test('@flaky should append new messages to bottom instead of replacing old ones', async ({ page }) => {
     test.setTimeout(90000);
 
     // 第一条消息：生成代码
@@ -86,7 +110,7 @@ test.describe('Message Order After Code Generation', () => {
     console.log('[E2E] ✅ Message order validation passed');
   });
 
-  test('should not modify existing message content when appending new ones', async ({ page }) => {
+  test('@flaky should not modify existing message content when appending new ones', async ({ page }) => {
     test.setTimeout(90000);
 
     // 生成第一条唯一内容
