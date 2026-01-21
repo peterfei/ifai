@@ -27,6 +27,7 @@
 
 ### 📈 Project Status
 
+- **🎉 v0.3.2 Performance Patch** - Jan 21, 2026 (Windows CPU Optimization, Rendering Engine Upgrade, Smart Debounce)
 - **🎉 v0.3.1 Stability & Zhipu Integration** - Jan 20, 2026 (Zhipu AI Native Support, Agent Architecture Refactor, Bash Tool, Resource Limits, Timeline UI)
 - **🎉 v0.3.0 Multimodal Vision Upgrade** - Jan 14, 2026 (Vision LLM, Hybrid Scheduling, Code Navigation, Onboarding Tour)
 - **🎉 v0.2.9 Agent Intelligence** - Jan 12, 2026 (Smart Terminal Loop, Inline Editing Experience, AI Code Review)
