@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import Editor, { OnMount, loader } from '@monaco-editor/react';
 import { useEditorStore } from '../../stores/editorStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -25,6 +25,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
 import { debounce } from 'lodash-es';
+
+// ============================================================================
+// Windows 平台检测 - 用于性能优化
+// ============================================================================
+const isWindowsPlatform = typeof window !== 'undefined' &&
+  (window.navigator.platform.includes('Win') || window.navigator.userAgent.includes('Windows'));
 
 // Configure monaco-editor to use local files instead of CDN to avoid 404 errors
 loader.config({ monaco });
@@ -69,6 +75,39 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const definitionProviderHandleRef = useRef<{ dispose: () => void; updatePath: (path: string | undefined) => void } | null>(null);
   const referencesProviderHandleRef = useRef<{ dispose: () => void; updatePath: (path: string | undefined) => void } | null>(null);
 
+  // 🔥 修复无限循环：使用 ref 存储编辑器实例，避免依赖 getEditorInstance
+  // ⚠️ 必须在所有 useEffect 之前声明所有 hooks
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  // 🔥 内联补全防抖 refs - 必须在组件顶层声明
+  type CompletionRequest = {
+    model: monaco.editor.ITextModel;
+    position: monaco.Position;
+    resolve: (result: monaco.languages.InlineCompletions<monaco.languages.InlineCompletion>) => void;
+  };
+  const pendingCompletionRef = useRef<CompletionRequest | null>(null);
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🔥 Token 计数和内容更新防抖常量
+  const TOKEN_COUNT_DEBOUNCE_MS = isWindowsPlatform ? 1000 : 500;
+  const CODE_ANALYSIS_DEBOUNCE_MS = isWindowsPlatform ? 2000 : 1000;
+  const SYMBOL_INDEX_DEBOUNCE_MS = isWindowsPlatform ? 1500 : 500;
+  const CONTENT_UPDATE_DEBOUNCE_MS = isWindowsPlatform ? 1000 : 300;
+
+  // 🔥 内容更新防抖 ref - 必须在组件顶层声明
+  const debouncedUpdateRef = useRef(
+    debounce((id: string, value: string) => {
+      useFileStore.getState().updateFileContent(id, value);
+    }, CONTENT_UPDATE_DEBOUNCE_MS)
+  );
+
+  // 🔥 文件大小缓存 refs - 必须在组件顶层声明
+  const fileSizeRef = useRef(0);
+  const lastFilePath = useRef(file?.path);
+
+  // 🔥 Token count ref - 必须在组件顶层声明
+  const updateTokenCountRef = useRef<((text: string) => void) | null>(null);
+
   // 🔥 修复：当文件切换时更新提供者的当前路径
   useEffect(() => {
     const path = file?.path;
@@ -76,9 +115,6 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     definitionProviderHandleRef.current?.updatePath(path);
     referencesProviderHandleRef.current?.updatePath(path);
   }, [file?.path]);
-
-  // 🔥 修复无限循环：使用 ref 存储编辑器实例，避免依赖 getEditorInstance
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   // Debounced token count update
   const updateTokenCount = useCallback(
@@ -97,13 +133,12 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
           console.error('[MonacoEditor] Failed to count tokens:', e);
         }
       }
-    }, 500),
+    }, TOKEN_COUNT_DEBOUNCE_MS),
     [setActiveFileTokenCount]
   );
 
   // Initial count when file changes
   // 🔥 修复无限循环：使用 ref 存储 updateTokenCount 避免依赖变化
-  const updateTokenCountRef = useRef(updateTokenCount);
   updateTokenCountRef.current = updateTokenCount;
 
   useEffect(() => {
@@ -313,107 +348,145 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     // ========================================================================
 
     // ========================================================================
+    // 🔥 性能优化：带防抖的内联补全提供者
+    // Windows 平台下 CPU 飙升问题修复
+    // ========================================================================
 
-    // Register Inline Completion Provider (applies to all languages)
-    const completionProvider = monaco.languages.registerInlineCompletionsProvider('*', {
-      provideInlineCompletions: async (model, position, context, token) => {
-        const { providers, currentProviderId, enableAutocomplete, useLocalModelForCompletion } = useSettingsStore.getState();
-        if (!enableAutocomplete) return { items: [] };
+    // 实际执行补全的函数
+    const executeCompletion = async (model: monaco.editor.ITextModel, position: monaco.Position) => {
+      const { providers, currentProviderId, enableAutocomplete, useLocalModelForCompletion } = useSettingsStore.getState();
+      if (!enableAutocomplete) return { items: [] };
 
-        // Get Context
-        const textBefore = model.getValueInRange({
-          startLineNumber: Math.max(1, position.lineNumber - 50),
-          startColumn: 1,
-          endLineNumber: position.lineNumber,
-          endColumn: position.column,
-        });
+      // Get Context
+      const textBefore = model.getValueInRange({
+        startLineNumber: Math.max(1, position.lineNumber - 50),
+        startColumn: 1,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      });
 
-        const textAfter = model.getValueInRange({
-          startLineNumber: position.lineNumber,
-          startColumn: position.column,
-          endLineNumber: Math.min(model.getLineCount(), position.lineNumber + 20),
-          endColumn: 1,
-        });
+      const textAfter = model.getValueInRange({
+        startLineNumber: position.lineNumber,
+        startColumn: position.column,
+        endLineNumber: Math.min(model.getLineCount(), position.lineNumber + 20),
+        endColumn: 1,
+      });
 
-        const prompt = `You are a code completion engine. Output only the code to complete the cursor location. Do not output markdown.
+      const prompt = `You are a code completion engine. Output only the code to complete the cursor location. Do not output markdown.
 Context:
 ${textBefore}[CURSOR]${textAfter}
 `;
 
-        // Try local model first if enabled
-        if (useLocalModelForCompletion) {
-          try {
-            console.log('[Completion] Trying local model (FIM)...');
-            const localResult = await invoke<string>('local_model_fim', {
-              prefix: textBefore,
-              suffix: textAfter,
-              maxTokens: 128,
-            });
+      // 🔥 Windows 平台优化：禁用本地模型（避免 CPU 飙升）
+      const shouldUseLocal = useLocalModelForCompletion && !isWindowsPlatform;
 
-            if (localResult && localResult.trim().length > 0) {
-              console.log('[Completion] ✓ Local model succeeded');
-              return {
-                items: [{
-                  insertText: localResult,
-                  range: new monaco.Range(
-                    position.lineNumber,
-                    position.column,
-                    position.lineNumber,
-                    position.column
-                  )
-                }]
-              };
-            }
-          } catch (e) {
-            console.log('[Completion] Local model failed, falling back to cloud:', e);
-            // Fall through to cloud API
-          }
-        }
-
-        // Fallback to cloud API
-        const currentProvider = providers.find(p => p.id === currentProviderId);
-        if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) return { items: [] };
-
-        // Convert to backend format
-        const backendProviderConfig = {
-          id: currentProvider.id,
-          name: currentProvider.name,
-          protocol: currentProvider.protocol,
-          apiKey: currentProvider.apiKey,
-          baseUrl: currentProvider.baseUrl,
-          models: currentProvider.models,
-          enabled: currentProvider.enabled,
-        };
-
+      // Try local model first if enabled
+      if (shouldUseLocal) {
         try {
-          console.log('[Completion] Using cloud API...');
-          const messages = [{ role: 'user', content: prompt }];
-          const result = await invoke<string>('ai_completion', {
-            providerConfig: backendProviderConfig,
-            messages
+          console.log('[Completion] Trying local model (FIM)...');
+          const localResult = await invoke<string>('local_model_fim', {
+            prefix: textBefore,
+            suffix: textAfter,
+            maxTokens: 128,
           });
 
-          if (!result) return { items: [] };
-
-          // Clean up result (remove markdown blocks if any)
-          let cleanText = result.replace(/^```\w*\n/, '').replace(/\n```$/, '');
-
-          console.log('[Completion] ✓ Cloud API succeeded');
-          return {
-            items: [{
-              insertText: cleanText,
-              range: new monaco.Range(
-                position.lineNumber,
-                position.column,
-                position.lineNumber,
-                position.column
-              )
-            }]
-          };
+          if (localResult && localResult.trim().length > 0) {
+            console.log('[Completion] ✓ Local model succeeded');
+            return {
+              items: [{
+                insertText: localResult,
+                range: new monaco.Range(
+                  position.lineNumber,
+                  position.column,
+                  position.lineNumber,
+                  position.column
+                )
+              }]
+            };
+          }
         } catch (e) {
-          console.error('[Completion] Cloud API failed:', e);
-          return { items: [] };
+          console.log('[Completion] Local model failed, falling back to cloud:', e);
+          // Fall through to cloud API
         }
+      }
+
+      // Fallback to cloud API
+      const currentProvider = providers.find(p => p.id === currentProviderId);
+      if (!currentProvider || !currentProvider.apiKey || !currentProvider.enabled) return { items: [] };
+
+      // Convert to backend format
+      const backendProviderConfig = {
+        id: currentProvider.id,
+        name: currentProvider.name,
+        protocol: currentProvider.protocol,
+        apiKey: currentProvider.apiKey,
+        baseUrl: currentProvider.baseUrl,
+        models: currentProvider.models,
+        enabled: currentProvider.enabled,
+      };
+
+      try {
+        console.log('[Completion] Using cloud API...');
+        const messages = [{ role: 'user', content: prompt }];
+        const result = await invoke<string>('ai_completion', {
+          providerConfig: backendProviderConfig,
+          messages
+        });
+
+        if (!result) return { items: [] };
+
+        // Clean up result (remove markdown blocks if any)
+        let cleanText = result.replace(/^```\w*\n/, '').replace(/\n```$/, '');
+
+        console.log('[Completion] ✓ Cloud API succeeded');
+        return {
+          items: [{
+            insertText: cleanText,
+            range: new monaco.Range(
+              position.lineNumber,
+              position.column,
+              position.lineNumber,
+              position.column
+            )
+          }]
+        };
+      } catch (e) {
+        console.error('[Completion] Cloud API failed:', e);
+        return { items: [] };
+      }
+    };
+
+    // 🔥 防抖延迟：Windows 平台使用更长的延迟
+    const COMPLETION_DEBOUNCE_MS = isWindowsPlatform ? 500 : 300;
+
+    // 注册带防抖的内联补全提供者
+    const completionProvider = monaco.languages.registerInlineCompletionsProvider('*', {
+      provideInlineCompletions: async (model, position, context, token) => {
+        // 取消之前的请求
+        if (completionTimerRef.current) {
+          clearTimeout(completionTimerRef.current);
+        }
+
+        // 返回一个 Promise，在防抖延迟后执行
+        return new Promise((resolve) => {
+          // 保存当前请求
+          pendingCompletionRef.current = { model, position, resolve };
+
+          // 设置防抖延迟
+          completionTimerRef.current = setTimeout(async () => {
+            // 检查是否有待处理的请求
+            const request = pendingCompletionRef.current;
+            if (!request) {
+              resolve({ items: [] });
+              return;
+            }
+
+            // 执行补全
+            const result = await executeCompletion(request.model, request.position);
+            request.resolve(result);
+            pendingCompletionRef.current = null;
+          }, COMPLETION_DEBOUNCE_MS);
+        });
       },
       handleItemDidShow: (completions, item) => {
         // Called when an inline completion item is shown to the user
@@ -425,6 +498,11 @@ ${textBefore}[CURSOR]${textAfter}
       // Additional method for Monaco's internal disposal
       disposeInlineCompletions: (completions, reason) => {
         // Handle Monaco's internal disposal
+        // 取消待处理的请求
+        if (completionTimerRef.current) {
+          clearTimeout(completionTimerRef.current);
+        }
+        pendingCompletionRef.current = null;
       }
     });
 
@@ -461,6 +539,11 @@ ${textBefore}[CURSOR]${textAfter}
 
     // Cleanup on unmount
     return () => {
+      // 取消待处理的补全请求
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
+      pendingCompletionRef.current = null;
       completionProvider.dispose();
       symbolCompletionHandleRef.current?.dispose();
       definitionProviderHandleRef.current?.dispose();
@@ -468,9 +551,26 @@ ${textBefore}[CURSOR]${textAfter}
     };
   }, [paneId, setEditorInstance, setChatOpen, sendMessage, showInlineEdit, t]); // 🔥 修复无限循环：移除 file?.path, file?.content, file?.language 依赖（使用 fileRef.current 代替）
 
+  // 清理防抖函数（组件卸载时）
+  useEffect(() => {
+    return () => {
+      debouncedUpdateRef.current.cancel();
+    };
+  }, []);
+
   const handleChange = (value: string | undefined) => {
     if (fileId && value !== undefined) {
-      useFileStore.getState().updateFileContent(fileId, value);
+      // 1. 立即标记为 dirty，保证 UI 响应（如 Tab 上的小圆点）
+      // 从 store 获取最新状态，避免使用闭包中的旧值
+      const currentFile = useFileStore.getState().openedFiles.find(f => f.id === fileId);
+      if (currentFile && !currentFile.isDirty) {
+        useFileStore.getState().setFileDirty(fileId, true);
+      }
+
+      // 2. 防抖更新完整内容，避免全应用重渲染
+      debouncedUpdateRef.current(fileId, value);
+
+      // Token 计数已有自己的防抖逻辑
       updateTokenCount(value);
     }
   };
@@ -491,11 +591,6 @@ ${textBefore}[CURSOR]${textAfter}
   const tabSize = useSettingsStore(state => state.tabSize);
   const wordWrap = useSettingsStore(state => state.wordWrap);
   const isChatStreaming = useChatStore(state => state.isLoading);
-
-  // Cache file size to avoid re-computing on every keystroke
-  // Only update when file actually changes (not on every character typed)
-  const fileSizeRef = useRef(0);
-  const lastFilePath = useRef(file?.path);
 
   // Update file size only when file path changes (new file loaded)
   if (file?.path !== lastFilePath.current) {
@@ -608,7 +703,7 @@ ${textBefore}[CURSOR]${textAfter}
       } catch (error) {
         console.error('[MonacoEditor] Code analysis failed:', error);
       }
-    }, 1000); // 1秒防抖
+    }, CODE_ANALYSIS_DEBOUNCE_MS); // 🔥 Windows 平台使用更长延迟
 
     return () => clearTimeout(timer);
   }, [file?.id, file?.content, file?.language, analyzeFile, autoAnalyze]);
@@ -624,7 +719,7 @@ ${textBefore}[CURSOR]${textAfter}
       } catch (error) {
         console.error('[MonacoEditor] Symbol indexing failed:', error);
       }
-    }, 500); // 500ms 防抖
+    }, SYMBOL_INDEX_DEBOUNCE_MS); // 🔥 Windows 平台使用更长延迟
 
     return () => clearTimeout(timer);
   }, [file?.id, file?.content, file?.path]);

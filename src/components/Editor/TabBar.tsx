@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
 import { Eye, Code, Columns } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -6,15 +6,38 @@ import { TabContextMenu } from './TabContextMenu';
 import clsx from 'clsx';
 
 export const TabBar = () => {
-  const { openedFiles, activeFileId, setActiveFile, closeFile, previewMode, togglePreviewMode } = useFileStore();
+  // 🔥 修复无限循环：避免在 selector 中创建新数组
+  // 直接订阅 openedFiles 数组，zustand 保证数组引用稳定
+  const openedFiles = useFileStore(state => state.openedFiles);
+  const activeFileId = useFileStore(state => state.activeFileId);
+  const previewMode = useFileStore(state => state.previewMode);
+
+  // 订阅方法（这些引用是稳定的）
+  const setActiveFile = useFileStore(state => state.setActiveFile);
+  const closeFile = useFileStore(state => state.closeFile);
+  const togglePreviewMode = useFileStore(state => state.togglePreviewMode);
+
   const { activePaneId, assignFileToPane } = useLayoutStore();
   const tabBarRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string } | null>(null);
 
+  // 🔥 使用 useMemo 创建稳定的元数据数组
+  // 只有当 openedFiles 数组引用变化时才重新计算
+  const tabsMetadata = useMemo(() =>
+    openedFiles.map(f => ({
+      id: f.id,
+      name: f.name,
+      path: f.path,
+      isDirty: f.isDirty,
+      language: f.language
+    })),
+    [openedFiles]
+  );
+
   // 获取当前活动文件
   const activeFile = useMemo(() =>
-    openedFiles.find(f => f.id === activeFileId) || null,
-    [openedFiles, activeFileId]
+    tabsMetadata.find(f => f.id === activeFileId) || null,
+    [tabsMetadata, activeFileId]
   );
 
   // 是否显示预览按钮（仅对 Markdown 文件显示）
@@ -78,7 +101,7 @@ export const TabBar = () => {
       <div
         className="flex items-center flex-1 overflow-x-auto min-w-0 horizontal-scrollbar"
       >
-        {openedFiles.map((file, index) => (
+        {tabsMetadata.map((file, index) => (
           <div
             key={`${file.path}-${index}`}
             className={clsx(

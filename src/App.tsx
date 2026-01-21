@@ -504,7 +504,10 @@ function App() {
   const shortcutHandlers = {
     'file.save': async (e: KeyboardEvent) => {
       e.preventDefault();
+      // 🔥 优化：从 getState() 获取最新状态，避免在 App 组件中订阅频繁变化的数据
+      const { openedFiles, activeFileId, setFileDirty } = useFileStore.getState();
       const activeFile = openedFiles.find(f => f.id === activeFileId);
+      
       if (activeFile) {
         try {
           if (activeFile.path.startsWith('snippet://')) {
