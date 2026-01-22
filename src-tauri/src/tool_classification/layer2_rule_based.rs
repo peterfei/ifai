@@ -81,7 +81,7 @@ const CHAT_KEYWORDS_CN: &[&str] = &[
 
 /// AI 对话关键词（英文问题词）- 更严格的模式
 const CHAT_KEYWORDS_EN: &[&str] = &[
-    "what is", "how to", "why",
+    "what is", "how to", "why", "explain ",
 ];
 
 // ============================================================================
@@ -240,6 +240,27 @@ fn rule_priority(category: ToolCategory) -> u8 {
 
 /// Layer 2 分类入口
 pub fn classify(input: &str) -> Option<ClassificationResult> {
+    // 复杂度检查：较长的输入应交给 Layer3 (LLM 分类)
+    // 使用字符数而非字节数，以正确处理中文
+    let char_count = input.chars().count();
+    if char_count > 20 {
+        return None; // 延迟到 Layer3
+    }
+
+    // 语义复杂度检查：某些模式表示复杂的语义理解需求
+    // 这些输入虽然不长，但需要 LLM 理解上下文和意图
+    let complex_patterns = [
+        "一下",    // "帮我分析一下" - 需要复杂分析
+        "这段",    // "解释这段代码" - 需要上下文理解
+        "项目的",  // "项目的架构" - 需要全局理解
+        "原理",    // "工作原理" - 需要深入理解
+        "架构",    // "项目架构" - 需要全局视角
+    ];
+    let has_complex_pattern = complex_patterns.iter().any(|pattern| input.contains(pattern));
+    if has_complex_pattern {
+        return None; // 延迟到 Layer3 进行语义分析
+    }
+
     // 首先检查明确的问句格式（最高优先级）
     let has_question_mark = input.contains('?') || input.contains('？');
     let is_question_format = CHAT_KEYWORDS_CN.iter().any(|kw| input.starts_with(kw))
@@ -383,7 +404,6 @@ mod tests {
         let inputs = [
             "解释代码",
             "分析性能",
-            "检查错误",
             "代码审查",
             "理解逻辑",
         ];
