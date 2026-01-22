@@ -82,6 +82,12 @@ export interface SettingsState {
   enableNaturalLanguageAgentTrigger: boolean;
   agentTriggerConfidenceThreshold: number;
 
+  // Tool Classification (v0.3.3)
+  toolClassificationEnabled: boolean;
+  toolClassificationConfidenceThreshold: number;
+  toolClassificationFallbackStrategy: 'always' | 'on-low-confidence' | 'never';
+  showToolClassificationIndicator: boolean;
+
   // RAG
   enableAutoRAG: boolean;
   enableSmartRAG: boolean;
@@ -181,6 +187,12 @@ export const useSettingsStore = create<SettingsState>()(
       agentAutoApprove: false,
       enableNaturalLanguageAgentTrigger: true,
       agentTriggerConfidenceThreshold: 0.6,  // 降低阈值以提高触发敏感度
+
+      // Tool Classification settings (v0.3.3)
+      toolClassificationEnabled: true,
+      toolClassificationConfidenceThreshold: 0.7,
+      toolClassificationFallbackStrategy: 'on-low-confidence',
+      showToolClassificationIndicator: true,
 
       // RAG settings
       enableAutoRAG: true,

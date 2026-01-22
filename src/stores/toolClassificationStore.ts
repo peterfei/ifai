@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand';
-import { subscribeWithSelector } from 'zustand/middleware';
+import { subscribeWithSelector, persist } from 'zustand/middleware';
 import type {
   ClassificationResult,
   ClassificationHistoryItem,
@@ -13,6 +13,21 @@ import type {
   ClassificationLayer,
 } from '@/types/toolClassification';
 import { toolClassificationService } from '@/services/toolClassificationService';
+
+/**
+ * 用户反馈数据
+ */
+export interface ClassificationFeedback {
+  id: string;
+  input: string;
+  result: ClassificationResult;
+  isCorrect: boolean;
+  timestamp: number;
+  /** 用户预期类别（如果分类错误） */
+  expectedCategory?: ToolCategory;
+  /** 备注 */
+  notes?: string;
+}
 
 /**
  * 工具分类Store状态
@@ -35,6 +50,15 @@ interface ToolClassificationState {
     byLayer: Record<ClassificationLayer, number>;
     averageConfidence: number;
   };
+  /** 用户反馈数据 */
+  feedback: ClassificationFeedback[];
+  /** 反馈统计 */
+  feedbackStats: {
+    total: number;
+    correct: number;
+    incorrect: number;
+    accuracyRate: number;
+  };
 }
 
 /**
@@ -53,6 +77,14 @@ interface ToolClassificationActions {
   reset: () => void;
   /** 更新统计信息 */
   updateStats: () => void;
+  /** 提交反馈 */
+  submitFeedback: (input: string, result: ClassificationResult, isCorrect: boolean, expectedCategory?: ToolCategory, notes?: string) => void;
+  /** 删除反馈 */
+  removeFeedback: (id: string) => void;
+  /** 清空反馈 */
+  clearFeedback: () => void;
+  /** 更新反馈统计 */
+  updateFeedbackStats: () => void;
 }
 
 /**
@@ -82,6 +114,13 @@ const initialState: ToolClassificationState = {
     },
     averageConfidence: 0,
   },
+  feedback: [],
+  feedbackStats: {
+    total: 0,
+    correct: 0,
+    incorrect: 0,
+    accuracyRate: 0,
+  },
 };
 
 /**
@@ -97,7 +136,9 @@ function generateId(): string {
 export const useToolClassificationStore = create<
   ToolClassificationState & ToolClassificationActions
 >()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector(
+    persist(
+      (set, get) => ({
     ...initialState,
 
     /**
@@ -240,7 +281,77 @@ export const useToolClassificationStore = create<
         },
       });
     },
-  }))
+
+    /**
+     * 提交反馈
+     */
+    submitFeedback: (input: string, result: ClassificationResult, isCorrect: boolean, expectedCategory?: ToolCategory, notes?: string) => {
+      const feedbackItem: ClassificationFeedback = {
+        id: generateId(),
+        input,
+        result,
+        isCorrect,
+        expectedCategory,
+        notes,
+        timestamp: Date.now(),
+      };
+
+      set((state) => ({
+        feedback: [feedbackItem, ...state.feedback].slice(0, 500), // 保留最近500条反馈
+      }));
+
+      // 更新反馈统计
+      get().updateFeedbackStats();
+    },
+
+    /**
+     * 删除反馈
+     */
+    removeFeedback: (id: string) => {
+      set((state) => ({
+        feedback: state.feedback.filter((item) => item.id !== id),
+      }));
+      get().updateFeedbackStats();
+    },
+
+    /**
+     * 清空反馈
+     */
+    clearFeedback: () => {
+      set({ feedback: [] });
+      get().updateFeedbackStats();
+    },
+
+    /**
+     * 更新反馈统计
+     */
+    updateFeedbackStats: () => {
+      const { feedback } = get();
+
+      const correct = feedback.filter((f) => f.isCorrect).length;
+      const incorrect = feedback.filter((f) => !f.isCorrect).length;
+
+      set({
+        feedbackStats: {
+          total: feedback.length,
+          correct,
+          incorrect,
+          accuracyRate: feedback.length > 0 ? (correct / feedback.length) * 100 : 0,
+        },
+      });
+    },
+  })),
+  {
+    name: 'tool-classification-storage',
+    version: 1,
+    // 只持久化历史记录和反馈数据，不包括当前状态
+    partialize: (state) => ({
+      history: state.history,
+      feedback: state.feedback,
+      stats: state.stats,
+      feedbackStats: state.feedbackStats,
+    }),
+  })
 );
 
 /**
@@ -272,3 +383,15 @@ export const useClassificationError = () =>
  */
 export const useClassificationStats = () =>
   useToolClassificationStore((state) => state.stats);
+
+/**
+ * 选择器：获取反馈数据
+ */
+export const useFeedback = () =>
+  useToolClassificationStore((state) => state.feedback);
+
+/**
+ * 选择器：获取反馈统计
+ */
+export const useFeedbackStats = () =>
+  useToolClassificationStore((state) => state.feedbackStats);

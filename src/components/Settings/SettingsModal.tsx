@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM, Globe } from 'lucide-react';
+import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM, Globe, Target } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { useTranslation } from 'react-i18next';
@@ -8,12 +8,13 @@ import { useLayoutStore } from '../../stores/layoutStore';
 import { DataManagementPanel } from './DataManagementPanel';
 import { LocalModelSettings } from './LocalModelSettings';
 import { CustomProviderSettings } from './CustomProviderSettings';
+import { ToolClassificationSettings } from './ToolClassificationSettings';
 
 export const SettingsModal = () => {
   const { t, i18n } = useTranslation();
   const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
   const settings = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification'>('general');
 
   // 获取本地化的提供商名称
   const getProviderName = (providerId: string, fallbackName: string): string => {
@@ -60,6 +61,7 @@ export const SettingsModal = () => {
     { id: 'keybindings', label: t('shortcuts.keyboardShortcuts'), icon: Keyboard },
     { id: 'data', label: t('settings.dataManagement'), icon: Database },
     { id: 'localModel', label: t('settings.localModelSettings'), icon: LocalLLM },
+    { id: 'toolClassification', label: '工具分类', icon: Target },
   ] as const;
 
   return (
@@ -92,6 +94,7 @@ export const SettingsModal = () => {
                activeTab === 'data' ? t('settings.dataManagement') :
                activeTab === 'localModel' ? t('settings.localModelSettings') :
                activeTab === 'customProvider' ? t('settings.customProvider') :
+               activeTab === 'toolClassification' ? '工具分类设置' :
                `${t(`settings.${activeTab}`)} ${t('chat.settings')}`}
             </h2>
             <button onClick={() => setSettingsOpen(false)} className="text-gray-400 hover:text-white">
@@ -459,6 +462,7 @@ export const SettingsModal = () => {
             {activeTab === 'data' && <DataManagementPanel />}
             {activeTab === 'localModel' && <LocalModelSettings />}
             {activeTab === 'customProvider' && <CustomProviderSettings />}
+            {activeTab === 'toolClassification' && <ToolClassificationSettings />}
           </div>
         </div>
       </div>

@@ -10,3 +10,4 @@ export { default as ClassificationHistory } from './ClassificationHistory';
 export { CompactHistory } from './ClassificationHistory';
 export { default as ToolClassificationPanel } from './ToolClassificationPanel';
 export { ToolClassificationIndicator } from './ToolClassificationIndicator';
+export { ToolClassificationMonitor } from './ToolClassificationMonitor';
