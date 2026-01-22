@@ -15,6 +15,7 @@ import { PerformancePanel } from './components/DevTools/PerformancePanel';
 import { CacheStatsPanel } from './components/PerformanceMonitor/CacheStatsPanel';
 import { WelcomeDialog, LocalModelDownload, APIKeyGuideDialog } from './components/Onboarding';
 import { OnboardingTour } from './components/Onboarding/OnboardingTour';
+import { ToolClassificationTestPage } from './components/Debug/ToolClassificationTestPage';
 import { CodeReviewModal, ReviewHistoryPanel } from './components/CodeReview';
 import { InlineEditWidget, DiffEditorModal } from './components/InlineEdit';
 import { KeyboardShortcutsModal } from './components/Help/KeyboardShortcutsModal';
@@ -35,6 +36,8 @@ import { CodeSmellPanel } from './components/CodeAnalysis/CodeSmellPanel';
 import { useRefactoringStore } from './stores/refactoringStore';
 import { RefactoringPreviewPanel } from './components/Refactoring/RefactoringPreviewPanel';
 import { shallow } from 'zustand/shallow';
+// v0.3.3: Debug panels
+import { useDebugStore } from './stores/debugStore';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
 import { Toaster, toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -610,6 +613,12 @@ function App() {
       } else {
         console.log('[App] F12 pressed - Use browser DevTools in dev mode to debug');
       }
+    },
+    // v0.3.3: 打开工具分类测试页面
+    'debug.openToolClassificationTest': (e: KeyboardEvent) => {
+      e.preventDefault();
+      const { toggleToolClassificationTest } = useDebugStore.getState();
+      toggleToolClassificationTest();
     }
   };
 
@@ -778,6 +787,10 @@ function App() {
           />
         )}
         {showCacheStats && <CacheStatsPanel onClose={() => setShowCacheStats(false)} />}
+
+        {/* v0.3.3: 工具分类测试页面 */}
+        {useDebugStore((state) => state.isToolClassificationTestOpen) && <ToolClassificationTestPage />}
+
         <div data-testid="toast-container">
           <Toaster position="bottom-right" theme="dark" />
         </div>

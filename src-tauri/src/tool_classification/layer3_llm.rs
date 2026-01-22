@@ -12,6 +12,9 @@ Layer 3: LLM Classification
 */
 
 use super::types::{ClassificationResult, ClassificationLayer, ToolCategory};
+
+// 条件导入：仅当启用 llm-inference feature 时可用
+#[cfg(feature = "llm-inference")]
 use crate::llm_inference::{generate_completion, InferenceError};
 
 // ============================================================================
@@ -129,6 +132,7 @@ fn fallback_classify(input: &str) -> ClassificationResult {
 // ============================================================================
 
 /// Layer 3 分类入口（使用 Qwen 0.5B）
+#[cfg(feature = "llm-inference")]
 pub fn classify(input: &str) -> ClassificationResult {
     // 检查 LLM 推理是否可用
     if !crate::llm_inference::is_available() {
@@ -161,6 +165,13 @@ pub fn classify(input: &str) -> ClassificationResult {
             fallback_classify(input)
         }
     }
+}
+
+/// Layer 3 分类入口（无 LLM 时，使用回退逻辑）
+#[cfg(not(feature = "llm-inference"))]
+pub fn classify(input: &str) -> ClassificationResult {
+    // 无 LLM 支持，直接使用回退逻辑
+    fallback_classify(input)
 }
 
 // ============================================================================

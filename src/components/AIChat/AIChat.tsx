@@ -54,6 +54,7 @@ import { errorFixService, type ParsedError, type AIFixSuggestion, isFixableError
 // v0.3.0: 多模态图片输入
 import { ImageInput } from '../Multimodal';
 import type { ImageAttachment } from '../../types/multimodal';
+import { ToolClassificationIndicator } from '../ToolClassification';
 
 interface AIChatProps {
   width?: number;
@@ -2237,6 +2238,16 @@ ${suggestion.fixContext.code_context}
               disabled={isLoading}
               maxImages={3}
               maxFileSize={5}
+            />
+          )}
+
+          {/* v0.3.3: 工具分类指示器 */}
+          {input.length >= 2 && !showCommands && (
+            <ToolClassificationIndicator
+              input={input}
+              disabled={isLoading}
+              minLength={2}
+              debounceMs={300}
             />
           )}
 

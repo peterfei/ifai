@@ -35,6 +35,7 @@ const IFAI_DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { id: 'view.togglePerformanceMonitor', commandId: 'view.togglePerformanceMonitor', keys: 'Mod+Alt+p', label: 'Toggle Performance Monitor', category: 'View', scheme: 'ifai' },
   { id: 'perf.toggleCacheStats', commandId: 'perf.toggleCacheStats', keys: 'Mod+Shift+c', label: 'Toggle Cache Stats', category: 'Developer', scheme: 'ifai' },
   { id: 'debug.openDevTools', commandId: 'debug.openDevTools', keys: 'F12', label: 'Open DevTools', category: 'Developer', scheme: 'ifai' },
+  { id: 'debug.openToolClassificationTest', commandId: 'debug.openToolClassificationTest', keys: 'Mod+Shift+d', label: 'Tool Classification Test', category: 'Developer', scheme: 'ifai' },
   { id: 'layout.splitVertical', commandId: 'layout.splitVertical', keys: 'Mod+Shift+\\', label: 'Split Vertical', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.splitHorizontal', commandId: 'layout.splitHorizontal', keys: 'Mod+\\', label: 'Split Horizontal', category: 'Layout', scheme: 'ifai' },
   { id: 'layout.closePane', commandId: 'layout.closePane', keys: 'Mod+w', label: 'Close Pane', category: 'Layout', scheme: 'ifai' },
@@ -53,6 +54,8 @@ const VSCODE_KEYBINDINGS: KeyBinding[] = [
   { id: 'view.toggleTerminal', commandId: 'view.toggleTerminal', keys: 'Ctrl+`', label: 'Toggle Terminal', category: 'View', scheme: 'vscode' }, // Different binding
   { id: 'view.togglePerformanceMonitor', commandId: 'view.togglePerformanceMonitor', keys: 'Mod+Alt+p', label: 'Toggle Performance Monitor', category: 'View', scheme: 'vscode' },
   { id: 'perf.toggleCacheStats', commandId: 'perf.toggleCacheStats', keys: 'Mod+Shift+c', label: 'Toggle Cache Stats', category: 'Developer', scheme: 'vscode' },
+  { id: 'debug.openDevTools', commandId: 'debug.openDevTools', keys: 'F12', label: 'Open DevTools', category: 'Developer', scheme: 'vscode' },
+  { id: 'debug.openToolClassificationTest', commandId: 'debug.openToolClassificationTest', keys: 'Mod+Shift+d', label: 'Tool Classification Test', category: 'Developer', scheme: 'vscode' },
   { id: 'layout.splitVertical', commandId: 'layout.splitVertical', keys: 'Mod+Shift+\\', label: 'Split Vertical', category: 'Layout', scheme: 'vscode' },
   { id: 'layout.splitHorizontal', commandId: 'layout.splitHorizontal', keys: 'Mod+`', label: 'Split Horizontal', category: 'Layout', scheme: 'vscode' }, // Different binding
   { id: 'layout.closePane', commandId: 'layout.closePane', keys: 'Mod+w', label: 'Close Pane', category: 'Layout', scheme: 'vscode' },
@@ -77,6 +80,7 @@ const INTELLIJ_KEYBINDINGS: KeyBinding[] = [
   { id: 'layout.focusPane3', commandId: 'layout.focusPane3', keys: 'Alt+3', label: 'Focus Pane 3', category: 'Layout', scheme: 'intellij' }, // Different binding
   { id: 'layout.focusPane4', commandId: 'layout.focusPane4', keys: 'Alt+4', label: 'Focus Pane 4', category: 'Layout', scheme: 'intellij' }, // Different binding
   { id: 'layout.toggleSidebar', commandId: 'layout.toggleSidebar', keys: 'Mod+b', label: 'Toggle Sidebar', category: 'Layout', scheme: 'intellij' },
+  { id: 'debug.openToolClassificationTest', commandId: 'debug.openToolClassificationTest', keys: 'Mod+Shift+d', label: 'Tool Classification Test', category: 'Developer', scheme: 'intellij' },
 ];
 
 const PRESET_SCHEMES = {
