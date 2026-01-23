@@ -162,6 +162,45 @@ await page.evaluate(() => {
 });
 ```
 
+### 5. 测试标记规范 (Test Tags)
+
+使用标记对测试进行分类，便于有选择地运行测试。
+
+**可用标记**:
+
+| 标记 | 说明 | 运行命令 | 使用场景 |
+|------|------|----------|----------|
+| `@fast` | 快速测试 | `npm run test:e2e:fast` | 单元测试、简单 UI 验证 |
+| `@medium` | 中等速度测试 | `npm run test:e2e:medium` | 功能测试、表单交互 |
+| `@slow` | 慢速测试 | `npm run test:e2e:slow` | 完整工作流、性能测试 |
+| `@regression` | 回归测试 | `npm run test:e2e:regression` | 修复 Bug 的验证测试 |
+| `@tauri` | 需要真实后端 | `npm run test:e2e:tauri` | 必须使用真实 Tauri 后端 |
+
+**使用示例**:
+
+```typescript
+// 单个标记
+test('@fast should validate input format', async ({ page }) => { });
+
+// 多个标记
+test('@regression @tauri should verify streaming with real backend', async ({ page }) => { });
+
+// 回归测试（tests/e2e/regression/ 目录下的所有测试必须使用）
+test('@regression should fix bug-123: empty bubble display', async ({ page }) => { });
+```
+
+**目录与标记对应规则**:
+
+| 目录 | 必需标记 | 说明 |
+|------|----------|------|
+| `tests/e2e/regression/` | `@regression` | 所有回归测试必须标记 |
+| 需要真实后端 | `@tauri` | 在 mock 模式下无法运行的测试 |
+
+**特殊说明**:
+- `@tauri` 标记的测试会使用真实的 Tauri 后端（`TAURI_DEV=true`）
+- 普通测试使用 mock 的 Tauri API，运行更快
+- 如果测试在普通模式下失败但在 Tauri 模式下通过，应该添加 `@tauri` 标记
+
 ---
 
 ## ⚠️ 禁止事项

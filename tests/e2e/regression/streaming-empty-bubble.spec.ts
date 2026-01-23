@@ -27,7 +27,7 @@ test.describe('流式传输状态空气泡问题测试', () => {
   /**
    * 测试用例：模拟工具执行完成后的 isActivelyStreaming 状态
    */
-  test('streaming-empty-bubble-01: 工具执行完成后 isActivelyStreaming 状态检查', async ({ page }) => {
+  test('@regression streaming-empty-bubble-01: 工具执行完成后 isActivelyStreaming 状态检查', async ({ page }) => {
     console.log('[Test] ========== 开始流式传输状态检查 ==========');
 
     const result = await page.evaluate(async () => {
@@ -153,7 +153,7 @@ test.describe('流式传输状态空气泡问题测试', () => {
   /**
    * 测试用例：检查 isActivelyStreaming 的计算逻辑
    */
-  test('streaming-empty-bubble-02: isActivelyStreaming 应该考虑 toolCalls 状态', async ({ page }) => {
+  test('@regression streaming-empty-bubble-02: isActivelyStreaming 应该考虑 toolCalls 状态', async ({ page }) => {
     console.log('[Test] ========== 检查 isActivelyStreaming 逻辑 ==========');
 
     const result = await page.evaluate(async () => {

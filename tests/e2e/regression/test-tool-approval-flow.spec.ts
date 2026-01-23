@@ -22,7 +22,7 @@ test.describe('Tool: Approval and Rejection Flow', () => {
     await page.waitForTimeout(2000);
   });
 
-  test('should handle complete tool approval flow', async ({ page }) => {
+  test('@regression should handle complete tool approval flow', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：完整工具批准流程 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -92,7 +92,7 @@ test.describe('Tool: Approval and Rejection Flow', () => {
     console.log('[DEBUG] ✅ 工具批准流程正常，参数保持不变');
   });
 
-  test('should handle complete tool rejection flow', async ({ page }) => {
+  test('@regression should handle complete tool rejection flow', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：完整工具拒绝流程 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -154,7 +154,7 @@ test.describe('Tool: Approval and Rejection Flow', () => {
     console.log('[DEBUG] ✅ 工具拒绝流程正常');
   });
 
-  test('should handle multiple independent tool calls', async ({ page }) => {
+  test('@regression should handle multiple independent tool calls', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：多个独立工具调用 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -232,7 +232,7 @@ test.describe('Tool: Approval and Rejection Flow', () => {
     console.log('[DEBUG] ✅ 多个工具调用独立处理正确');
   });
 
-  test('should preserve tool call arguments through flow', async ({ page }) => {
+  test('@regression should preserve tool call arguments through flow', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：工具参数完整性 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });

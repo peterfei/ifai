@@ -24,7 +24,7 @@ test.describe('Loading State Display - Fix "正在思考" Overlap', () => {
     await page.waitForSelector('text=IfAI', { timeout: 10000 });
   });
 
-  test('should hide "正在思考" when content starts appearing', async ({ page }) => {
+  test('@regression should hide "正在思考" when content starts appearing', async ({ page }) => {
     console.log('[Test] ========== 正在思考状态显示测试 ==========');
     test.setTimeout(120000);
 
@@ -145,7 +145,7 @@ test.describe('Loading State Display - Fix "正在思考" Overlap', () => {
     }
   });
 
-  test('should handle multiple messages correctly', async ({ page }) => {
+  test('@regression should handle multiple messages correctly', async ({ page }) => {
     console.log('[Test] ========== 多消息场景测试 ==========');
     test.setTimeout(120000);
 
@@ -211,7 +211,7 @@ test.describe('Loading State Display - Fix "正在思考" Overlap', () => {
     }
   });
 
-  test('should check UI elements for loading state', async ({ page }) => {
+  test('@regression should check UI elements for loading state', async ({ page }) => {
     console.log('[Test] ========== UI 元素检查测试 ==========');
     test.setTimeout(120000);
 

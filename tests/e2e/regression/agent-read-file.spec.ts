@@ -38,7 +38,7 @@ test.describe('agent_read_file 回归测试', () => {
    *
    * 模拟 ifainew_core 返回字符数组的情况，验证前端能正确拼接
    */
-  test('agent_read_file-01: formatToolResultToMarkdown 应该正确处理字符数组', async ({ page }) => {
+  test('@regression agent_read_file-01: formatToolResultToMarkdown 应该正确处理字符数组', async ({ page }) => {
     console.log('[Test] 开始测试: formatToolResultToMarkdown 处理字符数组');
 
     const result = await page.evaluate(async () => {
@@ -87,7 +87,7 @@ test.describe('agent_read_file 回归测试', () => {
   /**
    * 测试用例 2: 验证 formatToolResultToMarkdown 不接收字符数组
    */
-  test('agent_read_file-02: formatToolResultToMarkdown 应该接收正确格式的 result', async ({ page }) => {
+  test('@regression agent_read_file-02: formatToolResultToMarkdown 应该接收正确格式的 result', async ({ page }) => {
     console.log('[Test] 开始测试: formatToolResultToMarkdown 接收格式');
 
     const result = await page.evaluate(async () => {
@@ -193,7 +193,7 @@ test.describe('agent_read_file 回归测试', () => {
    *
    * 模拟 agent_read_file 返回的完整 JSON 文件内容
    */
-  test('agent_read_file-03: formatToolResultToMarkdown 应该正确处理 JSON 内容', async ({ page }) => {
+  test('@regression agent_read_file-03: formatToolResultToMarkdown 应该正确处理 JSON 内容', async ({ page }) => {
     console.log('[Test] 开始测试: formatToolResultToMarkdown 处理 JSON 内容');
 
     const result = await page.evaluate(async () => {

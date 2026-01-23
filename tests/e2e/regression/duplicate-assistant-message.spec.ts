@@ -35,7 +35,7 @@ test.describe('重复 Assistant 消息问题测试', () => {
   /**
    * 测试用例：模拟本地模型创建消息后，patchedGenerateResponse 是否复用
    */
-  test('duplicate-assistant-01: 模拟本地模型场景，验证是否复用现有消息', async ({ page }) => {
+  test('@regression duplicate-assistant-01: 模拟本地模型场景，验证是否复用现有消息', async ({ page }) => {
     console.log('[Test] ========== 开始重复消息测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -144,7 +144,7 @@ test.describe('重复 Assistant 消息问题测试', () => {
   /**
    * 测试用例：验证本地模型消息内容不为空时的行为
    */
-  test('duplicate-assistant-02: 本地模型消息有内容时，应该创建新消息', async ({ page }) => {
+  test('@regression duplicate-assistant-02: 本地模型消息有内容时，应该创建新消息', async ({ page }) => {
     console.log('[Test] ========== 测试有内容的场景 ==========');
 
     const result = await page.evaluate(async () => {
@@ -207,7 +207,7 @@ test.describe('重复 Assistant 消息问题测试', () => {
   /**
    * 测试用例：验证消息列表中没有 assistant 消息时的行为
    */
-  test('duplicate-assistant-03: 没有现有 assistant 消息时，应该创建新消息', async ({ page }) => {
+  test('@regression duplicate-assistant-03: 没有现有 assistant 消息时，应该创建新消息', async ({ page }) => {
     console.log('[Test] ========== 测试没有现有消息的场景 ==========');
 
     const result = await page.evaluate(async () => {
@@ -252,7 +252,7 @@ test.describe('重复 Assistant 消息问题测试', () => {
   /**
    * 测试用例：验证实际 patchedGenerateResponse 的行为（通过 sendMessage）
    */
-  test('duplicate-assistant-04: 验证 sendMessage 后的消息数量', async ({ page }) => {
+  test('@regression duplicate-assistant-04: 验证 sendMessage 后的消息数量', async ({ page }) => {
     console.log('[Test] ========== 测试实际 sendMessage 行为 ==========');
 
     const result = await page.evaluate(async () => {
@@ -330,7 +330,7 @@ test.describe('重复 Assistant 消息问题测试', () => {
   /**
    * 测试用例：验证工具状态变化后的复用条件
    */
-  test('duplicate-assistant-05: 工具状态从 pending 变为 completed 后的复用条件', async ({ page }) => {
+  test('@regression duplicate-assistant-05: 工具状态从 pending 变为 completed 后的复用条件', async ({ page }) => {
     console.log('[Test] ========== 测试工具状态变化后的复用条件 ==========');
 
     const result = await page.evaluate(async () => {

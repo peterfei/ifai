@@ -37,7 +37,7 @@ test.describe('线程限制和 IndexedDB 保存错误测试', () => {
   /**
    * 测试用例：检查是否可以处理最大线程限制
    */
-  test('thread-limit-indexeddb-01: 模拟达到线程限制时的行为', async ({ page }) => {
+  test('@regression thread-limit-indexeddb-01: 模拟达到线程限制时的行为', async ({ page }) => {
     console.log('[Test] ========== 开始线程限制测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -119,7 +119,7 @@ test.describe('线程限制和 IndexedDB 保存错误测试', () => {
   /**
    * 测试用例：检查消息对象是否都有 id 字段
    */
-  test('thread-limit-indexeddb-02: 检查消息对象是否都有 id 字段', async ({ page }) => {
+  test('@regression thread-limit-indexeddb-02: 检查消息对象是否都有 id 字段', async ({ page }) => {
     console.log('[Test] ========== 开始消息 ID 检查测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -203,7 +203,7 @@ test.describe('线程限制和 IndexedDB 保存错误测试', () => {
   /**
    * 测试用例：模拟 messageToStored 函数的行为
    */
-  test('thread-limit-indexeddb-03: 模拟 messageToStored 函数', async ({ page }) => {
+  test('@regression thread-limit-indexeddb-03: 模拟 messageToStored 函数', async ({ page }) => {
     console.log('[Test] ========== 开始 messageToStored 测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -298,7 +298,7 @@ test.describe('线程限制和 IndexedDB 保存错误测试', () => {
   /**
    * 测试用例：创建新线程并检查是否会触发保存错误
    */
-  test('thread-limit-indexeddb-04: 创建新线程时的保存行为', async ({ page }) => {
+  test('@regression thread-limit-indexeddb-04: 创建新线程时的保存行为', async ({ page }) => {
     console.log('[Test] ========== 开始新线程保存测试 ==========');
 
     const result = await page.evaluate(async () => {

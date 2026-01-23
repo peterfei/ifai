@@ -40,7 +40,7 @@ test.describe('DeepSeek Tool Call Dedup Bug', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('should reproduce DeepSeek empty tool_call dedup bug', async ({ page }) => {
+  test('@regression should reproduce DeepSeek empty tool_call dedup bug', async ({ page }) => {
     console.log('[Test] ========== DeepSeek Tool Call 去重 Bug 还原 ==========');
     test.setTimeout(60000);
 
@@ -161,7 +161,7 @@ test.describe('DeepSeek Tool Call Dedup Bug', () => {
     console.log('[Test] ✅ Tool Call 参数正确更新');
   });
 
-  test('should verify backend dedup logic with empty args', async ({ page }) => {
+  test('@regression should verify backend dedup logic with empty args', async ({ page }) => {
     console.log('[Test] ========== 后端去重逻辑验证 ==========');
     test.setTimeout(30000);
 

@@ -28,7 +28,7 @@ test.describe('智谱 API 重复 tool_call 去重验证', () => {
     await page.waitForTimeout(500);
   });
 
-  test('zhipu-dedup-01: 验证后端去重代码存在', async ({ page }) => {
+  test('@regression zhipu-dedup-01: 验证后端去重代码存在', async ({ page }) => {
     console.log('[Test] ========== 验证后端去重代码存在 ==========');
 
     // 通过 Bash 直接验证源码中存在去重逻辑
@@ -61,7 +61,7 @@ test.describe('智谱 API 重复 tool_call 去重验证', () => {
     expect(result.success).toBe(true);
   });
 
-  test('zhipu-dedup-02: 后端日志验证 - 检查是否跳过重复 tool_call', async ({ page }) => {
+  test('@regression zhipu-dedup-02: 后端日志验证 - 检查是否跳过重复 tool_call', async ({ page }) => {
     console.log('[Test] ========== 后端日志验证 ==========');
 
     const result = await page.evaluate(async () => {
@@ -145,7 +145,7 @@ test.describe('智谱 API 重复 tool_call 去重验证', () => {
     }
   });
 
-  test('zhipu-dedup-03: 验证 isPartial 标志正确设置', async ({ page }) => {
+  test('@regression zhipu-dedup-03: 验证 isPartial 标志正确设置', async ({ page }) => {
     console.log('[Test] ========== 验证 isPartial 标志 ==========');
 
     const result = await page.evaluate(async () => {
@@ -229,7 +229,7 @@ test.describe('智谱 API 重复 tool_call 去重验证', () => {
     expect(result.allComplete).toBe(true);
   });
 
-  test('zhipu-dedup-04: 前端签名去重 - 直接测试去重逻辑', async ({ page }) => {
+  test('@regression zhipu-dedup-04: 前端签名去重 - 直接测试去重逻辑', async ({ page }) => {
     console.log('[Test] ========== 前端签名去重测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -368,7 +368,7 @@ test.describe('智谱 API 重复 tool_call 去重验证', () => {
     expect(result.dedupSuccessful).toBe(true);
   });
 
-  test('zhipu-dedup-05: 前端去重不影响合法更新 - 验证相同 ID 的更新', async ({ page }) => {
+  test('@regression zhipu-dedup-05: 前端去重不影响合法更新 - 验证相同 ID 的更新', async ({ page }) => {
     console.log('[Test] ========== 前端去重不影响合法更新 ==========');
 
     const result = await page.evaluate(async () => {

@@ -31,7 +31,7 @@ test.describe('Agent 工具状态更新', () => {
     await page.waitForTimeout(500);
   });
 
-  test('agent-state-update-01: 验证 toolCall isPartial 更新后组件重新渲染', async ({ page }) => {
+  test('@regression agent-state-update-01: 验证 toolCall isPartial 更新后组件重新渲染', async ({ page }) => {
     const result = await page.evaluate(async () => {
       const chatStore = (window as any).__chatStore;
 

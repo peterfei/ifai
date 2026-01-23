@@ -27,7 +27,7 @@ test.describe('Duplicate Tool Call Deduplication - Fix Black Screen Issue', () =
     await page.waitForSelector('text=IfAI', { timeout: 10000 });
   });
 
-  test('should filter duplicate tool_call events to prevent black screen', async ({ page }) => {
+  test('@regression should filter duplicate tool_call events to prevent black screen', async ({ page }) => {
     console.log('[Test] ========== 重复 tool_call 去重测试 ==========');
     test.setTimeout(120000);
 
@@ -187,7 +187,7 @@ test.describe('Duplicate Tool Call Deduplication - Fix Black Screen Issue', () =
     }
   });
 
-  test('should handle partial tool_call updates correctly', async ({ page }) => {
+  test('@regression should handle partial tool_call updates correctly', async ({ page }) => {
     console.log('[Test] ========== Partial tool_call 更新测试 ==========');
     test.setTimeout(120000);
 

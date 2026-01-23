@@ -51,7 +51,7 @@ test.describe('agent_list_dir 字符数组回归测试', () => {
    * 最原始的字符数组：每个字符都是单独的元素
    * 例如: [".", "i", "f", "a", "i", "/", "i", "n", "d", "e", "x", ".", "h", "t", "m", "l"]
    */
-  test('agent-list-dir-01: 单字符数组应该被正确拼接', async ({ page }) => {
+  test('@regression agent-list-dir-01: 单字符数组应该被正确拼接', async ({ page }) => {
     console.log('[Test] 开始测试: 单字符数组处理');
 
     const result = await page.evaluate(async () => {
@@ -123,7 +123,7 @@ test.describe('agent_list_dir 字符数组回归测试', () => {
    * 另一种可能的字符数组：每个元素是2-3个字符
    * 例如: [".if", "ai/", "ind", "ex.", "htm", "l"]
    */
-  test('agent-list-dir-02: 短字符串数组也应该被正确处理', async ({ page }) => {
+  test('@regression agent-list-dir-02: 短字符串数组也应该被正确处理', async ({ page }) => {
     console.log('[Test] 开始测试: 短字符串数组处理');
 
     const result = await page.evaluate(async () => {
@@ -199,7 +199,7 @@ test.describe('agent_list_dir 字符数组回归测试', () => {
    * 正常情况：返回完整的文件名数组
    * 例如: [".ifai", "index.html", "node_modules", "package.json"]
    */
-  test('agent-list-dir-03: 正常文件列表应该被正确处理', async ({ page }) => {
+  test('@regression agent-list-dir-03: 正常文件列表应该被正确处理', async ({ page }) => {
     console.log('[Test] 开始测试: 正常文件列表处理');
 
     const result = await page.evaluate(async () => {
@@ -265,7 +265,7 @@ test.describe('agent_list_dir 字符数组回归测试', () => {
    *
    * 通过 chatStore 直接调用 agent_list_dir，验证完整流程
    */
-  test('agent-list-dir-04: useChatStore 应该正确处理 agent_list_dir 结果', async ({ page }) => {
+  test('@regression agent-list-dir-04: useChatStore 应该正确处理 agent_list_dir 结果', async ({ page }) => {
     console.log('[Test] 开始测试: useChatStore agent_list_dir 处理');
 
     const result = await page.evaluate(async () => {
@@ -407,7 +407,7 @@ test.describe('agent_list_dir 字符数组回归测试', () => {
    *
    * 完全模拟用户报告的场景：商业版返回字符数组
    */
-  test('agent-list-dir-05: 模拟商业版字符数组 bug 应该被修复', async ({ page }) => {
+  test('@regression agent-list-dir-05: 模拟商业版字符数组 bug 应该被修复', async ({ page }) => {
     console.log('[Test] 开始测试: 商业版字符数组 bug 模拟');
 
     const result = await page.evaluate(async () => {

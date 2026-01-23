@@ -33,7 +33,7 @@ test.describe('命令执行回归测试', () => {
   /**
    * 测试用例 1: 验证执行 'vite' 命令返回正确的输出
    */
-  test('命令执行-01: 执行 vite 命令应该返回命令输出而不是目录列表', async ({ page }) => {
+  test('@regression 命令执行-01: 执行 vite 命令应该返回命令输出而不是目录列表', async ({ page }) => {
     console.log('[Test] 开始测试: 执行 vite 命令');
 
     // 1. 通过 chatStore 直接设置消息和 tool call（跳过 AI 调用）
@@ -142,7 +142,7 @@ test.describe('命令执行回归测试', () => {
   /**
    * 测试用例 2: 验证其他命令的执行
    */
-  test('命令执行-02: 执行 echo 命令应该返回正确的输出', async ({ page }) => {
+  test('@regression 命令执行-02: 执行 echo 命令应该返回正确的输出', async ({ page }) => {
     console.log('[Test] 开始测试: 执行 echo 命令');
 
     const result = await page.evaluate(async () => {
@@ -221,7 +221,7 @@ test.describe('命令执行回归测试', () => {
   /**
    * 测试用例 3: npm run dev 应该返回服务器启动信息
    */
-  test('命令执行-03: npm run dev 应该返回服务器启动信息', async ({ page }) => {
+  test('@regression 命令执行-03: npm run dev 应该返回服务器启动信息', async ({ page }) => {
     console.log('[Test] 开始测试: npm run dev');
 
     const result = await page.evaluate(async () => {
@@ -302,7 +302,7 @@ test.describe('命令执行回归测试', () => {
    *
    * 验证在普通聊天视图（非时间线视图）下，bash 命令的执行结果能够正确显示
    */
-  test('命令执行-04: 普通视图下 bash 命令输出应该正确显示', async ({ page }) => {
+  test('@regression 命令执行-04: 普通视图下 bash 命令输出应该正确显示', async ({ page }) => {
     console.log('[Test] 开始测试: 普通视图下的 bash 命令输出');
 
     // 确保在普通视图模式（非时间线）
@@ -420,7 +420,7 @@ test.describe('命令执行回归测试', () => {
    * TDD 方式：先写测试，验证 bash 命令输出应该使用控制台样式
    * 而不是显示原始 JSON 字符串
    */
-  test('命令执行-05: Bash 命令输出应该显示控制台样式而不是原始 JSON', async ({ page }) => {
+  test('@regression 命令执行-05: Bash 命令输出应该显示控制台样式而不是原始 JSON', async ({ page }) => {
     console.log('[Test] 开始测试: Bash 命令输出控制台样式');
 
     await page.evaluate(() => {

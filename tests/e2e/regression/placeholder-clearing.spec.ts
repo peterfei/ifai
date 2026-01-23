@@ -25,7 +25,7 @@ test.describe('Placeholder Text Clearing - Fix "正在思考" Overlap in Message
     await page.waitForSelector('text=IfAI', { timeout: 10000 });
   });
 
-  test('should clear placeholder text when real content appears', async ({ page }) => {
+  test('@regression should clear placeholder text when real content appears', async ({ page }) => {
     console.log('[Test] ========== 占位文本清除测试 ==========');
     test.setTimeout(120000);
 
@@ -164,7 +164,7 @@ test.describe('Placeholder Text Clearing - Fix "正在思考" Overlap in Message
     }
   });
 
-  test('should preserve real content without placeholder interference', async ({ page }) => {
+  test('@regression should preserve real content without placeholder interference', async ({ page }) => {
     console.log('[Test] ========== 真实内容保留测试 ==========');
     test.setTimeout(120000);
 

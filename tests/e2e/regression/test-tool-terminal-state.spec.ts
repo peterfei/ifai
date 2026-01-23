@@ -22,7 +22,7 @@ test.describe('Tool: Terminal State Protection', () => {
     await page.waitForTimeout(2000);
   });
 
-  test('should not override completed tool status', async ({ page }) => {
+  test('@regression should not override completed tool status', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：不覆盖已完成的工具 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -79,7 +79,7 @@ test.describe('Tool: Terminal State Protection', () => {
     console.log('[DEBUG] ✅ 已完成的工具状态不会被覆盖');
   });
 
-  test('should not override failed tool status', async ({ page }) => {
+  test('@regression should not override failed tool status', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：不覆盖已失败的工具 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -132,7 +132,7 @@ test.describe('Tool: Terminal State Protection', () => {
     console.log('[DEBUG] ✅ 已失败的工具状态不会被覆盖');
   });
 
-  test('should not override rejected tool status', async ({ page }) => {
+  test('@regression should not override rejected tool status', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：不覆盖已拒绝的工具 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -184,7 +184,7 @@ test.describe('Tool: Terminal State Protection', () => {
     console.log('[DEBUG] ✅ 已拒绝的工具状态不会被覆盖');
   });
 
-  test('should correctly approve pending tool', async ({ page }) => {
+  test('@regression should correctly approve pending tool', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：正确批准待处理工具 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });
@@ -236,7 +236,7 @@ test.describe('Tool: Terminal State Protection', () => {
     console.log('[DEBUG] ✅ 待处理工具可以被正确批准');
   });
 
-  test('should not override rejected tool when calling reject again', async ({ page }) => {
+  test('@regression should not override rejected tool when calling reject again', async ({ page }) => {
     console.log('[DEBUG] ========== 测试：重复拒绝已拒绝的工具 ==========');
 
     await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 15000 });

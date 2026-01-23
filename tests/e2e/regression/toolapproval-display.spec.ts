@@ -28,7 +28,7 @@ test.describe('ToolApproval 显示验证测试', () => {
   /**
    * 测试用例: 验证 ToolApproval 组件是否显示
    */
-  test('toolapproval-display-01: 只有 toolCalls 的消息应该显示 ToolApproval 但不显示气泡', async ({ page }) => {
+  test('@regression toolapproval-display-01: 只有 toolCalls 的消息应该显示 ToolApproval 但不显示气泡', async ({ page }) => {
     console.log('[Test] 开始验证 ToolApproval 显示');
 
     const result = await page.evaluate(async () => {
@@ -138,7 +138,7 @@ test.describe('ToolApproval 显示验证测试', () => {
   /**
    * 测试用例: 检查 MessageItem 的渲染逻辑
    */
-  test('toolapproval-display-02: MessageItem 应该返回正确的 JSX', async ({ page }) => {
+  test('@regression toolapproval-display-02: MessageItem 应该返回正确的 JSX', async ({ page }) => {
     console.log('[Test] 检查 MessageItem 渲染逻辑');
 
     const result = await page.evaluate(async () => {

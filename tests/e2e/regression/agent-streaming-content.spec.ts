@@ -36,7 +36,7 @@ test.describe('Agent Streaming Content - 参考提交 759eb31', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('should verify streaming content output is working correctly', async ({ page }) => {
+  test('@regression should verify streaming content output is working correctly', async ({ page }) => {
     console.log('[Test] ========== 流式内容输出验证 ==========');
     test.setTimeout(60000);
 
@@ -292,7 +292,7 @@ test.describe('Agent Streaming Content - 参考提交 759eb31', () => {
     }
   });
 
-  test('should verify React.memo correctly detects args changes', async ({ page }) => {
+  test('@regression should verify React.memo correctly detects args changes', async ({ page }) => {
     console.log('[Test] ========== React.memo args 变化检测验证 ==========');
     test.setTimeout(30000);
 

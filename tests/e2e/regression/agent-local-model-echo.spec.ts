@@ -37,7 +37,7 @@ test.describe('agent 本地模型工具结果 echo 回归测试', () => {
    * 1. 这样的摘要不应该被追加到助手消息的 content 中
    * 2. 工具结果应该只在 ToolApproval 组件中显示
    */
-  test('agent-local-echo-01: [Local Model] Completed 摘要不应该显示为消息内容', async ({ page }) => {
+  test('@regression agent-local-echo-01: [Local Model] Completed 摘要不应该显示为消息内容', async ({ page }) => {
     console.log('[Test] 开始测试: [Local Model] Completed 摘要处理');
 
     const result = await page.evaluate(async () => {
@@ -128,7 +128,7 @@ test.describe('agent 本地模型工具结果 echo 回归测试', () => {
   /**
    * 测试用例 2: 验证流式监听器处理逻辑
    */
-  test('agent-local-echo-02: 流式监听器应该过滤掉本地模型摘要', async ({ page }) => {
+  test('@regression agent-local-echo-02: 流式监听器应该过滤掉本地模型摘要', async ({ page }) => {
     console.log('[Test] 开始测试: 流式监听器过滤逻辑');
 
     const result = await page.evaluate(async () => {
@@ -222,7 +222,7 @@ test.describe('agent 本地模型工具结果 echo 回归测试', () => {
   /**
    * 测试用例 3: 完整的本地模型 bash 工具执行流程
    */
-  test('agent-local-echo-03: 完整 bash 工具执行不应该有 echo 输出', async ({ page }) => {
+  test('@regression agent-local-echo-03: 完整 bash 工具执行不应该有 echo 输出', async ({ page }) => {
     console.log('[Test] 开始测试: 完整 bash 工具执行流程');
 
     const result = await page.evaluate(async () => {
@@ -324,7 +324,7 @@ test.describe('agent 本地模型工具结果 echo 回归测试', () => {
    * Rust 后端在发送 content 时会包含 metadata.source === 'local_model'
    * 前端应该检查这个元数据来决定是否过滤
    */
-  test('agent-local-echo-04: 应该使用元数据标记来判断是否过滤', async ({ page }) => {
+  test('@regression agent-local-echo-04: 应该使用元数据标记来判断是否过滤', async ({ page }) => {
     console.log('[Test] 开始测试: 元数据标记判断逻辑');
 
     const result = await page.evaluate(async () => {

@@ -29,7 +29,7 @@ test.describe('消息 ID 验证测试', () => {
   /**
    * 测试用例：验证缺少 ID 的消息会被跳过
    */
-  test('message-id-validation-01: 缺少 ID 的消息应该被跳过', async ({ page }) => {
+  test('@regression message-id-validation-01: 缺少 ID 的消息应该被跳过', async ({ page }) => {
     console.log('[Test] ========== 开始消息 ID 验证测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -129,7 +129,7 @@ test.describe('消息 ID 验证测试', () => {
   /**
    * 测试用例：验证正常流程中的消息都有 ID
    */
-  test('message-id-validation-02: 正常流程中创建的消息都应该有 ID', async ({ page }) => {
+  test('@regression message-id-validation-02: 正常流程中创建的消息都应该有 ID', async ({ page }) => {
     console.log('[Test] ========== 开始正常流程测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -208,7 +208,7 @@ test.describe('消息 ID 验证测试', () => {
   /**
    * 测试用例：验证保存消息时的过滤逻辑
    */
-  test('message-id-validation-03: 验证保存时的过滤逻辑', async ({ page }) => {
+  test('@regression message-id-validation-03: 验证保存时的过滤逻辑', async ({ page }) => {
     console.log('[Test] ========== 开始保存过滤测试 ==========');
 
     const result = await page.evaluate(async () => {

@@ -24,7 +24,7 @@ test.describe('智谱 LLM Agent 真实场景调试', () => {
     await page.waitForTimeout(500);
   });
 
-  test('debug-real-scenario: 直接调用智谱 API 并检查响应', async ({ page }) => {
+  test('@regression debug-real-scenario: 直接调用智谱 API 并检查响应', async ({ page }) => {
     console.log('[Test] ========== 直接调用智谱 API 检查 tool_calls ==========');
 
     const result = await page.evaluate(async () => {

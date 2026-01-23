@@ -31,7 +31,7 @@ test.describe('agent_list_dir 文件列表显示测试', () => {
    * 输入: [".ifai/","index.html","start_vite.sh","node_modules/","vite.config.js","README.md","package-lock.json","package.json","dev.log","src/"]
    * 预期: 格式化为 Markdown 列表
    */
-  test('agent-list-dir-display-01: 用户报告的确切数据应该被正确格式化', async ({ page }) => {
+  test('@regression agent-list-dir-display-01: 用户报告的确切数据应该被正确格式化', async ({ page }) => {
     console.log('[Test] 开始测试: 用户报告的确切数据');
 
     const result = await page.evaluate(async () => {
@@ -86,7 +86,7 @@ test.describe('agent_list_dir 文件列表显示测试', () => {
   /**
    * 测试混合文件列表（有/和没有/的路径）
    */
-  test('agent-list-dir-display-02: 混合文件列表应该被正确格式化', async ({ page }) => {
+  test('@regression agent-list-dir-display-02: 混合文件列表应该被正确格式化', async ({ page }) => {
     console.log('[Test] 开始测试: 混合文件列表');
 
     const result = await page.evaluate(async () => {
@@ -131,7 +131,7 @@ test.describe('agent_list_dir 文件列表显示测试', () => {
   /**
    * 测试纯文件名列表（没有路径）
    */
-  test('agent-list-dir-display-03: 纯文件名列表应该被正确格式化', async ({ page }) => {
+  test('@regression agent-list-dir-display-03: 纯文件名列表应该被正确格式化', async ({ page }) => {
     console.log('[Test] 开始测试: 纯文件名列表');
 
     const result = await page.evaluate(async () => {
@@ -169,7 +169,7 @@ test.describe('agent_list_dir 文件列表显示测试', () => {
   /**
    * 测试 useChatStore 中的 agent_list_dir 处理
    */
-  test('agent-list-dir-display-04: useChatStore 应该正确显示 agent_list_dir 结果', async ({ page }) => {
+  test('@regression agent-list-dir-display-04: useChatStore 应该正确显示 agent_list_dir 结果', async ({ page }) => {
     console.log('[Test] 开始测试: useChatStore agent_list_dir 显示');
 
     const result = await page.evaluate(async () => {
@@ -244,7 +244,7 @@ test.describe('agent_list_dir 文件列表显示测试', () => {
    *
    * 这个测试模拟 ToolApproval 组件中直接使用 toolCall.result 的情况
    */
-  test('agent-list-dir-display-05: 直接格式化 toolCall.result 应该显示正确', async ({ page }) => {
+  test('@regression agent-list-dir-display-05: 直接格式化 toolCall.result 应该显示正确', async ({ page }) => {
     console.log('[Test] 开始测试: 直接格式化 toolCall.result');
 
     const result = await page.evaluate(async () => {

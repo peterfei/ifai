@@ -23,7 +23,7 @@ test.describe('智谱 LLM 工具调用调试', () => {
     await page.waitForTimeout(500);
   });
 
-  test('debug-tools-01: 检查后端是否发送 tools 参数', async ({ page }) => {
+  test('@regression debug-tools-01: 检查后端是否发送 tools 参数', async ({ page }) => {
     console.log('[Test] ========== 检查后端是否发送 tools 参数 ==========');
 
     const result = await page.evaluate(async () => {

@@ -22,7 +22,7 @@ test.describe('Agent Streaming Content Verification - 参考提交 759eb31', () 
     await page.waitForSelector('text=IfAI', { timeout: 10000 });
   });
 
-  test('should verify streaming content output when agent processes README.md refactor', async ({ page }) => {
+  test('@regression @tauri should verify streaming content output when agent processes README.md refactor', async ({ page }) => {
     console.log('[Test] ========== Agent 流式内容输出验证 ==========');
     test.setTimeout(120000);
 
@@ -203,7 +203,7 @@ test.describe('Agent Streaming Content Verification - 参考提交 759eb31', () 
     }
   });
 
-  test('should verify tool approval flow with streaming args', async ({ page }) => {
+  test('@regression @tauri should verify tool approval flow with streaming args', async ({ page }) => {
     console.log('[Test] ========== 工具批准流程验证 ==========');
     test.setTimeout(120000);
 

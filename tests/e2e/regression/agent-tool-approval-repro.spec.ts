@@ -41,7 +41,7 @@ test.describe('Agent 工具批准按钮问题还原', () => {
     await page.waitForTimeout(500);
   });
 
-  test('repro-001: 完整还原 Agent 执行场景 - 模拟真实后端事件流', async ({ page }) => {
+  test('@regression repro-001: 完整还原 Agent 执行场景 - 模拟真实后端事件流', async ({ page }) => {
     console.log('[Test] ========== 开始还原 Agent 工具批准按钮问题 ==========');
 
     const result = await page.evaluate(async () => {
@@ -283,7 +283,7 @@ test.describe('Agent 工具批准按钮问题还原', () => {
     expect(result.domState.approveButtonCount, '应该有批准按钮').toBeGreaterThan(0);
   });
 
-  test('repro-002: 检查 ToolApproval 组件的 props 传递', async ({ page }) => {
+  test('@regression repro-002: 检查 ToolApproval 组件的 props 传递', async ({ page }) => {
     console.log('[Test] ========== 检查 ToolApproval 组件 props 传递 ==========');
 
     const result = await page.evaluate(async () => {

@@ -44,7 +44,7 @@ test.describe('真实 LLM Agent 场景测试', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('real-llm-01: 完整模拟真实 Agent 执行流程', async ({ page }) => {
+  test('@regression real-llm-01: 完整模拟真实 Agent 执行流程', async ({ page }) => {
     console.log('[Test] ========== 真实 LLM Agent 场景测试 ==========');
 
     const result = await page.evaluate(async () => {

@@ -21,7 +21,7 @@ test.describe('调试空气泡问题', () => {
   /**
    * 调试测试：追踪完整的渲染流程
    */
-  test('debug-empty-bubble-01: 追踪完整渲染流程', async ({ page }) => {
+  test('@regression debug-empty-bubble-01: 追踪完整渲染流程', async ({ page }) => {
     console.log('[Test] ========== 开始调试测试 ==========');
 
     const result = await page.evaluate(async () => {

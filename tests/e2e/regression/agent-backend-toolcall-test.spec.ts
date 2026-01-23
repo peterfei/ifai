@@ -25,7 +25,7 @@ test.describe('后端 tool_call 事件发送测试', () => {
     await page.waitForTimeout(500);
   });
 
-  test('backend-toolcall-01: 验证智谱 LLM 返回 tool_calls 时后端发送正确的事件', async ({ page }) => {
+  test('@regression backend-toolcall-01: 验证智谱 LLM 返回 tool_calls 时后端发送正确的事件', async ({ page }) => {
     console.log('[Test] ========== 验证后端 tool_call 事件发送 ==========');
 
     // 这个测试通过 Tauri invoke 直接调用后端的 AI 功能
@@ -148,7 +148,7 @@ test.describe('后端 tool_call 事件发送测试', () => {
     }
   });
 
-  test('backend-toolcall-02: 真实用例 - 重构 README.md 90字左右', async ({ page }) => {
+  test('@regression backend-toolcall-02: 真实用例 - 重构 README.md 90字左右', async ({ page }) => {
     console.log('[Test] ========== 真实用例：重构 README.md 90字左右 ==========');
 
     const result = await page.evaluate(async () => {

@@ -19,7 +19,7 @@ test.describe('智谱 API Function Calling 格式', () => {
     await page.waitForTimeout(500);
   });
 
-  test('zhipu-api-01: 直接测试智谱 API Function Calling', async ({ page }) => {
+  test('@regression zhipu-api-01: 直接测试智谱 API Function Calling', async ({ page }) => {
     console.log('[Test] ========== 测试智谱 API Function Calling 格式 ==========');
 
     const result = await page.evaluate(async () => {

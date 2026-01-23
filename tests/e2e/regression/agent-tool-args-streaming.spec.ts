@@ -30,7 +30,7 @@ test.describe('Agent 工具参数流式更新', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('agent-args-streaming-01: 验证 toolCall.args 流式更新时组件重新渲染', async ({ page }) => {
+  test('@regression agent-args-streaming-01: 验证 toolCall.args 流式更新时组件重新渲染', async ({ page }) => {
     console.log('[Test] ========== 测试 toolCall.args 流式更新 ==========');
 
     const result = await page.evaluate(async () => {
@@ -226,7 +226,7 @@ test.describe('Agent 工具参数流式更新', () => {
     }
   });
 
-  test('agent-args-streaming-02: 验证 isPartial 从 true 变为 false 时重新渲染', async ({ page }) => {
+  test('@regression agent-args-streaming-02: 验证 isPartial 从 true 变为 false 时重新渲染', async ({ page }) => {
     console.log('[Test] ========== 测试 isPartial 状态切换 ==========');
 
     const result = await page.evaluate(async () => {

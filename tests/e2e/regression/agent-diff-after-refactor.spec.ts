@@ -48,7 +48,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('scenario-01: 验证 Refactor Agent 执行后 diff 数据保留完整', async ({ page }) => {
+  test('@regression scenario-01: 验证 Refactor Agent 执行后 diff 数据保留完整', async ({ page }) => {
     console.log('[Test] ========== 场景 1: Diff 数据完整性验证 ==========');
     test.setTimeout(120000);
 
@@ -232,7 +232,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     }
   });
 
-  test('scenario-02: 验证工具执行时 diff 数据正确保存', async ({ page }) => {
+  test('@regression scenario-02: 验证工具执行时 diff 数据正确保存', async ({ page }) => {
     console.log('[Test] ========== 场景 2: 工具执行时 diff 数据验证 ==========');
     test.setTimeout(60000);
 
@@ -325,7 +325,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     console.log('[Test] ✅ 工具执行时 diff 数据保存正确');
   });
 
-  test('scenario-03: 模拟完整 Agent 流程验证 diff 保留', async ({ page }) => {
+  test('@regression scenario-03: 模拟完整 Agent 流程验证 diff 保留', async ({ page }) => {
     console.log('[Test] ========== 场景 3: 完整 Agent 流程 diff 保留验证 ==========');
     test.setTimeout(120000);
 
@@ -492,7 +492,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     expect(result.step2_AfterAgentResult.hasDiffData).toBe(true); // 修复后应为 true
   });
 
-  test('scenario-04: 验证回退功能是否可用', async ({ page }) => {
+  test('@regression scenario-04: 验证回退功能是否可用', async ({ page }) => {
     console.log('[Test] ========== 场景 4: 回退功能可用性验证 ==========');
     test.setTimeout(60000);
 
@@ -572,7 +572,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     console.log('[Test] ✅ 回退功能可用（前提：diff 数据未被覆盖）');
   });
 
-  test('scenario-05: 验证不同工具类型的 diff 处理', async ({ page }) => {
+  test('@regression scenario-05: 验证不同工具类型的 diff 处理', async ({ page }) => {
     console.log('[Test] ========== 场景 5: 不同工具类型 diff 处理验证 ==========');
     test.setTimeout(60000);
 

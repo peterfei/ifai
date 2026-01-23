@@ -46,7 +46,7 @@ test.describe('Agent 工具批准 UI 测试', () => {
   /**
    * 测试用例：模拟 Agent 创建工具调用，检查批准按钮是否显示
    */
-  test('agent-tool-approval-01: 模拟 Agent 创建工具调用，验证批准按钮显示', async ({ page }) => {
+  test('@regression agent-tool-approval-01: 模拟 Agent 创建工具调用，验证批准按钮显示', async ({ page }) => {
     console.log('[Test] ========== 开始 Agent 工具批准 UI 测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -221,7 +221,7 @@ test.describe('Agent 工具批准 UI 测试', () => {
   /**
    * 测试用例：模拟工具调用从 isPartial: true 到 false 的转换
    */
-  test('agent-tool-approval-02: 验证 isPartial 状态转换', async ({ page }) => {
+  test('@regression agent-tool-approval-02: 验证 isPartial 状态转换', async ({ page }) => {
     console.log('[Test] ========== 开始 isPartial 状态转换测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -319,7 +319,7 @@ test.describe('Agent 工具批准 UI 测试', () => {
   /**
    * 测试用例：检查 MessageItem 中 agent 消息的渲染逻辑
    */
-  test('agent-tool-approval-03: 检查 agent 消息是否正确渲染 ToolApproval', async ({ page }) => {
+  test('@regression agent-tool-approval-03: 检查 agent 消息是否正确渲染 ToolApproval', async ({ page }) => {
     console.log('[Test] ========== 开始 agent 消息渲染测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -409,7 +409,7 @@ test.describe('Agent 工具批准 UI 测试', () => {
   /**
    * 测试用例：模拟真实场景 - Agent thinking + tool call
    */
-  test('agent-tool-approval-04: 完整模拟 Agent 思考和工具调用流程', async ({ page }) => {
+  test('@regression agent-tool-approval-04: 完整模拟 Agent 思考和工具调用流程', async ({ page }) => {
     console.log('[Test] ========== 开始完整 Agent 流程测试 ==========');
 
     const result = await page.evaluate(async () => {

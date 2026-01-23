@@ -35,7 +35,7 @@ test.describe.skip('智谱 API 批准按钮 ID 重定向验证 - TODO: Fix this 
     await page.waitForTimeout(500);
   });
 
-  test('approval-redirect-01: 模拟智谱 API 重复 tool_call + 批准按钮点击', async ({ page }) => {
+  test('@regression approval-redirect-01: 模拟智谱 API 重复 tool_call + 批准按钮点击', async ({ page }) => {
     console.log('[Test] ========== 完整模拟智谱 API 重复场景 ==========');
 
     const result = await page.evaluate(async () => {
@@ -238,7 +238,7 @@ test.describe.skip('智谱 API 批准按钮 ID 重定向验证 - TODO: Fix this 
     expect(result.redirectWouldWork).toBe(true);
   });
 
-  test('approval-redirect-02: 真实 Agent 场景 - 发射 Agent 并模拟去重', async ({ page }) => {
+  test('@regression approval-redirect-02: 真实 Agent 场景 - 发射 Agent 并模拟去重', async ({ page }) => {
     console.log('[Test] ========== 真实 Agent 场景测试 ==========');
 
     const result = await page.evaluate(async () => {

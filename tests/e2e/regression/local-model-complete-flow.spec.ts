@@ -35,7 +35,7 @@ test.describe('本地模型完整流程测试', () => {
   /**
    * 测试用例：完整模拟本地模型流程
    */
-  test('local-model-flow-01: 模拟完整流程，检查消息数量', async ({ page }) => {
+  test('@regression local-model-flow-01: 模拟完整流程，检查消息数量', async ({ page }) => {
     console.log('[Test] ========== 开始完整流程测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -213,7 +213,7 @@ test.describe('本地模型完整流程测试', () => {
   /**
    * 测试用例：模拟有内容被追加的情况
    */
-  test('local-model-flow-02: 模拟内容被追加后，复用条件检查', async ({ page }) => {
+  test('@regression local-model-flow-02: 模拟内容被追加后，复用条件检查', async ({ page }) => {
     console.log('[Test] ========== 测试内容追加场景 ==========');
 
     const result = await page.evaluate(async () => {
@@ -298,7 +298,7 @@ test.describe('本地模型完整流程测试', () => {
   /**
    * 测试用例：模拟 approveToolCall 后的行为
    */
-  test('local-model-flow-03: 模拟 approveToolCall 逻辑，检查是否调用 patchedGenerateResponse', async ({ page }) => {
+  test('@regression local-model-flow-03: 模拟 approveToolCall 逻辑，检查是否调用 patchedGenerateResponse', async ({ page }) => {
     console.log('[Test] ========== 测试 approveToolCall 逻辑 ==========');
 
     const result = await page.evaluate(async () => {

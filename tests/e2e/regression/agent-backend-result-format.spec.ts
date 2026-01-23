@@ -52,7 +52,7 @@ test.describe('Agent Backend Result Format - 真实环境适配', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('scenario-01: 验证后端返回字符串时的行为', async ({ page }) => {
+  test('@regression scenario-01: 验证后端返回字符串时的行为', async ({ page }) => {
     console.log('[Test] ========== 场景 1: 后端返回简单字符串 ==========');
     test.setTimeout(60000);
 
@@ -134,7 +134,7 @@ test.describe('Agent Backend Result Format - 真实环境适配', () => {
     console.log('[Test] ✅ 后端返回字符串时，diff 数据不可用（预期行为）');
   });
 
-  test('scenario-02: 验证后端返回数组时的行为（真实环境 bug）', async ({ page }) => {
+  test('@regression scenario-02: 验证后端返回数组时的行为（真实环境 bug）', async ({ page }) => {
     console.log('[Test] ========== 场景 2: 后端返回数组（真实 bug 还原） ==========');
     test.setTimeout(60000);
 
@@ -218,7 +218,7 @@ test.describe('Agent Backend Result Format - 真实环境适配', () => {
     console.log('[Test] ✅ 后端返回数组时，diff 数据不可用（真实 bug 还原成功）');
   });
 
-  test('scenario-03: 验证后端返回正确 JSON 格式时的行为', async ({ page }) => {
+  test('@regression scenario-03: 验证后端返回正确 JSON 格式时的行为', async ({ page }) => {
     console.log('[Test] ========== 场景 3: 后端返回正确 JSON 格式 ==========');
     test.setTimeout(60000);
 
@@ -304,7 +304,7 @@ test.describe('Agent Backend Result Format - 真实环境适配', () => {
     console.log('[Test] ✅ 后端返回正确 JSON 时，diff 数据可用');
   });
 
-  test('scenario-04: 验证 toolResultFormatter 处理不同格式的行为', async ({ page }) => {
+  test('@regression scenario-04: 验证 toolResultFormatter 处理不同格式的行为', async ({ page }) => {
     console.log('[Test] ========== 场景 4: formatToolResultToMarkdown 处理 ==========');
     test.setTimeout(60000);
 
@@ -404,7 +404,7 @@ test.describe('Agent Backend Result Format - 真实环境适配', () => {
     console.log('[Test] ✅ formatToolResultToMarkdown 正确处理不同格式');
   });
 
-  test('scenario-05: 验证完整 Agent 流程中的 result 格式变化', async ({ page }) => {
+  test('@regression scenario-05: 验证完整 Agent 流程中的 result 格式变化', async ({ page }) => {
     console.log('[Test] ========== 场景 5: Agent 流程中 result 格式变化 ==========');
     test.setTimeout(60000);
 

@@ -60,7 +60,7 @@ test.describe('Agent Refactor 工具批准问题还原', () => {
   /**
    * 测试用例：模拟完整的 Agent Refactor 流程
    */
-  test('agent-refactor-01: 模拟用户触发 Refactor Agent，验证工具批准流程', async ({ page }) => {
+  test('@regression agent-refactor-01: 模拟用户触发 Refactor Agent，验证工具批准流程', async ({ page }) => {
     console.log('[Test] ========== 开始 Agent Refactor 工具批准测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -314,7 +314,7 @@ test.describe('Agent Refactor 工具批准问题还原', () => {
   /**
    * 测试用例：模拟真实场景 - 使用 patchedSendMessage 触发 Agent
    */
-  test('agent-refactor-02: 真实场景测试 - 通过 patchedSendMessage 触发', async ({ page }) => {
+  test('@regression agent-refactor-02: 真实场景测试 - 通过 patchedSendMessage 触发', async ({ page }) => {
     console.log('[Test] ========== 开始真实场景测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -377,7 +377,7 @@ test.describe('Agent Refactor 工具批准问题还原', () => {
   /**
    * 测试用例：验证 thinking 事件批处理
    */
-  test('agent-refactor-03: 验证 thinking 事件批处理优化', async ({ page }) => {
+  test('@regression agent-refactor-03: 验证 thinking 事件批处理优化', async ({ page }) => {
     console.log('[Test] ========== 开始 thinking 批处理测试 ==========');
 
     const result = await page.evaluate(async () => {

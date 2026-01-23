@@ -36,7 +36,7 @@ test.describe('agent 工具执行错误输出回归测试', () => {
    * 2. role='tool' 消息是否也被创建
    * 3. 错误信息是否被重复显示
    */
-  test('agent-error-echo-01: 工具执行失败时错误信息不应该重复显示', async ({ page }) => {
+  test('@regression agent-error-echo-01: 工具执行失败时错误信息不应该重复显示', async ({ page }) => {
     console.log('[Test] 开始测试: 工具执行失败时的错误显示');
 
     const result = await page.evaluate(async () => {
@@ -159,7 +159,7 @@ test.describe('agent 工具执行错误输出回归测试', () => {
   /**
    * 测试用例 2: 验证 formatToolResultToMarkdown 如何处理错误字符串
    */
-  test('agent-error-echo-02: 错误字符串应该被正确格式化', async ({ page }) => {
+  test('@regression agent-error-echo-02: 错误字符串应该被正确格式化', async ({ page }) => {
     console.log('[Test] 开始测试: 错误字符串格式化');
 
     const result = await page.evaluate(async () => {
@@ -208,7 +208,7 @@ test.describe('agent 工具执行错误输出回归测试', () => {
   /**
    * 测试用例 3: 验证 VirtualMessageList 过滤 role='tool' 消息
    */
-  test('agent-error-echo-03: VirtualMessageList 应该过滤掉 role=tool 消息', async ({ page }) => {
+  test('@regression agent-error-echo-03: VirtualMessageList 应该过滤掉 role=tool 消息', async ({ page }) => {
     console.log('[Test] 开始测试: VirtualMessageList 过滤逻辑');
 
     const result = await page.evaluate(async () => {
@@ -255,7 +255,7 @@ test.describe('agent 工具执行错误输出回归测试', () => {
   /**
    * 测试用例 4: 验证完整的错误流程（模拟真实场景）
    */
-  test('agent-error-echo-04: 完整错误流程测试', async ({ page }) => {
+  test('@regression agent-error-echo-04: 完整错误流程测试', async ({ page }) => {
     console.log('[Test] 开始测试: 完整错误流程');
 
     const result = await page.evaluate(async () => {

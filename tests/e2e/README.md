@@ -411,7 +411,21 @@ test('@fast should validate input', async () => { ... });
 test('@medium should load file', async () => { ... });
 test('@slow should complete workflow', async () => { ... });
 test('@regression should fix bug-123', async () => { ... });
+test('@tauri should verify real backend behavior', async () => { ... });
+
+// 组合多个标签
+test('@regression @tauri should verify streaming with real backend', async () => { ... });
 ```
+
+**可用标签说明**:
+
+| 标签 | 运行命令 | 说明 |
+|------|----------|------|
+| `@fast` | `npm run test:e2e:fast` | 快速测试（< 5秒） |
+| `@medium` | `npm run test:e2e:medium` | 中等速度测试（5-30秒） |
+| `@slow` | `npm run test:e2e:slow` | 慢速测试（> 30秒） |
+| `@regression` | `npm run test:e2e:regression` | 回归测试（Bug 修复验证） |
+| `@tauri` | `npm run test:e2e:tauri` | 需要真实 Tauri 后端 |
 
 ---
 

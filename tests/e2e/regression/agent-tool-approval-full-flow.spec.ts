@@ -39,7 +39,7 @@ test.describe('Agent 工具批准完整流程', () => {
     await page.waitForTimeout(1000);
   });
 
-  test('agent-full-flow-01: 完整模拟 Agent thinking + tool_call 流程', async ({ page }) => {
+  test('@regression agent-full-flow-01: 完整模拟 Agent thinking + tool_call 流程', async ({ page }) => {
     console.log('[Test] ========== 开始完整 Agent 流程测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -286,7 +286,7 @@ test.describe('Agent 工具批准完整流程', () => {
     console.log('[Test] ✅ 测试完成');
   });
 
-  test('agent-full-flow-02: 模拟无 content 的 Agent 消息', async ({ page }) => {
+  test('@regression agent-full-flow-02: 模拟无 content 的 Agent 消息', async ({ page }) => {
     console.log('[Test] ========== 测试无 content 的 Agent 消息 ==========');
 
     const result = await page.evaluate(async () => {

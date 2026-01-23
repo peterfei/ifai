@@ -24,7 +24,7 @@ test.describe('Agent Tool Approval - v0.3.8.2 Regression Test', () => {
     await page.waitForSelector('text=IfAI', { timeout: 10000 });
   });
 
-  test('should verify tool_call ID format from LLM API', async ({ page }) => {
+  test('@regression should verify tool_call ID format from LLM API', async ({ page }) => {
     console.log('[Test] ========== Tool Call ID 格式验证 ==========');
     test.setTimeout(60000);
 
@@ -129,7 +129,7 @@ test.describe('Agent Tool Approval - v0.3.8.2 Regression Test', () => {
     }
   });
 
-  test('should handle thread isolation for agent tool calls', async ({ page }) => {
+  test('@regression should handle thread isolation for agent tool calls', async ({ page }) => {
     console.log('[Test] ========== Agent Thread 隔离测试 ==========');
     test.setTimeout(60000);
 

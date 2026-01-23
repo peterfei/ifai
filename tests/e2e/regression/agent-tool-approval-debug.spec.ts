@@ -32,7 +32,7 @@ test.describe('Agent 工具批准按钮深度调试', () => {
     await page.waitForTimeout(500);
   });
 
-  test('debug-001: 检查 ToolApproval 组件的实际 props', async ({ page }) => {
+  test('@regression debug-001: 检查 ToolApproval 组件的实际 props', async ({ page }) => {
     console.log('[Test] ========== 深度调试 ToolApproval props ==========');
 
     const result = await page.evaluate(async () => {
@@ -141,7 +141,7 @@ test.describe('Agent 工具批准按钮深度调试', () => {
     }
   });
 
-  test('debug-002: 检查 settings 状态', async ({ page }) => {
+  test('@regression debug-002: 检查 settings 状态', async ({ page }) => {
     console.log('[Test] ========== 检查 settings 状态 ==========');
 
     const result = await page.evaluate(async () => {
@@ -170,7 +170,7 @@ test.describe('Agent 工具批准按钮深度调试', () => {
     expect(result.success).toBe(true);
   });
 
-  test('debug-003: 模拟真实 Agent 场景 - 通过 agentStore', async ({ page }) => {
+  test('@regression debug-003: 模拟真实 Agent 场景 - 通过 agentStore', async ({ page }) => {
     console.log('[Test] ========== 模拟真实 Agent 场景 ==========');
 
     const result = await page.evaluate(async () => {

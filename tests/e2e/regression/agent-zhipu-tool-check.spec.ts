@@ -32,7 +32,7 @@ test.describe('智谱 API tool_call 缺失诊断', () => {
     await page.waitForTimeout(500);
   });
 
-  test('zhipu-tool-check-01: 直接调用智谱 API 检查 tool_call 响应', async ({ page }) => {
+  test('@regression zhipu-tool-check-01: 直接调用智谱 API 检查 tool_call 响应', async ({ page }) => {
     console.log('[Test] ========== 直接调用智谱 API 诊断 ==========');
 
     const result = await page.evaluate(async () => {
@@ -230,7 +230,7 @@ test.describe('智谱 API tool_call 缺失诊断', () => {
     expect(result.success).toBe(true);
   });
 
-  test('zhipu-tool-check-02: 真实 Agent 流程 - 检查是否收到 tool_call', async ({ page }) => {
+  test('@regression zhipu-tool-check-02: 真实 Agent 流程 - 检查是否收到 tool_call', async ({ page }) => {
     console.log('[Test] ========== 真实 Agent 流程测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -347,7 +347,7 @@ test.describe('智谱 API tool_call 缺失诊断', () => {
     console.log('[Test] Events received:', result.eventsCount);
   });
 
-  test('zhipu-tool-check-03: v0.3.8 修复验证 - 真实 Refactor Agent 场景', async ({ page }) => {
+  test('@regression zhipu-tool-check-03: v0.3.8 修复验证 - 真实 Refactor Agent 场景', async ({ page }) => {
     console.log('[Test] ========== v0.3.8 修复验证 - 真实 Refactor Agent 场景 ==========');
     test.setTimeout(180000); // 增加超时到 180 秒，等待 Tauri 后端编译完成
 

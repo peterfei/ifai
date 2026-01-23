@@ -26,7 +26,7 @@ test.describe('空气泡验证测试', () => {
    *
    * 还原用户输入"执行npm run dev"的完整流程
    */
-  test('verify-empty-bubble-01: 模拟完整工具执行流程并检查是否有空气泡', async ({ page }) => {
+  test('@regression verify-empty-bubble-01: 模拟完整工具执行流程并检查是否有空气泡', async ({ page }) => {
     console.log('[Test] ========== 开始空气泡验证测试 ==========');
 
     const result = await page.evaluate(async () => {
@@ -229,7 +229,7 @@ test.describe('空气泡验证测试', () => {
   /**
    * 测试用例 2: 检查 VirtualMessageList 的过滤逻辑
    */
-  test('verify-empty-bubble-02: 检查 VirtualMessageList 是否会过滤空消息', async ({ page }) => {
+  test('@regression verify-empty-bubble-02: 检查 VirtualMessageList 是否会过滤空消息', async ({ page }) => {
     console.log('[Test] 检查 VirtualMessageList 过滤逻辑');
 
     const result = await page.evaluate(async () => {
@@ -298,7 +298,7 @@ test.describe('空气泡验证测试', () => {
    *
    * 实际渲染页面并截图，检查是否有空气泡
    */
-  test('verify-empty-bubble-03: 视觉检查 - 截图验证是否有空气泡', async ({ page }) => {
+  test('@regression verify-empty-bubble-03: 视觉检查 - 截图验证是否有空气泡', async ({ page }) => {
     console.log('[Test] 视觉检查 - 准备截图');
 
     // 创建测试场景

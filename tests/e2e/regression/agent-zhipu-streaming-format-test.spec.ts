@@ -18,7 +18,7 @@ test.describe('智谱 API 流式 Function Calling', () => {
     await page.waitForTimeout(500);
   });
 
-  test('zhipu-stream-01: 测试智谱流式 API Function Calling', async ({ page }) => {
+  test('@regression zhipu-stream-01: 测试智谱流式 API Function Calling', async ({ page }) => {
     console.log('[Test] ========== 测试智谱流式 API Function Calling ==========');
 
     const result = await page.evaluate(async () => {

@@ -67,7 +67,7 @@ test.describe.skip('真实 AI 字符数组回归测试 - TODO: Fix this test', (
    * 3. LLM 可能会调用 agent_list_dir 来查看项目结构
    * 4. 验证返回的目录列表不会被显示为字符数组
    */
-  test('real-ai-char-array-01: 真实 AI 场景 - 输入"执行vite"不应该显示字符数组', async ({ page }) => {
+  test('@regression real-ai-char-array-01: 真实 AI 场景 - 输入"执行vite"不应该显示字符数组', async ({ page }) => {
     console.log('[Test] 开始测试: 真实 AI 场景 - 执行vite');
 
     // 1. 设置 vite 项目环境
@@ -268,7 +268,7 @@ createApp(App).mount('#app');
    *
    * 更直接地触发 agent_list_dir
    */
-  test('real-ai-char-array-02: 真实 AI 场景 - 列出项目文件不应该显示字符数组', async ({ page }) => {
+  test('@regression real-ai-char-array-02: 真实 AI 场景 - 列出项目文件不应该显示字符数组', async ({ page }) => {
     console.log('[Test] 开始测试: 真实 AI 场景 - 列出项目文件');
 
     // 1. 设置项目环境（同上）
@@ -397,7 +397,7 @@ createApp(App).mount('#app');
    *
    * 即使后端返回字符数组，前端也应该正确处理
    */
-  test('real-ai-char-array-03: 模拟 agent_list_dir 返回字符数组应该被正确处理', async ({ page }) => {
+  test('@regression real-ai-char-array-03: 模拟 agent_list_dir 返回字符数组应该被正确处理', async ({ page }) => {
     console.log('[Test] 开始测试: 模拟字符数组处理');
 
     const result = await page.evaluate(async () => {

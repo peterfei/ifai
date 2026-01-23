@@ -31,7 +31,7 @@ test.describe('真实 LLM 空气泡问题回归测试', () => {
    *
    * 还原用户报告的确切场景
    */
-  test('empty-bubble-real-01: 真实 LLM 输入"执行npm run dev"不应该有空气泡', async ({ page }) => {
+  test('@regression empty-bubble-real-01: 真实 LLM 输入"执行npm run dev"不应该有空气泡', async ({ page }) => {
     console.log('[Test] 开始测试: 真实 LLM 场景还原');
 
     // 获取真实 AI 配置
@@ -133,7 +133,7 @@ test.describe('真实 LLM 空气泡问题回归测试', () => {
    *
    * 模拟本地模型返回工具调用但没有文本内容的情况
    */
-  test('empty-bubble-real-02: 模拟本地模型工具调用场景', async ({ page }) => {
+  test('@regression empty-bubble-real-02: 模拟本地模型工具调用场景', async ({ page }) => {
     console.log('[Test] 开始测试: 模拟本地模型工具调用');
 
     const result = await page.evaluate(async () => {
@@ -241,7 +241,7 @@ test.describe('真实 LLM 空气泡问题回归测试', () => {
   /**
    * 测试用例 3: 检查 MessageItem 的 shouldHideBubble 逻辑
    */
-  test('empty-bubble-real-03: MessageItem shouldHideBubble 逻辑验证', async ({ page }) => {
+  test('@regression empty-bubble-real-03: MessageItem shouldHideBubble 逻辑验证', async ({ page }) => {
     console.log('[Test] 开始测试: MessageItem shouldHideBubble 逻辑');
 
     const result = await page.evaluate(async () => {

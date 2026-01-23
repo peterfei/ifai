@@ -41,7 +41,7 @@ test.describe('真实智谱 LLM Agent 工具批准按钮', () => {
     await page.waitForTimeout(500);
   });
 
-  test('zhipu-real-01: 完整流程测试 - 智谱 LLM', async ({ page }) => {
+  test('@regression zhipu-real-01: 完整流程测试 - 智谱 LLM', async ({ page }) => {
     console.log('[Test] ========== 真实智谱 LLM Agent 工具批准按钮测试 ==========');
 
     const result = await page.evaluate(async () => {
