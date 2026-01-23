@@ -16,12 +16,18 @@ export default defineConfig(async ({ mode }) => {
   const isCommercial = mode === 'commercial' || process.env.APP_EDITION === 'commercial';
 
   // 🔥 检测是否在 E2E 测试环境（多种检测方式，确保可靠性）
-  // 1. 检查环境变量（NODE_ENV 或 VITE_TEST_ENV）
-  // 2. 检查 .env.e2e 标记文件是否存在（作为后备方案）
+  // 1. 优先检查环境变量（NODE_ENV 或 VITE_TEST_ENV）- 这些在运行测试时会被设置
+  // 2. 检查 .env.e2e 标记文件是否存在（仅作为后备，不单独判断）
+  // 3. 商业版本优先：如果是商业版且明确在测试中，才使用 Mock
   const hasTestEnv = process.env.NODE_ENV === 'test' || process.env.VITE_TEST_ENV === 'e2e';
+
+  // 🔥 商业版优先判断：如果是商业版，不强制进入 E2E 模式
+  // 除非明确设置了测试环境变量
+  const isE2E = hasTestEnv;  // 移除 .env.e2e 文件检测，避免误判
+
+  // 保留 .env.e2e 检测仅用于日志调试
   const e2eFlagPath = path.resolve(__dirname, './tests/e2e/.env.e2e');
   const hasE2EFlagFile = fs.existsSync(e2eFlagPath);
-  const isE2E = hasTestEnv || hasE2EFlagFile;
 
   // 🔥 调试日志：总是输出 E2E 检测结果
   console.log('[Vite Config] E2E detection:', {
