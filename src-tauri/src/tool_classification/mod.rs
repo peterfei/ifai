@@ -17,6 +17,9 @@ mod layer1_exact_match;
 mod layer2_rule_based;
 mod layer3_llm;
 
+// 社区版 Mock 实现
+mod mock;
+
 pub mod types;
 
 // 重新导出主要类型
@@ -25,6 +28,15 @@ pub use types::{
     ClassificationResult,
     ClassificationLayer,
 };
+
+// 重新导出版本信息
+pub use mock::{is_community_edition, is_commercial_edition, get_edition_info};
+
+/// Tauri 命令：获取版本信息
+#[tauri::command]
+pub fn get_edition_info_command() -> String {
+    get_edition_info().to_string()
+}
 
 use std::collections::HashMap;
 

@@ -139,219 +139,221 @@ export const useToolClassificationStore = create<
   subscribeWithSelector(
     persist(
       (set, get) => ({
-    ...initialState,
+        ...initialState,
 
-    /**
-     * 分类输入
-     */
-    classify: async (input: string) => {
-      set({ isClassifying: true, error: null, currentInput: input });
+        /**
+         * 分类输入
+         */
+        classify: async (input: string) => {
+          set({ isClassifying: true, error: null, currentInput: input });
 
-      try {
-        const response = await toolClassificationService.classify(input);
+          try {
+            const response = await toolClassificationService.classify(input);
 
-        const historyItem: ClassificationHistoryItem = {
-          id: generateId(),
-          input,
-          result: response.result,
-          timestamp: Date.now(),
-          latencyMs: response.latencyMs,
-        };
+            const historyItem: ClassificationHistoryItem = {
+              id: generateId(),
+              input,
+              result: response.result,
+              timestamp: Date.now(),
+              latencyMs: response.latencyMs,
+            };
 
-        set((state) => ({
-          currentResult: response.result,
-          history: [historyItem, ...state.history].slice(0, 100), // 保留最近100条
-          isClassifying: false,
-        }));
+            set((state) => ({
+              currentResult: response.result,
+              history: [historyItem, ...state.history].slice(0, 100), // 保留最近100条
+              isClassifying: false,
+            }));
 
-        // 更新统计信息
-        get().updateStats();
-      } catch (error) {
-        set({
-          error: error instanceof Error ? error.message : '分类失败',
-          isClassifying: false,
-        });
-        throw error;
-      }
-    },
-
-    /**
-     * 批量分类
-     */
-    batchClassify: async (inputs: string[]) => {
-      set({ isClassifying: true, error: null });
-
-      try {
-        const response = await toolClassificationService.batchClassify(inputs);
-
-        const historyItems: ClassificationHistoryItem[] = response.results.map((result, index) => ({
-          id: generateId(),
-          input: inputs[index],
-          result,
-          timestamp: Date.now(),
-          latencyMs: response.totalLatencyMs / inputs.length,
-        }));
-
-        set((state) => ({
-          history: [...historyItems, ...state.history].slice(0, 100),
-          isClassifying: false,
-        }));
-
-        // 更新统计信息
-        get().updateStats();
-
-        return response.results;
-      } catch (error) {
-        set({
-          error: error instanceof Error ? error.message : '批量分类失败',
-          isClassifying: false,
-        });
-        throw error;
-      }
-    },
-
-    /**
-     * 清空历史
-     */
-    clearHistory: () => {
-      set({ history: [] });
-      get().updateStats();
-    },
-
-    /**
-     * 删除历史记录项
-     */
-    removeHistoryItem: (id: string) => {
-      set((state) => ({
-        history: state.history.filter((item) => item.id !== id),
-      }));
-      get().updateStats();
-    },
-
-    /**
-     * 重置状态
-     */
-    reset: () => {
-      set(initialState);
-    },
-
-    /**
-     * 更新统计信息
-     */
-    updateStats: () => {
-      const { history } = get();
-
-      if (history.length === 0) {
-        set({
-          stats: initialState.stats,
-        });
-        return;
-      }
-
-      const byCategory: Record<ToolCategory, number> = {
-        file_operations: 0,
-        code_generation: 0,
-        code_analysis: 0,
-        terminal_commands: 0,
-        ai_chat: 0,
-        search_operations: 0,
-        no_tool_needed: 0,
-      };
-
-      const byLayer: Record<ClassificationLayer, number> = {
-        layer1: 0,
-        layer2: 0,
-        layer3: 0,
-      };
-
-      let totalConfidence = 0;
-
-      for (const item of history) {
-        byCategory[item.result.category]++;
-        byLayer[item.result.layer]++;
-        totalConfidence += item.result.confidence;
-      }
-
-      set({
-        stats: {
-          totalCount: history.length,
-          byCategory,
-          byLayer,
-          averageConfidence: totalConfidence / history.length,
+            // 更新统计信息
+            get().updateStats();
+          } catch (error) {
+            set({
+              error: error instanceof Error ? error.message : '分类失败',
+              isClassifying: false,
+            });
+            throw error;
+          }
         },
-      });
-    },
 
-    /**
-     * 提交反馈
-     */
-    submitFeedback: (input: string, result: ClassificationResult, isCorrect: boolean, expectedCategory?: ToolCategory, notes?: string) => {
-      const feedbackItem: ClassificationFeedback = {
-        id: generateId(),
-        input,
-        result,
-        isCorrect,
-        expectedCategory,
-        notes,
-        timestamp: Date.now(),
-      };
+        /**
+         * 批量分类
+         */
+        batchClassify: async (inputs: string[]) => {
+          set({ isClassifying: true, error: null });
 
-      set((state) => ({
-        feedback: [feedbackItem, ...state.feedback].slice(0, 500), // 保留最近500条反馈
-      }));
+          try {
+            const response = await toolClassificationService.batchClassify(inputs);
 
-      // 更新反馈统计
-      get().updateFeedbackStats();
-    },
+            const historyItems: ClassificationHistoryItem[] = response.results.map((result, index) => ({
+              id: generateId(),
+              input: inputs[index],
+              result,
+              timestamp: Date.now(),
+              latencyMs: response.totalLatencyMs / inputs.length,
+            }));
 
-    /**
-     * 删除反馈
-     */
-    removeFeedback: (id: string) => {
-      set((state) => ({
-        feedback: state.feedback.filter((item) => item.id !== id),
-      }));
-      get().updateFeedbackStats();
-    },
+            set((state) => ({
+              history: [...historyItems, ...state.history].slice(0, 100),
+              isClassifying: false,
+            }));
 
-    /**
-     * 清空反馈
-     */
-    clearFeedback: () => {
-      set({ feedback: [] });
-      get().updateFeedbackStats();
-    },
+            // 更新统计信息
+            get().updateStats();
 
-    /**
-     * 更新反馈统计
-     */
-    updateFeedbackStats: () => {
-      const { feedback } = get();
-
-      const correct = feedback.filter((f) => f.isCorrect).length;
-      const incorrect = feedback.filter((f) => !f.isCorrect).length;
-
-      set({
-        feedbackStats: {
-          total: feedback.length,
-          correct,
-          incorrect,
-          accuracyRate: feedback.length > 0 ? (correct / feedback.length) * 100 : 0,
+            return response.results;
+          } catch (error) {
+            set({
+              error: error instanceof Error ? error.message : '批量分类失败',
+              isClassifying: false,
+            });
+            throw error;
+          }
         },
-      });
-    },
-  })),
-  {
-    name: 'tool-classification-storage',
-    version: 1,
-    // 只持久化历史记录和反馈数据，不包括当前状态
-    partialize: (state) => ({
-      history: state.history,
-      feedback: state.feedback,
-      stats: state.stats,
-      feedbackStats: state.feedbackStats,
-    }),
-  })
+
+        /**
+         * 清空历史
+         */
+        clearHistory: () => {
+          set({ history: [] });
+          get().updateStats();
+        },
+
+        /**
+         * 删除历史记录项
+         */
+        removeHistoryItem: (id: string) => {
+          set((state) => ({
+            history: state.history.filter((item) => item.id !== id),
+          }));
+          get().updateStats();
+        },
+
+        /**
+         * 重置状态
+         */
+        reset: () => {
+          set(initialState);
+        },
+
+        /**
+         * 更新统计信息
+         */
+        updateStats: () => {
+          const { history } = get();
+
+          if (history.length === 0) {
+            set({
+              stats: initialState.stats,
+            });
+            return;
+          }
+
+          const byCategory: Record<ToolCategory, number> = {
+            file_operations: 0,
+            code_generation: 0,
+            code_analysis: 0,
+            terminal_commands: 0,
+            ai_chat: 0,
+            search_operations: 0,
+            no_tool_needed: 0,
+          };
+
+          const byLayer: Record<ClassificationLayer, number> = {
+            layer1: 0,
+            layer2: 0,
+            layer3: 0,
+          };
+
+          let totalConfidence = 0;
+
+          for (const item of history) {
+            byCategory[item.result.category]++;
+            byLayer[item.result.layer]++;
+            totalConfidence += item.result.confidence;
+          }
+
+          set({
+            stats: {
+              totalCount: history.length,
+              byCategory,
+              byLayer,
+              averageConfidence: totalConfidence / history.length,
+            },
+          });
+        },
+
+        /**
+         * 提交反馈
+         */
+        submitFeedback: (input: string, result: ClassificationResult, isCorrect: boolean, expectedCategory?: ToolCategory, notes?: string) => {
+          const feedbackItem: ClassificationFeedback = {
+            id: generateId(),
+            input,
+            result,
+            isCorrect,
+            expectedCategory,
+            notes,
+            timestamp: Date.now(),
+          };
+
+          set((state) => ({
+            feedback: [feedbackItem, ...state.feedback].slice(0, 500), // 保留最近500条反馈
+          }));
+
+          // 更新反馈统计
+          get().updateFeedbackStats();
+        },
+
+        /**
+         * 删除反馈
+         */
+        removeFeedback: (id: string) => {
+          set((state) => ({
+            feedback: state.feedback.filter((item) => item.id !== id),
+          }));
+          get().updateFeedbackStats();
+        },
+
+        /**
+         * 清空反馈
+         */
+        clearFeedback: () => {
+          set({ feedback: [] });
+          get().updateFeedbackStats();
+        },
+
+        /**
+         * 更新反馈统计
+         */
+        updateFeedbackStats: () => {
+          const { feedback } = get();
+
+          const correct = feedback.filter((f) => f.isCorrect).length;
+          const incorrect = feedback.filter((f) => !f.isCorrect).length;
+
+          set({
+            feedbackStats: {
+              total: feedback.length,
+              correct,
+              incorrect,
+              accuracyRate: feedback.length > 0 ? (correct / feedback.length) * 100 : 0,
+            },
+          });
+        },
+      }),
+      {
+        name: 'tool-classification-storage',
+        version: 1,
+        // 只持久化历史记录和反馈数据，不包括当前状态
+        partialize: (state) => ({
+          history: state.history,
+          feedback: state.feedback,
+          stats: state.stats,
+          feedbackStats: state.feedbackStats,
+        }),
+      }
+    )
+  )
 );
 
 /**
