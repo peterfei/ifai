@@ -148,7 +148,7 @@ test.describe('后端 tool_call 事件发送测试', () => {
     }
   });
 
-  test('@regression backend-toolcall-02: 真实用例 - 重构 README.md 90字左右', async ({ page }) => {
+  test('@regression @tauri backend-toolcall-02: 真实用例 - 重构 README.md 90字左右', async ({ page }) => {
     console.log('[Test] ========== 真实用例：重构 README.md 90字左右 ==========');
 
     const result = await page.evaluate(async () => {

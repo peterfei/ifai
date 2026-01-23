@@ -373,7 +373,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
     }, [isWriteFile, filePath, isPartial, oldContent, toolCall.result]);
 
     return (
-        <div data-test-id="tool-approval-card" className="group/tool mt-4 mb-4 rounded-2xl border border-gray-700/40 bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5">
+        <div data-testid="file-approval-dialog" data-test-id="tool-approval-card" className="group/tool mt-4 mb-4 rounded-2xl border border-gray-700/40 bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5">
                         {/* Elegant Header (Point 2) */}
                         <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900/40 to-transparent border-b border-gray-700/30">
                             <div className="flex items-center gap-3 pr-12"> {/* Added pr-12 to avoid copy button overlap */}
@@ -385,7 +385,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                         {getToolLabel(toolCall.tool)}
                                     </span>
                                     {filePath ? (
-                                        <span className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
+                                        <span data-testid="file-path" className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
                                             {toolCall.tool?.includes('write') ? 'Writing to' : 'Accessing'} {filePath}
                                         </span>
                                     ) : (
@@ -507,12 +507,14 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                     {!settings.agentAutoApprove ? (
                         <>
                             <button
+                                data-testid="approve-button"
                                 onClick={() => onApprove(toolCall.id)}
                                 className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r border-gray-700/30 transition-all duration-200"
                             >
                                 <Check size={14} /> 批准执行
                             </button>
                             <button
+                                data-testid="reject-button"
                                 onClick={() => onReject(toolCall.id)}
                                 className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-2 transition-all duration-200"
                             >

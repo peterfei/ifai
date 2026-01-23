@@ -232,7 +232,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     }
   });
 
-  test('@regression scenario-02: 验证工具执行时 diff 数据正确保存', async ({ page }) => {
+  test('@regression @tauri scenario-02: 验证工具执行时 diff 数据正确保存', async ({ page }) => {
     console.log('[Test] ========== 场景 2: 工具执行时 diff 数据验证 ==========');
     test.setTimeout(60000);
 
@@ -325,7 +325,7 @@ test.describe('Agent Diff After Refactor - 全场景覆盖', () => {
     console.log('[Test] ✅ 工具执行时 diff 数据保存正确');
   });
 
-  test('@regression scenario-03: 模拟完整 Agent 流程验证 diff 保留', async ({ page }) => {
+  test('@regression @tauri scenario-03: 模拟完整 Agent 流程验证 diff 保留', async ({ page }) => {
     console.log('[Test] ========== 场景 3: 完整 Agent 流程 diff 保留验证 ==========');
     test.setTimeout(120000);
 
