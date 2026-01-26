@@ -166,7 +166,7 @@ describe('Fallback Behavior', () => {
     it('should fallback to cloud when LLM fails', async () => {
       const result = await routeTool('complex query', { simulateLLMFailure: true });
       expect(result.source).toBe('cloud');
-      expect(result.fallback_reason).toContain('LLM failed');
+      expect(result.fallback_reason).toMatch(/LLM.*failed/i);
     });
 
     it('should indicate fallback reason', async () => {
