@@ -81,6 +81,11 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
                            toolCall?.tool === 'read_file' ||
                            (toolCall as any)?.function?.name === 'agent_read_file';
 
+    // 🔥 v0.3.4 FIX: 检查是否是 agent_list_dir 返回的字符串（可能是字符数组被拼接后的结果）
+    const isListDirTool = toolCall?.tool === 'agent_list_dir' ||
+                          toolCall?.tool === 'list_dir' ||
+                          (toolCall as any)?.function?.name === 'agent_list_dir';
+
     if (isReadFileTool) {
       // 尝试解析 JSON（可能是包装格式）
       try {
@@ -101,6 +106,36 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
       }
     }
 
+    // 🔥 v0.3.4 FIX: 如果是 agent_list_dir 工具，直接返回简洁格式
+    // 不显示完整内容（因为可能是字符数组被拼接后的乱码字符串）
+    if (isListDirTool) {
+      // 🔥 DEBUG: 添加调试日志
+      console.log('[formatToolResultToMarkdown] 🔥 isListDirTool, result type:', typeof result);
+      console.log('[formatToolResultToMarkdown] 🔥 result preview:', result.toString().substring(0, 100));
+
+      // 尝试解析 JSON（如果是正常的数组结果）
+      try {
+        const parsed = JSON.parse(result);
+        if (Array.isArray(parsed)) {
+          // 是 JSON 数组，递归处理
+          console.log('[formatToolResultToMarkdown] 🔥 Parsed JSON array, length:', parsed.length);
+          console.log('[formatToolResultToMarkdown] 🔥 First element:', parsed[0]);
+          return formatToolResultToMarkdown(parsed, toolCall);
+        }
+      } catch {
+        // 不是 JSON，可能是字符数组被拼接后的字符串
+        // 直接返回简洁格式，不显示具体内容
+        console.log('[formatToolResultToMarkdown] 🔥 Not JSON array, treating as plain string');
+      }
+
+      const dirPath = toolCall?.args?.rel_path ||
+                      toolCall?.args?.path ||
+                      toolCall?.args?.relPath ||
+                      'unknown';
+      console.log('[formatToolResultToMarkdown] 🔥 Returning simple format for:', dirPath);
+      return `📂 已列出目录 \`${dirPath}\``;
+    }
+
     // 非读文件工具的字符串处理
     try {
       const parsed = JSON.parse(result);
@@ -113,31 +148,88 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
 
   // 处理数组类型的结果
   if (Array.isArray(result)) {
+    // 🔥 v0.3.4: 优先检查是否是 agent_list_dir 工具（包括空数组）
+    const isListDirTool = toolCall?.tool === 'agent_list_dir' ||
+                          toolCall?.tool === 'list_dir' ||
+                          (toolCall as any)?.function?.name === 'agent_list_dir';
+
+    // 🔥 FIX: 检查是否是字符数组（ifainew_core 的 bug）
+    // 🔥 v0.3.4: 更准确的检测 - 字符数组特征：
+    // 1. 每个元素都是单个字符的字符串（长度 <= 1）
+    // 2. 数组长度大于 10（避免误判小文件列表）
+    const isCharArray = result.length > 10 &&
+                       result.every(item => typeof item === 'string' && item.length <= 1);
+
+    // 🔥 v0.3.4 FIX: 如果是 agent_list_dir 工具返回的字符数组，直接返回简洁格式
+    // 避免拼接成字符串后丢失文件数量信息（因为拼接后无法还原原始文件列表）
+    if (isCharArray && isListDirTool) {
+      const dirPath = toolCall?.args?.rel_path ||
+                      toolCall?.args?.path ||
+                      toolCall?.args?.relPath ||
+                      'unknown';
+      // 字符数组的长度是字符总数，不是文件数量，所以不显示数量
+      return `📂 已列出目录 \`${dirPath}\``;
+    }
+
+    // 非字符数组的 list_dir 工具结果（正常的文件列表数组）
+    if (isListDirTool) {
+      const dirPath = toolCall?.args?.rel_path ||
+                      toolCall?.args?.path ||
+                      toolCall?.args?.relPath ||
+                      'unknown';
+
+      // 🔥 v0.3.4: 统计文件和子目录数量
+      // 检查每个路径是否以 '/' 结尾来判断是否为目录
+      let fileCount = 0;
+      let dirCount = 0;
+
+      result.forEach((item: string) => {
+        // 以 '/' 结尾的是目录
+        if (item.endsWith('/')) {
+          dirCount++;
+        } else {
+          fileCount++;
+        }
+      });
+
+      // 根据统计结果生成不同的显示格式
+      let statsText = '';
+      if (fileCount > 0 && dirCount > 0) {
+        statsText = ` (${fileCount} 个文件, ${dirCount} 个子目录)`;
+      } else if (fileCount > 0) {
+        statsText = ` (${fileCount} 个文件)`;
+      } else if (dirCount > 0) {
+        statsText = ` (${dirCount} 个子目录)`;
+      } else {
+        // 空目录：显示 (0 个文件)
+        statsText = ` (0 个文件)`;
+      }
+
+      return `📂 已列出目录 \`${dirPath}\`${statsText}`;
+    }
+
     if (result.length === 0) {
       return '_No results_';
     }
 
-    // 🔥 FIX: 首先检查是否是字符数组（ifainew_core::agent::agent_read_file 的 bug）
-    // 字符数组特征：每个元素都是单个字符的字符串
-    const isCharArray = result.length > 0 &&
-                       result.every(item => typeof item === 'string' && item.length <= 10);
     if (isCharArray) {
-      // 将字符数组拼接成字符串
+      // 将字符数组拼接成字符串（用于 agent_read_file 等其他工具）
       const joinedString = result.join('');
       // 🔥 FIX v0.3.4: 递归时传递 toolCall 参数
       return formatToolResultToMarkdown(joinedString, toolCall);
     }
 
-    // 🔥 FIX: 检查是否是文件/目录列表（agent_list_dir 的结果）
-    // 特征：大部分元素是字符串，且包含常见文件名模式
-    const allStrings = result.every(item => typeof item === 'string');
+    // 🔥 FIX: 检查是否是文件/目录列表（agent_list_dir 的结果，无 toolCall 的情况）
+    // 特征：大部分元素是字符串，且包含常见文件名模式（如扩展名、路径分隔符）
+    // 🔥 v0.3.4: 排除字符数组（元素长度 > 1）
+    const allStrings = result.every(item => typeof item === 'string' && item.length > 1);
     const hasFilePatterns = result.some(item =>
       typeof item === 'string' && (item.includes('.') || item.includes('/') || item.match(/^[a-z_][a-z0-9_]*$/i))
     );
 
-    if (allStrings && hasFilePatterns && result.length > 1) {
-      // 这是一个文件/目录列表，格式化为 Markdown 列表
-      return `## 📁 Files (${result.length})\n\n${result.map(item => `- \`${item}\``).join('\n')}`;
+    if (allStrings && hasFilePatterns && result.length >= 2) {
+      // 🔥 v0.3.4: 使用简洁格式，不再列出所有文件
+      return `📂 已列出目录 (${result.length} 个文件/目录)`;
     }
 
     // 检查是否是生成的文件路径列表（旧的逻辑，保留兼容）

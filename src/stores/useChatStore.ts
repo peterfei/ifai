@@ -2372,6 +2372,11 @@ const patchedApproveToolCall = async (
                     // 🔥 v0.3.4 修复：放宽长度限制，只检查是否都是字符串
                     const isStringArray = result.length > 0 &&
                                          result.every((item: any) => typeof item === 'string');
+
+                    // 🔥 v0.3.4 FIX: 检查是否是字符数组（每个元素长度 <= 1）
+                    const isCharArray = result.length > 10 &&
+                                       result.every((item: any) => typeof item === 'string' && item.length <= 1);
+
                     if (isStringArray) {
                         // 字符串数组：拼接成字符串
                         // 适用于 agent_read_file 返回字符数组的情况
@@ -2386,7 +2391,15 @@ const patchedApproveToolCall = async (
                             };
                             stringResult = JSON.stringify(wrappedResult);
                             console.log(`[useChatStore] 🔥 Wrapped agent_read_file result with path: ${relPath}, content length: ${fileContent.length}`);
+                        }
+                        // 🔥 v0.3.4 FIX: 对于 agent_list_dir，保留数组格式
+                        // 不拼接字符数组，让 formatToolResultToMarkdown 能够正确处理
+                        else if (toolName === 'agent_list_dir') {
+                            // 直接用 JSON.stringify 保留数组结构
+                            stringResult = JSON.stringify(result);
+                            console.log(`[useChatStore] 🔥 agent_list_dir: keeping array format (${result.length} elements)`);
                         } else {
+                            // 其他工具：拼接成字符串
                             stringResult = result.join('');
                         }
                     } else {

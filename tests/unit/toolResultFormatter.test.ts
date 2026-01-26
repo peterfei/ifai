@@ -134,9 +134,11 @@ describe('toolResultFormatter - 防止类型错误导致黑屏', () => {
       const result = ['file1.ts', 'file2.ts', 'src/index.ts'];
       const output = formatToolResultToMarkdown(result);
 
-      expect(output).toContain('📁');
-      expect(output).toContain('file1.ts');
-      expect(output).toContain('(3)');
+      // 🔥 v0.3.4: 文件列表现在使用简洁格式，不显示所有文件名
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('3');
+      expect(output).not.toContain('file1.ts');  // 不再显示具体文件名
     });
 
     it('应该正确处理数字数组（不应报错）', () => {
@@ -280,6 +282,226 @@ describe('toolResultFormatter - 防止类型错误导致黑屏', () => {
       expect(output).toContain('已读取文件');
       expect(output).toContain('/test/const.ts');
       expect(output).not.toContain('const x = 1;');
+    });
+  });
+
+  // 🔥 v0.3.4: 目录列表简洁显示测试
+  describe('目录列表简洁显示 (v0.3.4)', () => {
+    it('应该为 agent_list_dir 工具返回简洁格式（数组结果）', () => {
+      const fileList = [
+        'src/index.ts',
+        'src/App.tsx',
+        'src/utils/helper.ts',
+        'package.json',
+        'README.md'
+      ];
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: {
+          rel_path: '/test/project'
+        },
+        id: 'test-list-1'
+      };
+
+      const output = formatToolResultToMarkdown(fileList, toolCall);
+
+      // 应该包含简洁格式的关键元素
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('/test/project');
+      expect(output).toContain('5');  // 文件数量
+      // 不应该列出所有文件
+      expect(output).not.toContain('src/index.ts');
+      expect(output).not.toContain('package.json');
+    });
+
+    it('应该正确处理 JSON 字符串格式的目录列表', () => {
+      const fileListJson = JSON.stringify([
+        'src/components/Header.tsx',
+        'src/components/Footer.tsx',
+        'src/pages/Home.tsx'
+      ]);
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: {
+          path: '/src/components'
+        },
+        id: 'test-list-2'
+      };
+
+      const output = formatToolResultToMarkdown(fileListJson, toolCall);
+
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('3');  // 文件数量
+    });
+
+    it('应该通过结构特征检测目录列表（无 toolCall）', () => {
+      const fileList = ['file1.ts', 'file2.js', 'file3.json', 'dir1/'];
+      const output = formatToolResultToMarkdown(fileList);
+
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('4');
+    });
+
+    it('应该处理空目录列表', () => {
+      const emptyList: string[] = [];
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: { path: '/empty' }
+      };
+
+      const output = formatToolResultToMarkdown(emptyList, toolCall);
+
+      expect(output).toContain('📂');
+      expect(output).toContain('0');
+    });
+
+    it('应该支持 list_dir 工具名称（兼容性）', () => {
+      const fileList = ['a.txt', 'b.txt'];
+      const toolCall = {
+        tool: 'list_dir',
+        args: { rel_path: '/test' }
+      };
+
+      const output = formatToolResultToMarkdown(fileList, toolCall);
+
+      expect(output).toContain('📂');
+      expect(output).toContain('2');
+    });
+
+    // 🔥 v0.3.4 FIX: agent_list_dir 字符数组问题（ifainew_core 的 bug）
+    it('应该正确处理 agent_list_dir 的字符数组结果（带 toolCall）', () => {
+      // 模拟 ifainew_core 的 bug：返回字符数组而不是完整字符串
+      // 例如：['.', 'i', 'f', 'a', 'i', '/', ...]
+      const charArrayResult = [
+        '.', 'i', 'f', 'a', 'i', '/', 'i', 'n', 'd', 'e', 'x', '.', 'h', 't', 'm', 'l',
+        's', 't', 'a', 'r', 't', '_', 'v', 'i', 't', 'e', '.', 's', 'h',
+        'p', 'a', 'c', 'k', 'a', 'g', 'e', '.', 'j', 's', 'o', 'n'
+      ];
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: {
+          rel_path: '.'
+        },
+        id: 'test-list-char-array'
+      };
+
+      const output = formatToolResultToMarkdown(charArrayResult, toolCall);
+
+      // 应该显示简洁格式，不应该拼接成字符串
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('`.`');
+      // 不应该显示拼接后的内容（如 ".ifai/index.html..."）
+      expect(output).not.toContain('.ifai/index.html');
+      expect(output).not.toContain('start_vite.sh');
+    });
+
+    // 🔥 v0.3.4 FIX: agent_list_dir 字符数组被 JSON.stringify 后的场景
+    it('应该正确处理 agent_list_dir 字符数组被 JSON.stringify 后的结果', () => {
+      // 模拟 useChatStore 中的处理：JSON.stringify(result)
+      const charArrayResult = [
+        '.', 'i', 'f', 'a', 'i', '/', 'i', 'n', 'd', 'e', 'x', '.', 'h', 't', 'm', 'l',
+        's', 't', 'a', 'r', 't', '_', 'v', 'i', 't', 'e', '.', 's', 'h'
+      ];
+      const jsonString = JSON.stringify(charArrayResult);
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: {
+          rel_path: '.'
+        },
+        id: 'test-list-json-string'
+      };
+
+      const output = formatToolResultToMarkdown(jsonString, toolCall);
+
+      // 应该显示简洁格式
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('`.`');
+      // 不应该显示拼接后的内容
+      expect(output).not.toContain('.ifai/index.htmlstart_vite');
+    });
+
+    // 🔥 v0.3.4 FIX: agent_list_dir 正常文件列表显示统计信息
+    it('应该显示文件和子目录的统计信息', () => {
+      const fileList = [
+        'src/index.ts',
+        'src/App.tsx',
+        'src/utils/',  // 子目录
+        'package.json',
+        'README.md',
+        'node_modules/',  // 子目录
+      ];
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: {
+          rel_path: '/test/project'
+        },
+        id: 'test-list-stats'
+      };
+
+      const output = formatToolResultToMarkdown(fileList, toolCall);
+
+      // 应该包含简洁格式
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('/test/project');
+
+      // 🔥 应该显示统计信息：4 个文件，2 个子目录
+      expect(output).toContain('4');
+      expect(output).toContain('文件');
+      expect(output).toContain('2');
+      expect(output).toContain('子目录');
+    });
+
+    // 🔥 v0.3.4 FIX: agent_list_dir 只有文件或只有目录的情况
+    it('应该正确处理只有文件或只有目录的情况', () => {
+      // 只有文件
+      const onlyFiles = ['file1.ts', 'file2.ts', 'file3.ts'];
+      const toolCall1 = {
+        tool: 'agent_list_dir',
+        args: { rel_path: '/files-only' }
+      };
+      const output1 = formatToolResultToMarkdown(onlyFiles, toolCall1);
+      expect(output1).toContain('3 个文件');
+      expect(output1).not.toContain('子目录');
+
+      // 只有目录
+      const onlyDirs = ['dir1/', 'dir2/'];
+      const toolCall2 = {
+        tool: 'agent_list_dir',
+        args: { rel_path: '/dirs-only' }
+      };
+      const output2 = formatToolResultToMarkdown(onlyDirs, toolCall2);
+      expect(output2).toContain('2 个子目录');
+      expect(output2).not.toContain('文件');
+    });
+
+    // 🔥 v0.3.4 FIX: agent_list_dir 字符数组被拼接成字符串后的场景（useChatStore 处理后）
+    it('应该正确处理 agent_list_dir 字符数组被 useChatStore 拼接后的字符串结果', () => {
+      // 模拟 useChatStore.ts 第 2390 行的处理：result.join('')
+      // 原始字符数组: ['.', 'i', 'f', 'a', 'i', '/', 'i', 'n', 'd', 'e', 'x', '.', 'h', 't', 'm', 'l', ...]
+      // 拼接后: ".ifai/index.htmlstart_vite.shpackage.json..."
+      const joinedString = ".ifai/index.htmlstart_vite.shpackage.json";
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: {
+          rel_path: '.'
+        },
+        id: 'test-list-joined-string'
+      };
+
+      const output = formatToolResultToMarkdown(joinedString, toolCall);
+
+      // 应该显示简洁格式，不应该显示拼接后的乱码字符串
+      expect(output).toContain('📂');
+      expect(output).toContain('已列出目录');
+      expect(output).toContain('`.`');
+      // 关键：不应该显示拼接后的内容
+      expect(output).not.toContain('.ifai/index.htmlstart_vite.sh');
     });
   });
 
