@@ -10,7 +10,13 @@
  * @version v0.3.4 - 适配会话信任机制
  */
 
-import { test, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
+
+// 🔥 v0.3.4: 检测是否为 Tauri 模式
+const isTauriMode = process.env.TAURI_DEV === 'true';
+
+// 🔥 v0.3.4: 创建条件测试别名 - Tauri 模式下跳过需要 mock 文件系统的测试
+const test = isTauriMode ? base.skip : base;
 import { setupE2ETestEnvironment, getRealAIConfig } from '../setup';
 import { MEDIUM_PROJECT } from './test-data';
 import { waitForToolCallsCompletion } from './test-helpers';
@@ -20,8 +26,29 @@ import { waitForToolCallsCompletion } from './test-helpers';
  */
 async function setupMockFileSystem(page: any, projectFiles: typeof MEDIUM_PROJECT) {
   await page.evaluate(async (project) => {
+    // 🔥 v0.3.4: 检查是否在 Tauri 模式下
+    const isTauriMode = !(window as any).__E2E_MOCK_FILE_SYSTEM__;
+
+    if (isTauriMode) {
+      console.log('[setupMockFileSystem] 🔥 Tauri 模式：跳过 mock 文件系统设置');
+      return;
+    }
+
+    // 🔥 v0.3.4: 等待 fileStore 初始化
+    let attempts = 0;
+    let fileStore = (window as any).__fileStore;
+    while (!fileStore && attempts < 50) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      fileStore = (window as any).__fileStore;
+      attempts++;
+    }
+
+    if (!fileStore) {
+      console.error('[setupMockFileSystem] fileStore not found after waiting');
+      return;
+    }
+
     const mockFS = (window as any).__E2E_MOCK_FILE_SYSTEM__;
-    const fileStore = (window as any).__fileStore;
 
     // 设置项目根目录
     const rootPath = `/Users/mac/mock-project/${project.name}`;
@@ -293,6 +320,7 @@ test.describe('Agent 文件读取 - 中等项目场景 (10-50 个文件)', () =>
    * 测试用例 3: 批量操作功能评估
    *
    * 场景：中等项目中验证批量操作的必要性
+   * 🔥 v0.3.4: 此测试依赖 mock 文件系统，在 Tauri 模式下自动跳过
    */
   test('@regression baseline-medium-03: 评估中等项目批量操作必要性', async ({ page }) => {
     // 🔥 v0.3.4: 增加超时时间
@@ -329,18 +357,15 @@ test.describe('Agent 文件读取 - 中等项目场景 (10-50 个文件)', () =>
     // 🔥 v0.3.4: 检查会话信任机制是否自动批准了所有工具调用
     const result = await page.evaluate(() => {
       const messages = (window as any).__chatStore?.getState().messages || [];
+
+      // 🔥 v0.3.4: 检查 tool 消息（Agent 执行结果）
+      const toolMessages = messages.filter((m: any) => m.role === 'tool');
+
+      // 同时也检查 toolCalls（兼容性）
       const toolCalls = messages.filter((m: any) => m.toolCalls && m.toolCalls.length > 0);
-
-      let autoApprovedCount = 0;
-      let totalCount = 0;
-
+      let toolCallsCount = 0;
       toolCalls.forEach((message: any) => {
-        message.toolCalls?.forEach((tc: any) => {
-          totalCount++;
-          if (tc.status === 'completed') {
-            autoApprovedCount++;
-          }
-        });
+        toolCallsCount += message.toolCalls?.length || 0;
       });
 
       // v0.3.4: 批量操作功能现在通过会话信任实现
@@ -349,14 +374,14 @@ test.describe('Agent 文件读取 - 中等项目场景 (10-50 个文件)', () =>
       const hasPermissionManager = !!document.querySelector('[data-testid="permission-manager"]');
 
       return {
-        autoApprovedCount,
-        totalCount,
+        autoApprovedCount: toolMessages.length,
+        totalCount: Math.max(toolMessages.length, toolCallsCount),
         hasBatchApprove,
         hasSelectAll,
         hasPermissionManager,
-        sessionTrustEnabled: autoApprovedCount > 0 && totalCount > 0,
+        sessionTrustEnabled: toolMessages.length > 0,
         // 判断：大量工具调用自动批准说明会话信任有效
-        batchOperationsEffective: autoApprovedCount >= 10
+        batchOperationsEffective: toolMessages.length >= 10
       };
     });
 

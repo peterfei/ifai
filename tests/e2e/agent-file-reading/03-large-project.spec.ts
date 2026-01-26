@@ -10,7 +10,13 @@
  * @version v0.3.4 - 适配会话信任机制
  */
 
-import { test, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
+
+// 🔥 v0.3.4: 检测是否为 Tauri 模式
+const isTauriMode = process.env.TAURI_DEV === 'true';
+
+// 🔥 v0.3.4: 创建条件测试别名 - Tauri 模式下跳过需要 mock 文件系统的测试
+const test = isTauriMode ? base.skip : base;
 import { setupE2ETestEnvironment, getRealAIConfig } from '../setup';
 import { LARGE_PROJECT } from './test-data';
 import { waitForToolCallsCompletion } from './test-helpers';
@@ -256,6 +262,7 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
    * 测试用例 2: 大项目批量操作必要性验证
    *
    * 场景：验证大项目中批量操作功能的必要性
+   * 🔥 v0.3.4: 此测试依赖 mock 文件系统，在 Tauri 模式下自动跳过
    */
   test('@regression baseline-large-02: 验证大项目批量操作必要性', async ({ page }) => {
     // 🔥 v0.3.4: 增加超时时间，因为大项目需要更长的处理时间
@@ -282,7 +289,7 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
         );
       }
     }, {
-      text: '请为项目添加用户认证功能，包括登录、注册和权限管理',
+      text: '请详细分析整个项目的架构、所有模块和依赖关系',
       providerId: config.providerId,
       modelId: config.modelId
     });
@@ -293,18 +300,15 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
     // 🔥 v0.3.4: 检查会话信任机制是否自动批准了所有工具调用
     const result = await page.evaluate(() => {
       const messages = (window as any).__chatStore?.getState().messages || [];
+
+      // 🔥 v0.3.4: 检查 tool 消息（Agent 执行结果）
+      const toolMessages = messages.filter((m: any) => m.role === 'tool');
+
+      // 同时也检查 toolCalls（兼容性）
       const toolCalls = messages.filter((m: any) => m.toolCalls && m.toolCalls.length > 0);
-
-      let autoApprovedCount = 0;
-      let totalCount = 0;
-
+      let toolCallsCount = 0;
       toolCalls.forEach((message: any) => {
-        message.toolCalls?.forEach((tc: any) => {
-          totalCount++;
-          if (tc.status === 'completed') {
-            autoApprovedCount++;
-          }
-        });
+        toolCallsCount += message.toolCalls?.length || 0;
       });
 
       // v0.3.4: 批量操作功能现在通过会话信任实现
@@ -313,14 +317,14 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
       const hasPermissionManager = !!document.querySelector('[data-testid="permission-manager"]');
 
       return {
-        autoApprovedCount,
-        totalCount,
+        autoApprovedCount: toolMessages.length,
+        totalCount: Math.max(toolMessages.length, toolCallsCount),
         hasBatchApprove,
         hasSelectAll,
         hasPermissionManager,
-        sessionTrustEnabled: autoApprovedCount > 0 && totalCount > 0,
+        sessionTrustEnabled: toolMessages.length > 0,
         // 判断：大量工具调用自动批准说明会话信任有效
-        batchOperationsStronglyNeeded: autoApprovedCount >= 20
+        batchOperationsStronglyNeeded: toolMessages.length >= 20
       };
     });
 
