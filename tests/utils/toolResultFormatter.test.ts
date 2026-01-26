@@ -76,7 +76,12 @@ describe('Tool Result Formatter', () => {
 
     const markdown = formatToolResultToMarkdown(result);
 
-    expect(markdown).toContain('console.log("Hello");');
+    // 🔥 v0.3.4: 简洁显示模式，不显示完整内容
+    expect(markdown).toContain('📄');
+    expect(markdown).toContain('已读取文件');
+    expect(markdown).toContain('/tmp/test.js');
+    expect(markdown).toContain('1 行');  // 显示行数
+    expect(markdown).not.toContain('console.log("Hello");');  // 不显示完整内容
   });
 
   test('should truncate long content', () => {
@@ -89,8 +94,12 @@ describe('Tool Result Formatter', () => {
 
     const markdown = formatToolResultToMarkdown(result);
 
-    expect(markdown).toContain('...'); // 应该有截断标记
-    expect(markdown).toContain('KB'); // 应该显示文件大小
+    // 🔥 v0.3.4: 简洁显示模式，显示行数和文件大小
+    expect(markdown).toContain('📄');
+    expect(markdown).toContain('/tmp/large.js');
+    expect(markdown).toContain('1 行');  // 单行文件（没有换行符）
+    expect(markdown).toContain('KB');    // 显示文件大小
+    expect(markdown).not.toContain('...');  // 简洁模式不需要截断标记
   });
 
   test('should handle empty result', () => {

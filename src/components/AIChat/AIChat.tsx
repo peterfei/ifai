@@ -3,6 +3,7 @@ import { Send, Settings, X, ChevronDown } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useThreadStore } from '../../stores/threadStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
 import { readFileContent } from '../../utils/fileSystem';
@@ -1361,6 +1362,48 @@ ${context}
       console.warn(`[AIChat] ⚠️ Cannot approve tool call: toolCall ${toolCallId} not found in message ${messageId}`);
       return;
     }
+
+    // 🔥 v0.3.4: 记录会话信任（手动批准时）
+    const settings = useSettingsStore.getState();
+    const approvalMode = settings.agentApprovalMode || 'session-once'; // 🔥 默认值处理
+
+    console.log(`[AIChat] 🔥 v0.3.4 Manual approval check:`, {
+      approvalMode,
+      originalMode: settings.agentApprovalMode
+    });
+
+    if (approvalMode === 'session-once') {
+      const threadId = useThreadStore.getState().activeThreadId || 'default';
+      const sessionTrust = settings.trustedSessions[threadId];
+
+      console.log(`[AIChat] 🔥 v0.3.4 Manual approval check:`, {
+        threadId,
+        sessionTrust,
+        approvalMode
+      });
+
+      // 只在首次批准时记录
+      if (!sessionTrust || Date.now() >= sessionTrust.expiresAt) {
+        const now = Date.now();
+        const updatedSessions = {
+          ...settings.trustedSessions,
+          [threadId]: {
+            approvedAt: now,
+            expiresAt: now + 60 * 60 * 1000 // 1小时
+          }
+        };
+        settings.updateSettings({
+          trustedSessions: updatedSessions
+        });
+
+        console.log(`[AIChat] 🔥 v0.3.4 Session trusted via manual approval:`, {
+          threadId,
+          newSession: updatedSessions[threadId],
+          allSessions: Object.keys(updatedSessions)
+        });
+      }
+    }
+
     approveToolCall(messageId, toolCallId);
   }, [approveToolCall, rawMessages]);
 

@@ -8,6 +8,33 @@ import ReactMarkdown from 'react-markdown';
 import { File, Folder, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { diffLines } from 'diff';
 
+/**
+ * 🔥 v0.3.4: 检测是否为 read_file 工具的结果
+ * 用于简洁显示模式（类似 Claude Code）
+ */
+function isReadFileResult(result: any, toolCall?: any): boolean {
+  // 🔥 FIX v0.3.4: 首先检查 result 类型，如果是字符串，让后续逻辑先解析JSON
+  if (typeof result === 'string') {
+    // 字符串需要先解析成对象，不能直接识别为读文件结果
+    return false;
+  }
+
+  // 方法 1: 检查 toolCall.tool
+  if (toolCall?.tool === 'agent_read_file' || toolCall?.tool === 'read_file') {
+    return true;
+  }
+
+  // 方法 2: 检查结果结构特征
+  // 读文件特征：有 path 和 content，但没有 write/delete 的特征
+  if (result && typeof result === 'object') {
+    const hasPathAndContent = result.path && result.content !== undefined;
+    const isNotWriteOperation = !result.filePath && !result.originalContent && !result.newContent;
+    return hasPathAndContent && isNotWriteOperation;
+  }
+
+  return false;
+}
+
 export interface ToolResult {
   success?: boolean;
   path?: string;
@@ -29,18 +56,55 @@ export interface ToolResult {
 export function formatToolResultToMarkdown(result: any, toolCall?: any): string {
   if (!result) return '';
 
-  console.log('[formatToolResultToMarkdown] 🔍 Debug result type:', typeof result);
-  console.log('[formatToolResultToMarkdown] 🔍 Debug result:', result);
-  console.log('[formatToolResultToMarkdown] result keys:', Object.keys(result));
-  console.log('[formatToolResultToMarkdown] result.newContent:', result.newContent ? result.newContent.substring(0, 50) : 'undefined');
-  console.log('[formatToolResultToMarkdown] result.originalContent:', result.originalContent ? result.originalContent.substring(0, 50) : 'undefined');
+  // 🔥 v0.3.4: 读文件简洁显示（方案 A）
+  if (isReadFileResult(result, toolCall)) {
+    // 🔥 FIX v0.3.4: 处理 content 可能是字符数组的情况
+    let content = result.content || '';
+    // 如果 content 是字符数组（ifainew_core 的 bug），拼接成字符串
+    if (Array.isArray(content) && content.every(item => typeof item === 'string')) {
+      console.log('[formatToolResultToMarkdown] 🔥 Content is char array, joining:', content.length, 'chars');
+      content = content.join('');
+    }
 
-  // 如果结果是字符串，直接返回
+    // 处理空内容：空字符串应该是 0 行
+    const lines = content === '' ? 0 : content.split('\n').length;
+    const sizeKB = (content.length / 1024).toFixed(2);
+    return `📄 已读取文件 \`${result.path}\` (${lines} 行, ${sizeKB} KB)`;
+  }
+
+  // 如果结果是字符串，尝试解析JSON
   if (typeof result === 'string') {
-    // 尝试解析JSON字符串
+    // 🔥 v0.3.4 FIX: 检查是否是 agent_read_file 直接返回字符串（非 JSON）
+    // 如果是读文件工具，且结果不是 JSON，可能是纯文本内容
+    // 这种情况下，我们不应该显示完整内容，而是简洁格式
+    const isReadFileTool = toolCall?.tool === 'agent_read_file' ||
+                           toolCall?.tool === 'read_file' ||
+                           (toolCall as any)?.function?.name === 'agent_read_file';
+
+    if (isReadFileTool) {
+      // 尝试解析 JSON（可能是包装格式）
+      try {
+        const parsed = JSON.parse(result);
+        return formatToolResultToMarkdown(parsed, toolCall);
+      } catch {
+        // 不是 JSON，但这可能是文件内容
+        // 🔥 v0.3.4: 读文件简洁显示 - 直接字符串的情况
+        // 由于没有 path 信息，我们使用默认格式
+        const lines = result === '' ? 0 : result.split('\n').length;
+        const sizeKB = (result.length / 1024).toFixed(2);
+        // 尝试从 toolCall.args 获取路径
+        const filePath = toolCall?.args?.rel_path ||
+                        toolCall?.args?.path ||
+                        toolCall?.args?.relPath ||
+                        'unknown';
+        return `📄 已读取文件 \`${filePath}\` (${lines} 行, ${sizeKB} KB)`;
+      }
+    }
+
+    // 非读文件工具的字符串处理
     try {
       const parsed = JSON.parse(result);
-      return formatToolResultToMarkdown(parsed);
+      return formatToolResultToMarkdown(parsed, toolCall);
     } catch {
       // 不是JSON，返回原字符串
       return result;
@@ -59,11 +123,9 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
                        result.every(item => typeof item === 'string' && item.length <= 10);
     if (isCharArray) {
       // 将字符数组拼接成字符串
-      console.log('[formatToolResultToMarkdown] 检测到字符数组，拼接为字符串，数组长度:', result.length);
       const joinedString = result.join('');
-
-      // 递归处理拼接后的字符串（可能是JSON）
-      return formatToolResultToMarkdown(joinedString);
+      // 🔥 FIX v0.3.4: 递归时传递 toolCall 参数
+      return formatToolResultToMarkdown(joinedString, toolCall);
     }
 
     // 🔥 FIX: 检查是否是文件/目录列表（agent_list_dir 的结果）
@@ -75,7 +137,6 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
 
     if (allStrings && hasFilePatterns && result.length > 1) {
       // 这是一个文件/目录列表，格式化为 Markdown 列表
-      console.log('[formatToolResultToMarkdown] 检测到文件列表，元素数量:', result.length);
       return `## 📁 Files (${result.length})\n\n${result.map(item => `- \`${item}\``).join('\n')}`;
     }
 
@@ -87,9 +148,7 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
 
     // 🔥 FIX: 如果数组包含非字符串元素，使用 JSON 格式显示
     if (!allStrings) {
-      console.log('[formatToolResultToMarkdown] 检测到混合类型数组，使用 JSON 格式');
       return `## 📊 Array (${result.length} items)\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
-      return `## 📁 Generated Files\n\n${result.map(path => `- \`${path}\``).join('\n')}`;
     }
 
     // 普通数组

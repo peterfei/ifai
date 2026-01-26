@@ -56,7 +56,7 @@ export interface SettingsState {
   fontLigatures: boolean;
   showMinimap: boolean;
   showLineNumbers: boolean;
-  
+
   // Editor
   tabSize: number;
   wordWrap: 'on' | 'off';
@@ -77,7 +77,11 @@ export interface SettingsState {
   enableSmartContextSelection: boolean;  // 是否启用智能上下文选择
   maxContextTokens?: number;            // 可选的token限制（未来扩展）
 
-  // Agent
+  // 🔥 v0.3.4: Agent 审批模式
+  agentApprovalMode: 'always' | 'session-once' | 'session-never' | 'per-tool';
+  trustedSessions: Record<string, { approvedAt: number; expiresAt: number }>;
+
+  // Agent (保留兼容性)
   agentAutoApprove: boolean;
   enableNaturalLanguageAgentTrigger: boolean;
   agentTriggerConfidenceThreshold: number;
@@ -138,7 +142,7 @@ export const useSettingsStore = create<SettingsState>()(
       bracketPairColorization: true,
       renderWhitespace: 'selection',
       formatOnSave: true,
-      
+
       providers: [
         {
           id: 'deepseek',
@@ -184,6 +188,11 @@ export const useSettingsStore = create<SettingsState>()(
       maxContextMessages: 15,
       enableSmartContextSelection: true,
       maxContextTokens: undefined,
+
+      // 🔥 v0.3.4: Agent 审批模式默认值
+      agentApprovalMode: 'session-once',  // 默认：会话首次批准
+      trustedSessions: {},
+
       agentAutoApprove: false,
       enableNaturalLanguageAgentTrigger: true,
       agentTriggerConfidenceThreshold: 0.6,  // 降低阈值以提高触发敏感度
@@ -306,7 +315,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 2,
+      version: 4, // 🔥 v0.3.4: 增加版本号确保迁移执行
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -344,9 +353,34 @@ export const useSettingsStore = create<SettingsState>()(
         maxContextMessages: state.maxContextMessages,
         enableSmartContextSelection: state.enableSmartContextSelection,
         maxContextTokens: state.maxContextTokens,
+        // 🔥 v0.3.4: 持久化审批模式设置
+        agentApprovalMode: state.agentApprovalMode,
+        trustedSessions: state.trustedSessions,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 2`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 4`);
+
+        // 🔥 v0.3.4: 版本 3 -> 4：确保新字段存在（安全迁移）
+        if (!persistedState.agentApprovalMode) {
+          persistedState.agentApprovalMode = 'session-once';
+          console.log('[SettingsStore] Set default agentApprovalMode=session-once (v3->4)');
+        }
+        if (!persistedState.trustedSessions) {
+          persistedState.trustedSessions = {};
+          console.log('[SettingsStore] Set default trustedSessions={} (v3->4)');
+        }
+
+        // 版本 2 -> 3：迁移 agentAutoApprove 到 agentApprovalMode
+        if (version < 3) {
+          if (persistedState.agentAutoApprove && !persistedState.agentApprovalMode) {
+            persistedState.agentApprovalMode = 'always';
+            console.log('[SettingsStore] Migrated agentAutoApprove=true to agentApprovalMode=always');
+          } else if (!persistedState.agentApprovalMode) {
+            persistedState.agentApprovalMode = 'session-once';
+            persistedState.trustedSessions = {};
+            console.log('[SettingsStore] Set default agentApprovalMode=session-once');
+          }
+        }
 
         // 版本 1 -> 2：添加 glm-4.5v 和 glm-4.5-air 到智谱AI模型列表
         if (version < 2 && persistedState.providers) {
@@ -360,6 +394,21 @@ export const useSettingsStore = create<SettingsState>()(
         }
 
         return persistedState;
+      },
+      // 🔥 v0.3.4: 确保 rehydrate 后新字段有默认值
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // 确保 agentApprovalMode 有值
+          if (!state.agentApprovalMode) {
+            state.agentApprovalMode = 'session-once';
+            console.log('[SettingsStore] Fixed missing agentApprovalMode on rehydrate');
+          }
+          // 确保 trustedSessions 有值
+          if (!state.trustedSessions) {
+            state.trustedSessions = {};
+            console.log('[SettingsStore] Fixed missing trustedSessions on rehydrate');
+          }
+        }
       },
     }
   )

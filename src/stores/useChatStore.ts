@@ -1297,9 +1297,27 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
         }
 
         // Check both global setting and message-level flag
-        const shouldAutoApprove = settings.agentAutoApprove || userMessageHasAutoApprove;
+        // 🔥 v0.3.4: 添加会话信任检查
+        const approvalMode = settings.agentApprovalMode || 'session-once';
+        const sessionId = useThreadStore.getState().activeThreadId || 'default';
+        const sessionTrust = settings.trustedSessions?.[sessionId];
+        // 🔥 修复：确保返回布尔值而不是 undefined
+        const isSessionTrusted = sessionTrust ? Date.now() < sessionTrust.expiresAt : false;
 
-        console.log(`[Chat] Auto-approve check: global=${settings.agentAutoApprove}, message=${userMessageHasAutoApprove}, result=${shouldAutoApprove}`);
+        const shouldAutoApprove =
+            settings.agentAutoApprove ||
+            userMessageHasAutoApprove ||
+            (approvalMode === 'always') ||
+            (approvalMode === 'session-once' && isSessionTrusted);
+
+        console.log(`[Chat] 🔥 v0.3.4 Auto-approve check:`, {
+            global: settings.agentAutoApprove,
+            message: userMessageHasAutoApprove,
+            approvalMode,
+            sessionId,
+            isSessionTrusted,
+            result: shouldAutoApprove
+        });
 
         if (shouldAutoApprove) {
             const message = updatedMessages.find(m => m.id === assistantMsgId);
@@ -1524,8 +1542,43 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         return content || '';
     };
 
-    // Slice off the placeholder we just added
-    const msgHistory = messages.slice(0, -1).map(m => {
+    // 🔥 FIX v0.3.4: 精确删除刚创建的占位符，而不是总是删除最后一条消息
+    // 检查最后一条消息是否是我们刚创建的占位符
+    let messagesForHistory = messages;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.id === assistantMsgId && lastMsg.role === 'assistant' && (!lastMsg.content || lastMsg.content === '')) {
+        // 最后一条消息是刚创建的占位符，删除它
+        messagesForHistory = messages.slice(0, -1);
+        console.log('[patchedGenerateResponse] Removed placeholder assistant message from history');
+    }
+
+    // 🔥 v0.3.4: 调试日志 - 验证消息历史格式
+    const toolMessagesInHistory = messagesForHistory.filter(m => m.role === 'tool');
+    const messagesWithToolCalls = messagesForHistory.filter(m => m.tool_calls && m.tool_calls.length > 0);
+    console.log(`[patchedGenerateResponse] 🔍 Message history debug:`, {
+        totalMessages: messagesForHistory.length,
+        toolMessages: toolMessagesInHistory.length,
+        messagesWithToolCalls: messagesWithToolCalls.length,
+        lastMessageRole: messagesForHistory[messagesForHistory.length - 1]?.role,
+        lastMessageHasToolCalls: !!messagesForHistory[messagesForHistory.length - 1]?.tool_calls
+    });
+
+    // 检查每个 tool 消息是否有对应的 tool_calls
+    for (const toolMsg of toolMessagesInHistory) {
+        const hasMatchingToolCall = messagesForHistory.some(m =>
+            m.tool_calls && m.tool_calls.some(tc => tc.id === toolMsg.tool_call_id)
+        );
+        if (!hasMatchingToolCall) {
+            console.error(`[patchedGenerateResponse] ❌ Orphan tool message detected!`, {
+                tool_call_id: toolMsg.tool_call_id,
+                toolRole: toolMsg.role,
+                toolContentLength: toolMsg.content?.length || 0
+            });
+        }
+    }
+
+    // Prepare message history
+    const msgHistory = messagesForHistory.map(m => {
         const toolCalls = m.toolCalls
             ? m.toolCalls
                 .filter(tc => tc.tool) // 过滤掉没有 tool 名称的
@@ -1860,7 +1913,148 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
 
         coreUseChatStore.setState({ messages: updatedMessages });
 
-        // Clean up all listeners
+        // 🔥 v0.3.4: Auto-approve tool calls with session trust check
+        const settings = useSettingsStore.getState();
+        const assistantIndex = updatedMessages.findIndex(m => m.id === assistantMsgId);
+
+        // Find the user message that triggered this assistant message
+        let userMessageHasAutoApprove = false;
+        if (assistantIndex > 0) {
+            for (let i = assistantIndex - 1; i >= 0; i--) {
+                if (updatedMessages[i].role === 'user') {
+                    userMessageHasAutoApprove = (updatedMessages[i] as any).autoApproveTools === true;
+                    console.log(`[Chat/GenerateResponse] User message autoApproveTools: ${userMessageHasAutoApprove}`);
+                    break;
+                }
+            }
+        }
+
+        // Check both global setting and message-level flag
+        // 🔥 v0.3.4: 添加会话信任检查
+        const approvalMode = settings.agentApprovalMode || 'session-once';
+        const sessionId = useThreadStore.getState().activeThreadId || 'default';
+        const sessionTrust = settings.trustedSessions?.[sessionId];
+        // 🔥 修复：确保返回布尔值而不是 undefined
+        const isSessionTrusted = sessionTrust ? Date.now() < sessionTrust.expiresAt : false;
+
+        const shouldAutoApprove =
+            settings.agentAutoApprove ||
+            userMessageHasAutoApprove ||
+            (approvalMode === 'always') ||
+            (approvalMode === 'session-once' && isSessionTrusted);
+
+        console.log(`[Chat/GenerateResponse] 🔥 v0.3.4 Auto-approve check:`, {
+            global: settings.agentAutoApprove,
+            message: userMessageHasAutoApprove,
+            approvalMode,
+            sessionId,
+            isSessionTrusted,
+            result: shouldAutoApprove
+        });
+
+        if (shouldAutoApprove) {
+            const message = updatedMessages.find(m => m.id === assistantMsgId);
+            if (message && message.toolCalls) {
+                const pendingToolCalls = message.toolCalls.filter(tc => tc.status === 'pending' && !tc.isPartial);
+
+                if (pendingToolCalls.length > 0) {
+                    console.log(`[Chat/GenerateResponse] Auto-approving ${pendingToolCalls.length} tool calls`);
+
+                    // 检查是否在自动工具调用循环中（防止无限循环）
+                    const { messages } = coreUseChatStore.getState();
+                    const recentToolCalls = messages
+                        .slice(-5)  // 检查最近 5 条消息
+                        .filter(m => m.toolCalls && m.toolCalls.length > 0);
+
+                    // 如果最近有太多工具调用，可能是陷入了循环，停止自动继续
+                    if (recentToolCalls.length >= 5) {
+                        console.warn(`[Chat/GenerateResponse] Detected potential tool call loop, stopping auto-continue`);
+                        coreUseChatStore.setState({ isLoading: false });
+                        unlistenStatus();
+                        unlistenStream();
+                        unlistenRefs();
+                        unlistenCompacted();
+                        unlistenFinish();
+                        unlistenError();
+                    } else {
+                        // 保持 isLoading 为 true，直到下一个响应生成
+                        coreUseChatStore.setState({ isLoading: true });
+
+                        // Execute all tool calls
+                        for (const tc of pendingToolCalls) {
+                            // @ts-ignore - third parameter not in type definition yet
+                            await coreUseChatStore.getState().approveToolCall(assistantMsgId, tc.id, { skipContinue: true });
+                        }
+
+                        console.log(`[Chat/GenerateResponse] All tool calls executed`);
+
+                        // After all tools are executed, continue the conversation
+                        const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
+                        if (providerConfig) {
+                            console.log(`[Chat/GenerateResponse] Continuing conversation after tool execution (scheduled in 500ms)`);
+
+                            // 使用 setTimeout 延迟调用，增加延迟确保工具消息已添加
+                            setTimeout(async () => {
+                                console.log(`[Chat/GenerateResponse] Executing delayed continuation`);
+
+                                // 🔥 验证所有 tool 消息都已添加到历史中
+                                const currentMessages = coreUseChatStore.getState().messages;
+                                const toolCallIds = pendingToolCalls.map(tc => tc.id);
+                                const missingToolMessages = toolCallIds.filter(id =>
+                                    !currentMessages.some(m => m.tool_call_id === id)
+                                );
+
+                                if (missingToolMessages.length > 0) {
+                                    console.warn(`[Chat/GenerateResponse] ⚠️ Waiting for tool messages: ${missingToolMessages.join(', ')}`);
+                                    // 再等待 200ms
+                                    await new Promise(resolve => setTimeout(resolve, 200));
+                                }
+
+                                // 手动清理当前函数的监听器
+                                unlistenStatus();
+                                unlistenStream();
+                                unlistenRefs();
+                                unlistenCompacted();
+                                unlistenFinish();
+                                unlistenError();
+
+                                // Get updated messages with tool results
+                                const finalMessages = coreUseChatStore.getState().messages;
+
+                                // 🔥 最终验证：确保消息历史完整
+                                const finalToolCallIds = pendingToolCalls.map(tc => tc.id);
+                                const finalMissing = finalToolCallIds.filter(id =>
+                                    !finalMessages.some(m => m.tool_call_id === id)
+                                );
+
+                                if (finalMissing.length > 0) {
+                                    console.error(`[Chat/GenerateResponse] ❌ Missing tool messages after delay: ${finalMissing.join(', ')}`);
+                                    console.error(`[Chat/GenerateResponse] This may cause API errors. Skipping auto-continue.`);
+                                    coreUseChatStore.setState({ isLoading: false });
+                                    return;
+                                }
+
+                                console.log(`[Chat/GenerateResponse] ✅ All tool messages verified, continuing conversation`);
+
+                                // Continue the conversation - patchedGenerateResponse will keep isLoading: true
+                                await patchedGenerateResponse(
+                                    finalMessages,
+                                    providerConfig,
+                                    { enableTools: true }
+                                );
+                            }, 500);
+
+                            // 重要：不在这里设置 isLoading: false，也不清理监听器（由延迟任务处理）
+                            return;
+                        } else {
+                            coreUseChatStore.setState({ isLoading: false });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clean up all listeners (normal completion)
         console.log("[Chat/GenerateResponse] Cleaning up listeners");
         unlistenStatus();
         unlistenStream();
@@ -1878,6 +2072,19 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
         console.log(`[Chat] Message history length: ${msgHistory.length}`);
         console.log(`[Chat] Project root: ${useFileStore.getState().rootPath}`);
         console.log(`[Chat] Enable tools: true`);
+
+        // 🔥 v0.3.4: 详细的调试日志 - 打印消息历史结构
+        console.log(`[Chat] 🔍 Message history structure:`);
+        msgHistory.forEach((msg, idx) => {
+            const hasToolCalls = msg.tool_calls && msg.tool_calls.length > 0;
+            const hasToolCallId = !!msg.tool_call_id;
+            console.log(`[Chat]   [${idx}] role=${msg.role}, hasToolCalls=${hasToolCalls}, hasToolCallId=${hasToolCallId}, tool_call_id=${msg.tool_call_id || 'N/A'}`);
+            if (hasToolCalls) {
+                msg.tool_calls?.forEach((tc, tcIdx) => {
+                    console.log(`[Chat]     [${tcIdx}] id=${tc.id}, type=${tc.type}, name=${tc.function?.name || 'N/A'}`);
+                });
+            }
+        });
 
         await invoke('ai_chat', {
             providerConfig: backendConfig,
@@ -2161,12 +2368,27 @@ const patchedApproveToolCall = async (
                 if (typeof result === 'string') {
                     stringResult = result;
                 } else if (Array.isArray(result)) {
-                    // 检查是否是字符数组（每个元素都是单个字符）
-                    const isCharArray = result.length > 0 &&
-                                        result.every((item: any) => typeof item === 'string' && item.length <= 1);
-                    if (isCharArray) {
-                        // 字符数组：拼接成字符串
-                        stringResult = result.join('');
+                    // 检查是否是字符数组（每个元素都是字符串）
+                    // 🔥 v0.3.4 修复：放宽长度限制，只检查是否都是字符串
+                    const isStringArray = result.length > 0 &&
+                                         result.every((item: any) => typeof item === 'string');
+                    if (isStringArray) {
+                        // 字符串数组：拼接成字符串
+                        // 适用于 agent_read_file 返回字符数组的情况
+                        console.log(`[useChatStore] 🔥 Detected string array, joining ${result.length} elements`);
+
+                        // 🔥 v0.3.4 FIX: 对于 agent_read_file，包装成对象格式以便简洁显示
+                        if (toolName === 'agent_read_file') {
+                            const fileContent = result.join('');
+                            const wrappedResult = {
+                                path: relPath,
+                                content: fileContent
+                            };
+                            stringResult = JSON.stringify(wrappedResult);
+                            console.log(`[useChatStore] 🔥 Wrapped agent_read_file result with path: ${relPath}, content length: ${fileContent.length}`);
+                        } else {
+                            stringResult = result.join('');
+                        }
                     } else {
                         // 普通数组：使用 JSON.stringify
                         stringResult = JSON.stringify(result);
@@ -2201,15 +2423,26 @@ const patchedApproveToolCall = async (
 
             // agent_read_file: 返回文件内容
             if (toolName === 'agent_read_file' && stringResult !== undefined) {
+                // 🔥 v0.3.4 FIX: 解析 JSON 格式的结果，提取文件内容
+                let fileContent = stringResult;
+                try {
+                    const parsed = JSON.parse(stringResult);
+                    if (parsed.content) {
+                        fileContent = parsed.content;
+                    }
+                } catch (e) {
+                    // 不是 JSON，使用原始字符串
+                }
+
                 // 对于文件读取，将文件内容作为 tool 消息发送给 LLM
                 // 限制内容长度避免超出 token 限制
                 const maxContentLength = 50000; // 50KB 限制
-                if (stringResult.length > maxContentLength) {
-                    toolMessageContent = `[文件内容过长，已截取前 ${maxContentLength} 字符]\n\n` + stringResult.substring(0, maxContentLength) + `\n\n... (省略剩余 ${stringResult.length - maxContentLength} 字符)`;
+                if (fileContent.length > maxContentLength) {
+                    toolMessageContent = `[文件内容过长，已截取前 ${maxContentLength} 字符]\n\n` + fileContent.substring(0, maxContentLength) + `\n\n... (省略剩余 ${fileContent.length - maxContentLength} 字符)`;
                 } else {
-                    toolMessageContent = stringResult;
+                    toolMessageContent = fileContent;
                 }
-                console.log(`[useChatStore] File read result: ${stringResult.length} chars, truncated to ${toolMessageContent.length} chars`);
+                console.log(`[useChatStore] File read result: ${fileContent.length} chars, truncated to ${toolMessageContent.length} chars`);
             }
 
             // agent_list_dir: 返回目录列表
@@ -2285,155 +2518,165 @@ const patchedApproveToolCall = async (
         return;
     }
 
-    // 3. Handle Bash Tools - 确保创建且只创建一个 tool 消息
+    // 3. Handle Bash Tools - 🔥 FIX v0.3.4: 直接执行，避免 originalApproveToolCall 创建额外的 assistant 消息
     const bashTools = ['bash', 'execute_bash_command', 'bash_execute_streaming'];
     if (bashTools.includes(toolName)) {
         console.log(`[useChatStore] Bash tool detected: ${toolName}`);
 
         // 🔥 修复：确保工作目录是项目根目录
-        // 问题：LLM 可能没有指定 working_dir，或指定了错误的目录
-        // 解决：自动修正为项目根目录
         const rootPath = useFileStore.getState().rootPath;
+        const args = toolCall.args || {};
+        const providedCwd = args.cwd || args.working_dir;
+        let workingDir = providedCwd;
 
-        if (rootPath) {
-            const args = toolCall.args || {};
-            const providedCwd = args.cwd || args.working_dir;
-
-            // 检查是否需要修正工作目录
-            const needsCorrection = !providedCwd || (providedCwd && !providedCwd.startsWith(rootPath));
-
-            if (needsCorrection) {
-                console.warn(`[useChatStore] ⚠️ Detected incorrect working_dir for bash command`);
-                console.log(`[useChatStore] Project root: ${rootPath}`);
-                console.log(`[useChatStore] Provided cwd: ${providedCwd || '(none)'}`);
-                console.log(`[useChatStore] Auto-correcting working_dir to project root`);
-
-                // 修正 toolCall 的 args
-                coreUseChatStore.setState(state => ({
-                    messages: state.messages.map(m =>
-                        m.id === messageId ? {
-                            ...m,
-                            toolCalls: m.toolCalls?.map(tc =>
-                                tc.id === toolCallId ? {
-                                    ...tc,
-                                    args: {
-                                        ...args,
-                                        working_dir: rootPath,  // 优先使用 working_dir
-                                        cwd: rootPath           // 兼容不同命名
-                                    }
-                                } : tc
-                            )
-                        } : m
-                    )
-                }));
-
-                console.log(`[useChatStore] ✅ Corrected working_dir to: ${rootPath}`);
-            }
+        // 检查是否需要修正工作目录
+        if (!workingDir || (workingDir && !workingDir.startsWith(rootPath))) {
+            console.warn(`[useChatStore] ⚠️ Auto-correcting working_dir to project root: ${rootPath}`);
+            workingDir = rootPath;
         }
 
-        // 🔥 FIX: 先更新状态为 'approved'，让 UI 立即反馈
-        // 这样用户可以看到状态变化，而不是一直等待命令执行完成
+        // 🔥 先更新状态为 'approved'，让 UI 立即反馈
         coreUseChatStore.setState(state => ({
             messages: state.messages.map(m =>
                 m.id === messageId ? {
                     ...m,
                     toolCalls: m.toolCalls?.map(tc =>
-                        tc.id === toolCallId ? { ...tc, status: 'approved' as const } : tc
+                        tc.id === toolCallId ? {
+                            ...tc,
+                            status: 'approved' as const,
+                            args: {
+                                ...args,
+                                working_dir: workingDir,
+                                cwd: workingDir
+                            }
+                        } : tc
                     )
                 } : m
             )
         }));
 
-        // 然后调用 original 流程执行命令
-        await originalApproveToolCall(messageId, toolCallId);
-
-        // 执行后，检查是否已存在 tool 消息
-        const state = coreUseChatStore.getState();
-        const message = state.messages.find(m => m.id === messageId);
-        const toolCallAfter = message?.toolCalls?.find(tc => tc.id === toolCallId);
-
-        // 查找已存在的 tool 消息
-        const existingToolMessage = state.messages.find(m =>
-            m.tool_call_id === toolCallId && m.role === 'tool'
-        );
-
-        // 如果已存在 tool 消息，不需要再创建
-        if (existingToolMessage) {
-            console.log(`[useChatStore] Tool message already exists, skipping creation`);
-            useFileStore.getState().refreshFileTree();
-            return;
-        }
-
-        // 如果不存在且有 result，创建一个新的
-        if (toolCallAfter?.result) {
-            console.log(`[useChatStore] Creating tool message for bash result`);
-
-            // 🔥 FIX: 解析 bash result 并添加明确的状态信息
-            let outputContent = '';
-            try {
-                const bashResult = JSON.parse(toolCallAfter.result);
-                const stdout = bashResult.stdout || '';
-                const stderr = bashResult.stderr || '';
-                const exitCode = bashResult.exitCode !== undefined ? bashResult.exitCode : bashResult.exit_code || 0;
-                const success = bashResult.success !== undefined ? bashResult.success : exitCode === 0;
-
-                const outputParts = [];
-
-                // 🔥 添加执行状态说明
-                if (success) {
-                    outputParts.push(`✅ Command executed successfully (exit code: ${exitCode})`);
-
-                    // 🔥 FIX: 检测是否是服务器启动成功，添加特别说明
-                    const stdoutLower = stdout.toLowerCase();
-                    const isServerStartup =
-                        stdoutLower.includes('local:') ||
-                        stdoutLower.includes('network:') ||
-                        stdoutLower.includes('ready in') ||
-                        stdoutLower.includes('vite') ||
-                        stdoutLower.includes('compiled successfully') ||
-                        stdoutLower.includes('server running') ||
-                        stdoutLower.includes('listening on') ||
-                        stdoutLower.includes('running on') ||
-                        stdout.includes('Server started successfully');
-
-                    if (isServerStartup) {
-                        outputParts.push(`\n📢 IMPORTANT: The development server has been successfully started and is now running in the background.`);
-                        outputParts.push(`The server is ready to accept requests. Do NOT attempt to run this command again.`);
-                        outputParts.push(`The user can now access the application in their browser.`);
-                    }
-                } else if (exitCode === -1) {
-                    outputParts.push(`⚠️ Command executed but timed out (exit code: -1)`);
-                } else {
-                    outputParts.push(`❌ Command executed but failed (exit code: ${exitCode})`);
-                }
-
-                // 添加输出内容
-                if (stdout) {
-                    outputParts.push(`\nStdout:\n${stdout.trim()}`);
-                }
-                if (stderr) {
-                    outputParts.push(`\nStderr:\n${stderr.trim()}`);
-                }
-
-                // 如果没有任何输出
-                if (outputParts.length === 1) { // 只有状态行
-                    outputParts.push('\n(no output)');
-                }
-
-                outputContent = outputParts.join('\n');
-            } catch (e) {
-                outputContent = toolCallAfter.result;
-            }
-
-            // 创建 tool 消息（只创建一次）
-            coreUseChatStore.getState().addMessage({
-                id: crypto.randomUUID(),
-                role: 'tool',
-                content: outputContent,
-                tool_call_id: toolCallId
+        // 🔥 FIX v0.3.4: 直接执行 bash 命令，不调用 originalApproveToolCall
+        // 原因：originalApproveToolCall 会创建新的 assistant 消息（没有 tool_calls），
+        // 导致 API 错误："Messages with role 'tool' must be a response to a preceding message with 'tool_calls'"
+        let bashResult: any;
+        try {
+            bashResult = await invoke('agent_bash', {
+                messageId,
+                command: args.command,
+                cwd: workingDir,
+                env: args.env
             });
+            console.log(`[useChatStore] Bash command executed, result type: ${typeof bashResult}`);
+        } catch (error) {
+            console.error(`[useChatStore] Bash execution error:`, error);
+            bashResult = {
+                success: false,
+                stdout: '',
+                stderr: error instanceof Error ? error.message : String(error),
+                exitCode: -1
+            };
         }
 
+        // 解析结果
+        let stdout = '';
+        let stderr = '';
+        let exitCode = 0;
+        let success = false;
+
+        if (typeof bashResult === 'string') {
+            try {
+                const parsed = JSON.parse(bashResult);
+                stdout = parsed.stdout || '';
+                stderr = parsed.stderr || '';
+                exitCode = parsed.exitCode !== undefined ? parsed.exitCode : parsed.exit_code || 0;
+                success = parsed.success !== undefined ? parsed.success : exitCode === 0;
+            } catch {
+                // 不是 JSON，可能是原始输出
+                stdout = bashResult;
+                success = true;
+            }
+        } else {
+            stdout = bashResult.stdout || '';
+            stderr = bashResult.stderr || '';
+            exitCode = bashResult.exitCode !== undefined ? bashResult.exitCode : bashResult.exit_code || 0;
+            success = bashResult.success !== undefined ? bashResult.success : exitCode === 0;
+        }
+
+        // 更新 toolCall 状态为 completed 并保存结果
+        const resultJson = JSON.stringify({
+            success,
+            stdout,
+            stderr,
+            exitCode
+        });
+
+        coreUseChatStore.setState(state => ({
+            messages: state.messages.map(m =>
+                m.id === messageId ? {
+                    ...m,
+                    toolCalls: m.toolCalls?.map(tc =>
+                        tc.id === toolCallId ? {
+                            ...tc,
+                            status: 'completed' as const,
+                            result: resultJson
+                        } : tc
+                    )
+                } : m
+            )
+        }));
+
+        // 构建输出内容
+        const outputParts = [];
+
+        if (success) {
+            outputParts.push(`✅ Command executed successfully (exit code: ${exitCode})`);
+
+            // 检测是否是服务器启动成功
+            const stdoutLower = stdout.toLowerCase();
+            const isServerStartup =
+                stdoutLower.includes('local:') ||
+                stdoutLower.includes('network:') ||
+                stdoutLower.includes('ready in') ||
+                stdoutLower.includes('vite') ||
+                stdoutLower.includes('compiled successfully') ||
+                stdoutLower.includes('server running') ||
+                stdoutLower.includes('listening on') ||
+                stdoutLower.includes('running on') ||
+                stdout.includes('Server started successfully');
+
+            if (isServerStartup) {
+                outputParts.push(`\n📢 IMPORTANT: The development server has been successfully started and is now running in the background.`);
+                outputParts.push(`The server is ready to accept requests. Do NOT attempt to run this command again.`);
+                outputParts.push(`The user can now access the application in their browser.`);
+            }
+        } else if (exitCode === -1) {
+            outputParts.push(`⚠️ Command executed but timed out (exit code: -1)`);
+        } else {
+            outputParts.push(`❌ Command executed but failed (exit code: ${exitCode})`);
+        }
+
+        if (stdout) {
+            outputParts.push(`\nStdout:\n${stdout.trim()}`);
+        }
+        if (stderr) {
+            outputParts.push(`\nStderr:\n${stderr.trim()}`);
+        }
+
+        if (outputParts.length === 1) {
+            outputParts.push('\n(no output)');
+        }
+
+        const outputContent = outputParts.join('\n');
+
+        // 创建 tool 消息
+        coreUseChatStore.getState().addMessage({
+            id: crypto.randomUUID(),
+            role: 'tool',
+            content: outputContent,
+            tool_call_id: toolCallId
+        });
+
+        console.log(`[useChatStore] Bash tool completed, created tool message`);
         useFileStore.getState().refreshFileTree();
         return;
     }

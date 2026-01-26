@@ -443,7 +443,39 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         const settings = useSettingsStore.getState();
                         console.log(`[AgentStore] Auto-approve setting: ${settings.agentAutoApprove}`);
 
-                        if (settings.agentAutoApprove) {
+                        // 🔥 v0.3.4: 检查会话信任状态
+                        const sessionId = useThreadStore.getState().activeThreadId || 'default';
+                        const sessionTrust = settings.trustedSessions[sessionId];
+                        const isSessionTrusted = sessionTrust && Date.now() < sessionTrust.expiresAt;
+
+                        // 🔥 详细调试：输出所有会话信任信息
+                        console.log(`[AgentStore] 🔥 v0.3.4 Debug trustedSessions:`, {
+                            sessionId,
+                            allSessions: Object.keys(settings.trustedSessions),
+                            currentSession: sessionTrust,
+                            isSessionTrusted,
+                            now: Date.now(),
+                            expiresAt: sessionTrust?.expiresAt
+                        });
+
+                        // 🔥 v0.3.4: 确保 agentApprovalMode 有值（处理老用户升级情况）
+                        const approvalMode = settings.agentApprovalMode || 'session-once';
+
+                        // 决定是否自动批准
+                        const shouldAutoApprove =
+                            approvalMode === 'always' ||
+                            (approvalMode === 'session-once' && isSessionTrusted) ||
+                            settings.agentAutoApprove; // 兼容旧设置
+
+                        console.log(`[AgentStore] 🔥 v0.3.4 Approval decision:`, {
+                            mode: approvalMode,
+                            originalMode: settings.agentApprovalMode,
+                            isSessionTrusted,
+                            shouldAutoApprove,
+                            agentAutoApprove: settings.agentAutoApprove
+                        });
+
+                        if (shouldAutoApprove) {
                             // Mark as auto-approved BEFORE calling to prevent race condition
                             const currentState = get();
                             const newSet = new Set(currentState.autoApprovedToolCalls);
@@ -455,6 +487,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                 if (approveToolCall) {
                                     try {
                                         await approveToolCall(msgId, toolCall.id);
+                                        // 🔥 v0.3.4: 记录会话信任（首次批准后）
+                                        if (settings.agentApprovalMode === 'session-once' && !isSessionTrusted) {
+                                            const now = Date.now();
+                                            settings.updateSettings({
+                                                trustedSessions: {
+                                                    ...settings.trustedSessions,
+                                                    [sessionId]: {
+                                                        approvedAt: now,
+                                                        expiresAt: now + 60 * 60 * 1000 // 1小时
+                                                    }
+                                                }
+                                            });
+                                            console.log(`[AgentStore] 🔥 v0.3.4 Session trusted: ${sessionId}`);
+                                        }
                                     } catch (error) {
                                         console.error(`[AgentStore] Auto-approve failed:`, error);
                                     }
@@ -468,7 +514,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                 status: liveToolCall.status,
                                 isPartial: liveToolCall.isPartial,
                                 msgId,
-                                agentId: id
+                                agentId: id,
+                                approvalMode: settings.agentApprovalMode,
+                                sessionId
                             });
                         }
                     }

@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot, CheckCircle, X } from 'lucide-react';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useThreadStore } from '../../stores/threadStore';
 import { toast } from 'sonner';
 import { ToolApproval } from './ToolApproval';
 import { ExploreProgress } from './ExploreProgress';
@@ -344,6 +346,30 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const handleApproveAll = () => {
         const store = useChatStore.getState() as any;
         if (store.approveAllToolCalls) {
+            // 🔥 v0.3.4: 记录会话信任（批量批准时）
+            const settings = useSettingsStore.getState();
+            const approvalMode = settings.agentApprovalMode || 'session-once'; // 🔥 默认值处理
+
+            if (approvalMode === 'session-once') {
+                const threadId = useThreadStore.getState().activeThreadId || 'default';
+                const sessionTrust = settings.trustedSessions[threadId];
+
+                // 只在首次批准时记录
+                if (!sessionTrust || Date.now() >= sessionTrust.expiresAt) {
+                    const now = Date.now();
+                    settings.updateSettings({
+                        trustedSessions: {
+                            ...settings.trustedSessions,
+                            [threadId]: {
+                                approvedAt: now,
+                                expiresAt: now + 60 * 60 * 1000
+                            }
+                        }
+                    });
+                    console.log(`[MessageItem] 🔥 v0.3.4 Session trusted via batch approval: ${threadId}`);
+                }
+            }
+
             store.approveAllToolCalls(message.id);
         }
     };
