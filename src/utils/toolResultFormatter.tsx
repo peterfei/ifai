@@ -3,6 +3,27 @@
  * 将JSON格式的工具调用结果转换为易读的Markdown格式
  */
 
+/**
+ * 🔥 v0.3.4 OPT: 系统目录忽略列表
+ * 这些目录通常包含大量文件，不感兴趣，应该被过滤
+ */
+const IGNORED_DIRECTORIES = new Set([
+  'node_modules/',
+  '.ifai/',
+  '.git/',
+  'dist/',
+  'build/',
+  'target/',
+  'out/',
+  '.next/',
+  '.nuxt/',
+  'coverage/',
+  '.vscode/',
+  '.idea/',
+  'tmp/',
+  'temp/',
+]);
+
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { File, Folder, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
@@ -179,11 +200,16 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
                       'unknown';
 
       // 🔥 v0.3.4: 统计文件和子目录数量
-      // 检查每个路径是否以 '/' 结尾来判断是否为目录
+      // 🔥 v0.3.4 OPT: 过滤系统目录（node_modules, .ifai 等）
       let fileCount = 0;
       let dirCount = 0;
 
       result.forEach((item: string) => {
+        // 🔥 v0.3.4 OPT: 跳过系统目录
+        if (IGNORED_DIRECTORIES.has(item)) {
+          return;
+        }
+
         // 以 '/' 结尾的是目录
         if (item.endsWith('/')) {
           dirCount++;

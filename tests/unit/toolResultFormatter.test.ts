@@ -450,10 +450,10 @@ describe('toolResultFormatter - 防止类型错误导致黑屏', () => {
       expect(output).toContain('已列出目录');
       expect(output).toContain('/test/project');
 
-      // 🔥 应该显示统计信息：4 个文件，2 个子目录
+      // 🔥 v0.3.4 OPT: 应该显示统计信息：4 个文件，1 个子目录（node_modules 被过滤）
       expect(output).toContain('4');
       expect(output).toContain('文件');
-      expect(output).toContain('2');
+      expect(output).toContain('1');
       expect(output).toContain('子目录');
     });
 
@@ -478,6 +478,48 @@ describe('toolResultFormatter - 防止类型错误导致黑屏', () => {
       const output2 = formatToolResultToMarkdown(onlyDirs, toolCall2);
       expect(output2).toContain('2 个子目录');
       expect(output2).not.toContain('文件');
+    });
+
+    // 🔥 v0.3.4 OPT: 应该过滤系统目录（node_modules, .ifai, .git 等）
+    it('应该过滤系统目录并只统计有效文件和目录', () => {
+      const fileList = [
+        'src/index.ts',
+        'src/App.tsx',
+        'node_modules/',  // 应该被忽略
+        'package.json',
+        '.ifai/',  // 应该被忽略
+        'README.md',
+        '.git/',  // 应该被忽略
+        'dist/',  // 应该被忽略
+        'target/',  // 应该被忽略
+        'src/utils/',  // 有效目录
+      ];
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: { rel_path: '/project' }
+      };
+
+      const output = formatToolResultToMarkdown(fileList, toolCall);
+
+      // 应该过滤系统目录后显示：4 个文件，1 个有效子目录
+      expect(output).toContain('4 个文件');
+      expect(output).toContain('1 个子目录');
+      // 不应该显示系统目录
+      expect(output).not.toContain('9');  // 不是 9 个
+    });
+
+    // 🔥 v0.3.4 OPT: 应该处理全是系统目录的情况
+    it('应该处理全是系统目录的情况', () => {
+      const systemDirs = ['node_modules/', '.ifai/', '.git/', 'dist/', 'target/'];
+      const toolCall = {
+        tool: 'agent_list_dir',
+        args: { rel_path: '/system-only' }
+      };
+
+      const output = formatToolResultToMarkdown(systemDirs, toolCall);
+
+      // 应该显示 0 个文件，0 个子目录（系统目录被过滤）
+      expect(output).toContain('0 个文件');
     });
 
     // 🔥 v0.3.4 FIX: agent_list_dir 字符数组被拼接成字符串后的场景（useChatStore 处理后）
