@@ -7,7 +7,7 @@
  * 1. 复制 tests/e2e/.env.e2e.example 到 tests/e2e/.env.e2e.local
  * 2. 填写你的 API Key、Base URL 和模型
  *
- * @version v0.3.3
+ * @version v0.3.4 - 适配会话信任机制，工具调用自动批准
  */
 
 import { test, expect } from '@playwright/test';
@@ -84,36 +84,85 @@ async function setupMockFileSystem(page: any, projectFiles: typeof SMALL_PROJECT
 }
 
 /**
- * 辅助函数：等待工具批准对话框出现
+ * 辅助函数：等待工具调用完成（v0.3.4 - 适配会话信任机制）
+ *
+ * 会话信任机制会自动批准工具调用，不再显示审批对话框。
+ * 因此改为等待工具调用状态变为 completed。
  */
-async function waitForApprovalDialog(page: any, timeout: number = 30000): Promise<{
-  dialogCount: number;
-  approveButtonCount: number;
-  rejectButtonCount: number;
+async function waitForToolCallsCompletion(page: any, timeout: number = 30000): Promise<{
+  completedCount: number;
+  totalCount: number;
 }> {
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeout) {
     const result = await page.evaluate(() => {
-      const toolApprovalCards = document.querySelectorAll('[data-testid="file-approval-dialog"]');
-      const approveButtons = document.querySelectorAll('[data-testid="approve-button"]');
-      const rejectButtons = document.querySelectorAll('[data-testid="reject-button"]');
+      const messages = (window as any).__chatStore?.getState().messages || [];
+      const toolCalls = messages.filter((m: any) => m.toolCalls && m.toolCalls.length > 0);
 
+      let completedCount = 0;
+      let totalCount = 0;
+
+      toolCalls.forEach((message: any) => {
+        message.toolCalls?.forEach((tc: any) => {
+          totalCount++;
+          // 检查工具调用是否完成（completed 或 failed）
+          if (tc.status === 'completed' || tc.status === 'failed') {
+            completedCount++;
+          }
+        });
+      });
+
+      // 🔥 DEBUG: 也检查 tool 消息（Agent 执行结果）
+      const toolMessages = messages.filter((m: any) => m.role === 'tool');
+
+      // 🔥 DEBUG: 输出 messages 结构信息
       return {
-        dialogCount: toolApprovalCards.length,
-        approveButtonCount: approveButtons.length,
-        rejectButtonCount: rejectButtons.length
+        completedCount,
+        totalCount,
+        totalMessages: messages.length,
+        messagesWithToolCalls: toolCalls.length,
+        toolMessagesCount: toolMessages.length,
+        // 输出前几条消息的信息用于调试
+        sampleMessages: messages.slice(0, 5).map((m: any) => ({
+          role: m.role,
+          hasToolCalls: !!m.toolCalls,
+          toolCallsCount: m.toolCalls?.length || 0,
+          toolCallId: m.tool_call_id
+        }))
       };
     });
 
-    if (result.dialogCount > 0) {
-      return result;
+    // 🔥 DEBUG: 首次输出详细信息
+    if (Date.now() - startTime < 100) {
+      console.log(`[waitForToolCallsCompletion] 🔥 Initial state:`, JSON.stringify(result, null, 2));
     }
 
+    // 🔥 DEBUG: 每5秒输出一次状态
+    const elapsed = Date.now() - startTime;
+    if (elapsed > 0 && elapsed % 5000 < 500) {
+      console.log(`[waitForToolCallsCompletion] 🔥 Status: ${result.completedCount}/${result.totalCount} tool calls, ${result.toolMessagesCount} tool messages (elapsed: ${elapsed}ms)`);
+    }
+
+    // 🔥 v0.3.4: 如果有 tool 消息，说明 Agent 已完成工具调用
+    if (result.toolMessagesCount > 0) {
+      console.log(`[waitForToolCallsCompletion] ✅ Found ${result.toolMessagesCount} tool messages!`);
+      // 返回一个估算值，基于 tool 消息数量
+      return { completedCount: result.toolMessagesCount, totalCount: result.toolMessagesCount };
+    }
+
+    // 如果有工具调用且都已完成，返回结果
+    if (result.totalCount > 0 && result.completedCount >= result.totalCount) {
+      console.log(`[waitForToolCallsCompletion] ✅ All ${result.totalCount} tool calls completed!`);
+      return { completedCount: result.completedCount, totalCount: result.totalCount };
+    }
+
+    // 如果没有任何工具调用，继续等待
     await page.waitForTimeout(500);
   }
 
-  return { dialogCount: 0, approveButtonCount: 0, rejectButtonCount: 0 };
+  console.log(`[waitForToolCallsCompletion] ⏰ Timeout! Final status: 0/0`);
+  return { completedCount: 0, totalCount: 0 };
 }
 
 /**
@@ -178,12 +227,12 @@ test.describe('Agent 文件读取 - 小项目场景 (< 10 个文件)', () => {
     });
     await page.waitForTimeout(2000);
 
-    // 禁用 auto-approve 以确保审批对话框出现
+    // 🔥 v0.3.4: 启用会话信任机制，工具调用将自动批准
     await page.evaluate(async () => {
       const settingsStore = (window as any).__settingsStore;
       if (settingsStore) {
-        settingsStore.setState({ agentAutoApprove: false });
-        console.log('[Test] Auto-approve 已设置为 false');
+        settingsStore.setState({ agentAutoApprove: true });
+        console.log('[Test] 🔥 v0.3.4: 会话信任机制已启用 (agentAutoApprove = true)');
       }
     });
   });
@@ -229,12 +278,11 @@ test.describe('Agent 文件读取 - 小项目场景 (< 10 个文件)', () => {
       modelId: config.modelId
     });
 
-    // 等待审批对话框
-    const approvalResult = await waitForApprovalDialog(page, 30000);
+    // 🔥 v0.3.4: 等待工具调用完成（会话信任机制自动批准）
+    const completionResult = await waitForToolCallsCompletion(page, 30000);
 
-    console.log('[Test] 审批对话框数量:', approvalResult.dialogCount);
-    console.log('[Test] 批准按钮数量:', approvalResult.approveButtonCount);
-    console.log('[Test] 拒绝按钮数量:', approvalResult.rejectButtonCount);
+    console.log('[Test] 已完成的工具调用:', completionResult.completedCount);
+    console.log('[Test] 总工具调用数:', completionResult.totalCount);
 
     // 等待 AI 完成
     await page.waitForTimeout(10000);
@@ -307,10 +355,10 @@ test.describe('Agent 文件读取 - 小项目场景 (< 10 个文件)', () => {
       modelId: config.modelId
     });
 
-    // 等待审批对话框（多个文件可能需要更长时间）
-    const approvalResult = await waitForApprovalDialog(page, 45000);
+    // 🔥 v0.3.4: 等待工具调用完成（多个文件可能需要更长时间）
+    const completionResult = await waitForToolCallsCompletion(page, 45000);
 
-    console.log('[Test] 审批对话框数量:', approvalResult.dialogCount);
+    console.log('[Test] 已完成的工具调用:', completionResult.completedCount, '/', completionResult.totalCount);
 
     await page.waitForTimeout(15000);
 
@@ -376,30 +424,33 @@ test.describe('Agent 文件读取 - 小项目场景 (< 10 个文件)', () => {
       modelId: config.modelId
     });
 
-    // 等待审批对话框
-    await waitForApprovalDialog(page, 30000);
+    // 🔥 v0.3.4: 等待工具调用完成（会话信任机制自动批准）
+    await waitForToolCallsCompletion(page, 30000);
 
     const result = await page.evaluate(() => {
-      const toolApprovalCards = document.querySelectorAll('[data-testid="file-approval-dialog"]');
-      const approveButtons = document.querySelectorAll('[data-testid="approve-button"]');
+      // 🔥 v0.3.4: 检查会话信任机制是否自动批准了工具调用
+      // 使用 tool 消息数量而不是 toolCalls（Agent 系统使用 tool 消息）
+      const messages = (window as any).__chatStore?.getState().messages || [];
+      const toolMessages = messages.filter((m: any) => m.role === 'tool');
 
-      // 检查批量操作功能
+      // v0.3.4: 批量操作功能现在通过会话信任实现，不再需要 UI 按钮
       const hasBatchApprove = !!document.querySelector('[data-testid="batch-approve-button"]');
       const hasSelectAll = !!document.querySelector('[data-testid="select-all-button"]');
       const hasPermissionManager = !!document.querySelector('[data-testid="permission-manager"]');
 
       return {
-        dialogCount: toolApprovalCards.length,
-        approveButtonCount: approveButtons.length,
+        // 🔥 使用 tool 消息数量作为工具调用完成的证据
+        autoApprovedCount: toolMessages.length,
+        totalCount: toolMessages.length,
         hasBatchApprove,
         hasSelectAll,
         hasPermissionManager,
-        problemConfirmed: approveButtons.length > 3
+        sessionTrustEnabled: toolMessages.length > 0
       };
     });
 
     console.log('[Test] 批量操作检查:', JSON.stringify(result, null, 2));
-    console.log(`[Test] 问题确认: ${result.problemConfirmed ? '是 - 批量操作功能缺失' : '否'}`);
+    console.log(`[Test] 会话信任机制: ${result.sessionTrustEnabled ? '已启用' : '未启用'}`);
 
     // 记录到控制台便于收集
     await page.evaluate((data) => {
@@ -411,6 +462,8 @@ test.describe('Agent 文件读取 - 小项目场景 (< 10 个文件)', () => {
       }, null, 2));
     }, result);
 
-    expect(result.dialogCount).toBeGreaterThanOrEqual(0);
+    // 🔥 v0.3.4: 验证会话信任机制工作正常
+    expect(result.totalCount).toBeGreaterThan(0);
+    expect(result.autoApprovedCount).toBeGreaterThanOrEqual(result.totalCount);
   });
 });

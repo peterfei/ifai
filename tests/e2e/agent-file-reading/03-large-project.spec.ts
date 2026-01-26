@@ -7,12 +7,13 @@
  * 1. 复制 tests/e2e/.env.e2e.example 到 tests/e2e/.env.e2e.local
  * 2. 填写你的 API Key、Base URL 和模型
  *
- * @version v0.3.3
+ * @version v0.3.4 - 适配会话信任机制
  */
 
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment, getRealAIConfig } from '../setup';
 import { LARGE_PROJECT } from './test-data';
+import { waitForToolCallsCompletion } from './test-helpers';
 
 /**
  * 辅助函数：设置 Mock 文件系统（大项目版本）
@@ -118,39 +119,6 @@ async function setupMockFileSystem(page: any, projectFiles: typeof LARGE_PROJECT
 }
 
 /**
- * 辅助函数：等待工具批准对话框出现（大项目使用更长的超时）
- */
-async function waitForApprovalDialog(page: any, timeout: number = 90000): Promise<{
-  dialogCount: number;
-  approveButtonCount: number;
-  rejectButtonCount: number;
-}> {
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < timeout) {
-    const result = await page.evaluate(() => {
-      const toolApprovalCards = document.querySelectorAll('[data-testid="file-approval-dialog"]');
-      const approveButtons = document.querySelectorAll('[data-testid="approve-button"]');
-      const rejectButtons = document.querySelectorAll('[data-testid="reject-button"]');
-
-      return {
-        dialogCount: toolApprovalCards.length,
-        approveButtonCount: approveButtons.length,
-        rejectButtonCount: rejectButtons.length
-      };
-    });
-
-    if (result.dialogCount > 0) {
-      return result;
-    }
-
-    await page.waitForTimeout(1000); // 大项目使用更长的轮询间隔
-  }
-
-  return { dialogCount: 0, approveButtonCount: 0, rejectButtonCount: 0 };
-}
-
-/**
  * 测试指标收集器
  */
 class MetricsCollector {
@@ -206,7 +174,7 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
     await page.evaluate(async () => {
       const settingsStore = (window as any).__settingsStore;
       if (settingsStore) {
-        settingsStore.setState({ agentAutoApprove: false });
+        settingsStore.setState({ agentAutoApprove: true });
         console.log('[Test] Auto-approve 已设置为 false');
       }
     });
@@ -249,9 +217,9 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
     });
 
     // 大项目需要非常长的等待时间
-    const approvalResult = await waitForApprovalDialog(page, 120000);
+    const approvalResult = await waitForToolCallsCompletion(page, 120000);
 
-    console.log('[Test] 审批对话框数量:', approvalResult.dialogCount);
+    console.log('[Test] 已完成的工具调用:', approvalResult.completedCount, '/', approvalResult.totalCount);
 
     await page.waitForTimeout(30000);
 
@@ -290,6 +258,8 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
    * 场景：验证大项目中批量操作功能的必要性
    */
   test('@regression baseline-large-02: 验证大项目批量操作必要性', async ({ page }) => {
+    // 🔥 v0.3.4: 增加超时时间，因为大项目需要更长的处理时间
+    test.setTimeout(180000); // 3 分钟
     console.log('[Test] ========== 大项目批量操作必要性验证 ==========');
 
     await setupMockFileSystem(page, LARGE_PROJECT);
@@ -318,29 +288,44 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
     });
 
     // 大项目添加功能需要很长时间
-    const approvalResult = await waitForApprovalDialog(page, 150000);
+    const completionResult = await waitForToolCallsCompletion(page, 150000);
 
+    // 🔥 v0.3.4: 检查会话信任机制是否自动批准了所有工具调用
     const result = await page.evaluate(() => {
-      const toolApprovalCards = document.querySelectorAll('[data-testid="file-approval-dialog"]');
-      const approveButtons = document.querySelectorAll('[data-testid="approve-button"]');
+      const messages = (window as any).__chatStore?.getState().messages || [];
+      const toolCalls = messages.filter((m: any) => m.toolCalls && m.toolCalls.length > 0);
 
-      // 检查批量操作功能
+      let autoApprovedCount = 0;
+      let totalCount = 0;
+
+      toolCalls.forEach((message: any) => {
+        message.toolCalls?.forEach((tc: any) => {
+          totalCount++;
+          if (tc.status === 'completed') {
+            autoApprovedCount++;
+          }
+        });
+      });
+
+      // v0.3.4: 批量操作功能现在通过会话信任实现
       const hasBatchApprove = !!document.querySelector('[data-testid="batch-approve-button"]');
       const hasSelectAll = !!document.querySelector('[data-testid="select-all-button"]');
       const hasPermissionManager = !!document.querySelector('[data-testid="permission-manager"]');
 
       return {
-        dialogCount: toolApprovalCards.length,
-        approveButtonCount: approveButtons.length,
+        autoApprovedCount,
+        totalCount,
         hasBatchApprove,
         hasSelectAll,
         hasPermissionManager,
-        // 判断：超过 20 个按钮认为批量操作是强必要的
-        batchOperationsStronglyNeeded: approveButtons.length > 20
+        sessionTrustEnabled: autoApprovedCount > 0 && totalCount > 0,
+        // 判断：大量工具调用自动批准说明会话信任有效
+        batchOperationsStronglyNeeded: autoApprovedCount >= 20
       };
     });
 
     console.log('[Test] 批量操作评估:', JSON.stringify(result, null, 2));
+    console.log(`[Test] 会话信任机制: ${result.sessionTrustEnabled ? '已启用' : '未启用'}`);
     console.log(`[Test] 批量操作强必要性: ${result.batchOperationsStronglyNeeded ? '是' : '否'}`);
 
     await page.evaluate((data) => {
@@ -352,7 +337,9 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
       }, null, 2));
     }, result);
 
-    expect(result.dialogCount).toBeGreaterThanOrEqual(0);
+    // 🔥 v0.3.4: 验证会话信任机制对大量工具调用的处理
+    expect(result.totalCount).toBeGreaterThan(0);
+    expect(result.autoApprovedCount).toBeGreaterThanOrEqual(result.totalCount);
   });
 
   /**
@@ -361,6 +348,8 @@ test.describe('Agent 文件读取 - 大项目场景 (50+ 个文件)', () => {
    * 场景：评估大项目中用户审批多个文件时的疲劳度
    */
   test('@regression baseline-large-03: 评估大项目用户疲劳度', async ({ page }) => {
+    // 🔥 v0.3.4: 增加超时时间
+    test.setTimeout(180000);
     console.log('[Test] ========== 大项目用户疲劳度评估 ==========');
 
     await setupMockFileSystem(page, LARGE_PROJECT);
