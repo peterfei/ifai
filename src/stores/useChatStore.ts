@@ -1554,19 +1554,19 @@ const patchedGenerateResponse = async (history: any[], providerConfig: any, opti
 
     // 🔥 v0.3.4: 调试日志 - 验证消息历史格式
     const toolMessagesInHistory = messagesForHistory.filter(m => m.role === 'tool');
-    const messagesWithToolCalls = messagesForHistory.filter(m => m.tool_calls && m.tool_calls.length > 0);
+    const messagesWithToolCalls = messagesForHistory.filter(m => m.toolCalls && m.toolCalls.length > 0);
     console.log(`[patchedGenerateResponse] 🔍 Message history debug:`, {
         totalMessages: messagesForHistory.length,
         toolMessages: toolMessagesInHistory.length,
         messagesWithToolCalls: messagesWithToolCalls.length,
         lastMessageRole: messagesForHistory[messagesForHistory.length - 1]?.role,
-        lastMessageHasToolCalls: !!messagesForHistory[messagesForHistory.length - 1]?.tool_calls
+        lastMessageHasToolCalls: !!messagesForHistory[messagesForHistory.length - 1]?.toolCalls
     });
 
     // 检查每个 tool 消息是否有对应的 tool_calls
     for (const toolMsg of toolMessagesInHistory) {
         const hasMatchingToolCall = messagesForHistory.some(m =>
-            m.tool_calls && m.tool_calls.some(tc => tc.id === toolMsg.tool_call_id)
+            m.toolCalls && m.toolCalls.some(tc => tc.id === toolMsg.tool_call_id)
         );
         if (!hasMatchingToolCall) {
             console.error(`[patchedGenerateResponse] ❌ Orphan tool message detected!`, {
