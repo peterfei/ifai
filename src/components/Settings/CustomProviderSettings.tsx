@@ -139,8 +139,17 @@ export const CustomProviderSettings = () => {
           <div className="flex items-center space-x-2">
             {!isCurrent && (
               <button
-                onClick={() => settings.setCurrentProviderAndModel(provider.id, provider.models[0])}
+                onClick={() => {
+                  // 🔥 修复：如果模型列表为空，提示用户先添加模型
+                  if (provider.models.length === 0) {
+                    alert('请先编辑提供商并添加模型名称');
+                    setEditingId(provider.id);
+                    return;
+                  }
+                  settings.setCurrentProviderAndModel(provider.id, provider.models[0]);
+                }}
                 className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                disabled={provider.models.length === 0}
               >
                 {t('settings.setAsDefault')}
               </button>

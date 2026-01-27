@@ -26,7 +26,8 @@ export const PRESET_ENDPOINTS: Record<PresetTemplate, { baseUrl: string; default
   vllm: { baseUrl: 'http://localhost:8000/v1/chat/completions', defaultModels: ['meta-llama/Llama-3.1-8B-Instruct'] },
   localai: { baseUrl: 'http://localhost:8080/v1/chat/completions', defaultModels: ['gpt-3.5-turbo'] },
   lmstudio: { baseUrl: 'http://localhost:1234/v1/chat/completions', defaultModels: ['local-model'] },
-  custom: { baseUrl: '', defaultModels: [] },
+  // 🔥 自定义模板添加常见云服务商的示例模型（NVIDIA 默认使用 z-ai/glm4.7）
+  custom: { baseUrl: '', defaultModels: ['z-ai/glm4.7', 'nv-tmp', 'gpt-4o-mini', 'claude-3-5-sonnet-20241022'] },
 };
 
 export interface AIProviderConfig {

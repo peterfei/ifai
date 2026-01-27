@@ -127,18 +127,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     sendMessage: async (content, providerId, modelName) => {
         const settings = getSettingsStore();
         const providerData = settings.providers.find((p: any) => p.id === providerId);
-        
+
+        // 🔥 关键修复：后端 Rust serde 使用 snake_case 命名
+        // AIProviderConfig 结构体定义的字段是：id, name, api_key, base_url, models, protocol
+        // 必须使用 snake_case 字段名，否则后端无法正确反序列化
         const providerConfig = {
-            ...providerData, // Spread all fields from settings store (includes enabled, name, id, etc.)
-            provider: providerId, // Explicitly set provider/id based on argument if needed
             id: providerId,
-            api_key: providerData?.apiKey || "", // Snake case aliases
-            base_url: providerData?.baseUrl || "",
-            // Ensure essential fields have defaults if missing in providerData
-            apiKey: providerData?.apiKey || "",
-            baseUrl: providerData?.baseUrl || "",
+            name: providerData?.name || providerId,
+            api_key: providerData?.apiKey || "", // 注意：不是 apiKey
+            base_url: providerData?.baseUrl || "", // 注意：不是 baseUrl
             models: [modelName],
-            protocol: providerData?.protocol || "openai"
+            protocol: providerData?.protocol || "openai",
         };
 
         set({ isLoading: true });
