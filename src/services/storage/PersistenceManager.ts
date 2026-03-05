@@ -3,8 +3,6 @@ import { StateStorage } from 'zustand/middleware';
 
 /**
  * 🏆 PIVO 3.0 Persistence Management SDK
- * 提供统一的异步存储接口，支持根据 Key 前缀自动路由物理后端。
- * 兼容 Zustand 的 StateStorage 接口。
  */
 
 export interface IStorageAdapter {
@@ -14,28 +12,29 @@ export interface IStorageAdapter {
 }
 
 /**
- * LocalStorage 适配器 (同步转异步)
+ * LocalStorage 适配器
+ * 核心：Zustand 传入的已经是序列化后的字符串，不需要二次 stringify。
  */
 class LocalStorageAdapter implements IStorageAdapter {
     async getItem<T>(key: string): Promise<T | null> {
         const val = localStorage.getItem(key);
         if (val === null) return null;
         
-        // 🏆 PIVO 3.0: 增强型 JSON 解析保护
         try {
-            // 如果已经是 JSON 字符串，尝试解析
+            // 只有当看起来像 JSON 时才解析，否则直接返回（兼容性）
             if (val.startsWith('{') || val.startsWith('[') || val.startsWith('"')) {
                 return JSON.parse(val) as T;
             }
             return val as any;
         } catch (e) {
-            console.warn(`[LocalStorageAdapter] ⚠️ Failed to parse JSON for key: ${key}. Returning raw value.`);
             return val as any;
         }
     }
 
     async setItem<T>(key: string, value: T): Promise<void> {
-        localStorage.setItem(key, JSON.stringify(value));
+        // 如果是字符串（Zustand 传入），直接存；否则 stringify
+        const val = typeof value === 'string' ? value : JSON.stringify(value);
+        localStorage.setItem(key, val);
     }
 
     async removeItem(key: string): Promise<void> {
@@ -44,21 +43,35 @@ class LocalStorageAdapter implements IStorageAdapter {
 }
 
 /**
- * IndexedDB 适配器 (基于 idb-keyval)
+ * IndexedDB 适配器
  */
 class IndexedDBAdapter implements IStorageAdapter {
     async getItem<T>(key: string): Promise<T | null> {
-        const val = await idb.get<string>(key);
-        if (!val) return null;
-        try {
-            return JSON.parse(val) as T;
-        } catch {
-            return val as any;
+        const val = await idb.get<any>(key);
+        if (val === undefined || val === null) return null;
+        
+        // 🏆 PIVO 3.0: 拦截物理脏数据
+        if (val === '[object Object]') {
+            console.error(`[PersistenceManager] 🚨 Corrupted data detected for key: ${key}. Cleaning up...`);
+            await idb.del(key);
+            return null;
         }
+
+        // idb-keyval 会自动处理非字符串对象
+        if (typeof val === 'string') {
+            try {
+                if (val.startsWith('{') || val.startsWith('[') || val.startsWith('"')) {
+                    return JSON.parse(val) as T;
+                }
+            } catch (e) {}
+        }
+        return val as T;
     }
 
     async setItem<T>(key: string, value: T): Promise<void> {
-        await idb.set(key, JSON.stringify(value));
+        // 🏆 PIVO 3.0: 避免双重编码
+        // 如果 value 已经是 JSON 字符串，则直接存储，不需要再 stringify
+        await idb.set(key, value);
     }
 
     async removeItem(key: string): Promise<void> {
@@ -80,9 +93,6 @@ export class PersistenceManager implements StateStorage {
         return this.instance;
     }
 
-    /**
-     * 🏆 Zustand StateStorage 兼容接口
-     */
     async getItem(name: string): Promise<string | null> {
         return this.getAdapter(name).getItem<string>(name);
     }
@@ -92,63 +102,33 @@ export class PersistenceManager implements StateStorage {
             await this.getAdapter(name).setItem<string>(name, value);
         } catch (e: any) {
             if (e.name === 'QuotaExceededError' || e.message?.includes('quota')) {
-                console.warn(`[PersistenceManager] 🚨 Storage quota exceeded for ${name}. Triggering emergency cleanup...`);
+                console.warn(`[PersistenceManager] 🚨 Storage quota exceeded. Triggering cleanup...`);
                 await this.emergencyCleanup();
-                // 重试一次
-                try {
-                    await this.getAdapter(name).setItem<string>(name, value);
-                } catch (retryError) {
-                    console.error('[PersistenceManager] ❌ Retry failed after cleanup:', retryError);
-                    throw retryError;
-                }
+                await this.getAdapter(name).setItem<string>(name, value);
             } else {
                 throw e;
             }
         }
     }
 
-    /**
-     * 紧急清理逻辑：删除过期的文件缓存等非核心数据
-     */
-    private async emergencyCleanup(): Promise<void> {
-        console.log('[PersistenceManager] 🧹 Executing emergency cleanup of file-cache...');
-        const keysToRemove: string[] = [];
-        
-        // 清理 LocalStorage 中的缓存
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('ifai-file-cache')) {
-                keysToRemove.push(key);
-            }
-        }
-        
-        keysToRemove.forEach(k => localStorage.removeItem(k));
-        console.log(`[PersistenceManager] ✓ Removed ${keysToRemove.length} cached items from LocalStorage.`);
-        
-        // 以后可以扩展到清理 IndexedDB 中的过期分片
-    }
-
     async removeItem(name: string): Promise<void> {
         return this.getAdapter(name).removeItem(name);
     }
 
-    /**
-     * 获取物理后端。
-     * 规则：ifai-history, ifai-file-cache, ifai-symbol-index 路由到 IndexedDB。
-     * 其他（配置类）路由到 LocalStorage。
-     */
     private getAdapter(key: string): IStorageAdapter {
-        const bigDataPrefixes = [
-            'ifai-history', 
-            'ifai-file-cache', 
-            'ifai-symbol-index', 
-            'pivo-task-trees',
-            'chat-history', // 兼容旧版前缀
-            'ifai-chat-history'
-        ];
+        const bigDataPrefixes = ['ifai-history', 'ifai-file-cache', 'ifai-symbol-index', 'pivo-task-trees', 'chat-history'];
         if (bigDataPrefixes.some(p => key.startsWith(p))) {
             return this.ldb;
         }
         return this.ls;
+    }
+
+    private async emergencyCleanup(): Promise<void> {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('ifai-file-cache')) keysToRemove.push(key);
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
     }
 }

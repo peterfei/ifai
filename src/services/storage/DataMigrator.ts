@@ -14,11 +14,17 @@ export class DataMigrator {
     ];
 
     /**
-     * 获取迁移任务的 Promise
+     * 获取迁移任务的 Promise (带超时保护)
      */
     static get migrationPromise(): Promise<void> {
         if (!this._migrationPromise) {
-            this._migrationPromise = this.migrate();
+            const timeoutPromise = new Promise<void>((resolve) => {
+                setTimeout(() => {
+                    console.warn('[DataMigrator] ⏱️ Migration timeout reached. Releasing lock.');
+                    resolve();
+                }, 3000);
+            });
+            this._migrationPromise = Promise.race([this.migrate(), timeoutPromise]);
         }
         return this._migrationPromise;
     }
@@ -52,7 +58,14 @@ export class DataMigrator {
                 const rawValue = localStorage.getItem(key);
                 if (rawValue) {
                     try {
+                        // 🏆 PIVO 3.0: 物理脏数据预清洗
+                        if (rawValue === '[object Object]') {
+                            localStorage.removeItem(key);
+                            continue;
+                        }
+
                         const parsedValue = JSON.parse(rawValue);
+
                         // 写入 PersistenceManager (它会自动路由到 IndexedDB)
                         await manager.setItem(key, parsedValue);
                         // 物理删除旧 Key

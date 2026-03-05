@@ -130,7 +130,7 @@ initMonacoEnvironment();
 
 // 🏆 PIVO 3.0: 物理数据迁移 (LocalStorage -> IndexedDB)
 import { DataMigrator } from './services/storage/DataMigrator';
-DataMigrator.migrate().catch(e => console.error('[Main] Migration Error:', e));
+DataMigrator.migrationPromise.catch(e => console.error('[Main] Migration Error:', e));
 
 exposeDebugStores();
 
