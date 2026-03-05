@@ -1,7 +1,8 @@
 import React from 'react';
 import { Circle, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
-import { TaskNode } from '../../stores/pivoStore';
+import { TaskNode, usePivoStore } from '../../stores/pivoStore';
 import { clsx } from 'clsx';
+import { Skeleton } from '../UI/Skeleton';
 
 interface PivoTreeListProps {
   tasks: TaskNode[];
@@ -13,7 +14,7 @@ const TaskItem: React.FC<{ task: TaskNode; level: number }> = ({ task, level }) 
     switch (task.status) {
       case 'running':
         return {
-          icon: <Loader2 className="w-3.5 h-3.4 animate-spin text-blue-400" />,
+          icon: <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />,
           color: "text-blue-100",
           bg: "bg-blue-500/10",
           border: "border-blue-500/30"
@@ -95,10 +96,23 @@ const TaskItem: React.FC<{ task: TaskNode; level: number }> = ({ task, level }) 
 };
 
 export const PivoTreeList: React.FC<PivoTreeListProps> = ({ tasks, level = 0 }) => {
+  const isHydrating = usePivoStore(state => state.isHydrating);
+
+  // 🏆 PIVO 3.0: 处理异步加载态
+  if (isHydrating) {
+    return (
+      <div className="my-4 p-4 rounded-xl bg-black/10 border border-white/5 space-y-2 animate-pulse">
+        <Skeleton width={150} height={12} className="mb-4 opacity-20" />
+        <Skeleton height={32} className="opacity-10" />
+        <Skeleton height={32} className="opacity-10" />
+      </div>
+    );
+  }
+
   if (!tasks || tasks.length === 0) return null;
 
   return (
-    <div className="my-4 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-500">
+    <div className="my-4 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-700">
       <div className="relative p-2 rounded-xl bg-black/20 backdrop-blur-xl border border-white/10 ring-1 ring-black/50">
         <div className="flex items-center gap-2 mb-2 px-2 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
             <div className="w-1 h-3 bg-blue-500 rounded-full shadow-[0_0_8px_#3b82f6]"></div>

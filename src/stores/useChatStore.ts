@@ -182,93 +182,20 @@ export interface ContentSegment {
 
 const threadMessages: Map<string, Message[]> = new Map();
 
-/**
-
- * Get messages for a specific thread
-
- */
-
-export function getThreadMessages(threadId: string): Message[] {
-
-  return threadMessages.get(threadId) || [];
-
-}
-
-/**
-
- * Set messages for a specific thread
-
- */
-
+export function getThreadMessages(threadId: string): Message[] { return threadMessages.get(threadId) || []; }
 export function setThreadMessages(threadId: string, messages: Message[]): void {
+    threadMessages.set(threadId, messages);
 
-  threadMessages.set(threadId, messages);
+    // 🏆 PIVO 3.0: 实时同步活跃线程数据
+    const activeThreadId = useThreadStore.getState().activeThreadId;
+    if (activeThreadId === threadId) {
+        console.log(`[ChatStore] 🔄 Syncing active thread messages for: ${threadId}`);
+        coreUseChatStore.setState({ messages: [...messages] });
+    }
 
-  // Trigger auto-save
-
-  autoSaveThread(threadId);
-
+    autoSaveThread(threadId);
 }
-
-/**
-
- * Clear all thread messages (for testing/reset)
-
- */
-
-export function clearThreadMessages(): void {
-
-  threadMessages.clear();
-
-}
-
-/**
-
- * Generate thread title from message content
-
- */
-
-function generateTitleFromMessage(content: string | any[]): string {
-
-  let textContent = '';
-
-  if (typeof content === 'string') {
-
-    textContent = content;
-
-  } else if (Array.isArray(content)) {
-
-    textContent = content
-
-      .filter(p => p.type === 'text')
-
-      .map(p => p.text)
-
-      .join(' ');
-
-  }
-
-  // Take first 30 characters as title
-
-  const maxLength = 30;
-
-  if (textContent.length > maxLength) {
-
-    return textContent.slice(0, maxLength) + '...';
-
-  }
-
-  return textContent || '新对话';
-
-}
-
-/**
-
- * Switch to a different thread
-
- * Saves current messages to thread and loads the target thread's messages
-
- */
+export function clearThreadMessages(): void { threadMessages.clear(); }
 
 export function switchThread(threadId: string): void {
 

@@ -1,6 +1,6 @@
 import React, { useEffect, Fragment, useState, Suspense } from 'react';
 import clsx from 'clsx';
-import { ModalSkeleton, MessageSkeleton } from './components/UI/Skeleton';
+import { ModalSkeleton, MessageSkeleton, Skeleton } from './components/UI/Skeleton';
 const CommandPalette = React.lazy(() => import('./components/CommandPalette/CommandPalette').then(m => ({ default: m.CommandPalette })));
 const CommandBar = React.lazy(() => import('./components/CommandBar').then(m => ({ default: m.CommandBar })));
 const SettingsModal = React.lazy(() => import('./components/Settings/SettingsModal').then(m => ({ default: m.SettingsModal })));
@@ -30,6 +30,7 @@ import { ApprovalToolbar } from './components/AIChat/ApprovalToolbar';
 
 import { TerminalPanel } from './components/Terminal/TerminalPanel';
 import { PromptManager } from './components/PromptManager/PromptManager';
+import { StorageQuotaBanner } from './components/Storage/StorageQuotaBanner';
 
 
 
@@ -151,9 +152,15 @@ function App() {
 
       // Initialize thread persistence (restore from IndexedDB)
       try {
+        // 🏆 PIVO 3.0: 物理前置 - 必须等待搬迁引擎完成工作
+        const { DataMigrator } = await import('./services/storage/DataMigrator');
+        await DataMigrator.migrationPromise;
+        console.log('[App] 📦 Data migration confirmed complete');
+
         const { initThreadPersistence } = await import('./stores/persistence/threadPersistence');
         await initThreadPersistence();
         console.log('[App] ✅ Thread persistence initialized');
+
       } catch (error) {
         console.error('[App] ❌ Failed to initialize thread persistence:', error);
       }
@@ -687,7 +694,42 @@ function App() {
     setOnboardingStep(null);
   };
 
-    return (
+    const { isHydrating: isFileHydrating } = useFileStore();
+    const [isHydrationTimeout, setIsHydrationTimeout] = useState(false);
+
+    // 🏆 PIVO 3.0: 物理级超时保险丝 - 防止 IndexedDB 卡死导致永久骨架屏
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        if (isFileHydrating) {
+          console.warn('[App] 🚨 Hydration timeout reached. Forcing UI mount...');
+          setIsHydrationTimeout(true);
+        }
+      }, 5000); // 5秒保险丝
+      return () => clearTimeout(timer);
+    }, [isFileHydrating]);
+
+    const renderHydrationSkeleton = () => (
+      <div className="h-screen w-screen bg-[#1e1e1e] flex flex-col">
+        <ModalSkeleton />
+        <div className="flex-1 flex overflow-hidden">
+          <div className="w-64 border-r border-gray-800 p-4 space-y-4">
+            <Skeleton height={24} />
+            <Skeleton height={200} />
+          </div>
+          <div className="flex-1 p-8 space-y-6">
+            <Skeleton height={40} width="60%" />
+            <div className="space-y-3">
+              <Skeleton height={20} />
+              <Skeleton height={20} />
+              <Skeleton height={20} width="80%" />
+            </div>
+            <Skeleton height={300} />
+          </div>
+        </div>
+      </div>
+    );
+
+  return (isFileHydrating && !isHydrationTimeout) ? renderHydrationSkeleton() : (
 
       <div 
 
@@ -707,6 +749,7 @@ function App() {
 
   
       <Titlebar onToggleChat={toggleChat} isChatOpen={isChatOpen} onToggleTerminal={toggleTerminal} isTerminalOpen={isTerminalOpen} />
+      <StorageQuotaBanner />
 
       {/* Main content area: Sidebar + Editor/Terminal + AIChat */}
       <div className="flex flex-1 overflow-hidden">

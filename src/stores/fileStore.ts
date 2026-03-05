@@ -63,6 +63,7 @@ interface FileState {
   setSelectedNodeIds: (ids: string[]) => void;
   setLastSelectedNodeId: (id: string | null) => void;
   syncState: (state: Partial<FileState>) => void;
+  isHydrating: boolean; // 🏆 PIVO 3.0: 异步加载状态
   // v0.2.6 新增：设置预览模式
   setPreviewMode: (mode: 'editor' | 'preview' | 'split') => void;
   togglePreviewMode: () => void;
@@ -109,6 +110,7 @@ export const useFileStore = create<FileState>()(
       // v0.2.6 新增：默认预览模式
       previewMode: 'editor',
       allFilePaths: [],
+      isHydrating: true, // 默认开启加载态
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
@@ -905,81 +907,70 @@ export const useFileStore = create<FileState>()(
       }),
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
 
-      onRehydrateStorage: () => (state) => {
-        // 🔥 临时:清空旧缓存以强制重新持久化新字段
-        // 检测旧缓存:没有 selectedNodeIds 字段
-        if (state && !(state as any).selectedNodeIds && state.openedFiles.length > 0) {
-          // 检查是否已经清空过,避免无限刷新
-          if (!sessionStorage.getItem('file-storage-cleared')) {
-            console.warn('[FileStore] Old cache detected, clearing localStorage');
-            localStorage.removeItem('file-storage');
-            sessionStorage.setItem('file-storage-cleared', 'true');
-            location.reload();
-            return;
-          } else {
-            // 已经清空过但仍然是旧结构,清除标记继续运行
-            sessionStorage.removeItem('file-storage-cleared');
+      onRehydrateStorage: () => {
+        console.log('[FileStore] ⏳ Starting hydration...');
+        return (state, error) => {
+          if (error) {
+            console.error('[FileStore] ❌ Hydration failed:', error);
           }
-        } else {
-          // 新缓存正常,清除标记
-          sessionStorage.removeItem('file-storage-cleared');
-        }
+          
+          if (state) {
+            state.syncState({ isHydrating: false });
+            console.log('[FileStore] ✅ Hydration complete');
 
-        // 🔥 修复编辑器持久化:优先使用持久化的内容,避免不必要的重新加载
-        if (state) {
-            // 将 expandedPaths 转换回临时的 expandedPaths 变量
-            // 稍后在文件树加载完成后使用路径匹配恢复 expandedNodes
+            // 🔥 临时:清空旧缓存以强制重新持久化新字段
+            // 检测旧缓存:没有 selectedNodeIds 字段
+            if (!(state as any).selectedNodeIds && state.openedFiles.length > 0) {
+              if (!sessionStorage.getItem('file-storage-cleared')) {
+                console.warn('[FileStore] Old cache detected, clearing localStorage');
+                localStorage.removeItem('file-storage');
+                sessionStorage.setItem('file-storage-cleared', 'true');
+                location.reload();
+                return;
+              } else {
+                sessionStorage.removeItem('file-storage-cleared');
+              }
+            } else {
+              sessionStorage.removeItem('file-storage-cleared');
+            }
+
+            // 🔥 修复编辑器持久化:优先使用持久化的内容
             if (Array.isArray((state as any).expandedPaths)) {
               (state as any).pendingExpandedPaths = new Set((state as any).expandedPaths);
               delete (state as any).expandedPaths;
             }
 
-            // 只对没有持久化内容的文件尝试重新加载
             state.openedFiles.forEach(file => {
               const hasPersistedContent = (file as any)._hasPersistedContent;
-
               if (!hasPersistedContent && file.path && !file.isDirty) {
-                // 只有干净的文件才重新加载(避免覆盖用户的未保存更改)
                 state.reloadFileContent(file.id);
-              } else if (hasPersistedContent) {
-                console.log(`[FileStore] Restored content from persistence for: ${file.name}`);
               }
-            });
-
-            // 清理临时标记
-            state.openedFiles.forEach(file => {
               delete (file as any)._hasPersistedContent;
             });
 
-            // 🔥 修复文件选中状态:同步 activeFileId 到 layoutStore 的窗格
+            // 🔥 修复文件选中状态:同步 activeFileId 到 layoutStore
             if (state.activeFileId) {
-              try {
-                // 延迟执行以确保 layoutStore 已经初始化
-                setTimeout(() => {
-                  import('./layoutStore').then(({ useLayoutStore }) => {
-                    const layoutStore = useLayoutStore.getState();
-                    const panes = layoutStore.panes;
-
-                    if (panes.length > 0) {
-                      // 找到当前活动的窗格,如果没有则使用第一个窗格
-                      const targetPaneId = layoutStore.activePaneId || panes[0].id;
-                      const targetPane = panes.find(p => p.id === targetPaneId);
-
-                      // 只有当窗格没有关联文件时才重新关联
-                      if (targetPane && !targetPane.fileId) {
-                        console.log(`[FileStore] Assigning active file ${state.activeFileId} to pane ${targetPaneId}`);
-                        layoutStore.assignFileToPane(targetPaneId, state.activeFileId);
-                      }
+              setTimeout(() => {
+                import('./layoutStore').then(({ useLayoutStore }) => {
+                  const layoutStore = useLayoutStore.getState();
+                  const panes = layoutStore.panes;
+                  if (panes.length > 0) {
+                    const targetPaneId = layoutStore.activePaneId || panes[0].id;
+                    const targetPane = panes.find(p => p.id === targetPaneId);
+                    if (targetPane && !targetPane.fileId) {
+                      layoutStore.assignFileToPane(targetPaneId, state.activeFileId!);
                     }
-                  }).catch((e) => {
-                    console.warn('[FileStore] Failed to import layoutStore:', e);
-                  });
-                }, 100);
-              } catch (e) {
-                console.warn('[FileStore] Failed to sync activeFileId to layoutStore:', e);
-              }
+                  }
+                }).catch(() => {});
+              }, 100);
             }
-        }
+          } else {
+            setTimeout(() => {
+              useFileStore.setState({ isHydrating: false });
+              console.log('[FileStore] 🛡️ Hydration fallback release');
+            }, 100);
+          }
+        };
       },
       migrate: (persistedState: any, version: number) => {
         console.log(`[FileStore] Migrating from version ${version} to 1`);
