@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { PersistenceManager } from '../services/storage/PersistenceManager';
 
 export type AIProtocol = 'openai' | 'anthropic' | 'gemini';
 
@@ -318,6 +319,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
+      storage: createJSONStorage(() => PersistenceManager.getInstance()),
       version: 4, // 🔥 v0.3.4: 增加版本号确保迁移执行
       partialize: (state) => ({
         theme: state.theme,

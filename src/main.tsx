@@ -127,6 +127,11 @@ const exposeDebugStores = () => {
 
 // 启动流程
 initMonacoEnvironment();
+
+// 🏆 PIVO 3.0: 物理数据迁移 (LocalStorage -> IndexedDB)
+import { DataMigrator } from './services/storage/DataMigrator';
+DataMigrator.migrate().catch(e => console.error('[Main] Migration Error:', e));
+
 exposeDebugStores();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

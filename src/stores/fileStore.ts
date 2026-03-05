@@ -1,6 +1,8 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { PersistenceManager } from '../services/storage/PersistenceManager';
+import { 
+ invoke } from '@tauri-apps/api/core';
 import { v4 as uuidv4 } from 'uuid';
 import { debounce } from 'lodash-es';
 import { FileNode, OpenedFile, GitStatus, WorkspaceRoot } from './types';
@@ -901,6 +903,7 @@ export const useFileStore = create<FileState>()(
           })()
         ),
       }),
+      storage: createJSONStorage(() => PersistenceManager.getInstance()),
 
       onRehydrateStorage: () => (state) => {
         // 🔥 临时:清空旧缓存以强制重新持久化新字段
