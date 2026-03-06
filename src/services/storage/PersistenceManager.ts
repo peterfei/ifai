@@ -3,38 +3,27 @@ import { StateStorage } from 'zustand/middleware';
 
 /**
  * 🏆 PIVO 3.0 Persistence Management SDK
+ * 提供统一的异步存储接口，支持根据 Key 前缀自动路由物理后端。
+ * 兼容 Zustand 的 StateStorage 接口。
  */
 
 export interface IStorageAdapter {
-    getItem<T>(key: string): Promise<T | null>;
-    setItem<T>(key: string, value: T): Promise<void>;
+    getItem(key: string): Promise<string | null>;
+    setItem(key: string, value: string): Promise<void>;
     removeItem(key: string): Promise<void>;
 }
 
 /**
- * LocalStorage 适配器
- * 核心：Zustand 传入的已经是序列化后的字符串，不需要二次 stringify。
+ * LocalStorage 适配器 (同步转异步)
+ * 核心：保持原始字符串存取，由上层（如 Zustand）决定如何序列化。
  */
 class LocalStorageAdapter implements IStorageAdapter {
-    async getItem<T>(key: string): Promise<T | null> {
-        const val = localStorage.getItem(key);
-        if (val === null) return null;
-        
-        try {
-            // 只有当看起来像 JSON 时才解析，否则直接返回（兼容性）
-            if (val.startsWith('{') || val.startsWith('[') || val.startsWith('"')) {
-                return JSON.parse(val) as T;
-            }
-            return val as any;
-        } catch (e) {
-            return val as any;
-        }
+    async getItem(key: string): Promise<string | null> {
+        return localStorage.getItem(key);
     }
 
-    async setItem<T>(key: string, value: T): Promise<void> {
-        // 如果是字符串（Zustand 传入），直接存；否则 stringify
-        const val = typeof value === 'string' ? value : JSON.stringify(value);
-        localStorage.setItem(key, val);
+    async setItem(key: string, value: string): Promise<void> {
+        localStorage.setItem(key, value);
     }
 
     async removeItem(key: string): Promise<void> {
@@ -43,34 +32,16 @@ class LocalStorageAdapter implements IStorageAdapter {
 }
 
 /**
- * IndexedDB 适配器
+ * IndexedDB 适配器 (基于 idb-keyval)
+ * 核心：保持原始字符串存取。
  */
 class IndexedDBAdapter implements IStorageAdapter {
-    async getItem<T>(key: string): Promise<T | null> {
-        const val = await idb.get<any>(key);
-        if (val === undefined || val === null) return null;
-        
-        // 🏆 PIVO 3.0: 拦截物理脏数据
-        if (val === '[object Object]') {
-            console.error(`[PersistenceManager] 🚨 Corrupted data detected for key: ${key}. Cleaning up...`);
-            await idb.del(key);
-            return null;
-        }
-
-        // idb-keyval 会自动处理非字符串对象
-        if (typeof val === 'string') {
-            try {
-                if (val.startsWith('{') || val.startsWith('[') || val.startsWith('"')) {
-                    return JSON.parse(val) as T;
-                }
-            } catch (e) {}
-        }
-        return val as T;
+    async getItem(key: string): Promise<string | null> {
+        const val = await idb.get<string>(key);
+        return val || null;
     }
 
-    async setItem<T>(key: string, value: T): Promise<void> {
-        // 🏆 PIVO 3.0: 避免双重编码
-        // 如果 value 已经是 JSON 字符串，则直接存储，不需要再 stringify
+    async setItem(key: string, value: string): Promise<void> {
         await idb.set(key, value);
     }
 
@@ -93,18 +64,27 @@ export class PersistenceManager implements StateStorage {
         return this.instance;
     }
 
+    /**
+     * 🏆 Zustand StateStorage 兼容接口
+     * 返回 RAW 字符串，防止双重解析 Bug。
+     */
     async getItem(name: string): Promise<string | null> {
-        return this.getAdapter(name).getItem<string>(name);
+        return this.getAdapter(name).getItem(name);
     }
 
     async setItem(name: string, value: string): Promise<void> {
         try {
-            await this.getAdapter(name).setItem<string>(name, value);
+            await this.getAdapter(name).setItem(name, value);
         } catch (e: any) {
+            // 物理自愈：如果写入失败且看起来是配额问题，执行紧急清理
             if (e.name === 'QuotaExceededError' || e.message?.includes('quota')) {
-                console.warn(`[PersistenceManager] 🚨 Storage quota exceeded. Triggering cleanup...`);
+                console.warn(`[PersistenceManager] 🚨 Storage quota exceeded for ${name}. Triggering emergency cleanup...`);
                 await this.emergencyCleanup();
-                await this.getAdapter(name).setItem<string>(name, value);
+                try {
+                    await this.getAdapter(name).setItem(name, value);
+                } catch (retryError) {
+                    console.error('[PersistenceManager] ❌ Retry failed after cleanup:', retryError);
+                }
             } else {
                 throw e;
             }
@@ -115,19 +95,36 @@ export class PersistenceManager implements StateStorage {
         return this.getAdapter(name).removeItem(name);
     }
 
+    /**
+     * 获取物理后端。
+     * 规则：数据密集型 Key 路由到 IndexedDB，配置类路由到 LocalStorage。
+     */
     private getAdapter(key: string): IStorageAdapter {
-        const bigDataPrefixes = ['ifai-history', 'ifai-file-cache', 'ifai-symbol-index', 'pivo-task-trees', 'chat-history'];
+        const bigDataPrefixes = [
+            'ifai-history', 
+            'ifai-file-cache', 
+            'ifai-symbol-index', 
+            'pivo-task-trees',
+            'chat-history',
+            'ifai-chat-history',
+            'file-storage' // 🚀 修复：fileStore 通常包含大量路径，强制路由到 IndexedDB
+        ];
         if (bigDataPrefixes.some(p => key.startsWith(p))) {
             return this.ldb;
         }
         return this.ls;
     }
 
+    /**
+     * 紧急清理逻辑：删除过期的文件缓存等非核心数据
+     */
     private async emergencyCleanup(): Promise<void> {
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith('ifai-file-cache')) keysToRemove.push(key);
+            if (key && key.startsWith('ifai-file-cache')) {
+                keysToRemove.push(key);
+            }
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
     }
