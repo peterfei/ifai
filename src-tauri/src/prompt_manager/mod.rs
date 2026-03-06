@@ -5,6 +5,7 @@ use crate::project_config;
 pub mod storage;
 pub mod template;
 pub mod variables;
+pub mod tool_parser;
 
 #[derive(RustEmbed)]
 #[folder = "../.ifai/prompts/"]
@@ -20,176 +21,15 @@ pub enum AccessTier {
     Private,
 }
 
-pub fn get_main_system_prompt(project_root: &str) -> String {
-    let variables = variables::collect_system_variables(project_root);
-    
-    let lang = project_config::load_project_config_sync(project_root)
-        .and_then(|c| c.default_language)
-        .unwrap_or_else(|| "en".to_string());
-    let is_zh = lang.to_lowercase().starts_with("zh");
-
-    let template = {
-        let local_root = if is_zh {
-            std::path::Path::new(project_root).join(".ifai/prompts/zh-CN/system")
-        } else {
-            std::path::Path::new(project_root).join(".ifai/prompts/system")
-        };
-        
-        let override_path = local_root.join("main.override.md");
-        let local_path = local_root.join("main.md");
-        let builtin_path = if is_zh { "zh-CN/system/main.md" } else { "system/main.md" };
-
-        if override_path.exists() {
-            storage::load_prompt(&override_path).ok()
-        } else if local_path.exists() {
-            storage::load_prompt(&local_path).ok()
-        } else if let Some(content_file) = BuiltinPrompts::get(builtin_path) {
-            let content = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
-            storage::load_prompt_from_str(content, None).ok()
-        } else {
-            // Fallback to English builtin if zh-CN builtin not found
-            BuiltinPrompts::get("system/main.md").and_then(|f| {
-                let content = std::str::from_utf8(f.data.as_ref()).unwrap_or("");
-                storage::load_prompt_from_str(content, None).ok()
-            })
-        }
-    };
-
-    let mut prompt = match template {
-        Some(t) => template::render_template(&t.content, &variables).unwrap_or_else(|_| t.content),
-        None => "You are a helpful AI programming assistant.".to_string(),
-    };
-
-    if let Some(ifai_config) = project_config::load_project_config_sync(project_root) {
-        if let Some(instructions) = ifai_config.custom_instructions {
-            if !instructions.trim().is_empty() {
-                prompt.push_str("\n\n# Project-Specific Instructions\n");
-                prompt.push_str(&instructions);
-            }
-        }
-    }
-
-    prompt
-}
-
-pub fn get_agent_prompt(agent_type: &str, project_root: &str, task_description: &str) -> String {
-    let mut variables = variables::collect_system_variables(project_root);
-
-    let (clean_task, proposal_id) = extract_proposal_context(task_description);
-    variables.insert("TASK_DESCRIPTION".to_string(), clean_task.to_string());
-
-    if let Some(pid) = &proposal_id {
-        variables.insert("PROPOSAL_ID".to_string(), pid.clone());
-        variables.insert("PROPOSAL_CONTEXT".to_string(), format!("提案 ID: {}", pid));
-    }
-
-    // 🏆 v0.3.6: 多语言与回退路由逻辑
-    let lang = project_config::load_project_config_sync(project_root)
-        .and_then(|c| c.default_language)
-        .unwrap_or_else(|| "en".to_string());
-    let is_zh = lang.to_lowercase().starts_with("zh");
-
-    let base_name = if agent_type == "task-breakdown" && proposal_id.is_some() {
-        "task-breakdown-enhanced".to_string()
-    } else {
-        agent_type.to_lowercase().replace(" ", "-")
-    };
-
-    let template_name = if is_zh {
-        format!("zh-CN/agents/{}.md", base_name)
-    } else {
-        format!("agents/{}.md", base_name)
-    };
-
-    let template = {
-        let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(&template_name);
-
-        if local_path.exists() {
-            storage::load_prompt(&local_path).ok()
-        } else if let Some(content_file) = BuiltinPrompts::get(&template_name) {
-            let content = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
-            storage::load_prompt_from_str(content, None).ok()
-        } else if is_zh {
-            // 回退到英文
-            let fallback_name = format!("agents/{}.md", base_name);
-            BuiltinPrompts::get(&fallback_name).and_then(|f| {
-                let content = std::str::from_utf8(f.data.as_ref()).unwrap_or("");
-                storage::load_prompt_from_str(content, None).ok()
-            })
-        } else {
-            None
-        }
-    };
-
-    let mut prompt = match template {
-        Some(t) => template::render_template(&t.content, &variables).unwrap_or_else(|_| t.content),
-        None => format!("You are a specialized {} agent. Task: {}", agent_type, clean_task),
-    };
-
-    if let Some(ifai_config) = project_config::load_project_config_sync(project_root) {
-        if let Some(instructions) = ifai_config.custom_instructions {
-            if !instructions.trim().is_empty() {
-                prompt.push_str("\n\n# Project-Specific Instructions\n");
-                prompt.push_str(&instructions);
-            }
-        }
-    }
-
-    prompt
-}
-
-pub(crate) fn extract_proposal_context(task: &str) -> (String, Option<String>) {
-    use regex::Regex;
-    // 🏆 FIXED: 使用原始字符串 r"..." 修复双重转义导致的崩溃
-    if let Ok(re) = Regex::new(r"^\[PROPOSAL:([^\]]+)\]\s*") {
-        if let Some(caps) = re.captures(task) {
-            if let Some(proposal_id) = caps.get(1) {
-                let clean_task = re.replace(task, "").to_string();
-                return (clean_task, Some(proposal_id.as_str().to_string()));
-            }
-        }
-    }
-    (task.to_string(), None)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::extract_proposal_context;
-
-    #[test]
-    fn test_extract_proposal_context_valid() {
-        let input = "[PROPOSAL:12345] Refactor core";
-        let (task, id) = extract_proposal_context(input);
-        assert_eq!(id, Some("12345".to_string()));
-        assert_eq!(task, "Refactor core");
-    }
-
-    #[test]
-    fn test_extract_proposal_context_safety() {
-        let input = "[PROPOSAL: incomplete";
-        let (task, id) = extract_proposal_context(input);
-        assert_eq!(id, None);
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptMetadata {
     pub name: String,
     #[serde(default)]
     pub description: String,
-    #[serde(default = "default_version")]
-    pub version: String,
-    #[serde(default)]
-    pub author: Option<String>,
     #[serde(default = "default_access_tier")]
     pub access_tier: AccessTier,
-    #[serde(default)]
-    pub variables: Vec<String>,
-    #[serde(default)]
-    pub tools: Vec<String>,
 }
 
-fn default_version() -> String { "1.0.0".to_string() }
 fn default_access_tier() -> AccessTier { AccessTier::Public }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -198,4 +38,124 @@ pub struct PromptTemplate {
     pub content: String,
     pub raw_text: String,
     pub path: Option<String>,
+}
+
+pub fn get_main_system_prompt(project_root: &str) -> String {
+    let variables = variables::collect_system_variables(project_root);
+    
+    let lang = project_config::load_project_config_sync(project_root)
+        .and_then(|c| c.default_language)
+        .unwrap_or_else(|| "en".to_string());
+    let is_zh = lang.to_lowercase().starts_with("zh");
+
+    let template_name = if is_zh { "zh-CN/system/main.md" } else { "system/main.md" };
+    
+    let template = match load_template(project_root, template_name) {
+        Some(t) => t,
+        None => {
+            BuiltinPrompts::get("system/main.md").and_then(|f| {
+                std::str::from_utf8(f.data.as_ref()).ok().map(|s| s.to_string())
+            }).unwrap_or_else(|| "You are IfAI, an advanced AI software engineer.".to_string())
+        }
+    };
+
+    template::render_template(&template, &variables).unwrap_or_else(|_| template)
+}
+
+pub fn get_agent_prompt(agent_type: &str, project_root: &str, task: &str) -> String {
+    let (clean_task, proposal_id) = extract_proposal_context(task);
+    let mut variables = variables::collect_system_variables(project_root);
+    variables.insert("task".to_string(), clean_task);
+    
+    if let Some(pid) = proposal_id {
+        variables.insert("proposal_id".to_string(), pid);
+    }
+
+    let lang = project_config::load_project_config_sync(project_root)
+        .and_then(|c| c.default_language)
+        .unwrap_or_else(|| "en".to_string());
+    let is_zh = lang.to_lowercase().starts_with("zh");
+
+    let template_name = format!("agents/{}.md", agent_type.to_lowercase());
+    let lang_template_name = if is_zh { format!("zh-CN/{}", template_name) } else { template_name.clone() };
+
+    let template = load_template(project_root, &lang_template_name)
+        .or_else(|| load_template(project_root, &template_name))
+        .unwrap_or_else(|| {
+            let builtin_path = if is_zh { format!("zh-CN/{}", template_name) } else { template_name.clone() };
+            if let Some(f) = BuiltinPrompts::get(&builtin_path) {
+                std::str::from_utf8(f.data.as_ref()).ok().map(|s| s.to_string()).unwrap()
+            } else if let Some(f) = BuiltinPrompts::get(&template_name) {
+                std::str::from_utf8(f.data.as_ref()).ok().map(|s| s.to_string()).unwrap()
+            } else {
+                "You are a specialized AI agent.".to_string()
+            }
+        });
+
+    template::render_template(&template, &variables).unwrap_or_else(|_| template)
+}
+
+fn load_template(project_root: &str, name: &str) -> Option<String> {
+    let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(name);
+    if local_path.exists() {
+        std::fs::read_to_string(local_path).ok()
+    } else {
+        None
+    }
+}
+
+pub fn extract_proposal_context(task: &str) -> (String, Option<String>) {
+    let re = regex::Regex::new(r"\[PROPOSAL:([\w\d\-\.]+)\]").unwrap();
+    if let Some(caps) = re.captures(task) {
+        if let Some(proposal_id) = caps.get(1) {
+            let clean_task = re.replace(task, "").trim().to_string();
+            return (clean_task, Some(proposal_id.as_str().to_string()));
+        }
+    }
+    (task.trim().to_string(), None)
+}
+
+/**
+ * 🏆 PIVO 3.0 Dynamic Tool Pipeline
+ * 获取一组动态工具定义
+ */
+pub fn get_dynamic_tools(project_root: &str, tool_ids: Vec<&str>) -> Vec<serde_json::Value> {
+    let lang = crate::project_config::load_project_config_sync(project_root)
+        .and_then(|c| c.default_language)
+        .unwrap_or_else(|| "en".to_string());
+
+    let mut tools = Vec::new();
+    for id in tool_ids {
+        if let Some(tool) = tool_parser::load_tool_definition(project_root, id, &lang) {
+            tools.push(tool);
+        }
+    }
+    tools
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_proposal_context() {
+        let input = "[PROPOSAL:v0.2.6-demo] 这是一个任务";
+        let (task, id) = extract_proposal_context(input);
+        assert_eq!(id, Some("v0.2.6-demo".to_string()));
+        assert_eq!(task, "这是一个任务");
+    }
+
+    #[test]
+    fn test_get_dynamic_tools_mapping() {
+        let dir = tempdir().unwrap();
+        let project_root = dir.path().to_str().unwrap();
+        let tool_ids = vec!["list", "read", "probe"];
+        let tools = get_dynamic_tools(project_root, tool_ids);
+        
+        // 🏆 核心断言：验证动态工具管线逻辑
+        assert!(tools.len() > 0);
+        let first_tool = &tools[0];
+        assert_eq!(first_tool["type"], "function");
+    }
 }

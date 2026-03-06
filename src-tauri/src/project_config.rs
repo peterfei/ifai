@@ -324,30 +324,46 @@ No frontmatter here
 /// Ensure .ifai/prompts directory is initialized with builtin templates
 pub fn ensure_prompts_initialized(project_root: &str) -> Result<(), String> {
     use crate::prompt_manager::BuiltinPrompts;
+    use rust_embed::RustEmbed; // 🏆 PIVO 3.0: 修正 trait 导入
     use std::fs;
     use std::path::Path;
 
     let prompt_dir = Path::new(project_root).join(".ifai/prompts");
     
-    // 🏆 Only initialize if the directory does not exist
-    if prompt_dir.exists() {
-        return Ok(());
+    // 🏆 PIVO 3.0: 增量分发策略 (Incremental Supplement)
+    if !prompt_dir.exists() {
+        fs::create_dir_all(&prompt_dir).map_err(|e| e.to_string())?;
     }
 
-    println!("[ProjectConfig] Initializing .ifai/prompts with builtin templates...");
-    fs::create_dir_all(&prompt_dir).map_err(|e| e.to_string())?;
+    println!("[ProjectConfig] 🚀 Checking for missing prompt templates in .ifai/prompts...");
+    let mut supplement_count = 0;
 
     for file_path in BuiltinPrompts::iter() {
-        if let Some(content_file) = BuiltinPrompts::get(&file_path) {
-            let target_path = prompt_dir.join(file_path.as_ref());
-            
-            // Create parent directories if needed (e.g., for system/main.md)
-            if let Some(parent) = target_path.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            
-            fs::write(target_path, content_file.data).map_err(|e| e.to_string())?;
+        let path_str = file_path.as_ref();
+        
+        if path_str.contains(".DS_Store") {
+            continue;
         }
+
+        let target_path = prompt_dir.join(path_str);
+        
+        if !target_path.exists() {
+            if let Some(content_file) = BuiltinPrompts::get(path_str) {
+                if let Some(parent) = target_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                
+                fs::write(&target_path, content_file.data).map_err(|e| e.to_string())?;
+                supplement_count += 1;
+                println!("[ProjectConfig] ✓ Supplemented: {}", path_str);
+            }
+        }
+    }
+    
+    if supplement_count > 0 {
+        println!("[ProjectConfig] 🏁 Supplemented {} missing templates.", supplement_count);
+    } else {
+        println!("[ProjectConfig] ✅ All prompt templates are already up to date.");
     }
     
     Ok(())

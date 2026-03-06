@@ -85,15 +85,9 @@ function messageToStored(message: Message, threadId: string): StoredMessage | nu
 
   // 🔥 v0.3.7: 存储空间优化
   // 1. 移除冗余的 contentSegments
-  // 2. 物理截断超大内容 (防止 QuotaExceededError)
-  let finalContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
-  const MAX_STORAGE_SIZE = 50 * 1024; // 50KB
-  if (finalContent.length > MAX_STORAGE_SIZE) {
-    console.warn(`[Persistence] Truncating large message (${Math.round(finalContent.length/1024)}KB) for storage`);
-    finalContent = finalContent.substring(0, 20 * 1024) + 
-                   '\n\n... [CONTENT TRUNCATED DUE TO SIZE] ...\n\n' + 
-                   finalContent.substring(finalContent.length - 20 * 1024);
-  }
+  // 2. 🏆 PIVO 3.0: 移除物理截断逻辑
+  // 既然已迁移至 IndexedDB，不再需要为 LocalStorage 牺牲数据保真度
+  const finalContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
   const cleanMessage = {
     ...message,

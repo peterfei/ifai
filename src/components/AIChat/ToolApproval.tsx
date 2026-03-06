@@ -17,6 +17,7 @@ import { StreamingToolArgsViewer } from './StreamingToolArgsViewer';
 import { ToolExecutionIndicator, StreamingContentLoader } from './ToolExecutionIndicator';
 import ReactMarkdown from 'react-markdown';
 import { BashConsoleOutput } from './BashConsoleOutput';
+import { ProbeSymbolView } from './ProbeSymbolView';
 import { toast } from 'sonner';
 import { RiskPolicy, RiskLevel } from '../../core/approval/policies/RiskPolicy';
 
@@ -39,6 +40,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
     'agent_run_shell_command': <Terminal size={14} />,
     'bash': <Terminal size={14} />,
     'agent_search': <Search size={14} />,
+    'agent_probe_symbols': <Search size={14} />,
     'agent_delete_file': <Trash2 size={14} />,
 };
 
@@ -624,6 +626,15 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                 </div>
                             )}
                         </div>
+
+                        {/* 🏆 PIVO 3.0: 符号探测管线专用渲染 */}
+                        {toolCall.tool === 'agent_probe_symbols' && (
+                            <ProbeSymbolView 
+                                path={toolCall.args?.rel_path || toolCall.args?.path || 'unknown'} 
+                                result={toolCall.result}
+                                status={toolCall.status === 'pending' || toolCall.status === 'approved' ? 'pending' : (toolCall.status as any)}
+                            />
+                        )}
 
                         {/* 工具参数可视化 */}
                         <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">

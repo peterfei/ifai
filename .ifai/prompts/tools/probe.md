@@ -1,6 +1,6 @@
 ---
-name: agent_read_file
-description: Read content from a file.
+name: agent_probe_symbols
+description: Probe source code symbols.
 parameters:
   type: object
   properties:
@@ -11,4 +11,4 @@ parameters:
     - rel_path
 ---
 
-# Read Tool
+# Probe Tool

@@ -21,24 +21,7 @@ pub async fn run_agent_task(
         "type": "log",
         "message": format!("[AgentRunner] 🔥🔥🔥 run_agent_task ENTRY - id: {}, agent_type: '{}'", id, agent_type)
     }));
-    let _ = app.emit(&event_id, json!({
-        "type": "log",
-        "message": format!("[AgentRunner] event_id: {}", event_id)
-    }));
-    let _ = app.emit(&event_id, json!({
-        "type": "log",
-        "message": format!("[AgentRunner] project_root: {}", context.project_root)
-    }));
-    let _ = app.emit(&event_id, json!({
-        "type": "log",
-        "message": format!("[AgentRunner] task_description: {}", context.task_description)
-    }));
 
-    println!("[AgentRunner] 🔥🔥🔥 run_agent_task ENTRY - id: {}, agent_type: '{}'", id, agent_type);
-    println!("[AgentRunner] event_id: {}", event_id);
-    println!("[AgentRunner] project_root: {}", context.project_root);
-    println!("[AgentRunner] task_description: {}", context.task_description);
-    println!("[AgentRunner] provider: {:?}", context.provider_config.protocol);
     println!("[AgentRunner] Starting task for: {} ({}), event_id: {}", id, agent_type, event_id);
     
     let mut history: Vec<Message> = Vec::new();
@@ -66,244 +49,15 @@ pub async fn run_agent_task(
 
     let _ = supervisor.update_status(&id, AgentStatus::Running).await;
 
-    // Define tools based on agent type
-    // Bash agent: Gets bash + read-only file tools (to prevent loops)
-    // Demo agent: Gets file creation + bash + read tools
-    // All other agents: Get full exploration + bash tools
-    let tools = if agent_type == "bash" || agent_type == "/bash" {
-        // Bash agent: Gets bash + read-only tools to prevent verification loops
-        vec![
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_bash",
-                    "description": "Execute a shell command",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "command": { "type": "string", "description": "The command to execute" },
-                            "working_dir": { "type": "string", "description": "Working directory (optional)" },
-                            "timeout": { "type": "number", "description": "Timeout in milliseconds (optional)" }
-                        },
-                        "required": ["command"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_read_file",
-                    "description": "Read content of a file (read-only, for verification)",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to the file" }
-                        },
-                        "required": ["rel_path"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_list_dir",
-                    "description": "List files in a directory (read-only, for verification)",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to the directory (default: current directory)" }
-                        }
-                    }
-                }
-            })
-        ]
-    } else if agent_type == "demo" || agent_type == "/demo" || agent_type == "Demo Agent" {
-        // Demo agent: Gets file creation + bash + read tools
-        vec![
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_write_file",
-                    "description": "Write content to a file. Creates parent directories if they don't exist.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to the file" },
-                            "content": { "type": "string", "description": "Content to write to the file" }
-                        },
-                        "required": ["rel_path", "content"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_read_file",
-                    "description": "Read content of a file. For large files (>10KB), use agent_probe_symbols first.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to file" }
-                        },
-                        "required": ["rel_path"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_probe_symbols",
-                    "description": "Probe source code symbols (classes, functions, interfaces) to understand file structure with minimal token cost. Highly recommended for files over 10KB.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to file" }
-                        },
-                        "required": ["rel_path"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_bash",
-                    "description": "Execute a shell command",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "command": { "type": "string", "description": "The command to execute" },
-                            "working_dir": { "type": "string", "description": "Working directory (optional)" },
-                            "timeout": { "type": "number", "description": "Timeout in milliseconds (optional)" }
-                        },
-                        "required": ["command"]
-                    }
-                }
-            })
-        ]
-    } else {
-        // Other agents: get full exploration + bash tools
-        vec![
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_list_dir",
-                    "description": "List files in a directory",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to directory" }
-                        }
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_read_file",
-                    "description": "Read content of a file. For large files (>10KB), use agent_probe_symbols first.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to file" }
-                        },
-                        "required": ["rel_path"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_probe_symbols",
-                    "description": "Probe source code symbols (classes, functions, interfaces) to understand file structure with minimal token cost. Highly recommended for files over 10KB.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to file" }
-                        },
-                        "required": ["rel_path"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_batch_read",
-                    "description": "Read multiple files in parallel for efficiency. Use this when you need to read 3-10 files at once. Returns JSON array with results for each file.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "paths": {
-                                "type": "array",
-                                "items": { "type": "string" },
-                                "description": "Array of relative file paths to read (recommended: 3-10 files per batch)"
-                            }
-                        },
-                        "required": ["paths"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_scan_directory",
-                    "description": "Scan a directory and return structured file tree with statistics. Supports glob patterns (e.g., '*.ts') and limits. Use this for quick project overview before deep scanning.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": {
-                                "type": "string",
-                                "description": "Relative path to directory to scan (default: '.' for current directory)"
-                            },
-                            "pattern": {
-                                "type": "string",
-                                "description": "Optional glob pattern to filter files (e.g., '*.ts', '**/*.tsx', '**/*.rs')"
-                            },
-                            "max_depth": {
-                                "type": "number",
-                                "description": "Maximum directory depth to scan (default: 10)"
-                            },
-                            "max_files": {
-                                "type": "number",
-                                "description": "Maximum number of files to return (default: 500)"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_write_file",
-                    "description": "Write content to a file",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "rel_path": { "type": "string", "description": "Relative path to file" },
-                            "content": { "type": "string", "description": "File content" }
-                        },
-                        "required": ["rel_path", "content"]
-                    }
-                }
-            }),
-            json!({
-                "type": "function",
-                "function": {
-                    "name": "agent_bash",
-                    "description": "Execute a shell command",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "command": { "type": "string", "description": "The command to execute" },
-                            "working_dir": { "type": "string", "description": "Working directory (optional)" },
-                            "timeout": { "type": "number", "description": "Timeout in milliseconds (optional)" }
-                        },
-                        "required": ["command"]
-                    }
-                }
-            })
-        ]
+    // 🏆 PIVO 3.0: 动态工具管线
+    // 根据 Agent 类型，通过物理模板引擎动态获取工具定义
+    let tool_ids = match agent_type.as_str() {
+        "bash" | "/bash" => vec!["bash", "read", "list"],
+        "demo" | "/demo" | "Demo Agent" => vec!["write", "read", "bash"],
+        _ => vec!["list", "read", "batch_read", "scan_directory", "write", "bash", "probe"],
     };
+
+    let tools = crate::prompt_manager::get_dynamic_tools(&context.project_root, tool_ids);
 
     let mut loop_count = 0;
     const MAX_LOOPS: usize = 12;
@@ -317,9 +71,7 @@ pub async fn run_agent_task(
 
         let _ = app.emit("agent:status", json!({ "id": id, "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
         let _ = app.emit(&event_id, json!({ "type": "status", "status": "running", "progress": 0.15 + (loop_count as f32 * 0.05) }));
-        // 🔥 FIX: Send 'thinking' event instead of 'log' to enable streaming content in message (with line breaks)
         let _ = app.emit(&event_id, json!({ "type": "thinking", "content": "\n🤔 正在思考..." }));
-        let _ = app.emit(&event_id, json!({ "type": "log", "message": "Thinking..." }));
 
         match ai_utils::agent_stream_chat_with_root(
             &app,
@@ -332,9 +84,7 @@ pub async fn run_agent_task(
         ).await {
             Ok(ai_message) => {
                 if let Content::Text(ref text) = ai_message.content {
-                    if !text.is_empty() {
-                         last_ai_summary = text.clone();
-                    }
+                    if !text.is_empty() { last_ai_summary = text.clone(); }
                 }
 
                 if let Some(tool_calls) = &ai_message.tool_calls {
@@ -349,63 +99,38 @@ pub async fn run_agent_task(
                         let tool_name = &tool_call.function.name;
                         let args_res: Result<Value, _> = serde_json::from_str(&tool_call.function.arguments);
 
-                        // 🔥 FIX: Send 'thinking' event to show progress in message (with line breaks for better formatting)
                         let _ = app.emit(&event_id, json!({ "type": "thinking", "content": format!("\n🔧 正在处理工具: {}...\n", tool_name) }));
-                        let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("Processing tool: {}", tool_name) }));
 
                         let (tool_result, _success) = match args_res {
                             Ok(args) => {
-                                // 🔥 FIX v0.3.8.2: 使用 LLM API 原始返回的 tool_call.id
-                                // 这样可以与 ai_utils.rs 流式响应中的 tool_call ID 保持一致
                                 let tool_id = tool_call.id.clone();
-                                println!("[AgentRunner] Requesting authorization for: {}, event_id={}, tool_id={}", tool_name, event_id, tool_id);
-                                let emit_result = app.emit(&event_id, json!({
+                                let _ = app.emit(&event_id, json!({
                                     "type": "tool_call",
-                                    "toolCall": {
-                                        "id": tool_id,  // Use consistent index-based ID
-                                        "tool": tool_name,
-                                        "args": args,
-                                        "isPartial": false
-                                    }
+                                    "toolCall": { "id": tool_id, "tool": tool_name, "args": args, "isPartial": false }
                                 }));
-                                if let Err(e) = emit_result {
-                                    eprintln!("[AgentRunner] ERROR emitting event: {}", e);
-                                } else {
-                                    eprintln!("[AgentRunner] Event emitted successfully");
-                                }
 
                                 let _ = supervisor.update_status(&id, AgentStatus::WaitingForTool).await;
-                                // Send waitingfortool status event to frontend
                                 let _ = app.emit("agent:status", json!({ "id": id.clone(), "status": "waitingfortool" }));
                                 let _ = app.emit(&event_id, json!({ "type": "status", "status": "waitingfortool" }));
 
                                 let approved = supervisor.wait_for_approval(id.clone()).await;
-                                println!("[AgentRunner] Approval received for {}: {}", tool_name, approved);
                                 
                                 if approved {
                                     let _ = app.emit("agent:status", json!({ "id": id, "status": "running" }));
                                     let _ = app.emit(&event_id, json!({ "type": "status", "status": "running" }));
-                                    // 🔥 FIX: Send 'thinking' event to show execution progress (with line breaks)
                                     let _ = app.emit(&event_id, json!({ "type": "thinking", "content": format!("\n🚀 正在执行: {}...\n", tool_name) }));
-                                    let _ = app.emit(&event_id, json!({ "type": "log", "message": format!("🚀 Executing {}...", tool_name) }));
-                                    println!("[AgentRunner] Starting execution of {}", tool_name);
                                 }
 
                                 let _ = supervisor.update_status(&id, if approved { AgentStatus::Running } else { AgentStatus::Stopped }).await;
 
                                 if !approved {
-                                    println!("[AgentRunner] Tool {} REJECTED by user", tool_name);
                                     ("User rejected the operation.".to_string(), false)
                                 } else {
                                     if tool_name == "agent_write_file" {
-                                        if let Some(path) = args["rel_path"].as_str() {
-                                            created_files.push(path.to_string());
-                                        }
+                                        if let Some(path) = args["rel_path"].as_str() { created_files.push(path.to_string()); }
                                     }
 
-                                    // Use recursive scan for agent_scan_directory to enable progress callbacks
                                     let (tool_result, is_success) = if tool_name == "agent_scan_directory" {
-                                        println!("[AgentRunner] Executing scan_directory...");
                                         let rel_path = args["rel_path"].as_str().or_else(|| args["path"].as_str()).unwrap_or(".").to_string();
                                         let pattern = args["pattern"].as_str().map(|s| s.to_string());
                                         let max_depth = args["max_depth"].as_u64().map(|v| v as usize);
@@ -418,96 +143,18 @@ pub async fn run_agent_task(
                                             Err(e) => (format!("Error: {}", e), false)
                                         }
                                     } else {
-                                        println!("[AgentRunner] Calling tools::execute_tool_internal for {}", tool_name);
                                         match tools::execute_tool_internal(tool_name, &args, &context.project_root).await {
                                             Ok(res) => (res, true),
-                                            Err(e) => {
-                                                println!("[AgentRunner] Execution FAILED for {}: {}", tool_name, e);
-                                                (format!("Error: {}", e), false)
-                                            }
+                                            Err(e) => (format!("Error: {}", e), false)
                                         }
                                     };
 
-                                    // 🔥 增强：处理自愈逻辑
+                                    // 处理自愈
                                     if !is_success && retry_count < MAX_RETRY_PER_STEP {
                                         retry_count += 1;
-                                        println!("[AgentRunner] 🛡️ Triggering Self-Healing (Retry {}/{})", retry_count, MAX_RETRY_PER_STEP);
                                         pivo_stage = PivoStage::Optimize;
                                     } else if is_success {
                                         retry_count = 0; 
-                                    }
-
-                                    // Send explore_findings event for agent_scan_directory
-                                    if tool_name == "agent_scan_directory" {
-                                        if let Ok(scan_result) = serde_json::from_str::<Value>(&tool_result) {
-                                            let total_files = scan_result["stats"]["totalFiles"].as_u64().unwrap_or(0);
-                                            let total_dirs = scan_result["stats"]["totalDirectories"].as_u64().unwrap_or(0);
-
-                                            // Send analyzing progress event (scanning done, now analyzing findings)
-                                            let _ = app.emit(&event_id, json!({
-                                                "type": "explore_progress",
-                                                "exploreProgress": {
-                                                    "phase": "analyzing",
-                                                    "progress": {
-                                                        "total": 1,
-                                                        "scanned": 1,
-                                                        "byDirectory": {}
-                                                    }
-                                                }
-                                            }));
-
-                                            // Build directories array from scan result with sample files
-                                            let directories = if let (Some(dirs_arr), Some(files_arr)) = (
-                                                scan_result["directories"].as_array(),
-                                                scan_result["files"].as_array()
-                                            ) {
-                                                dirs_arr.iter().filter_map(|dir_value| {
-                                                    let dir_path = dir_value.as_str()?;
-                                                    let dir_prefix = if dir_path == "." {
-                                                        String::new()
-                                                    } else {
-                                                        format!("{}/", dir_path)
-                                                    };
-
-                                                    // Find files in this directory
-                                                    let dir_files: Vec<String> = files_arr.iter()
-                                                        .filter_map(|f| f.as_str())
-                                                        .filter(|f| f.starts_with(&dir_prefix) || dir_path == ".")
-                                                        .filter(|f| {
-                                                            // Only direct children (no more slashes after the directory prefix)
-                                                            let rest = if dir_path == "." { *f } else { f.strip_prefix(&dir_prefix).unwrap_or(f) };
-                                                            !rest.contains('/')
-                                                        })
-                                                        .take(5) // Take up to 5 sample files
-                                                        .map(|f| f.split('/').last().unwrap_or(f).to_string())
-                                                        .collect();
-
-                                                    let file_count = dir_files.len();
-
-                                                    Some(json!({
-                                                        "path": dir_path,
-                                                        "fileCount": file_count,
-                                                        "keyFiles": dir_files
-                                                    }))
-                                                }).collect::<Vec<serde_json::Value>>()
-                                            } else {
-                                                Vec::new()
-                                            };
-
-                                            let summary = format!(
-                                                "探索完成：发现 {} 个文件和 {} 个目录",
-                                                total_files,
-                                                total_dirs
-                                            );
-
-                                            let _ = app.emit(&event_id, json!({
-                                                "type": "explore_findings",
-                                                "exploreFindings": {
-                                                    "summary": summary,
-                                                    "directories": directories
-                                                }
-                                            }));
-                                        }
                                     }
 
                                     (tool_result, true)
@@ -516,9 +163,6 @@ pub async fn run_agent_task(
                             Err(e) => (format!("Failed to parse arguments: {}", e), false)
                         };
 
-                        // ⚡️ FIX: 发送 tool_result 事件，让前端能立即显示工具输出
-                        // 前端会根据 toolCallId 匹配并更新对应 toolCall 的 result 字段
-                        // 🔥 FIX v0.3.8.2: 使用 LLM API 原始返回的 tool_call.id
                         let tool_id = tool_call.id.clone();
                         let _ = app.emit(&event_id, json!({
                             "type": "tool_result",
@@ -544,38 +188,22 @@ pub async fn run_agent_task(
         }
     }
 
-    let mut final_output = if !last_ai_summary.is_empty() {
-        last_ai_summary
-    } else {
-        format!("Agent {} has completed the task.", agent_type)
-    };
+    let mut final_output = if !last_ai_summary.is_empty() { last_ai_summary } else { format!("Agent {} has completed the task.", agent_type) };
 
     if !created_files.is_empty() {
         final_output.push_str("\n\n### 📝 Changes Applied:\n");
-        for file in created_files {
-            final_output.push_str(&format!("- ✅ `{}`\n", file));
-        }
+        for file in created_files { final_output.push_str(&format!("- ✅ `{}`\n", file)); }
     }
 
     let _ = supervisor.update_status(&id, AgentStatus::Completed).await;
     let _ = app.emit("agent:status", json!({ "id": id, "status": "completed", "progress": 1.0 }));
     let _ = app.emit(&event_id, json!({ "type": "status", "status": "completed", "progress": 1.0 }));
 
-    // Send final result through unified stream
-    let _ = app.emit(&event_id, json!({
-        "type": "result",
-        "result": final_output
-    }));
-    
-    // Also keep agent:result for backward compatibility and global listeners
+    let _ = app.emit(&event_id, json!({ "type": "result", "result": final_output }));
     let _ = app.emit("agent:result", json!({ "id": id, "output": final_output }));
 }
 
 fn system_content_with_tools(base: &str) -> String {
-    // 🔥 FIX v0.3.8: 明确指示 LLM 使用工具，而不是文本请求确认
-    // 问题：智谱 API 将 "Wait for approval before writing files" 理解为文本请求确认
-    // 修复：明确说明使用 agent_write_file 工具，该工具会自动等待用户审批
-    // 🔥 FIX v0.3.9: 防止工具名幻觉（如 Command agent_bash not found）
     // 🏆 PIVO 3.0: 引入 Symbol-First 认知准则
-    format!("{}\n\n## Tool Usage Guidelines\n\n- **ALWAYS use tools** for file operations (agent_read_file, agent_write_file, etc.)\n- **Efficiency First**: For large files (>10KB), you MUST use agent_probe_symbols first to understand the structure before reading content. This saves context and improves precision.\n- For writing files: use the agent_write_file tool with the full content\n- The agent_write_file tool will **automatically** wait for user approval - you do NOT need to ask for text confirmation\n- **Bash execution**: When using the agent_bash tool, the 'command' parameter should be the actual shell command (e.g., 'ls -la'), NOT the tool name itself. Never execute 'agent_bash' as a command.\n- Show the code you intend to write clearly in the tool's content parameter\n- Never ask \"请确认是否同意\" or similar text confirmation - always use the tool directly", base)
+    format!("{}\n\n## Tool Usage Guidelines\n\n- **ALWAYS use tools** for file operations (agent_read_file, agent_write_file, etc.)\n- **Efficiency First**: For large files (>10KB), you MUST use agent_probe_symbols first to understand the structure before reading content.\n- For writing files: use the agent_write_file tool with the full content\n- The agent_write_file tool will **automatically** wait for user approval\n- **Bash execution**: When using the agent_bash tool, the 'command' parameter should be the actual shell command.\n- Show the code you intend to write clearly in the tool's content parameter\n- Never ask \"请确认是否同意\" - always use the tool directly", base)
 }
