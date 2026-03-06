@@ -24,6 +24,13 @@ export interface ReadFileArgs {
 }
 
 /**
+ * agent_probe_symbols 参数
+ */
+export interface ProbeSymbolsArgs {
+  path: string;
+}
+
+/**
  * agent_list_dir 参数
  */
 export interface ListDirArgs {

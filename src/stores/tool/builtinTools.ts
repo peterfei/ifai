@@ -11,11 +11,13 @@ import type {
   ReadFileArgs,
   ListDirArgs,
   DeleteFileArgs,
+  ProbeSymbolsArgs,
   BashArgs,
   WriteFileResult,
   ReadFileResult,
   ListDirResult,
   DeleteFileResult,
+  ProbeSymbolsResult,
   BashResult
 } from '@/types/toolTypes';
 
@@ -66,7 +68,7 @@ toolRegistry.register<WriteFileArgs, WriteFileResult>({
 toolRegistry.register<ReadFileArgs, ReadFileResult>({
   name: 'agent_read_file',
   category: 'fs',
-  description: 'Read content from a file',
+  description: 'Read content from a file. For large files, use agent_probe_symbols first to see the structure.',
   schema: {
     type: 'object',
     properties: {
@@ -82,6 +84,36 @@ toolRegistry.register<ReadFileArgs, ReadFileResult>({
         path: args.path
       });
       return { success: true, output: content };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+});
+
+/**
+ * agent_probe_symbols - 探测代码符号骨架
+ */
+toolRegistry.register<ProbeSymbolsArgs, ProbeSymbolsResult>({
+  name: 'agent_probe_symbols',
+  category: 'fs',
+  description: 'Probe code symbols (classes, functions, exports) to understand file structure with minimal token cost.',
+  schema: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: '文件路径' }
+    },
+    required: ['path']
+  },
+  requiresApproval: false,
+  handler: async (args) => {
+    try {
+      const output = await invoke<string>('agent_probe_symbols', {
+        rel_path: args.path
+      });
+      return { success: true, output };
     } catch (error) {
       return {
         success: false,

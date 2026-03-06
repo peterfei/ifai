@@ -139,7 +139,21 @@ pub async fn run_agent_task(
                 "type": "function",
                 "function": {
                     "name": "agent_read_file",
-                    "description": "Read content of a file",
+                    "description": "Read content of a file. For large files (>10KB), use agent_probe_symbols first.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to file" }
+                        },
+                        "required": ["rel_path"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_probe_symbols",
+                    "description": "Probe source code symbols (classes, functions, interfaces) to understand file structure with minimal token cost. Highly recommended for files over 10KB.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -186,7 +200,21 @@ pub async fn run_agent_task(
                 "type": "function",
                 "function": {
                     "name": "agent_read_file",
-                    "description": "Read content of a file",
+                    "description": "Read content of a file. For large files (>10KB), use agent_probe_symbols first.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "rel_path": { "type": "string", "description": "Relative path to file" }
+                        },
+                        "required": ["rel_path"]
+                    }
+                }
+            }),
+            json!({
+                "type": "function",
+                "function": {
+                    "name": "agent_probe_symbols",
+                    "description": "Probe source code symbols (classes, functions, interfaces) to understand file structure with minimal token cost. Highly recommended for files over 10KB.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -548,5 +576,6 @@ fn system_content_with_tools(base: &str) -> String {
     // 问题：智谱 API 将 "Wait for approval before writing files" 理解为文本请求确认
     // 修复：明确说明使用 agent_write_file 工具，该工具会自动等待用户审批
     // 🔥 FIX v0.3.9: 防止工具名幻觉（如 Command agent_bash not found）
-    format!("{}\n\n## Tool Usage Guidelines\n\n- **ALWAYS use tools** for file operations (agent_read_file, agent_write_file, etc.)\n- For writing files: use the agent_write_file tool with the full content\n- The agent_write_file tool will **automatically** wait for user approval - you do NOT need to ask for text confirmation\n- **Bash execution**: When using the agent_bash tool, the 'command' parameter should be the actual shell command (e.g., 'ls -la'), NOT the tool name itself. Never execute 'agent_bash' as a command.\n- Show the code you intend to write clearly in the tool's content parameter\n- Never ask \"请确认是否同意\" or similar text confirmation - always use the tool directly", base)
+    // 🏆 PIVO 3.0: 引入 Symbol-First 认知准则
+    format!("{}\n\n## Tool Usage Guidelines\n\n- **ALWAYS use tools** for file operations (agent_read_file, agent_write_file, etc.)\n- **Efficiency First**: For large files (>10KB), you MUST use agent_probe_symbols first to understand the structure before reading content. This saves context and improves precision.\n- For writing files: use the agent_write_file tool with the full content\n- The agent_write_file tool will **automatically** wait for user approval - you do NOT need to ask for text confirmation\n- **Bash execution**: When using the agent_bash tool, the 'command' parameter should be the actual shell command (e.g., 'ls -la'), NOT the tool name itself. Never execute 'agent_bash' as a command.\n- Show the code you intend to write clearly in the tool's content parameter\n- Never ask \"请确认是否同意\" or similar text confirmation - always use the tool directly", base)
 }

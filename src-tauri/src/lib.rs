@@ -9,6 +9,7 @@ mod ai; // v0.3.7 新增：PIVO 任务拆解与自愈引擎
 mod file_walker;
 mod search;
 mod symbol_engine;
+mod analysis; // 🏆 PIVO 3.0: 物理感知与符号探测
 mod terminal;
 mod git;
 mod lsp;
@@ -53,6 +54,42 @@ pub struct AppState {
 }
 
 #[tauri::command]
+async fn probe_symbols(path: String) -> Result<Vec<analysis::SymbolProbe>, String> {
+    println!("[PIVO3-Probe] 🔍 Probing symbols for: {}", path);
+    let mut p = std::path::PathBuf::from(&path);
+    
+    if p.is_relative() {
+        // 🏆 PIVO 3.0: 自动溯源。在开发环境下，cwd 可能是 src-tauri
+        let current = std::env::current_dir().unwrap_or_default();
+        if current.ends_with("src-tauri") {
+            p = current.parent().unwrap().join(p);
+        } else {
+            p = current.join(p);
+        }
+    }
+    
+    println!("[PIVO3-Probe] 📍 Resolved absolute path: {:?}", p);
+    analysis::symbol_stream::probe_file_symbols(&p)
+}
+
+#[tauri::command]
+async fn get_file_metadata(path: String) -> Result<analysis::FileMetadata, String> {
+    let p = std::path::Path::new(&path);
+    let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
+    let mtime = meta.modified().map_err(|e| e.to_string())?
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    
+    // 计算物理指纹 (Size + MTime 的简单结合作为一级校验)
+    let fingerprint = format!("{}_{}", meta.len(), mtime);
+    
+    Ok(analysis::FileMetadata {
+        size: meta.len(),
+        mtime,
+        fingerprint,
+    })
+}
+
+#[tauri::command]
 fn greet(name: &str) -> String {
     println!( ">>> RUST GREET CALLED WITH: {}", name);
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -86,6 +123,14 @@ pub async fn execute_local_tool(
     println!("[LocalTool] Executing: {} with args: {}", tool_name, args);
 
     match tool_name {
+        "agent_probe_symbols" => {
+            let rel_path = args["rel_path"].as_str().unwrap_or("");
+            let abs_path = std::path::Path::new(project_root).join(rel_path);
+            match analysis::symbol_stream::probe_file_symbols(&abs_path) {
+                Ok(probes) => serde_json::to_string(&probes).unwrap_or_else(|_| "[]".to_string()),
+                Err(e) => format!("错误: {}", e)
+            }
+        }
         "agent_read_file" => {
             let rel_path = args["rel_path"].as_str().unwrap_or("");
             match core_wrappers::agent_read_file(project_root.to_string(), rel_path.to_string()).await {
@@ -897,6 +942,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             greet,
+            probe_symbols,
+            get_file_metadata,
             ai_chat,
             ai_completion,
             create_window,

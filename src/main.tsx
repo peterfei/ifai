@@ -4,6 +4,72 @@ import App from "./App";
 import "./App.css";
 import './i18n/config';
 
+// 🏆 PIVO 3.0: 物理层协议伪造 (Protocol Spoofing)
+// 必须在所有业务逻辑（包括 App）加载之前执行，根治白屏崩溃。
+if (typeof window !== 'undefined' && (import.meta.env.VITE_TEST_ENV === 'e2e' || (window as any).__E2E__)) {
+  console.log('[PIVO3-Mock] 🛡️ Spoofing Tauri v2 internals for E2E environment...');
+
+  const invoke = async (cmd: string, args?: any) => {
+    console.log(`[PIVO3-Mock] 📞 IPC Invoke: ${cmd}`, args);
+    const handler = (window as any).__E2E_INVOKE_HANDLER__;
+
+    // 🏆 PIVO 3.0: 同步高保真探测 Mock 逻辑
+    if (cmd === 'probe_symbols') {
+        if (args.path?.includes('settingsStore')) {
+            return [
+                { name: 'SettingsState', kind: 'interface', line: 50, context: 'export interface SettingsState' },
+                { name: 'useSettingsStore', kind: 'variable', line: 150, context: 'export const useSettingsStore = ...' }
+            ];
+        }
+        return [];
+    }
+    if (cmd === 'get_file_metadata') {
+        return { size: 1024, mtime: Date.now(), fingerprint: `mock_${Date.now()}` };
+    }
+
+    if (handler) return handler(cmd, args);
+    return {};
+  };
+
+  const transformCallback = (callback?: any) => {
+    const id = Math.floor(Math.random() * 1000000);
+    if (callback) {
+        const listeners = (window as any).__TAURI_EVENT_LISTENERS__ || {};
+        listeners[`callback_${id}`] = [callback];
+        (window as any).__TAURI_EVENT_LISTENERS__ = listeners;
+    }
+    return id;
+  };
+
+  const unregisterListener = async (id: number) => {
+    console.log(`[PIVO3-Mock] 🧹 Unregistering listener: ${id}`);
+    delete (window as any).__TAURI_EVENT_LISTENERS__?.[`callback_${id}`];
+  };
+
+  (window as any).__TAURI_INTERNALS__ = {
+    transformCallback,
+    invoke,
+    unregisterListener,
+    metadata: { app: { name: 'IfAI', version: '0.3.8' }, os: { name: 'darwin' } },
+    window: {
+        label: 'main',
+        currentWindow: () => (window as any).__TAURI_INTERNALS__.window
+    }
+  };
+
+  (window as any).__TAURI__ = {
+    core: { invoke, transformCallback },
+    event: {
+        listen: (event: string, handler: any) => {
+            const listeners = (window as any).__TAURI_EVENT_LISTENERS__ || {};
+            if (!listeners[event]) listeners[event] = [];
+            listeners[event].push(handler);
+            (window as any).__TAURI_EVENT_LISTENERS__ = listeners;
+            return Promise.resolve(() => {});
+        }
+    }
+  };
+}
 // 🔥 v0.3.7: 物理级全局存储溢出保护 (Monkey Patch)
 // 根治 QuotaExceededError 导致的 Promise Rejection 和 UI 中断
 if (typeof window !== 'undefined') {
