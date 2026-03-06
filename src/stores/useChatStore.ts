@@ -2415,16 +2415,16 @@ const patchedApproveToolCall = async (
             try {
                 const { getApprovalCoordinator } = await import('../core/approval');
                 const coordinator = getApprovalCoordinator();
-                
+
                 // 物理双轨抓取：强制读取原始字符串源码
                 const latestState = coreUseChatStore.getState();
                 const latestMsg = latestState.messages.find(m => m.id === messageId);
                 const latestToolCall = latestMsg?.toolCalls?.find(tc => tc.id === toolCallId);
-                
+
                 if (latestToolCall) {
                     let finalArgs = latestToolCall.args || {};
                     const rawArgsStr = (latestToolCall as any).function?.arguments || "";
-                    
+
                     // 🏆 核心逻辑：如果 args 为空，物理强力反序列化源码
                     if (rawArgsStr) {
                         try {
@@ -2438,7 +2438,7 @@ const patchedApproveToolCall = async (
                     }
 
                     await coordinator.createApproval(messageId, { id: latestToolCall.id, tool: latestToolCall.tool, args: finalArgs });
-                    
+
                     // 🏆 v0.3.8: PIVO Sentinel Pre-Hook
                     SentinelService.beforeExecute(latestToolCall.tool, finalArgs);
 
@@ -2446,6 +2446,30 @@ const patchedApproveToolCall = async (
 
                     // 🏆 v0.3.8: PIVO Sentinel Post-Hook
                     SentinelService.afterExecute(latestToolCall.tool, result);
+
+                    // 🏆 PIVO 3.0: 物理保真度保全 - 严禁在同步层修改原始数据类型
+                    const finalResult = result.content || result.error || "";
+
+                    console.log(`[ChatStore] 💾 Synchronizing tool result:`, {
+                        tool: latestToolCall.tool,
+                        success: result.success,
+                        contentSize: finalResult.length
+                    });
+
+                    // 同步结果
+                    coreUseChatStore.setState(s => ({
+                        messages: s.messages.map(m => m.id === messageId ? {
+                            ...m, toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? {
+                                ...tc,
+                                status: result.success ? "completed" as const : "failed" as const,
+                                // 🚀 保持原始字符串，确保 package-lock.json 等文件不被破坏
+                                result: finalResult,
+                                output: finalResult
+                            } : tc)
+                        } : m)
+                    }));
+
+                    coreUseChatStore.getState().addMessage({ id: crypto.randomUUID(), role: "tool", content: finalResult, tool_call_id: toolCallId });
 
                     // 🏆 v0.3.9: 物理级主动刷新资源管理器与编辑器同步
                     // 如果是写入类工具且成功，立即触发刷新，不完全依赖异步订阅者
@@ -2482,17 +2506,6 @@ const patchedApproveToolCall = async (
                             }
                         }
                     }
-
-                    // 同步结果
-                    coreUseChatStore.setState(s => ({
-                        messages: s.messages.map(m => m.id === messageId ? {
-                            ...m, toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? {
-                                ...tc, status: result.success ? "completed" as const : "failed" as const, result: result.content || result.error
-                            } : tc)
-                        } : m)
-                    }));
-
-                    coreUseChatStore.getState().addMessage({ id: crypto.randomUUID(), role: "tool", content: result.content || result.error || "", tool_call_id: toolCallId });
 
                     if (!options?.skipContinue && result.success) {
                         const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);

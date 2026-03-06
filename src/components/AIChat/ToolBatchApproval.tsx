@@ -33,7 +33,17 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
         const failed = toolCalls.filter(tc => tc.status === 'failed').length;
         const isRunning = toolCalls.some(tc => tc.isPartial || tc.status === 'approved' || (tc.status === 'pending' && total === 1));
         
-        return { total, completed, pending, failed, isRunning };
+        // 🏆 PIVO 3.0: 物理级 Token 动态统计
+        let charCount = 0;
+        toolCalls.forEach(tc => {
+            const res = tc.result || tc.output || "";
+            charCount += typeof res === 'string' ? res.length : JSON.stringify(res).length;
+        });
+        // 换算公式：1 Token ≈ 4 字符，并加上 1k 的基础上下文消耗
+        const estimatedTokens = Math.ceil(charCount / 4) + 1000;
+        const tokenLabel = estimatedTokens >= 1000 ? (estimatedTokens / 1000).toFixed(1) + 'k' : estimatedTokens;
+
+        return { total, completed, pending, failed, isRunning, tokens: tokenLabel };
     }, [toolCalls]);
 
     // 2. 动作流日志 (High Density)
@@ -82,7 +92,7 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
                         <span className="text-[13px] font-bold text-gray-100">{taskTitle}</span>
-                        <span className="text-[10px] text-gray-500 font-mono">· {stats.total} tool uses · 12.5k tokens</span>
+                        <span className="text-[10px] text-gray-500 font-mono">· {stats.total} tool uses · {stats.tokens} tokens</span>
                     </div>
                     
                     {/* 子动态行 (始终显示最新动作) */}

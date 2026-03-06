@@ -870,13 +870,17 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
 
                         <div className="overflow-auto leading-relaxed">
                             {(() => {
-                                // 1. 检测 PIVO
+                                // 1. 检测 PIVO (健壮性增强)
                                 try {
-                                    const parsed = JSON.parse(toolCall.result || "{}");
-                                    if (parsed.structure) {
+                                    const resultData = toolCall.result;
+                                    const parsed = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
+                                    
+                                    if (parsed && typeof parsed === 'object' && parsed.structure) {
                                         return <PivoProjectTree structure={parsed.structure} keyFiles={parsed.key_files} />;
                                     }
-                                } catch (e) {}
+                                } catch (e) {
+                                    // 解析失败或不是 JSON 格式，忽略并继续
+                                }
 
                                 // 2. 检测 Bash 控制台
                                 if (shouldShowConsole()) {

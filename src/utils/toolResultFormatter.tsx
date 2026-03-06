@@ -108,23 +108,22 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
                           (toolCall as any)?.function?.name === 'agent_list_dir';
 
     if (isReadFileTool) {
-      // 尝试解析 JSON（可能是包装格式）
-      try {
-        const parsed = JSON.parse(result);
-        return formatToolResultToMarkdown(parsed, toolCall);
-      } catch {
-        // 不是 JSON，但这可能是文件内容
-        // 🔥 v0.3.4: 读文件简洁显示 - 直接字符串的情况
-        // 由于没有 path 信息，我们使用默认格式
-        const lines = result === '' ? 0 : result.split('\n').length;
-        const sizeKB = (result.length / 1024).toFixed(2);
-        // 尝试从 toolCall.args 获取路径
-        const filePath = toolCall?.args?.rel_path ||
-                        toolCall?.args?.path ||
-                        toolCall?.args?.relPath ||
-                        'unknown';
-        return `📄 已读取文件 \`${filePath}\` (${lines} 行, ${sizeKB} KB)`;
+      // 🏆 PIVO 3.0: 物理保真度修复 - 不要尝试解析文件内容原文
+      // 除非内容非常短且看起来像包装对象（如 { success: true, content: "..." }）
+      if (result.length < 1000 && result.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(result);
+          if (parsed && typeof parsed === 'object' && (parsed.content !== undefined || parsed.success !== undefined)) {
+            return formatToolResultToMarkdown(parsed, toolCall);
+          }
+        } catch {}
       }
+
+      // 否则，它就是文件内容原文，直接显示简洁格式
+      const lines = result === '' ? 0 : result.split('\n').length;
+      const sizeKB = (result.length / 1024).toFixed(2);
+      const filePath = toolCall?.args?.rel_path || toolCall?.args?.path || toolCall?.args?.relPath || 'unknown';
+      return `📄 已读取文件 \`${filePath}\` (${lines} 行, ${sizeKB} KB)`;
     }
 
     // 🔥 v0.3.4 FIX: 如果是 agent_list_dir 工具，直接返回简洁格式

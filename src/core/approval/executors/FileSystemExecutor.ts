@@ -13,13 +13,15 @@ export class FileSystemExecutor extends BaseExecutor {
 
   async execute(toolName: string, args: any): Promise<ToolCallResult> {
     // 1. 极致鲁棒的参数物理化 (支持各种命名变体)
-    const relPath = args.rel_path || args.relPath || args.path || (toolName === "agent_list_dir" ? "." : "");
-    const content = args.content || args.new_content || args.text || "";
+    const relPath = args.rel_path || args.relPath || args.path || (["agent_list_dir", "agent_scan_project"].includes(toolName) ? "." : "");
+    const inputContent = args.content || args.new_content || args.text || "";
     
-    console.log(`[FS Tool] 📂 Physical Trace:`, { tool: toolName, relPath, contentSize: content.length });
+    // 🏆 PIVO 3.0: 日志物理校准 - 对于 read/scan 操作，不统计 inputContent 的长度
+    const traceSize = (toolName === 'agent_read_file' || toolName === 'agent_list_dir' || toolName === 'agent_scan_project') ? 0 : inputContent.length;
+    console.log(`[FS Tool] 📂 Physical Trace (Input):`, { tool: toolName, relPath, inputSize: traceSize });
 
-    // 🏆 物理熔断：防止空路径导致的目录操作错误
-    if (!relPath && toolName !== "agent_list_dir") {
+    // 🏆 物理熔断：防止空路径导致的目录操作错误 (放行 scan 操作)
+    if (!relPath && !["agent_list_dir", "agent_scan_project"].includes(toolName)) {
       return { success: false, content: '', error: `Invalid file path: path is empty for ${toolName}` };
     }
     
@@ -45,11 +47,10 @@ export class FileSystemExecutor extends BaseExecutor {
       } else if (toolName === "agent_list_functions") {
         outputContent = await this.invoker("agent_list_functions", { rootPath, relPath });
       } else if (toolName === "agent_write_file") {
-        // 🔥 核心修复：显式解构并传递 content，防止被 args 对象里的杂质干扰
         outputContent = await this.invoker("agent_write_file", { 
           rootPath, 
           relPath, 
-          content 
+          content: inputContent 
         });
       } else {
         // 其他工具走通用映射，但强制注入 rootPath 和 relPath
@@ -57,14 +58,25 @@ export class FileSystemExecutor extends BaseExecutor {
         outputContent = await this.invoker(toolName, tauriArgs);
       }
 
-      // 3. 结果物理化
+      // 3. 结果物理化与防御性处理
       let stringResult: string;
-      if (outputContent && typeof outputContent === "object" && "content" in outputContent) {
+      if (outputContent === undefined || outputContent === null) {
+        console.warn(`[FS Tool] ⚠️ Received empty output for ${toolName}`);
+        stringResult = toolName === 'agent_read_file' 
+          ? `[Error] 文件内容为空或读取失败 (path: ${relPath})。请检查文件是否存在。`
+          : "";
+      } else if (typeof outputContent === "object" && "content" in outputContent) {
         stringResult = String((outputContent as any).content);
       } else {
         stringResult = typeof outputContent === "object" ? JSON.stringify(outputContent) : String(outputContent);
       }
 
+      // 🏆 PIVO 3.0: 物理截断告知 (如果是读取大文件且内容为空，触发警告)
+      if (toolName === 'agent_read_file' && stringResult.length === 0) {
+          console.warn(`[FS Tool] 🚨 Empty content read from: ${relPath}`);
+      }
+
+      console.log(`[FS Tool] ✅ Execution Success:`, { tool: toolName, outputSize: stringResult.length });
       return { success: true, content: stringResult };
     } catch (e) {
       console.error(`[FS Tool] ❌ Physical execution failed:`, e);
