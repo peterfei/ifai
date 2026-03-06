@@ -6,7 +6,7 @@ parameters:
   properties:
     rel_path:
       type: string
-      description: Relative path to the file
+      description: "[MANDATORY] The relative path to the target file. NEVER leave this empty."
   required:
     - rel_path
 ---
@@ -16,6 +16,6 @@ parameters:
 Use this tool to read the full content of a file.
 
 ## 🏆 PIVO 3.0 MANDATORY RULES
+- **CRITICAL**: You MUST provide the `rel_path` parameter. If you call this tool without a path, the physical execution will FAIL.
 - **FORBIDDEN**: Never use this tool for files larger than 10KB (e.g. package-lock.json).
-- **MANDATORY**: You MUST use \`agent_probe_symbols\` first to understand the structure of any file over 10KB.
-- Fail to follow this will result in physical context truncation and analysis failure.
+- **MANDATORY**: You MUST use `agent_probe_symbols` first to understand the structure of any file over 10KB.

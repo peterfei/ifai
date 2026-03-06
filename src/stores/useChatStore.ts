@@ -2437,6 +2437,38 @@ const patchedApproveToolCall = async (
                         }
                     }
 
+                    // 🏆 PIVO 3.0: 物理级影子参数注入 (Shadow Parameter Hydration)
+                    // 针对 agent_read_file，如果 AI 忘记传路径，自动补全为当前活跃文件
+                    if (latestToolCall.tool === 'agent_read_file' && !finalArgs.rel_path && !finalArgs.path) {
+                        const activeFile = useFileStore.getState().activeFile;
+                        const fallbackPath = activeFile?.path;
+
+                        if (fallbackPath) {
+                            console.log(`[ChatStore] 💧 Shadow Hydration: Injected path "${fallbackPath}" into ${latestToolCall.tool}`);
+                            finalArgs.rel_path = fallbackPath;
+                            // 同步回 toolCall 对象以保持 UI 显示一致
+                            (latestToolCall as any).args = finalArgs;
+                        } else {
+                            // 实在没招了，才走静默报错逻辑
+                            console.warn(`[ChatStore] 🛡️ Shadow Hydration failed: No active file found.`);
+                            const silentError = { success: false, content: "[Error] rel_path is required but was not provided. Please retry with target file path.", error: "Missing mandatory parameter: rel_path" };
+
+                            coreUseChatStore.setState(s => ({
+                                messages: s.messages.map(m => m.id === messageId ? {
+                                    ...m, toolCalls: m.toolCalls?.map(tc => tc.id === toolCallId ? { ...tc, status: "failed" as const, result: silentError.content, output: silentError.content } : tc)
+                                } : m)
+                            }));
+
+                            coreUseChatStore.getState().addMessage({ id: crypto.randomUUID(), role: "tool", content: silentError.content, tool_call_id: toolCallId });
+
+                            if (!options?.skipContinue) {
+                                const providerConfig = settings.providers.find(p => p.id === settings.currentProviderId);
+                                if (providerConfig) setTimeout(async () => { await (window as any).__chatStore?.getState().generateResponse(coreUseChatStore.getState().messages, providerConfig); }, 100);
+                            }
+                            return;
+                        }
+                    }
+
                     await coordinator.createApproval(messageId, { id: latestToolCall.id, tool: latestToolCall.tool, args: finalArgs });
 
                     // 🏆 v0.3.8: PIVO Sentinel Pre-Hook
