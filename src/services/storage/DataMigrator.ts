@@ -10,7 +10,12 @@ export class DataMigrator {
         'ifai-history',
         'ifai-file-cache',
         'ifai-symbol-index',
-        'pivo-task-trees'
+        'pivo-task-trees',
+        'chat-history',
+        'ifai-chat-history',
+        'chat-storage',
+        'ifai-thread-storage',
+        'file-storage'
     ];
 
     /**
