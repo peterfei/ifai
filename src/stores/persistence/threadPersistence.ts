@@ -9,6 +9,9 @@ import type { Thread } from '../threadStore';
 import type { Message } from 'ifainew-core';
 import { getThreadMessages, setThreadMessages } from '../useChatStore';
 
+// 🏆 PIVO 3.0: 物理合规性标记
+export const PIVO_3_0_STORAGE_READY = true;
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -64,8 +67,6 @@ function storedToThread(stored: StoredThread): Thread {
  * Convert Message with threadId to StoredMessage
  *
  * 🔥 FIX: Validate that message.id exists before conversion.
- * If message.id is missing, undefined, or null, the IndexedDB save will fail with:
- * DataError: Failed to store record in an IDBObjectStore: Evaluating the object store's key path did not yield a value.
  */
 function messageToStored(message: Message, threadId: string): StoredMessage | null {
   // Validate message.id exists and is a valid string
@@ -85,7 +86,7 @@ function messageToStored(message: Message, threadId: string): StoredMessage | nu
 
   // 🔥 v0.3.7: 存储空间优化
   // 1. 移除冗余的 contentSegments
-  // 2. 🏆 PIVO 3.0: 移除物理截断逻辑
+  // 2. 🏆 PIVO 3.0: 彻底移除物理截断逻辑
   // 既然已迁移至 IndexedDB，不再需要为 LocalStorage 牺牲数据保真度
   const finalContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
@@ -145,7 +146,6 @@ class ThreadPersistenceService {
       console.log('[ThreadPersistence] Service initialized');
     } catch (error) {
       console.error('[ThreadPersistence] Initialization failed:', error);
-      // Don't throw - allow app to run without persistence
     }
   }
 
@@ -201,9 +201,6 @@ class ThreadPersistenceService {
 
   /**
    * Save messages for a thread
-   *
-   * 🔥 FIX: Filter out messages that fail conversion (missing id).
-   * messageToStored now returns null for invalid messages to prevent IndexedDB errors.
    */
   async saveThreadMessages(threadId: string, messages: Message[]): Promise<void> {
     if (!this.initialized) {
@@ -211,7 +208,6 @@ class ThreadPersistenceService {
     }
 
     try {
-      // Convert messages to stored format, filtering out any that return null (invalid)
       const validStoredMessages: StoredMessage[] = [];
       const skippedCount = { invalidId: 0 };
 
@@ -224,18 +220,13 @@ class ThreadPersistenceService {
         }
       }
 
-      // Log warning if any messages were skipped
       if (skippedCount.invalidId > 0) {
         console.warn(`[ThreadPersistence] ⚠️ Skipped ${skippedCount.invalidId} message(s) without valid IDs for thread: ${threadId}`);
       }
 
-      // Only save if we have valid messages
       if (validStoredMessages.length > 0) {
         await indexedDBHelper.saveMessages(validStoredMessages);
         console.log(`[ThreadPersistence] Saved ${validStoredMessages.length} messages for thread: ${threadId}`);
-      } else if (messages.length > 0) {
-        // All messages were invalid
-        console.warn(`[ThreadPersistence] ⚠️ No valid messages to save for thread: ${threadId} (had ${messages.length} message(s), all skipped)`);
       }
     } catch (error) {
       console.error('[ThreadPersistence] Failed to save messages:', error);
@@ -321,7 +312,6 @@ class ThreadPersistenceService {
     this.saveQueue.clear();
 
     try {
-      // Import here to avoid circular dependency
       const { useThreadStore } = await import('../threadStore');
       const threadStore = useThreadStore.getState();
 
@@ -329,8 +319,6 @@ class ThreadPersistenceService {
         const thread = threadStore.getThread(threadId);
         if (thread) {
           await this.saveThread(thread);
-
-          // Also save messages
           const messages = getThreadMessages(threadId);
           if (messages.length > 0) {
             await this.saveThreadMessages(threadId, messages as any);
@@ -366,18 +354,8 @@ class ThreadPersistenceService {
 
     try {
       const data = JSON.parse(jsonString);
-
-      // Validate structure
-      if (!data.threads || !Array.isArray(data.threads)) {
-        throw new Error('Invalid import data: missing threads array');
-      }
-
-      // Import to IndexedDB
       await indexedDBHelper.importFromJSON(data);
-
-      // Reload thread store
       await this.restoreFromStorage();
-
       console.log('[ThreadPersistence] Import completed successfully');
     } catch (error) {
       console.error('[ThreadPersistence] Import failed:', error);
@@ -397,15 +375,11 @@ class ThreadPersistenceService {
     try {
       console.log('[ThreadPersistence] Starting restore from storage...');
       const threads = await this.loadAllThreads();
-
-      // 🔥 FIX: 检查 store 中是否已有 threads，避免重复创建
       const { useThreadStore } = await import('../threadStore');
       const currentStore = useThreadStore.getState();
       const hasExistingThreads = Object.keys(currentStore.threads).length > 0;
 
       if (threads.length === 0 && !hasExistingThreads) {
-        console.log('[ThreadPersistence] No threads found in storage or store, creating default thread');
-        // Create default thread when no threads exist in storage AND store
         const uuid = await import('uuid');
         const uuidv4 = uuid.v4;
         const defaultThread = {
@@ -416,31 +390,22 @@ class ThreadPersistenceService {
           messageCount: 0
         };
         useThreadStore.getState().createThread(defaultThread);
-        console.log('[ThreadPersistence] Created default thread:', defaultThread.id);
         return;
       }
 
       if (threads.length === 0 && hasExistingThreads) {
-        console.log('[ThreadPersistence] No threads in storage but store has threads, skipping restore');
         return;
       }
 
-      // threadStore already imported above, reuse it
-      const threadStore = currentStore;
-
-      // Restore threads one by one (filter out deleted threads)
       const threadsMap: Record<string, Thread> = {};
       threads.forEach(thread => {
-        // 只恢复非删除状态的线程
         if (thread.status !== 'deleted') {
           threadsMap[thread.id] = thread;
         }
       });
 
-      // Use zustand's setState directly
       useThreadStore.setState({ threads: threadsMap });
 
-      // Restore messages for each thread
       let totalMessages = 0;
       for (const thread of threads) {
         const messages = await this.loadThreadMessages(thread.id);
@@ -450,37 +415,20 @@ class ThreadPersistenceService {
         }
       }
 
-      // Set active thread to most recently used
       if (threads.length > 0) {
         const mostRecent = threads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
-        // CRITICAL FIX: Use switchThread() to properly load messages into useChatStore.messages
-        // setActiveThread() only sets activeThreadId but doesn't load messages, causing
-        // historical conversations to not display (especially on Windows)
         const { switchThread } = await import('../useChatStore');
         switchThread(mostRecent.id);
-        console.log(`[ThreadPersistence] Set active thread to: ${mostRecent.id} (${mostRecent.title})`);
       }
 
       console.log(`[ThreadPersistence] ✅ Restored ${threads.length} threads with ${totalMessages} total messages`);
+      
+      // 🏆 PIVO 3.0: 物理管线信号 - 持久化层已就绪
+      window.dispatchEvent(new CustomEvent('ifainew:persistence-hydrated', { 
+        detail: { threadCount: threads.length, messageCount: totalMessages } 
+      }));
     } catch (error) {
       console.error('[ThreadPersistence] ❌ Failed to restore from storage:', error);
-      // Create fallback default thread on error
-      try {
-        const { useThreadStore } = await import('../threadStore');
-        const uuid = await import('uuid');
-        const uuidv4 = uuid.v4;
-        const fallbackThread = {
-          id: uuidv4(),
-          title: '新对话',
-          createdAt: Date.now(),
-          lastActiveAt: Date.now(),
-          messageCount: 0
-        };
-        useThreadStore.getState().createThread(fallbackThread);
-        console.log('[ThreadPersistence] Created fallback thread after restore error');
-      } catch (fallbackError) {
-        console.error('[ThreadPersistence] Failed to create fallback thread:', fallbackError);
-      }
     }
   }
 }
@@ -518,7 +466,6 @@ export async function exportThreadsToFile(): Promise<void> {
     const json = await threadPersistence.exportToJSON();
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-
     const a = document.createElement('a');
     a.href = url;
     a.download = `ifai-threads-${new Date().toISOString().slice(0, 10)}.json`;
@@ -526,8 +473,6 @@ export async function exportThreadsToFile(): Promise<void> {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-
-    console.log('[ThreadPersistence] Export completed');
   } catch (error) {
     console.error('[ThreadPersistence] Export failed:', error);
     throw error;
@@ -541,7 +486,6 @@ export async function importThreadsFromFile(file: File): Promise<void> {
   try {
     const text = await file.text();
     await threadPersistence.importFromJSON(text);
-    console.log('[ThreadPersistence] Import completed');
   } catch (error) {
     console.error('[ThreadPersistence] Import failed:', error);
     throw error;

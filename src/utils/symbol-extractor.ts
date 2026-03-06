@@ -28,8 +28,20 @@ export class SymbolExtractor {
     static async probeFile(path: string): Promise<SymbolProbe[]> {
         console.log(`[SymbolExtractor] 🔍 Probing symbols: ${path}`);
         try {
-            const symbols = await invoke<SymbolProbe[]>('probe_symbols', { path });
-            return symbols;
+            // 🏆 PIVO 3.0: 自动注入项目根目录上下文
+            const project_root = (window as any).__REDUX_STATE__?.file?.rootPath || null;
+            
+            const symbols = await invoke<any>('probe_symbols', { 
+                path, 
+                project_root 
+            });
+            
+            if (Array.isArray(symbols)) {
+                return symbols as SymbolProbe[];
+            }
+            
+            console.warn(`[SymbolExtractor] ⚠️ Unexpected probe response for ${path}:`, symbols);
+            return [];
         } catch (error) {
             console.error(`[SymbolExtractor] ❌ Probe failed for ${path}:`, error);
             return [];

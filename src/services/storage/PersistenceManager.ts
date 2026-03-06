@@ -107,7 +107,9 @@ export class PersistenceManager implements StateStorage {
             'pivo-task-trees',
             'chat-history',
             'ifai-chat-history',
-            'file-storage' // 🚀 修复：fileStore 通常包含大量路径，强制路由到 IndexedDB
+            'chat-storage',      // 🚀 修复：核心聊天存储强制路由到 IndexedDB
+            'ifai-thread-storage', // 🚀 修复：线程元数据存储强制路由到 IndexedDB
+            'file-storage' 
         ];
         if (bigDataPrefixes.some(p => key.startsWith(p))) {
             return this.ldb;

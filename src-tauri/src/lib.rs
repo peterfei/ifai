@@ -54,22 +54,32 @@ pub struct AppState {
 }
 
 #[tauri::command]
-async fn probe_symbols(path: String) -> Result<Vec<analysis::SymbolProbe>, String> {
+async fn probe_symbols(path: String, project_root: Option<String>) -> Result<Vec<analysis::SymbolProbe>, String> {
     println!("[PIVO3-Probe] 🔍 Probing symbols for: {}", path);
-    let mut p = std::path::PathBuf::from(&path);
+    let p = std::path::PathBuf::from(&path);
     
-    if p.is_relative() {
-        // 🏆 PIVO 3.0: 自动溯源。在开发环境下，cwd 可能是 src-tauri
-        let current = std::env::current_dir().unwrap_or_default();
-        if current.ends_with("src-tauri") {
-            p = current.parent().unwrap().join(p);
+    let abs_path = if p.is_absolute() {
+        p
+    } else {
+        // 🏆 优先使用传入的 project_root 拼接
+        if let Some(root) = project_root {
+            std::path::Path::new(&root).join(p)
         } else {
-            p = current.join(p);
+            // 兜底逻辑：校准 src-tauri 环境
+            let current = std::env::current_dir().unwrap_or_default();
+            if current.ends_with("src-tauri") {
+                current.parent().unwrap().join(p)
+            } else {
+                current.join(p)
+            }
         }
-    }
+    };
     
-    println!("[PIVO3-Probe] 📍 Resolved absolute path: {:?}", p);
-    analysis::symbol_stream::probe_file_symbols(&p)
+    println!("[PIVO3-Probe] 📍 Resolved physical path: {:?}", abs_path);
+    if !abs_path.exists() {
+        return Err(format!("文件不存在: {:?}", abs_path));
+    }
+    analysis::symbol_stream::probe_file_symbols(&abs_path)
 }
 
 #[tauri::command]

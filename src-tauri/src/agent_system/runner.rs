@@ -59,6 +59,7 @@ pub async fn run_agent_task(
 
     let tools = crate::prompt_manager::get_dynamic_tools(&context.project_root, tool_ids);
 
+    // 🏆 PIVO 3.0: 认知回路重构 - 确保 Agent 优先使用符号探测
     let mut loop_count = 0;
     const MAX_LOOPS: usize = 12;
 

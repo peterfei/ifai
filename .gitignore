@@ -102,3 +102,14 @@ docs/testing/test-coverage-matrix.md
 tests/e2e/fuzzing/chaos-test.example.md
 .gemini
 .ifai/knowledge-base/
+
+# 🏆 PIVO 临时验证脚本忽略
+tests/*.js
+tests/*.cjs
+tests/*.sh
+tests/reproduction/
+
+docs/marketing/TOUTIAO_RELEASE_V0.3.8.md
+docs/marketing/TOUTIAO_RELEASE_V0.3.8_FINAL.md
+docs/marketing/TOUTIAO_V0.3.8_HIGHLIGHTS.md
+TOUTIAO_V0.3.8_RELEASE_STRATEGY.md

@@ -19,8 +19,15 @@ const testConfig = getTestEnvironmentConfig();
  * - 测试覆盖率报告支持
  */
 export default defineConfig({
-  // 测试目录
-  testDir: './tests/e2e',
+  // 🏆 PIVO 3.0: 统一测试根目录
+  testDir: './tests',
+
+  // 包含 core (金标准) 和 e2e 目录
+  testMatch: [
+    'tests/core/**/*.spec.ts',
+    'tests/reproduction/**/*.spec.ts',
+    'tests/e2e/**/*.spec.ts'
+  ],
 
   // 排除模板测试文件及已知环境/Mock不稳定的测试 (2026-02-20 回归忽略)
   testIgnore: [
