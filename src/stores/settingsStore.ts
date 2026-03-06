@@ -403,64 +403,56 @@ export const useSettingsStore = create<SettingsState>()(
       // 🔥 v0.3.4: 确保 rehydrate 后新字段有默认值
       onRehydrateStorage: () => (state) => {
         if (state) {
+          console.log('[SettingsStore] ✅ Hydration complete');
+          
           // 确保 agentApprovalMode 有值
           if (!state.agentApprovalMode) {
             state.agentApprovalMode = 'session-once';
-            console.log('[SettingsStore] Fixed missing agentApprovalMode on rehydrate');
           }
           // 确保 trustedSessions 有值
           if (!state.trustedSessions) {
             state.trustedSessions = {};
-            console.log('[SettingsStore] Fixed missing trustedSessions on rehydrate');
           }
+
+          // 🏆 PIVO 3.0: 延迟执行初始化逻辑，确保 Hydration 稳定
+          setTimeout(() => {
+            const hasApiKey = state.providers.some(p => p.apiKey && p.apiKey.trim() !== '');
+
+            // 只在没有API密钥的情况下，设置默认的zhipu供应商
+            if (!hasApiKey) {
+              const zhipuProvider = state.providers.find(p => p.id === 'zhipu');
+              if (zhipuProvider) {
+                console.log('[SettingsStore] Initializing default provider to zhipu (no API keys found)');
+                useSettingsStore.setState(s => ({
+                  providers: s.providers.map(p =>
+                    p.id === 'zhipu'
+                      ? { ...p, enabled: true, models: ['glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'] }
+                      : p
+                  ),
+                  currentProviderId: 'zhipu',
+                  currentModel: 'glm-4.6'
+                }));
+              }
+            } else {
+              // 如果已有API密钥，确保当前选中的供应商是有效的
+              const currentProvider = state.providers.find(p => p.id === state.currentProviderId);
+              if (!currentProvider || !currentProvider.apiKey || currentProvider.apiKey.trim() === '') {
+                const firstProviderWithKey = state.providers.find(p => p.apiKey && p.apiKey.trim() !== '');
+                if (firstProviderWithKey) {
+                  console.log('[SettingsStore] Switching to first provider with API key:', firstProviderWithKey.id);
+                  useSettingsStore.setState({
+                    currentProviderId: firstProviderWithKey.id,
+                    currentModel: firstProviderWithKey.models[0] || ''
+                  });
+                }
+              }
+            }
+          }, 50); // 给 React 渲染留出 50ms 物理余地
         }
       },
     }
   )
 );
-
-// Initialize default provider on first load
-// Only set defaults if no provider has an API key configured
-setTimeout(() => {
-  const state = useSettingsStore.getState();
-
-  // 检查是否已有供应商配置了API密钥
-  const hasApiKey = state.providers.some(p => p.apiKey && p.apiKey.trim() !== '');
-
-  // 只在没有API密钥的情况下，设置默认的zhipu供应商
-  if (!hasApiKey) {
-    const zhipuProvider = state.providers.find(p => p.id === 'zhipu');
-
-    if (zhipuProvider) {
-      console.log('[SettingsStore] Initializing default provider to zhipu (no API keys found)');
-
-      // 确保zhipu已启用并设置为默认
-      useSettingsStore.setState(state => ({
-        providers: state.providers.map(p =>
-          p.id === 'zhipu'
-            ? { ...p, enabled: true, models: ['glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'] }
-            : p
-        ),
-        currentProviderId: 'zhipu',
-        currentModel: 'glm-4.6'
-      }));
-    }
-  } else {
-    // 如果已有API密钥，确保当前选中的供应商是有效的
-    const currentProvider = state.providers.find(p => p.id === state.currentProviderId);
-    if (!currentProvider || !currentProvider.apiKey || currentProvider.apiKey.trim() === '') {
-      // 当前供应商没有API密钥，切换到第一个有API密钥的供应商
-      const firstProviderWithKey = state.providers.find(p => p.apiKey && p.apiKey.trim() !== '');
-      if (firstProviderWithKey) {
-        console.log('[SettingsStore] Switching to first provider with API key:', firstProviderWithKey.id);
-        useSettingsStore.setState({
-          currentProviderId: firstProviderWithKey.id,
-          currentModel: firstProviderWithKey.models[0] || ''
-        });
-      }
-    }
-  }
-}, 0);
 
 // @ts-ignore
 if (typeof window !== 'undefined') {
