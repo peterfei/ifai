@@ -5,7 +5,7 @@ import { PersistenceManager } from '../services/storage/PersistenceManager';
 export type AIProtocol = 'openai' | 'anthropic' | 'gemini';
 
 // 预设模板类型（用于自定义提供商）
-export type PresetTemplate = 'ollama' | 'vllm' | 'localai' | 'lmstudio' | 'custom';
+export type PresetTemplate = 'ollama' | 'vllm' | 'localai' | 'lmstudio' | 'nvidia' | 'custom';
 
 // 模型参数配置
 export interface ModelParamsConfig {
@@ -27,7 +27,7 @@ export const PRESET_ENDPOINTS: Record<PresetTemplate, { baseUrl: string; default
   vllm: { baseUrl: 'http://localhost:8000/v1/chat/completions', defaultModels: ['meta-llama/Llama-3.1-8B-Instruct'] },
   localai: { baseUrl: 'http://localhost:8080/v1/chat/completions', defaultModels: ['gpt-3.5-turbo'] },
   lmstudio: { baseUrl: 'http://localhost:1234/v1/chat/completions', defaultModels: ['local-model'] },
-  // 🔥 自定义模板添加常见云服务商的示例模型（NVIDIA 默认使用 z-ai/glm5）
+  nvidia: { baseUrl: 'https://integrate.api.nvidia.com/v1/chat/completions', defaultModels: ['meta/llama-3.1-405b-instruct', 'meta/llama-3.1-70b-instruct', 'nvidia/llama-3.1-nemotron-70b-instruct', 'z-ai/glm4.7'] },
   custom: { baseUrl: '', defaultModels: ['z-ai/glm5', 'z-ai/glm4.7', 'nv-tmp', 'gpt-4o-mini', 'claude-3-5-sonnet-20241022'] },
 };
 
@@ -121,6 +121,7 @@ export interface SettingsState {
     presetTemplate: PresetTemplate;
     customEndpoint?: string;
     apiKey?: string;
+    models?: string[]; // 🚀 新增：支持传入初始模型
     modelParams?: ModelParamsConfig;
   }) => string;  // 返回新提供商 ID
   updateModelParams: (providerId: string, modelParams: ModelParamsConfig) => void;
@@ -266,26 +267,27 @@ export const useSettingsStore = create<SettingsState>()(
 
       // v0.2.6 新增：添加自定义提供商
       addCustomProvider: (config) => {
-        const { name, presetTemplate, customEndpoint, apiKey, modelParams } = config;
+        const { name, presetTemplate, customEndpoint, apiKey, modelParams, models } = config;
         const preset = PRESET_ENDPOINTS[presetTemplate];
 
         // 生成唯一 ID
-        const id = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const id = `custom-${uuidv4().slice(0, 8)}`;
 
         const newProvider: AIProviderConfig = {
           id,
           name,
           displayName: name,  // 用户提供作为显示名称
           protocol: 'openai',  // 自定义提供商默认使用 OpenAI 兼容协议
-          baseUrl: customEndpoint || preset.baseUrl,
+          baseUrl: customEndpoint || preset?.baseUrl || '',
           apiKey: apiKey || '',
-          models: preset.defaultModels,
+          // 🏆 PIVO 3.0: 影子补全 - 优先使用传入模型，否则使用预设，最后兜底为空
+          models: models || preset?.defaultModels || [],
           enabled: true,
-          isCustom: true,
+          isCustom: true, // 🚀 物理兼容补丁：确保 UI 能识别
           presetTemplate,
           customEndpoint,
           modelParams: modelParams || MODEL_PARAM_PRESETS.balanced,
-          group: 'custom',
+          group: 'custom'
         };
 
         set((state) => {

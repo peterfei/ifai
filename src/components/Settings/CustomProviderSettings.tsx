@@ -20,14 +20,16 @@ export const CustomProviderSettings = () => {
     presetTemplate: 'ollama' as PresetTemplate,
     customEndpoint: '',
     apiKey: '',
+    models: PRESET_ENDPOINTS['ollama'].defaultModels.join(', '), // 🚀 默认填充 Ollama 模型
   });
 
-  // 获取自定义提供商
-  const customProviders = settings.providers.filter(p => p.isCustom);
+  // 🏆 PIVO 3.0: 物理对齐 - 使用官方接口获取自定义提供商
+  const customProviders = settings.getProvidersByGroup('custom');
 
   // 预设模板选项
   const presetOptions: { value: PresetTemplate; label: string; description: string }[] = [
     { value: 'ollama', label: 'Ollama', description: 'http://localhost:11434' },
+    { value: 'nvidia', label: 'NVIDIA NIM', description: 'integrate.api.nvidia.com' },
     { value: 'vllm', label: 'vLLM', description: 'http://localhost:8000' },
     { value: 'localai', label: 'LocalAI', description: 'http://localhost:8080' },
     { value: 'lmstudio', label: 'LM Studio', description: 'http://localhost:1234' },
@@ -46,6 +48,7 @@ export const CustomProviderSettings = () => {
       presetTemplate: newProvider.presetTemplate,
       customEndpoint: newProvider.customEndpoint || undefined,
       apiKey: newProvider.apiKey,
+      models: newProvider.models.split(',').map(m => m.trim()).filter(Boolean),
       modelParams: MODEL_PARAM_PRESETS.balanced,
     });
 
@@ -55,6 +58,7 @@ export const CustomProviderSettings = () => {
       presetTemplate: 'ollama',
       customEndpoint: '',
       apiKey: '',
+      models: PRESET_ENDPOINTS['ollama'].defaultModels.join(', '),
     });
     setShowAddForm(false);
   };
@@ -226,11 +230,14 @@ export const CustomProviderSettings = () => {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.availableModels')}</label>
+              <label className="block text-xs text-gray-400 mb-1">
+                {t('customProviderSettings.availableModels')} (多个模型请用逗号分隔)
+              </label>
               <input
                 type="text"
                 value={provider.models.join(', ')}
-                onChange={(e) => settings.updateProviderConfig(provider.id, { models: e.target.value.split(',').map(m => m.trim()) })}
+                placeholder="例如: qwen2.5-coder, gpt-4o"
+                onChange={(e) => settings.updateProviderConfig(provider.id, { models: e.target.value.split(',').map(m => m.trim()).filter(Boolean) })}
                 className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
               />
             </div>
@@ -334,7 +341,15 @@ export const CustomProviderSettings = () => {
             <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.presetTemplate')}</label>
             <select
               value={newProvider.presetTemplate}
-              onChange={(e) => setNewProvider({ ...newProvider, presetTemplate: e.target.value as PresetTemplate })}
+              onChange={(e) => {
+                const template = e.target.value as PresetTemplate;
+                setNewProvider({ 
+                  ...newProvider, 
+                  presetTemplate: template,
+                  // 🚀 自动同步预设模型
+                  models: PRESET_ENDPOINTS[template]?.defaultModels.join(', ') || ''
+                });
+              }}
               className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
             >
               {presetOptions.map(option => (
@@ -343,6 +358,19 @@ export const CustomProviderSettings = () => {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">
+              {t('customProviderSettings.availableModels')} (多个请用逗号分隔)
+            </label>
+            <input
+              type="text"
+              value={newProvider.models}
+              onChange={(e) => setNewProvider({ ...newProvider, models: e.target.value })}
+              placeholder="例如: gpt-4o, qwen2.5-coder"
+              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
           </div>
 
           {newProvider.presetTemplate === 'custom' && (

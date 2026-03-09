@@ -52,6 +52,41 @@ pub fn sanitize_messages(messages: &mut Vec<Message>) {
     });
 }
 
+/// 🏆 PIVO 3.0: 物理 URL 自动校准器
+/// 针对不同 Provider 的路径偏差进行原子级对齐，根治 404 错误。
+pub fn calibrate_provider_url(url: &str, provider_name: &str) -> String {
+    let mut calibrated = url.trim().to_string();
+    let name_lower = provider_name.to_lowercase();
+
+    // 如果是 NVIDIA 或 Ollama 等标准 OpenAI 协议，确保路径以 /chat/completions 结尾
+    if (name_lower.contains("nvidia") || name_lower.contains("nim") || name_lower.contains("ollama")) 
+       && !calibrated.ends_with("/chat/completions") {
+        
+        if calibrated.ends_with("/v1") {
+            calibrated.push_str("/chat/completions");
+        } else if calibrated.ends_with("/v1/") {
+            calibrated.push_str("chat/completions");
+        } else if !calibrated.contains("/chat/completions") {
+            // 如果连 v1 都没有，且不包含 chat/completions，尝试补全
+            if !calibrated.ends_with('/') {
+                calibrated.push('/');
+            }
+            if !calibrated.contains("/v1") {
+                calibrated.push_str("v1/chat/completions");
+            } else {
+                calibrated.push_str("chat/completions");
+            }
+        }
+    }
+    
+    // 移除末尾多余的斜杠
+    if calibrated.ends_with('/') {
+        calibrated.pop();
+    }
+    
+    calibrated
+}
+
 pub async fn fetch_ai_completion(
     config: &AIProviderConfig,
     mut messages: Vec<Message>, // Change to mutable to allow sanitization
@@ -78,7 +113,10 @@ pub async fn fetch_ai_completion(
         request_body["tools"] = json!(t);
     }
 
-    let response = client.post(&config.base_url)
+    let calibrated_url = calibrate_provider_url(&config.base_url, &config.name);
+    eprintln!("[AIUtils] Requesting calibrated URL: {}", calibrated_url);
+
+    let response = client.post(&calibrated_url)
         .header("Authorization", format!("Bearer {}", config.api_key))
         .json(&request_body)
         .send()
@@ -990,11 +1028,12 @@ pub async fn agent_stream_chat_with_root(
         request_body["tools"] = json!(t);
     }
 
-    eprintln!("[AgentStream] Sending streaming request for agent {}", agent_id);
+    let calibrated_url = calibrate_provider_url(&config.base_url, &config.name);
+    eprintln!("[AgentStream] Sending streaming request to calibrated URL: {}", calibrated_url);
 
     // 3. Send HTTP request
     let response = client
-        .post(&config.base_url)
+        .post(&calibrated_url)
         .header("Authorization", format!("Bearer {}", config.api_key))
         .header("Content-Type", "application/json")
         .json(&request_body)
