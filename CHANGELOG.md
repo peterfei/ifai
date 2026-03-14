@@ -1,5 +1,25 @@
 # 更新日志
 
+## [0.3.11] - 2026-03-14
+### 🚀 架构稳定性加固、TypeScript 类型对齐与构建流程优化
+
+#### 1. TypeScript 类型系统深度对齐 (Type-Safe Alignment)
+- **底层架构 interop 优化**：针对 `ifainew-core` 核心库与本地 Store 定义的类型冲突，实施了非侵入式的类型扩展与强制转换，彻底解决了 `Message` 和 `ToolCall` 在复杂流式场景下的类型不匹配问题。
+- **PIVO 3.0 状态合法化**：显式支持 `'executed'` 状态与 `isStreaming` 属性，确保 PIVO 自动化任务拆解逻辑在构建环境中获得完整类型支撑。
+- **Store 接口全量补齐**：在 `InlineEditState` 中精准补全了 `pivoStage`、`pivoTasks`、`modifiedFiles` 等关键属性，消除了行内编辑 (Cmd+K) 逻辑在编译期的属性缺失报错。
+
+#### 2. 编辑器交互与快捷键引擎修复 (Monaco Engine Fixes)
+- **指令路由修复**：修正了 `MonacoEditor.tsx` 中 `editor.trigger` 的调用参数，解决了 Cmd+K/Ctrl+K 在特定环境下无法唤起 AI 助手的问题。
+- **语法健壮性修复**：修复了 `useChatStore.ts` 在流式渲染优化过程中的语法括号闭合漏洞。
+
+#### 3. 存储与持久化层优化 (Persistence Refinement)
+- **冗余逻辑清理**：移除了 `IndexedDB` 中 `deleteThreadMessages` 的陈旧重复实现，统一采用基于索引和游标的高效方案，提升了大数据量下的存储性能。
+
+#### 4. 构建与工程化改进
+- **构建全量通过**：经物理验证，`npm run build` (tsc && vite build) 已全线跑通。
+- **版本号同步更新**：同步更新了 `package.json`、`Cargo.toml` 及系统版本描述文件至 `v0.3.11`。
+
+
 ## [0.3.7] - 2026-03-03
 ### 🛡️ 路径感知审批、沉浸式编辑器集成与安全沙箱增强
 
