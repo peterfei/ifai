@@ -4,7 +4,7 @@ export interface ToolCall {
   id: string;
   tool: string;
   args: any;
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed' | 'executing';
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed' | 'executing' | 'executed';
   result?: string;
   isPartial?: boolean;
   isLocalModel?: boolean;  // 标记是否为本地模型执行的工具调用
@@ -26,6 +26,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string; // Keep string content for backward compatibility
+  isStreaming?: boolean;
   multiModalContent?: ContentPart[]; // New field for multi-modal
   references?: string[];
   toolCalls?: ToolCall[];
@@ -61,7 +62,7 @@ export interface ChatState {
   addMessage: (message: Message) => void;
   updateMessageContent: (id: string, content: string, toolCalls?: ToolCall[]) => void;
   setLoading: (loading: boolean) => void;
-  sendMessage: (content: string | ContentPart[], providerId: string, modelName: string) => Promise<void>;
+  sendMessage: (content: string | ContentPart[], providerId: string, modelName: string, options?: any) => Promise<void>;
   toggleAutocomplete: () => void;
   approveToolCall: (messageId: string, toolCallId: string) => Promise<void>;
   rejectToolCall: (messageId: string, toolCallId: string) => Promise<void>;

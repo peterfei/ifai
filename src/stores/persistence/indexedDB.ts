@@ -240,25 +240,6 @@ class IndexedDBHelper {
   }
 
   /**
-   * Delete all messages for a thread
-   */
-  async deleteThreadMessages(threadId: string): Promise<void> {
-    const db = await this.init();
-    const messages = await this.getThreadMessages(threadId);
-    if (messages.length === 0) return;
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(MESSAGES_STORE, 'readwrite');
-      const store = transaction.objectStore(MESSAGES_STORE);
-      
-      messages.forEach(m => store.delete(m.id));
-
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
-  }
-
-  /**
    * Save a message
    */
   async saveMessage(message: StoredMessage): Promise<void> {

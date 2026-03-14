@@ -291,7 +291,7 @@ export function switchThread(threadId: string): void {
 
   const targetMessages = getThreadMessages(threadId);
 
-  coreUseChatStore.setState({ messages: [...targetMessages] });
+  coreUseChatStore.setState({ messages: [...targetMessages] } as any);
 
   console.log(`[Thread] Switched from ${currentThreadId} to ${threadId}, loaded ${targetMessages.length} messages`);
 
@@ -775,7 +775,7 @@ const patchedAddMessage = (message: Message) => {
         }
     }
 
-    return originalAddMessage(message);
+    return originalAddMessage(message as any);
 };
 
 const patchedSendMessage = async (content: string | any[], providerId: string, modelName: string, options: any = {}) => {
@@ -850,7 +850,7 @@ const patchedSendMessage = async (content: string | any[], providerId: string, m
 
     if (currentThreadMessages.length > 0) {
 
-      coreUseChatStore.setState({ messages: currentThreadMessages });
+      coreUseChatStore.setState({ messages: currentThreadMessages } as any);
 
     }
 
@@ -1632,7 +1632,7 @@ You have full execution permissions. Directly call:
         if (pendingChunks.length === 0) return;
         const chunksToProcess = [...pendingChunks];
         pendingChunks = [];
-        coreUseChatStore.setState((state) => {
+        coreUseChatStore.setState(((state: any) => {
             const updatedMessages = state.messages.map(m => {
                 if (m.id === assistantMsgId) {
                     const newMsg: Message = { ...m };
@@ -1780,7 +1780,7 @@ You have full execution permissions. Directly call:
                 return m;
             });
             return { messages: updatedMessages };
-        });
+        }) as any);
     };
 
     const unlistenStream = await listen<string>(assistantMsgId, (event) => {
@@ -2073,7 +2073,7 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
 
             renderRequested = true;
 
-            requestAnimationFrame(() => { coreUseChatStore.setState({ messages: [...localMessagesBuffer] }); renderRequested = false; });
+            requestAnimationFrame(() => { coreUseChatStore.setState({ messages: [...localMessagesBuffer] } as any); renderRequested = false; });
 
         }
 
@@ -2231,7 +2231,7 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
 
                 renderRequested = true;
 
-                requestAnimationFrame(() => { coreUseChatStore.setState({ messages: [...localMessagesBuffer] }); renderRequested = false; });
+                requestAnimationFrame(() => { coreUseChatStore.setState({ messages: [...localMessagesBuffer] } as any); renderRequested = false; });
 
             }
 
@@ -2699,7 +2699,7 @@ coreUseChatStore.subscribe((state, prevState) => {
     // 1. 映射 Implement 任务
     const hasSuccessfulWrite = lastMessage.toolCalls?.some(tc => 
         (tc.tool === 'agent_write_file' || tc.tool === 'agent_replace') && 
-        (tc.status === 'completed' || tc.status === 'executed')
+        (tc.status === 'completed' || (tc.status as any) === 'executed')
     );
     if (hasSuccessfulWrite) {
         const implTask = currentTasks.find(t => t.task_type === 'Implement' && t.status !== 'success');
@@ -2708,7 +2708,7 @@ coreUseChatStore.subscribe((state, prevState) => {
 
     // 2. 映射 Verify 任务
     const hasSuccessfulVerify = lastMessage.toolCalls?.some(tc => 
-        tc.tool === 'agent_run_shell' && (tc.status === 'completed' || tc.status === 'executed')
+        tc.tool === 'agent_run_shell' && (tc.status === 'completed' || (tc.status as any) === 'executed')
     );
     if (hasSuccessfulVerify) {
         const verifyTask = currentTasks.find(t => t.task_type === 'Verify' && t.status !== 'success');
@@ -2716,7 +2716,7 @@ coreUseChatStore.subscribe((state, prevState) => {
     }
 
     // 3. 兜底逻辑：如果 AI 回复结束，且内容表达了肯定或结束的语义
-    if (!lastMessage.isStreaming) {
+    if (!(lastMessage as any).isStreaming) {
         const content = lastMessage.content;
         const completionKeywords = ['成功', '完成', '好了', '完善', '完毕', '结束', 'done', 'complete', 'success', 'ready'];
         const hasCompletionKeyword = completionKeywords.some(k => content.includes(k));

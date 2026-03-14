@@ -304,7 +304,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
       id: 'inline-ai-prompt',
       label: 'Inline AI Assistant',
       contextMenuGroupId: 'modification',
-      run: () => editor.trigger('keyboard', monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, {})
+      run: () => editor.trigger('keyboard', 'inline-ai-prompt', {})
     });
 
     // Add "Explain Code" Action

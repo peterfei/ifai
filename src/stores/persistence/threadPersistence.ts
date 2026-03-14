@@ -339,7 +339,7 @@ class ThreadPersistenceService {
           // Also save messages
           const messages = getThreadMessages(threadId);
           if (messages.length > 0) {
-            await this.saveThreadMessages(threadId, messages);
+            await this.saveThreadMessages(threadId, messages as any);
           }
         }
       }

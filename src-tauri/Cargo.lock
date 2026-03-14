@@ -2811,6 +2811,7 @@ dependencies = [
  "termcolor",
  "text-splitter",
  "tokio",
+ "tree-sitter",
  "walkdir",
 ]
 

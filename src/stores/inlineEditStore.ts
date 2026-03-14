@@ -91,6 +91,18 @@ export interface InlineEditState {
   /** 是否正在处理请求 */
   isProcessing: boolean;
 
+  /** 是否正在加载 */
+  isLoading: boolean;
+
+  /** 当前 Pivo 阶段 */
+  pivoStage: PivoStage;
+
+  /** 当前任务列表 */
+  pivoTasks: GhostTask[];
+
+  /** 已修改的文件列表 */
+  modifiedFiles: string[];
+
   // Actions
 
   /** 显示行内编辑小部件 */
@@ -101,6 +113,9 @@ export interface InlineEditState {
 
   /** 提交编辑指令 */
   submitInstruction: (instruction: string) => Promise<void>;
+
+  /** 设置 Pivo 状态 */
+  setPivoState: (stage: PivoStage, tasks?: GhostTask[], files?: string[]) => void;
 
   /** 显示 Diff 编辑器 */
   showDiffEditor: (originalCode: string, modifiedCode: string, filePath: string, instruction: string) => void;
@@ -143,6 +158,7 @@ export const useInlineEditStore = create<InlineEditState>((set, get) => ({
   editHistory: [],
   historyIndex: -1,
   isProcessing: false,
+  isLoading: false,
 showInlineEdit: (selectedText = '', position) => {
   console.log('[inlineEditStore] showInlineEdit called, setting isInlineEditVisible to true');
 
@@ -277,7 +293,7 @@ ${getVisibleContext(editor, 50)}
       const displayInfo = `🎨 ${t('editor.inlineWidget.prompt.title')}: ${instruction}${selectionPreview}`;
       
       // 发送消息，并标记为 Inline 任务以便 ChatStore 特殊处理
-      useChatStore.getState().sendMessage(fullPrompt, currentProviderId, currentModel, {
+      (useChatStore.getState() as any).sendMessage(fullPrompt, currentProviderId, currentModel, {
         // @ts-ignore - 自定义属性用于 UI 过滤
         isInlineTask: true,
         displayLabel: displayInfo
