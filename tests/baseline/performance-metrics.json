@@ -1,7 +1,7 @@
 {
   "_meta": {
     "baselineVersion": "0.3.5",
-    "targetVersion": "0.3.6",
+    "targetVersion": "0.3.11",
     "createdAt": "2026-02-11T10:00:00Z",
     "updatedAt": "2026-02-11T10:00:00Z",
     "environment": "macOS / Chrome 121 / Dev Mode",

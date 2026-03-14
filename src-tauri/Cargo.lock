@@ -2731,7 +2731,7 @@ dependencies = [
 
 [[package]]
 name = "ifainew"
-version = "0.3.6"
+version = "0.3.11"
 dependencies = [
  "anyhow",
  "async-trait",
