@@ -10,8 +10,11 @@ if (typeof window !== 'undefined') {
 
 // Handles dependency injection of file and settings stores
 
-import { useChatStore as coreUseChatStore, registerStores } from 'ifainew-core';
+import { useChatStore as coreUseChatStore, registerStores, createToolCallDeduplicator } from 'ifainew-core';
 import type { Message, ContentPart, ToolCall } from './chatStore';
+
+// 🏆 v0.3.8: 初始化 ToolCall 去重服务
+export const toolCallDeduplicator = createToolCallDeduplicator();
 
 export type { Message, ContentPart, ToolCall };
 
