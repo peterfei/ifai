@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { IInlineEditStore, IStoreInstance } from '../interfaces/ICoreChatStore';
 
 /**
@@ -119,7 +120,6 @@ export class InlineSyncService {
 
     // 如果生成结束了但没有代码修改，说明 AI 只是给出 了文字建议
     if (!modifiedCode && (pivoStage === 'plan' || pivoStage === 'implement')) {
-        const { toast } = require('sonner');
         toast.warning('AI 仅提供了文字建议，已在侧边栏显示。');
         setTimeout(() => inlineStore.getState().hideInlineEdit(), 1000);
     } else {

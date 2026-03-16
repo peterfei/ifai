@@ -19,7 +19,6 @@ export class StreamingResponseController {
     lastHeartbeat: number;
   }> = new Map();
 
-<<<<<<< HEAD
   private constructor() {
     // 🏆 PIVO 3.0: 物理级自愈心跳监测器
     if (typeof window !== 'undefined') {
@@ -165,18 +164,13 @@ export class StreamingResponseController {
 
     if (textChunk || toolCallUpdate) {
       sessionData.lastHeartbeat = Date.now();
-<<<<<<< HEAD
 
       if (!sessionData.hasReceivedChunk) {
 
-=======
-      if (!sessionData.hasReceivedChunk) {
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
           sessionData.hasReceivedChunk = true;
           setTimeout(() => coreUseChatStore.setState({ isLoading: false }), 50);
       }
 
-<<<<<<< HEAD
       // 🏆 PIVO 3.0: 精准物理引用锁定 - 仅更新当前活跃消息，保护历史消息引用
       sessionData.buffer = sessionData.buffer.map((m: any) => {
         if (m.id !== assistantMsgId) return m; // 物理保留历史引用，防止 React 冗余重绘
@@ -236,69 +230,6 @@ export class StreamingResponseController {
         }
         if (toolCallUpdate) this.processToolCallUpdate(newMsg, toolCallUpdate, assistantMsgId);
         return newMsg;
-=======
-      sessionData.buffer = sessionData.buffer.map((m: any) => {
-        if (m.id === assistantMsgId) {
-          const newMsg: Message = { ...m, isStreaming: true };
-          if (!(newMsg as any).contentSegments) (newMsg as any).contentSegments = [];
-          
-          if (textChunk) {
-            const prevContent = String(newMsg.content || '');
-            
-            // 🏆 PIVO 3.0: 工业级消重算法 (物理级消除乱码)
-            // A. 计算完全重叠部分
-            let overlapIdx = 0;
-            const checkLimit = Math.min(prevContent.length, textChunk.length, 50); 
-            for (let i = 1; i <= checkLimit; i++) {
-                if (prevContent.endsWith(textChunk.substring(0, i))) {
-                    overlapIdx = i;
-                }
-            }
-            
-            let cleanChunk = textChunk.substring(overlapIdx);
-            
-            // B. 🚀 物理增强：检测“交叉错位叠加” (防突变乱码)
-            // 如果 cleanChunk 的前几个字符在 prevContent 的末尾高频出现，则进一步截断
-            if (cleanChunk.length > 3 && prevContent.length > 10) {
-                const tail = prevContent.slice(-15);
-                const chunkHead = cleanChunk.slice(0, 5);
-                // 如果头部的 3 个字符在尾部都找得到，极大概率是错位重发
-                let matchCount = 0;
-                for (const char of chunkHead) {
-                    if (tail.includes(char)) matchCount++;
-                }
-                if (matchCount >= 3) {
-                    console.warn(`[Streaming] 🛡️ High-entropy overlap detected, potential garbled text blocked: "${cleanChunk}"`);
-                    // 尝试寻找 cleanChunk 中第一个不在 tail 里的字符作为真实起点
-                    let realStart = 0;
-                    for (let j = 0; j < cleanChunk.length; j++) {
-                        if (!tail.includes(cleanChunk[j])) {
-                            realStart = j;
-                            break;
-                        }
-                    }
-                    cleanChunk = cleanChunk.substring(realStart);
-                }
-            }
-            
-            if (cleanChunk.length > 0) {
-                newMsg.content = prevContent + cleanChunk;
-                (newMsg as any).contentSegments.push({ 
-                    type: 'text', 
-                    order: (newMsg as any).contentSegments.length, 
-                    timestamp: Date.now(), 
-                    content: cleanChunk, 
-                    startPos: prevContent.length, 
-                    endPos: newMsg.content.length 
-                });
-                InlineSyncService.syncState("", "", cleanChunk);
-            }
-          }
-          if (toolCallUpdate) this.processToolCallUpdate(newMsg, toolCallUpdate, assistantMsgId);
-          return newMsg;
-        }
-        return m;
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
       });
       this.requestRender(assistantMsgId);
     }
@@ -307,7 +238,6 @@ export class StreamingResponseController {
   private requestRender(id: string) {
     const s = this.activeStreams.get(id);
     if (!s || s.renderRequested) return;
-<<<<<<< HEAD
     
     // 🏆 PIVO 3.0: 物理哨兵自愈判定
     const now = Date.now();
@@ -334,16 +264,6 @@ export class StreamingResponseController {
         eventBus.emit('chat:content-updated', { messageId: id });
 
         session.renderRequested = false;
-=======
-    const currentThreadId = useThreadStore.getState().activeThreadId || 'default';
-    if (s.threadId !== currentThreadId) return; 
-
-    s.renderRequested = true;
-    setTimeout(() => {
-      if (this.activeStreams.has(id)) {
-        coreUseChatStore.setState({ messages: [...s.buffer] as any });
-        s.renderRequested = false;
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
       }
     }, 80);
   }
@@ -358,7 +278,7 @@ export class StreamingResponseController {
       if (contentMatch) {
           parsed.content = contentMatch[1].replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
       }
-
+      
       // 🏆 PIVO 3.0: 物理级路径捕获 - 采用非约束性匹配以支持流式内容
       const pathMatch = argsStr.match(/"(?:rel_)?path"\s*:\s*"(.*)/s);
       if (pathMatch) {
@@ -475,7 +395,6 @@ export class StreamingResponseController {
         }
     }
 
-<<<<<<< HEAD
     // 🏆 PIVO 3.0: 物理闭环 (异步化解决 flushSync 冲突)
     console.log(`[PIVO-SIGNAL] 🏁 Stream Finalized: ${id}`);
     
@@ -487,38 +406,12 @@ export class StreamingResponseController {
 
     // 🏆 物理隔离：通过 EventBus 广播结束，让任务拆解在下一帧触发
     eventBus.emit('ifainew:stream-finished', { id });
-=======
-    // 🏆 PIVO 3.0: 物理闭环
-    // 只有在没有后续任务且流真正结束时，才允许启动 UI 自洁
-    console.log(`[PIVO-SIGNAL] 🏁 Stream Finalized: ${id}`);
-    
-    // 触发任务拆解 (PIVO 3.0 物理核心步进)
-    try {
-        const { MessageLifecycleService } = await import('./MessageLifecycleService');
-        const state = coreUseChatStore.getState();
-        const lastMsg = state.messages.find(m => m.id === id);
-        if (lastMsg) {
-            MessageLifecycleService.triggerTaskBreakdown(lastMsg, state.messages);
-        }
-    } catch (e) {
-        console.error('[Streaming] ❌ Failed to trigger task breakdown:', e);
-    }
-
-    // 🏆 PIVO 3.0: 物理管线存根 (用于 E2E 消除竞态)
-    if (!(window as any).__PIVO_SIGNALS__) (window as any).__PIVO_SIGNALS__ = {};
-    (window as any).__PIVO_SIGNALS__['ifainew:stream-finished'] = { timestamp: Date.now(), id };
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
 
     window.dispatchEvent(new CustomEvent('ifainew:stream-finished', { detail: { id } }));
     // 发送旧版 finish 事件以保证兼容性
     window.dispatchEvent(new CustomEvent(`${id}_finish`, { detail: { payload: 'done' } }));
-<<<<<<< HEAD
 
     InlineSyncService.handleResponseFinish();
-=======
-    
-    InlineSyncService.handleResponseFinish({ isRealFinish: !hasFollowUp });
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
     this.cleanup(id);
   }
 

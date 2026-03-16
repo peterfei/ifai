@@ -2259,11 +2259,20 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
         // 🔥 v0.3.7: 处理 Inline 任务的自动收尾
         InlineSyncService.handleResponseFinish();
 
+        // 🏆 PIVO 3.0: 强制同步 buffer - 确保 requestAnimationFrame 中的更新已生效
+        // 避免 finish 事件先于工具调用更新到达 store 的竞态条件
+        coreUseChatStore.setState({ messages: [...localMessagesBuffer] } as any);
+
         console.log("[Chat/Sentinel] Force finalizing tool calls for:", assistantMsgId);
 
         coreUseChatStore.setState(s => ({
             messages: s.messages.map(m => {
-                if (m.id === assistantMsgId && m.toolCalls) {
+                // 🏆 PIVO 3.0: 移除 && m.toolCalls 条件 - 即使 toolCalls 为空也要处理消息
+                if (m.id === assistantMsgId) {
+                    // 🏆 保护：如果没有 toolCalls，直接返回原消息
+                    if (!m.toolCalls || m.toolCalls.length === 0) {
+                        return { ...m, isStreaming: false };
+                    }
                     return {
                         ...m,
                         toolCalls: m.toolCalls.map(tc => {
@@ -2563,6 +2572,7 @@ const patchedApproveToolCall = async (
                         if (providerConfig) setTimeout(async () => { await patchedGenerateResponse(coreUseChatStore.getState().messages, providerConfig); }, 300);
                     }
                     return;
+                }  // <-- 闭合 if (latestToolCall)
             } catch (e) {
                 console.error('[ApprovalEngine] Critical Failure:', e);
             }
