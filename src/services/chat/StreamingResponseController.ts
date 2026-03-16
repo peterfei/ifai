@@ -358,16 +358,7 @@ export class StreamingResponseController {
       if (contentMatch) {
           parsed.content = contentMatch[1].replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
       }
-<<<<<<< HEAD
 
-      const pathMatch = argsStr.match(/"(?:rel_)?path"\s*:\s*"((?:[^"\\]|\\.)*)/s);
-      if (pathMatch) {
-          let val = pathMatch[1];
-          const remainingStr = argsStr.substring(argsStr.indexOf(val) + val.length);
-          if (remainingStr.startsWith('"')) {
-              // 闭合
-=======
-      
       // 🏆 PIVO 3.0: 物理级路径捕获 - 采用非约束性匹配以支持流式内容
       const pathMatch = argsStr.match(/"(?:rel_)?path"\s*:\s*"(.*)/s);
       if (pathMatch) {
@@ -376,15 +367,10 @@ export class StreamingResponseController {
           const structClosingMatch = val.match(/"\s*[,}\n]/);
           if (structClosingMatch) {
               val = val.substring(0, structClosingMatch.index);
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
           }
           parsed.rel_path = val;
           parsed.path = val;
       }
-<<<<<<< HEAD
-      }
-=======
->>>>>>> 6473a97 (fix(ui): 物理加固流式工具解析与会话清理稳定性)
 
       // 🏆 v0.5.0: 增强型命令提取 - 支持 cmd 和 command，使用 /s 模式以匹配多行内容
       const commandMatch = argsStr.match(/"(?:command|cmd)"\s*:\s*"((?:[^"\\]|\\.)*)/s);
