@@ -920,11 +920,25 @@ ${textBefore}[CURSOR]${textAfter}
       }
       
       const position = editorRef.current.getPosition();
-      if (position) {
-        // 在当前行展开预览区域
+      const model = editorRef.current.getModel();
+
+      if (position && model) {
+        // 🏆 PIVO 3.0: 物理智能几何适配逻辑
         const codeLines = modifiedCode ? modifiedCode.split('\n').length : 0;
-        // 如果代码还没出来，给个基础高度显示加载中
-        const lineCount = Math.min(Math.max(codeLines + 2, 6), 25);
+
+        // 检测是否是"全量替换"模式 (包含关键声明且行数多)
+        const isFullFile = (modifiedCode?.includes('package ') || modifiedCode?.includes('import ')) && codeLines > 30;
+
+        // 计算物理高度：
+        // 全量替换：占据约 50% 的编辑器视口
+        // 局部建议：动态增长，最大 35 行
+        let lineCount = 0;
+        if (isFullFile) {
+            lineCount = 25; // 提升至 25 行，为底部 Padding 留出物理空间
+        } else {
+            lineCount = Math.min(Math.max(codeLines + 6, 10), 35); // 增加缓冲区
+        }
+
         const displayContent = modifiedCode || '✨ AI 正在构思并生成代码...';
         
         diffZoneRef.current.show(position.lineNumber, lineCount, displayContent);
