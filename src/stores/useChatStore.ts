@@ -2057,6 +2057,15 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
 
     });
 
+    // 🏆 PIVO 3.0: 调试消息历史
+    console.log('[Chat] 📋 Message history for AI:', {
+        total: msgHistory.length,
+        roles: msgHistory.map(m => m.role),
+        hasToolMessages: msgHistory.some(m => m.role === 'tool'),
+        lastRole: msgHistory[msgHistory.length - 1]?.role,
+        history: msgHistory.map(m => ({ role: m.role, content_length: typeof m.content === 'string' ? m.content.length : 0, has_tool_calls: !!m.tool_calls, tool_call_id: m.tool_call_id }))
+    });
+
     let renderRequested = false;
 
     let localMessagesBuffer: Message[] = [...coreUseChatStore.getState().messages] as any;
@@ -2148,6 +2157,7 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
                     }
 
                     if (toolCallUpdate) {
+                        console.log('[Chat] 🔧 Received tool call update:', toolCallUpdate);
 
                         const toolName = toolCallUpdate.function?.name || toolCallUpdate.tool;
 
@@ -2275,6 +2285,14 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
         // 更新本地 buffer 保持同步
         localMessagesBuffer = coreUseChatStore.getState().messages;
 
+        // 🏆 调试：检查 localMessagesBuffer 中的工具调用
+        const bufferMsg = localMessagesBuffer.find(m => m.id === assistantMsgId);
+        console.log('[Chat/Finish] 🔍 Local buffer state:', {
+            hasToolCalls: !!(bufferMsg && bufferMsg.toolCalls),
+            toolCallsCount: bufferMsg?.toolCalls?.length || 0,
+            toolCalls: bufferMsg?.toolCalls?.map(tc => ({ tool: tc.tool, status: tc.status, isPartial: tc.isPartial }))
+        });
+
         const settings = useSettingsStore.getState();
 
         const finalizedMessages = coreUseChatStore.getState().messages;
@@ -2303,7 +2321,18 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
         const isSessionTrusted = sessionTrust ? Date.now() < sessionTrust.expiresAt : false;
 
         const message = finalizedMessages.find(m => m.id === assistantMsgId);
+        console.log('[Chat/Finish] 🔍 Looking for message:', assistantMsgId, {
+            found: !!message,
+            hasToolCalls: !!(message && message.toolCalls),
+            toolCallsCount: message?.toolCalls?.length || 0
+        });
+
         if (message && message.toolCalls) {
+            console.log('[Chat/Finish] 🔍 Found message with tool calls:', {
+                toolCalls: message.toolCalls.length,
+                tools: message.toolCalls.map(tc => ({ tool: tc.tool, status: tc.status, isPartial: tc.isPartial }))
+            });
+
             // 🔥 FIX: 重新从 window 获取最新模式
             const latestEditorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
 
@@ -2311,7 +2340,12 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
                 const isPending = tc.status === 'pending';
                 const isComplete = !tc.isPartial;
                 const isAdvancedMode = latestEditorMode === 'spec' || latestEditorMode === 'vibe';
-                
+
+                console.log('[Chat/Finish] 🔎 Filtering tool:', tc.tool, {
+                    isPending, isComplete, isAdvancedMode,
+                    willPass: isPending && (isComplete || isAdvancedMode)
+                });
+
                 if (!isPending || (!isComplete && !isAdvancedMode)) return false;
 
                 // 使用统一策略判断当前工具是否应自动批准
@@ -2324,6 +2358,8 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
                     userMessageHasAutoApprove
                 });
             });
+
+            console.log('[Chat/Finish] ✅ Pending tools after filter:', pendingToolCalls.length);
 
             if (pendingToolCalls.length > 0) {
                 // 执行所有待处理的工具

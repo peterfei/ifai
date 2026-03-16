@@ -757,7 +757,14 @@ async fn ai_chat(
                      }
                  }
 
-
+                 // 如果已经拦截过工具，或者正在输出 XML 标签，则彻底静默后续所有块
+                 // 这样可以防止 AI 在工具调用后输出重复的 XML 或者废话
+                 let is_xml_fragment = combined.contains("<tool_call>") || combined.contains("<arg_") || chunk.contains("tool_call");
+                 let should_suppress = already_intercepted || is_xml_fragment;
+                 
+                 if !should_suppress {
+                     let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
+                 }
                  // 🏆 PIVO 3.0: 移除流式静默逻辑 - 确保所有内容块完整传递给前端
                  // 原有的 should_suppress 在处理长路径或特定内容时容易引发误截断
                  let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
