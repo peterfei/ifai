@@ -266,10 +266,10 @@ pub fn extract_task_path(msg: &str) -> String {
         let is_mostly_chinese = char_count > 0 && (chinese_chars as f64 / char_count as f64) > 0.5;
 
         // 识别标准：
-        // 1. 字符数少于 64
+        // 1. 字符数少于 512 (放宽限制以支持长 Java 路径)
         // 2. 没有空格和中文标点
         // 3. 包含路径分隔符 OR (包含扩展名 且 中文字符比例不高)
-        if char_count < 64 && !has_spaces && !has_punctuation && (has_slash || (has_extension && !is_mostly_chinese)) {
+        if char_count < 512 && !has_spaces && !has_punctuation && (has_slash || (has_extension && !is_mostly_chinese)) {
             trimmed.to_string()
         } else {
             ".".to_string()

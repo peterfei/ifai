@@ -108,7 +108,7 @@ impl IntelligenceRouter {
 
         // 打印调试信息
         println!("[Router] text='{}', is_tool_request={}, is_long_context={}, tokens={}, msg_len={}",
-                 text.chars().take(50).collect::<String>(), is_tool_request, is_long_context, estimated_tokens, conversation_length);
+                 text.chars().take(1024).collect::<String>(), is_tool_request, is_long_context, estimated_tokens, conversation_length);
 
         match (is_tool_request, is_simple_query, is_long_context) {
             // 工具调用优先 - 即使上下文较长也优先使用本地

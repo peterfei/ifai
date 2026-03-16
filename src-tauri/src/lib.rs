@@ -757,7 +757,6 @@ async fn ai_chat(
                      }
                  }
 
-
                  // 🏆 PIVO 3.0: 移除流式静默逻辑 - 确保所有内容块完整传递给前端
                  // 原有的 should_suppress 在处理长路径或特定内容时容易引发误截断
                  let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());

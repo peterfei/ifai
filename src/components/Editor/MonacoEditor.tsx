@@ -822,14 +822,26 @@ ${textBefore}[CURSOR]${textAfter}
   // Update editor content when file changes (without remounting)
   useEffect(() => {
     const editor = editorRef.current;
-    if (editor && file) {
-      const currentValue = editor.getValue();
-      // Only update if content is different (avoid overwriting user edits)
-      if (currentValue !== (file.content || '')) {
-        editor.setValue(file.content || '');
-      }
-      // Ensure editor is focused when switching files to keep keyboard shortcuts active
-      editor.focus();
+    if (editor) {
+        // 🔥 为 E2E 始终保持最新的编辑器实例指向
+        (window as any).__activeEditor = editor;
+
+        if (file) {
+            const currentValue = editor.getValue();
+            const targetValue = file.content || '';
+
+            // 🏆 PIVO 3.0: 极致物理同步 (排除用户活跃输入干扰)
+            if (currentValue !== targetValue) {
+                const noFocus = !editor.hasTextFocus();
+                const isNotDirty = !file.isDirty;
+
+                // 🔥 物理加固：如果不是 dirty，说明是外部同步（如 Agent 写入），强制刷新
+                if (noFocus || isNotDirty) {
+                    console.log('[MonacoEditor] 🔄 Mandatory Physical Sync:', { file: file.path });
+                    editor.setValue(targetValue);
+                }
+            }
+        }
     }
   }, [file?.id, paneId]); // 🔥 修复无限循环：移除 getEditorInstance 依赖，使用 ref 代替
 
