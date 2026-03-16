@@ -940,8 +940,11 @@ ${textBefore}[CURSOR]${textAfter}
         }
 
         const displayContent = modifiedCode || '✨ AI 正在构思并生成代码...';
-        
-        diffZoneRef.current.show(position.lineNumber, lineCount, displayContent);
+
+        // 如果是全量替换且行数极多，锚定在第一行展示，防止在文件末尾重叠
+        const targetLine = isFullFile ? 0 : position.lineNumber;
+
+        diffZoneRef.current.show(targetLine, lineCount, displayContent);
       }
     } else {
       diffZoneRef.current?.hide();

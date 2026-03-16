@@ -61,7 +61,7 @@ export class InlineDiffZone {
     header.style.fontWeight = '600';
     header.innerHTML = `
         <div style="display: flex; align-items: center;">
-            <span style="margin-right: 8px; font-size: 14px;">✦</span> 
+            <span style="margin-right: 8px; font-size: 14px;">✦</span>
             AI 构思的代码建议 (物理预览)
         </div>
         <div style="opacity: 0.7; font-size: 10px;">ESC 退出 • CMD+K 应用</div>
@@ -107,15 +107,16 @@ export class InlineDiffZone {
     const pre = document.createElement('pre');
     pre.style.margin = '0';
     // 🏆 PIVO 3.0: 物理级底部留白 - 确保最后一行绝不被截断
-    pre.style.padding = '20px 20px 60px 20px'; 
+    pre.style.padding = '20px 20px 60px 20px';
     pre.style.color = '#e2e8f0';
     pre.style.fontSize = '13px';
     pre.style.fontFamily = 'var(--monaco-monospace-font, Menlo, Monaco, monospace)';
     pre.style.lineHeight = '1.6';
     pre.style.whiteSpace = 'pre-wrap';
     pre.style.wordBreak = 'break-all';
+    pre.style.opacity = '0.9';
     pre.innerText = content;
-    
+
     scrollContainer.appendChild(pre);
     domNode.appendChild(scrollContainer);
 
