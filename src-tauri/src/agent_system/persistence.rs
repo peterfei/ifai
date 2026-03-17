@@ -1,7 +1,6 @@
 //! SessionPersistence - Persistence layer for DebuggerAgent
 //! Saves session snapshots to .ifai/sessions/<id>.json
 
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use crate::agent_system::debugger::DebugSession;
