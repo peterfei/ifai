@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { listen } from '@tauri-apps/api/event';
 import { PersistenceManager } from '../services/storage/PersistenceManager';
+import { toast } from 'sonner';
 
 export interface TaskNode {
   id: string;
@@ -16,7 +17,9 @@ interface PivoState {
   activeMessageId: string | null; // 当前正在“持有”任务列表的消息 ID
   isHydrating: boolean; // 🏆 PIVO 3.0: 异步加载状态
   setTaskTree: (messageId: string, tasks: TaskNode[]) => void;
+  addTask: (messageId: string, task: TaskNode) => void;
   updateTaskStatus: (messageId: string, taskId: string, status: TaskNode['status']) => void;
+  updateTaskStatusByLabel: (messageId: string, label: string, status: TaskNode['status']) => void;
   setActiveMessageId: (messageId: string | null) => void;
   initEventListener: () => Promise<() => void>;
   syncState: (state: Partial<PivoState>) => void;
@@ -41,7 +44,48 @@ export const usePivoStore = create<PivoState>()(
         }));
       },
 
+      addTask: (messageId, task) => {
+        set((state) => {
+          const tasks = [...(state.taskTrees[messageId] || [])];
+          // 避免重复添加
+          if (tasks.some(t => t.label === task.label)) return state;
+          
+          return {
+            taskTrees: {
+              ...state.taskTrees,
+              [messageId]: [...tasks, task],
+            },
+          };
+        });
+      },
+
       setActiveMessageId: (messageId) => set({ activeMessageId: messageId }),
+
+      updateTaskStatusByLabel: (messageId, label, status) => {
+        set((state) => {
+          const tasks = state.taskTrees[messageId];
+          if (!tasks) return state;
+
+          const updateNode = (nodes: TaskNode[]): TaskNode[] => {
+            return nodes.map((node) => {
+              if (node.label === label) {
+                return { ...node, status };
+              }
+              if (node.children.length > 0) {
+                return { ...node, children: updateNode(node.children) };
+              }
+              return node;
+            });
+          };
+
+          return {
+            taskTrees: {
+              ...state.taskTrees,
+              [messageId]: updateNode(tasks),
+            },
+          };
+        });
+      },
 
       updateTaskStatus: (messageId, taskId, status) => {
         set((state) => {
@@ -87,6 +131,22 @@ export const usePivoStore = create<PivoState>()(
         if (state) {
           state.syncState({ isHydrating: false });
           console.log('[PivoStore] ✅ Task trees rehydrated from IndexedDB');
+          
+          // 🏆 v0.5.0: 检测是否有尚未完成的任务并提醒用户
+          const activeMessageId = state.activeMessageId;
+          if (activeMessageId) {
+            const tasks = state.taskTrees[activeMessageId];
+            const hasActiveTask = tasks?.some(t => t.status === 'running' || t.status === 'healing');
+            
+            if (hasActiveTask) {
+              setTimeout(() => {
+                toast.info('正在恢复之前的调试任务...', {
+                  description: '系统已自动找回执行进度',
+                  duration: 5000,
+                });
+              }, 1000);
+            }
+          }
         }
       }
     }

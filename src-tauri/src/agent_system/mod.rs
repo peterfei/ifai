@@ -8,6 +8,10 @@ pub mod runner;
 pub mod tools;
 #[cfg(feature = "commercial")]
 pub mod pivo_controller;
+#[cfg(feature = "commercial")]
+pub mod debugger;
+#[cfg(feature = "commercial")]
+pub mod persistence;
 
 #[cfg(feature = "commercial")]
 pub use base::{AgentStatus, AgentContext};

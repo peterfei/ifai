@@ -1,5 +1,5 @@
 import React from 'react';
-import { Circle, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Circle, Loader2, CheckCircle2, XCircle, AlertTriangle, Sparkles } from 'lucide-react';
 import { TaskNode, usePivoStore } from '../../stores/pivoStore';
 import { clsx } from 'clsx';
 import { Skeleton } from '../UI/Skeleton';
@@ -35,7 +35,7 @@ const TaskItem: React.FC<{ task: TaskNode; level: number }> = ({ task, level }) 
         };
       case 'healing':
         return {
-          icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />,
+          icon: <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />,
           color: "text-amber-100",
           bg: "bg-amber-500/10",
           border: "border-amber-500/30"
@@ -77,6 +77,14 @@ const TaskItem: React.FC<{ task: TaskNode; level: number }> = ({ task, level }) 
                 <span className="w-1 h-1 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.3s]"></span>
                 <span className="w-1 h-1 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]"></span>
                 <span className="w-1 h-1 rounded-full bg-blue-400 animate-bounce"></span>
+            </div>
+        )}
+
+        {task.status === 'healing' && (
+            <div className="ml-auto flex gap-1 items-center">
+                <span className="text-[9px] font-bold text-amber-400/80 mr-1 uppercase tracking-tighter">Healing</span>
+                <span className="w-1 h-1 rounded-full bg-amber-400 animate-ping [animation-delay:-0.3s]"></span>
+                <span className="w-1 h-1 rounded-full bg-amber-400 animate-ping"></span>
             </div>
         )}
 

@@ -2805,4 +2805,52 @@ coreUseChatStore.subscribe((state, prevState) => {
     });
 });
 
+// 🏆 v0.5.0: DebuggerAgent 实时同步引擎
+async function initDebugEventListeners() {
+    console.log('[ChatStore] 📡 Initializing DebuggerAgent Event Listeners...');
+    
+    // 监听步骤开始
+    await listen<{ messageId: string; stepLabel: string; status?: string }>('debug:step:start', (event) => {
+        const { messageId, stepLabel, status } = event.payload;
+        const pivoStore = (window as any).__pivoStore;
+        if (!pivoStore) return;
+        
+        pivoStore.getState().addTask(messageId, {
+            id: `debug-${Date.now()}`,
+            label: stepLabel,
+            status: (status as any) || 'running',
+            task_type: 'Verify',
+            children: []
+        });
+    });
+
+    // 监听步骤成功
+    await listen<{ messageId: string; stepLabel: string }>('debug:step:success', (event) => {
+        const { messageId, stepLabel } = event.payload;
+        const pivoStore = (window as any).__pivoStore;
+        if (!pivoStore) return;
+        
+        pivoStore.getState().updateTaskStatusByLabel(messageId, stepLabel, 'success');
+    });
+
+    // 🏆 v0.5.0: 监听内联预览事件
+    await listen<{ file: string; original: string; modified: string }>('debug:diff:preview', (event) => {
+        const { file, original, modified } = event.payload;
+        console.log('[ChatStore] 💎 Triggering Debug Diff Preview for:', file);
+        
+        const inlineStore = (window as any).__inlineEditStore;
+        if (inlineStore) {
+            inlineStore.setState({
+                isInlineEditVisible: true,
+                currentFilePath: file,
+                originalCode: original,
+                modifiedCode: modified,
+                pivoStage: 'implement'
+            });
+        }
+    });
+}
+
+initDebugEventListeners();
+
 export const useChatStore = coreUseChatStore;
