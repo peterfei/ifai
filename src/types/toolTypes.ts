@@ -31,6 +31,18 @@ export interface ProbeSymbolsArgs {
 }
 
 /**
+ * agent_probe_symbols 返回值
+ */
+export interface ProbeSymbolsResult {
+  symbols: Array<{
+    name: string;
+    kind: string;
+    line: number;
+    context: string;
+  }>;
+}
+
+/**
  * agent_list_dir 参数
  */
 export interface ListDirArgs {

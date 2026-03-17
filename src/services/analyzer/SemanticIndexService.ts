@@ -35,14 +35,21 @@ export class SemanticIndexService {
         try {
             // 1. 获取当前物理文件的元数据
             const meta = await SymbolExtractor.getMetadata(path);
-            
+
             // 2. 尝试从 IndexedDB 读取缓存
-            const cached = await manager.getItem<CachedIndex>(cacheKey);
+            const cachedStr = await manager.getItem(cacheKey);
 
             // 3. 校验指纹
-            if (cached && cached.fingerprint === meta.fingerprint) {
-                console.log(`[SemanticIndex] ⚡ Cache hit for: ${path}`);
-                return cached.symbols;
+            if (cachedStr) {
+                try {
+                    const cached = JSON.parse(cachedStr) as CachedIndex;
+                    if (cached.fingerprint === meta.fingerprint) {
+                        console.log(`[SemanticIndex] ⚡ Cache hit for: ${path}`);
+                        return cached.symbols;
+                    }
+                } catch (e) {
+                    console.warn(`[SemanticIndex] Failed to parse cache for ${path}:`, e);
+                }
             }
 
             // 4. 缓存不命中或已失效，执行物理扫描
@@ -55,7 +62,7 @@ export class SemanticIndexService {
                 symbols,
                 timestamp: Date.now()
             };
-            await manager.setItem(cacheKey, newIndex);
+            await manager.setItem(cacheKey, JSON.stringify(newIndex));
 
             return symbols;
         } catch (error) {

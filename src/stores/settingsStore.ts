@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { PersistenceManager } from '../services/storage/PersistenceManager';
+import { v4 as uuidv4 } from 'uuid';
 
 export type AIProtocol = 'openai' | 'anthropic' | 'gemini';
 

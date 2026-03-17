@@ -413,6 +413,7 @@ export const CustomProviderSettings = () => {
                   presetTemplate: 'ollama',
                   customEndpoint: '',
                   apiKey: '',
+                  models: '',
                 });
               }}
               className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded transition-colors"

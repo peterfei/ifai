@@ -4,8 +4,9 @@ export interface ToolCall {
   id: string;
   tool: string;
   args: any;
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed' | 'executing' | 'executed';
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed' | 'executing';
   result?: string;
+  output?: string;  // 🏆 PIVO 3.0: 物理保真度 - 输出字段
   isPartial?: boolean;
   isLocalModel?: boolean;  // 标记是否为本地模型执行的工具调用
   batchId?: string;        // v0.3.6: 批处理 ID

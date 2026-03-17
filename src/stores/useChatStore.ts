@@ -2440,7 +2440,8 @@ const patchedApproveToolCall = async (
                     // 🏆 PIVO 3.0: 物理级影子参数注入 (Shadow Parameter Hydration)
                     // 针对 agent_read_file，如果 AI 忘记传路径，自动补全为当前活跃文件
                     if (latestToolCall.tool === 'agent_read_file' && !finalArgs.rel_path && !finalArgs.path) {
-                        const activeFile = useFileStore.getState().activeFile;
+                        const fileState = useFileStore.getState();
+                        const activeFile = fileState.openedFiles.find(f => f.id === fileState.activeFileId);
                         const fallbackPath = activeFile?.path;
 
                         if (fallbackPath) {
