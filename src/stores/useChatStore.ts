@@ -2805,18 +2805,23 @@ coreUseChatStore.subscribe((state, prevState) => {
     });
 });
 
-// 🏆 v0.5.0: DebuggerAgent 实时同步引擎
-async function initDebugEventListeners() {
-    console.log('[ChatStore] 📡 Initializing DebuggerAgent Event Listeners...');
+// 🏆 v0.5.0: DebuggerAgent 实时同步引擎 (强同步初始化)
+let isDebugInitialized = false;
+function initDebugEventListeners() {
+    if (isDebugInitialized) return;
+    isDebugInitialized = true;
     
-    // 监听步骤开始
-    await listen<{ messageId: string; stepLabel: string; status?: string }>('debug:step:start', (event) => {
+    console.log('[ChatStore] 📡 Initializing DebuggerAgent Event Listeners (Sync)...');
+    
+    // 1. 监听步骤开始
+    listen<{ messageId: string; stepLabel: string; status?: string }>('debug:step:start', (event) => {
         const { messageId, stepLabel, status } = event.payload;
         const pivoStore = (window as any).__pivoStore;
         if (!pivoStore) return;
         
+        console.log('[ChatStore] 🚀 Debug Step Start:', stepLabel);
         pivoStore.getState().addTask(messageId, {
-            id: `debug-${Date.now()}`,
+            id: `debug-${messageId}-${stepLabel.replace(/\s+/g, '-')}`,
             label: stepLabel,
             status: (status as any) || 'running',
             task_type: 'Verify',
@@ -2824,8 +2829,8 @@ async function initDebugEventListeners() {
         });
     });
 
-    // 监听步骤成功
-    await listen<{ messageId: string; stepLabel: string }>('debug:step:success', (event) => {
+    // 2. 监听步骤成功
+    listen<{ messageId: string; stepLabel: string }>('debug:step:success', (event) => {
         const { messageId, stepLabel } = event.payload;
         const pivoStore = (window as any).__pivoStore;
         if (!pivoStore) return;
@@ -2833,11 +2838,9 @@ async function initDebugEventListeners() {
         pivoStore.getState().updateTaskStatusByLabel(messageId, stepLabel, 'success');
     });
 
-    // 🏆 v0.5.0: 监听内联预览事件
-    await listen<{ file: string; original: string; modified: string }>('debug:diff:preview', (event) => {
+    // 3. 监听内联预览事件
+    listen<{ file: string; original: string; modified: string }>('debug:diff:preview', (event) => {
         const { file, original, modified } = event.payload;
-        console.log('[ChatStore] 💎 Triggering Debug Diff Preview for:', file);
-        
         const inlineStore = (window as any).__inlineEditStore;
         if (inlineStore) {
             inlineStore.setState({
