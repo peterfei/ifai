@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from '../setup';
 
-test.describe('Agent 工具批准完整流程', () => {
+test.describe.serial('Agent 工具批准完整流程', () => {
   test.beforeEach(async ({ page }) => {
     // 监听所有相关日志
     page.on('console', msg => {
@@ -296,8 +296,18 @@ test.describe('Agent 工具批准完整流程', () => {
         return { success: false, error: 'chatStore not available' };
       }
 
-      // 清空现有消息
-      chatStore.setState({ messages: [] });
+      // 清空现有消息 - 逐个删除以确保 React 状态正确更新
+      const currentMessages = chatStore.getState().messages;
+      console.log('[Test] 清空前消息数量:', currentMessages.length);
+      for (const msg of currentMessages) {
+        console.log('[Test] 删除消息:', msg.id);
+        chatStore.getState().deleteMessage?.(msg.id);
+      }
+      // 验证已清空
+      const afterDelete = chatStore.getState().messages;
+      console.log('[Test] 删除后消息数量:', afterDelete.length);
+      // 等待 React 状态更新
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       const agentMsgId = 'agent-no-content-1';
       const agentId = 'agent-no-content';
@@ -307,6 +317,7 @@ test.describe('Agent 工具批准完整流程', () => {
         id: agentMsgId,
         role: 'assistant',
         content: '',  // 🔥 空 content
+        contentSegments: [],  // 🔥 显式设置空 contentSegments
         timestamp: Date.now(),
         agentId: agentId,
         toolCalls: [{
@@ -324,8 +335,8 @@ test.describe('Agent 工具批准完整流程', () => {
       // 等待 DOM 更新
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // 检查 DOM
-      const toolApprovalCards = document.querySelectorAll('[data-test-id="tool-approval-card"]');
+      // 检查 DOM - 查询两种可能的 data-testid
+      const toolApprovalCards = document.querySelectorAll('[data-test-id="tool-approval-card"], [data-testid="tool-batch-card"], [data-testid="tool-approval-card"]');
       const approveButtons = Array.from(document.querySelectorAll('button'))
         .filter(b => b.textContent?.includes('批准') || b.textContent?.includes('Approve'));
 

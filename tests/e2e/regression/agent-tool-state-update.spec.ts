@@ -105,8 +105,8 @@ test.describe('Agent 工具状态更新', () => {
       // 等待 React 渲染
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // 3. 检查 DOM
-      const toolApprovalCards = document.querySelectorAll('[data-test-id="tool-approval-card"]');
+      // 3. 检查 DOM - 查询两种可能的 data-testid
+      const toolApprovalCards = document.querySelectorAll('[data-test-id="tool-approval-card"], [data-testid="tool-batch-card"], [data-testid="tool-approval-card"]');
       console.log('[Test] DOM 中的 ToolApproval 数量:', toolApprovalCards.length);
 
       // 检查批准按钮是否存在

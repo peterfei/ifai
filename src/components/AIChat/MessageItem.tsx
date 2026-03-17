@@ -459,25 +459,28 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const isExploreMessage = !!(message as any).exploreProgress;
 
     // 决定是否隐藏气泡
-    // 1. 如果没有可见内容但有工具调用，隐藏 (交给聚合卡片)
-    // 2. 如果是 Vibe 模式下的冗余引导语，隐藏
-    // 3. 如果是工具角色的消息且已经是探索结果，隐藏 (数据已同步到助理消息的树 UI)
-    const shouldHideBubble = (!isUser && !hasVisibleContent && hasToolCalls) || 
-                            isRedundantIntro || 
+    // 1. 如果有 pending 的工具调用，必须显示气泡（用户需要批准/拒绝）
+    // 2. 如果没有可见内容但有工具调用，且所有工具调用都已完成，隐藏 (交给聚合卡片)
+    // 3. 如果是 Vibe 模式下的冗余引导语，隐藏
+    // 4. 如果是工具角色的消息且已经是探索结果，隐藏 (数据已同步到助理消息的树 UI)
+    const shouldHideBubble = (pendingCount === 0 && !isUser && !hasVisibleContent && hasToolCalls) ||
+                            isRedundantIntro ||
                             (message.role === 'tool' && isExploreMessage);
 
     // 🔥 FIX v0.4.0: 智能内容预处理 - 提取思考内容
     const { thinkingText, contentWithoutThinking } = React.useMemo(() => {
-        const content = typeof displayContent === 'string' ? displayContent : '';
-        const thinkingMatch = content.match(/^_\(([^)]+)\)_/);
+        // 🏆 PIVO 3.0: 物理级防护，防止多模态对象直接进入渲染流
+        const content = typeof message.content === 'string' ? message.content : (Array.isArray(message.content) ? (message.content as any).map((p: any) => p.type === 'text' ? p.text : '').join('') : '');
+        const thinkingMatch = String(content || '').match(/^_\(([^)]+)\)_/);
         if (thinkingMatch) {
             return {
-                thinkingText: thinkingMatch[1],
-                contentWithoutThinking: content.replace(/^_\([^)]+\)_\s*/, '')
+                thinkingText: String(thinkingMatch[1]),
+                contentWithoutThinking: String(content).replace(/^_\([^)]+\)_\s*/, '')
             };
         }
-        return { thinkingText: null, contentWithoutThinking: content };
-    }, [displayContent]);
+        return { thinkingText: null, contentWithoutThinking: String(content || '') };
+    }, [message.content]);
+
     // Parse segments from string content (for non-multi-modal or fallback)
     const stringSegments = React.useMemo(() => {
         // Use contentWithoutThinking instead of raw displayContent
@@ -593,10 +596,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             if (seg.type === 'text') {
                 const last = mergedTextResult[mergedTextResult.length - 1];
                 if (last && last.type === 'text') {
-                    last.content = (last.content || '') + (seg.content || '');
+                    // 🏆 PIVO 3.0: 物理级 String 强制转换保护
+                    last.content = String(last.content || '') + String(seg.content || '');
                     last.timestamp = seg.timestamp;
                 } else {
-                    mergedTextResult.push({ ...seg });
+                    mergedTextResult.push({ ...seg, content: String(seg.content || '') });
                 }
             } else {
                 mergedTextResult.push(seg);
@@ -803,14 +807,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             </div>
                         ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
                             <div className="space-y-2">
-                                {message.multiModalContent.map((part, index) => renderContentPart(part, index, effectivelyStreaming))}
+                                {message.multiModalContent.map((part, index) => {
+                                    // 🏆 PIVO 3.0: 物理级防护，防止多模态对象直接进入渲染流
+                                    if (part.type === 'text') {
+                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, effectivelyStreaming);
+                                    }
+                                    return renderContentPart(part, index, effectivelyStreaming);
+                                })}
                             </div>
-                        ) : sortedSegments ? (
+                        ) : mergedSegments && mergedSegments.length > 0 ? (
                             <div className="space-y-3">
                                 {mergedSegments.map((segment: any, index: number) => {
                                     if (segment.type === 'text') {
-                                        const content = segment.content;
+                                        // 🏆 PIVO 3.0: 物理级 String 强制转换保护
+                                        const content = String(segment.content || '');
+                                        // 🏆 PIVO 3.0: 拒绝非字符串对象
                                         if (!content) return null;
+
                                         if (effectivelyStreaming) return renderMarkdownWithoutHighlight(content, `streaming-text-${index}`);
                                         return renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
                                     } else if (segment.type === 'tool' && segment.toolCallId) {
@@ -830,14 +843,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                             const isStandalone = segment.batchId.startsWith('standalone_');
                                             const standaloneId = isStandalone ? segment.batchId.replace('standalone_', '') : null;
-                                            
+
                                             // 获取全量聚合数据（跨消息提取）
-                                            const batchCalls = isStandalone 
+                                            const batchCalls = isStandalone
                                                 ? (message.toolCalls?.filter(tc => tc.id === standaloneId) || [])
-                                                : allMessages.flatMap(m => 
+                                                : allMessages.flatMap(m =>
                                                     (m.toolCalls || []).filter(tc => (tc as any).batchId === segment.batchId)
                                                   );
-                                                
+
                                             if (batchCalls.length === 0) return null;
                                             
                                             return (
@@ -868,7 +881,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         ) : (
                             /* 🔥 FIX: Fallback 渲染也必须遵循 Action-First 逻辑并支持聚合 */
                             <div className="space-y-3">
-                                {/* 处理工具卡片（支持聚合） */}
                                 {(() => {
                                     if (!message.toolCalls) return null;
                                     

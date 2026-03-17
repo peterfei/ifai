@@ -572,7 +572,15 @@ export async function setupE2ETestEnvironment(
         // 🔥 商业版 (ifainew-core) 使用的命令
         if (cmd === 'agent_read_file') {
             console.log('[E2E Mock] agent_read_file:', args);
-            const filePath = `${args.rootPath}/${args.relPath}`.replace(/\/\//g, '/');
+            // 🏆 PIVO 3.0: 路径鲁棒性增强 - 自动补全缺失的 rootPath
+            let rootPath = args.rootPath || args.root_path;
+            if (!rootPath) {
+                // 如果调用方没传，从全局状态兜底
+                rootPath = (window as any).__CHAT_STORE_STATE__?.fileStore?.rootPath || '/Users/mac/mock-project';
+            }
+
+            const relPath = args.relPath || args.rel_path;
+            const filePath = `${rootPath}/${relPath}`.replace(/\/\//g, '/');
             const content = mockFileSystem.get(filePath);
             if (content !== undefined) {
                 console.log('[E2E Mock] Returning existing file content');
@@ -2046,6 +2054,10 @@ export function formatDate(date: Date): string {
         // 🔥 Add unregisterCallback support
         unregisterCallback: (cb: any) => {
             // Mock implementation - do nothing
+        },
+        // 🏆 PIVO 3.0: 补全物理存根，防止组件卸载时崩溃
+        unregisterListener: (event: string, id: number) => {
+            console.log('[E2E Mock] unregisterListener called for:', event);
         }
     };
     (window as any).__TAURI__ = {
