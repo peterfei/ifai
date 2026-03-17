@@ -21,6 +21,15 @@ test.describe('智谱 LLM 工具调用调试', () => {
 
     await page.waitForFunction(() => !!(window as any).__chatStore, { timeout: 10000 });
     await page.waitForTimeout(500);
+
+    // 🔥 FIX v0.3.11: 设置 project root 以支持 Agent 测试
+    await page.evaluate(async () => {
+      const fileStore = (window as any).__fileStore;
+      if (fileStore && !fileStore.getState().rootPath) {
+        await fileStore.getState().setRootPath('/Users/mac/mock-project');
+        console.log('[Test] Project root set to: /Users/mac/mock-project');
+      }
+    });
   });
 
   test('@regression debug-tools-01: 检查后端是否发送 tools 参数', async ({ page }) => {

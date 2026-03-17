@@ -23,6 +23,15 @@ test.describe('后端 tool_call 事件发送测试', () => {
     await page.waitForFunction(() => !!(window as any).__chatStore, { timeout: 10000 });
     // agentStore 可能不存在，不强制等待
     await page.waitForTimeout(500);
+
+    // 🔥 FIX v0.3.11: 设置 project root 以支持 Agent 测试
+    await page.evaluate(async () => {
+      const fileStore = (window as any).__fileStore;
+      if (fileStore && !fileStore.getState().rootPath) {
+        await fileStore.getState().setRootPath('/Users/mac/mock-project');
+        console.log('[Test] Project root set to: /Users/mac/mock-project');
+      }
+    });
   });
 
   test('@regression backend-toolcall-01: 验证智谱 LLM 返回 tool_calls 时后端发送正确的事件', async ({ page }) => {

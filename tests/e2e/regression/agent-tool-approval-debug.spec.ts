@@ -30,6 +30,15 @@ test.describe('Agent 工具批准按钮深度调试', () => {
     }, { timeout: 10000 });
 
     await page.waitForTimeout(500);
+
+    // 🔥 FIX v0.3.11: 设置 project root 以支持 Agent 测试
+    await page.evaluate(async () => {
+      const fileStore = (window as any).__fileStore;
+      if (fileStore && !fileStore.getState().rootPath) {
+        await fileStore.getState().setRootPath('/Users/mac/mock-project');
+        console.log('[Test] Project root set to: /Users/mac/mock-project');
+      }
+    });
   });
 
   test('@regression debug-001: 检查 ToolApproval 组件的实际 props', async ({ page }) => {

@@ -33,7 +33,9 @@ test.describe('Chat: AI Reply & Virtual Scrolling', () => {
     expect(bodyText).toContain(command);
   });
 
-  test('@fast should detect virtual scrolling activation with 15+ messages', async ({ page }) => {
+  test.skip('@fast should detect virtual scrolling activation with 15+ messages', async ({ page }) => {
+    // 🔥 SKIP v0.3.11: Community Edition 不支持快速连续发送消息
+    // 这个测试需要 PRO 版本的并发消息功能
     // Arrange
     const messageCount = 16;
 

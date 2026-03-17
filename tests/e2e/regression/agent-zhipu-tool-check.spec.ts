@@ -30,6 +30,15 @@ test.describe('智谱 API tool_call 缺失诊断', () => {
 
     await page.waitForFunction(() => !!(window as any).__settingsStore, { timeout: 10000 });
     await page.waitForTimeout(500);
+
+    // 🔥 FIX v0.3.11: 设置 project root 以支持 Agent 测试
+    await page.evaluate(async () => {
+      const fileStore = (window as any).__fileStore;
+      if (fileStore && !fileStore.getState().rootPath) {
+        await fileStore.getState().setRootPath('/Users/mac/mock-project');
+        console.log('[Test] Project root set to: /Users/mac/mock-project');
+      }
+    });
   });
 
   test('@regression zhipu-tool-check-01: 直接调用智谱 API 检查 tool_call 响应', async ({ page }) => {

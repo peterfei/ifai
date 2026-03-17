@@ -2405,9 +2405,11 @@ export function formatDate(date: Date): string {
     // C. 注入万能后门
     (window as any).__E2E_SEND__ = async (text: string) => {
         const store = (window as any).__chatStore?.getState();
-        if (store) {
-            console.log(`[E2E] Direct Store Send: ${text}`);
-            await store.sendMessage(text, 'kimi-e2e', 'kimi-k2-thinking');
+        const settings = (window as any).__settingsStore?.getState();
+        if (store && settings) {
+            console.log(`[E2E] Direct Store Send: ${text}, provider: ${settings.currentProviderId}, model: ${settings.currentModel}`);
+            // 🔥 FIX v0.3.11: 使用当前配置的 provider 而不是硬编码的 kimi-e2e
+            await store.sendMessage(text, settings.currentProviderId, settings.currentModel);
         }
     };
 
@@ -3169,6 +3171,39 @@ export class TestApp {
   });
 
   console.log('[E2E Setup] ✅ Environment locked and ready');
+
+  // 🔥 v0.3.11 FIX: 自动设置 project root 以支持 Agent 测试
+  // Agent 测试需要 project root，否则 validateLaunchPrerequisites 会抛出错误
+  console.log('[E2E Setup] 🔧 Setting up default project root for Agent tests...');
+
+  try {
+    await page.evaluate(async () => {
+      console.log('[E2E Setup] Inside page.evaluate - checking fileStore...');
+      const fileStore = (window as any).__fileStore;
+
+      if (!fileStore) {
+        console.error('[E2E Setup] ❌ fileStore not found!');
+        return;
+      }
+
+      console.log('[E2E Setup] ✅ fileStore found, getting state...');
+      const state = fileStore.getState();
+      console.log('[E2E Setup] Current rootPath:', state.rootPath);
+
+      // 只有在 rootPath 不存在时才设置默认值
+      if (!state.rootPath) {
+        const defaultRootPath = '/Users/mac/mock-project';
+        console.log('[E2E Setup] 🔧 Setting default project root:', defaultRootPath);
+        await state.setRootPath(defaultRootPath);
+        console.log('[E2E Setup] ✅ Project root set successfully');
+      } else {
+        console.log('[E2E Setup] ✅ Project root already set:', state.rootPath);
+      }
+    });
+    console.log('[E2E Setup] ✅ Project root setup completed');
+  } catch (e) {
+    console.error('[E2E Setup] ❌ Error setting project root:', e);
+  }
 }
 
 /**
