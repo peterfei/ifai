@@ -257,6 +257,7 @@ async fn ai_chat(
     if let Some(ref root) = project_root {
         let root_clone = root.clone();
 
+#[cfg(feature = "commercial")]
         // 🏆 v0.5.0: DebuggerAgent 意图拦截
         if let Some(last_msg) = messages.last_mut() {
             // 关键：只有当最后一条是 user 消息，且不是对工具调用的回复时，才进行拦截

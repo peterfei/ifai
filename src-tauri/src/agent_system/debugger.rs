@@ -41,7 +41,7 @@ impl DebuggerAgent {
                 ..Default::default()
             })),
             app_handle,
-            persistence: SessionPersistence::new(project_root),
+            persistence: SessionPersistence::new(),
             session_id: id,
         }
     }

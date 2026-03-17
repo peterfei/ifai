@@ -218,6 +218,21 @@ impl IntelligenceRouter {
 
         tool_keywords.iter().any(|kw| text_lower.contains(kw))
     }
+
+    /// 🏆 v0.5.0: 判断是否是调试请求
+    pub fn is_debug_request(&self, text: &str) -> bool {
+        let text_lower = text.to_lowercase();
+
+        // 明确的调试关键词
+        let debug_keywords = ["修复", "报错", "错误", "bug", "fix", "error", "panic"];
+
+        // 物理报错特征 (E0XXX, TSXXXX, Traceback)
+        let has_error_code = text.contains("error[E") || text.contains("error TS") || text.contains("Traceback");
+
+        let has_keyword = debug_keywords.iter().any(|kw| text_lower.contains(kw));
+
+        has_error_code || (has_keyword && text.len() > 20)
+    }
 }
 
 impl Default for IntelligenceRouter {
