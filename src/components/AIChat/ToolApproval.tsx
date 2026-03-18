@@ -473,8 +473,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                 }
             };
             loadOld();
-        }
-    }, [isWriteFile, filePath, isPartial, oldContent, toolCall.result]);
+            }
+            }, [isWriteFile, filePath, isPartial, oldContent, toolCall.result]);
 
     return (
         <div data-testid="file-approval-dialog" data-test-id="tool-approval-card" className={`group/tool mt-4 mb-4 rounded-2xl border ${riskVisuals.border} bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5`}>
@@ -580,7 +580,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                         )}
 
                         {/* Full Diff View (Only when completed) */}
-                        {!isPartial && oldContent !== null && newContent && (
+                        {!isPartial && newContent && (
                             <div className="relative mt-4 group/diff">
                                 <div className="flex items-center gap-2 mb-2 ml-1">
                                     <div className="w-1 h-3 bg-blue-500 rounded-full" />
@@ -595,14 +595,37 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                             </div>
                                         );
                                     }
+                                    
+                                    // 🏆 FIX: 即使没有 oldContent，也允许显示新内容（作为回退）
+                                    // 或者显示一个清晰的占位符，防止整个组件崩溃
+                                    const lang = filePath ? detectLanguage(filePath) : 'typescript';
+                                    
+                                    // 只有当 oldContent 和 newContent 都准备好了才渲染 MonacoDiffView
+                                    const canShowDiff = oldContent !== null && newContent && typeof oldContent === 'string' && typeof newContent === 'string';
+
                                     return (
-                                        <div className="rounded-xl border border-gray-700/40 overflow-hidden shadow-inner">
-                                            <MonacoDiffView
-                                                oldValue={oldContent}
-                                                newValue={newContent}
-                                                language={detectLanguage(filePath)}
-                                                height={isExpanded ? 500 : 250}
-                                            />
+                                        <div className="rounded-xl border border-gray-700/40 overflow-hidden shadow-inner bg-[#0d1117]">
+                                            {canShowDiff ? (
+                                                <MonacoDiffView
+                                                    oldValue={oldContent}
+                                                    newValue={newContent}
+                                                    language={lang}
+                                                    height="300px"
+                                                />
+                                            ) : (
+                                                <div className="p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
+                                                    <div className="text-[11px] text-gray-500 font-mono mb-3 uppercase tracking-widest animate-pulse">
+                                                        {isWriteFile ? 'Preparing Diff Analysis...' : 'Loading Content...'}
+                                                    </div>
+                                                    {newContent && typeof newContent === 'string' && (
+                                                        <div className="w-full max-w-md">
+                                                            <pre className="text-[10px] text-gray-400 text-left bg-black/20 p-4 rounded border border-gray-800/50 max-h-40 overflow-auto scrollbar-hide">
+                                                                {newContent.substring(0, 500)}{newContent.length > 500 ? '...' : ''}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })()}

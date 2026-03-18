@@ -24,12 +24,20 @@ test.describe('PIVO 3.0 Storage Migration Fidelity', () => {
   });
 
   test('@pivo3 Should migrate data and cleanup LocalStorage', async ({ page }) => {
+    // 等待 chatStore 初始化
+    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 10000 });
+
+    // 等待数据迁移完成
+    await page.waitForTimeout(3000);
+
     // 1. 验证迁移后的数据在 IndexedDB (通过 SDK 访问)
     const migratedHistory = await page.evaluate(async () => {
         const chatStore = (window as any).__chatStore;
         // 既然 DataMigrator 是异步的，我们需要等待一小会儿或者轮询
-        return (window as any).__CHAT_STORE_STATE__.messages;
+        return chatStore.getState().messages;
     });
+
+    console.log('[Pivo3] Migrated history:', migratedHistory);
 
     // 2. 物理层验证 LocalStorage 已清理
     const legacyKeysCount = await page.evaluate(() => {

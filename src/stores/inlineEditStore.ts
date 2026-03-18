@@ -533,9 +533,35 @@ function detectLanguage(filePath: string | { path?: string; toString(): string }
 }
 
 // ============================================================================
-// E2E 测试辅助
+// E2E 测试辅助与全局事件同步
 // ============================================================================
 
 if (typeof window !== 'undefined') {
   (window as any).__inlineEditStore = useInlineEditStore;
+
+  // 🏆 PIVO 3.0: 监听全局事件并同步到 Store (用于高保真集成和 E2E 测试)
+  
+  // 1. 监听 PIVO 阶段变化
+  window.addEventListener('pivo_stage', (e: any) => {
+    const { stage, tasks, files } = e.detail || {};
+    console.log('[inlineEditStore] Received pivo_stage event:', stage);
+    useInlineEditStore.getState().setPivoState(stage, tasks, files);
+  });
+
+  // 2. 监听 Agent 状态
+  window.addEventListener('agent:status', (e: any) => {
+    const { status, tool } = e.detail || {};
+    console.log('[inlineEditStore] Received agent:status event:', status);
+    if (status === 'running' && (tool === 'agent_write_file' || tool === 'agent_replace')) {
+      useInlineEditStore.getState().setPivoState('implement');
+    }
+  });
+
+  // 3. 监听任务列表更新
+  window.addEventListener('agent:tasks', (e: any) => {
+    const { tasks } = e.detail || {};
+    if (Array.isArray(tasks)) {
+      useInlineEditStore.getState().setPivoState(useInlineEditStore.getState().pivoStage, tasks as GhostTask[]);
+    }
+  });
 }

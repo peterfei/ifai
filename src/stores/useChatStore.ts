@@ -59,6 +59,7 @@ if (typeof window !== 'undefined') {
   
   if (isE2E || import.meta.env.DEV) {
     (window as any).__chatStore = coreUseChatStore;
+    (window as any).__setThreadMessages = setThreadMessages;
   }
 }
 
@@ -1988,17 +1989,20 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
     let reusableAssistantMsgId: string | null = null;
 
     for (let i = currentMessages.length - 1; i >= 0; i--) {
-
         const msg = currentMessages[i];
-
-        if (msg.role === 'assistant' && (!msg.content || (typeof msg.content === 'string' && msg.content.trim().length === 0)) && msg.toolCalls && msg.toolCalls.length > 0) {
-
-            reusableAssistantMsgId = msg.id;
-
+        
+        // 🏆 FIX: 建立对话回合物理边界
+        // 一旦遇到用户消息，说明进入了新回合，严禁跨回合复用旧的助手气泡
+        // 这解决了新回复出现在旧消息上方的乱序问题
+        if (msg.role === 'user') {
+            console.log('[patchedGenerateResponse] 遇到用户消息，停止向前搜索复用气泡');
             break;
-
         }
 
+        if (msg.role === 'assistant' && (!msg.content || (typeof msg.content === 'string' && msg.content.trim().length === 0)) && msg.toolCalls && msg.toolCalls.length > 0) {
+            reusableAssistantMsgId = msg.id;
+            break;
+        }
     }
 
     let assistantMsgId: string;
@@ -2529,7 +2533,7 @@ const patchedApproveToolCall = async (
             return;
         }
 
-        const fsTools = ["agent_write_file", "agent_read_file", "agent_list_dir", "agent_delete_file", "agent_list_functions", "agent_read_file_range", "agent_scan_project"];
+        const fsTools = ["agent_write_file", "agent_read_file", "agent_list_dir", "agent_delete_file", "agent_list_functions", "agent_read_file_range", "agent_scan_project", "bash", "execute_bash_command"];
         const toolName = toolCall.tool || (toolCall as any).function?.name;
         let relPath = toolCall.args?.rel_path || toolCall.args?.path || (toolName === "agent_list_dir" ? "." : "");
 

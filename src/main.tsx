@@ -34,9 +34,17 @@ if (typeof window !== 'undefined' && (import.meta.env.VITE_TEST_ENV === 'e2e' ||
   const transformCallback = (callback?: any) => {
     const id = Math.floor(Math.random() * 1000000);
     if (callback) {
-        const listeners = (window as any).__TAURI_EVENT_LISTENERS__ || {};
+        // 🔥 FIX: 如果属性已存在且只读，重新定义它
+        if (!(window as any).__TAURI_EVENT_LISTENERS__) {
+          Object.defineProperty(window, '__TAURI_EVENT_LISTENERS__', {
+            value: {},
+            writable: true,
+            configurable: true,
+            enumerable: true
+          });
+        }
+        const listeners = (window as any).__TAURI_EVENT_LISTENERS__;
         listeners[`callback_${id}`] = [callback];
-        (window as any).__TAURI_EVENT_LISTENERS__ = listeners;
     }
     return id;
   };
@@ -61,10 +69,18 @@ if (typeof window !== 'undefined' && (import.meta.env.VITE_TEST_ENV === 'e2e' ||
     core: { invoke, transformCallback },
     event: {
         listen: (event: string, handler: any) => {
-            const listeners = (window as any).__TAURI_EVENT_LISTENERS__ || {};
+            // 🔥 FIX: 如果属性已存在且只读，重新定义它
+            if (!(window as any).__TAURI_EVENT_LISTENERS__) {
+              Object.defineProperty(window, '__TAURI_EVENT_LISTENERS__', {
+                value: {},
+                writable: true,
+                configurable: true,
+                enumerable: true
+              });
+            }
+            const listeners = (window as any).__TAURI_EVENT_LISTENERS__;
             if (!listeners[event]) listeners[event] = [];
             listeners[event].push(handler);
-            (window as any).__TAURI_EVENT_LISTENERS__ = listeners;
             return Promise.resolve(() => {});
         }
     }

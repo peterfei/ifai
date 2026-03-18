@@ -70,6 +70,9 @@ test.describe('UI: Button State Update - Immediate Feedback', () => {
     const approveButton = page.locator('button:has-text("批准执行")').first();
     await approveButton.click();
 
+    // 🔥 FIX: 增加微小延迟，确保 Store 状态同步
+    await page.waitForTimeout(100);
+
     // 步骤 4：立即检查状态（不等待命令执行完成）
     // 使用 page.evaluate 在浏览器上下文中同步检查状态
     const stateAfterClick = await page.evaluate(() => {

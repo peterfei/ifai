@@ -11,15 +11,14 @@ test.describe('Commercial Inline Edit High-Fidelity Verification', () => {
   const testUuid = `test-uuid-${Math.random().toString(36).substring(7)}`;
 
   test.beforeEach(async ({ page }) => {
-    // 1. 初始化环境并打开首页
+    // 1. 初始化环境 (setupE2ETestEnvironment 内部已经执行了 goto('/'))
     await setupE2ETestEnvironment(page, { 
       skipWelcome: true,
       useRealAI: true 
     });
-    await page.goto('/');
 
-    // 2. 强力锁定 Store
-    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 60000 });
+    // 2. 强力锁定 Store (已经在 setupE2ETestEnvironment 中等待过，这里为了稳妥再等一次)
+    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 30000 });
     
     // 3. 准备 Mock 文件系统
     await setupMockFileSystem(page, {
@@ -37,10 +36,34 @@ test.describe('Commercial Inline Edit High-Fidelity Verification', () => {
       }
     });
 
-    // 5. 🏆 关键：通过 eval 触发打开文件，确保 Monaco 挂载
+    // 5. 🏆 关键：使用暴露的 Store 接口打开文件并分配到窗格
     await page.evaluate(async (path) => {
-        const { openFileFromPath } = await import('../../../src/utils/fileActions');
-        await openFileFromPath(path);
+        const fileStore = (window as any).__fileStore;
+        const layoutStore = (window as any).__layoutStore;
+        
+        if (fileStore && layoutStore) {
+            const fullPath = `/Users/mac/mock-project/${path}`;
+            
+            // 1. 打开文件
+            const fileId = fileStore.getState().openFile({
+                id: `mock-${path}`,
+                path: fullPath,
+                name: path.split('/').pop(),
+                content: `// Special ID: logic-test\nfunction add(a, b) { return a + b; }`,
+                isDirty: false,
+                language: 'typescript'
+            });
+            console.log('[E2E] File opened with ID:', fileId);
+
+            // 2. 🏆 核心：分配到当前活跃窗格
+            const layoutState = layoutStore.getState();
+            const activePaneId = layoutState.activePaneId || (Object.keys(layoutState.panes)[0]);
+            
+            if (activePaneId) {
+                layoutStore.getState().assignFileToPane(activePaneId, fileId);
+                console.log('[E2E] File assigned to pane:', activePaneId);
+            }
+        }
     }, 'src/logic.ts');
 
     // 等待编辑器可见
@@ -51,6 +74,9 @@ test.describe('Commercial Inline Edit High-Fidelity Verification', () => {
     // 1. 模拟用户交互：选中逻辑并触发 Ctrl+K
     const editor = page.locator('.monaco-editor').first();
     await editor.click();
+    
+    // 🔥 FIX: 必须先选中一些文本，否则 Inline Widget 不会显示 "Current Context"
+    await page.keyboard.press('Control+a');
     await page.keyboard.press('Control+k');
 
     // 2. 验证 Widget 出现及其新 UI 元素

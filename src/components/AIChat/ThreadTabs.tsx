@@ -370,20 +370,14 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
 
   // Handle thread close (right-click or Ctrl+click)
   const handleThreadClose = useCallback((e: React.MouseEvent, threadId: string) => {
+    e.preventDefault();
     e.stopPropagation();
     
-    // 💎 v0.3.6 FIX: 数据完整性保护
-    // 在删除前，先将当前的消息保存到活跃线程中
-    const currentThreadId = useThreadStore.getState().activeThreadId;
-    if (currentThreadId) {
-      const currentMessages = coreUseChatStore.getState().messages;
-      setThreadMessages(currentThreadId, [...currentMessages] as any);
-    }
-
     // 执行删除
     deleteThread(threadId);
 
     // 如果删除的是当前活跃线程，需要手动触发一次 switchThread 来加载新活跃线程的消息
+    const currentThreadId = useThreadStore.getState().activeThreadId;
     if (threadId === currentThreadId) {
       // deleteThread 内部已经计算并设置了新的 activeThreadId
       const newActiveId = useThreadStore.getState().activeThreadId;

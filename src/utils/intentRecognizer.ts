@@ -19,9 +19,10 @@ interface IntentPattern {
 const PATTERNS: IntentPattern[] = [
     {
         type: '/demo',
-        keywords: ['demo', '演示', '新手', '引导', '教程', 'example', 'tutorial'],
-        regex: /^(?:\/)?(?:demo|演示|新手引导|开始演示|运行demo|运行\s+demo)$/i,
-        minConfidence: 0.95,
+        keywords: ['demo', '演示', '新手', '引导', '教程', 'example', 'tutorial', '开始演示'],
+        // 放宽匹配规则：支持消息中包含关键词，不强制要求全文匹配
+        regex: /(?:\/)?(?:demo|演示|新手引导|开始演示|运行\s*demo|介绍一下|你会干什么)/i,
+        minConfidence: 0.8,
         category: 'demo'
     },
     {
