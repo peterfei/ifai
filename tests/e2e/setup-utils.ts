@@ -134,6 +134,91 @@ export async function setupE2ETestEnvironment(
         }));
         console.log('[E2E Init] Welcome dialog and Onboarding Tour skipped for E2E tests (Real Tauri)');
       }
+
+      // 🔥 FIX v0.3.11: 初始化 Mock 文件系统
+      // 即使在 Tauri 模式下，某些测试仍然需要这个变量
+      const mockFileSystem = new Map<string, string>();
+      (window as any).__E2E_MOCK_FILE_SYSTEM__ = mockFileSystem;
+      (window as any).__E2E_MOCK_FILE_SYSTEM = mockFileSystem;
+
+      // 🔥 FIX v0.3.11: 在 initScript 中设置 E2E 辅助函数
+      // 这样即使测试再次调用 page.goto('/')，函数也会被重新设置
+      console.log('[E2E Init] 🔧 Setting up E2E helper functions in initScript...');
+
+      (window as any).__E2E_SEND__ = async (text: string) => {
+        // 等待 stores 初始化
+        await new Promise<void>(resolve => {
+          const checkStores = () => {
+            const chatStore = (window as any).__chatStore;
+            const settingsStore = (window as any).__settingsStore;
+            if (chatStore && settingsStore) {
+              resolve();
+            } else {
+              setTimeout(checkStores, 50);
+            }
+          };
+          checkStores();
+        });
+
+        const store = (window as any).__chatStore?.getState();
+        const settings = (window as any).__settingsStore?.getState();
+        if (store && settings) {
+          console.log(`[E2E] Direct Store Send: ${text}, provider: ${settings.currentProviderId}, model: ${settings.currentModel}`);
+          await store.sendMessage(text, settings.currentProviderId, settings.currentModel);
+        }
+      };
+
+      (window as any).__E2E_GET_MESSAGES__ = () => {
+        return (window as any).__chatStore?.getState()?.messages || [];
+      };
+
+      (window as any).__E2E_OPEN_MOCK_FILE__ = (name: string, content?: string) => {
+        const fileStore = (window as any).__fileStore;
+        const layoutStore = (window as any).__layoutStore;
+        const fileContent = content || `
+/**
+ * Test class for breadcrumbs
+ */
+export class TestApp {
+  private value: number = 0;
+
+  constructor() {
+    console.log("Initialized");
+  }
+
+  public getValue() {
+    return this.value;
+  }
+}
+                `;
+        const filePath = `/Users/mac/mock-project/${name}`;
+
+        if (fileStore) {
+          const fileId = fileStore.getState().openFile({
+            id: `mock-${name}`,
+            path: filePath,
+            name: name,
+            content: fileContent,
+            isDirty: false,
+            language: 'typescript'
+          });
+          console.log('[E2E Mock] File opened with ID:', fileId);
+
+          const layoutState = layoutStore?.getState();
+          if (layoutState && layoutState.activePaneId) {
+            layoutStore.getState().assignFileToPane(layoutState.activePaneId, fileId);
+            console.log('[E2E Mock] File assigned to pane:', layoutState.activePaneId, 'fileId:', fileId);
+          }
+        }
+
+        const mockFileSystem = (window as any).__E2E_MOCK_FILE_SYSTEM__;
+        if (mockFileSystem && !mockFileSystem.has(filePath)) {
+          mockFileSystem.set(filePath, fileContent);
+          console.log('[E2E Mock] Initialized file system with:', name);
+        }
+      };
+
+      console.log('[E2E Init] ✅ E2E helper functions installed in initScript');
     }, { skipWelcome: options.skipWelcome !== false });
 
     await page.goto('/', { waitUntil: 'domcontentloaded' });
