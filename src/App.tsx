@@ -170,6 +170,11 @@ function App() {
         // 🔥 Refactor Phase 4: Expose Stream Controller for E2E validation
         const { streamingResponseController } = await import('./stores/chat/generateResponse/StreamingResponseController');
         (window as any).__streamingResponseController = streamingResponseController;
+
+        // 🔥 Refactor Phase 4.2: Initialize ToolCallManager
+        // 它监听 EventBus 上的工具信号并管理其全生命周期
+        const { toolCallManager } = await import('./stores/chat/generateResponse/ToolCallManager');
+        (window as any).__toolCallManager = toolCallManager; 
         
         // 桥接 Tauri 信号，用于 TDD 仿真
         if ((window as any).VITE_TEST_ENV === 'e2e') {
