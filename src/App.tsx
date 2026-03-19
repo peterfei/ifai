@@ -166,8 +166,18 @@ function App() {
         (window as any).__sendMessageOrchestrator = sendMessageOrchestrator;
         const { chatEventBus } = await import('./stores/chat/eventBus/ChatEventBus');
         (window as any).__chatEventBus = chatEventBus;
+
+        // 🔥 Refactor Phase 4: Expose Stream Controller for E2E validation
+        const { streamingResponseController } = await import('./stores/chat/generateResponse/StreamingResponseController');
+        (window as any).__streamingResponseController = streamingResponseController;
         
-        console.log('[App] 🚀 Orchestrator & EventBus exposed to window');
+        // 桥接 Tauri 信号，用于 TDD 仿真
+        if ((window as any).VITE_TEST_ENV === 'e2e') {
+          const { emit } = await import('@tauri-apps/api/event');
+          (window as any).__TAURI_EMIT__ = emit;
+        }
+        
+        console.log('[App] 🚀 Orchestrator, EventBus & StreamController exposed');
       } catch (error) {
         console.error('[App] ❌ Failed to initialize thread persistence:', error);
       }
