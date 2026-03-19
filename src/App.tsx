@@ -157,9 +157,17 @@ function App() {
         console.log('[App] ✅ Thread persistence initialized');
 
         // 🔥 Refactor Phase 2: Initialize the new Transactional Persistence Manager
-        // 它作为 EventBus 的常驻订阅者，将监听所有聊天事务并实时同步到 IndexedDB
         const { persistenceManager } = await import('./stores/chat/persistence/PersistenceManager');
+        (window as any).__persistenceManager = persistenceManager; // 显式暴露用于调试
         console.log('[App] 🧠 Transactional Persistence Manager ready');
+
+        // 🔥 Refactor Phase 3: Expose Orchestrator for E2E validation
+        const { sendMessageOrchestrator } = await import('./stores/chat/sendMessage/SendMessageOrchestrator');
+        (window as any).__sendMessageOrchestrator = sendMessageOrchestrator;
+        const { chatEventBus } = await import('./stores/chat/eventBus/ChatEventBus');
+        (window as any).__chatEventBus = chatEventBus;
+        
+        console.log('[App] 🚀 Orchestrator & EventBus exposed to window');
       } catch (error) {
         console.error('[App] ❌ Failed to initialize thread persistence:', error);
       }

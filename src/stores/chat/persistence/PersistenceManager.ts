@@ -105,13 +105,6 @@ export class PersistenceManager {
       this.streamThrottleTimer = null;
     }
   }
-
-  private clearThrottleTimer() {
-    if (this.streamThrottleTimer) {
-      clearTimeout(this.streamThrottleTimer);
-      this.streamThrottleTimer = null;
-    }
-  }
 }
 
 // 导出单例，确保全系统共用一套持久化策略

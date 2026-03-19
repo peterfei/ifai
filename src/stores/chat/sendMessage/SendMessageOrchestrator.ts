@@ -10,8 +10,10 @@
 import { chatEventBus } from '../eventBus/ChatEventBus';
 import { useThreadStore } from '../../threadStore';
 import { useSettingsStore } from '../../settingsStore';
-import { useLayoutStore } from '../../layoutStore';
 import { getThreadMessages } from '../../useChatStore';
+import { intentHandler } from './IntentHandler';
+import { messageBuilder } from './MessageBuilder';
+import { contextSelector } from './ContextSelector';
 
 export class SendMessageOrchestrator {
   /**
@@ -37,28 +39,51 @@ export class SendMessageOrchestrator {
       // 2. 线程自愈逻辑 (确保有活跃 Thread)
       const threadId = await this.ensureActiveThread();
       
-      // 3. 意图识别 (Slash Commands / PIVO Intent)
-      // TODO: 迁移至 IntentHandler
-      const isIntercepted = await this.handleIntent(content, basePayload);
-      if (isIntercepted) return;
+      // 3. 意图识别 (Slash Commands / Natural Language)
+      const textInput = typeof content === 'string' ? content : 
+        (Array.isArray(content) ? content.map(p => p.type === 'text' ? p.text : '').join(' ') : '');
+      
+      const intentResult = await intentHandler.recognize(textInput, basePayload);
+      console.log(`[SendMessageOrchestrator] Intent detected: ${intentResult.type}`);
 
       // 4. 消息构建与引用注入 (References / Multimodal Cache)
-      // TODO: 迁移至 MessageBuilder
-      const enrichedContent = await this.buildEnrichedMessage(content, basePayload);
-
+      const builtMessage = await messageBuilder.build(content, threadId);
+      
       // 5. 上下文选择 (Sliding Window / Token Limit)
-      // TODO: 迁移至 ContextSelector
-      const context = await this.selectContext(threadId, basePayload);
+      const settings = useSettingsStore.getState();
+      let allMessages = getThreadMessages(threadId);
+      
+      // 🔥 补强：如果当前线程没有消息（新对话），则由 Orchestrator 负责注入初始系统消息
+      // 这确保了即使是重构后的第一条消息，也具备完整的上下文“灵魂”
+      if (allMessages.length === 0) {
+        const systemMsg: any = {
+          id: `sys-${correlationId}`,
+          role: 'system',
+          content: settings.customSystemPrompt || 'You are IfAI, a helpful AI assistant.',
+          timestamp: Date.now()
+        };
+        // 注意：此处仅为上下文准备，实际存入 Store 应由后续的 Store 映射层完成
+        allMessages = [systemMsg];
+        console.log('[SendMessageOrchestrator] 🧠 Injected default system prompt for new session');
+      }
+      
+      const context = await contextSelector.select(
+        allMessages as any,
+        settings.maxContextMessages || 20,
+        modelName,
+        settings.maxContextTokens || 4000
+      );
+      
+      console.log(`[SendMessageOrchestrator] Context selected: ${context.length} messages`);
 
       // 6. 最终分发 (保险丝 2: 事务持久化触发点)
-      // 这里的 chat:message:sent 会被 PersistenceManager 监听到并即刻落盘
       chatEventBus.emit('chat:message:sent', {
         ...basePayload,
-        messageId: `msg-${correlationId}`, // 临时 ID，后续由 Builder 生成
-        content: enrichedContent
+        messageId: builtMessage.id, 
+        content: builtMessage.content
       });
 
-      return { correlationId, sessionId };
+      return { correlationId, sessionId, messageId: builtMessage.id, context };
     } catch (error) {
       console.error('[SendMessageOrchestrator] ❌ Pipeline failure:', error);
       chatEventBus.emit('chat:error', {
