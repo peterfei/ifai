@@ -189,46 +189,17 @@ export const useChatStore = create<ChatStore>()(
             projectRoot: projectRoot  // 🆕 传递项目根目录
           });
 
-          // 发布工具完成事件（StoreMapper 会处理并添加工具结果消息）
+          // 发布工具完成事件
+          // 🏆 注意：续播由 ToolCallManager 统一处理，避免双重续播
           chatEventBus.emit('chat:tool:completed', {
             correlationId: messageId,
             sessionId: get().currentThreadId,
             timestamp: Date.now(),
             toolId: toolCallId,
-            result: result
+            result: result,
+            // 🏆 添加标记，表示这是自动审批流程，需要触发续播
+            shouldContinue: true
           });
-
-          // 🏆 FIX: 触发 AI 续播
-          const { useSettingsStore } = await import('./settingsStore');
-          const settings = useSettingsStore.getState();
-          const providerId = settings.currentProviderId || 'openai';
-          const modelId = settings.currentModel || 'gpt-4o';
-
-          // 延迟 200ms 确保 StoreMapper 完成处理并添加了工具结果消息
-          setTimeout(async () => {
-            const currentState = get();
-            console.log('[ChatStore] 🔄 Triggering AI continuation after tool completion');
-            console.log('[ChatStore] 🔄 Message count for continuation:', currentState.messages.length);
-
-            // 🏆 安全超时：5秒后强制重置 isLoading
-            const safetyTimer = setTimeout(() => {
-              if (get().isLoading) {
-                console.warn('[ChatStore] ⏰ Tool continuation safety timeout. Resetting isLoading.');
-                set({ isLoading: false });
-              }
-            }, 5000);
-
-            try {
-              await currentState.generateResponse(
-                currentState.messages,
-                providerId,
-                modelId,
-                messageId // 复用原始 assistant 消息 ID
-              );
-            } finally {
-              clearTimeout(safetyTimer);
-            }
-          }, 200);
         } catch (error) {
           console.error('[ChatStore] Tool approval failed:', error);
           // 🏆 FIX: 审批失败时更新状态为 error

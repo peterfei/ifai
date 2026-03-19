@@ -941,6 +941,16 @@ async fn approve_tool_call(
             let scan_result_str = agent_scan_project(root, rel_path.to_string(), Some(max_depth)).await
                 .map_err(|e| format!("Failed to scan project: {}", e))?;
 
+            // 🔧 优化：输出扫描结果的摘要信息
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&scan_result_str) {
+                if let Some(stats) = parsed.get("stats") {
+                    println!("[Agent] ✅ Scan complete: files={}, dirs={}",
+                        stats.get("totalFiles").and_then(|v| v.as_u64()).unwrap_or(0),
+                        stats.get("totalDirectories").and_then(|v| v.as_u64()).unwrap_or(0)
+                    );
+                }
+            }
+
             // 返回扫描结果（已经是 JSON 字符串）
             serde_json::json!({
                 "status": "success",
@@ -974,7 +984,16 @@ async fn approve_tool_call(
                 "status": "success",
                 "output": file_content
             });
-            println!("[Agent] 📤 Returning result: {}", result);
+
+            // 🔧 优化：对于大文件，只输出摘要而非完整内容
+            const MAX_LOG_LENGTH: usize = 500;
+            let result_str = serde_json::to_string(&result).unwrap_or_default();
+            if result_str.len() > MAX_LOG_LENGTH {
+                let preview = format!("{}...", &result_str[..MAX_LOG_LENGTH]);
+                println!("[Agent] 📤 Returning result: {} (total {} bytes, truncated for log)", preview, result_str.len());
+            } else {
+                println!("[Agent] 📤 Returning result: {}", result_str);
+            }
             result
         }
         "agent_list_dir" => {

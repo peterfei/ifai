@@ -12,6 +12,9 @@ import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolic
 export const initStoreMapper = () => {
     console.log('[StoreMapper] 🔗 Atomic Linkage Active');
 
+    // 🏆 FIX: 防止重复续播的标记
+    let continuationInProgress: { [key: string]: boolean } = {};
+
     // 1. 映射用户消息发送
     chatEventBus.on('chat:message:sent', (payload) => {
       const { messageId, content, correlationId, isAssistantOnly } = payload as any;
@@ -213,6 +216,13 @@ export const initStoreMapper = () => {
 
           if (shouldAutoApprove) {
             console.log('[StoreMapper] 🚀 Triggering auto-approve for tool:', name);
+
+            // 🏆 FIX: 标记工具已执行，防止 ToolCallManager 重复执行
+            if (!window.__EXECUTED_TOOLS__) {
+              (window as any).__EXECUTED_TOOLS__ = new Set();
+            }
+            (window as any).__EXECUTED_TOOLS__.add(toolId);
+
             const chatStore = useChatStore.getState();
             await chatStore.approveToolCall(correlationId, toolId);
           }
@@ -224,9 +234,9 @@ export const initStoreMapper = () => {
 
     // 4. 映射工具执行结果
     chatEventBus.on('chat:tool:completed', (payload) => {
-      const { toolId, result, error, correlationId } = payload;
+      const { toolId, result, error, correlationId, shouldContinue } = payload;
 
-      console.log('[StoreMapper] ✅ Tool completed event received:', { toolId, correlationId, hasResult: !!result });
+      console.log('[StoreMapper] ✅ Tool completed event received:', { toolId, correlationId, hasResult: !!result, shouldContinue });
 
       const updater = (state: any) => {
         const content = error || (typeof result === 'string' ? result : JSON.stringify(result));
@@ -250,8 +260,11 @@ export const initStoreMapper = () => {
           return msg;
         });
 
+        // 检查是否已存在工具结果消息
+        const hasToolResult = state.messages.some((m: any) => m.id === `res-${toolId}`);
+
         return {
-          messages: [
+          messages: hasToolResult ? updatedMessages : [
             ...updatedMessages,
             {
               id: `res-${toolId}`,
@@ -261,10 +274,72 @@ export const initStoreMapper = () => {
               timestamp: Date.now()
             }
           ],
-          isLoading: true
+          isLoading: true  // 保持加载状态，准备续播
         };
       };
       useChatStore.setState(updater as any);
+
+      // 🏆 FIX: 检查是否所有工具都已完成，如果是才触发续播
+      if (shouldContinue) {
+        setTimeout(async () => {
+          const currentState = useChatStore.getState();
+
+          // 🏆 FIX: 检查是否已经有续播在进行中
+          if (continuationInProgress[correlationId]) {
+            console.log('[StoreMapper] ⏳ Continuation already in progress for:', correlationId);
+            return;
+          }
+
+          // 🏆 检查是否还有未完成的工具
+          const hasPendingTools = currentState.messages.some((msg: any) =>
+            msg.toolCalls && msg.toolCalls.some((tc: any) => tc.status === 'pending' || tc.status === 'executing')
+          );
+
+          if (hasPendingTools) {
+            console.log('[StoreMapper] ⏳ Waiting for other tools to complete...');
+            return;
+          }
+
+          // 🏆 标记续播开始
+          continuationInProgress[correlationId] = true;
+
+          const { useSettingsStore } = await import('../settingsStore');
+          const settings = useSettingsStore.getState();
+          const providerId = settings.currentProviderId || 'openai';
+          const modelId = settings.currentModel || 'gpt-4o';
+
+          console.log('[StoreMapper] 🔄 All tools completed, triggering AI continuation');
+          console.log('[StoreMapper] 🔄 Message count for continuation:', currentState.messages.length);
+          console.log('[StoreMapper] 🔄 CorrelationId for continuation:', correlationId);
+
+          const targetMsg = currentState.messages.find((m: any) => m.id === correlationId);
+          console.log('[StoreMapper] 🔄 Found target message:', targetMsg ? { id: targetMsg.id, role: targetMsg.role } : 'NOT FOUND');
+
+          // 🏆 安全超时：5秒后强制重置 isLoading 和续播标记
+          const safetyTimer = setTimeout(() => {
+            if (useChatStore.getState().isLoading) {
+              console.warn('[StoreMapper] ⏰ Tool continuation safety timeout. Resetting isLoading.');
+              useChatStore.setState({ isLoading: false } as any);
+            }
+            continuationInProgress[correlationId] = false;
+          }, 5000);
+
+          try {
+            await currentState.generateResponse(
+              currentState.messages,
+              providerId,
+              modelId,
+              correlationId  // 复用原始 assistant 消息 ID
+            );
+          } finally {
+            clearTimeout(safetyTimer);
+            // 🏆 续播完成后延迟重置标记
+            setTimeout(() => {
+              continuationInProgress[correlationId] = false;
+            }, 1000);
+          }
+        }, 300); // 增加延迟确保所有工具完成事件都被处理
+      }
     });
 
     // 5. 映射流式结束

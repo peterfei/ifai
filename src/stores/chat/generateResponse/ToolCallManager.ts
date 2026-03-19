@@ -11,6 +11,7 @@ export interface ToolCallState {
   name: string;
   arguments: string;
   status: 'pending' | 'approved' | 'executing' | 'completed' | 'error';
+  argumentsReceived: boolean; // 🏆 FIX: 标志位，防止参数在流式传输中被重复追加
 }
 
 export class ToolCallManager {
@@ -45,13 +46,18 @@ private init() {
   private handleIncomingToolCall(payload: any) {
     const { toolId, name, arguments: newArgs } = payload;
     let state = this.activeToolCalls.get(toolId);
-    
+
     if (!state) {
-      state = { id: toolId, name, arguments: '', status: 'pending' };
+      state = { id: toolId, name, arguments: '', status: 'pending', argumentsReceived: false };
       this.activeToolCalls.set(toolId, state);
     }
 
-    state.arguments += newArgs;
+    // 🏆 FIX: 只在首次接收参数时追加，防止流式传输中重复拼接
+    if (!state.argumentsReceived && newArgs) {
+      state.arguments = newArgs;
+      state.argumentsReceived = true;
+      console.log(`[ToolCallManager] 📥 Set arguments for tool ${name} (${toolId}):`, newArgs.substring(0, 100) + (newArgs.length > 100 ? '...' : ''));
+    }
 
     // 🏆 物理保险丝：如果流已结束，立即尝试处理
     if (!this.isStreamActive) {
@@ -77,6 +83,14 @@ private init() {
 
   private async executeTool(tc: ToolCallState, payload: BasePayload) {
     if (tc.status === 'executing') return;
+
+    // 🏆 FIX: 检查工具是否已经通过自动审批执行过
+    const executedTools = (window as any).__EXECUTED_TOOLS__ || new Set();
+    if (executedTools.has(tc.id)) {
+      console.log(`[ToolCallManager] ⚠️ Tool ${tc.name} already executed via auto-approve, skipping.`);
+      this.activeToolCalls.delete(tc.id);
+      return;
+    }
 
     // 🏆 特殊处理：如果是 LocalModel 自动触发的工具（如 bash），由后端直接执行
     if ((payload as any).isAutoExecuted) {
@@ -202,7 +216,8 @@ setTimeout(async () => {
   }
 
   private checkAutoApprove(toolName: string): boolean {
-    const safeTools = ['agent_scan_project', 'agent_list_dir', 'readFile', 'listFiles', 'getSymbol', 'bash'];
+    // 🔧 FIX: 添加 agent_read_file 到自动批准列表（与 readFile 行为一致）
+    const safeTools = ['agent_scan_project', 'agent_list_dir', 'readFile', 'agent_read_file', 'listFiles', 'getSymbol', 'bash'];
     return safeTools.includes(toolName);
   }
 }
