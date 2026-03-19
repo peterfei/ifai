@@ -2100,151 +2100,102 @@ history: any[], providerConfig: any, options?: { enableTools?: boolean }) => {
             if (!raw) return;
 
             if (typeof raw === 'object') {
-
                 if (raw.type === 'content') textChunk = String(raw.content);
-
-                else if (raw.type === 'tool_call') toolCallUpdate = raw.toolCall;
-
+                else if (raw.type === 'tool_call' || raw.type === 'toolCall') toolCallUpdate = raw.toolCall || raw.tool_call;
             } else if (typeof raw === 'string') {
-
                 try {
-
                     const p = JSON.parse(raw);
-
                     if (p.type === 'content') textChunk = String(p.content);
-
-                    else if (p.type === 'tool_call') toolCallUpdate = p.toolCall;
-
+                    else if (p.type === 'tool_call' || p.type === 'toolCall') toolCallUpdate = p.toolCall || p.tool_call;
                 } catch {
-
                     const objs = raw.match(/\{[^{}]+\}/g);
-
                     if (objs) {
-
                         const p = JSON.parse(objs[objs.length-1]);
-
                         if (p.type === 'content') textChunk = String(p.content);
-
+                        else if (p.type === 'tool_call' || p.type === 'toolCall') toolCallUpdate = p.toolCall || p.tool_call;
                     }
-
                 }
-
             }
-
         } catch (e) { console.error('[Stream] Parse error', e); }
 
         if (textChunk || toolCallUpdate) {
-
+            let found = false;
             localMessagesBuffer = localMessagesBuffer.map(m => {
-
                 if (m.id === assistantMsgId) {
-
+                    found = true;
                     const newMsg: Message = { ...m };
-
                     newMsg.contentSegments = m.contentSegments ? [...m.contentSegments] : [];
 
                     if (textChunk) {
-
                         newMsg.content = (newMsg.content || '') + textChunk;
-
                         const order = newMsg.contentSegments.length;
-
                         const startPos = (newMsg.content || '').length - textChunk.length;
-
                         newMsg.contentSegments = [...newMsg.contentSegments, { type: 'text' as const, order, timestamp: Date.now(), content: textChunk, startPos, endPos: newMsg.content.length }];
-
                     }
 
                     if (toolCallUpdate) {
-
                         const toolName = toolCallUpdate.function?.name || toolCallUpdate.tool;
-
                         const newArgs = toolCallUpdate.function?.arguments || '';
-
                         const existingCalls = newMsg.toolCalls || [];
+                        
+                        // 🔥 增强查找逻辑：兼容 ID 或 Index
+                        const idx = existingCalls.findIndex(tc => 
+                            (toolCallUpdate.id && tc.id === toolCallUpdate.id) || 
+                            (toolCallUpdate.id === null && (tc as any).index === toolCallUpdate.index)
+                        );
 
-                        const idx = existingCalls.findIndex(tc => (toolCallUpdate.id && tc.id === toolCallUpdate.id) || (toolCallUpdate.id === null && (tc as any).index === toolCallUpdate.index));
-
-                                                if (idx !== -1) {
-
-                                                    const tc = existingCalls[idx];
-
-                                                    const argsStr = ((tc as any).function?.arguments || '') + newArgs;
-
-                                                    
-
-                                                    // 🏆 物理加固：确保 arguments 源码被完整保留
-
-                                                    const updated = [...existingCalls];
-
-                                                    let parsed = { ...tc.args };
-
-                                                    try { parsed = JSON.parse(argsStr); } catch (e) { /* 解析中状态 */ }
-
-                                                    
-
-                                                    updated[idx] = { 
-
-                                                        ...tc, 
-
-                                                        args: parsed, 
-
-                                                        function: { name: toolName, arguments: argsStr }, 
-
-                                                        isPartial: true 
-
-                                                    } as any;
-
-                                                    newMsg.toolCalls = updated;
-
-                                                }
-
-                         else {
-                            const tid = toolCallUpdate.id || crypto.randomUUID();
-                            let initialArgs: any = {};
-                            try {
-                                initialArgs = newArgs ? JSON.parse(newArgs) : {};
-                            } catch (e) {
-                                const safeArgsString = String(newArgs);
-                                const contentMatch = safeArgsString.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)(?:\\|"?$)/s);
-                                if (contentMatch) {
-                                    let content = contentMatch[1];
-                                    content = content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
-                                    initialArgs.content = content;
-                                }
-                                const relPathMatch = safeArgsString.match(/"rel_path"\s*:\s*"([^"]*)"?/);
-                                if (relPathMatch) initialArgs.rel_path = relPathMatch[1];
-                            }
+                        if (idx !== -1) {
+                            const tc = existingCalls[idx];
+                            const argsStr = ((tc as any).function?.arguments || '') + newArgs;
+                            const updated = [...existingCalls];
+                            let parsed = { ...tc.args };
+                            try { parsed = JSON.parse(argsStr); } catch (e) { /* partial */ }
                             
-                            const tc = { id: tid, type: 'function' as const, tool: toolName, args: initialArgs, function: { name: toolName, arguments: newArgs }, status: 'pending' as const, isPartial: true, index: toolCallUpdate.index } as any;
+                            updated[idx] = { 
+                                ...tc, 
+                                args: parsed, 
+                                function: { name: toolName, arguments: argsStr }, 
+                                isPartial: true 
+                            } as any;
+                            newMsg.toolCalls = updated;
+                        } else {
+                            // 🆕 创建新工具调用
+                            const tid = toolCallUpdate.id || `call_${crypto.randomUUID().substring(0, 8)}`;
+                            let initialArgs: any = {};
+                            try { initialArgs = newArgs ? JSON.parse(newArgs) : {}; } catch (e) { /* partial */ }
+                            
+                            const tc = { 
+                                id: tid, type: 'function' as const, tool: toolName, args: initialArgs, 
+                                function: { name: toolName, arguments: newArgs }, 
+                                status: 'pending' as const, isPartial: true, index: toolCallUpdate.index,
+                                timestamp: Date.now() 
+                            } as any;
+                            
                             newMsg.toolCalls = [...existingCalls, tc];
-
+                            
+                            // 🏆 物理加固：同步创建 Segment 片段，这是 UI 渲染的唯一入口
                             const order = newMsg.contentSegments.length;
-
-                            newMsg.contentSegments = [...newMsg.contentSegments, { type: 'tool' as const, order, timestamp: Date.now(), toolCallId: tid }];
-
+                            newMsg.contentSegments = [...newMsg.contentSegments, { 
+                                type: 'tool' as const, 
+                                order, 
+                                timestamp: Date.now(), 
+                                toolCallId: tid 
+                            }];
+                            console.log(`[ChatStore] 🛡️ Segment Atomic Injection: ${toolName} (${tid})`);
                         }
-
                     }
-
                     return newMsg;
-
                 }
-
                 return m;
-
             });
 
-            if (!renderRequested) {
-
-                renderRequested = true;
-
-                requestAnimationFrame(() => { coreUseChatStore.setState({ messages: [...localMessagesBuffer] } as any); renderRequested = false; });
-
+            if (!found) {
+                // 🚑 紧急自愈：如果本地 buffer 失效，立即强制同步
+                localMessagesBuffer = [...coreUseChatStore.getState().messages] as any;
             }
 
+            coreUseChatStore.setState({ messages: [...localMessagesBuffer] } as any);
         }
-
     });
 
     const unlistenFinish = await listen<string>(`${assistantMsgId}_finish`, async (event) => {

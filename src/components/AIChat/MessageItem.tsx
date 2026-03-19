@@ -561,33 +561,24 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             toolCallId: tc.id
         }));
         
-        // E. 统一排序 (Priority: Action-First Always)
+        // E. 统一排序 - 严格遵循时间顺序与逻辑顺序的混合模式
         const sorted = [...filteredItems, ...untrackedSegments].sort((a, b) => {
-            // 🔥 工业级优化：强行让工具排在大部分文本前面（Thinking 除外）
-            // 这解决了 AI 先说一堆废话再执行工具导致的视觉混乱
-            // 我们在流式状态下也开启此逻辑，但允许极短的“前导语”留在上方
-            if (a.type === 'tool' && b.type === 'text') {
-                const isIntro = b.content && b.content.length < 40 && 
-                               !b.content.includes('已完成') && 
-                               !b.content.includes('重构');
-                return isIntro ? 1 : -1;
-            }
-            if (a.type === 'text' && b.type === 'tool') {
-                const isIntro = a.content && a.content.length < 40 && 
-                               !a.content.includes('已完成') && 
-                               !a.content.includes('重构');
-                return isIntro ? -1 : 1;
-            }
-
-            // 如果都有有效的顺序（用于同类型片段之间的排序）
+            // 1. 如果都有明确的 order，按 order 排 (流式追踪最准确)
             if (a.order !== undefined && b.order !== undefined && a.order < 999 && b.order < 999) {
-                return a.order - b.order;
+                if (a.order !== b.order) return a.order - b.order;
             }
             
-            // 兜底：基于时间戳排序
+            // 2. 物理兜底：基于时间戳排序 (确保新产生的段落总是在后面)
             const timeA = a.timestamp || 0;
             const timeB = b.timestamp || 0;
-            return timeA - timeB;
+            if (timeA !== timeB) return timeA - timeB;
+
+            // 3. 终极兜底：工具优先原则 (如果时间戳完全一致)
+            if (a.type !== b.type) {
+                return a.type === 'tool' ? -1 : 1;
+            }
+            
+            return 0;
         });
 
         // F. 归并相邻文本片段
