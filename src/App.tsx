@@ -155,6 +155,11 @@ function App() {
         const { initThreadPersistence } = await import('./stores/persistence/threadPersistence');
         await initThreadPersistence();
         console.log('[App] ✅ Thread persistence initialized');
+
+        // 🔥 Refactor Phase 2: Initialize the new Transactional Persistence Manager
+        // 它作为 EventBus 的常驻订阅者，将监听所有聊天事务并实时同步到 IndexedDB
+        const { persistenceManager } = await import('./stores/chat/persistence/PersistenceManager');
+        console.log('[App] 🧠 Transactional Persistence Manager ready');
       } catch (error) {
         console.error('[App] ❌ Failed to initialize thread persistence:', error);
       }

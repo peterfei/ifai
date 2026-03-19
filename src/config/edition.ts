@@ -33,3 +33,9 @@ export const FEATURES = {
 export function checkFeature(feature: keyof typeof FEATURES): boolean {
     return FEATURES[feature];
 }
+
+// 🏆 Refactor Feature Flags: 重构阶段性开关
+export const REFACTOR_FLAGS = {
+  useNewChatArchitecture: false, // 是否开启新版事件总线 + Session 持久化架构
+  enableEventBusTracing: true,   // 开发模式下是否记录详细事件日志
+};
