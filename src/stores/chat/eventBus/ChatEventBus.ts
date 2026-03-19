@@ -111,10 +111,10 @@ export class ChatEventBus {
   }
 
   /**
-   * 生成全局唯一相关性 ID
+   * 生成全局唯一相关性 ID (回归标准 UUID 以保证 UI 兼容性)
    */
   createCorrelationId(): string {
-    return `corr-${uuidv4()}`;
+    return uuidv4();
   }
 }
 

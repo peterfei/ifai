@@ -79,6 +79,22 @@ import i18nInstance from './i18n/config';
 console.log('[App] i18n exposed at module load, language:', i18nInstance.language);
 
 function App() {
+  // 🔥 Refactor Phase 6: Final Entrance Locking
+  if (typeof window !== 'undefined') {
+      (window as any).__chatStore = useChatStore;
+      
+      // 🏆 暴露总线与控制器，用于 TDD 仿真和调试
+      import('./stores/chat/eventBus/ChatEventBus').then(({ chatEventBus }) => {
+          (window as any).__chatEventBus = chatEventBus;
+      });
+      import('./stores/chat/sendMessage/SendMessageOrchestrator').then(({ sendMessageOrchestrator }) => {
+          (window as any).__sendMessageOrchestrator = sendMessageOrchestrator;
+      });
+      import('./stores/chat/generateResponse/StreamingResponseController').then(({ streamingResponseController }) => {
+          (window as any).__streamingResponseController = streamingResponseController;
+      });
+  }
+
   // 🔥 调试：跟踪 App 组件的渲染次数
   (window as any).__appRenderCount = ((window as any).__appRenderCount || 0) + 1;
   const renderCount = (window as any).__appRenderCount;
@@ -170,6 +186,11 @@ function App() {
         // 🔥 Refactor Phase 4: Expose Stream Controller for E2E validation
         const { streamingResponseController } = await import('./stores/chat/generateResponse/StreamingResponseController');
         (window as any).__streamingResponseController = streamingResponseController;
+
+        // 🔥 Refactor Phase 5: Initialize StoreMapper
+        // 它负责将 EventBus 信号同步回 Zustand Store，驱动 UI 变化
+        const { storeMapper } = await import('./stores/chat/StoreMapper');
+        (window as any).__storeMapper = storeMapper;
 
         // 🔥 Refactor Phase 4.2: Initialize ToolCallManager
         // 它监听 EventBus 上的工具信号并管理其全生命周期

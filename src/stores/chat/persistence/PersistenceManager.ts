@@ -24,6 +24,41 @@ export class PersistenceManager {
 
   constructor() {
     this.init();
+    // 🏆 Phase 6: 启动自愈
+    this.recoverSessions();
+  }
+
+  /**
+   * 持久化自愈：处理因崩溃导致的断链状态
+   */
+  private async recoverSessions() {
+    console.log('[PersistenceManager] 🛡️ Running persistence self-healing check...');
+    try {
+      const { useThreadStore } = await import('../../threadStore');
+      const threads = useThreadStore.getState().threads;
+      
+      for (const threadId of Object.keys(threads)) {
+        const messages = getThreadMessages(threadId);
+        let hasFixed = false;
+
+        // 修复处于中间态的消息
+        const fixedMessages = messages.map(m => {
+          if (m.status === 'sending' || m.status === 'streaming') {
+            hasFixed = true;
+            return { ...m, status: 'interrupted', content: m.content + '\n\n[Session Interrupted during refactor/crash]' };
+          }
+          return m;
+        });
+
+        if (hasFixed) {
+          console.warn(`[PersistenceManager] ⚠️ Recovered interrupted session: ${threadId}`);
+          setThreadMessages(threadId, fixedMessages as any);
+          await this.persistFullSession(threadId);
+        }
+      }
+    } catch (error) {
+      console.error('[PersistenceManager] ❌ Self-healing failed:', error);
+    }
   }
 
   /**

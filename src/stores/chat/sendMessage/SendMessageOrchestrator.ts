@@ -53,28 +53,29 @@ export class SendMessageOrchestrator {
       const settings = useSettingsStore.getState();
       let allMessages = getThreadMessages(threadId);
       
-      // 🔥 补强：如果当前线程没有消息（新对话），则由 Orchestrator 负责注入初始系统消息
-      // 这确保了即使是重构后的第一条消息，也具备完整的上下文“灵魂”
+      // 🏆 修正：将当前刚构建的消息合入历史记录，确保 AI 能收到它
+      const messageToSelect = [...allMessages, builtMessage];
+      
+      // 如果没有历史消息，注入初始系统消息
       if (allMessages.length === 0) {
         const systemMsg: any = {
           id: `sys-${correlationId}`,
           role: 'system',
           content: settings.customSystemPrompt || 'You are IfAI, a helpful AI assistant.',
-          timestamp: Date.now()
+          timestamp: Date.now() - 1 // 确保在用户消息之前
         };
-        // 注意：此处仅为上下文准备，实际存入 Store 应由后续的 Store 映射层完成
-        allMessages = [systemMsg];
+        messageToSelect.unshift(systemMsg);
         console.log('[SendMessageOrchestrator] 🧠 Injected default system prompt for new session');
       }
       
       const context = await contextSelector.select(
-        allMessages as any,
+        messageToSelect as any,
         settings.maxContextMessages || 20,
         modelName,
         settings.maxContextTokens || 4000
       );
       
-      console.log(`[SendMessageOrchestrator] Context selected: ${context.length} messages`);
+      console.log(`[SendMessageOrchestrator] Context selected: ${context.length} messages (including current)`);
 
       // 6. 最终分发 (保险丝 2: 事务持久化触发点)
       chatEventBus.emit('chat:message:sent', {
