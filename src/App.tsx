@@ -187,10 +187,8 @@ function App() {
         const { streamingResponseController } = await import('./stores/chat/generateResponse/StreamingResponseController');
         (window as any).__streamingResponseController = streamingResponseController;
 
-        // 🔥 Refactor Phase 5: Initialize StoreMapper
-        // 它负责将 EventBus 信号同步回 Zustand Store，驱动 UI 变化
-        const { storeMapper } = await import('./stores/chat/StoreMapper');
-        (window as any).__storeMapper = storeMapper;
+        // 🏆 FIX: StoreMapper 已在 useChatStore.ts 中初始化，避免重复初始化
+        (window as any).__storeMapper = { init: true };
 
         // 🔥 Refactor Phase 4.2: Initialize ToolCallManager
         // 它监听 EventBus 上的工具信号并管理其全生命周期

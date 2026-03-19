@@ -119,7 +119,18 @@ export class ChatEventBus {
 }
 
 // 导出单例，确保全系统共享同一套“神经系统”
-export const chatEventBus = new ChatEventBus();
+// 🏆 物理隔离保护：确保 E2E 环境下测试脚本与逻辑层使用同一个实例
+const getGlobalBus = () => {
+    if (typeof window !== 'undefined') {
+        if (!(window as any).__GLOBAL_CHAT_EVENT_BUS__) {
+            (window as any).__GLOBAL_CHAT_EVENT_BUS__ = new ChatEventBus();
+        }
+        return (window as any).__GLOBAL_CHAT_EVENT_BUS__;
+    }
+    return new ChatEventBus();
+};
+
+export const chatEventBus = getGlobalBus();
 
 // 开发模式下开启事件追踪 (Debugability)
 if (import.meta.env.DEV) {

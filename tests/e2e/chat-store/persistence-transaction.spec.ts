@@ -16,18 +16,16 @@ test.describe('ChatStore 事务持久化集成验证 (Phase 2)', () => {
 
     // 1. 手动通过 EventBus 触发发送信号 (模拟新架构行为)
     await page.evaluate(({ msg, sid }) => {
-        const { chatEventBus } = (window as any).ChatEventBusExport; // 假设我们已暴露给 window
-        if (!chatEventBus) {
-             // 影子方案：直接从模块中模拟触发
+        const bus = (window as any).__chatEventBus; 
+        if (bus) {
              const payload = {
-                 correlationId: 'test-corr-1',
+                 correlationId: (window as any).crypto.randomUUID(),
                  sessionId: sid,
-                 messageId: 'test-msg-1',
+                 messageId: (window as any).crypto.randomUUID(),
                  content: msg,
                  timestamp: Date.now()
              };
-             // 注意：由于是隔离模块，实际测试需要我们将 EventBus 暴露
-             (window as any).__chatEventBus?.emit('chat:message:sent', payload);
+             bus.emit('chat:message:sent', payload);
         }
     }, { msg: testMessage, sid: sessionId });
 

@@ -39,7 +39,8 @@ test.describe('ChatStore 全管道编排集成验证 (Phase 3)', () => {
 
     expect(result.success).toBe(true);
     expect(result.hasFileContent).toBe(true);
-    expect(result.correlationId).toMatch(/^corr-/);
+    // 🏆 修正：回归标准 UUID 格式校验
+    expect(result.correlationId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/); 
     console.log(`[Integration] Pipe execution successful, content length: ${result.contentLength}`);
   });
 

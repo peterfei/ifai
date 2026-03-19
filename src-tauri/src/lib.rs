@@ -877,6 +877,164 @@ async fn ai_chat(
 }
 
 #[tauri::command]
+async fn approve_tool_call(
+    _state: tauri::State<'_, AppState>,
+    message_id: String,
+    tool_call_id: String,
+    tool_name: String,
+    tool_args: String,
+    project_root: Option<String>,
+) -> Result<serde_json::Value, String> {
+    println!("[Agent] Approving tool call: {} for message: {}", tool_call_id, message_id);
+    println!("[Agent] Tool: {} with args: {}", tool_name, tool_args);
+    println!("[Agent] Project root: {:?}", project_root);
+
+    // 🏆 根据工具名称执行相应的工具
+    let result = match tool_name.as_str() {
+        "agent_execute_command" | "bash" => {
+            // 解析命令参数
+            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
+                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+
+            let command = args_json.get("command")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'command' parameter")?;
+
+            println!("[Agent] Executing command: {}", command);
+
+            // 🏆 调用 bash 命令执行
+            use commands::bash_commands::execute_bash_command;
+
+            let bash_result = execute_bash_command(
+                command.to_string(),
+                project_root.clone(), // 使用项目根目录作为工作目录
+                Some(30000), // 30秒超时
+                None,        // 无额外环境变量
+            ).await.map_err(|e| format!("Failed to execute command: {}", e))?;
+
+            serde_json::json!({
+                "status": "success",
+                "output": bash_result.stdout,
+                "stderr": bash_result.stderr,
+                "exit_code": bash_result.exit_code,
+                "success": bash_result.success
+            })
+        }
+        "agent_scan_project" => {
+            // 解析参数
+            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
+                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+
+            let rel_path = args_json.get("rel_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".");
+            let max_depth = args_json.get("max_depth")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(2) as usize;
+
+            println!("[Agent] Scanning project: path={}, depth={}", rel_path, max_depth);
+
+            // 🏆 调用项目扫描
+            let root = project_root.ok_or("Missing project_root for agent_scan_project")?;
+
+            use commands::core_wrappers::agent_scan_project;
+            let scan_result_str = agent_scan_project(root, rel_path.to_string(), Some(max_depth)).await
+                .map_err(|e| format!("Failed to scan project: {}", e))?;
+
+            // 返回扫描结果（已经是 JSON 字符串）
+            serde_json::json!({
+                "status": "success",
+                "output": scan_result_str
+            })
+        }
+        "agent_read_file" => {
+            // 解析参数
+            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
+                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+
+            let rel_path = args_json.get("rel_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'rel_path' parameter")?;
+
+            println!("[Agent] Reading file: {}", rel_path);
+
+            // 🏆 调用文件读取
+            let root = project_root.ok_or("Missing project_root for agent_read_file")?;
+
+            use commands::core_wrappers::agent_read_file;
+            let file_content = agent_read_file(root, rel_path.to_string()).await
+                .map_err(|e| {
+                    println!("[Agent] ❌ File read failed: {}", e);
+                    format!("Failed to read file: {}", e)
+                })?;
+
+            println!("[Agent] ✅ File read success, content length: {} chars", file_content.len());
+
+            let result = serde_json::json!({
+                "status": "success",
+                "output": file_content
+            });
+            println!("[Agent] 📤 Returning result: {}", result);
+            result
+        }
+        "agent_list_dir" => {
+            // 解析参数
+            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
+                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+
+            let rel_path = args_json.get("rel_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".");
+
+            println!("[Agent] Listing directory: {}", rel_path);
+
+            // 🏆 调用目录列表
+            let root = project_root.ok_or("Missing project_root for agent_list_dir")?;
+
+            use commands::core_wrappers::agent_list_dir;
+            let entries = agent_list_dir(root, rel_path.to_string()).await
+                .map_err(|e| format!("Failed to list directory: {}", e))?;
+
+            serde_json::json!({
+                "status": "success",
+                "output": serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_string())
+            })
+        }
+        "agent_write_file" => {
+            // 解析参数
+            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
+                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+
+            let rel_path = args_json.get("rel_path")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'rel_path' parameter")?;
+            let content = args_json.get("content")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing 'content' parameter")?;
+
+            println!("[Agent] Writing file: {}", rel_path);
+
+            // 🏆 调用文件写入
+            let root = project_root.ok_or("Missing project_root for agent_write_file")?;
+
+            use commands::core_wrappers::agent_write_file;
+            agent_write_file(root, rel_path.to_string(), content.to_string()).await
+                .map_err(|e| format!("Failed to write file: {}", e))?;
+
+            serde_json::json!({
+                "status": "success",
+                "output": format!("File written: {}", rel_path)
+            })
+        }
+        _ => {
+            return Err(format!("Unknown tool: {}", tool_name));
+        }
+    };
+
+    Ok(result)
+}
+
+#[tauri::command]
 async fn ai_completion(
     state: tauri::State<'_, AppState>,
     provider_config: core_traits::ai::AIProviderConfig,
@@ -1124,6 +1282,8 @@ pub fn run() {
             ai::pivo::commands::pivo_generate_tasks,
             ai::pivo::commands::pivo_execute_task,
             ai::pivo::commands::pivo_init_assets,
+            // 🏆 新增：Agent 工具审批
+            approve_tool_call,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

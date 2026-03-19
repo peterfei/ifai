@@ -35,7 +35,8 @@ test.describe('SendMessageOrchestrator 编排器与意图识别验证 (Phase 3)'
     expect(intentPayload).toBeTruthy();
     expect(intentPayload.intent.type).toBe('slash');
     expect(intentPayload.metadata.command).toBe('/explore');
-    expect(intentPayload.correlationId).toMatch(/^corr-/);
+    // 🏆 修正
+    expect(intentPayload.correlationId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/); 
   });
 
   test('Orchestrator 发送消息后应通过总线触发持久化落盘', async ({ page }) => {
