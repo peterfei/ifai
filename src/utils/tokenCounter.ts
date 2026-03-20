@@ -1,7 +1,9 @@
 // Token 计数工具 - v0.2.6 新增
 // 提供与后端 tiktoken-rs 集成的 Token 计数功能
 
-import { invoke } from '@tauri-apps/api/core';
+// 🔥 FIX: 移除静态导入，改为动态导入以避免 Tauri bridge 未初始化问题
+// import { invoke } from '@tauri-apps/api/core';
+import { ensureTauriInitialized } from './tauriInitializer';
 
 /**
  * 计算单个文本的 Token 数量
@@ -10,6 +12,8 @@ import { invoke } from '@tauri-apps/api/core';
  * @returns Token 数量
  */
 export async function countTokens(text: string, model: string): Promise<number> {
+  await ensureTauriInitialized();
+  const { invoke } = await import('@tauri-apps/api/core');
   return invoke<number>('count_tokens', { text, model });
 }
 
@@ -20,6 +24,8 @@ export async function countTokens(text: string, model: string): Promise<number> 
  * @returns 每个文本的 Token 数量数组
  */
 export async function countTokensBatch(texts: string[], model: string): Promise<number[]> {
+  await ensureTauriInitialized();
+  const { invoke } = await import('@tauri-apps/api/core');
   return invoke<number[]>('count_tokens_batch', { texts, model });
 }
 
@@ -29,6 +35,8 @@ export async function countTokensBatch(texts: string[], model: string): Promise<
  * @returns 估算的 Token 数量
  */
 export async function estimateTokens(text: string): Promise<number> {
+  await ensureTauriInitialized();
+  const { invoke } = await import('@tauri-apps/api/core');
   return invoke<number>('estimate_tokens_cmd', { text });
 }
 

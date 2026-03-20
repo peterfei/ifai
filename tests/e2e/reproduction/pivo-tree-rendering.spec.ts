@@ -90,7 +90,11 @@ test.describe('PivoProjectTree 渲染高保真还原', () => {
               id: 'call-scan-1',
               tool: 'agent_scan_project',
               status: 'completed',
-              result: JSON.stringify(mockScanData)
+              // 🏆 高保真还原：使用真实后端返回的双重包装格式
+              result: JSON.stringify({
+                output: JSON.stringify(mockScanData),
+                status: "success"
+              })
             }]
           },
           toolMessage

@@ -1,13 +1,14 @@
 /**
  * StreamingResponseController - 流式响应控制器 (Phase 4)
- * 
+ *
  * 负责与 Tauri 后端通信，监听流式 SSE 事件并转化为 EventBus 信号。
  * 解决底层通信与 UI 状态的耦合问题。
- * 
+ *
  * @version v1.0.0
  */
 
-import { listen } from '@tauri-apps/api/event';
+// 🔥 FIX: 移除静态导入，改为动态导入以避免 Tauri bridge 未初始化问题
+// import { listen } from '@tauri-apps/api/event';
 import { chatEventBus, BasePayload } from '../eventBus/ChatEventBus';
 
 export class StreamingResponseController {

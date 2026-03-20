@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { chatEventBus } from './chat/eventBus/ChatEventBus';
+import { ensureTauriInitialized } from '../utils/tauriInitializer';
 
 // -------------------------------------------------------------------
 // 1. 类型定义
@@ -79,7 +80,7 @@ export interface ChatStore {
   rejectToolCall: (messageId: string, toolCallId: string) => Promise<void>;
 
   // 🔥 FIX: 添加回滚方法，支持工具调用回滚
-  rollbackToolCall: (messageId: string, toolCallId: string) => Promise<void>;
+  rollbackToolCall: (messageId: string, toolCallId: string, force?: boolean) => Promise<{ conflict?: boolean; success?: boolean; error?: string } | void>;
 }
 
 // -------------------------------------------------------------------
@@ -127,6 +128,9 @@ export const useChatStore = create<ChatStore>()(
 
       // 🔥 FIX: 添加工具审批方法的实现
       approveToolCall: async (messageId: string, toolCallId: string) => {
+        // 🔥 FIX: 确保 Tauri bridge 已初始化
+        await ensureTauriInitialized();
+
         const { invoke } = await import('@tauri-apps/api/core');
         const { useFileStore } = await import('./fileStore');
 
@@ -264,14 +268,28 @@ export const useChatStore = create<ChatStore>()(
       },
 
       // 🔥 FIX: 添加回滚方法的实现
-      rollbackToolCall: async (messageId: string, toolCallId: string) => {
+      rollbackToolCall: async (messageId: string, toolCallId: string, force: boolean = false) => {
+        // 🔥 FIX: 确保 Tauri bridge 已初始化
+        await ensureTauriInitialized();
+
         const { invoke } = await import('@tauri-apps/api/core');
 
         try {
-          await invoke('rollback_tool_call', {
+          // 调用后端回滚 API，传递 force 参数
+          const result = await invoke<{
+            conflict?: boolean;
+            success?: boolean;
+            error?: string;
+          }>('rollback_tool_call', {
             messageId: messageId,
-            toolCallId: toolCallId
+            toolCallId: toolCallId,
+            force: force
           });
+
+          // 如果有冲突，返回冲突信息
+          if (result?.conflict) {
+            return { conflict: true };
+          }
 
           // 从消息中移除该工具调用
           set((state) => ({
@@ -287,8 +305,13 @@ export const useChatStore = create<ChatStore>()(
           }));
 
           console.log(`[ChatStore] Tool ${toolCallId} rolled back`);
+          return { success: true };
         } catch (error) {
           console.error('[ChatStore] Tool rollback failed:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+          };
         }
       },
 
@@ -318,6 +341,9 @@ export const useChatStore = create<ChatStore>()(
           }, 30000);
 
           try {
+              // 🔥 FIX: 确保 Tauri bridge 已初始化
+              await ensureTauriInitialized();
+
               const { invoke } = await import('@tauri-apps/api/core');
               
               // 🏆 核级脱敏：1. 过滤空消息 2. 压缩重复角色 3. 角色交替校验

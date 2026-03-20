@@ -1,6 +1,7 @@
 import React, { useEffect, Fragment, useState, Suspense } from 'react';
 import clsx from 'clsx';
 import { ModalSkeleton, MessageSkeleton } from './components/UI/Skeleton';
+import { ensureTauriInitialized } from './utils/tauriInitializer';
 const CommandPalette = React.lazy(() => import('./components/CommandPalette/CommandPalette').then(m => ({ default: m.CommandPalette })));
 const CommandBar = React.lazy(() => import('./components/CommandBar').then(m => ({ default: m.CommandBar })));
 const SettingsModal = React.lazy(() => import('./components/Settings/SettingsModal').then(m => ({ default: m.SettingsModal })));
@@ -197,6 +198,9 @@ function App() {
         
         // 桥接 Tauri 信号，用于 TDD 仿真
         if ((window as any).VITE_TEST_ENV === 'e2e') {
+          // 🔥 FIX: 确保 Tauri bridge 已初始化
+          await ensureTauriInitialized();
+
           const { emit } = await import('@tauri-apps/api/event');
           (window as any).__TAURI_EMIT__ = emit;
         }
@@ -294,6 +298,15 @@ function App() {
         console.log('[App] ✅ InlineEditStore exposed to window.__inlineEditStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose InlineEditStore:', error);
+      }
+
+      // v0.3.1: 暴露 formatToolResultToMarkdown 到 window 对象供 E2E 测试使用
+      try {
+        const { formatToolResultToMarkdown } = await import('./utils/toolResultFormatter');
+        (window as any).__formatToolResultToMarkdown = formatToolResultToMarkdown;
+        console.log('[App] ✅ formatToolResultToMarkdown exposed to window.__formatToolResultToMarkdown');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose formatToolResultToMarkdown:', error);
       }
     };
 

@@ -137,6 +137,100 @@ export async function setupE2ETestEnvironment(
       if (window.__E2E_HELPERS_INSTALLED__) return;
       window.__E2E_HELPERS_INSTALLED__ = true;
 
+      // 🔥 FIX: 确保 Tauri bridge 在 E2E 测试环境中初始化
+      // 这修复了动态导入 @tauri-apps/api 时 window.__TAURI_INTERNALS__ 未定义的问题
+      const ensureTauriBridge = () => {
+        const w = window as any;
+        const useRealTauri = params.useRealTauri; // 从 params 获取
+
+        // 如果使用真实 Tauri，等待原生初始化
+        if (useRealTauri) {
+          console.log('[E2E Setup] 🔥 Real Tauri mode detected, waiting for native Tauri bridge...');
+
+          // 🔥 FIX: 设置全局标志，让 tauriInitializer.ts 知道这是真实 Tauri 模式
+          w.__E2E_REAL_TAURI_MODE__ = true;
+
+          // 为真实 Tauri 模式设置等待和检查逻辑
+          // 不创建 mock，让真实的 Tauri 初始化
+          const checkTauriReady = () => {
+            const ready = !!(
+              w.__TAURI_INTERNALS__?.invoke ||
+              w.__TAURI__?.core?.invoke
+            );
+            if (ready) {
+              console.log('[E2E Setup] ✅ Real Tauri bridge detected and ready');
+            }
+            return ready;
+          };
+
+          // 轮询检查 Tauri 是否就绪（最多等待 5 秒）
+          if (!checkTauriReady()) {
+            let attempts = 0;
+            const maxAttempts = 50; // 5 秒
+            const checkInterval = setInterval(() => {
+              attempts++;
+              if (checkTauriReady() || attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                if (attempts >= maxAttempts) {
+                  console.warn('[E2E Setup] ⚠️ Timeout waiting for real Tauri bridge');
+                }
+              }
+            }, 100);
+          }
+          return;
+        } else {
+          // 🔥 FIX: Mock 模式，明确标记
+          w.__E2E_REAL_TAURI_MODE__ = false;
+        }
+
+        // Mock 模式：如果已经初始化，跳过
+        if (w.__TAURI_INTERNALS__?.invoke || w.__TAURI__?.core?.invoke) {
+          console.log('[E2E Setup] ✅ Tauri bridge already initialized');
+          return;
+        }
+
+        console.log('[E2E Setup] 🔧 Initializing Tauri bridge mock for E2E environment...');
+
+        // 创建 __TAURI_INTERNALS__ 对象（如果不存在）
+        if (!w.__TAURI_INTERNALS__) {
+          w.__TAURI_INTERNALS__ = {};
+        }
+
+        // Mock transformCallback（Tauri 内部使用）
+        if (!w.__TAURI_INTERNALS__.transformCallback) {
+          w.__TAURI_INTERNALS__.transformCallback = (callback: any, once: any) => {
+            return callback;
+          };
+        }
+
+        // Mock invoke（Mock 模式下拒绝调用，提醒测试需要正确 mock）
+        if (!w.__TAURI_INTERNALS__.invoke) {
+          w.__TAURI_INTERNALS__.invoke = (cmd: string, args: any) => {
+            console.log(`[E2E Tauri Mock] invoke: ${cmd}`, args);
+            return Promise.reject(new Error(
+              `E2E Mock: Tauri invoke called but not properly mocked: ${cmd}. ` +
+              `Please ensure your test properly mocks Tauri API calls.`
+            ));
+          };
+        }
+
+        // 确保 __TAURI__.core 存在
+        if (!w.__TAURI__) {
+          w.__TAURI__ = {};
+        }
+        if (!w.__TAURI__.core) {
+          w.__TAURI__.core = {};
+        }
+        if (!w.__TAURI__.core.invoke) {
+          w.__TAURI__.core.invoke = w.__TAURI_INTERNALS__.invoke;
+        }
+
+        console.log('[E2E Setup] ✅ Tauri bridge mock initialized for E2E environment');
+      };
+
+      // 立即初始化
+      ensureTauriBridge();
+
       window.__E2E_SEND__ = async (text) => {
         const check = () => {
           const chatStore = window.__chatStore;

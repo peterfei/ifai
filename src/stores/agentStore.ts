@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+// 🔥 FIX: 移除静态导入，改为动态导入以避免 Tauri bridge 未初始化问题
+// import { listen, UnlistenFn } from '@tauri-apps/api/event';
+// import { invoke } from '@tauri-apps/api/core';
 import { Agent, AgentEventPayload } from '../types/agent';
+import { ensureTauriInitialized } from '../utils/tauriInitializer';
 import { useFileStore } from './fileStore';
 import { useSettingsStore } from './settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../utils/approvalPolicy';
@@ -73,6 +75,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   syncAgentActionToTaskMonitor,
 
   launchAgent: async (agentType: string, task: string, chatMsgId?: string, threadId?: string, autoApproveTools?: boolean) => {
+    // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 Tauri API
+    await ensureTauriInitialized();
+    const { invoke } = await import('@tauri-apps/api/core');
+    const { listen } = await import('@tauri-apps/api/event');
+
     // 1. 生成 ID
     const id = generateAgentId();
     const eventId = generateEventId(id);
@@ -536,6 +543,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     // 立即自动批准工具调用
                     setTimeout(async () => {
                         try {
+                            // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 invoke
+                            await ensureTauriInitialized();
+                            const { invoke } = await import('@tauri-apps/api/core');
+
                             console.log(`[AgentStore] 📎 Auto-approving agent action: agent=${id}, tool=${toolCall.tool}`);
                             await invoke('approve_agent_action', {
                                 id: id,      // agent ID
@@ -1288,6 +1299,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   approveAction: async (id: string, approved: boolean) => {
+      // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 invoke
+      await ensureTauriInitialized();
+      const { invoke } = await import('@tauri-apps/api/core');
+
       console.log(`[AgentStore] approveAction called: id=${id}, approved=${approved}`);
       try {
           await invoke('approve_agent_action', { id, approved });
@@ -1345,10 +1360,40 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   initEventListeners: async () => {
+      // 🔥 FIX: 确保 Tauri bridge 已初始化
+      console.log('[AgentStore] 🔍 Waiting for Tauri bridge before initializing listeners...');
+      await ensureTauriInitialized();
+
+      // 🔥 FIX: 动态导入 Tauri API 以避免初始化时序问题
+      const { listen } = await import('@tauri-apps/api/event');
+      type UnlistenFn = () => void;
+
+      // 🔥 FIX: 验证 Tauri bridge 确实可用
+      const w = window as any;
+      const hasTransformCallback = !!w.__TAURI_INTERNALS__?.transformCallback;
+      console.log('[AgentStore] 🔍 Tauri bridge check:', {
+        hasTAURIInternals: !!w.__TAURI_INTERNALS__,
+        hasTransformCallback,
+        hasInvoke: !!w.__TAURI_INTERNALS__?.invoke || !!w.__TAURI__?.core?.invoke
+      });
+
+      if (!hasTransformCallback) {
+        console.warn('[AgentStore] ⚠️ transformCallback not available, listeners may not work properly');
+      }
+
       console.log('[AgentStore] 🎯 Global event listeners initialized');
       const unlisteners: UnlistenFn[] = [];
 
-      // We still keep global status listener as a fallback or for other UI parts
+      // 🔥 FIX: 如果 transformCallback 不可用，跳过监听器设置
+      if (!hasTransformCallback) {
+        console.warn('[AgentStore] ⚠️ Skipping listener setup due to missing transformCallback');
+        // 返回一个空的清理函数
+        return () => {
+          console.log('[AgentStore] 🧹 Cleanup called (no listeners were registered)');
+        };
+      }
+
+      // We still keep global status listener as a fallback or for UI parts
       const unlistenStatus = await listen('agent:status', (event: any) => {
         const { id, status, progress, tool } = event.payload;
         

@@ -77,6 +77,31 @@ export interface ToolResult {
 export function formatToolResultToMarkdown(result: any, toolCall?: any): string {
   if (!result) return '';
 
+  // 🔥 FIX: 处理纯字符数组的情况（ifainew_core 的 bug）
+  // 测试场景：直接传入字符数组而不是对象
+  if (Array.isArray(result)) {
+    console.log('[formatToolResultToMarkdown] 🔥 Detected array input, length:', result.length);
+    // 检查是否是字符数组
+    if (result.length > 0 && result.every(item => typeof item === 'string')) {
+      // 拼接成字符串
+      const joined = result.join('');
+      console.log('[formatToolResultToMarkdown] 🔥 Joined char array to string, length:', joined.length);
+      // 尝试解析为 JSON
+      try {
+        const parsed = JSON.parse(joined);
+        console.log('[formatToolResultToMarkdown] 🔥 Successfully parsed joined string as JSON');
+        // 递归处理解析后的对象
+        return formatToolResultToMarkdown(parsed, toolCall);
+      } catch (e) {
+        // 不是有效的 JSON，返回拼接后的字符串
+        console.log('[formatToolResultToMarkdown] 🔥 Joined string is not valid JSON, returning as-is');
+        return joined;
+      }
+    }
+    // 不是字符数组，返回数组格式的字符串
+    return JSON.stringify(result, null, 2);
+  }
+
   // 🔥 v0.3.4: 读文件简洁显示（方案 A）
   if (isReadFileResult(result, toolCall)) {
     // 🔥 FIX v0.3.4: 处理 content 可能是字符数组的情况

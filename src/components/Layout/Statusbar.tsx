@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { formatTokenCount } from '../../utils/tokenCounter';
+import { ensureTauriInitialized } from '../../utils/tauriInitializer';
 
 export const Statusbar = () => {
   const rootPath = useFileStore(state => state.rootPath);
@@ -18,6 +19,9 @@ export const Statusbar = () => {
 
     const setupListeners = async () => {
       try {
+        // 🔥 FIX: 确保 Tauri bridge 已初始化
+        await ensureTauriInitialized();
+
         const { listen } = await import('@tauri-apps/api/event');
         
         unlistenStatus = await listen<string>('rag-status', (event) => {

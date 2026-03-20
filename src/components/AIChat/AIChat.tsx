@@ -10,8 +10,10 @@ import { useFileStore } from '../../stores/fileStore';
 import { readFileContent } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+// 🔥 FIX: 移除静态导入，改为动态导入以避免 Tauri bridge 未初始化问题
+// import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ensureTauriInitialized } from '../../utils/tauriInitializer';
 
 // v0.3.0: 根据文件扩展名获取 MIME 类型
 function getMimeType(filePath: string): string {
@@ -27,7 +29,8 @@ function getMimeType(filePath: string): string {
   };
   return mimeTypes[ext || ''] || 'image/png';
 }
-import { listen } from '@tauri-apps/api/event';
+// 🔥 FIX: 移除静态导入，改为动态导入以避免 Tauri bridge 未初始化问题
+// import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { MessageItem } from './MessageItem';
 import { SlashCommandList, SlashCommandListHandle } from './SlashCommandList';
@@ -219,6 +222,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   useEffect(() => {
     const fetchVersion = async () => {
       try {
+        // 🔥 FIX: 确保 Tauri bridge 已初始化
+        await ensureTauriInitialized();
+
         const { getVersion } = await import('@tauri-apps/api/app');
         const version = await getVersion();
         setAppVersion(version);
@@ -334,6 +340,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
 
       if (rootPath) {
         try {
+          // 🔥 FIX: 确保 Tauri bridge 已初始化
+          await ensureTauriInitialized();
+
           const { invoke: dynamicInvoke } = await import('@tauri-apps/api/core');
           await dynamicInvoke('init_rag_index', { rootPath });
           setTimeout(() => {
@@ -1221,6 +1230,10 @@ ${context}
 
     const setupFileDropListener = async () => {
       try {
+        // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 listen
+        await ensureTauriInitialized();
+        const { listen } = await import('@tauri-apps/api/event');
+
         // v0.3.0: 监听 Tauri 的 file-drop-hover 事件（文件管理器拖拽进入窗口）
         try {
           unlistenHover = await listen<any>('tauri://file-drop-hover', (event) => {
@@ -1755,6 +1768,10 @@ ${context}
    * Composer: 拒绝所有文件变更（回滚文件内容）
    */
   const handleComposerRejectAll = useCallback(async () => {
+    // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 invoke
+    await ensureTauriInitialized();
+    const { invoke } = await import('@tauri-apps/api/core');
+
     console.log('[Composer] Reject All clicked, changes:', composerChanges.length);
 
     try {
@@ -1853,6 +1870,10 @@ ${context}
    * Composer: 拒绝单个文件变更（回滚文件内容，但保留在列表中以便重新接受）
    */
   const handleComposerRejectFile = useCallback(async (path: string) => {
+    // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 invoke
+    await ensureTauriInitialized();
+    const { invoke } = await import('@tauri-apps/api/core');
+
     try {
       // 查找要拒绝的变更
       const change = composerChanges.find(c => c.path === path);

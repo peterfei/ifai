@@ -316,16 +316,22 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
           false  // 检测冲突
         );
 
-        if (result?.conflict) {
+        // 🔥 FIX: 处理 result 可能为 undefined 的情况
+        if (!result) {
+          setIsRollingBack(false);
+          return;
+        }
+
+        if (result.conflict) {
           setShowConflictDialog(true);
           setIsRollingBack(false);
           return;
         }
 
-        if (result?.success) {
+        if (result.success) {
           toast.success('文件已恢复');
         } else {
-          toast.error(result?.error || '回滚失败');
+          toast.error(result.error || '回滚失败');
         }
       } catch (e) {
         console.error('[Rollback] Error:', e);
@@ -348,10 +354,15 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
 
         setShowConflictDialog(false);
 
-        if (result?.success) {
+        // 🔥 FIX: 处理 result 可能为 undefined 的情况
+        if (!result) {
+          return;
+        }
+
+        if (result.success) {
           toast.success('文件已强制恢复');
         } else {
-          toast.error(result?.error || '回滚失败');
+          toast.error(result.error || '回滚失败');
         }
       } catch (e) {
         console.error('[Rollback] Error:', e);
@@ -391,12 +402,26 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
             }
         }
 
+        // 🔥 FIX: 安全地从 args 中提取值（处理 string | Record<string, any>）
+        const getArgValue = (key: string, defaultValue?: any): any => {
+            if (!toolCall.args) return defaultValue;
+            if (typeof toolCall.args === 'string') {
+                try {
+                    const parsed = JSON.parse(toolCall.args);
+                    return parsed?.[key] ?? defaultValue;
+                } catch {
+                    return defaultValue;
+                }
+            }
+            return toolCall.args[key] ?? defaultValue;
+        };
+
         // 如果结果是字符串，直接返回
         if (typeof result === 'string') {
             return {
                 output: result,
-                command: toolCall.args?.command || toolCall.args?.cmd || undefined,
-                exitCode: toolCall.args?.exit_code || toolCall.args?.exitCode || 0,
+                command: getArgValue('command') || getArgValue('cmd') || undefined,
+                exitCode: getArgValue('exit_code') || getArgValue('exitCode') || 0,
                 success: toolCall.status === 'completed'
             };
         }
@@ -406,7 +431,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
             const res = result as any;
             return {
                 output: res.stdout || res.stderr || res.output || JSON.stringify(res),
-                command: res.command || toolCall.args?.command || undefined,
+                command: res.command || getArgValue('command') || undefined,
                 exitCode: res.exit_code !== undefined ? res.exit_code : (res.exitCode !== undefined ? res.exitCode : 0),
                 success: res.success !== undefined ? res.success : toolCall.status === 'completed'
             };
@@ -445,14 +470,43 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
     };
 
     const isWriteFile = toolCall.tool?.includes('write_file') || false;
-    const filePath = toolCall.args?.rel_path || toolCall.args?.path || '';
-    const newContent = toolCall.args?.content || '';
+
+    // 🔥 FIX: 安全地从 args 中提取值（处理 string | Record<string, any>）
+    const getToolArg = (key: string, defaultValue: string = ''): string => {
+      if (!toolCall.args) return defaultValue;
+      if (typeof toolCall.args === 'string') {
+        try {
+          const parsed = JSON.parse(toolCall.args);
+          return parsed?.[key] ?? defaultValue;
+        } catch {
+          return defaultValue;
+        }
+      }
+      return (toolCall.args as Record<string, any>)[key] ?? defaultValue;
+    };
+
+    const filePath = getToolArg('rel_path') || getToolArg('path', '');
+    const newContent = getToolArg('content', '');
 
     // 🔥 风险评估逻辑
     const riskLevel = useMemo(() => {
+        // 🔥 FIX: 将 args 转换为 Record<string, any> 类型
+        let argsObj: Record<string, any> = {};
+        if (toolCall.args) {
+            if (typeof toolCall.args === 'string') {
+                try {
+                    argsObj = JSON.parse(toolCall.args);
+                } catch {
+                    argsObj = {};
+                }
+            } else {
+                argsObj = toolCall.args;
+            }
+        }
+
         return riskPolicy.calculateRisk({
             toolName: toolCall.tool || '',
-            args: toolCall.args || {},
+            args: argsObj,
             editorMode: editorMode as any || 'standard'
         });
     }, [toolCall.tool, toolCall.args, editorMode]);
@@ -582,9 +636,9 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                             )}
                                         </div>
                                     ) : (
-                                        toolCall.args?.command && (
+                                        getToolArg('command') && (
                                             <span className="text-[10px] text-gray-500 font-mono truncate max-w-[220px]">
-                                                exec: {toolCall.args.command}
+                                                exec: {getToolArg('command')}
                                             </span>
                                         )
                                     )}
@@ -612,9 +666,9 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                         {isPartial && (
                             <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
                                 <StreamingToolArgsViewer
-                                    args={toolCall.args || {}}
+                                    args={typeof toolCall.args === 'string' ? {} : (toolCall.args || {})}
                                     isStreaming={isPartial}
-                                    streamingKeys={isPartial ? Object.keys(toolCall.args || {}) : []}
+                                    streamingKeys={isPartial ? Object.keys(typeof toolCall.args === 'string' ? {} : (toolCall.args || {})) : []}
                                 />
                             </div>
                         )}
@@ -706,8 +760,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
 
                         {/* 🏆 PIVO 3.0: 符号探测管线专用渲染 */}
                         {toolCall.tool === 'agent_probe_symbols' && (
-                            <ProbeSymbolView 
-                                path={toolCall.args?.rel_path || toolCall.args?.path || 'unknown'} 
+                            <ProbeSymbolView
+                                path={getToolArg('rel_path') || getToolArg('path', 'unknown')}
                                 result={toolCall.result}
                                 status={toolCall.status === 'pending' || toolCall.status === 'approved' ? 'pending' : (toolCall.status as any)}
                             />
@@ -716,18 +770,18 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                         {/* 工具参数可视化 */}
                         <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
                             <StreamingToolArgsViewer
-                                args={toolCall.args || {}}
+                                args={typeof toolCall.args === 'string' ? {} : (toolCall.args || {})}
                                 isStreaming={isPartial}
-                                streamingKeys={isPartial ? Object.keys(toolCall.args || {}) : []}
+                                streamingKeys={isPartial ? Object.keys(typeof toolCall.args === 'string' ? {} : (toolCall.args || {})) : []}
                             />
                         </div>
 
                         {/* 🔥 PIVO 2.0: Diff 预览注入 - 仅针对文件写入 */}
                         {previewData && toolCall.tool === 'agent_write_file' ? (
-                            <DiffPreview 
+                            <DiffPreview
                                 oldContent={previewData.oldContent}
                                 newContent={previewData.newContent}
-                                fileName={toolCall.args?.rel_path || toolCall.args?.path || 'unknown'}
+                                fileName={getToolArg('rel_path') || getToolArg('path', 'unknown')}
                             />
                         ) : toolCall.tool === 'agent_write_file' && !isPartial && (
                             // 🏆 降级保护：如果预览没出来，显示个占位或提示
