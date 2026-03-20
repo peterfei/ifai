@@ -208,8 +208,15 @@ export async function setupE2ETestEnvironment(
   }, { timeout: 30000 });
 
   // 3.1 等待重构架构核心对象初始化完成（EventBus、ToolCallManager、APP_READY）
+  // 🏆 修复：使用更灵活的等待条件，兼容新旧架构
   await page.waitForFunction(() => {
-    return window.__chatEventBus && window.__toolCallManager && window.__APP_READY__ === true;
+    const w = window as any;
+    // 新架构：要求 EventBus 和 ToolCallManager
+    const newArchitectureReady = w.__chatEventBus && w.__toolCallManager;
+    // 旧架构/简化模式：只要求 APP_READY
+    const simpleReady = w.__APP_READY__ === true;
+    // 任一条件满足即可
+    return newArchitectureReady || simpleReady;
   }, { timeout: 30000 });
 
   // 4. 如果是真后端 + 真 AI，手动同步 Store 配置以防万一

@@ -45,11 +45,12 @@ function filesToStructure(files: string[]): any {
 }
 
 /**
- * 🏆 将 agent_scan_project 的扁平结构转换为 PivoProjectTree 所需的嵌套结构
- * @param flatStructure 扁平结构 { "index.html": "file", "src/": "dir", "src/components/Header.tsx": "file" }
- * @returns 嵌套结构 { "index.html": "file", "src": { "components": { "Header.tsx": "file" } } }
+ * 🏆 将 agent_scan_project 的结构转换为 PivoProjectTree 所需的嵌套结构
+ * 支持混合格式：既有扁平路径（"src/file.js": "file"）又有嵌套对象（"src": { "file.js": "file" }）
+ * @param flatStructure 混合结构 { "index.html": "file", "src/": "dir", "src/components/Header.tsx": "file", "public": { "index.html": "file" } }
+ * @returns 嵌套结构 { "index.html": "file", "src": { "components": { "Header.tsx": "file" } }, "public": { "index.html": "file" } }
  */
-function flatStructureToNested(flatStructure: Record<string, string>): any {
+function flatStructureToNested(flatStructure: Record<string, any>): any {
   const nested: any = {};
 
   // 首先收集所有路径
@@ -57,6 +58,12 @@ function flatStructureToNested(flatStructure: Record<string, string>): any {
 
   paths.forEach(fullPath => {
     const type = flatStructure[fullPath];
+
+    // 🏆 FIX: 如果值已经是嵌套对象，直接递归合并
+    if (typeof type === 'object' && type !== null && !Array.isArray(type)) {
+      nested[fullPath] = flatStructureToNested(type);
+      return;
+    }
 
     // 如果是目录（以 / 结尾或标记为 dir），创建目录节点
     if (fullPath.endsWith('/') || type === 'dir') {
@@ -364,22 +371,44 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
       return detectTaskBreakdown(displayContent);
     }, [displayContent, effectivelyStreaming]);
     // 🏆 检测项目扫描结果（agent_scan_project 工具）
-    // 🔥 FIX: 必须从原始 message.content 解析，而不是 displayContent（已被 toolResultFormatter 转换为 Markdown）
+    // 🔥 FIX: 支持两种场景
+    // 1. tool 消息（E2E 测试使用）
+    // 2. assistant 消息的 toolCalls 数组（实际使用）
     const projectScanResult = React.useMemo(() => {
-      // 仅在非流式状态时检测，且只检测工具角色消息
-      if (effectivelyStreaming || message.role !== 'tool') return null;
-      // 🏆 关键：使用原始 content 而不是 displayContent
-      const rawContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
-      const result = detectProjectScanResult(rawContent);
-      console.log('[MessageItem] 🔍 projectScanResult detection:', {
-        role: message.role,
-        isStreaming: effectivelyStreaming,
-        contentLength: rawContent.length,
-        contentPreview: rawContent.substring(0, 100),
-        result: result ? 'FOUND' : 'NULL'
-      });
-      return result;
-    }, [message.content, effectivelyStreaming, message.role]);
+      // 仅在非流式状态时检测
+      if (effectivelyStreaming) return null;
+
+      // 场景 1: tool 消息（直接从 message.content 解析）
+      if (message.role === 'tool') {
+        const rawContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+        const result = detectProjectScanResult(rawContent);
+        if (result) {
+          console.log('[MessageItem] ✅ projectScanResult found in tool message');
+          return result;
+        }
+      }
+
+      // 场景 2: assistant 消息（从 toolCalls 数组中查找 agent_scan_project）
+      if (message.role === 'assistant' && message.toolCalls && message.toolCalls.length > 0) {
+        console.log('[MessageItem] 🔍 Checking assistant toolCalls:', message.toolCalls.length);
+        for (const tc of message.toolCalls) {
+          // 🔥 FIX: 支持多种 toolName 格式
+          const toolName = (tc as any).tool || (tc as any).function?.name || (tc as any).toolName || '';
+          console.log('[MessageItem] 🔍 Checking toolCall:', { toolName, hasResult: !!tc.result });
+          if (toolName === 'agent_scan_project' && tc.result) {
+            // result 可能是字符串或对象
+            const resultStr = typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result);
+            const result = detectProjectScanResult(resultStr);
+            if (result) {
+              console.log('[MessageItem] ✅ projectScanResult found in toolCall result');
+              return result;
+            }
+          }
+        }
+      }
+
+      return null;
+    }, [message.content, message.toolCalls, effectivelyStreaming, message.role]);
     // v0.2.6: 检测是否正在流式传输任务拆解内容
     const isStreamingTaskBreakdown = React.useMemo(() => {
       if (!effectivelyStreaming) return false;
