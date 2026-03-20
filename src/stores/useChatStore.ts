@@ -347,6 +347,7 @@ export const useChatStore = create<ChatStore>()(
               const { invoke } = await import('@tauri-apps/api/core');
               
               // 🏆 核级脱敏：1. 过滤空消息 2. 压缩重复角色 3. 角色交替校验
+              // 🔥 FIX: 转换 tool_calls 到 OpenAI API 格式
               let lastRole = '';
               const sanitizedMessages = history
                 .filter(m => {
@@ -354,12 +355,25 @@ export const useChatStore = create<ChatStore>()(
                     const hasTools = m.toolCalls && m.toolCalls.length > 0;
                     return hasContent || hasTools || m.role === 'tool';
                 })
-                .map(m => ({ 
-                    role: m.role, 
-                    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-                    tool_calls: m.toolCalls,
-                    tool_call_id: m.tool_call_id
-                }))
+                .map(m => {
+                    // 🔥 FIX: 转换 tool_calls 到 OpenAI API 格式
+                    // 前端格式: { id, tool, args, status, function } -> API 格式: { id, type: 'function', function: { name, arguments } }
+                    const tool_calls = m.toolCalls?.map((tc: any) => ({
+                        id: tc.id,
+                        type: 'function' as const,
+                        function: {
+                            name: tc.function?.name || tc.tool,
+                            arguments: tc.function?.arguments || (typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args || {}))
+                        }
+                    }));
+
+                    return {
+                        role: m.role,
+                        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+                        tool_calls: tool_calls && tool_calls.length > 0 ? tool_calls : undefined,
+                        tool_call_id: m.tool_call_id
+                    };
+                })
                 .filter(m => {
                     if (m.role === lastRole && m.role !== 'tool') return false;
                     lastRole = m.role;

@@ -1014,14 +1014,18 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                             scanData = parsed;
                                         }
                                         // 情况 2: 包装在 output 字段中（JSON 字符串）
+                                        // 🔥 FIX: 检查是否是有效的 JSON 字符串（以 { 或 [ 开头）
                                         else if (parsed.output && typeof parsed.output === 'string') {
-                                            try {
-                                                const outputParsed = JSON.parse(parsed.output);
-                                                if (outputParsed.structure || outputParsed.key_files) {
-                                                    scanData = outputParsed;
+                                            const trimmed = parsed.output.trim();
+                                            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                                                try {
+                                                    const outputParsed = JSON.parse(parsed.output);
+                                                    if (outputParsed.structure || outputParsed.key_files) {
+                                                        scanData = outputParsed;
+                                                    }
+                                                } catch (e) {
+                                                    console.log('[ToolApproval] ❌ Failed to parse output:', e);
                                                 }
-                                            } catch (e) {
-                                                console.log('[ToolApproval] ❌ Failed to parse output:', e);
                                             }
                                         }
                                         // 情况 3: output 是对象
