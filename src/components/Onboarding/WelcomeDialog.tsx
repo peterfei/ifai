@@ -180,19 +180,19 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose 
                 <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>{t('welcomeDialog.advantages.offline')}</strong>{t('welcomeDialog.advantages.offlineDesc')}</span>
+                <span><strong>{String(t('welcomeDialog.advantages.offline'))}</strong>{String(t('welcomeDialog.advantages.offlineDesc'))}</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>{t('welcomeDialog.advantages.autocomplete')}</strong>{t('welcomeDialog.advantages.autocompleteDesc')}</span>
+                <span><strong>{String(t('welcomeDialog.advantages.autocomplete'))}</strong>{String(t('welcomeDialog.advantages.autocompleteDesc'))}</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>{t('welcomeDialog.advantages.free')}</strong>{t('welcomeDialog.advantages.freeDesc')}</span>
+                <span><strong>{String(t('welcomeDialog.advantages.free'))}</strong>{String(t('welcomeDialog.advantages.freeDesc'))}</span>
               </li>
             </ul>
           </div>

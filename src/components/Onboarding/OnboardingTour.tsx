@@ -122,24 +122,34 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
     <ReactMarkdown
       remarkPlugins={[remarkBreaks, remarkGfm]}
       components={{
-        // 自定义段落样式，保持一致的行高
-        p: ({ children }) => <p style={{ margin: '0.5em 0' }}>{children}</p>,
+        // 🔥 FIX: 确保 children 不是对象再渲染
+        p: ({ children }) => {
+          // 如果 children 是对象（比如 i18n 返回的嵌套对象），转换为字符串
+          const content = typeof children === 'object' ? JSON.stringify(children) : children;
+          return <p style={{ margin: '0.5em 0' }}>{content}</p>;
+        },
         // 自定义列表样式
         ul: ({ children }) => <ul style={{ marginLeft: '1.5em', marginTop: '0.5em', marginBottom: '0.5em' }}>{children}</ul>,
         // 自定义 strong/b 样式
-        strong: ({ children }) => <strong style={{ fontWeight: '600', color: '#fff' }}>{children}</strong>,
+        strong: ({ children }) => {
+          const content = typeof children === 'object' ? JSON.stringify(children) : children;
+          return <strong style={{ fontWeight: '600', color: '#fff' }}>{content}</strong>;
+        },
         // 自定义代码样式
-        code: ({ inline, children }: any) => inline ? (
-          <code style={{
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            padding: '0.2em 0.4em',
-            borderRadius: '4px',
-            fontFamily: 'monospace',
-            fontSize: '0.9em',
-          }}>{children}</code>
-        ) : (
-          <code>{children}</code>
-        ),
+        code: ({ inline, children }: any) => {
+          const content = typeof children === 'object' ? JSON.stringify(children) : children;
+          return inline ? (
+            <code style={{
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              padding: '0.2em 0.4em',
+              borderRadius: '4px',
+              fontFamily: 'monospace',
+              fontSize: '0.9em',
+            }}>{content}</code>
+          ) : (
+            <code>{content}</code>
+          );
+        },
       }}
     >
       {content}
