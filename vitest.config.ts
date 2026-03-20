@@ -25,7 +25,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
-    setupFiles: './tests/legacy/setup.ts',
+    setupFiles: './tests/setup.ts',
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['tests/e2e/**', 'tests/e2e/**/*.spec.ts', '**/e2e/**', '**/e2e/*.spec.ts'],
     coverage: {

@@ -201,8 +201,105 @@ pub async fn agent_scan_project(root_path: String, rel_path: String, max_depth: 
     }
     #[cfg(not(feature = "commercial"))]
     {
-        // Fallback: 社区版使用现有的扫描逻辑
-        return agent_scan_directory(root_path, rel_path, None, max_depth, Some(500)).await;
+        // 🏆 FIX: 社区版实现 - 返回正确格式 (structure + key_files) 并忽略常见目录
+        use serde_json::json;
+        use std::path::Path;
+        use std::collections::HashMap;
+
+        let base_path = Path::new(&root_path).join(&rel_path);
+        let max_depth = max_depth.unwrap_or(3);
+
+        // 常见需要忽略的目录
+        let ignore_dirs = [
+            "node_modules", ".git", "target", "dist", "build",
+            ".vscode", ".idea", "coverage", ".next", ".nuxt",
+            ".venv", "venv", "__pycache__", "node_modules_cache",
+            ".cache", ".tsbuildinfo", "bin", "obj"
+        ];
+
+        // 常见需要忽略的文件
+        let ignore_files = [
+            ".DS_Store", "*.log", "*.tsbuildinfo", "*.lock",
+            "package-lock.json", "yarn.lock", "pnpm-lock.yaml"
+        ];
+
+        let mut structure: HashMap<String, String> = HashMap::new();
+        let mut key_files: HashMap<String, String> = HashMap::new();
+
+        // 递归扫描目录
+        fn scan_dir(
+            path: &std::path::Path,
+            rel_base: &str,
+            current_depth: usize,
+            max_depth: usize,
+            ignore_dirs: &[&str],
+            ignore_files: &[&str],
+            structure: &mut HashMap<String, String>,
+            key_files: &mut HashMap<String, String>
+        ) -> std::io::Result<()> {
+            if current_depth > max_depth {
+                return Ok(());
+            }
+
+            let entries = std::fs::read_dir(path)?;
+
+            for entry in entries {
+                let entry = entry?;
+                let file_name = entry.file_name().to_string_lossy().to_string();
+                let file_path = entry.path();
+                let rel_path = if rel_base.is_empty() {
+                    file_name.clone()
+                } else {
+                    format!("{}/{}", rel_base, file_name)
+                };
+
+                // 检查是否应该忽略
+                let should_ignore = ignore_dirs.contains(&file_name.as_str())
+                    || ignore_files.iter().any(|&pattern| {
+                        if pattern.starts_with('*') {
+                            file_name.ends_with(&pattern[1..])
+                        } else {
+                            file_name == pattern
+                        }
+                    });
+
+                if should_ignore {
+                    continue;
+                }
+
+                if file_path.is_dir() {
+                    structure.insert(format!("{}/", rel_path), "dir".to_string());
+                    // 递归扫描子目录
+                    let _ = scan_dir(&file_path, &rel_path, current_depth + 1, max_depth, ignore_dirs, ignore_files, structure, key_files);
+                } else {
+                    structure.insert(rel_path.clone(), "file".to_string());
+
+                    // 对于一些关键文件，读取内容（限制大小）
+                    if matches!(file_name.as_str(), "README.md" | "package.json" | "tsconfig.json" | "vite.config.js" | "Cargo.toml" | "index.html" | "App.tsx" | "main.tsx") {
+                        if let Ok(content) = std::fs::read_to_string(&file_path) {
+                            // 限制内容大小为 10KB
+                            if content.len() < 10240 {
+                                key_files.insert(rel_path, content);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Ok(())
+        }
+
+        if base_path.is_dir() {
+            scan_dir(&base_path, "", 0, max_depth, &ignore_dirs, &ignore_files, &mut structure, &mut key_files)
+                .map_err(|e| format!("Scan failed: {}", e))?;
+        }
+
+        let result = json!({
+            "structure": structure,
+            "key_files": key_files
+        });
+
+        serde_json::to_string(&result).map_err(|e| e.to_string())
     }
 }
 

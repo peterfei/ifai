@@ -277,6 +277,125 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
     return `### ✅ 文件操作成功\n\n**📄 目标路径:** \`${result.filePath}\`\n\n${result.message || '文件已同步物理磁盘。'}`;
   }
 
+  // 🏆 FIX: 处理 agent_scan_project 的特殊结构（支持直接格式和 output 包装格式）
+  // 🚨 注意：不转换为 Markdown，保持原始 JSON 格式，让 MessageItem.tsx 渲染 PivoProjectTree
+  if (result.structure || result.key_files ||
+      (result.output && (typeof result.output === 'string' || typeof result.output === 'object'))) {
+    // 检查是否包含 project scan 数据
+    let scanData = null;
+
+    // 情况 1: 直接包含 structure/key_files
+    if (result.structure || result.key_files) {
+      scanData = result;
+    }
+    // 情况 2: 包装在 output 字段中（JSON 字符串）
+    else if (result.output && typeof result.output === 'string') {
+      try {
+        const outputParsed = JSON.parse(result.output);
+        if (outputParsed.structure || outputParsed.key_files) {
+          scanData = outputParsed;
+        }
+      } catch (e) {}
+    }
+    // 情况 3: output 是对象
+    else if (result.output && typeof result.output === 'object') {
+      if (result.output.structure || result.output.key_files) {
+        scanData = result.output;
+      }
+    }
+
+    // 如果包含项目扫描数据，返回纯净的 scanData JSON（不包含外层的 status/output 包装）
+    if (scanData) {
+      return JSON.stringify(scanData, null, 2);
+    }
+  }
+
+  // 🔥 FIX: 处理 agent_write_file 的特殊结构 (PIVO 2.0 简洁模式)
+  if (result.filePath && result.success !== undefined) {
+    return `### ✅ 文件操作成功\n\n**📄 目标路径:** \`${result.filePath}\`\n\n${result.message || '文件已同步物理磁盘。'}`;
+  }
+  let scanData = null;
+
+  // 情况 1: 直接包含 structure/key_files
+  if (result.structure || result.key_files) {
+    scanData = result;
+  }
+  // 情况 2: 包装在 output 字段中（JSON 字符串）
+  else if (result.output && typeof result.output === 'string') {
+    try {
+      const parsed = JSON.parse(result.output);
+      if (parsed.structure || parsed.key_files) {
+        scanData = parsed;
+      }
+    } catch (e) {
+      // 解析失败，忽略
+    }
+  }
+  // 情况 3: output 是对象
+  else if (result.output && typeof result.output === 'object') {
+    if (result.output.structure || result.output.key_files) {
+      scanData = result.output;
+    }
+  }
+
+  if (scanData) {
+    const lines: string[] = ['## 📂 项目扫描结果\n\n'];
+
+    // 处理文件结构
+    if (scanData.structure && typeof scanData.structure === 'object') {
+      lines.push('### 📁 文件结构\n\n');
+      const structure = scanData.structure as Record<string, string>;
+
+      // 分离文件和目录
+      const files: string[] = [];
+      const dirs: string[] = [];
+      for (const [path, type] of Object.entries(structure)) {
+        if (type === 'dir' || path.endsWith('/')) {
+          dirs.push(path);
+        } else {
+          files.push(path);
+        }
+      }
+
+      // 先显示目录，再显示文件
+      if (dirs.length > 0) {
+        dirs.sort().forEach(dir => {
+          lines.push(`📁 \`${dir}\`\n`);
+        });
+      }
+      if (files.length > 0) {
+        files.sort().forEach(file => {
+          lines.push(`📄 \`${file}\`\n`);
+        });
+      }
+      lines.push('\n');
+    }
+
+    // 处理关键文件
+    if (scanData.key_files && typeof scanData.key_files === 'object') {
+      const keyFiles = scanData.key_files as Record<string, string>;
+      const fileCount = Object.keys(keyFiles).length;
+
+      if (fileCount > 0) {
+        lines.push(`### 📝 关键文件 (${fileCount} 个)\n\n`);
+
+        for (const [path, content] of Object.entries(keyFiles)) {
+          lines.push(`#### \`${path}\`\n\n`);
+
+          // 截断过长的文件内容
+          const maxContentLength = 500;
+          const displayContent = content.length > maxContentLength
+            ? content.substring(0, maxContentLength) + `\n\n... (已截断，共 ${content.length} 字符)`
+            : content;
+
+          lines.push(`\`\`\`\n${displayContent}\n\`\`\`\n\n`);
+        }
+      }
+    }
+
+    return lines.join('');
+  }
+
   const lines: string[] = [];
 
   // 处理成功/失败状态
@@ -375,7 +494,9 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
     'command', 'stdout', 'stderr', 'exitCode', 'exit_code',
     'filePath', 'originalContent', 'newContent', 'timestamp',
     'original_content', 'new_content', 'file_path', 'rel_path', 'relPath', 'rootPath', 'root_path',
-    'metadata' // 🚀 隐藏复杂的执行元数据
+    'metadata', // 🚀 隐藏复杂的执行元数据
+    'structure', 'key_files', // 🏆 agent_scan_project 的字段
+    'output', 'status' // 🏆 后端包装字段
   ]);
 
   const otherKeys = Object.keys(result).filter(key => !handledKeys.has(key));

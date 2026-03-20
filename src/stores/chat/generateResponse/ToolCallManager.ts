@@ -172,11 +172,13 @@ private init() {
       // 添加工具结果消息到 Store（复用 globalStore 引用）
       if (globalStore) {
           console.log(`[ToolCallManager] 💉 Adding result message for ${tc.name} to Store`);
+          // 🏆 注意：保持原始结果格式（JSON 对象），由 UI 层的 toolResultFormatter 负责格式化
+          const content = typeof result === 'string' ? result : JSON.stringify(result);
           globalStore.setState((state: any) => ({
               messages: [...state.messages, {
                   id: `res-${tc.id}`,
                   role: 'tool',
-                  content: typeof result === 'string' ? result : JSON.stringify(result),
+                  content: content,
                   tool_call_id: tc.id,
                   timestamp: Date.now()
               }],

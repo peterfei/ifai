@@ -26,6 +26,13 @@ export class StreamingResponseController {
     console.log(`[StreamController] 🎯 Payload correlationId: ${payload.correlationId}`);
     console.log(`[StreamController] 🎯 Payload sessionId: ${payload.sessionId}`);
 
+    // 🏆 FIX: 防止重复注册监听器（会导致内容重复追加）
+    // 在续播场景下，同一个 correlationId 可能多次调用 startListening
+    if (this.activeListeners.has(payload.correlationId)) {
+      console.log(`[StreamController] 🛡️ Existing listeners found for ${payload.correlationId}, cleaning up first...`);
+      this.stopListening(payload.correlationId);
+    }
+
     // 🏆 物理兼容性：如果不在真实 Tauri 环境，使用仿真监听器
     if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
         console.warn('[StreamController] 🛡️ Non-Tauri environment detected. Using simulated listeners.');

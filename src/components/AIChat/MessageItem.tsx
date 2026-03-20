@@ -45,6 +45,55 @@ function filesToStructure(files: string[]): any {
 }
 
 /**
+ * 🏆 将 agent_scan_project 的扁平结构转换为 PivoProjectTree 所需的嵌套结构
+ * @param flatStructure 扁平结构 { "index.html": "file", "src/": "dir", "src/components/Header.tsx": "file" }
+ * @returns 嵌套结构 { "index.html": "file", "src": { "components": { "Header.tsx": "file" } } }
+ */
+function flatStructureToNested(flatStructure: Record<string, string>): any {
+  const nested: any = {};
+
+  // 首先收集所有路径
+  const paths = Object.keys(flatStructure).sort(); // 排序确保目录在文件前处理
+
+  paths.forEach(fullPath => {
+    const type = flatStructure[fullPath];
+
+    // 如果是目录（以 / 结尾或标记为 dir），创建目录节点
+    if (fullPath.endsWith('/') || type === 'dir') {
+      const dirName = fullPath.endsWith('/') ? fullPath.slice(0, -1) : fullPath;
+      const parts = dirName.split('/').filter(p => p.length > 0);
+
+      let current = nested;
+      for (const part of parts) {
+        if (!current[part]) {
+          current[part] = {};
+        }
+        current = current[part];
+      }
+    }
+    // 如果是文件，创建文件节点
+    else if (type === 'file' || !type) {
+      const parts = fullPath.split('/').filter(p => p.length > 0);
+
+      let current = nested;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!current[part]) {
+          current[part] = {};
+        }
+        current = current[part];
+      }
+
+      // 最后一个部分是文件名
+      const fileName = parts[parts.length - 1];
+      current[fileName] = "file";
+    }
+  });
+
+  return nested;
+}
+
+/**
  * 工业级消息样式常量
  */
 const STYLES = {
@@ -76,6 +125,66 @@ function detectTaskBreakdown(content: string): TaskBreakdown | null {
   } catch (e) {
     // JSON 解析失败，可能是不完整的内容或流式传输中
     return null;
+  }
+  return null;
+}
+/**
+ * 🏆 检测工具结果是否是 agent_scan_project 的结果
+ * @param content 消息内容
+ * @returns 解析后的项目扫描结果或 null
+ */
+function detectProjectScanResult(content: string): { structure: Record<string, string>; key_files: Record<string, string> } | null {
+  if (!content || typeof content !== 'string') return null;
+
+  console.log('[detectProjectScanResult] 🔍 Input content preview:', content.substring(0, 200));
+
+  try {
+    // 尝试直接解析 JSON
+    const parsed = JSON.parse(content);
+    console.log('[detectProjectScanResult] ✅ Parsed JSON:', Object.keys(parsed));
+
+    // 情况 1: 直接包含 structure/key_files
+    if (parsed && (parsed.structure || parsed.key_files)) {
+      console.log('[detectProjectScanResult] ✅ Case 1: Direct structure/key_files found');
+      return {
+        structure: parsed.structure || {},
+        key_files: parsed.key_files || {}
+      };
+    }
+
+    // 情况 2: 包装在 output 字段中（JSON 字符串）
+    if (parsed.output && typeof parsed.output === 'string') {
+      console.log('[detectProjectScanResult] 🔍 Case 2: Found output field (string)');
+      try {
+        const outputParsed = JSON.parse(parsed.output);
+        console.log('[detectProjectScanResult] ✅ Output parsed:', Object.keys(outputParsed));
+        if (outputParsed.structure || outputParsed.key_files) {
+          console.log('[detectProjectScanResult] ✅ Case 2: structure/key_files found in output');
+          return {
+            structure: outputParsed.structure || {},
+            key_files: outputParsed.key_files || {}
+          };
+        }
+      } catch (e) {
+        console.log('[detectProjectScanResult] ❌ Case 2: Failed to parse output:', e);
+      }
+    }
+
+    // 情况 3: output 是对象
+    if (parsed.output && typeof parsed.output === 'object') {
+      console.log('[detectProjectScanResult] 🔍 Case 3: Found output field (object)');
+      if (parsed.output.structure || parsed.output.key_files) {
+        console.log('[detectProjectScanResult] ✅ Case 3: structure/key_files found in output object');
+        return {
+          structure: parsed.output.structure || {},
+          key_files: parsed.output.key_files || {}
+        };
+      }
+    }
+
+    console.log('[detectProjectScanResult] ❌ No matching format found');
+  } catch (e) {
+    console.log('[detectProjectScanResult] ❌ JSON parse failed:', e);
   }
   return null;
 }
@@ -254,6 +363,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
       if (effectivelyStreaming) return null;
       return detectTaskBreakdown(displayContent);
     }, [displayContent, effectivelyStreaming]);
+    // 🏆 检测项目扫描结果（agent_scan_project 工具）
+    // 🔥 FIX: 必须从原始 message.content 解析，而不是 displayContent（已被 toolResultFormatter 转换为 Markdown）
+    const projectScanResult = React.useMemo(() => {
+      // 仅在非流式状态时检测，且只检测工具角色消息
+      if (effectivelyStreaming || message.role !== 'tool') return null;
+      // 🏆 关键：使用原始 content 而不是 displayContent
+      const rawContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
+      const result = detectProjectScanResult(rawContent);
+      console.log('[MessageItem] 🔍 projectScanResult detection:', {
+        role: message.role,
+        isStreaming: effectivelyStreaming,
+        contentLength: rawContent.length,
+        contentPreview: rawContent.substring(0, 100),
+        result: result ? 'FOUND' : 'NULL'
+      });
+      return result;
+    }, [message.content, effectivelyStreaming, message.role]);
     // v0.2.6: 检测是否正在流式传输任务拆解内容
     const isStreamingTaskBreakdown = React.useMemo(() => {
       if (!effectivelyStreaming) return false;
@@ -463,9 +589,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // 2. 如果没有可见内容但有工具调用，且所有工具调用都已完成，隐藏 (交给聚合卡片)
     // 3. 如果是 Vibe 模式下的冗余引导语，隐藏
     // 4. 如果是工具角色的消息且已经是探索结果，隐藏 (数据已同步到助理消息的树 UI)
+    // 5. 🏆 如果是工具角色的消息且是项目扫描结果，隐藏原始 JSON (交给 PivoProjectTree 渲染)
     const shouldHideBubble = (pendingCount === 0 && !isUser && !hasVisibleContent && hasToolCalls) ||
                             isRedundantIntro ||
-                            (message.role === 'tool' && isExploreMessage);
+                            (message.role === 'tool' && isExploreMessage) ||
+                            (message.role === 'tool' && projectScanResult !== null);
 
     // 🔥 FIX v0.4.0: 智能内容预处理 - 提取思考内容
     const { thinkingText, contentWithoutThinking } = React.useMemo(() => {
@@ -915,12 +1043,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <div className="space-y-2 my-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 {/* 🏆 v0.4.1: 当探索完成时，物理渲染 PivoProjectTree 项目树 */}
                                 {(message as any).exploreProgress.phase === 'completed' && (message as any).exploreProgress.scannedFiles && (
-                                    <PivoProjectTree 
-                                        structure={filesToStructure((message as any).exploreProgress.scannedFiles)} 
+                                    <PivoProjectTree
+                                        structure={filesToStructure((message as any).exploreProgress.scannedFiles)}
                                         keyFiles={{}} // 以后可以集成关键文件识别
                                     />
                                 )}
                                 <ExploreProgressNew progress={(message as any).exploreProgress} mode="minimal" />
+                            </div>
+                        )}
+
+                        {/* 🏆 agent_scan_project 项目树渲染 */}
+                        {projectScanResult && (
+                            <div className="space-y-2 my-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <PivoProjectTree
+                                    structure={flatStructureToNested(projectScanResult.structure)}
+                                    keyFiles={projectScanResult.key_files}
+                                />
                             </div>
                         )}
 

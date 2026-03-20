@@ -15,6 +15,9 @@ export const initStoreMapper = () => {
     // 🏆 FIX: 防止重复续播的标记
     let continuationInProgress: { [key: string]: boolean } = {};
 
+    // 🏆 FIX: 防止流式 chunk 重复追加的标记
+    let processedChunks: { [key: string]: Set<string> } = {};
+
     // 1. 映射用户消息发送
     chatEventBus.on('chat:message:sent', (payload) => {
       const { messageId, content, correlationId, isAssistantOnly } = payload as any;
@@ -27,6 +30,11 @@ export const initStoreMapper = () => {
         content: content?.substring(0, 50),
         isAssistantOnly
       });
+
+      // 🏆 FIX: 清理旧的 chunk 标记，防止内存泄漏
+      if (processedChunks[correlationId]) {
+        delete processedChunks[correlationId];
+      }
 
       const updater = (state: any) => {
         // 🏆 物理隔离：如果是 AI 续播占位，严禁添加 User 消息
@@ -62,7 +70,25 @@ export const initStoreMapper = () => {
     // 2. 映射流式 Chunk
     chatEventBus.on('chat:stream:chunk', (payload) => {
       const { delta, correlationId, isFinal } = payload;
-      
+
+      // 🏆 FIX: 防止同一个 chunk 被重复处理
+      const chunkKey = `${correlationId}_${delta}_${isFinal}`;
+      if (!processedChunks[correlationId]) {
+        processedChunks[correlationId] = new Set();
+      }
+      if (processedChunks[correlationId].has(chunkKey)) {
+        console.warn('[StoreMapper] ⚠️ Duplicate chunk detected, skipping:', chunkKey.substring(0, 50));
+        return;
+      }
+      processedChunks[correlationId].add(chunkKey);
+
+      // 如果是最终 chunk，清理标记
+      if (isFinal) {
+        setTimeout(() => {
+          delete processedChunks[correlationId];
+        }, 100);
+      }
+
       const updater = (state: any) => {
         const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
         if (messageIndex === -1) return state;
@@ -73,9 +99,9 @@ export const initStoreMapper = () => {
         targetMsg.status = isFinal ? 'sent' : 'streaming';
         newMessages[messageIndex] = targetMsg;
 
-        return { 
-            messages: newMessages, 
-            isLoading: !isFinal 
+        return {
+            messages: newMessages,
+            isLoading: !isFinal
         };
       };
       useChatStore.setState(updater as any);
@@ -239,6 +265,7 @@ export const initStoreMapper = () => {
       console.log('[StoreMapper] ✅ Tool completed event received:', { toolId, correlationId, hasResult: !!result, shouldContinue });
 
       const updater = (state: any) => {
+        // 🏆 注意：保持原始结果格式（JSON 对象或字符串），由 UI 层的 toolResultFormatter 负责格式化
         const content = error || (typeof result === 'string' ? result : JSON.stringify(result));
 
         // 🏆 FIX: 更新工具调用状态为 completed
