@@ -22,9 +22,19 @@ import { setupE2ETestEnvironment } from '../setup';
 test.describe('Duplicate Tool Call Deduplication - Fix Black Screen Issue', () => {
 
   test.beforeEach(async ({ page }) => {
+    // 🔥 FIX: setupE2ETestEnvironment 已经调用了 page.goto('/')，不需要再次调用
     await setupE2ETestEnvironment(page);
-    await page.goto('/');
-    await page.waitForSelector('text=IfAI', { timeout: 10000 });
+
+    // 🔥 FIX: 打开聊天面板，确保 AIChat 组件显示
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      if (layoutStore && !layoutStore.getState().isChatOpen) {
+        layoutStore.getState().toggleChat();
+      }
+    });
+
+    // 等待页面和聊天面板加载
+    await page.waitForTimeout(3000);
   });
 
   test('@regression should filter duplicate tool_call events to prevent black screen', async ({ page }) => {
