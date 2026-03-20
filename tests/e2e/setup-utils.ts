@@ -313,6 +313,12 @@ export async function setupE2ETestEnvironment(
     return newArchitectureReady || simpleReady;
   }, { timeout: 30000 });
 
+  // 3.2 等待 formatToolResultToMarkdown 函数暴露（用于 E2E 测试）
+  await page.waitForFunction(() => {
+    const w = window as any;
+    return w.__formatToolResultToMarkdown && typeof w.__formatToolResultToMarkdown === 'function';
+  }, { timeout: 30000 });
+
   // 4. 如果是真后端 + 真 AI，手动同步 Store 配置以防万一
   if (useRealTauri && useRealAI && realAIApiKey) {
     await page.evaluate(({ apiKey, baseUrl }) => {

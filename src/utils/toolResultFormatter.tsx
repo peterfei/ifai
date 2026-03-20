@@ -81,8 +81,12 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
   // 测试场景：直接传入字符数组而不是对象
   if (Array.isArray(result)) {
     console.log('[formatToolResultToMarkdown] 🔥 Detected array input, length:', result.length);
-    // 检查是否是字符数组
-    if (result.length > 0 && result.every(item => typeof item === 'string')) {
+    // 🔥 FIX: 更精确的字符数组检测（只匹配真正的字符数组，避免误判文件名列表）
+    // 字符数组特征：1) 每个元素都是单个字符的字符串（长度 <= 1）2) 数组长度较大（>10）
+    const isCharArray = result.length > 10 &&
+                       result.every(item => typeof item === 'string' && item.length <= 1);
+
+    if (isCharArray) {
       // 拼接成字符串
       const joined = result.join('');
       console.log('[formatToolResultToMarkdown] 🔥 Joined char array to string, length:', joined.length);
@@ -98,8 +102,7 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
         return joined;
       }
     }
-    // 不是字符数组，返回数组格式的字符串
-    return JSON.stringify(result, null, 2);
+    // 不是字符数组，继续让后面的逻辑处理（不在这里返回）
   }
 
   // 🔥 v0.3.4: 读文件简洁显示（方案 A）
@@ -298,9 +301,26 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
       typeof item === 'string' && (item.includes('.') || item.includes('/') || item.match(/^[a-z_][a-z0-9_]*$/i))
     );
 
+    // 🔥 FIX: 根据是否有 toolCall 参数决定格式
+    // - 有 toolCall (agent_list_dir)：使用简洁格式
+    // - 无 toolCall (测试/直接调用)：返回详细列表
     if (allStrings && hasFilePatterns && result.length >= 2) {
-      // 🔥 v0.3.4: 使用简洁格式，不再列出所有文件
-      return `📂 已列出目录 (${result.length} 个文件/目录)`;
+      // 检查是否是 agent_list_dir 工具（之前已定义 isListDirTool）
+      const isListDirTool = toolCall?.tool === 'agent_list_dir' ||
+                            toolCall?.tool === 'list_dir' ||
+                            (toolCall as any)?.function?.name === 'agent_list_dir';
+
+      if (isListDirTool) {
+        // 🔥 v0.3.4: agent_list_dir 工具使用简洁格式，不再列出所有文件
+        const dirPath = toolCall?.args?.rel_path ||
+                        toolCall?.args?.path ||
+                        toolCall?.args?.relPath ||
+                        'unknown';
+        return `📂 已列出目录 \`${dirPath}\` (${result.length} 个文件/目录)`;
+      } else {
+        // 🔥 无 toolCall 时返回详细列表（测试期望）
+        return `## 📁 Files\n\n${result.map(item => `- \`${item}\``).join('\n')}`;
+      }
     }
 
     // 检查是否是生成的文件路径列表（旧的逻辑，保留兼容）

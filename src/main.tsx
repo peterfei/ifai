@@ -162,6 +162,16 @@ const initMonacoEnvironment = async () => {
 // 暴露 Store 到全局以便调试 (延迟执行)
 const exposeDebugStores = () => {
   if (import.meta.env.DEV || (window as any).__E2E__) {
+    // 🔥 E2E: 立即暴露 formatToolResultToMarkdown 函数（不延迟）
+    if ((window as any).__E2E__ || (window as any).process?.env?.NODE_ENV === 'test') {
+      import('./utils/toolResultFormatter').then(formatter => {
+        (window as any).__formatToolResultToMarkdown = formatter.formatToolResultToMarkdown;
+        console.log('[Main] ✅ formatToolResultToMarkdown exposed to window.__formatToolResultToMarkdown (Immediate)');
+      }).catch(err => {
+        console.error('[Main] ❌ Failed to expose formatToolResultToMarkdown:', err);
+      });
+    }
+
     // 使用 requestIdleCallback 确保在浏览器空闲时执行
     const runExpose = () => {
       Promise.all([
@@ -188,13 +198,13 @@ const exposeDebugStores = () => {
           }
         };
         (window as any).__DEBUG__ = { ...(window as any).__DEBUG__, ...stores };
-        
+
         // 🔥 为 E2E 测试直接暴露
         if ((window as any).__E2E__ || (window as any).process?.env?.NODE_ENV === 'test') {
           (window as any).__chatStore = chat.useChatStore;
           (window as any).__pivoStore = pivo.usePivoStore;
         }
-        
+
         console.log('[Main] 🛠️  Core Stores and Utils exposed to window.__DEBUG__ (Idle)');
       });
     };
