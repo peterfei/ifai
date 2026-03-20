@@ -107,6 +107,27 @@ export function formatToolResultToMarkdown(result: any, toolCall?: any): string 
                           toolCall?.tool === 'list_dir' ||
                           (toolCall as any)?.function?.name === 'agent_list_dir';
 
+    // 🏆 FIX: 检查是否是 agent_scan_project 工具
+    const isScanProjectTool = toolCall?.tool === 'agent_scan_project' ||
+                              (toolCall as any)?.function?.name === 'agent_scan_project';
+
+    if (isScanProjectTool) {
+      // 🏆 agent_scan_project 的结果是 JSON 字符串，需要解析并返回
+      // 让 ToolApproval.tsx 或 MessageItem.tsx 渲染 PivoProjectTree
+      try {
+        const parsed = JSON.parse(result);
+        if (parsed && typeof parsed === 'object' && (parsed.structure || parsed.key_files)) {
+          console.log('[formatToolResultToMarkdown] ✅ Detected agent_scan_project result, returning JSON');
+          // 返回纯净的 JSON（不包含外层包装），让渲染组件处理
+          return JSON.stringify(parsed, null, 2);
+        }
+      } catch (e) {
+        console.log('[formatToolResultToMarkdown] ❌ Failed to parse agent_scan_project result:', e);
+      }
+      // 解析失败，返回原始字符串
+      return result;
+    }
+
     if (isReadFileTool) {
       // 🏆 PIVO 3.0: 物理保真度修复 - 不要尝试解析文件内容原文
       // 除非内容非常短且看起来像包装对象（如 { success: true, content: "..." }）

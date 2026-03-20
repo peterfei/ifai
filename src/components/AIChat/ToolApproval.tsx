@@ -23,6 +23,60 @@ import { RiskPolicy, RiskLevel } from '../../core/approval/policies/RiskPolicy';
 
 const riskPolicy = new RiskPolicy();
 
+/**
+ * 🏆 将 agent_scan_project 的结构转换为 PivoProjectTree 所需的嵌套结构
+ * 支持混合格式：既有扁平路径（"src/file.js": "file"）又有嵌套对象（"src": { "file.js": "file" }）
+ */
+function flatStructureToNested(flatStructure: Record<string, any>): any {
+  const nested: any = {};
+
+  // 首先收集所有路径
+  const paths = Object.keys(flatStructure).sort();
+
+  paths.forEach(fullPath => {
+    const type = flatStructure[fullPath];
+
+    // 🏆 FIX: 如果值已经是嵌套对象，直接递归合并
+    if (typeof type === 'object' && type !== null && !Array.isArray(type)) {
+      nested[fullPath] = flatStructureToNested(type);
+      return;
+    }
+
+    // 如果是目录（以 / 结尾或标记为 dir），创建目录节点
+    if (fullPath.endsWith('/') || type === 'dir') {
+      const dirName = fullPath.endsWith('/') ? fullPath.slice(0, -1) : fullPath;
+      const parts = dirName.split('/').filter(p => p.length > 0);
+
+      let current = nested;
+      for (const part of parts) {
+        if (!current[part]) {
+          current[part] = {};
+        }
+        current = current[part];
+      }
+    }
+    // 如果是文件，创建文件节点
+    else if (type === 'file' || !type) {
+      const parts = fullPath.split('/').filter(p => p.length > 0);
+
+      let current = nested;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!current[part]) {
+          current[part] = {};
+        }
+        current = current[part];
+      }
+
+      // 最后一个部分是文件名
+      const fileName = parts[parts.length - 1];
+      current[fileName] = "file";
+    }
+  });
+
+  return nested;
+}
+
 interface ToolApprovalProps {
     toolCall: ToolCall;
     onApprove: (id: string) => void;
@@ -897,11 +951,41 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                 try {
                                     const resultData = toolCall.result;
                                     const parsed = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
-                                    
-                                    if (parsed && typeof parsed === 'object' && parsed.structure) {
-                                        return <PivoProjectTree structure={parsed.structure} keyFiles={parsed.key_files} />;
+
+                                    // 🏆 FIX: 处理双重包装格式 { output: "{...}", status: "success" }
+                                    let scanData = null;
+                                    if (parsed && typeof parsed === 'object') {
+                                        // 情况 1: 直接包含 structure/key_files
+                                        if (parsed.structure || parsed.key_files) {
+                                            scanData = parsed;
+                                        }
+                                        // 情况 2: 包装在 output 字段中（JSON 字符串）
+                                        else if (parsed.output && typeof parsed.output === 'string') {
+                                            try {
+                                                const outputParsed = JSON.parse(parsed.output);
+                                                if (outputParsed.structure || outputParsed.key_files) {
+                                                    scanData = outputParsed;
+                                                }
+                                            } catch (e) {
+                                                console.log('[ToolApproval] ❌ Failed to parse output:', e);
+                                            }
+                                        }
+                                        // 情况 3: output 是对象
+                                        else if (parsed.output && typeof parsed.output === 'object') {
+                                            if (parsed.output.structure || parsed.output.key_files) {
+                                                scanData = parsed.output;
+                                            }
+                                        }
+                                    }
+
+                                    if (scanData && (scanData.structure || scanData.key_files)) {
+                                        // 🏆 FIX: 应用 flatStructureToNested 转换，确保正确解析混合格式
+                                        const nestedStructure = flatStructureToNested(scanData.structure);
+                                        console.log('[ToolApproval] ✅ Rendering PivoProjectTree for agent_scan_project');
+                                        return <PivoProjectTree structure={nestedStructure} keyFiles={scanData.key_files} />;
                                     }
                                 } catch (e) {
+                                    console.log('[ToolApproval] ❌ Failed to parse agent_scan_project result:', e);
                                     // 解析失败或不是 JSON 格式，忽略并继续
                                 }
 
