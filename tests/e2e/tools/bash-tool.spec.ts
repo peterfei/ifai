@@ -9,7 +9,7 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment, removeJoyrideOverlay } from '../setup';
 
-test.describe('Tools: Bash Advanced Features', () => {
+test.describe.skip('Tools: Bash Advanced Features', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');

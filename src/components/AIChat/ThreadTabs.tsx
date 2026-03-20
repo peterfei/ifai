@@ -15,7 +15,7 @@
 import React, { useRef, useEffect, useMemo, useCallback, memo, useState } from 'react';
 import { useThreadStore } from '../../stores/threadStore';
 import { useFileStore } from '../../stores/fileStore';
-import { switchThread, setThreadMessages } from '../../stores/useChatStore';
+import { setThreadMessages } from '../../stores/useChatStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
 import { useTranslation } from 'react-i18next';
 import { ThreadSearchBar } from './ThreadSearchBar';
@@ -263,6 +263,7 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
   const createThread = useThreadStore(state => state.createThread);
   const deleteThread = useThreadStore(state => state.deleteThread);
   const toggleThreadPinned = useThreadStore(state => state.toggleThreadPinned);
+  const switchThread = useThreadStore(state => state.switchThread);
 
   // Compute filtered and sorted threads with useMemo to prevent infinite loops
   const filteredThreads = useMemo(() => {
@@ -363,31 +364,37 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
 
   // Handle thread click
   const handleThreadClick = useCallback((threadId: string) => {
+    console.log('[ThreadTabs] handleThreadClick called with threadId:', threadId, 'current activeThreadId:', activeThreadId);
     if (threadId !== activeThreadId) {
+      console.log('[ThreadTabs] Calling threadStore.switchThread with:', threadId);
       switchThread(threadId);
+    } else {
+      console.log('[ThreadTabs] Thread already active, skipping switch');
     }
-  }, [activeThreadId]);
+  }, [activeThreadId, switchThread]);
 
   // Handle thread close (right-click or Ctrl+click)
   const handleThreadClose = useCallback((e: React.MouseEvent, threadId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // 执行删除
     deleteThread(threadId);
 
-    // 如果删除的是当前活跃线程，需要手动触发一次 switchThread 来加载新活跃线程的消息
-    const currentThreadId = useThreadStore.getState().activeThreadId;
-    if (threadId === currentThreadId) {
-      // deleteThread 内部已经计算并设置了新的 activeThreadId
+    // 🔥 FIX: deleteThread 会自动更新 activeThreadId，但不会加载新线程的消息
+    // 需要等待下一个 tick 来获取新的 activeThreadId
+    setTimeout(() => {
       const newActiveId = useThreadStore.getState().activeThreadId;
       if (newActiveId) {
-        switchThread(newActiveId);
+        // 使用 useChatStore 的 switchThread 来加载消息
+        import('../../stores/useChatStore').then(({ switchThread: loadThreadMessages }) => {
+          loadThreadMessages(newActiveId);
+        });
       } else {
         // 如果没有剩余线程，清空消息
         coreUseChatStore.setState({ messages: [] });
       }
-    }
+    }, 0);
   }, [deleteThread, activeThreadId]);
 
   // Handle thread pin toggle (middle-click or Alt+click)

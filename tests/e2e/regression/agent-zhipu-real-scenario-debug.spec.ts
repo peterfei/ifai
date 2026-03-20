@@ -30,15 +30,22 @@ test.describe('智谱 LLM Agent 真实场景调试', () => {
     const result = await page.evaluate(async () => {
       const settingsStore = (window as any).__settingsStore;
       const settings = settingsStore.getState();
-      const provider = settings.providers.find((p: any) => p.id === 'real-ai-e2e');
 
+      // 🔥 FIX: 使用 zhipu provider
+      const provider = settings.providers.find((p: any) => p.id === 'zhipu');
       if (!provider) {
         return { error: 'Provider not found' };
       }
 
+      // 🔥 FIX: 使用 E2E 配置
+      const e2eConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+      const apiKey = e2eConfig.realAIApiKey || provider.apiKey;
+      const baseUrl = e2eConfig.realAIBaseUrl || provider.baseUrl;
+      const model = e2eConfig.realAIModel || settings.currentModel;
+
       // 使用与真实 Agent 相同的 prompt
       const requestBody = {
-        model: settings.currentModel,
+        model: model,
         messages: [
           {
             role: 'system',
@@ -103,11 +110,14 @@ test.describe('智谱 LLM Agent 真实场景调试', () => {
       console.log('[Test] 发送请求到智谱 API');
       console.log('[Test] Request:', JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch(provider.baseUrl, {
+      // 🔥 FIX: 确保使用正确的 base URL（智谱使用 /chat/completions 端点）
+      const chatBaseUrl = baseUrl.includes('/chat/completions') ? baseUrl : baseUrl.replace(/\/api\/paas\/v4$/, '/api/paas/v4/chat/completions');
+
+      const response = await fetch(chatBaseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${provider.apiKey}`
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify(requestBody)
       });

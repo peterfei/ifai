@@ -25,14 +25,21 @@ test.describe('智谱 API 流式 Function Calling', () => {
       const settingsStore = (window as any).__settingsStore;
       const settings = settingsStore.getState();
 
-      const provider = settings.providers.find((p: any) => p.id === 'real-ai-e2e');
+      // 🔥 FIX: 使用 zhipu provider
+      const provider = settings.providers.find((p: any) => p.id === 'zhipu');
       if (!provider) {
         return { error: 'Provider not found' };
       }
 
+      // 🔥 FIX: 使用 E2E 配置
+      const e2eConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+      const apiKey = e2eConfig.realAIApiKey || provider.apiKey;
+      const baseUrl = e2eConfig.realAIBaseUrl || provider.baseUrl;
+      const model = e2eConfig.realAIModel || settings.currentModel;
+
       // 构造请求 - 流式模式
       const requestBody = {
-        model: settings.currentModel,
+        model: model,
         messages: [
           { role: 'system', content: 'You are a helpful assistant.' },
           { role: 'user', content: '读取 README.md 文件的内容' }
@@ -56,13 +63,16 @@ test.describe('智谱 API 流式 Function Calling', () => {
         stream: true  // 🔥 关键：流式模式
       };
 
-      console.log('[Test] 发送流式请求到:', provider.baseUrl);
+      // 🔥 FIX: 确保使用正确的 base URL（智谱使用 /chat/completions 端点）
+      const chatBaseUrl = baseUrl.includes('/chat/completions') ? baseUrl : baseUrl.replace(/\/api\/paas\/v4$/, '/api/paas/v4/chat/completions');
 
-      const response = await fetch(provider.baseUrl, {
+      console.log('[Test] 发送流式请求到:', chatBaseUrl);
+
+      const response = await fetch(chatBaseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${provider.apiKey}`
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify(requestBody)
       });

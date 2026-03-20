@@ -268,6 +268,42 @@ export async function setupE2ETestEnvironment(
       window.__E2E_MOCK_FILE_SYSTEM__ = window.__E2E_MOCK_FILE_SYSTEM__ || new Map();
       window.__E2E_SYMBOL_MOCK_DATA__ = window.__E2E_SYMBOL_MOCK_DATA__ || { references: {}, definitions: {} };
 
+      // 🔥 E2E IndexedDB Mock for message persistence tests
+      if (!window.__E2E_INDEXED_DB_MOCK__) {
+        window.__E2E_INDEXED_DB_MOCK__ = {
+          _messages: new Map(),
+
+          saveMessages(messages) {
+            for (const msg of messages) {
+              this._messages.set(msg.id, msg);
+            }
+          },
+
+          getThreadMessages(threadId) {
+            return Array.from(this._messages.values())
+              .filter(m => m.threadId === threadId)
+              .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          },
+
+          getAllMessages() {
+            return Array.from(this._messages.values());
+          },
+
+          clear() {
+            this._messages.clear();
+          },
+
+          getMessage(id) {
+            return this._messages.get(id);
+          },
+
+          deleteMessage(id) {
+            this._messages.delete(id);
+          }
+        };
+        console.log('[E2E Setup] ✅ IndexedDB mock initialized for E2E environment');
+      }
+
       const interceptor = (originalInvoke) => async (cmd, args) => {
         if (cmd === 'find_references') {
           const res = window.__E2E_SYMBOL_MOCK_DATA__.references[args.symbolName || args.name];

@@ -512,7 +512,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         // A. 收集显式追踪的段落 (Text & Tools)
         // @ts-ignore
         let items: any[] = message.contentSegments ? [...message.contentSegments] : [];
-        
+
+        // 🔥 FIX: 验证初始 segments，过滤掉空对象
+        items = items.filter(seg => seg && typeof seg === 'object' && seg.type);
+
         // B. 如果没有显式段落（Fallback），根据当前内容解析
         if (items.length === 0 && contentWithoutThinking) {
             const { segments } = parseToolCalls(contentWithoutThinking);
@@ -520,11 +523,17 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 ...s,
                 order: idx,
                 timestamp: Date.now() - (segments.length - idx) * 10
-            }));
+            })).filter(seg => seg && typeof seg === 'object' && seg.type); // 🔥 FIX: 同时验证解析后的 segments
         }
 
         // C. 过滤掉已经作为 Thinking 渲染过的内容（防止重复显示）
         const filteredItems = items.filter(seg => {
+            // 🔥 FIX: 验证 segment 结构，跳过空对象或无效的 segment
+            if (!seg || typeof seg !== 'object' || !seg.type) {
+                console.warn('[MessageItem] Filtering out invalid segment:', seg);
+                return false;
+            }
+
             if (seg.type === 'text' && seg.content) {
                 // 如果这个片段就是 thinkingText，或者它的一部分，则过滤
                 if (thinkingText && (thinkingText.includes(seg.content) || seg.content.includes(thinkingText))) {
@@ -534,11 +543,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 if (seg.content.trim().startsWith('_(') && seg.content.trim().endsWith(')_')) {
                     return false;
                 }
-                
-                // 🏆 v0.4.1: 在探索模式下，过滤掉“分析项目关键文件”等冗余文本，以及本地模型的原始输出
+
+                // 🏆 v0.4.1: 在探索模式下，过滤掉"分析项目关键文件"等冗余文本，以及本地模型的原始输出
                 if (isExploreMessage) {
                     const text = seg.content;
-                    const isRedundant = text.includes('分析项目') || 
+                    const isRedundant = text.includes('分析项目') ||
                                       text.includes('探索项目') ||
                                       text.includes('[Local Model] Completed') ||
                                       text.includes('[OK] agent_list_dir');
@@ -587,14 +596,34 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         // F. 归并相邻文本片段
         const mergedTextResult: ContentSegment[] = [];
         for (const seg of sorted) {
+            // 🔥 FIX: 验证 segment 结构，跳过空对象或无效的 segment
+            if (!seg || typeof seg !== 'object' || !seg.type) {
+                console.warn('[MessageItem] Skipping invalid segment:', seg);
+                continue;
+            }
+
             if (seg.type === 'text') {
+                // 🔥 FIX: 确保 content 是有效的字符串
+                const contentValue = seg.content;
+                if (contentValue !== undefined && contentValue !== null && typeof contentValue !== 'string') {
+                    console.warn('[MessageItem] Text segment has non-string content, skipping:', contentValue);
+                    continue;
+                }
+
                 const last = mergedTextResult[mergedTextResult.length - 1];
+                const contentStr = String(contentValue || '');
+
+                // 🔥 FIX: 如果合并后的内容为空，跳过此 segment
+                if (!contentStr.trim()) {
+                    continue;
+                }
+
                 if (last && last.type === 'text') {
                     // 🏆 PIVO 3.0: 物理级 String 强制转换保护
-                    last.content = String(last.content || '') + String(seg.content || '');
+                    last.content = last.content + contentStr;
                     last.timestamp = seg.timestamp;
                 } else {
-                    mergedTextResult.push({ ...seg, content: String(seg.content || '') });
+                    mergedTextResult.push({ ...seg, content: contentStr });
                 }
             } else {
                 mergedTextResult.push(seg);
@@ -802,31 +831,75 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
                             <div className="space-y-2">
                                 {message.multiModalContent.map((part, index) => {
+                                    // 🔥 FIX: 跳过无效的 part 对象
+                                    if (!part || typeof part !== 'object') {
+                                        console.warn('[MessageItem] Skipping invalid multiModal part:', part);
+                                        return null;
+                                    }
+
                                     // 🏆 PIVO 3.0: 物理级防护，防止多模态对象直接进入渲染流
                                     if (part.type === 'text') {
+                                        // 🔥 FIX: 确保 text 是字符串，如果是对象则跳过
+                                        const textContent = part.text;
+                                        if (typeof textContent !== 'string') {
+                                            console.warn('[MessageItem] Text part has non-string content:', textContent);
+                                            return null;
+                                        }
                                         return renderContentPart({ ...part, text: String(part.text || '') }, index, effectivelyStreaming);
                                     }
+
+                                    // 🔥 FIX: 确保 image_url 对象有效
+                                    if (part.type === 'image_url') {
+                                        if (!part.image_url || !part.image_url.url) {
+                                            console.warn('[MessageItem] Image part missing url:', part);
+                                            return null;
+                                        }
+                                    }
+
                                     return renderContentPart(part, index, effectivelyStreaming);
                                 })}
                             </div>
                         ) : mergedSegments && mergedSegments.length > 0 ? (
                             <div className="space-y-3">
                                 {mergedSegments.map((segment: any, index: number) => {
+                                    // 🔥 FIX: 验证 segment 对象有效性
+                                    if (!segment || typeof segment !== 'object') {
+                                        console.warn('[MessageItem] Skipping invalid segment in render:', segment);
+                                        return null;
+                                    }
+
                                     if (segment.type === 'text') {
                                         // 🏆 PIVO 3.0: 物理级 String 强制转换保护
-                                        const content = String(segment.content || '');
+                                        const rawContent = segment.content;
+
+                                        // 🔥 FIX: 如果 content 不是字符串、null 或 undefined，跳过
+                                        if (rawContent !== undefined && rawContent !== null && typeof rawContent !== 'string') {
+                                            console.warn('[MessageItem] Text segment has non-string content:', rawContent);
+                                            return null;
+                                        }
+
+                                        const content = String(rawContent || '');
+
+                                        // 🔥 FIX: 检查是否是被错误转换的对象字符串
+                                        if (content === '[object Object]' || content === '[object]' || content.startsWith('[object ')) {
+                                            console.warn('[MessageItem] Text segment content looks like object string:', content);
+                                            return null;
+                                        }
+
                                         // 🏆 PIVO 3.0: 拒绝非字符串对象
-                                        if (!content) return null;
+                                        if (!content || !content.trim()) {
+                                            return null;
+                                        }
 
                                         if (effectivelyStreaming) return renderMarkdownWithoutHighlight(content, `streaming-text-${index}`);
                                         return renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
                                     } else if (segment.type === 'tool' && segment.toolCallId) {
                                         // 🚀 v0.3.6: 批处理聚合渲染 (单例聚合版)
                                         if (segment.isBatchAnchor && segment.batchId) {
-                                            // 🏆 核心逻辑：检查这是否是当前会话中“最后一条”包含该批次的消息
+                                            // 🏆 核心逻辑：检查这是否是当前会话中"最后一条"包含该批次的消息
                                             const allMessages = (window as any).__chatStore?.getState().messages || [];
-                                            const lastMsgWithThisBatch = [...allMessages].reverse().find(m => 
-                                                m.role === 'assistant' && 
+                                            const lastMsgWithThisBatch = [...allMessages].reverse().find(m =>
+                                                m.role === 'assistant' &&
                                                 m.toolCalls?.some(tc => (tc as any).batchId === segment.batchId)
                                             );
 
@@ -846,9 +919,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                   );
 
                                             if (batchCalls.length === 0) return null;
-                                            
+
                                             return (
-                                                <ToolBatchApproval 
+                                                <ToolBatchApproval
                                                     key={segment.batchId}
                                                     batchId={segment.batchId}
                                                     toolCalls={batchCalls}
@@ -862,9 +935,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
                                         if (!toolCall) return null;
                                         return (
-                                            <ToolApproval 
-                                                key={toolCall.id} toolCall={toolCall} 
-                                                onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)} 
+                                            <ToolApproval
+                                                key={toolCall.id} toolCall={toolCall}
+                                                onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)}
                                                 isLatestBashTool={isLatestBashTool(toolCall.id)} message={message}
                                             />
                                         );
@@ -877,18 +950,33 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <div className="space-y-3">
                                 {(() => {
                                     if (!message.toolCalls) return null;
-                                    
+
+                                    // 🔥 FIX: 验证 toolCalls 数组，过滤掉无效对象
+                                    const validToolCalls = message.toolCalls.filter(tc => {
+                                        if (!tc || typeof tc !== 'object') {
+                                            console.warn('[MessageItem] Filtering out invalid toolCall:', tc);
+                                            return false;
+                                        }
+                                        if (!tc.id) {
+                                            console.warn('[MessageItem] ToolCall missing id:', tc);
+                                            return false;
+                                        }
+                                        return true;
+                                    });
+
+                                    if (validToolCalls.length === 0) return null;
+
                                     const renderedBatches = new Set<string>();
-                                    return message.toolCalls.map(toolCall => {
+                                    return validToolCalls.map(toolCall => {
                                         const batchId = (toolCall as any).batchId;
-                                        
+
                                         if (batchId) {
                                             if (renderedBatches.has(batchId)) return null;
                                             renderedBatches.add(batchId);
-                                            
-                                            const batchCalls = message.toolCalls?.filter(tc => (tc as any).batchId === batchId) || [];
+
+                                            const batchCalls = validToolCalls.filter(tc => (tc as any).batchId === batchId) || [];
                                             return (
-                                                <ToolBatchApproval 
+                                                <ToolBatchApproval
                                                     key={batchId}
                                                     batchId={batchId}
                                                     toolCalls={batchCalls}
@@ -900,9 +988,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
 
                                         return (
-                                            <ToolApproval 
-                                                key={toolCall.id} toolCall={toolCall} 
-                                                onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)} 
+                                            <ToolApproval
+                                                key={toolCall.id} toolCall={toolCall}
+                                                onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)}
                                                 isLatestBashTool={isLatestBashTool(toolCall.id)} message={message}
                                             />
                                         );

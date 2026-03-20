@@ -20,6 +20,16 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.waitForTimeout(5000);
 
+  // 🔥 FIX: 设置 mock API key 以绕过 provider 配置检查
+  await page.evaluate(() => {
+    const settingsStore = (window as any).__settingsStore;
+    if (settingsStore) {
+      settingsStore.getState().updateProviderConfig('zhipu', {
+        apiKey: 'mock-api-key-for-testing'
+      });
+    }
+  });
+
   // 打开聊天面板
   await page.evaluate(() => {
     const layoutStore = (window as any).__layoutStore;

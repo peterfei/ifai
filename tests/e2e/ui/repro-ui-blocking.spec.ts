@@ -32,15 +32,15 @@ test.describe('Reproduction: UI Thread Blocking During Streaming', () => {
         for (let i = 0; i < 100; i++) {
             const newChar = String.fromCharCode(65 + (i % 26));
             content += newChar;
-            const newSegments = [{
-                type: 'text',
-                order: i,
-                timestamp: Date.now(),
-                content: content
-            }];
 
-            // 更新消息 - 使用 updateMessageContent
-            store.getState().updateMessageContent(msgId, content);
+            // 🔥 FIX: 直接操作消息数组来更新内容
+            const state = store.getState();
+            const messages = [...state.messages];
+            const msgIndex = messages.findIndex((m: any) => m.id === msgId);
+            if (msgIndex !== -1) {
+                messages[msgIndex] = { ...messages[msgIndex], content };
+                store.setState({ messages });
+            }
 
             await new Promise(resolve => setTimeout(resolve, 20));
         }

@@ -27,21 +27,28 @@ test.describe('智谱 API Function Calling 格式', () => {
       const settingsStore = (window as any).__settingsStore;
       const settings = settingsStore.getState();
 
-      // E2E 测试环境使用 'real-ai-e2e' provider
-      const provider = settings.providers.find((p: any) => p.id === 'real-ai-e2e');
+      // 🔥 FIX: 使用 zhipu provider 而不是 real-ai-e2e
+      const provider = settings.providers.find((p: any) => p.id === 'zhipu');
       if (!provider) {
         return { error: 'Provider not found', providers: settings.providers.map((p: any) => ({ id: p.id, name: p.name })) };
       }
 
+      // 🔥 FIX: 使用 E2E 配置的 API Key（从 .env.e2e.local）
+      const e2eConfig = (window as any).__E2E_REAL_AI_CONFIG__ || {};
+      const apiKey = e2eConfig.realAIApiKey || provider.apiKey;
+      const baseUrl = e2eConfig.realAIBaseUrl || provider.baseUrl;
+      const model = e2eConfig.realAIModel || settings.currentModel;
+
       console.log('[Test] Provider config:', {
         id: provider.id,
-        baseUrl: provider.baseUrl,
-        model: settings.currentModel
+        baseUrl: baseUrl,
+        model: model,
+        hasApiKey: !!apiKey
       });
 
       // 构造测试请求 - 带 tools
       const requestBody = {
-        model: settings.currentModel,
+        model: model,
         messages: [
           { role: 'system', content: 'You are a helpful assistant.' },
           { role: 'user', content: '读取 README.md 文件的内容' }
@@ -67,12 +74,15 @@ test.describe('智谱 API Function Calling 格式', () => {
 
       console.log('[Test] Request body (tools included):', JSON.stringify(requestBody, null, 2));
 
+      // 🔥 FIX: 确保使用正确的 base URL（智谱使用 /chat/completions 端点）
+      const chatBaseUrl = baseUrl.includes('/chat/completions') ? baseUrl : baseUrl.replace(/\/api\/paas\/v4$/, '/api/paas/v4/chat/completions');
+
       // 发送请求
-      const response = await fetch(provider.baseUrl, {
+      const response = await fetch(chatBaseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${provider.apiKey}`
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify(requestBody)
       });
