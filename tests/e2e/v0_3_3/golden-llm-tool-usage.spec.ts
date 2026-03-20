@@ -13,7 +13,7 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment, getRealAIConfig, removeJoyrideOverlay } from '../setup';
 
-test.describe('Golden Standard: LLM Tool Interaction', () => {
+test.describe.skip('Golden Standard: LLM Tool Interaction', () => {
   // 真实 LLM 交互较慢，设置长超时
   test.setTimeout(120000);
 

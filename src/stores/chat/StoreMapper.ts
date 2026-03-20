@@ -263,10 +263,13 @@ export const initStoreMapper = () => {
       const { toolId, result, error, correlationId, shouldContinue } = payload;
 
       console.log('[StoreMapper] ✅ Tool completed event received:', { toolId, correlationId, hasResult: !!result, shouldContinue });
+      console.log('[StoreMapper] 🔍 Result type:', typeof result, 'Result value:', result);
+      console.log('[StoreMapper] 🔍 Result keys:', result ? Object.keys(result) : 'N/A');
 
       const updater = (state: any) => {
         // 🏆 注意：保持原始结果格式（JSON 对象或字符串），由 UI 层的 toolResultFormatter 负责格式化
         const content = error || (typeof result === 'string' ? result : JSON.stringify(result));
+        console.log('[StoreMapper] 📝 Content created:', content);
 
         // 🏆 FIX: 更新工具调用状态为 completed
         const updatedMessages = state.messages.map((msg: any) => {

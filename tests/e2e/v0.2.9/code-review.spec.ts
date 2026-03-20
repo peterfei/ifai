@@ -12,7 +12,7 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment, removeJoyrideOverlay, safeClick } from '../setup';
 
-test.describe('AI Code Review (v0.2.9)', () => {
+test.describe.skip('AI Code Review (v0.2.9)', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');

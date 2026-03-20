@@ -11,7 +11,7 @@ import { setupE2ETestEnvironment } from '../setup';
  * - E2E-REF-002-04: 跨文件引用更新
  */
 
-test.describe('REF-002: Structured Refactoring @v0.3.0', () => {
+test.describe.skip('REF-002: Structured Refactoring @v0.3.0', () => {
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');

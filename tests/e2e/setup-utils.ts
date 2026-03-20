@@ -129,7 +129,9 @@ export async function setupE2ETestEnvironment(
 
   // 1. 注入核心拦截与锁定脚本 (在 goto 之前)
   await page.addInitScript((params) => {
-    if (!params.useRealTauri) window.__E2E__ = true;
+    // 🔥 FIX: 总是设置 __E2E__ 标志，无论是否使用真实 Tauri
+    // 这样可以确保 formatToolResultToMarkdown 等测试辅助函数被正确暴露
+    window.__E2E__ = true;
     window.__E2E_SKIP_STABILIZER__ = true;
     window.__E2E_REAL_AI_CONFIG__ = params;
 

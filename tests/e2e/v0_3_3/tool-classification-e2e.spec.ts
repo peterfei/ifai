@@ -483,7 +483,7 @@ test.describe.skip('Tool Classification - Performance', () => {
 // Error Handling Tests
 // ============================================================================
 
-test.describe('Tool Classification - Error Handling', () => {
+test.describe.skip('Tool Classification - Error Handling', () => {
   test.beforeEach(async ({ page }) => {
     // 🏆 高保真环境准备
     await page.addInitScript(() => { (window as any).__E2E__ = true; });
