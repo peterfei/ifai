@@ -254,6 +254,9 @@ export const initStoreMapper = () => {
       console.log('[StoreMapper] 🔧   name:', name);
       console.log('[StoreMapper] 🔧   arguments:', args?.substring(0, 50));
 
+      // 🏆 FIX: 在 updater 外部保存 existingToolIndex，用于后续自动审批逻辑
+      let existingToolIndex = -1;
+
       const updater = (state: any) => {
         const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
         console.log('[StoreMapper] 🔧 Message index for correlationId:', messageIndex);
@@ -273,7 +276,7 @@ export const initStoreMapper = () => {
         });
 
         if (!targetMsg.toolCalls) targetMsg.toolCalls = [];
-        const existingToolIndex = targetMsg.toolCalls.findIndex((tc: any) => tc.id === toolId);
+        existingToolIndex = targetMsg.toolCalls.findIndex((tc: any) => tc.id === toolId);
 
         // 🏆 FIX: 解析 JSON 参数为对象，兼容 UI 组件
         let parsedArgs = {};
@@ -297,6 +300,40 @@ export const initStoreMapper = () => {
         // UI 组件期望: { tool: 'name', args: {...} }  args 必须是对象
         // 私有库使用: { function: { name, arguments } }  arguments 是字符串
         if (existingToolIndex === -1) {
+            // 🏆 NEW: 分配 batchId 以支持工具折叠显示
+            const aggregatableTools = ['agent_scan_project', 'agent_list_dir', 'agent_read_file', 'agent_search', 'list_dir', 'read_file'];
+            const lowerToolName = name.toLowerCase();
+            let batchId: string | undefined = undefined;
+
+            if (aggregatableTools.some(t => lowerToolName.includes(t))) {
+                const lastToolCall = targetMsg.toolCalls.length > 0 ? targetMsg.toolCalls[targetMsg.toolCalls.length - 1] : null;
+                console.log('[StoreMapper] 🔍 BatchId check:', {
+                    currentTool: name,
+                    lastTool: lastToolCall?.tool,
+                    lastToolBatchId: (lastToolCall as any)?.batchId,
+                    toolCallsLength: targetMsg.toolCalls.length
+                });
+
+                // 🏆 FIX: 简化batchId复用逻辑
+                // 如果上一个工具有batchId，说明它是可聚合工具，直接复用
+                // 不需要再次检查上一个工具的名称（因为它有batchId就说明是可聚合的）
+                if (lastToolCall && (lastToolCall as any).batchId) {
+                    batchId = (lastToolCall as any).batchId;
+                    console.log('[StoreMapper] ✅ Reusing batchId from last tool:', batchId);
+                } else {
+                    const currentEditorMode = (window as any).__IFAI_EDITOR_MODE__ || 'vibe';
+                    console.log('[StoreMapper] 🔍 Current editor mode:', currentEditorMode, '(no last tool with batchId)');
+                    if (currentEditorMode === 'vibe' || currentEditorMode === 'spec') {
+                        batchId = `batch_${crypto.randomUUID().slice(0, 8)}`;
+                        console.log('[StoreMapper] 🆕 Created new batchId:', batchId);
+                    } else {
+                        console.log('[StoreMapper] ⚠️ Editor mode not vibe/spec, no batchId created');
+                    }
+                }
+            } else {
+                console.log('[StoreMapper] ⚠️ Tool not in aggregatable list:', name);
+            }
+
             targetMsg.toolCalls.push({
                 id: toolId,
                 type: 'function',
@@ -306,9 +343,11 @@ export const initStoreMapper = () => {
                 // 🔥 私有库兼容字段（arguments 保持字符串）
                 function: { name, arguments: args || '' },
                 // 🔥 FIX: 设置初始状态为 pending
-                status: 'pending'
+                status: 'pending',
+                // 🏆 NEW: 添加 batchId 支持工具折叠
+                batchId
             });
-            console.log('[StoreMapper] 🔧 Added new tool call:', name);
+            console.log('[StoreMapper] 🔧 Added new tool call:', name, 'batchId:', batchId);
         } else {
             if (name !== 'Unknown Tool') {
                 targetMsg.toolCalls[existingToolIndex].tool = name;
@@ -354,9 +393,11 @@ export const initStoreMapper = () => {
       };
       useChatStore.setState(updater as any);
 
-      // 🏆 FIX: 自动审批逻辑（在状态更新后异步执行）
-      // 延迟执行以确保 UI 先渲染
-      setTimeout(async () => {
+      // 🏆 FIX: 自动审批逻辑（仅在工具首次创建时触发，避免重复批准）
+      // 只有当是新创建的工具时才执行自动批准
+      if (existingToolIndex === -1) {
+        // 延迟执行以确保 UI 先渲染
+        setTimeout(async () => {
         try {
           const settings = useSettingsStore.getState();
           const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
@@ -381,7 +422,7 @@ export const initStoreMapper = () => {
             console.log('[StoreMapper] 🚀 Triggering auto-approve for tool:', name);
 
             // 🏆 FIX: 标记工具已执行，防止 ToolCallManager 重复执行
-            if (!window.__EXECUTED_TOOLS__) {
+            if (!(window as any).__EXECUTED_TOOLS__) {
               (window as any).__EXECUTED_TOOLS__ = new Set();
             }
             (window as any).__EXECUTED_TOOLS__.add(toolId);
@@ -392,7 +433,8 @@ export const initStoreMapper = () => {
         } catch (error) {
           console.error('[StoreMapper] ❌ Auto-approve failed:', error);
         }
-      }, 100);
+        }, 100);
+      }
     });
 
     // 4. 映射工具执行结果
