@@ -1,13 +1,16 @@
 /**
  * StoreMapper - 架构映射器 (核级对齐版)
- * 
+ *
  * 负责将 EventBus 信号映射回 Zustand Store 状态。
+ *
+ * @version v1.1.0 - 集成 ContentSegmentManager
  */
 
 import { chatEventBus } from './eventBus/ChatEventBus';
 import { useChatStore } from '../useChatStore';
 import { useSettingsStore } from '../settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolicy';
+import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 
 export const initStoreMapper = () => {
     console.log('[StoreMapper] 🔗 Atomic Linkage Active');
@@ -17,6 +20,140 @@ export const initStoreMapper = () => {
 
     // 🏆 FIX: 防止流式 chunk 重复追加的标记
     let processedChunks: { [key: string]: Set<string> } = {};
+
+    // ============================================
+    // 🏆 新增：ContentSegmentManager 集成
+    // ============================================
+
+    // 监听流式开始 → 初始化 ContentSegmentManager
+    chatEventBus.on('chat:stream:start', (payload: any) => {
+        const { messageId } = payload;
+        console.log('[StoreMapper] 🚀 Stream start, initializing ContentSegmentManager:', messageId);
+
+        // 使用 assistant 的 ID 作为 correlationId
+        contentSegmentManager.onStreamStart(messageId);
+    });
+
+    // 监听内容块 → 通知 ContentSegmentManager
+    chatEventBus.on('chat:stream:chunk', (payload: any) => {
+        const { delta, correlationId } = payload;
+        console.log('[StoreMapper] 📝 Forwarding chunk to ContentSegmentManager:', {
+            correlationId,
+            delta: delta.substring(0, 30)
+        });
+
+        // 通知 ContentSegmentManager
+        contentSegmentManager.onContentChunk(delta, correlationId);
+    });
+
+    // 监听工具调用 → 通知 ContentSegmentManager
+    chatEventBus.on('chat:tool:call', (payload: any) => {
+        const { correlationId, toolId, name, arguments: args } = payload;
+
+        console.log('[StoreMapper] 🔧 Forwarding tool call to ContentSegmentManager:', {
+            correlationId,
+            toolId,
+            name
+        });
+
+        // 通知 ContentSegmentManager
+        contentSegmentManager.onToolCall({
+            id: toolId,
+            type: 'function',
+            function: {
+                name,
+                arguments: args
+            }
+        }, correlationId);
+    });
+
+    // 监听流式结束 → 完成并清理
+    chatEventBus.on('chat:stream:finished', (payload: any) => {
+        const { correlationId } = payload;
+        console.log('[StoreMapper] 🏁 Stream finished, notifying ContentSegmentManager:', correlationId);
+
+        contentSegmentManager.onStreamFinish(correlationId);
+    });
+
+    // ============================================
+    // 🏆 新增：监听 segment 事件 → 更新 Store
+    // ============================================
+
+    // 监听 segment 创建/更新
+    chatEventBus.on('chat:segment:created', (payload: any) => {
+        const { correlationId, segment } = payload;
+        console.log('[StoreMapper] ✅ Segment created, updating store:', {
+            correlationId,
+            segmentType: segment.type,
+            segmentOrder: segment.order
+        });
+
+        const updater = (state: any) => {
+            const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+            if (messageIndex === -1) return state;
+
+            const newMessages = [...state.messages];
+            const targetMsg = { ...newMessages[messageIndex] };
+
+            // 更新 segments 数组
+            if (!targetMsg.segments) {
+                targetMsg.segments = [];
+            }
+
+            // 添加新 segment（确保不重复）
+            const exists = targetMsg.segments.some((s: any) => s.order === segment.order);
+            if (!exists) {
+                targetMsg.segments = [...targetMsg.segments, segment];
+            }
+
+            newMessages[messageIndex] = targetMsg;
+
+            return { messages: newMessages };
+        };
+
+        useChatStore.setState(updater as any);
+    });
+
+    chatEventBus.on('chat:segment:updated', (payload: any) => {
+        const { correlationId, segmentId, delta } = payload;
+        console.log('[StoreMapper] 📝 Segment updated, updating store:', {
+            correlationId,
+            segmentId,
+            delta: delta.substring(0, 30)
+        });
+
+        const updater = (state: any) => {
+            const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+            if (messageIndex === -1) return state;
+
+            const newMessages = [...state.messages];
+            const targetMsg = { ...newMessages[messageIndex] };
+
+            // 找到对应的 segment 并更新
+            if (targetMsg.segments) {
+                const segmentIndex = targetMsg.segments.findIndex((s: any) => {
+                    const sid = `segment-${s.order}`;
+                    return sid === segmentId;
+                });
+
+                if (segmentIndex !== -1) {
+                    const updatedSegment = { ...targetMsg.segments[segmentIndex] };
+                    updatedSegment.content = (updatedSegment.content || '') + delta;
+                    targetMsg.segments[segmentIndex] = updatedSegment;
+                }
+            }
+
+            newMessages[messageIndex] = targetMsg;
+
+            return { messages: newMessages };
+        };
+
+        useChatStore.setState(updater as any);
+    });
+
+    // ============================================
+    // 现有逻辑：用户消息发送
+    // ============================================
 
     // 1. 映射用户消息发送
     chatEventBus.on('chat:message:sent', (payload) => {

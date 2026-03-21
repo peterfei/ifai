@@ -1,13 +1,32 @@
 /**
  * ChatEventBus - 核心聊天事件总线 (神经系统)
- * 
+ *
  * 基于订阅-发布模式，用于解耦 ChatStore 各子模块。
  * 强制执行 Correlation ID 协议，确保消息链路完整。
- * 
- * @version v1.0.0
+ *
+ * @version v1.1.0 - 新增 segment 相关事件
  */
 
 import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * 流式阶段
+ */
+export type StreamPhase = 'pre-tool' | 'in-tool' | 'post-tool';
+
+/**
+ * 内容段落类型
+ */
+export interface ContentSegment {
+  type: 'text' | 'tool';
+  order: number;
+  timestamp: number;
+  phase: StreamPhase;
+  content?: string;
+  toolCallId?: string;
+  toolName?: string;
+  status?: string;
+}
 
 /**
  * 基础 Payload 类型：强制包含相关性 ID
@@ -26,17 +45,25 @@ export interface ChatEvents {
   'chat:message:sending': BasePayload & { content: string; providerId: string; model: string };
   'chat:message:sent': BasePayload & { messageId: string; content: string };
   'chat:intent:detected': BasePayload & { intent: { type: string; confidence: number }; metadata?: any };
-  
+
   // 响应生成域
   'chat:stream:start': BasePayload & { messageId: string };
   'chat:stream:chunk': BasePayload & { delta: string; fullContent: string; isFinal: boolean };
   'chat:stream:finished': BasePayload & { totalTokens?: number };
-  
+
   // 工具调用域
   'chat:tool:call': BasePayload & { toolId: string; name: string; arguments: string };
   'chat:tool:approved': BasePayload & { toolId: string };
   'chat:tool:completed': BasePayload & { toolId: string; result: any; error?: string };
-  
+
+  // 🏆 新增：内容段落域 (Segment Ordering Fix)
+  'chat:segment:created': BasePayload & { segment: ContentSegment };
+  'chat:segment:updated': BasePayload & { segmentId: string; delta: string };
+  'chat:phase:changed': BasePayload & {
+    phase: StreamPhase;
+    previousPhase: StreamPhase | null;
+  };
+
   // 系统与错误域
   'chat:error': BasePayload & { code: string; message: string; stack?: string; moduleId: string };
   'chat:session:sync': BasePayload & { state: any }; // 用于触发持久化

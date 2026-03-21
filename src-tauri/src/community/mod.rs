@@ -19,7 +19,7 @@ impl AIService for BasicAIService {
         &self,
         config: &AIProviderConfig,
         messages: Vec<Message>,
-        _event_id: &str,
+        event_id: &str,
         tools: Option<Vec<serde_json::Value>>,
         callback: Box<dyn Fn(String) + Send>,
     ) -> Result<(), String> {
@@ -30,7 +30,15 @@ impl AIService for BasicAIService {
                 match &msg.content {
                     crate::core_traits::ai::Content::Text(text) => {
                         if !text.is_empty() {
-                            callback(text.to_string());
+                            // 包装成 OpenAI SSE 格式
+                            let chunk = serde_json::json!({
+                                "choices": [{
+                                    "delta": {
+                                        "content": text
+                                    }
+                                }]
+                            });
+                            callback(chunk.to_string());
                         }
                     }
                     _ => {}
@@ -58,6 +66,14 @@ impl AIService for BasicAIService {
                         callback(tool_call_event.to_string());
                     }
                 }
+
+                // 3. 🔥 FIX: 发送 finish 事件，确保前端能重置 isLoading 状态
+                let finish_event = serde_json::json!({
+                    "choices": [{
+                        "finish_reason": "stop"
+                    }]
+                });
+                callback(finish_event.to_string());
 
                 Ok(())
             }

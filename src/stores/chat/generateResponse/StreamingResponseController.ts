@@ -34,6 +34,14 @@ export class StreamingResponseController {
   async startListening(messageId: string, payload: BasePayload) {
     console.log(`[StreamController] 📡 Starting listener for ${messageId}`);
 
+    // 🏆 新增：触发 chat:stream:start 事件，初始化 ContentSegmentManager
+    chatEventBus.emit('chat:stream:start', {
+      messageId: messageId,
+      correlationId: payload.correlationId,
+      sessionId: payload.sessionId,
+      timestamp: payload.timestamp || Date.now()
+    });
+
     // 🏆 物理对齐：使用私有库的 eventId 格式 "chat_${correlationId}"
     const eventId = `chat_${messageId}`;
 
@@ -73,9 +81,15 @@ export class StreamingResponseController {
           this.handleBackendEvent(event.payload, payload);
         });
 
-        // 3. 记录监听器以便后续清理
-        this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream]);
-        console.log(`[StreamController] ✅ Listening to eventId: ${eventId}`);
+        // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
+        const unlistenFinish = await listen<string>(`${eventId}_finish`, (event) => {
+          console.log(`[StreamController] 🏁 Finish event received:`, event.payload);
+          this.emitFinished(payload);
+        });
+
+        // 4. 记录监听器以便后续清理
+        this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream, unlistenFinish]);
+        console.log(`[StreamController] ✅ Listening to eventId: ${eventId} (including _finish)`);
     } catch (e) {
         console.error('[StreamController] ❌ Failed to setup Tauri listeners:', e);
     }

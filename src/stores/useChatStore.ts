@@ -1,12 +1,14 @@
 /**
  * useChatStore - 新架构重构版 (Final Integrity - 核级对齐)
- * 
+ *
  * 100% 逻辑解耦，完全基于 ChatEventBus 和 PersistenceManager。
+ *
+ * @version v1.1.0 - 新增 segment ordering 支持
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { chatEventBus } from './chat/eventBus/ChatEventBus';
+import { chatEventBus, StreamPhase } from './chat/eventBus/ChatEventBus';
 import { ensureTauriInitialized } from '../utils/tauriInitializer';
 
 // -------------------------------------------------------------------
@@ -16,14 +18,17 @@ import { ensureTauriInitialized } from '../utils/tauriInitializer';
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
+  content: string;                    // 保留（向后兼容）
   timestamp: number;
   status?: string;
   toolCalls?: ToolCall[];
   tool_call_id?: string;
 
-  // 🔥 FIX: 添加 UI 组件依赖的属性
-  contentSegments?: ContentSegment[];
+  // 🏆 新增：正式的 segments 字段（取代 contentSegments）
+  segments?: ContentSegment[];         // 可选字段（兼容持久化和 core 类型）
+
+  // 兼容性字段
+  contentSegments?: ContentSegment[];   // 保留（过渡期兼容）
   references?: any[];
   multiModalContent?: ContentPart[];
 }
@@ -34,12 +39,27 @@ export interface ContentPart {
   image_url?: { url: string };
 }
 
+/**
+ * 🏆 更新：ContentSegment 接口
+ * 添加 phase 字段用于区分 pre-tool / in-tool / post-tool
+ */
 export interface ContentSegment {
   type: 'text' | 'tool';
   order: number;
   timestamp: number;
+
+  // 🏆 新增：phase 字段（核心！）
+  phase: StreamPhase;
+
+  // Text segments
   content?: string;
+
+  // Tool segments
   toolCallId?: string;
+  toolName?: string;
+  status?: string;
+
+  // 兼容性字段（保留）
   startPos?: number;
   endPos?: number;
 }
@@ -421,7 +441,12 @@ export const switchThread = async (threadId: string) => {
     const { threadPersistence } = await import('./persistence/threadPersistence');
     try {
         const messages = await threadPersistence.loadThreadMessages(threadId);
-        useChatStore.setState({ messages: messages || [] });
+        // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
+        const normalizedMessages = (messages || []).map((msg: any) => ({
+            ...msg,
+            segments: msg.segments || []  // 默认为空数组
+        }));
+        useChatStore.setState({ messages: normalizedMessages });
     } catch (e) {
         console.error('[ChatStore] SwitchThread failed:', e);
     }

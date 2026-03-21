@@ -484,21 +484,43 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         return { thinkingText: null, contentWithoutThinking: String(content || '') };
     }, [message.content]);
 
+    // 🏆 新增：优先使用 message.segments (新逻辑)
+    const segmentsFromStore = React.useMemo(() => {
+        // @ts-ignore
+        if (message.segments && message.segments.length > 0) {
+            // @ts-ignore
+            return message.segments.map(s => ({
+                ...s,
+                // 确保有 phase 字段（兼容旧数据）
+                phase: s.phase || 'pre-tool'
+            }));
+        }
+        return null;
+    }, [message.segments]);
+
     // Parse segments from string content (for non-multi-modal or fallback)
     const stringSegments = React.useMemo(() => {
         // Use contentWithoutThinking instead of raw displayContent
         const { segments } = parseToolCalls(contentWithoutThinking);
         return segments;
     }, [contentWithoutThinking]);
+
     // PERFORMANCE: Cache sorted contentSegments to avoid O(n log n) sort on every render
     const sortedSegments = React.useMemo(() => {
+        // 🏆 新增：优先使用 segmentsFromStore
+        if (segmentsFromStore && segmentsFromStore.length > 0) {
+            return [...segmentsFromStore].sort((a: any, b: any) => a.order - b.order);
+        }
+
+        // Fallback: 使用旧的 contentSegments
         // @ts-ignore
         if (!message.contentSegments || message.contentSegments.length === 0) {
             return null;
         }
         // @ts-ignore
         return [...message.contentSegments].sort((a: ContentSegment, b: ContentSegment) => a.order - b.order);
-    }, [message.contentSegments]);
+    }, [segmentsFromStore, message.contentSegments]);
+
     // 🔥 FIX v0.4.0: 工业级骨架屏占位，防止 CLS (布局抖动)
     const renderSkeleton = () => (
         <div className="space-y-3 py-2 animate-pulse w-full max-w-[280px]">
@@ -507,44 +529,83 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             <div className="h-2.5 bg-blue-500/10 rounded-full w-[70%] opacity-20"></div>
         </div>
     );
+
     // ⚡️ FIX: 全局排序渲染中枢 - 确保文字与工具调用严格按接收顺序排列
+    // 🏆 更新：优先使用 segmentsFromStore，保留 fallback 逻辑
     const mergedSegments = React.useMemo(() => {
-        // A. 收集显式追踪的段落 (Text & Tools)
+        // A. 🏆 新增：优先使用 segmentsFromStore (新逻辑)
+        if (segmentsFromStore && segmentsFromStore.length > 0) {
+            console.log('[MessageItem] ✅ Using segments from store:', segmentsFromStore.length);
+
+            return segmentsFromStore.filter(seg => {
+                // 基础验证
+                if (!seg || typeof seg !== 'object' || !seg.type) {
+                    console.warn('[MessageItem] Filtering out invalid segment:', seg);
+                    return false;
+                }
+
+                // 过滤思考文本
+                if (seg.type === 'text' && seg.content) {
+                    if (thinkingText && seg.content.includes(thinkingText)) {
+                        return false;
+                    }
+                    if (seg.content.trim().startsWith('_(') && seg.content.trim().endsWith(')_')) {
+                        return false;
+                    }
+
+                    // 探索模式过滤
+                    if (isExploreMessage) {
+                        const text = seg.content;
+                        const isRedundant = text.includes('分析项目') ||
+                                          text.includes('探索项目') ||
+                                          text.includes('[Local Model] Completed');
+                        if (isRedundant) return false;
+                    }
+                }
+
+                // 探索模式隐藏工具
+                if (isExploreMessage && seg.type === 'tool') {
+                    return false;
+                }
+
+                return true;
+            });
+        }
+
+        // B. Fallback: 使用旧的逻辑（向后兼容）
+        console.log('[MessageItem] ⚠️ Fallback to legacy segment parsing');
+
         // @ts-ignore
         let items: any[] = message.contentSegments ? [...message.contentSegments] : [];
 
         // 🔥 FIX: 验证初始 segments，过滤掉空对象
         items = items.filter(seg => seg && typeof seg === 'object' && seg.type);
 
-        // B. 如果没有显式段落（Fallback），根据当前内容解析
+        // 如果没有显式段落，根据当前内容解析
         if (items.length === 0 && contentWithoutThinking) {
             const { segments } = parseToolCalls(contentWithoutThinking);
             items = segments.map((s, idx) => ({
                 ...s,
                 order: idx,
                 timestamp: Date.now() - (segments.length - idx) * 10
-            })).filter(seg => seg && typeof seg === 'object' && seg.type); // 🔥 FIX: 同时验证解析后的 segments
+            })).filter(seg => seg && typeof seg === 'object' && seg.type);
         }
 
-        // C. 过滤掉已经作为 Thinking 渲染过的内容（防止重复显示）
+        // 过滤和排序逻辑（保持不变）
         const filteredItems = items.filter(seg => {
-            // 🔥 FIX: 验证 segment 结构，跳过空对象或无效的 segment
             if (!seg || typeof seg !== 'object' || !seg.type) {
                 console.warn('[MessageItem] Filtering out invalid segment:', seg);
                 return false;
             }
 
             if (seg.type === 'text' && seg.content) {
-                // 如果这个片段就是 thinkingText，或者它的一部分，则过滤
                 if (thinkingText && (thinkingText.includes(seg.content) || seg.content.includes(thinkingText))) {
                     return false;
                 }
-                // 过滤掉思考标记
                 if (seg.content.trim().startsWith('_(') && seg.content.trim().endsWith(')_')) {
                     return false;
                 }
 
-                // 🏆 v0.4.1: 在探索模式下，过滤掉"分析项目关键文件"等冗余文本，以及本地模型的原始输出
                 if (isExploreMessage) {
                     const text = seg.content;
                     const isRedundant = text.includes('分析项目') ||
@@ -554,28 +615,26 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                     if (isRedundant) return false;
                 }
             }
-            // 🏆 v0.4.1: 物理隐藏所有工具片段（如果已有 UI 元数据）
+
             if (isExploreMessage && seg.type === 'tool') {
                 return false;
             }
             return true;
         });
 
-        // D. 集成所有未被段落追踪的"原生"工具调用
+        // 集成未被追踪的工具调用
         const trackedIds = new Set(filteredItems.filter(s => s.type === 'tool').map(s => s.toolCallId));
         const untrackedToolCalls = message.toolCalls?.filter(tc => !trackedIds.has(tc.id)) || [];
-        
-        // 🏆 v0.4.1: 如果已经有 exploreProgress (树形 UI)，物理隐藏所有工具片段
+
         const untrackedSegments = isExploreMessage ? [] : untrackedToolCalls.map(tc => ({
             type: 'tool' as const,
-            order: 999, 
+            order: 999,
             timestamp: (tc as any).timestamp || Date.now(),
             toolCallId: tc.id
         }));
-        
-        // E. 统一排序 - 严格遵循时间顺序与逻辑顺序的混合模式
+
+        // 统一排序
         const sorted = [...filteredItems, ...untrackedSegments].sort((a, b) => {
-            // 1. 如果都有明确的 order，按 order 排 (流式追踪最准确)
             if (a.order !== undefined && b.order !== undefined && a.order < 999 && b.order < 999) {
                 if (a.order !== b.order) return a.order - b.order;
             }
@@ -674,7 +733,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         }
 
         return finalSegments;
-    }, [message.contentSegments, contentWithoutThinking, message.toolCalls, effectivelyStreaming, thinkingText]);
+    }, [segmentsFromStore, message.contentSegments, contentWithoutThinking, message.toolCalls, effectivelyStreaming, thinkingText]);
     let toolCallIndex = 0;
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
     // 使用统一的 SimpleMarkdownRenderer（无语法高亮，性能优化）
@@ -891,8 +950,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             return null;
                                         }
 
-                                        if (effectivelyStreaming) return renderMarkdownWithoutHighlight(content, `streaming-text-${index}`);
-                                        return renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
+                                        // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
+                                        const segmentPhase = segment.phase || 'pre-tool';
+                                        const renderedContent = effectivelyStreaming
+                                            ? renderMarkdownWithoutHighlight(content, `streaming-text-${index}`)
+                                            : renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
+
+                                        return (
+                                            <div
+                                                key={`text-segment-${index}`}
+                                                data-phase={segmentPhase}
+                                                data-test={`segment-${index}`}
+                                                data-type="text"
+                                                data-order={segment.order}
+                                            >
+                                                {renderedContent}
+                                            </div>
+                                        );
                                     } else if (segment.type === 'tool' && segment.toolCallId) {
                                         // 🚀 v0.3.6: 批处理聚合渲染 (单例聚合版)
                                         if (segment.isBatchAnchor && segment.batchId) {
@@ -934,12 +1008,28 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                         const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
                                         if (!toolCall) return null;
-                                        return (
+
+                                        // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
+                                        const segmentPhase = segment.phase || 'in-tool';
+                                        const toolComponent = (
                                             <ToolApproval
                                                 key={toolCall.id} toolCall={toolCall}
                                                 onApprove={() => onApprove(message.id, toolCall.id)} onReject={() => onReject(message.id, toolCall.id)}
                                                 isLatestBashTool={isLatestBashTool(toolCall.id)} message={message}
                                             />
+                                        );
+
+                                        return (
+                                            <div
+                                                key={`tool-segment-${index}`}
+                                                data-phase={segmentPhase}
+                                                data-test={`segment-${index}`}
+                                                data-type="tool"
+                                                data-order={segment.order}
+                                                data-tool-call-id={toolCall.id}
+                                            >
+                                                {toolComponent}
+                                            </div>
                                         );
                                     }
                                     return null;
