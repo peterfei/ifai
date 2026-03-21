@@ -260,7 +260,8 @@ class ThreadPersistenceService {
 
     try {
       const stored = await indexedDBHelper.getThreadMessages(threadId);
-      return stored.map(storedToMessage);
+      const messages = stored.map(storedToMessage);
+      return messages;
     } catch (error) {
       console.error('[ThreadPersistence] Failed to load messages:', error);
       return [];
@@ -301,6 +302,7 @@ class ThreadPersistenceService {
 
   /**
    * Process the save queue
+   * 🏆 FIX: 检查 threadId 是否是当前活跃线程，如果是才保存
    */
   private async processSaveQueue(): Promise<void> {
     if (this.isSaving || this.saveQueue.size === 0) {
@@ -313,15 +315,21 @@ class ThreadPersistenceService {
 
     try {
       const { useThreadStore } = await import('../threadStore');
+      const { useChatStore } = await import('../useChatStore');
       const threadStore = useThreadStore.getState();
+      const currentThreadId = threadStore.activeThreadId;
 
       for (const threadId of threadIds) {
         const thread = threadStore.getThread(threadId);
         if (thread) {
           await this.saveThread(thread);
-          const messages = getThreadMessages(threadId);
-          if (messages.length > 0) {
+
+          // 🏆 关键：只有当 threadId 是当前活跃线程时，才保存全局消息
+          // 因为全局 messages 只包含当前线程的消息
+          if (threadId === currentThreadId) {
+            const messages = useChatStore.getState().messages;
             await this.saveThreadMessages(threadId, messages as any);
+            console.log('[ThreadPersistence] ✅ Saved thread:', threadId.substring(0, 20), 'messages:', messages.length);
           }
         }
       }
@@ -406,19 +414,33 @@ class ThreadPersistenceService {
 
       useThreadStore.setState({ threads: threadsMap });
 
+      // 🏆 FIX: 只收集统计信息，不为所有线程调用 setThreadMessages
+      // 因为 setThreadMessages 会覆盖全局 messages，导致所有线程显示相同内容
       let totalMessages = 0;
       for (const thread of threads) {
         const messages = await this.loadThreadMessages(thread.id);
-        if (messages.length > 0) {
-          setThreadMessages(thread.id, messages as any);
-          totalMessages += messages.length;
-        }
+        totalMessages += messages.length;
       }
 
       if (threads.length > 0) {
-        const mostRecent = threads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
-        const { switchThread } = await import('../useChatStore');
-        switchThread(mostRecent.id);
+        // 🏆 FIX: 选择有消息的最新线程，而不是所有线程中最新的
+        // 因为空的线程可能因为用户点击而更新了 lastActiveAt
+        const threadsWithMessages = await Promise.all(
+          threads.map(async (thread) => ({
+            ...thread,
+            messageCount: (await this.loadThreadMessages(thread.id)).length
+          }))
+        );
+
+        // 先筛选有消息的线程，再按 lastActiveAt 排序
+        const validThreads = threadsWithMessages.filter(t => t.messageCount > 0);
+        const mostRecent = validThreads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
+
+        if (mostRecent) {
+          const { switchThread } = await import('../useChatStore');
+          // 🏆 FIX: 只为选中的线程调用 switchThread，它会加载该线程的消息
+          switchThread(mostRecent.id);
+        }
       }
 
       console.log(`[ThreadPersistence] ✅ Restored ${threads.length} threads with ${totalMessages} total messages`);

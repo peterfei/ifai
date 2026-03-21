@@ -159,8 +159,12 @@ const getGlobalBus = () => {
 
 export const chatEventBus = getGlobalBus();
 
+// 🔥 防止重复注册开发模式中间件
+let devMiddlewareRegistered = false;
+
 // 开发模式下开启事件追踪 (Debugability)
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && !devMiddlewareRegistered) {
+  devMiddlewareRegistered = true;
   chatEventBus.use((event, payload) => {
     console.log(`[ChatEventBus] 🚀 ${event}`, {
       id: payload.correlationId,

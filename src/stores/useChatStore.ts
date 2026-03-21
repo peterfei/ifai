@@ -140,6 +140,10 @@ export const useChatStore = create<ChatStore>()(
 
       addMessage: (message) => {
         set((state) => ({ messages: [...state.messages, message] }));
+        // 🏆 FIX: 触发自动保存，确保消息被保存到 IndexedDB
+        import('./persistence/threadPersistence').then(({ autoSaveThread }) => {
+          autoSaveThread(get().currentThreadId);
+        });
       },
 
       clearMessages: () => {
@@ -179,6 +183,9 @@ export const useChatStore = create<ChatStore>()(
         const projectRoot = useFileStore.getState().rootPath;
 
         console.log('[ChatStore] Approving tool:', { toolName, toolArgs, toolCallId, projectRoot });
+        if (!projectRoot) {
+          console.error('[ChatStore] ❌ Project root is empty! FileStore state:', useFileStore.getState());
+        }
 
         // 🏆 FIX: 更新工具状态为 executing
         set((state) => ({
@@ -441,6 +448,7 @@ export const switchThread = async (threadId: string) => {
     const { threadPersistence } = await import('./persistence/threadPersistence');
     try {
         const messages = await threadPersistence.loadThreadMessages(threadId);
+
         // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
         const normalizedMessages = (messages || []).map((msg: any) => ({
             ...msg,
@@ -458,6 +466,7 @@ export const setThreadMessages = (id: string, msgs: any[]) => useChatStore.setSt
 if (typeof window !== 'undefined') {
     (window as any).__chatStore = useChatStore;
     (window as any).__setThreadMessages = setThreadMessages;
+    (window as any).__switchThread = switchThread;
     (window as any).__resetLoading = () => useChatStore.setState({ isLoading: false });
 }
 

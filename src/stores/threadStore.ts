@@ -161,6 +161,11 @@ export const useThreadStore = create<ThreadStore>()(
           activeThreadId: threadId,
         }));
 
+        // 🏆 FIX: 同步更新 chatStore.currentThreadId
+        import('./useChatStore').then(({ useChatStore }) => {
+          useChatStore.setState({ currentThreadId: threadId });
+        }).catch(() => {});
+
         autoSaveThread(threadId);
         return threadId;
       },
@@ -198,12 +203,11 @@ export const useThreadStore = create<ThreadStore>()(
           },
         }));
 
-        import('ifainew-core').then(({ useChatStore }) => {
-          const chatStore = useChatStore.getState();
-          if (chatStore.isLoading) useChatStore.setState({ isLoading: false });
+        // 🏆 FIX: 调用 useChatStore.switchThread 来加载该线程的消息
+        // 这样可以确保 currentThreadId 和消息都正确更新
+        import('./useChatStore').then(async ({ switchThread: loadThreadMessages }) => {
+          await loadThreadMessages(threadId);
         }).catch(() => {});
-
-        autoSaveThread(threadId);
       },
 
       updateThread: (threadId: string, updates: Partial<Thread>) => {

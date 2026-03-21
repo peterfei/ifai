@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, FolderOpen, File, Loader2, CheckCircle2, XCircle, Terminal, Database, Layers, Search, Eye, Activity } from 'lucide-react';
+import { FolderOpen, File, Loader2, CheckCircle2, XCircle, Terminal, Layers, Search, Activity } from 'lucide-react';
 import { ToolCall } from '../../stores/useChatStore';
 import { ToolApproval } from './ToolApproval';
 
@@ -12,9 +12,12 @@ interface ToolBatchApprovalProps {
 }
 
 /**
- * 🏆 v0.3.6 全局单例聚合组件 (Global Singleton Batch)
- * 
- * 实现“单卡片多任务”逻辑，模拟工业级终端动作流。
+ * 🏆 v0.3.12 分组版本 - 按工具类型分组显示
+ *
+ * 架构要点：
+ * - 依赖父组件稳定的 useCallback 回调（已在 MessageItem 中实现）
+ * - 只在必要的地方使用 useMemo（分组是昂贵操作）
+ * - 不使用 React.memo，因为 props 现在已经稳定
  */
 export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
     batchId,
@@ -32,31 +35,76 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
         const pending = toolCalls.filter(tc => tc.status === 'pending').length;
         const failed = toolCalls.filter(tc => tc.status === 'failed').length;
         const isRunning = toolCalls.some(tc => tc.isPartial || tc.status === 'approved' || (tc.status === 'pending' && total === 1));
-        
-        // 🏆 PIVO 3.0: 物理级 Token 动态统计
+
         let charCount = 0;
         toolCalls.forEach(tc => {
             const res = tc.result || tc.output || "";
             charCount += typeof res === 'string' ? res.length : JSON.stringify(res).length;
         });
-        // 换算公式：1 Token ≈ 4 字符，并加上 1k 的基础上下文消耗
         const estimatedTokens = Math.ceil(charCount / 4) + 1000;
         const tokenLabel = estimatedTokens >= 1000 ? (estimatedTokens / 1000).toFixed(1) + 'k' : estimatedTokens;
 
         return { total, completed, pending, failed, isRunning, tokens: tokenLabel };
     }, [toolCalls]);
 
-    // 2. 动作流日志 (High Density)
-    const latestAction = useMemo(() => {
-        const last = toolCalls[toolCalls.length - 1];
-        if (!last) return null;
-        const tool = last.tool.toLowerCase();
-        const path = last.args?.rel_path || last.args?.path || '.';
-        const action = tool.includes('read') ? 'Read' : (tool.includes('list') || tool.includes('dir') ? 'List' : 'Search');
-        return { action, path, status: last.status };
+    // 2. 按类型分组（这是昂贵的操作，使用 useMemo）
+    const groupedToolCalls = useMemo(() => {
+        const groups: Array<{ key: string; label: string; icon: any; color: string; calls: ToolCall[] }> = [];
+
+        // 定义分组
+        const definitions = [
+            { key: 'read', label: 'Read files', icon: File, color: 'text-blue-400', test: (t: string) => t.includes('read') },
+            { key: 'list', label: 'List directories', icon: FolderOpen, color: 'text-green-400', test: (t: string) => t.includes('list') || t.includes('dir') },
+            { key: 'search', label: 'Search content', icon: Search, color: 'text-yellow-400', test: (t: string) => t.includes('search') || t.includes('grep') },
+            { key: 'write', label: 'Write files', icon: Terminal, color: 'text-orange-400', test: (t: string) => t.includes('write') || t.includes('create') || t.includes('edit') },
+            { key: 'analyze', label: 'Analyze code', icon: Activity, color: 'text-purple-400', test: (t: string) => t.includes('scan') || t.includes('analyze') },
+            { key: 'other', label: 'Other actions', icon: Layers, color: 'text-gray-400', test: () => true }
+        ];
+
+        // 分配 toolCalls 到分组
+        const buckets = new Map<string, ToolCall[]>();
+        definitions.forEach(def => buckets.set(def.key, []));
+
+        toolCalls.forEach(tc => {
+            const tool = tc.tool.toLowerCase();
+            console.log('[ToolBatchApproval] Grouping tool:', tool, 'id:', tc.id);
+            for (const def of definitions) {
+                if (def.test(tool)) {
+                    buckets.get(def.key)!.push(tc);
+                    console.log('[ToolBatchApproval]   → Assigned to group:', def.key);
+                    break;
+                }
+            }
+        });
+
+        // 转换为数组（只包含非空分组）
+        definitions.forEach(def => {
+            const calls = buckets.get(def.key)!;
+            if (calls.length > 0) {
+                groups.push({ key: def.key, label: def.label, icon: def.icon, color: def.color, calls });
+                console.log('[ToolBatchApproval] Group:', def.key, 'has', calls.length, 'tools');
+            }
+        });
+
+        console.log('[ToolBatchApproval] Total groups:', groups.length);
+        return groups;
     }, [toolCalls]);
 
-    // 3. 任务描述 (基于工具类型和路径猜测)
+    // 3. 最新动作（用于折叠状态显示）
+    const latestAction = useMemo(() => {
+        for (const group of groupedToolCalls) {
+            const running = group.calls.find(tc => tc.isPartial || tc.status === 'approved' || tc.status === 'pending');
+            if (running) {
+                const tool = running.tool.toLowerCase();
+                const path = running.args?.rel_path || running.args?.path || '.';
+                const action = tool.includes('read') ? 'Read' : (tool.includes('list') || tool.includes('dir') ? 'List' : 'Search');
+                return { action, path };
+            }
+        }
+        return null;
+    }, [groupedToolCalls]);
+
+    // 4. 任务描述
     const taskTitle = useMemo(() => {
         const paths = toolCalls.map(tc => tc.args?.rel_path || tc.args?.path || '');
         if (paths.some(p => p.includes('core') || p.includes('private'))) return '访问 ifainew-core 私有库';
@@ -72,8 +120,8 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
 
     return (
         <div data-testid="tool-batch-card" className="my-4 group/batch animate-in fade-in slide-in-from-left-2 duration-500">
-            {/* 🏆 Header: 紧凑状态行 (模仿截图) */}
-            <div 
+            {/* Header */}
+            <div
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="flex items-center gap-3 cursor-pointer select-none group"
             >
@@ -81,12 +129,12 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
                     {getStatusIcon()}
                 </div>
                 <div className="flex items-center gap-2 text-[12px] font-bold text-gray-300">
-                    <span>{stats.isRunning ? 'Running' : 'Completed'} {stats.total} Explore actions...</span>
+                    <span>{stats.isRunning ? 'Running' : 'Completed'} {groupedToolCalls.length} action groups ({stats.total} tools)...</span>
                     <span className="text-[10px] text-gray-500 font-normal">(ctrl+o to expand)</span>
                 </div>
             </div>
 
-            {/* 🏆 Body: 终端风格动作流 */}
+            {/* Body */}
             <div className="ml-2.5 mt-1 border-l border-gray-800 pl-4 py-1 space-y-2">
                 {/* 任务主行 */}
                 <div className="flex flex-col">
@@ -94,8 +142,8 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
                         <span className="text-[13px] font-bold text-gray-100">{taskTitle}</span>
                         <span className="text-[10px] text-gray-500 font-mono">· {stats.total} tool uses · {stats.tokens} tokens</span>
                     </div>
-                    
-                    {/* 子动态行 (始终显示最新动作) */}
+
+                    {/* 子动态行 */}
                     <div className="flex items-center gap-2 mt-1 animate-in slide-in-from-left-1">
                         <div className="w-3 h-3 border-l border-b border-gray-700 rounded-bl-sm" />
                         {!isExpanded ? (
@@ -115,27 +163,42 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
                     </div>
                 </div>
 
-                {/* 🏆 详细卡片区 (仅在展开时显示) */}
+                {/* 分组详情 */}
                 {isExpanded && (
                     <div className="pt-2 space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
-                        {toolCalls.map((tc) => (
-                            <div key={tc.id} className="relative transition-transform active:scale-[0.99]">
-                                <ToolApproval 
-                                    toolCall={tc}
-                                    onApprove={() => onApprove(tc.id)}
-                                    onReject={() => onReject(tc.id)}
-                                    message={message}
-                                />
-                            </div>
-                        ))}
+                        {groupedToolCalls.map((group) => {
+                            const Icon = group.icon;
+                            return (
+                                <div key={group.key} className="rounded-lg bg-gray-900/50 border border-gray-800 overflow-hidden">
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border-b border-gray-700">
+                                        <Icon size={14} className={group.color} />
+                                        <span className="text-sm font-semibold text-gray-200">
+                                            {group.label} ({group.calls.length})
+                                        </span>
+                                    </div>
+                                    <div className="p-2 space-y-2">
+                                        {group.calls.map((tc) => (
+                                            <div key={tc.id} className="relative transition-transform active:scale-[0.99]">
+                                                <ToolApproval
+                                                    toolCall={tc}
+                                                    onApprove={() => onApprove(tc.id)}
+                                                    onReject={() => onReject(tc.id)}
+                                                    message={message}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
 
-            {/* 🏆 底部批量批准 (仅在折叠且有待审批时显示) */}
+            {/* 批量批准按钮 */}
             {!isExpanded && stats.pending > 0 && (
                 <div className="ml-7 mt-2">
-                    <button 
+                    <button
                         onClick={(e) => {
                             e.stopPropagation();
                             toolCalls.forEach(tc => tc.status === 'pending' && !tc.isPartial && onApprove(tc.id));

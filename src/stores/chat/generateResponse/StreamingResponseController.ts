@@ -15,6 +15,12 @@ export class StreamingResponseController {
   private activeListeners: Map<string, Function[]> = new Map();
 
   /**
+   * 🔥 FIX v0.3.12: 幂等性保护 - 防止 finish 事件被多次触发
+   * 商业版后端可能发送多个 _finish 事件，但每个 correlationId 只应处理一次
+   */
+  private emittedFinish: Set<string> = new Set();
+
+  /**
    * 工具调用参数累积缓冲区
    * 用于在流式传输过程中逐步累积完整的 arguments
    * Key: bufferKey (优先用 id，其次用 index), Value: { name, arguments, hasName, hasArgs, toolId }
@@ -56,6 +62,11 @@ export class StreamingResponseController {
       this.stopListening(payload.correlationId);
     }
 
+    // 🔥 FIX v0.3.12: 清除旧的 finish 状态，允许续播场景重新触发 finish
+    // 续播场景下，同一个 assistant 消息会触发多次流式响应
+    this.emittedFinish.delete(payload.correlationId);
+    console.log(`[StreamController] 🔄 Cleared finish state for ${payload.correlationId} (continuation mode)`);
+
     // 🏆 物理兼容性：如果不在真实 Tauri 环境，使用仿真监听器
     if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
         console.warn('[StreamController] 🛡️ Non-Tauri environment detected. Using simulated listeners.');
@@ -83,7 +94,8 @@ export class StreamingResponseController {
 
         // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
         const unlistenFinish = await listen<string>(`${eventId}_finish`, (event) => {
-          console.log(`[StreamController] 🏁 Finish event received:`, event.payload);
+          console.log(`[StreamController] 🏁 Finish event received for ${payload.correlationId}:`, event.payload);
+          console.log(`[StreamController] 🏁 Already emitted? ${this.emittedFinish.has(payload.correlationId)}`);
           this.emitFinished(payload);
         });
 
@@ -297,6 +309,15 @@ export class StreamingResponseController {
   }
 
   private emitFinished(payload: BasePayload, tokens?: number) {
+    // 🔥 FIX v0.3.12: 幂等性保护 - 防止同一个 correlationId 多次触发 finish
+    const correlationId = payload.correlationId;
+    if (this.emittedFinish.has(correlationId)) {
+      console.warn(`[StreamController] ⚠️ Finish already emitted for ${correlationId}, skipping duplicate`);
+      return;
+    }
+    this.emittedFinish.add(correlationId);
+    console.log(`[StreamController] ✅ First finish for ${correlationId}, proceeding...`);
+
     // 🏆 FIX: Emit 任何缓冲中的 tool calls（即使 JSON 不完整）
     if (this.toolCallBuffer.size > 0) {
       console.log('[StreamController] 🔄 Emitting buffered tool calls before finish:', this.toolCallBuffer.size);
@@ -340,6 +361,9 @@ export class StreamingResponseController {
       listeners.forEach(unlisten => unlisten());
       this.activeListeners.delete(correlationId);
     }
+    // 🔥 FIX v0.3.12: 清理 finish 状态（延迟清理，防止已排队的 _finish 事件触发）
+    // 注意：不立即清理 emittedFinish，因为已排队的 _finish 事件可能还需要检查幂等性
+    // finish 状态会在下次 startListening 时被清理
   }
 }
 
