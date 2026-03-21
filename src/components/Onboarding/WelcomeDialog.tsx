@@ -62,6 +62,9 @@ export const saveOnboardingState = (state: OnboardingState) => {
 };
 
 export const shouldShowOnboarding = (): boolean => {
+  // 🔥 禁用首次启动的本地模型下载提示
+  return false;
+
   // 🔥 E2E 环境：跳过欢迎对话框
   if (typeof window !== 'undefined' && (window as any).__E2E_SKIP_STABILIZER__) {
     console.log('[shouldShowOnboarding] E2E environment detected, skipping');
