@@ -27,11 +27,12 @@ export const initStoreMapper = () => {
 
     // 监听流式开始 → 初始化 ContentSegmentManager
     chatEventBus.on('chat:stream:start', (payload: any) => {
-        const { messageId } = payload;
-        console.log('[StoreMapper] 🚀 Stream start, initializing ContentSegmentManager:', messageId);
+        // 🔥 FIX: 优先使用 correlationId，确保与后续事件一致
+        const correlationId = payload.correlationId || payload.messageId;
+        console.log('[StoreMapper] 🚀 Stream start, initializing ContentSegmentManager:', correlationId);
 
-        // 使用 assistant 的 ID 作为 correlationId
-        contentSegmentManager.onStreamStart(messageId);
+        // 使用 correlationId 确保与后续的 chunk/tool/finish 事件一致
+        contentSegmentManager.onStreamStart(correlationId);
     });
 
     // 监听内容块 → 通知 ContentSegmentManager

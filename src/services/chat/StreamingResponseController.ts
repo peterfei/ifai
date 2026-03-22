@@ -7,6 +7,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { ApprovalPipeline } from '../../utils/approvalPipeline';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { eventBus } from '../../core/events/GlobalEventBus';
+import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 
 export class StreamingResponseController {
   private static instance: StreamingResponseController;
@@ -107,9 +108,18 @@ export class StreamingResponseController {
 
   async initSession(assistantMsgId: string, initialMessages: Message[]) {
     const threadId = useThreadStore.getState().activeThreadId || 'default';
-    const sessionData = { 
-        renderRequested: false, 
-        unlistenFns: [] as UnlistenFn[], 
+
+    // 🔥 FIX: 触发 chat:stream:start 事件，初始化 ContentSegmentManager
+    chatEventBus.emit('chat:stream:start', {
+      messageId: assistantMsgId,
+      correlationId: assistantMsgId,
+      sessionId: threadId,
+      timestamp: Date.now()
+    });
+
+    const sessionData = {
+        renderRequested: false,
+        unlistenFns: [] as UnlistenFn[],
         buffer: JSON.parse(JSON.stringify(initialMessages)),
         threadId,
         hasReceivedChunk: false,
@@ -412,6 +422,15 @@ export class StreamingResponseController {
     window.dispatchEvent(new CustomEvent(`${id}_finish`, { detail: { payload: 'done' } }));
 
     InlineSyncService.handleResponseFinish();
+
+    // 🔥 FIX: 发送 chat:stream:finished 事件，清理 ContentSegmentManager
+    const sessionData = this.activeStreams.get(id);
+    chatEventBus.emit('chat:stream:finished', {
+      correlationId: id,
+      sessionId: sessionData?.threadId || 'default',
+      timestamp: Date.now()
+    });
+
     this.cleanup(id);
   }
 
