@@ -859,8 +859,23 @@ async fn ai_chat(
 
                  // 如果已经拦截过工具，或者正在输出 XML 标签，则彻底静默后续所有块
                  // 这样可以防止 AI 在工具调用后输出重复的 XML 或者废话
-                 let is_xml_fragment = combined.contains("<tool_call>") || combined.contains("<arg_") || chunk.contains("tool_call");
+                 // 🔥 FIX: 只检测当前 chunk 是否包含 XML 片段，而不是检测累积的 combined
+                 // 避免误判 AI 在推理阶段的正常内容导致所有后续 chunks 被静默
+                 // 注意：只检测 XML 标签格式（<tool_call, <arg_），不检测 JSON 中的 "tool_calls" 字段
+                 let is_xml_fragment = chunk.contains("<tool_call") || chunk.contains("<arg_");
                  let should_suppress = already_intercepted || is_xml_fragment;
+
+                 // 🔥 DEBUG: 打印 should_suppress 状态（仅前5个被静默的 chunks）
+                 if should_suppress {
+                     static mut SUPPRESS_COUNT: usize = 0;
+                     unsafe {
+                         SUPPRESS_COUNT += 1;
+                         if SUPPRESS_COUNT <= 5 {
+                             println!("[AI Chat] 🔇 Suppressing chunk #{}: already_intercepted={}, is_xml_fragment={}", SUPPRESS_COUNT, already_intercepted, is_xml_fragment);
+                             println!("[AI Chat] 🔇 Chunk preview: {}", chunk.chars().take(100).collect::<String>());
+                         }
+                     }
+                 }
 
                  // 🔥 FIX: 检测多种流结束信号
                  let mut should_finish = false;

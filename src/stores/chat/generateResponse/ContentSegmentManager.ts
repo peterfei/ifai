@@ -137,11 +137,12 @@ export class ContentSegmentManager {
       return;
     }
 
-    console.log('[ContentSegmentManager] 📝 Content chunk received:', {
-      correlationId,
-      delta: delta.substring(0, 30),
-      phase: state.currentPhase
-    });
+    // 🔥 FIX: 减少日志输出，每个字符不再打印日志
+    // console.log('[ContentSegmentManager] 📝 Content chunk received:', {
+    //     correlationId,
+    //     delta: delta.substring(0, 30),
+    //     phase: state.currentPhase
+    // });
 
     // 追加到当前 text segment
     if (state.currentTextSegment) {

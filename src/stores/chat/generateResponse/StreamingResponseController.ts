@@ -12,9 +12,28 @@
 import { chatEventBus, BasePayload } from '../eventBus/ChatEventBus';
 import { useSettingsStore } from '../../settingsStore';
 import { useThreadStore } from '../../threadStore';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+// 🔥 FIX: 使用全局 Tauri API 而不是模块导入，修复 E2E 环境中的模块解析问题
+// import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { ApprovalPipeline } from '../../../utils/approvalPipeline';
 import { useChatStore } from '../../useChatStore';
+
+// 🔥 FIX: 动态获取 listen 函数，支持 E2E 测试环境和真实 Tauri 环境
+async function getTauriListen() {
+  // 优先尝试从全局 Tauri 对象获取（E2E 环境和真实 Tauri 都支持）
+  const w = window as any;
+  if (w.__TAURI__?.event?.listen) {
+    return w.__TAURI__.event.listen;
+  }
+
+  // 如果全局对象不存在，尝试动态导入模块
+  try {
+    const eventModule = await import('@tauri-apps/api/event');
+    return eventModule.listen;
+  } catch (e) {
+    console.error('[StreamingResponseController] ❌ Failed to get Tauri listen function:', e);
+    throw new Error('Tauri event listen function not available');
+  }
+}
 
 interface StreamSession {
   correlationId: string;
@@ -307,7 +326,16 @@ export class StreamingResponseController {
     }
 
     try {
-        const { listen } = await import('@tauri-apps/api/event');
+        // 🔥 FIX: 使用动态获取的 listen 函数，修复 E2E 环境中的模块解析问题
+        const listen = await getTauriListen();
+
+        // 🔥 DEBUG: 诊断 Tauri event listen 是否可用
+        console.log('[StreamController] 🔍 Tauri Event Listen Check:', {
+          eventId,
+          listenFunctionExists: typeof listen === 'function',
+          listenSource: typeof window !== 'undefined' && (window as any).__TAURI__?.event?.listen ? 'global' : 'module',
+          correlationId: payload.correlationId
+        });
 
         // 1. 监听状态更新 (Status)
         const unlistenStatus = await listen<string>(`${eventId}_status`, (event) => {
@@ -320,12 +348,20 @@ export class StreamingResponseController {
         });
 
         // 2. 监听核心内容流 (Stream)
-        const unlistenStream = await listen<any>(eventId, (event) => {
-          console.log(`[StreamController] 📨 Stream event received, type:`, typeof event.payload);
-          console.log(`[StreamController] 📨 Raw payload:`, event.payload);
-          session.lastHeartbeat = Date.now();
-          this.handleBackendEvent(event.payload, payload);
-        });
+        console.log(`[StreamController] 🔍 Attempting to listen to eventId: ${eventId}`);
+        let unlistenStream;
+        try {
+            unlistenStream = await listen<any>(eventId, (event) => {
+                console.log(`[StreamController] 📨 Stream event received, type:`, typeof event.payload);
+                console.log(`[StreamController] 📨 Raw payload:`, event.payload);
+                session.lastHeartbeat = Date.now();
+                this.handleBackendEvent(event.payload, payload);
+            });
+            console.log(`[StreamController] ✅ Successfully registered listener for ${eventId}`);
+        } catch (e) {
+            console.error(`[StreamController] ❌ Failed to listen to ${eventId}:`, e);
+            throw e;
+        }
 
         // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
         const unlistenFinish = await listen<string>(`${eventId}_finish`, (event) => {

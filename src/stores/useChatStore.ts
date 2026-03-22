@@ -344,6 +344,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       generateResponse: async (history, providerId, modelName, existingCorrelationId?: string) => {
+          console.log('[useChatStore] 🚀 generateResponse called');
           const { streamingResponseController } = await import('./chat/generateResponse/StreamingResponseController');
           const { useSettingsStore } = await import('./settingsStore');
           const { useFileStore } = await import('./fileStore');
@@ -352,11 +353,15 @@ export const useChatStore = create<ChatStore>()(
           const correlationId = existingCorrelationId || (window as any).crypto.randomUUID();
           const threadId = get().currentThreadId;
 
-          await streamingResponseController.startListening(correlationId, { 
-              correlationId, 
-              sessionId: threadId, 
-              timestamp: Date.now() 
+          console.log('[useChatStore] 🎯 Calling startListening with correlationId:', correlationId);
+
+          await streamingResponseController.startListening(correlationId, {
+              correlationId,
+              sessionId: threadId,
+              timestamp: Date.now()
           });
+
+          console.log('[useChatStore] ✅ startListening completed, now calling invoke');
 
           const settings = useSettingsStore.getState();
           const providerConfig = settings.providers.find((p: any) => p.id === providerId) || { id: providerId };
@@ -371,6 +376,15 @@ export const useChatStore = create<ChatStore>()(
           try {
               // 🔥 FIX: 确保 Tauri bridge 已初始化
               await ensureTauriInitialized();
+
+              // 🔥 DEBUG: 诊断 Tauri 环境状态
+              console.log('[ChatStore] 🔍 Tauri Environment Check:', {
+                hasTAURI_INTERNALS: !!(window as any).__TAURI_INTERNALS__,
+                hasInvoke: !!(window as any).__TAURI_INTERNALS__?.invoke,
+                hasCoreInvoke: !!(window as any).__TAURI__?.core?.invoke,
+                isE2E: !!(window as any).__E2E__,
+                e2eRealTauriMode: (window as any).__E2E_REAL_TAURI_MODE__
+              });
 
               const { invoke } = await import('@tauri-apps/api/core');
               
@@ -472,7 +486,28 @@ if (typeof window !== 'undefined') {
 }
 
 import { initStoreMapper } from './chat/StoreMapper';
-initStoreMapper();
+
+// 🔥 CRITICAL: 设置全局标记，表明 useChatStore 模块被加载了
+if (typeof window !== 'undefined') {
+  (window as any).__USE_CHAT_STORE_LOADED__ = true;
+  (window as any).__USE_CHAT_STORE_LOAD_TIME__ = Date.now();
+  console.log('[useChatStore] 🔧 Module loaded, setting __USE_CHAT_STORE_LOADED__ = true');
+}
+
+console.log('[useChatStore] 🔧 Module loaded, calling initStoreMapper...');
+try {
+  initStoreMapper();
+  console.log('[useChatStore] ✅ initStoreMapper called successfully');
+  if (typeof window !== 'undefined') {
+    (window as any).__STORE_MAPPER_CALL_SUCCEEDED__ = true;
+  }
+} catch (error) {
+  console.error('[useChatStore] ❌ initStoreMapper FAILED:', error);
+  if (typeof window !== 'undefined') {
+    (window as any).__STORE_MAPPER_CALL_FAILED__ = true;
+    (window as any).__STORE_MAPPER_ERROR__ = String(error);
+  }
+}
 
 // 🔥 FIX: 添加工具调用去重器的模拟实现
 export const toolCallDeduplicator = {

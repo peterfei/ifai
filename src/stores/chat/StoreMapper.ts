@@ -13,7 +13,42 @@ import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolic
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 
 export const initStoreMapper = () => {
-    console.log('[StoreMapper] 🔗 Atomic Linkage Active');
+    // 🔥 CRITICAL FIX: 设置全局标记，表明 initStoreMapper 被调用了
+    if (typeof window !== 'undefined') {
+      (window as any).__STORE_MAPPER_CALLED__ = true;
+      (window as any).__STORE_MAPPER_CALL_TIME__ = Date.now();
+      if (!(window as any).__STORE_MAPPER_INIT_LOGS__) {
+        (window as any).__STORE_MAPPER_INIT_LOGS__ = [];
+      }
+      (window as any).__STORE_MAPPER_INIT_LOGS__.push({
+        time: Date.now(),
+        event: 'initStoreMapper called'
+      });
+    }
+
+    console.log('[StoreMapper] 🔗 Atomic Linkage Active - INITIALIZED');
+    console.log('[StoreMapper] 🔗 Window.__STORE_MAPPER_CALLED__:', (window as any).__STORE_MAPPER_CALLED__);
+
+    // 🔥 DEBUG: 验证监听器是否被注册
+    setTimeout(() => {
+      const handlers = (chatEventBus as any).handlers;
+      const counts = {
+        'chat:stream:chunk': handlers.get('chat:stream:chunk')?.length || 0,
+        'chat:segment:updated': handlers.get('chat:segment:updated')?.length || 0,
+        'chat:stream:start': handlers.get('chat:stream:start')?.length || 0,
+        'chat:stream:finished': handlers.get('chat:stream:finished')?.length || 0,
+        'chat:message:sent': handlers.get('chat:message:sent')?.length || 0
+      };
+      console.log('[StoreMapper] 🔍 DEBUG: Registered handlers:', counts);
+
+      if (typeof window !== 'undefined') {
+        (window as any).__STORE_MAPPER_INIT_LOGS__.push({
+          time: Date.now(),
+          event: 'handlers_registered',
+          counts
+        });
+      }
+    }, 1000);
 
     // 🏆 FIX: 防止重复续播的标记
     let continuationInProgress: { [key: string]: boolean } = {};
@@ -44,10 +79,14 @@ export const initStoreMapper = () => {
     // 监听内容块 → 通知 ContentSegmentManager
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
         const { delta, correlationId } = payload;
-        console.log('[StoreMapper] 📝 Forwarding chunk to ContentSegmentManager:', {
+        // 🔥 DEBUG: 确认收到 chunk 事件
+        if (delta.length % 20 === 0) {
+          console.log('[StoreMapper] 📥 Chunk event received (ContentSegmentManager):', {
             correlationId,
-            delta: delta.substring(0, 30)
-        });
+            delta: delta.substring(0, 30),
+            length: delta.length
+          });
+        }
 
         // 通知 ContentSegmentManager
         contentSegmentManager.onContentChunk(delta, correlationId);
@@ -226,6 +265,16 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:stream:chunk', (payload) => {
       const { delta, correlationId, isFinal } = payload;
 
+      // 🔥 DEBUG: 确认 chunk 事件被接收
+      if (delta.length % 10 === 0 || delta.length === 0) {
+        console.log('[StoreMapper] 📥 Chunk received:', {
+          correlationId,
+          delta: delta.substring(0, 20),
+          deltaLength: delta.length,
+          isFinal
+        });
+      }
+
       // 🏆 FIX: 防止同一个 chunk 被重复处理
       const chunkKey = `${correlationId}_${delta}_${isFinal}`;
       if (!processedChunks[correlationId]) {
@@ -246,13 +295,27 @@ export const initStoreMapper = () => {
 
       const updater = (state: any) => {
         const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-        if (messageIndex === -1) return state;
+        if (messageIndex === -1) {
+          console.error('[StoreMapper] ❌ Message not found for correlationId:', correlationId);
+          console.error('[StoreMapper] Available messages:', state.messages.map((m: any) => ({ id: m.id, role: m.role })));
+          return state;
+        }
 
         const newMessages = [...state.messages];
         const targetMsg = { ...newMessages[messageIndex] };
+        const oldLength = targetMsg.content.length;
         targetMsg.content += delta;
         targetMsg.status = isFinal ? 'sent' : 'streaming';
         newMessages[messageIndex] = targetMsg;
+
+        if (delta.length % 10 === 0 || delta.length === 0) {
+          console.log('[StoreMapper] ✅ Content updated:', {
+            correlationId,
+            oldLength,
+            newLength: targetMsg.content.length,
+            added: delta.length
+          });
+        }
 
         return {
             messages: newMessages,
@@ -616,6 +679,54 @@ export const initStoreMapper = () => {
       }
 
       useChatStore.setState({ isLoading: false } as any);
+    });
+
+    // 🔥 FIX: 在流完成后延迟同步 segments 到 message.content
+    // 使用单独的事件监听器，确保在所有 chunk 处理完成后执行
+    chatEventBus.on('chat:stream:finished', (payload: any) => {
+      const correlationId = payload?.correlationId;
+      if (!correlationId) return;
+
+      // 延迟执行，确保所有 chunk 事件都已处理完毕
+      setTimeout(() => {
+        const updater = (state: any) => {
+          const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+          if (messageIndex === -1) return state;
+
+          const newMessages = [...state.messages];
+          const targetMsg = { ...newMessages[messageIndex] };
+
+          // 检查是否有 segments
+          if (targetMsg.segments && targetMsg.segments.length > 0) {
+            // 从 segments 组装完整内容
+            const fullContent = targetMsg.segments
+              .filter((s: any) => s.type === 'text' && s.content)
+              .map((s: any) => s.content)
+              .join('');
+
+            // 只有当 segments 内容比当前 content 长时才更新
+            // 避免覆盖已有的完整内容
+            if (fullContent.length > (targetMsg.content || '').length) {
+              console.log('[StoreMapper] 🔧 Syncing segments to content:', {
+                correlationId,
+                segmentsCount: targetMsg.segments.length,
+                contentLength: fullContent.length,
+                oldContentLength: (targetMsg.content || '').length
+              });
+
+              // 更新 message.content
+              targetMsg.content = fullContent;
+              newMessages[messageIndex] = targetMsg;
+
+              return { messages: newMessages };
+            }
+          }
+
+          return state;
+        };
+
+        useChatStore.setState(updater as any);
+      }, 100); // 延迟 100ms 执行，确保所有 chunk 已处理
     });
 
     // 6. 映射错误
