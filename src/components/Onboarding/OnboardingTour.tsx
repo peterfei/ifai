@@ -122,22 +122,18 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
     <ReactMarkdown
       remarkPlugins={[remarkBreaks, remarkGfm]}
       components={{
-        // 🔥 FIX: 安全处理 children，避免循环引用错误
+        // 自定义段落样式
         p: ({ children }) => {
-          // 安全地转换 children 为字符串
-          const content = typeof children === 'object' ? String(children || '') : children;
-          return <p style={{ margin: '0.5em 0' }}>{content}</p>;
+          return <p style={{ margin: '0.5em 0' }}>{children}</p>;
         },
         // 自定义列表样式
         ul: ({ children }) => <ul style={{ marginLeft: '1.5em', marginTop: '0.5em', marginBottom: '0.5em' }}>{children}</ul>,
         // 自定义 strong/b 样式
         strong: ({ children }) => {
-          const content = typeof children === 'object' ? String(children || '') : children;
-          return <strong style={{ fontWeight: '600', color: '#fff' }}>{content}</strong>;
+          return <strong style={{ fontWeight: '600', color: '#fff' }}>{children}</strong>;
         },
         // 自定义代码样式
         code: ({ inline, children }: any) => {
-          const content = typeof children === 'object' ? String(children || '') : children;
           return inline ? (
             <code style={{
               backgroundColor: 'rgba(255,255,255,0.1)',
@@ -145,9 +141,9 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
               borderRadius: '4px',
               fontFamily: 'monospace',
               fontSize: '0.9em',
-            }}>{content}</code>
+            }}>{children}</code>
           ) : (
-            <code>{content}</code>
+            <code>{children}</code>
           );
         },
       }}
@@ -165,7 +161,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       disableBeacon: true,
       placement: 'center' as const,
     },
-    // 步骤 2: CommandBar 演示（居中显示，动态打开）
+    // 步骤 2: CommandBar 演示（居中显示，动态打开 CommandBar）
     {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.commandBar')),
@@ -173,7 +169,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       disableBeacon: true,
       placement: 'center' as const,
     },
-    // 步骤 3: Settings 演示（居中显示，动态打开）
+    // 步骤 3: Settings 演示（居中显示，动态打开 Settings）
     {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.settingsGuide')),
@@ -181,13 +177,13 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       disableBeacon: true,
       placement: 'center' as const,
     },
-    // 步骤 4: 布局切换器（改为居中显示，避免 DOM 查找错误）
+    // 步骤 4: 布局切换器（定位到布局切换按钮）
     {
-      target: 'body',
+      target: '[data-testid="layout-switcher"]',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
-      disableBeacon: true,
-      placement: 'center' as const,
+      disableBeacon: false,
+      placement: 'bottom' as const,
     },
   ];
 };
@@ -269,8 +265,11 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       setMounted(false);
       setRun(false);
 
-      // 延迟执行清理操作
+      // 延迟执行清理操作，并关闭所有打开的面板
       setTimeout(() => {
+        setCommandBarOpen(false);
+        setSettingsOpen(false);
+
         if (status === STATUS.FINISHED) {
           console.log('[OnboardingTour] Tour finished');
           markTourCompleted();
@@ -284,7 +283,34 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
       return;
     }
-  }, [onTourComplete, onTourSkip]);
+
+    // 🔥 FIX: 在 step:before 事件中动态打开面板
+    // step:before 的 index 指向即将进入的步骤
+    if (type === 'step:before') {
+      console.log('[OnboardingTour] Before step:', index);
+
+      // 步骤 0: 欢迎屏幕 - 关闭所有面板
+      if (index === 0) {
+        setCommandBarOpen(false);
+        setSettingsOpen(false);
+      }
+      // 步骤 1: CommandBar - 打开命令行面板
+      else if (index === 1) {
+        setCommandBarOpen(true);
+        setSettingsOpen(false);
+      }
+      // 步骤 2: Settings - 打开设置面板
+      else if (index === 2) {
+        setCommandBarOpen(false);
+        setSettingsOpen(true);
+      }
+      // 步骤 3: Layout Switcher - 关闭所有面板
+      else if (index === 3) {
+        setCommandBarOpen(false);
+        setSettingsOpen(false);
+      }
+    }
+  }, [onTourComplete, onTourSkip, setCommandBarOpen, setSettingsOpen]);
 
   // 自定义 tooltip 样式
   const tooltipStyles = {
