@@ -261,69 +261,8 @@ export const initStoreMapper = () => {
       useChatStore.setState(updater as any);
     });
 
-    // 2. 映射流式 Chunk
-    chatEventBus.on('chat:stream:chunk', (payload) => {
-      const { delta, correlationId, isFinal } = payload;
-
-      // 🔥 DEBUG: 确认 chunk 事件被接收
-      if (delta.length % 10 === 0 || delta.length === 0) {
-        console.log('[StoreMapper] 📥 Chunk received:', {
-          correlationId,
-          delta: delta.substring(0, 20),
-          deltaLength: delta.length,
-          isFinal
-        });
-      }
-
-      // 🏆 FIX: 防止同一个 chunk 被重复处理
-      const chunkKey = `${correlationId}_${delta}_${isFinal}`;
-      if (!processedChunks[correlationId]) {
-        processedChunks[correlationId] = new Set();
-      }
-      if (processedChunks[correlationId].has(chunkKey)) {
-        console.warn('[StoreMapper] ⚠️ Duplicate chunk detected, skipping:', chunkKey.substring(0, 50));
-        return;
-      }
-      processedChunks[correlationId].add(chunkKey);
-
-      // 如果是最终 chunk，清理标记
-      if (isFinal) {
-        setTimeout(() => {
-          delete processedChunks[correlationId];
-        }, 100);
-      }
-
-      const updater = (state: any) => {
-        const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-        if (messageIndex === -1) {
-          console.error('[StoreMapper] ❌ Message not found for correlationId:', correlationId);
-          console.error('[StoreMapper] Available messages:', state.messages.map((m: any) => ({ id: m.id, role: m.role })));
-          return state;
-        }
-
-        const newMessages = [...state.messages];
-        const targetMsg = { ...newMessages[messageIndex] };
-        const oldLength = targetMsg.content.length;
-        targetMsg.content += delta;
-        targetMsg.status = isFinal ? 'sent' : 'streaming';
-        newMessages[messageIndex] = targetMsg;
-
-        if (delta.length % 10 === 0 || delta.length === 0) {
-          console.log('[StoreMapper] ✅ Content updated:', {
-            correlationId,
-            oldLength,
-            newLength: targetMsg.content.length,
-            added: delta.length
-          });
-        }
-
-        return {
-            messages: newMessages,
-            isLoading: !isFinal
-        };
-      };
-      useChatStore.setState(updater as any);
-    });
+    // 2. 映射流式 Chunk (🏆 已注销：内容更新现由 contentSegmentManager 统一管理)
+    // chatEventBus.on('chat:stream:chunk', (payload) => { ... });
 
     // 3. 映射工具调用请求 (气泡渲染 + 覆盖保护)
     chatEventBus.on('chat:tool:call', (payload) => {
