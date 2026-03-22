@@ -161,9 +161,9 @@ export const useThreadStore = create<ThreadStore>()(
           activeThreadId: threadId,
         }));
 
-        // 🏆 FIX: 同步更新 chatStore.currentThreadId
-        import('./useChatStore').then(({ useChatStore }) => {
-          useChatStore.setState({ currentThreadId: threadId });
+        // 🔥 FIX: 调用 switchThread 来清空消息（新线程应该从空消息开始）
+        import('./useChatStore').then(async ({ switchThread: loadThreadMessages }) => {
+          await loadThreadMessages(threadId);
         }).catch(() => {});
 
         autoSaveThread(threadId);
