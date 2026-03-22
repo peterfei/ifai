@@ -21,6 +21,7 @@ export interface Message {
   content: string;                    // 保留（向后兼容）
   timestamp: number;
   status?: string;
+  isStreaming?: boolean;              // 🏆 新增：标记是否正在流式传输
   toolCalls?: ToolCall[];
   tool_call_id?: string;
 

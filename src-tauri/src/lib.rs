@@ -861,14 +861,45 @@ async fn ai_chat(
                  // 这样可以防止 AI 在工具调用后输出重复的 XML 或者废话
                  let is_xml_fragment = combined.contains("<tool_call>") || combined.contains("<arg_") || chunk.contains("tool_call");
                  let should_suppress = already_intercepted || is_xml_fragment;
-                 
+
+                 // 🔥 FIX: 检测多种流结束信号
+                 let mut should_finish = false;
+
+                 // 1. 检查 finish_reason 字段（OpenAI 格式）
+                 if let Some(finish_reason) = json_obj["choices"][0].get("finish_reason").and_then(|v| v.as_str()) {
+                     println!("[AI Chat] Detected finish_reason: {}, triggering _finish event", finish_reason);
+                     should_finish = true;
+                 }
+
+                 // 2. 检查 [DONE] 标记（某些 API 的流结束标记）
+                 if chunk.trim() == "[DONE]" || chunk.contains("\"finish_reason\"") {
+                     println!("[AI Chat] Detected [DONE] or finish_reason in chunk, triggering _finish event");
+                     should_finish = true;
+                 }
+
+                 // 3. 检查空的 delta 内容（流结束的常见信号）
+                 if let Some(delta) = json_obj["choices"][0].get("delta") {
+                     let has_content = delta.get("content").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+                     let has_tool_calls = delta.get("tool_calls").is_some();
+                     let has_role = delta.get("role").is_some();
+
+                     // 如果 delta 为空，且之前没有工具调用，则可能流已结束
+                     if !has_content && !has_tool_calls && !has_role {
+                         println!("[AI Chat] Detected empty delta (no content, tool_calls, or role), checking if stream should finish");
+                         // 只有在确实没有任何内容时才认为是结束
+                         if delta.as_object().map(|o| o.is_empty()).unwrap_or(false) {
+                             println!("[AI Chat] Empty delta object, triggering _finish event");
+                             should_finish = true;
+                         }
+                     }
+                 }
+
                  if !should_suppress {
                      let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
                  }
 
-                 // 检查 finish_reason
-                 if let Some(finish_reason) = json_obj["choices"][0].get("finish_reason").and_then(|v| v.as_str()) {
-                     println!("[AI Chat] Detected finish_reason: {}, triggering _finish event", finish_reason);
+                 // 触发完成事件
+                 if should_finish {
                      let _ = app_for_finish.emit(&format!("{}_finish", event_id_for_finish), "DONE");
                  }
              }

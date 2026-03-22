@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>心跳监测器修复测试</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .log { margin: 5px 0; padding: 5px; border-left: 3px solid #007acc; }
+        .success { border-left-color: #4ec9b0; color: #4ec9b0; }
+        .error { border-left-color: #f48771; color: #f48771; }
+        .warning { border-left-color: #dcdcaa; color: #dcdcaa; }
+        h2 { margin-top: 30px; }
+        button { background: #007acc; color: white; border: none; padding: 10px 20px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a9e; }
+    </style>
+</head>
+<body>
+    <h1>🧪 心跳监测器修复测试</h1>
+    <div id="logs"></div>
+
+    <h2>测试场景</h2>
+    <button onclick="testNormalStream()">测试1: 正常流式传输（应无警告）</button>
+    <button onclick="testToolCallStream()">测试2: 工具调用后流结束（应无警告）</button>
+    <button onclick="testStalledStream()">测试3: 停滞的流（应有自愈）</button>
+    <button onclick="clearLogs()">清除日志</button>
+
+    <script>
+        // 模拟 StreamingResponseController 的核心逻辑
+        class MockStreamController {
+            constructor() {
+                this.activeSessions = new Map();
+                this.stallWarnings = [];
+                this.startHeartbeatMonitor();
+            }
+
+            startHeartbeatMonitor() {
+                setInterval(() => {
+                    const now = Date.now();
+                    this.activeSessions.forEach((session, correlationId) => {
+                        if (!session.isFinished) {
+                            if (now - session.lastHeartbeat > 5000) { // 5秒超时（测试用）
+                                const warning = `🛡️ Sentinel detected stall for session: ${correlationId}`;
+                                this.stallWarnings.push(warning);
+                                log(warning, 'warning');
+                                this.triggerPhysicalSelfHealing(correlationId);
+                            }
+                        }
+                    });
+                }, 1000); // 1秒检测间隔（测试用）
+            }
+
+            triggerPhysicalSelfHealing(correlationId) {
+                log(`🔄 Physical Auto-Continue triggered: ${correlationId}`, 'warning');
+            }
+
+            startListening(correlationId) {
+                const session = {
+                    correlationId,
+                    lastHeartbeat: Date.now(),
+                    hasReceivedChunk: false,
+                    isFinished: false
+                };
+                this.activeSessions.set(correlationId, session);
+                log(`📡 Started listening for ${correlationId}`, 'success');
+            }
+
+            updateHeartbeat(correlationId) {
+                const session = this.activeSessions.get(correlationId);
+                if (session && !session.isFinished) {
+                    session.lastHeartbeat = Date.now();
+                    session.hasReceivedChunk = true;
+                }
+            }
+
+            emitFinished(correlationId) {
+                const session = this.activeSessions.get(correlationId);
+                if (session) {
+                    // ✅ 修复：先标记为已完成
+                    session.isFinished = true;
+                    log(`✅ Session ${correlationId} marked as finished`, 'success');
+
+                    // 然后清理
+                    setTimeout(() => {
+                        this.activeSessions.delete(correlationId);
+                        log(`🛑 Session ${correlationId} cleaned up`, 'success');
+                    }, 100);
+                }
+            }
+        }
+
+        const controller = new MockStreamController();
+
+        function log(message, type = 'log') {
+            const logs = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(entry);
+            console.log(message);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            controller.stallWarnings = [];
+        }
+
+        // 测试1: 正常流式传输
+        async function testNormalStream() {
+            log('=== 开始测试1: 正常流式传输 ===');
+            const correlationId = 'test-normal-' + Date.now();
+
+            controller.startListening(correlationId);
+
+            // 模拟持续接收数据
+            for (let i = 0; i < 5; i++) {
+                await new Promise(r => setTimeout(r, 800));
+                controller.updateHeartbeat(correlationId);
+                log(`📦 Chunk ${i + 1} received`, 'log');
+            }
+
+            // 流结束
+            controller.emitFinished(correlationId);
+
+            // 等待检查是否有警告
+            setTimeout(() => {
+                if (controller.stallWarnings.filter(w => w.includes(correlationId)).length === 0) {
+                    log('✅ 测试1通过: 无停滞警告', 'success');
+                } else {
+                    log('❌ 测试1失败: 有停滞警告', 'error');
+                }
+            }, 2000);
+        }
+
+        // 测试2: 工具调用后流结束
+        async function testToolCallStream() {
+            log('=== 开始测试2: 工具调用后流结束 ===');
+            const correlationId = 'test-tool-' + Date.now();
+
+            controller.startListening(correlationId);
+
+            // 模拟工具调用场景
+            await new Promise(r => setTimeout(r, 500));
+            controller.updateHeartbeat(correlationId);
+            log('🔧 Tool call: agent_read_file', 'log');
+
+            // 模拟工具执行期间（没有心跳）
+            await new Promise(r => setTimeout(r, 3000));
+            log('✅ Tool execution completed', 'log');
+
+            // 流正常结束
+            controller.emitFinished(correlationId);
+
+            // 等待检查是否有警告
+            setTimeout(() => {
+                if (controller.stallWarnings.filter(w => w.includes(correlationId)).length === 0) {
+                    log('✅ 测试2通过: 工具调用后无停滞警告', 'success');
+                } else {
+                    log('❌ 测试2失败: 工具调用后有停滞警告', 'error');
+                }
+            }, 2000);
+        }
+
+        // 测试3: 停滞的流（应该触发自愈）
+        async function testStalledStream() {
+            log('=== 开始测试3: 停滞的流 ===');
+            const correlationId = 'test-stalled-' + Date.now();
+
+            controller.startListening(correlationId);
+
+            // 只接收一个chunk，然后停止
+            await new Promise(r => setTimeout(r, 500));
+            controller.updateHeartbeat(correlationId);
+            log('📦 Initial chunk received', 'log');
+
+            // 不更新心跳，让流停滞
+            log('⏸️ Stream stalled...');
+
+            // 等待检测停滞
+            setTimeout(() => {
+                const warnings = controller.stallWarnings.filter(w => w.includes(correlationId));
+                if (warnings.length > 0) {
+                    log('✅ 测试3通过: 停滞被正确检测并触发自愈', 'success');
+                } else {
+                    log('❌ 测试3失败: 停滞未被检测', 'error');
+                }
+
+                // 清理
+                controller.emitFinished(correlationId);
+            }, 7000);
+        }
+
+        // 页面加载时的说明
+        log('🎯 心跳监测器修复验证工具', 'success');
+        log('📋 这个工具模拟了 StreamingResponseController 的心跳监测逻辑', 'log');
+        log('🔧 修复内容：', 'log');
+        log('   1. emitFinished() 中先标记 session.isFinished = true', 'log');
+        log('   2. stopListening() 中先标记 session.isFinished = true', 'log');
+        log('   3. startListening() 中调整清理顺序', 'log');
+        log('   4. 删除冗余的自动续写逻辑', 'log');
+        log('', 'log');
+    </script>
+</body>
+</html>

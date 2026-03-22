@@ -21,6 +21,12 @@ export const initStoreMapper = () => {
     // 🏆 FIX: 防止流式 chunk 重复追加的标记
     let processedChunks: { [key: string]: Set<string> } = {};
 
+    // 🏆 FIX: 跟踪已完成的流，防止在流结束后触发续播
+    let finishedStreams: Set<string> = new Set();
+
+    // 🚀 OPTIMIZATION: 跟踪续播的内容，用于检测空续播
+    let continuationContentTracker: { [key: string]: { hasContent: boolean; startTime: number } } = {};
+
     // ============================================
     // 🏆 新增：ContentSegmentManager 集成
     // ============================================
@@ -130,6 +136,11 @@ export const initStoreMapper = () => {
             const newMessages = [...state.messages];
             const targetMsg = { ...newMessages[messageIndex] };
 
+            // 🚀 OPTIMIZATION: 标记续播有内容了
+            if (continuationContentTracker[correlationId]) {
+                continuationContentTracker[correlationId].hasContent = true;
+            }
+
             // 找到对应的 segment 并更新
             if (targetMsg.segments) {
                 const segmentIndex = targetMsg.segments.findIndex((s: any) => {
@@ -172,6 +183,12 @@ export const initStoreMapper = () => {
       // 🏆 FIX: 清理旧的 chunk 标记，防止内存泄漏
       if (processedChunks[correlationId]) {
         delete processedChunks[correlationId];
+      }
+
+      // 🏆 FIX: 清理旧的 finishedStreams 标记，防止跨消息污染
+      if (finishedStreams.has(correlationId)) {
+        finishedStreams.delete(correlationId);
+        console.log('[StoreMapper] 🧹 Cleaned up old finished stream marker for new message:', correlationId);
       }
 
       const updater = (state: any) => {
@@ -500,6 +517,16 @@ export const initStoreMapper = () => {
             return;
           }
 
+          // 🏆 FIX: 检查流是否已经完成，如果完成则不触发续播
+          if (finishedStreams.has(correlationId)) {
+            console.log('[StoreMapper] ✅ Stream already finished for:', correlationId, '- skipping continuation');
+            // 流已完成，确保 isLoading 为 false
+            if (currentState.isLoading) {
+              useChatStore.setState({ isLoading: false } as any);
+            }
+            return;
+          }
+
           // 🏆 检查是否还有未完成的工具
           const hasPendingTools = currentState.messages.some((msg: any) =>
             msg.toolCalls && msg.toolCalls.some((tc: any) => tc.status === 'pending' || tc.status === 'executing')
@@ -513,6 +540,12 @@ export const initStoreMapper = () => {
           // 🏆 标记续播开始
           continuationInProgress[correlationId] = true;
 
+          // 🚀 OPTIMIZATION: 初始化续播内容跟踪
+          continuationContentTracker[correlationId] = {
+            hasContent: false,
+            startTime: Date.now()
+          };
+
           const { useSettingsStore } = await import('../settingsStore');
           const settings = useSettingsStore.getState();
           const providerId = settings.currentProviderId || 'openai';
@@ -525,14 +558,27 @@ export const initStoreMapper = () => {
           const targetMsg = currentState.messages.find((m: any) => m.id === correlationId);
           console.log('[StoreMapper] 🔄 Found target message:', targetMsg ? { id: targetMsg.id, role: targetMsg.role } : 'NOT FOUND');
 
-          // 🏆 安全超时：5秒后强制重置 isLoading 和续播标记
+          // 🚀 OPTIMIZATION: 多重超时机制
+          // 1. 快速检测：1秒内如果没有新内容，立即结束
+          // 2. 安全超时：2秒后强制结束（从5秒缩短到2秒）
+          const quickCheckTimer = setTimeout(() => {
+            const tracker = continuationContentTracker[correlationId];
+            if (tracker && !tracker.hasContent) {
+              console.log('[StoreMapper] ⚡ Quick finish: No content received in 1s, ending continuation');
+              useChatStore.setState({ isLoading: false } as any);
+              continuationInProgress[correlationId] = false;
+              delete continuationContentTracker[correlationId];
+            }
+          }, 1000);
+
           const safetyTimer = setTimeout(() => {
             if (useChatStore.getState().isLoading) {
-              console.warn('[StoreMapper] ⏰ Tool continuation safety timeout. Resetting isLoading.');
+              console.warn('[StoreMapper] ⏰ Tool continuation safety timeout (2s). Resetting isLoading.');
               useChatStore.setState({ isLoading: false } as any);
             }
             continuationInProgress[correlationId] = false;
-          }, 5000);
+            delete continuationContentTracker[correlationId];
+          }, 2000); // 从5秒缩短到2秒
 
           try {
             await currentState.generateResponse(
@@ -542,18 +588,33 @@ export const initStoreMapper = () => {
               correlationId  // 复用原始 assistant 消息 ID
             );
           } finally {
+            clearTimeout(quickCheckTimer);
             clearTimeout(safetyTimer);
             // 🏆 续播完成后延迟重置标记
             setTimeout(() => {
               continuationInProgress[correlationId] = false;
-            }, 1000);
+              delete continuationContentTracker[correlationId];
+            }, 500); // 从1秒缩短到500ms
           }
         }, 300); // 增加延迟确保所有工具完成事件都被处理
       }
     });
 
     // 5. 映射流式结束
-    chatEventBus.on('chat:stream:finished', () => {
+    chatEventBus.on('chat:stream:finished', (payload: any) => {
+      // 🏆 FIX: 标记流为已完成，防止续播逻辑在工具完成后误触发
+      const correlationId = payload?.correlationId;
+      if (correlationId) {
+        finishedStreams.add(correlationId);
+        console.log('[StoreMapper] ✅ Stream finished, marking as completed:', correlationId);
+
+        // 延迟清理标记，防止内存泄漏
+        setTimeout(() => {
+          finishedStreams.delete(correlationId);
+          console.log('[StoreMapper] 🧹 Cleaned up finished stream marker:', correlationId);
+        }, 10000); // 10秒后清理，确保所有事件都已处理
+      }
+
       useChatStore.setState({ isLoading: false } as any);
     });
 
