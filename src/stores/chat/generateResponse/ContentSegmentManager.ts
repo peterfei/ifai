@@ -256,12 +256,13 @@ export class ContentSegmentManager {
 
     state.isFinished = true;
 
-    // 触发完成事件
-    chatEventBus.emit('chat:stream:finished', {
-      correlationId,
-      sessionId: '',
-      timestamp: Date.now()
-    } as any);
+    // 🔧 FIX: 不再发射 chat:stream:finished，由 StreamingResponseController 统一发射
+    // 避免无限循环：StreamingResponseController -> StoreMapper -> ContentSegmentManager -> StoreMapper -> ...
+    // chatEventBus.emit('chat:stream:finished', {
+    //   correlationId,
+    //   sessionId: '',
+    //   timestamp: Date.now()
+    // } as any);
 
     // 延迟清理（给其他模块时间处理）
     setTimeout(() => {
