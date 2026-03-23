@@ -161,9 +161,13 @@ export const useThreadStore = create<ThreadStore>()(
           activeThreadId: threadId,
         }));
 
-        // 🔥 FIX: 移除异步清空消息的操作
-        // 对于新线程，消息应该由调用方（如 SendMessageOrchestrator）通过 StoreMapper 正确设置
-        // 异步清空会导致竞争条件：消息刚添加就被空数组覆盖
+        // 🏆 关键修复：创建新线程时立即清空全局 messages
+        // 避免旧线程的消息污染新线程
+        // 注意：这里不使用异步导入，而是使用全局挂载的 store（如果已挂载）
+        if (typeof window !== 'undefined' && (window as any).__chatStore) {
+          (window as any).__chatStore.setState({ messages: [] });
+          console.log('[ThreadStore] 🧹 清空全局消息，准备加载新线程内容');
+        }
 
         autoSaveThread(threadId);
         return threadId;
@@ -189,10 +193,30 @@ export const useThreadStore = create<ThreadStore>()(
         autoSaveThread(threadId);
       },
 
-      switchThread: (threadId: string) => {
+      switchThread: async (threadId: string) => {
+        console.log('[ThreadStore] 🔄 开始切换到 thread:', threadId.substring(0, 20));
         const state = get();
         const thread = state.threads[threadId];
-        if (!thread || thread.status === 'deleted') return;
+        if (!thread || thread.status === 'deleted') {
+          console.log('[ThreadStore] ⚠️ Thread 无效或已删除');
+          return;
+        }
+
+        // 🏆 关键修复：切换 Tab 前，先同步保存当前活跃线程的消息
+        // 这样可以避免消息串扰到新 Tab
+        const oldThreadId = state.activeThreadId;
+        if (oldThreadId && oldThreadId !== threadId) {
+          // 同步等待保存完成
+          const { threadPersistence } = await import('./persistence/threadPersistence');
+          const { useChatStore } = await import('./useChatStore');
+
+          // 获取旧线程的消息（在切换前）
+          const oldMessages = useChatStore.getState().messages;
+
+          // 保存旧线程的消息
+          await threadPersistence.saveThreadMessages(oldThreadId, oldMessages as any);
+          console.log('[ThreadStore] 💾 保存旧线程消息:', oldThreadId.substring(0, 20), '消息数:', oldMessages.length);
+        }
 
         set(state => ({
           activeThreadId: threadId,
@@ -202,11 +226,12 @@ export const useThreadStore = create<ThreadStore>()(
           },
         }));
 
-        // 🏆 FIX: 调用 useChatStore.switchThread 来加载该线程的消息
-        // 这样可以确保 currentThreadId 和消息都正确更新
-        import('./useChatStore').then(async ({ switchThread: loadThreadMessages }) => {
-          await loadThreadMessages(threadId);
-        }).catch(() => {});
+        // 🏆 关键修复：使用 await 而不是 .then()，确保消息加载完成后再返回
+        // 这样可以避免测试在消息加载完成前就检查内容
+        console.log('[ThreadStore] 📥 准备加载消息...');
+        const { switchThread: loadThreadMessages } = await import('./useChatStore');
+        await loadThreadMessages(threadId);
+        console.log('[ThreadStore] ✅ 消息加载完成');
       },
 
       updateThread: (threadId: string, updates: Partial<Thread>) => {

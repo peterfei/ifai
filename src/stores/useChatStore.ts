@@ -459,17 +459,57 @@ export const useChatStore = create<ChatStore>()(
 // -------------------------------------------------------------------
 
 export const switchThread = async (threadId: string) => {
-    useChatStore.setState({ currentThreadId: threadId, isLoading: false });
+    console.log(`[ChatStore] 🔄 切换到 thread: ${threadId.substring(0, 20)}`);
+
+    // 🏆 关键修复：先清空全局消息，避免旧 Tab 的消息污染新 Tab
+    useChatStore.setState({ currentThreadId: threadId, isLoading: false, messages: [] });
+
     const { threadPersistence } = await import('./persistence/threadPersistence');
     try {
         const messages = await threadPersistence.loadThreadMessages(threadId);
 
+        console.log(`[ChatStore] 📥 加载了 ${messages.length} 条消息，准备排序`);
+
         // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
-        const normalizedMessages = (messages || []).map((msg: any) => ({
-            ...msg,
-            segments: msg.segments || []  // 默认为空数组
-        }));
-        useChatStore.setState({ messages: normalizedMessages });
+        const normalizedMessages = (messages || []).map((msg: any, idx: number) => {
+            // 如果已经有 segments 且不为空，直接使用
+            if (msg.segments && msg.segments.length > 0) {
+                return { ...msg, _loadOrder: idx };  // 添加加载顺序索引
+            }
+
+            // 物理恢复：如果没 segments 但有内容，创建一个默认的 pre-tool 段落
+            const segments = [];
+            if (msg.content) {
+                segments.push({
+                    id: `seg-recovered-${msg.id}`,
+                    type: 'text',
+                    phase: 'pre-tool',
+                    content: msg.content,
+                    order: 1
+                });
+            }
+
+            return {
+                ...msg,
+                segments,
+                _loadOrder: idx  // 添加加载顺序索引用于稳定排序
+            };
+        });
+
+        // 🏆 物理对齐：使用稳定的排序算法，确保相同 timestamp 时保持加载顺序
+        const sortedMessages = normalizedMessages.sort((a: any, b: any) => {
+            const timestampDiff = (a.timestamp || 0) - (b.timestamp || 0);
+            if (timestampDiff !== 0) {
+                return timestampDiff;
+            }
+            // 相同 timestamp 时，使用加载顺序保持稳定
+            return (a._loadOrder || 0) - (b._loadOrder || 0);
+        });
+
+        const messagePreview = sortedMessages.map((m: any) => `${m.role}: ${(m.content || '').substring(0, 30)}`).join(', ');
+        console.log(`[ChatStore] ✅ 设置 ${sortedMessages.length} 条排序后的消息: [${messagePreview}]`);
+
+        useChatStore.setState({ messages: sortedMessages });
     } catch (e) {
         console.error('[ChatStore] SwitchThread failed:', e);
     }

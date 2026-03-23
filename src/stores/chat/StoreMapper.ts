@@ -24,6 +24,11 @@ export const initStoreMapper = () => {
         time: Date.now(),
         event: 'initStoreMapper called'
       });
+
+      // 🏆 修复气泡次序：添加单调递增计数器确保消息顺序
+      if (!(window as any).__MESSAGE_SEQUENCE_COUNTER__) {
+        (window as any).__MESSAGE_SEQUENCE_COUNTER__ = 0;
+      }
     }
 
     console.log('[StoreMapper] 🔗 Atomic Linkage Active - INITIALIZED');
@@ -247,15 +252,48 @@ export const initStoreMapper = () => {
         // 正常 User + Assistant 模式
         const filtered = state.messages.filter((m: any) => m.id !== messageId && m.id !== assistantId);
         console.log('[StoreMapper] 👤 User + Assistant mode, creating both messages');
+
+        // 🏆 物理对齐：直接为 User 消息生成初始 Segment
+        // 🏆 修复：使用单调递增计数器确保消息顺序，避免快速创建时时间戳相同
+        const now = Date.now();
+        const sequenceCounter = typeof window !== 'undefined' ? ++(window as any).__MESSAGE_SEQUENCE_COUNTER__ : 0;
+
+        // 使用序列计数器作为时间戳的一部分，确保唯一性和顺序性
+        const userTimestamp = now + sequenceCounter * 100;  // 每个消息增加 100ns（实际上很少会连续创建）
+        const assistantTimestamp = userTimestamp + 1;  // 助手消息紧随用户消息
+
+        const userSegments = [{
+            id: `seg-user-${messageId}`,
+            type: 'text' as const,
+            phase: 'pre-tool' as const,
+            content: content,
+            order: 1,
+            timestamp: userTimestamp
+        }];
+
         const result = {
-          messages: [
-            ...filtered,
-            { id: messageId, role: 'user', content, timestamp: Date.now() },
-            { id: assistantId, role: 'assistant', content: '', status: 'streaming', timestamp: Date.now() + 1 }
-          ],
-          isLoading: true
+            messages: [
+                ...filtered,
+                {
+                    id: messageId,
+                    role: 'user',
+                    content,
+                    timestamp: userTimestamp,
+                    segments: userSegments // 物理注入
+                },
+                {
+                    id: assistantId,
+                    role: 'assistant',
+                    content: '',
+                    status: 'streaming',
+                    timestamp: assistantTimestamp, // 🏆 紧随用户消息
+                    segments: [] // AI 初始为空
+                }
+            ],
+            isLoading: true
         };
-        console.log('[StoreMapper] ✅ Messages after creation:', result.messages.map(m => ({ id: m.id, role: m.role })));
+
+        console.log('[StoreMapper] ✅ Messages after creation:', result.messages.map(m => ({ id: m.id, role: m.role, timestamp: m.timestamp })));
         return result;
       };
       useChatStore.setState(updater as any);

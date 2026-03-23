@@ -88,6 +88,11 @@ export class ContentSegmentManager {
   private streams: Map<string, StreamState> = new Map();
 
   /**
+   * 🏆 为 User 消息（非流式）物理初始化 Segment
+   * 确保 User 消息也具有有序段结构，防止持久化丢失
+  }
+
+  /**
    * 流式传输开始
    */
   onStreamStart(correlationId: string): void {

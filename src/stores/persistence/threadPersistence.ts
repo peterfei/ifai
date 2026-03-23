@@ -90,11 +90,6 @@ function messageToStored(message: Message, threadId: string): StoredMessage | nu
   // 既然已迁移至 IndexedDB，不再需要为 LocalStorage 牺牲数据保真度
   const finalContent = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
-  const cleanMessage = {
-    ...message,
-    contentSegments: undefined,
-  };
-
   return {
     id: message.id,
     threadId,
@@ -102,16 +97,19 @@ function messageToStored(message: Message, threadId: string): StoredMessage | nu
     content: finalContent,
     toolCalls: message.toolCalls,
     tool_call_id: message.tool_call_id,
-    timestamp: Date.now(),
+    timestamp: message.timestamp || Date.now(),
+    // 🏆 重要：保留有序段落数据，确保 Tab 切换后不丢失
+    segments: (message as any).segments,
     // Copy all other properties
-    multiModalContent: (cleanMessage as any).multiModalContent,
-    references: (cleanMessage as any).references,
-    agentId: (cleanMessage as any).agentId,
-    isAgentLive: (cleanMessage as any).isAgentLive,
+    multiModalContent: (message as any).multiModalContent,
+    references: (message as any).references,
+    agentId: (message as any).agentId,
+    isAgentLive: (message as any).isAgentLive,
+    isStreaming: (message as any).isStreaming,
     // 🔥 v0.3.7: 确保内联编辑元数据持久化
-    isInlineTask: (cleanMessage as any).isInlineTask,
-    displayLabel: (cleanMessage as any).displayLabel,
-    exploreProgress: (cleanMessage as any).exploreProgress,
+    isInlineTask: (message as any).isInlineTask,
+    displayLabel: (message as any).displayLabel,
+    exploreProgress: (message as any).exploreProgress,
   };
 }
 
@@ -211,6 +209,11 @@ class ThreadPersistenceService {
       const validStoredMessages: StoredMessage[] = [];
       const skippedCount = { invalidId: 0 };
 
+      // 🏆 调试日志：打印消息内容预览
+      const messagePreview = messages.map((m: any) => `${m.role}: ${(m.content || '').substring(0, 30)}`).join(', ');
+      console.log(`[ThreadPersistence] 💾 准备保存 ${messages.length} 条消息到 thread: ${threadId.substring(0, 20)}`);
+      console.log(`[ThreadPersistence] 消息预览: [${messagePreview}]`);
+
       for (const message of messages) {
         const stored = messageToStored(message, threadId);
         if (stored !== null) {
@@ -226,7 +229,7 @@ class ThreadPersistenceService {
 
       if (validStoredMessages.length > 0) {
         await indexedDBHelper.saveMessages(validStoredMessages);
-        console.log(`[ThreadPersistence] Saved ${validStoredMessages.length} messages for thread: ${threadId}`);
+        console.log(`[ThreadPersistence] ✅ 已保存 ${validStoredMessages.length} 条消息到 thread: ${threadId.substring(0, 20)}`);
       }
     } catch (error) {
       console.error('[ThreadPersistence] Failed to save messages:', error);
@@ -261,6 +264,12 @@ class ThreadPersistenceService {
     try {
       const stored = await indexedDBHelper.getThreadMessages(threadId);
       const messages = stored.map(storedToMessage);
+
+      // 🏆 调试日志：打印加载的消息内容
+      const messagePreview = messages.map((m: any) => `${m.role}: ${(m.content || '').substring(0, 30)}`).join(', ');
+      console.log(`[ThreadPersistence] 📥 从 thread: ${threadId.substring(0, 20)} 加载了 ${messages.length} 条消息`);
+      console.log(`[ThreadPersistence] 加载消息预览: [${messagePreview}]`);
+
       return messages;
     } catch (error) {
       console.error('[ThreadPersistence] Failed to load messages:', error);
@@ -302,7 +311,7 @@ class ThreadPersistenceService {
 
   /**
    * Process the save queue
-   * 🏆 FIX: 检查 threadId 是否是当前活跃线程，如果是才保存
+   * 🏆 FIX: 在保存前再次检查 threadId 是否仍是当前活跃线程，避免时序问题
    */
   private async processSaveQueue(): Promise<void> {
     if (this.isSaving || this.saveQueue.size === 0) {
@@ -316,20 +325,25 @@ class ThreadPersistenceService {
     try {
       const { useThreadStore } = await import('../threadStore');
       const { useChatStore } = await import('../useChatStore');
-      const threadStore = useThreadStore.getState();
-      const currentThreadId = threadStore.activeThreadId;
 
       for (const threadId of threadIds) {
+        // 🏆 关键修复：在保存每个 thread 前重新检查当前活跃线程
+        // 这避免了在获取 currentThreadId 和保存消息之间发生 Tab 切换导致的串扰
+        const threadStore = useThreadStore.getState();
+        const currentThreadId = threadStore.activeThreadId;
+
         const thread = threadStore.getThread(threadId);
         if (thread) {
           await this.saveThread(thread);
 
-          // 🏆 关键：只有当 threadId 是当前活跃线程时，才保存全局消息
+          // 🏆 关键：只有当 threadId 仍是当前活跃线程时，才保存全局消息
           // 因为全局 messages 只包含当前线程的消息
           if (threadId === currentThreadId) {
             const messages = useChatStore.getState().messages;
             await this.saveThreadMessages(threadId, messages as any);
             console.log('[ThreadPersistence] ✅ Saved thread:', threadId.substring(0, 20), 'messages:', messages.length);
+          } else {
+            console.log('[ThreadPersistence] ⏭️  Skipped saving messages for', threadId.substring(0, 20), '(not active anymore)');
           }
         }
       }
