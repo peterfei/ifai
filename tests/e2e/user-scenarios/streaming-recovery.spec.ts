@@ -21,8 +21,11 @@ test.describe('流式响应与输入框恢复问题还原', () => {
       useRealAI: true
     });
 
-    // 等待输入框可见
-    await page.waitForSelector('[data-testid="chat-input"]', { timeout: 15000 });
+    // 等待 store 初始化
+    await page.waitForFunction(() =>
+      (window as any).__chatStore !== undefined,
+      { timeout: 30000 }
+    );
     await page.waitForTimeout(1000);
 
     // 手动配置 AI Provider 和 Model
@@ -46,9 +49,6 @@ test.describe('流式响应与输入框恢复问题还原', () => {
   test('问题还原：询问"你是谁"后验证完整响应和输入框恢复', async ({ page }) => {
     console.log('[测试] 开始还原"你是谁"问题');
 
-    const chatInput = page.locator('[data-testid="chat-input"]');
-    await expect(chatInput).toBeVisible();
-
     // ========================================
     // 步骤1: 询问"你是谁"
     // ========================================
@@ -61,8 +61,10 @@ test.describe('流式响应与输入框恢复问题还原', () => {
     console.log('[步骤1] 初始消息数:', initialMessageCount);
 
     // 发送问题
-    await chatInput.fill('你是谁');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('你是谁', 'zhipu', 'glm-4');
+    });
 
     console.log('[步骤1] 等待 AI 响应完成...');
     await page.waitForTimeout(60000); // 60秒

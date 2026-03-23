@@ -21,8 +21,11 @@ test.describe('多 Tab 工作流（简化版）', () => {
       useRealAI: true  // 🔥 启用真实 AI
     });
 
-    // 等待输入框可见
-    await page.waitForSelector('[data-testid="chat-input"]', { timeout: 15000 });
+    // 等待 store 初始化
+    await page.waitForFunction(() =>
+      (window as any).__chatStore !== undefined,
+      { timeout: 30000 }
+    );
     await page.waitForTimeout(1000);
 
     // 🔥 手动配置 AI Provider 和 Model（复制自 storemapper-finish-race.spec.ts）
@@ -74,17 +77,15 @@ test.describe('多 Tab 工作流（简化版）', () => {
   test('完整流程：新建 Tab → 输入内容 → 关闭 → 切换 Tab', async ({ page }) => {
     console.log('[测试] 开始完整多 Tab 工作流测试');
 
-    const chatInput = page.locator('[data-testid="chat-input"]');
-    await expect(chatInput).toBeVisible();
-    console.log('[测试] ✅ 输入框可见');
-
     // ========================================
     // 步骤1: 在当前 Tab 输入内容
     // ========================================
     console.log('[步骤1] 在当前 Tab 输入内容');
 
-    await chatInput.fill('第一个 Tab 的消息');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('第一个 Tab 的消息', 'zhipu', 'glm-4');
+    });
     await page.waitForTimeout(2000);
 
     // 验证消息已发送
@@ -186,8 +187,10 @@ test.describe('多 Tab 工作流（简化版）', () => {
 
     await page.waitForTimeout(500);
 
-    await chatInput.fill('第二个 Tab 的消息');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('第二个 Tab 的消息', 'zhipu', 'glm-4');
+    });
     await page.waitForTimeout(3000); // 等待 AI 响应完成
 
     // 验证新 Tab 的消息

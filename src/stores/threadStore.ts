@@ -118,7 +118,7 @@ export const useThreadStore = create<ThreadStore>()(
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
-      createThread: (options: ThreadOptions = {}) => {
+      createThread: async (options: ThreadOptions = {}) => {
         const state = get();
         const threadCount = Object.values(state.threads).filter(t => t.status !== 'deleted').length;
 
@@ -161,10 +161,9 @@ export const useThreadStore = create<ThreadStore>()(
           activeThreadId: threadId,
         }));
 
-        // 🔥 FIX: 调用 switchThread 来清空消息（新线程应该从空消息开始）
-        import('./useChatStore').then(async ({ switchThread: loadThreadMessages }) => {
-          await loadThreadMessages(threadId);
-        }).catch(() => {});
+        // 🔥 FIX: 移除异步清空消息的操作
+        // 对于新线程，消息应该由调用方（如 SendMessageOrchestrator）通过 StoreMapper 正确设置
+        // 异步清空会导致竞争条件：消息刚添加就被空数组覆盖
 
         autoSaveThread(threadId);
         return threadId;

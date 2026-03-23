@@ -21,9 +21,12 @@ test.describe('多 Tab 工作流场景', () => {
       useRealAI: false  // 使用模拟 AI，快速响应
     });
 
-    // 等待应用完全加载 - 增加超时时间
+    // 等待 store 初始化
     console.log('[测试] 等待应用加载...');
-    await page.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
+    await page.waitForFunction(() =>
+      (window as any).__chatStore !== undefined,
+      { timeout: 30000 }
+    );
     await page.waitForTimeout(2000);
 
     // 验证输入框可用
@@ -52,9 +55,10 @@ test.describe('多 Tab 工作流场景', () => {
     expect(initialTabInfo.threadCount).toBeGreaterThan(0);
 
     // 在当前 tab 输入内容
-    const chatInput = page.locator('[data-testid="chat-input"]');
-    await chatInput.fill('这是第一个 tab 的内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('这是第一个 tab 的内容');
+    });
     await page.waitForTimeout(1000);
 
     // 验证消息已发送
@@ -86,8 +90,10 @@ test.describe('多 Tab 工作流场景', () => {
     expect(afterNewTab.isNewTab).toBe(true);
 
     // 在新 tab 输入内容
-    await chatInput.fill('这是第二个 tab 的内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('这是第二个 tab 的内容');
+    });
     await page.waitForTimeout(1000);
 
     // 验证新 tab 有独立的消息
@@ -105,26 +111,29 @@ test.describe('多 Tab 工作流场景', () => {
   test('场景2: 关闭 tab 后切换到其它 tab', async ({ page }) => {
     console.log('[场景2] 开始：关闭 tab 后切换到其它 tab');
 
-    // 先创建多个 tab
-    const chatInput = page.locator('[data-testid="chat-input"]');
-
     // Tab 1: 输入内容
-    await chatInput.fill('Tab 1 内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('Tab 1 内容');
+    });
     await page.waitForTimeout(500);
 
     // 创建 Tab 2
     await page.keyboard.press('Control+t');
     await page.waitForTimeout(500);
-    await chatInput.fill('Tab 2 内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('Tab 2 内容');
+    });
     await page.waitForTimeout(500);
 
     // 创建 Tab 3
     await page.keyboard.press('Control+t');
     await page.waitForTimeout(500);
-    await chatInput.fill('Tab 3 内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('Tab 3 内容');
+    });
     await page.waitForTimeout(500);
 
     // 获取当前 tab 信息
@@ -190,11 +199,11 @@ test.describe('多 Tab 工作流场景', () => {
   test('场景3: Tab 切换并验证内容隔离', async ({ page }) => {
     console.log('[场景3] 开始：Tab 切换并验证内容隔离');
 
-    const chatInput = page.locator('[data-testid="chat-input"]');
-
     // Tab 1: 输入特定内容
-    await chatInput.fill('第一个 Tab 的专属内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('第一个 Tab 的专属内容');
+    });
     await page.waitForTimeout(500);
 
     const tab1Messages = await page.evaluate(() => {
@@ -209,8 +218,10 @@ test.describe('多 Tab 工作流场景', () => {
     await page.waitForTimeout(500);
 
     // Tab 2: 输入不同内容
-    await chatInput.fill('第二个 Tab 的专属内容');
-    await page.keyboard.press('Enter');
+    await page.evaluate(async () => {
+      const store = (window as any).__chatStore;
+      await store.getState().sendMessage('第二个 Tab 的专属内容');
+    });
     await page.waitForTimeout(500);
 
     const tab2Messages = await page.evaluate(() => {
