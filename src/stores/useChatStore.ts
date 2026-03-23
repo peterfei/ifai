@@ -125,10 +125,22 @@ export const useChatStore = create<ChatStore>()(
 
         try {
             const result = await sendMessageOrchestrator.send(
-              content as string, 
-              providerId || 'openai', 
+              content as string,
+              providerId || 'openai',
               modelName || 'gpt-4o'
             );
+
+            // 🔥 自动更新线程标题：如果当前线程的标题是默认标题，根据消息内容更新
+            const { useThreadStore } = await import('./threadStore');
+            const threadStore = useThreadStore.getState();
+            const currentThread = threadStore.getThread(get().currentThreadId);
+            if (currentThread) {
+              const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+              if (isDefaultTitle) {
+                threadStore.updateThreadTitleFromMessage(get().currentThreadId!, content as string);
+              }
+            }
+
             // 🏆 物理对齐：使用同一个 correlationId 启动生成
             await get().generateResponse(get().messages, providerId || 'openai', modelName || 'gpt-4o', result.correlationId);
             return result;
