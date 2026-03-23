@@ -233,6 +233,8 @@ async fn ai_chat(
     mode: Option<String>,
 ) -> Result<(), String> {
     println!("[AI Chat] Entry - project_root: {:?}, event_id: {}, active_skills: {:?}, mode: {:?}", project_root, event_id, active_skill_ids, mode);
+    println!("[AI Chat] 🔍 CONTINUATION CHECK: Is this a continuation? event_id starts with 'chat_': {}", event_id.starts_with("chat_"));
+    println!("[AI Chat] 🔍 Message count: {}, last message role: {:?}", messages.len(), messages.last().map(|m| &m.role));
     
     // 🔥 v0.8.3: 修正逻辑 - 仅在参数完全缺失(None)时尝试恢复，[] 代表用户主动关闭，必须尊重
     let active_skill_ids = active_skill_ids.or_else(|| {

@@ -246,6 +246,9 @@ export const useChatStore = create<ChatStore>()(
           });
         } catch (error) {
           console.error('[ChatStore] Tool approval failed:', error);
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          const errorResult = JSON.stringify({ status: 'error', message: `Error executing tool: ${errorMsg}` });
+          
           // 🏆 FIX: 审批失败时更新状态为 error
           set((state) => ({
             messages: state.messages.map(msg => {
@@ -253,21 +256,21 @@ export const useChatStore = create<ChatStore>()(
                 return {
                   ...msg,
                   toolCalls: msg.toolCalls.map(tc =>
-                    tc.id === toolCallId ? { ...tc, status: 'error' as const } : tc
+                    tc.id === toolCallId ? { ...tc, status: 'error' as const, result: errorResult } : tc
                   )
                 };
               }
               return msg;
             })
           }));
-          chatEventBus.emit('chat:error', {
+          chatEventBus.emit('chat:tool:completed', {
             correlationId: messageId,
             sessionId: get().currentThreadId,
             timestamp: Date.now(),
-            code: 'TOOL_APPROVAL_FAILED',
-            message: error instanceof Error ? error.message : String(error),
-            moduleId: 'ToolApproval'
-          } as any);
+            toolId: toolCallId,
+            result: errorResult,
+            shouldContinue: true
+          });
         }
       },
 
@@ -357,6 +360,10 @@ export const useChatStore = create<ChatStore>()(
 
       generateResponse: async (history, providerId, modelName, existingCorrelationId?: string) => {
           console.log('[useChatStore] 🚀 generateResponse called');
+          console.log('[useChatStore] 🎯 existingCorrelationId:', existingCorrelationId);
+          console.log('[useChatStore] 🎯 providerId:', providerId);
+          console.log('[useChatStore] 🎯 modelName:', modelName);
+          console.log('[useChatStore] 🎯 history length:', history.length);
           const { streamingResponseController } = await import('./chat/generateResponse/StreamingResponseController');
           const { useSettingsStore } = await import('./settingsStore');
           const { useFileStore } = await import('./fileStore');
@@ -367,13 +374,17 @@ export const useChatStore = create<ChatStore>()(
 
           console.log('[useChatStore] 🎯 Calling startListening with correlationId:', correlationId);
 
-          await streamingResponseController.startListening(correlationId, {
-              correlationId,
-              sessionId: threadId,
-              timestamp: Date.now()
-          });
-
-          console.log('[useChatStore] ✅ startListening completed, now calling invoke');
+          try {
+            await streamingResponseController.startListening(correlationId, {
+                correlationId,
+                sessionId: threadId,
+                timestamp: Date.now()
+            });
+            console.log('[useChatStore] ✅ startListening completed, now calling invoke');
+          } catch (e) {
+            console.error('[useChatStore] ❌ startListening failed:', e);
+            throw e; // 重新抛出异常，阻止 invoke 调用
+          }
 
           const settings = useSettingsStore.getState();
           const providerConfig = settings.providers.find((p: any) => p.id === providerId) || { id: providerId };
@@ -434,6 +445,20 @@ export const useChatStore = create<ChatStore>()(
                     return true;
                 });
 
+              console.log('[ChatStore] 🚀 About to invoke ai_chat with eventId:', `chat_${correlationId}`);
+              console.log('[ChatStore] 🚀 Message count:', sanitizedMessages.length);
+              console.log('[ChatStore] 🚀 Is continuation:', !!existingCorrelationId);
+              console.log('[ChatStore] 🚀 Calling invoke at:', new Date().toISOString());
+
+              // 🔍 DEBUG: 检查续播时的消息历史
+              if (existingCorrelationId && sanitizedMessages.length > 0) {
+                const lastMsg = sanitizedMessages[sanitizedMessages.length - 1];
+                console.log('[ChatStore] 🔍 Last message role:', lastMsg.role);
+                console.log('[ChatStore] 🔍 Last message has tool_calls:', !!lastMsg.tool_calls);
+                console.log('[ChatStore] 🔍 Last message content preview:', typeof lastMsg.content === 'string' ? lastMsg.content.substring(0, 100) : 'non-string');
+              }
+
+              const invokeStart = Date.now();
               await invoke('ai_chat', {
                   providerConfig: {
                       ...providerConfig,
@@ -448,6 +473,9 @@ export const useChatStore = create<ChatStore>()(
                   enableTools: true,
                   mode: (window as any).__IFAI_EDITOR_MODE__ || "vibe"
               });
+
+              const invokeElapsed = Date.now() - invokeStart;
+              console.log('[ChatStore] ✅ ai_chat invoke completed after', invokeElapsed, 'ms');
           } catch (e) {
               console.error('[ChatStore] AI Chat Invoke failed:', e);
               set({ isLoading: false });

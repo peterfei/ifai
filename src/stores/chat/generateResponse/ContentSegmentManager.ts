@@ -88,19 +88,25 @@ export class ContentSegmentManager {
   private streams: Map<string, StreamState> = new Map();
 
   /**
-   * 🏆 为 User 消息（非流式）物理初始化 Segment
-   * 确保 User 消息也具有有序段结构，防止持久化丢失
-  }
-
-  /**
    * 流式传输开始
+   * 🏆 关键修复：支持续播重启
    */
   onStreamStart(correlationId: string): void {
     console.log('[ContentSegmentManager] 🚀 Stream started:', correlationId);
 
+    // 如果流已存在且处于延迟清理状态，我们“复活”它
     if (this.streams.has(correlationId)) {
-      console.warn('[ContentSegmentManager] ⚠️ Stream already exists, cleaning up:', correlationId);
-      this.cleanup(correlationId);
+      const existingState = this.streams.get(correlationId)!;
+      console.log('[ContentSegmentManager] 🔄 Re-activating existing stream for continuation:', correlationId);
+      
+      existingState.isFinished = false;
+      
+      // 🏆 物理对齐：续播通常紧接在工具调用之后，或由于截断
+      // 如果没有段落，创建一个；如果有，后续 Chunk 会追加到最后一个段落
+      if (existingState.segments.length === 0) {
+        this.createNewTextSegment(existingState, existingState.currentPhase);
+      }
+      return;
     }
 
     const state: StreamState = {
@@ -154,7 +160,8 @@ export class ContentSegmentManager {
       state.currentTextSegment.content += delta;
 
       // 触发更新事件
-      const segmentIndex = state.segments.findIndex(s => s === state.currentTextSegment);
+      // 🏆 物理对齐：使用 order 查找，避免内存引用偏移
+      const segmentIndex = state.segments.findIndex(s => s.order === state.currentTextSegment!.order);
       if (segmentIndex !== -1) {
         chatEventBus.emit('chat:segment:updated', {
           correlationId,
@@ -164,7 +171,15 @@ export class ContentSegmentManager {
           timestamp: Date.now()
         } as any);
       }
+    } else {
+      // 🏆 物理自愈：如果没有 currentTextSegment，则尝试找到最后一个 text segment
+      const lastTextSegment = [...state.segments].reverse().find(s => s.type === 'text');
+      if (lastTextSegment) {
+          state.currentTextSegment = lastTextSegment;
+          this.onContentChunk(delta, correlationId); // 递归重试
+      }
     }
+
   }
 
   /**
@@ -307,11 +322,24 @@ export class ContentSegmentManager {
   }
 
   /**
-   * 清理流状态
+   * 清理流状态（带缓冲的延迟清理）
+   * 🏆 关键修复：为续播留出窗口期
    */
   private cleanup(correlationId: string): void {
-    console.log('[ContentSegmentManager] 🧹 Cleaning up stream:', correlationId);
-    this.streams.delete(correlationId);
+    console.log('[ContentSegmentManager] ⏳ Scheduling delayed cleanup for stream:', correlationId);
+    
+    // 30秒后执行真正的物理删除，给续播留出足够的时间
+    setTimeout(() => {
+      // 在删除前再次确认，如果流已经重新变得活跃（isFinished === false），则取消删除
+      const state = this.streams.get(correlationId);
+      if (state && !state.isFinished) {
+        console.log('[ContentSegmentManager] 🛡️ Cleanup cancelled: Stream became active again:', correlationId);
+        return;
+      }
+      
+      console.log('[ContentSegmentManager] 🧹 Executing physical cleanup for stream:', correlationId);
+      this.streams.delete(correlationId);
+    }, 30000);
   }
 
   /**

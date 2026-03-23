@@ -40,6 +40,7 @@ interface StreamSession {
   sessionId: string;
   threadId: string;
   lastHeartbeat: number;
+  startTime: number;
   hasReceivedChunk: boolean;
   isFinished: boolean;
   messageId?: string;
@@ -72,6 +73,11 @@ export class StreamingResponseController {
     this.initializePIVOBridge();
     this.startHeartbeatMonitor();
     this.initializeToolCompletionListener();
+
+    // 🏆 为 E2E 测试暴露实例
+    if (typeof window !== 'undefined') {
+      (window as any).__StreamingResponseController = this;
+    }
   }
 
   /**
@@ -123,7 +129,9 @@ export class StreamingResponseController {
 
           // 🚀 OPTIMIZATION: 更激进的超时策略
           // 如果有内容但没有待处理工具，5秒超时后强制完成（从30秒缩短到5秒）
-          if ((hasContent || hasToolCalls) && !hasPendingTools && (now - session.lastHeartbeat > 5000)) {
+          // 🏆 FIX: 增加 session.hasReceivedChunk 判断，确保不会在续播刚开始、首包还没到时就触发快杀
+          // 🏆 FIX: 增加 session.startTime 保护期判断，前 15 秒内绝对禁止快杀，给续播/思考留出充足时间
+          if (session.hasReceivedChunk && (hasContent || hasToolCalls) && !hasPendingTools && (now - session.lastHeartbeat > 5000) && (now - session.startTime > 15000)) {
             console.warn(`[StreamController] ⚡ Fast finish: Content received, no pending tools, 5s timeout for ${correlationId}`);
             this.emitFinished({ correlationId, sessionId: session.sessionId || '', timestamp: Date.now() });
             return;
@@ -283,10 +291,27 @@ export class StreamingResponseController {
       timestamp: payload.timestamp || Date.now()
     });
 
-    // 🏆 FIX: 先检查并清理已有监听器，避免后续创建的 session 被误删
-    // 在续播场景下，同一个 correlationId 可能多次调用 startListening
-    if (this.activeListeners.has(payload.correlationId)) {
-      console.log(`[StreamController] 🛡️ Existing listeners found for ${payload.correlationId}, cleaning up first...`);
+    // 🏆 关键修复：支持续播 (Continuation)
+    // 检测续播场景：1) payload 显式标记，或 2) 已有活跃会话，或 3) 已发送过 finish 事件
+    const isContinuation = (payload as any).isContinuation ||
+                           this.activeSessions.has(payload.correlationId) ||
+                           this.emittedFinish.has(payload.correlationId);
+
+    // 如果该 ID 已经在 emittedFinish 中，说明这是新的续播片段，物理重置
+    if (this.emittedFinish.has(payload.correlationId)) {
+      console.log(`[StreamController] 🔄 Continuation mode: Physical Reset for ${payload.correlationId}`);
+      this.emittedFinish.delete(payload.correlationId);
+    }
+
+    // 🏆 物理隔离：仅在彻底新建会话时清理旧监听器
+    if (!isContinuation && this.activeListeners.has(payload.correlationId)) {
+      console.log(`[StreamController] 🛡️ Non-continuation: Performing full cleanup for ${payload.correlationId}`);
+      this.stopListening(payload.correlationId);
+    }
+
+    // 🔥 FIX v0.3.13: 续播场景下清理旧监听器 (必须在创建新 session 之前)
+    if (isContinuation && this.activeListeners.has(payload.correlationId)) {
+      console.log(`[StreamController] 🧹 Cleaning up old listeners for continuation: ${payload.correlationId}`);
       this.stopListening(payload.correlationId);
     }
 
@@ -296,24 +321,28 @@ export class StreamingResponseController {
       sessionId: payload.sessionId || threadId,
       threadId,
       lastHeartbeat: Date.now(),
+      startTime: Date.now(),
       hasReceivedChunk: false,
       isFinished: false,
       messageId
     };
     this.activeSessions.set(payload.correlationId, session);
 
-    // 🏆 物理对齐：使用私有库的 eventId 格式 "chat_${correlationId}"
-    const eventId = `chat_${messageId}`;
+    // 🏆 物理对齐：使用 correlationId 构建 eventId，确保与 Rust 后端（lib.rs）完全一致
+    // 注意：后端发射格式始终为 "chat_${correlationId}"
+    const eventId = `chat_${payload.correlationId}`;
 
     console.log(`[StreamController] 🎯 Target eventId: ${eventId}`);
-    console.log(`[StreamController] 🎯 Payload correlationId: ${payload.correlationId}`);
+    console.log(`[StreamController] 🎯 correlationId: ${payload.correlationId}`);
+    console.log(`[StreamController] 🎯 messageId: ${messageId}`);
     console.log(`[StreamController] 🎯 Payload sessionId: ${threadId}`);
 
-    // 🔥 FIX v0.3.12: 清除旧的 finish 状态，允许续播场景重新触发 finish
-    // 续播场景下，同一个 assistant 消息会触发多次流式响应
-    // ⚠️ 临时禁用：可能导致幂等性测试失败
-    // this.emittedFinish.delete(payload.correlationId);
-    // console.log(`[StreamController] 🔄 Cleared finish state for ${payload.correlationId} (continuation mode)`);
+    if (messageId !== payload.correlationId) {
+      console.warn(`[StreamController] ⚠️ MESSAGE ID MISMATCH: messageId="${messageId}" vs correlationId="${payload.correlationId}"`);
+      console.warn(`[StreamController] ⚠️ This may cause eventId mismatch - backend sends to "chat_${payload.correlationId}" but we listen to "chat_${messageId}"`);
+    } else {
+      console.log(`[StreamController] ✅ Message ID matches correlationId - eventId should be consistent`);
+    }
 
     // 🔧 注册 PIVO Bridge 监听器（E2E 测试支持）
     this.registerPIVOBridgeListener(payload.correlationId, payload);
@@ -338,7 +367,7 @@ export class StreamingResponseController {
         });
 
         // 1. 监听状态更新 (Status)
-        const unlistenStatus = await listen<string>(`${eventId}_status`, (event) => {
+        const unlistenStatus = await listen(`${eventId}_status`, (event: any) => {
           console.log(`[StreamController] 📨 Status event received:`, event.payload);
           session.lastHeartbeat = Date.now();
           chatEventBus.emit('chat:session:sync', {
@@ -349,9 +378,33 @@ export class StreamingResponseController {
 
         // 2. 监听核心内容流 (Stream)
         console.log(`[StreamController] 🔍 Attempting to listen to eventId: ${eventId}`);
+        console.log(`[StreamController] 🔍 Is this a continuation?`, isContinuation);
+        console.log(`[StreamController] 🔍 ActiveListeners before:`, Array.from(this.activeListeners.keys()));
         let unlistenStream;
+        let eventReceived = false;
+
+        // 🔥 FIX v0.3.14: 根据场景使用不同的超时时间
+        // - 首次请求: 15秒超时（DeepSeek/OpenAI 正常响应时间）
+        // - 续播请求: 30秒超时（工具调用后 LLM 需要更长时间）
+        // 这是一个诊断超时，不会中断实际的流处理
+        const timeoutMs = isContinuation ? 30000 : 15000;
+        const eventTimeoutCheck = setTimeout(() => {
+          if (!eventReceived) {
+            console.warn(`[StreamController] ⏰ EVENT TIMEOUT: No events received within ${timeoutMs}ms for eventId: ${eventId}`);
+            console.warn(`[StreamController] ⏰ This is expected for slow LLMs (DeepSeek, local models) - the stream may still arrive`);
+            console.warn(`[StreamController] 🔍 Expected eventId: ${eventId}`);
+            console.warn(`[StreamController] 🔍 Is continuation: ${isContinuation}`);
+            console.warn(`[StreamController] 🔍 correlationId: ${payload.correlationId}`);
+          }
+        }, timeoutMs);
+
         try {
-            unlistenStream = await listen<any>(eventId, (event) => {
+            unlistenStream = await listen(eventId, (event: any) => {
+                if (!eventReceived) {
+                  eventReceived = true;
+                  clearTimeout(eventTimeoutCheck);
+                  console.log(`[StreamController] ✅ First event received after ${(Date.now() - session.lastHeartbeat)}ms`);
+                }
                 console.log(`[StreamController] 📨 Stream event received, type:`, typeof event.payload);
                 console.log(`[StreamController] 📨 Raw payload:`, event.payload);
                 session.lastHeartbeat = Date.now();
@@ -359,12 +412,13 @@ export class StreamingResponseController {
             });
             console.log(`[StreamController] ✅ Successfully registered listener for ${eventId}`);
         } catch (e) {
+            clearTimeout(eventTimeoutCheck);
             console.error(`[StreamController] ❌ Failed to listen to ${eventId}:`, e);
             throw e;
         }
 
         // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
-        const unlistenFinish = await listen<string>(`${eventId}_finish`, (event) => {
+        const unlistenFinish = await listen(`${eventId}_finish`, (event: any) => {
           console.log(`[StreamController] 🏁 Finish event received for ${payload.correlationId}:`, event.payload);
           console.log(`[StreamController] 🏁 Already emitted? ${this.emittedFinish.has(payload.correlationId)}`);
           this.emitFinished(payload);
@@ -384,6 +438,12 @@ export class StreamingResponseController {
    */
   private handleBackendEvent(raw: any, payload: BasePayload) {
     console.log('[StreamController] 🔍 handleBackendEvent called, raw type:', typeof raw);
+
+    // 🏆 FIX: 标记会话已接收到有效数据块，防止心跳监测误杀
+    const session = this.activeSessions.get(payload.correlationId);
+    if (session && raw) {
+      session.hasReceivedChunk = true;
+    }
 
     // 🏆 FIX: 如果 raw 是空或已经结束，检测是否需要触发 finish
     if (!raw) {
@@ -437,11 +497,18 @@ export class StreamingResponseController {
           const hasCompleteToolCalls = Array.from(this.toolCallBuffer.entries())
             .some(([key, buffered]) => buffered.hasName && buffered.arguments.length > 0);
 
+          // 🔥 FIX: 有工具调用时，不要立即触发 finish
+          // 等待工具调用完成后，由真正的 _finish 事件来结束流
+          // 空的 content chunk 只是 LLM 表示"我暂时没有更多文本"，不应该结束整个流
           if (hasCompleteToolCalls) {
-            console.log('[StreamController] 🏁 Detected finish via empty content chunk with complete tool calls');
-            this.emitFinished(payload);
+            console.log('[StreamController] ⏸️ Empty content with tool calls - waiting for tool completion and finish event');
+            // 不要触发 emitFinished，等待真正的 _finish 事件
             return;
           }
+
+          // 没有工具调用时的空 content，可能是真正的流结束
+          console.log('[StreamController] 🏁 Empty content without tool calls - potential stream end');
+          // 继续处理，但不立即 finish，等待 _finish 事件
         }
 
         console.log('[StreamController] 📝 Content chunk:', data.content?.substring(0, 50));

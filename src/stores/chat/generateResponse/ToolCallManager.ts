@@ -110,6 +110,7 @@ private init() {
       // 🏆 获取项目根目录
       const projectRoot = useFileStore.getState().rootPath;
 
+      let isError = false;
       const result = await invoke('approve_tool_call', {
         messageId: payload.correlationId,
         toolCallId: tc.id,
@@ -118,20 +119,22 @@ private init() {
         projectRoot: projectRoot      // 🆕 项目根目录
       }).catch(err => {
           console.warn(`[ToolCallManager] ⚠️ Backend command failed:`, err);
-          return null;
+          isError = true;
+          return JSON.stringify({ status: 'error', message: `Error executing tool: ${err instanceof Error ? err.message : String(err)}` });
       });
 
-      // 🏆 FIX: 在执行成功后也更新全局 Store 中的工具状态为 completed
+      // 🏆 FIX: 在执行成功后也更新全局 Store 中的工具状态为 completed/error
       const globalStore = (window as any).__chatStore;
       if (globalStore && result) {
-          console.log(`[ToolCallManager] 💉 Updating tool status to completed in Store: ${tc.name}`);
+          console.log(`[ToolCallManager] 💉 Updating tool status to ${isError ? 'error' : 'completed'} in Store: ${tc.name}`);
+          const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
           globalStore.setState((state: any) => ({
               messages: state.messages.map((msg: any) => {
                   if (msg.toolCalls && msg.toolCalls.some((t: any) => t.id === tc.id)) {
                       return {
                           ...msg,
                           toolCalls: msg.toolCalls.map((t: any) =>
-                              t.id === tc.id ? { ...t, status: 'completed' as const, result } : t
+                              t.id === tc.id ? { ...t, status: isError ? 'error' as const : 'completed' as const, result: resultStr } : t
                           )
                       };
                   }
@@ -140,34 +143,9 @@ private init() {
           }));
       }
 
-      if (!result) {
-          tc.status = 'error';
-
-          // 🏆 FIX: 更新全局 Store 中的工具状态为 error
-          const globalStore = (window as any).__chatStore;
-          if (globalStore) {
-              console.log(`[ToolCallManager] 💉 Updating tool status to error in Store: ${tc.name}`);
-              globalStore.setState((state: any) => ({
-                  messages: state.messages.map((msg: any) => {
-                      if (msg.toolCalls && msg.toolCalls.some((t: any) => t.id === tc.id)) {
-                          return {
-                              ...msg,
-                              toolCalls: msg.toolCalls.map((t: any) =>
-                                  t.id === tc.id ? { ...t, status: 'error' as const } : t
-                              )
-                          };
-                      }
-                      return msg;
-                  })
-              }));
-          }
-
-          return;
-      }
-
       // 🏆 FIX: 在执行成功后也更新全局 Store 中的工具状态为 completed
       // 这会在 StoreMapper 中触发 chat:tool:completed 事件处理
-      tc.status = 'completed';
+      tc.status = isError ? 'error' : 'completed';
 
       // 添加工具结果消息到 Store（复用 globalStore 引用）
       if (globalStore) {
@@ -187,13 +165,14 @@ private init() {
       }
 
       chatEventBus.emit('chat:tool:completed', {
-  ...payload,
-  toolId: tc.id,
-  result: result,
-  timestamp: Date.now()
-});
+          ...payload,
+          toolId: tc.id,
+          result: result,
+          timestamp: Date.now(),
+          shouldContinue: true // 🏆 FIX: 即使是 ToolCallManager 处理的，也应明确标记需续播
+      });
 
-this.activeToolCalls.delete(tc.id);
+      this.activeToolCalls.delete(tc.id);
 
 // 🏆 物理隔离保护：延迟 100ms 触发续播，确保渲染已完成
 setTimeout(async () => {

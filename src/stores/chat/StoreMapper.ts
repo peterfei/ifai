@@ -73,11 +73,14 @@ export const initStoreMapper = () => {
 
     // 监听流式开始 → 初始化 ContentSegmentManager
     chatEventBus.on('chat:stream:start', (payload: any) => {
-        // 🔥 FIX: 优先使用 correlationId，确保与后续事件一致
+        // 🔥 FIX: 优先使用 correlationId，并确认在 Store 中的物理存在
         const correlationId = payload.correlationId || payload.messageId;
-        console.log('[StoreMapper] 🚀 Stream start, initializing ContentSegmentManager:', correlationId);
+        const messageId = payload.messageId; // UI 层面的 ID
 
-        // 使用 correlationId 确保与后续的 chunk/tool/finish 事件一致
+        console.log('[StoreMapper] 🚀 Stream start:', { correlationId, messageId });
+
+        // 🏆 物理纠偏：确保 Store 中的消息可以通过 correlationId 被找到
+        // 如果它们不一致，我们需要一个映射关系或者直接在 Manager 中处理
         contentSegmentManager.onStreamStart(correlationId);
     });
 
@@ -479,6 +482,12 @@ export const initStoreMapper = () => {
           if (shouldAutoApprove) {
             console.log('[StoreMapper] 🚀 Triggering auto-approve for tool:', name);
 
+            // 🏆 FIX: 检查是否已被执行，防止 ToolCallManager 与 StoreMapper 的竞态
+            if ((window as any).__EXECUTED_TOOLS__ && (window as any).__EXECUTED_TOOLS__.has(toolId)) {
+              console.log('[StoreMapper] ⚠️ Tool already executed, skipping:', toolId);
+              return;
+            }
+
             // 🏆 FIX: 标记工具已执行，防止 ToolCallManager 重复执行
             if (!(window as any).__EXECUTED_TOOLS__) {
               (window as any).__EXECUTED_TOOLS__ = new Set();
@@ -557,7 +566,15 @@ export const initStoreMapper = () => {
             return;
           }
 
+          // 🔥 FIX: 如果需要续播，清除 finishedStreams 标记
+          // 当 LLM 发送工具调用后空 content 导致流被标记为完成时，需要清除标记允许续播
+          if (finishedStreams.has(correlationId)) {
+            console.log('[StoreMapper] 🔄 Clearing finishedStreams for continuation:', correlationId);
+            finishedStreams.delete(correlationId);
+          }
+
           // 🏆 FIX: 检查流是否已经完成，如果完成则不触发续播
+          // （这个检查现在应该不会触发，因为上面已经清除了标记）
           if (finishedStreams.has(correlationId)) {
             console.log('[StoreMapper] ✅ Stream already finished for:', correlationId, '- skipping continuation');
             // 流已完成，确保 isLoading 为 false
@@ -579,6 +596,8 @@ export const initStoreMapper = () => {
 
           // 🏆 标记续播开始
           continuationInProgress[correlationId] = true;
+          console.log('[StoreMapper] 🔄 Setting continuationInProgress for:', correlationId);
+          console.log('[StoreMapper] 🔄 Current timestamp:', Date.now());
 
           // 🚀 OPTIMIZATION: 初始化续播内容跟踪
           continuationContentTracker[correlationId] = {
@@ -594,47 +613,58 @@ export const initStoreMapper = () => {
           console.log('[StoreMapper] 🔄 All tools completed, triggering AI continuation');
           console.log('[StoreMapper] 🔄 Message count for continuation:', currentState.messages.length);
           console.log('[StoreMapper] 🔄 CorrelationId for continuation:', correlationId);
+          console.log('[StoreMapper] 🔄 generateResponse function exists:', typeof currentState.generateResponse);
+          console.log('[StoreMapper] 🔄 About to call generateResponse...');
 
           const targetMsg = currentState.messages.find((m: any) => m.id === correlationId);
           console.log('[StoreMapper] 🔄 Found target message:', targetMsg ? { id: targetMsg.id, role: targetMsg.role } : 'NOT FOUND');
 
-          // 🚀 OPTIMIZATION: 多重超时机制
-          // 1. 快速检测：1秒内如果没有新内容，立即结束
-          // 2. 安全超时：2秒后强制结束（从5秒缩短到2秒）
+          // 🏆 FIX: 回滚 commit 41dac32 的过短超时，修复真实 LLM 续播失败问题
+          // 1. 快速检测：5秒内如果没有新内容，结束续播（给慢速 LLM 充足时间）
+          // 2. 安全超时：15秒后强制结束（从2秒恢复到15秒）
           const quickCheckTimer = setTimeout(() => {
             const tracker = continuationContentTracker[correlationId];
             if (tracker && !tracker.hasContent) {
-              console.log('[StoreMapper] ⚡ Quick finish: No content received in 1s, ending continuation');
+              console.log('[StoreMapper] ⚡ Quick finish: No content received in 5s, ending continuation');
               useChatStore.setState({ isLoading: false } as any);
               continuationInProgress[correlationId] = false;
               delete continuationContentTracker[correlationId];
             }
-          }, 1000);
+          }, 5000); // ✅ 从 1000ms 改为 5000ms
 
           const safetyTimer = setTimeout(() => {
             if (useChatStore.getState().isLoading) {
-              console.warn('[StoreMapper] ⏰ Tool continuation safety timeout (2s). Resetting isLoading.');
+              console.warn('[StoreMapper] ⏰ Tool continuation safety timeout (15s). Resetting isLoading.');
               useChatStore.setState({ isLoading: false } as any);
             }
             continuationInProgress[correlationId] = false;
             delete continuationContentTracker[correlationId];
-          }, 2000); // 从5秒缩短到2秒
+          }, 15000); // ✅ 从 2000ms 改为 15000ms (回滚 commit 41dac32)
 
           try {
+            const beforeMsgCount = currentState.messages.length;
             await currentState.generateResponse(
               currentState.messages,
               providerId,
               modelId,
               correlationId  // 复用原始 assistant 消息 ID
             );
+            // 检查续播后消息是否更新
+            const afterState = useChatStore.getState();
+            const afterMsgCount = afterState.messages.length;
+            console.log('[StoreMapper] 🔄 Continuation completed. Messages before:', beforeMsgCount, 'after:', afterMsgCount);
+            // 检查原始 assistant 消息是否有新内容
+            const targetMsg = afterState.messages.find((m: any) => m.id === correlationId);
+            console.log('[StoreMapper] 🔄 Target message content length:', targetMsg?.content?.length || 0);
+            console.log('[StoreMapper] 🔄 Target message content preview:', targetMsg?.content?.substring(0, 100) || 'empty');
           } finally {
             clearTimeout(quickCheckTimer);
             clearTimeout(safetyTimer);
-            // 🏆 续播完成后延迟重置标记
+            // 🏆 FIX: 续播完成后延迟重置标记（从500ms恢复到2s）
             setTimeout(() => {
               continuationInProgress[correlationId] = false;
               delete continuationContentTracker[correlationId];
-            }, 500); // 从1秒缩短到500ms
+            }, 2000); // ✅ 从 500ms 改为 2000ms
           }
         }, 300); // 增加延迟确保所有工具完成事件都被处理
       }
