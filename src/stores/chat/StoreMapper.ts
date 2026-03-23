@@ -58,6 +58,9 @@ export const initStoreMapper = () => {
     // 🏆 FIX: 防止重复续播的标记
     let continuationInProgress: { [key: string]: boolean } = {};
 
+    // 🏆 FIX: 续播防抖定时器
+    let continuationTimers: { [key: string]: NodeJS.Timeout } = {};
+
     // 🏆 FIX: 防止流式 chunk 重复追加的标记
     let processedChunks: { [key: string]: Set<string> } = {};
 
@@ -557,7 +560,14 @@ export const initStoreMapper = () => {
 
       // 🏆 FIX: 检查是否所有工具都已完成，如果是才触发续播
       if (shouldContinue) {
-        setTimeout(async () => {
+        // 🏆 防抖处理：清除之前的定时器，确保多个并行工具完成后只触发一次续播
+        if (continuationTimers[correlationId]) {
+          clearTimeout(continuationTimers[correlationId]);
+        }
+
+        continuationTimers[correlationId] = setTimeout(async () => {
+          delete continuationTimers[correlationId];
+          
           const currentState = useChatStore.getState();
 
           // 🏆 FIX: 检查是否已经有续播在进行中

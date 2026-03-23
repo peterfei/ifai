@@ -85,12 +85,19 @@ private init() {
     if (tc.status === 'executing') return;
 
     // 🏆 FIX: 检查工具是否已经通过自动审批执行过
-    const executedTools = (window as any).__EXECUTED_TOOLS__ || new Set();
+    if (!(window as any).__EXECUTED_TOOLS__) {
+      (window as any).__EXECUTED_TOOLS__ = new Set();
+    }
+    const executedTools = (window as any).__EXECUTED_TOOLS__;
+    
     if (executedTools.has(tc.id)) {
-      console.log(`[ToolCallManager] ⚠️ Tool ${tc.name} already executed via auto-approve, skipping.`);
+      console.log(`[ToolCallManager] ⚠️ Tool ${tc.name} already executed, skipping.`);
       this.activeToolCalls.delete(tc.id);
       return;
     }
+
+    // 🏆 物理标记：防止 StoreMapper 里的 100ms 延迟任务重复执行
+    executedTools.add(tc.id);
 
     // 🏆 特殊处理：如果是 LocalModel 自动触发的工具（如 bash），由后端直接执行
     if ((payload as any).isAutoExecuted) {
@@ -149,19 +156,26 @@ private init() {
 
       // 添加工具结果消息到 Store（复用 globalStore 引用）
       if (globalStore) {
-          console.log(`[ToolCallManager] 💉 Adding result message for ${tc.name} to Store`);
-          // 🏆 注意：保持原始结果格式（JSON 对象），由 UI 层的 toolResultFormatter 负责格式化
-          const content = typeof result === 'string' ? result : JSON.stringify(result);
-          globalStore.setState((state: any) => ({
-              messages: [...state.messages, {
-                  id: `res-${tc.id}`,
-                  role: 'tool',
-                  content: content,
-                  tool_call_id: tc.id,
-                  timestamp: Date.now()
-              }],
-              isLoading: true
-          }));
+          const resultMsgId = `res-${tc.id}`;
+          const hasResultMsg = globalStore.getState().messages.some((m: any) => m.id === resultMsgId);
+          
+          if (hasResultMsg) {
+              console.log(`[ToolCallManager] ⚠️ Result message ${resultMsgId} already exists, skipping.`);
+          } else {
+              console.log(`[ToolCallManager] 💉 Adding result message for ${tc.name} to Store`);
+              // 🏆 注意：保持原始结果格式（JSON 对象），由 UI 层的 toolResultFormatter 负责格式化
+              const content = typeof result === 'string' ? result : JSON.stringify(result);
+              globalStore.setState((state: any) => ({
+                  messages: [...state.messages, {
+                      id: resultMsgId,
+                      role: 'tool',
+                      content: content,
+                      tool_call_id: tc.id,
+                      timestamp: Date.now()
+                  }],
+                  isLoading: true
+              }));
+          }
       }
 
       chatEventBus.emit('chat:tool:completed', {
