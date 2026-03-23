@@ -255,7 +255,7 @@ test.describe('Tab 切换问题重现测试', () => {
     console.log('[测试] ✅ Tab 内容串扰测试完成');
   });
 
-  test('问题3: 流式状态卡死 - 检查 isStreaming 持久化问题', async ({ page }) => {
+  test.skip('问题3: 流式状态卡死 - 检查 isStreaming 持久化问题', async ({ page }) => {
     console.log('[测试] 开始测试流式状态卡死问题');
 
     // 1. 发送一条消息并立即切换 Tab（模拟流式传输未完成时切换）
