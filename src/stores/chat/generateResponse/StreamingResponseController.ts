@@ -138,7 +138,8 @@ export class StreamingResponseController {
           }
 
           // 15 秒超时阈值（原有逻辑）
-          if (now - session.lastHeartbeat > 15000) {
+          // 🏆 FIX: 增加 startTime 保护，确保前 15 秒内不触发自愈/终止
+          if (now - session.lastHeartbeat > 15000 && now - session.startTime > 15000) {
             console.warn(`[StreamController] 🛡️ Sentinel detected stall for session: ${correlationId}`);
             this.triggerPhysicalSelfHealing(correlationId);
           }
