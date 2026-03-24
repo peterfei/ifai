@@ -428,7 +428,7 @@ async fn ai_chat(
         if let Some(context) = rag_context {
              if !context.is_empty() {
                 let truncated_context = if context.len() > 12000 {
-                    format!("{}... [Context Truncated]", &context[..12000])
+                    format!("{}... [Context Truncated]", ai_utils::safe_truncate(&context, 12000))
                 } else {
                     context
                 };
@@ -1037,8 +1037,8 @@ async fn approve_tool_call(
             const MAX_LOG_LENGTH: usize = 500;
             let result_str = serde_json::to_string(&result).unwrap_or_default();
             if result_str.len() > MAX_LOG_LENGTH {
-                let preview = format!("{}...", &result_str[..MAX_LOG_LENGTH]);
-                println!("[Agent] 📤 Returning result: {} (total {} bytes, truncated for log)", preview, result_str.len());
+                let preview: String = result_str.chars().take(MAX_LOG_LENGTH).collect();
+                println!("[Agent] 📤 Returning result: {}... (total {} bytes, truncated for log)", preview, result_str.len());
             } else {
                 println!("[Agent] 📤 Returning result: {}", result_str);
             }

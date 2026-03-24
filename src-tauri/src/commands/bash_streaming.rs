@@ -190,7 +190,7 @@ pub async fn execute_bash_command_streaming(
 
                             // 截断过长的行
                             let processed_line = if line.len() > MAX_LINE_LENGTH {
-                                format!("{}...[Line truncated]", &line[..MAX_LINE_LENGTH])
+                                format!("{}...[Line truncated]", crate::ai_utils::safe_truncate(&line, MAX_LINE_LENGTH))
                             } else {
                                 line.clone()
                             };
@@ -259,7 +259,7 @@ pub async fn execute_bash_command_streaming(
                             }
 
                             let processed_line = if line.len() > MAX_LINE_LENGTH {
-                                format!("{}...[Line truncated]", &line[..MAX_LINE_LENGTH])
+                                format!("{}...[Line truncated]", crate::ai_utils::safe_truncate(&line, MAX_LINE_LENGTH))
                             } else {
                                 line.clone()
                             };

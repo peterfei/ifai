@@ -883,13 +883,12 @@ pub async fn local_model_fim(
 
         // 构造 Qwen2.5-Coder 的 FIM Prompt 格式
         // 格式: <|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>
-        let prompt = format!("<|fim_prefix|>{}{}<|fim_suffix|>{}{}<|fim_middle|>", 
-            if prefix.len() > 1000 { &prefix[prefix.len()-1000..] } else { &prefix },
+        let prompt = format!("<|fim_prefix|>{}{}<|fim_suffix|>{}{}<|fim_middle|>",
+            if prefix.len() > 1000 { crate::ai_utils::safe_truncate_start(&prefix, 1000) } else { prefix.clone() },
             "", // Placeholder for potential middle content if needed
-            if suffix.len() > 500 { &suffix[..500] } else { &suffix },
+            if suffix.len() > 500 { crate::ai_utils::safe_truncate(&suffix, 500) } else { suffix.clone() },
             ""
         );
-
         let max_tokens_val = max_tokens.unwrap_or(128);
 
         // 使用 spawn_blocking

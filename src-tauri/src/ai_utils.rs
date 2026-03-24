@@ -7,6 +7,19 @@ use tauri::{AppHandle, Emitter};
 use futures::stream::StreamExt;
 use eventsource_stream::Eventsource;
 
+pub fn safe_truncate(s: &str, max_chars: usize) -> String {
+    s.chars().take(max_chars).collect()
+}
+
+pub fn safe_truncate_start(s: &str, max_chars: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max_chars {
+        s.to_string()
+    } else {
+        s.chars().skip(char_count - max_chars).collect()
+    }
+}
+
 pub fn sanitize_messages(messages: &mut Vec<Message>) {
     // 1. Pre-scan all tool response IDs in the entire history
     let mut all_completed_ids = std::collections::HashSet::new();
@@ -170,7 +183,7 @@ pub async fn fetch_ai_completion(
         eprintln!("[AIUtils] JSON Parse Error: {}", e);
         eprintln!("[AIUtils] Response body (first 500 chars): {}",
             if response_text.len() > 500 {
-                format!("{}...", &response_text[..500])
+                format!("{}...", safe_truncate(&response_text, 500))
             } else {
                 response_text.clone()
             }
@@ -1299,13 +1312,12 @@ pub async fn agent_stream_chat_with_root(
                     eprintln!("[AgentStream] Failed to parse JSON at event #{}. First 200 chars: {}",
                         event_count,
                         if event.data.len() > 200 {
-                            format!("{}...", &event.data[..200])
+                            format!("{}...", safe_truncate(&event.data, 200))
                         } else {
                             event.data.clone()
                         }
                     );
-                }
-            }
+                }            }
             Err(e) => {
                 let elapsed = start_time.elapsed().as_secs_f64();
                 let error_source = std::error::Error::source(&e)
