@@ -20,90 +20,76 @@ test.describe('Continuation Fast-Finish Protection', () => {
       const layoutStore = (window as any).__layoutStore;
       const settingsStore = (window as any).__settingsStore;
       if (layoutStore && settingsStore) {
-        // Set a mock custom provider that doesn't need API key
-        settingsStore.getState().updateProviderConfig('mock-provider', {
-          id: 'mock-provider',
-          name: 'Mock Provider',
-          enabled: true,
-          isCustom: true,
-          baseUrl: 'http://localhost:11434'
+        const state = settingsStore.getState();
+        // Ensure every provider has an API key so the UI doesn't block
+        state.providers.forEach((p: any) => {
+          state.updateProviderConfig(p.id, { ...p, apiKey: 'dummy-key', enabled: true });
         });
-        settingsStore.getState().setCurrentProviderAndModel('mock-provider', 'mock-model');
+        
+        // 🔥 CRITICAL: Trigger a re-render by toggling something or setting current provider
+        state.setCurrentProviderAndModel(state.currentProviderId, state.currentModel);
+        
         layoutStore.getState().setChatOpen(true);
       }
     });
 
-    const correlationId = 'test-continuation-id';
+    // 1. Send a message to create a real thread and assistant message
+    const userMsg = 'Hello mock';
+    await page.evaluate((msg) => (window as any).__E2E_SEND__(msg), userMsg);
+    
+    // Wait for the AI response to appear
+    await page.waitForFunction(() => (window as any).__E2E_GET_MESSAGES__().length >= 2, { timeout: 15000 });
+    
+    const messages = await page.evaluate(() => (window as any).__E2E_GET_MESSAGES__());
+    const assistantMsg = messages.find((m: any) => m.role === 'assistant');
+    const cid = assistantMsg.id;
 
-    // 1. Manually trigger a chat start to initialize listeners
-    await page.evaluate(({ cid }) => {
-      const chatStore = (window as any).__chatStore.getState();
-      const eventBus = (window as any).__chatEventBus;
-      
-      // Add a message with a tool call to simulate the state before continuation
-      chatStore.addMessage({
-        id: cid,
-        role: 'assistant',
-        content: 'I will scan the project...',
-        toolCalls: [{
-          id: 'call-1',
-          type: 'function',
-          function: { name: 'agent_scan_project', arguments: '{}' },
-          status: 'completed',
-          result: '{"status":"success"}'
-        }]
-      });
+    console.log('[Test] Created assistant message with ID:', cid);
 
-      // Start listening for this correlationId
+    // 2. Start a mock continuation
+    await page.evaluate(({ correlationId }) => {
       const streamController = (window as any).__StreamingResponseController;
-      streamController.startListening(cid, {
-        correlationId: cid,
+      streamController.startListening(correlationId, {
+        correlationId,
         sessionId: 'test-session',
         timestamp: Date.now(),
         isContinuation: true
       });
-    }, { cid: correlationId });
+    }, { correlationId: cid });
 
-    // 2. Inject the FIRST chunk via PIVO Bridge
+    // 3. Inject the FIRST chunk via PIVO Bridge
     // This flips hasReceivedChunk to true
-    await page.evaluate(({ cid }) => {
-      (window as any).__PIVO_BRIDGE__.push(cid, {
+    await page.evaluate(({ correlationId }) => {
+      (window as any).__PIVO_BRIDGE__.push(correlationId, {
         type: 'content',
         content: 'Part 1: '
       });
-    }, { cid: correlationId });
+    }, { correlationId: cid });
 
     // Verify first chunk is rendered
     await expect(page.locator('text=Part 1:')).toBeVisible();
 
-    // 3. Wait for 7 seconds (exceeding the 5s fast-finish threshold but within 15s protection)
+    // 4. Wait for 7 seconds (exceeding the 5s fast-finish threshold but within 15s protection)
     console.log('[Test] Waiting 7s to see if Fast Finish is incorrectly triggered...');
     await page.waitForTimeout(7000);
 
-    // 4. Inject SECOND chunk
-    // If fast finish triggered, this chunk will be orphaned and not rendered
-    await page.evaluate(({ cid }) => {
-      (window as any).__PIVO_BRIDGE__.push(cid, {
+    // 5. Inject SECOND chunk
+    await page.evaluate(({ correlationId }) => {
+      (window as any).__PIVO_BRIDGE__.push(correlationId, {
         type: 'content',
         content: 'Part 2: Success'
       });
-    }, { cid: correlationId });
+    }, { correlationId: cid });
 
-    // 5. Verify if Part 2 is rendered
-    // If the fix works, Part 2 should appear. If not, the stream was killed at T+5s.
-    const messageContent = await page.evaluate(({ cid }) => {
-      const messages = (window as any).__chatStore.getState().messages;
-      const msg = messages.find(m => m.id === cid);
-      return msg?.content || '';
-    }, { cid: correlationId });
-
-    console.log('[Test] Final content:', messageContent);
-    expect(messageContent).toContain('Part 2: Success');
+    // 6. Verify if Part 2 is rendered
+    await expect(page.locator('text=Part 2: Success')).toBeVisible();
     
-    // 6. Finalize
-    await page.evaluate(({ cid }) => {
-      (window as any).__PIVO_BRIDGE__.finalize(cid);
-    }, { cid: correlationId });
+    // 7. Finalize
+    await page.evaluate(({ correlationId }) => {
+      (window as any).__PIVO_BRIDGE__.finalize(correlationId);
+    }, { correlationId: cid });
+    
+    console.log('[Test] ✅ Mock verification passed: Continuation survived the 5s threshold.');
     
     console.log('[Test] ✅ Mock verification passed: Continuation survived the 5s threshold.');
   });

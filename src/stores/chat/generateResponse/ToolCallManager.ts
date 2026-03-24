@@ -93,6 +93,24 @@ private init() {
     if (executedTools.has(tc.id)) {
       console.log(`[ToolCallManager] ⚠️ Tool ${tc.name} already executed, skipping.`);
       this.activeToolCalls.delete(tc.id);
+      
+      // 🏆 FIX: 即便跳过执行，也需要发出完成事件，否则 StoreMapper 的续播链会断掉
+      // 我们从 Store 中获取之前的执行结果（如果有的话）
+      const globalStore = (window as any).__chatStore;
+      let existingResult = null;
+      if (globalStore) {
+          const messages = globalStore.getState().messages;
+          const resMsg = messages.find((m: any) => m.tool_call_id === tc.id);
+          if (resMsg) existingResult = resMsg.content;
+      }
+
+      chatEventBus.emit('chat:tool:completed', {
+          ...payload,
+          toolId: tc.id,
+          result: existingResult || '{"status":"skipped","message":"already executed"}',
+          timestamp: Date.now(),
+          shouldContinue: true
+      });
       return;
     }
 

@@ -663,20 +663,14 @@ export const initStoreMapper = () => {
             const afterState = useChatStore.getState();
             const afterMsgCount = afterState.messages.length;
             console.log('[StoreMapper] 🔄 Continuation completed. Messages before:', beforeMsgCount, 'after:', afterMsgCount);
-            // 检查原始 assistant 消息是否有新内容
-            const targetMsg = afterState.messages.find((m: any) => m.id === correlationId);
-            console.log('[StoreMapper] 🔄 Target message content length:', targetMsg?.content?.length || 0);
-            console.log('[StoreMapper] 🔄 Target message content preview:', targetMsg?.content?.substring(0, 100) || 'empty');
           } finally {
             clearTimeout(quickCheckTimer);
             clearTimeout(safetyTimer);
-            // 🏆 FIX: 续播完成后延迟重置标记（从500ms恢复到2s）
-            setTimeout(() => {
-              continuationInProgress[correlationId] = false;
-              delete continuationContentTracker[correlationId];
-            }, 2000); // ✅ 从 500ms 改为 2000ms
+            // 🏆 FIX: 续播完成后立即重置标记，允许后续产生的工具调用立即触发新的续播
+            continuationInProgress[correlationId] = false;
+            delete continuationContentTracker[correlationId];
           }
-        }, 300); // 增加延迟确保所有工具完成事件都被处理
+        }, 1000); // 增加防抖延迟到 1s，确保状态彻底稳定
       }
     });
 
@@ -686,6 +680,7 @@ export const initStoreMapper = () => {
       const correlationId = payload?.correlationId;
       if (correlationId) {
         finishedStreams.add(correlationId);
+        continuationInProgress[correlationId] = false; // 物理保险：流结束时强制清除续播标记
         console.log('[StoreMapper] ✅ Stream finished, marking as completed:', correlationId);
 
         // 延迟清理标记，防止内存泄漏
