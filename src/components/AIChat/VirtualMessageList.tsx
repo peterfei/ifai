@@ -78,7 +78,7 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
             onReject={onReject}
             onOpenFile={onOpenFile}
             onOpenComposer={onOpenComposer}
-            isStreaming={isLoading && message.role === 'assistant'}
+            isStreaming={message.isStreaming || (isLoading && message.role === 'assistant')}
           />
         ))}
       </div>

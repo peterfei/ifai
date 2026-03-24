@@ -952,9 +952,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
-                                        const renderedContent = effectivelyStreaming
-                                            ? renderMarkdownWithoutHighlight(content, `streaming-text-${index}`)
-                                            : renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
+                                        const renderedContent = renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
 
                                         return (
                                             <div

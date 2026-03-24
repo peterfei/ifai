@@ -231,7 +231,7 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
   };
 
   return (
-    <div className={styles.markdownContent}>
+    <div className={`${styles.markdownContent} markdown-body`}>
       <ReactMarkdown
         children={content}
         components={markdownComponents}

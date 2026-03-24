@@ -93,8 +93,8 @@
     "lodash-es": "^4.17.22",
     "lru-cache": "^11.2.4",
     "lucide-react": "^0.561.0",
-    "monaco-editor": "^0.55.1",
-    "monaco-languageclient": "^10.4.0",
+    "monaco-editor": "^0.53.0",
+    "monaco-languageclient": "^4.0.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-i18next": "^16.5.0",
@@ -114,7 +114,7 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
+    "@playwright/test": "^1.58.2",
     "@tauri-apps/cli": "~2.9.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",

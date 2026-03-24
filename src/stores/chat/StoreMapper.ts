@@ -82,6 +82,14 @@ export const initStoreMapper = () => {
 
         console.log('[StoreMapper] 🚀 Stream start:', { correlationId, messageId });
 
+        // 🏆 设置 isStreaming 标记
+        useChatStore.setState((state: any) => ({
+            messages: state.messages.map((m: any) => 
+                m.id === correlationId ? { ...m, isStreaming: true, status: 'streaming' } : m
+            ),
+            isLoading: true
+        }) as any);
+
         // 🏆 物理纠偏：确保 Store 中的消息可以通过 correlationId 被找到
         // 如果它们不一致，我们需要一个映射关系或者直接在 Manager 中处理
         contentSegmentManager.onStreamStart(correlationId);
@@ -90,46 +98,86 @@ export const initStoreMapper = () => {
     // 监听内容块 → 通知 ContentSegmentManager
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
         const { delta, correlationId } = payload;
-        // 🔥 DEBUG: 确认收到 chunk 事件
-        if (delta.length % 20 === 0) {
-          console.log('[StoreMapper] 📥 Chunk event received (ContentSegmentManager):', {
-            correlationId,
-            delta: delta.substring(0, 30),
-            length: delta.length
-          });
+        
+        // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
+        if (!contentSegmentManager.isStreamActive(correlationId)) {
+            console.warn(`[StoreMapper] 🛡️ Stream ${correlationId} not active in Manager, triggering auto-start`);
+            contentSegmentManager.onStreamStart(correlationId);
         }
+
+        // 🏆 FIX: 即使使用了 SegmentManager，也必须实时同步顶层 content
+        // 这是最基础的打字机效果保障，防止分段渲染逻辑失效导致空白
+        useChatStore.setState((state: any) => {
+            const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+            if (messageIndex === -1) return state;
+
+            const newMessages = [...state.messages];
+            const targetMsg = { ...newMessages[messageIndex], isStreaming: true };
+            targetMsg.content = (targetMsg.content || '') + delta;
+            newMessages[messageIndex] = targetMsg;
+
+            return { messages: newMessages, isLoading: true };
+        });
 
         // 通知 ContentSegmentManager
         contentSegmentManager.onContentChunk(delta, correlationId);
     });
 
-    // 监听工具调用 → 通知 ContentSegmentManager
-    chatEventBus.on('chat:tool:call', (payload: any) => {
-        const { correlationId, toolId, name, arguments: args } = payload;
-
-        console.log('[StoreMapper] 🔧 Forwarding tool call to ContentSegmentManager:', {
-            correlationId,
-            toolId,
-            name
-        });
-
-        // 通知 ContentSegmentManager
-        contentSegmentManager.onToolCall({
-            id: toolId,
-            type: 'function',
-            function: {
-                name,
-                arguments: args
-            }
-        }, correlationId);
-    });
-
-    // 监听流式结束 → 完成并清理
+    // 5. 映射流式结束 → 完成、清理、同步
     chatEventBus.on('chat:stream:finished', (payload: any) => {
-        const { correlationId } = payload;
-        console.log('[StoreMapper] 🏁 Stream finished, notifying ContentSegmentManager:', correlationId);
+        const { correlationId, totalTokens } = payload;
+        if (!correlationId) return;
 
+        console.log('[StoreMapper] 🏁 Stream finished:', correlationId);
+
+        // A. 通知 ContentSegmentManager
         contentSegmentManager.onStreamFinish(correlationId);
+
+        // B. 物理标记流完成 & 清除续播锁
+        finishedStreams.add(correlationId);
+        continuationInProgress[correlationId] = false;
+        
+        // 延迟清理 finishedStreams 标记，防止内存泄漏
+        setTimeout(() => {
+          finishedStreams.delete(correlationId);
+          console.log('[StoreMapper] 🧹 Cleaned up finished stream marker:', correlationId);
+        }, 10000);
+
+        // C. 重置 UI 加载状态
+        useChatStore.setState((state: any) => ({
+            messages: state.messages.map((m: any) => 
+                m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
+            ),
+            isLoading: false
+        }) as any);
+
+        // D. 终极同步：确保正文内容与分段完全一致 (延迟 100ms 确保所有 chunk 已落盘)
+        setTimeout(() => {
+          const state = useChatStore.getState();
+          const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+          if (messageIndex === -1) return;
+
+          const newMessages = [...state.messages];
+          const targetMsg = { ...newMessages[messageIndex] };
+
+          if (targetMsg.segments && targetMsg.segments.length > 0) {
+            const fullContent = targetMsg.segments
+              .filter((s: any) => s.type === 'text' && s.content)
+              .map((s: any) => s.content)
+              .join('');
+
+            // 只有当 segments 内容比当前 content 长时才更新，或者强制对齐
+            if (fullContent.length > (targetMsg.content || '').length) {
+              console.log('[StoreMapper] 🔧 Final sync of segments to content:', {
+                correlationId,
+                contentLength: fullContent.length
+              });
+              targetMsg.content = fullContent;
+              newMessages[messageIndex] = targetMsg;
+              useChatStore.setState({ messages: newMessages } as any);
+            }
+          }
+        }, 100);
     });
 
     // ============================================
@@ -190,7 +238,6 @@ export const initStoreMapper = () => {
             if (continuationContentTracker[correlationId]) {
                 continuationContentTracker[correlationId].hasContent = true;
             }
-
             // 找到对应的 segment 并更新
             if (targetMsg.segments) {
                 const segmentIndex = targetMsg.segments.findIndex((s: any) => {
@@ -199,9 +246,15 @@ export const initStoreMapper = () => {
                 });
 
                 if (segmentIndex !== -1) {
-                    const updatedSegment = { ...targetMsg.segments[segmentIndex] };
+                    // 🏆 FIX: 物理替换数组和对象引用，确保 React 监听到深层变化
+                    const newSegments = [...targetMsg.segments];
+                    const updatedSegment = { ...newSegments[segmentIndex] };
                     updatedSegment.content = (updatedSegment.content || '') + delta;
-                    targetMsg.segments[segmentIndex] = updatedSegment;
+                    newSegments[segmentIndex] = updatedSegment;
+                    targetMsg.segments = newSegments;
+                    
+                    // 🏆 同步标记消息正在生成，确保 UI 能够实时响应
+                    targetMsg.isStreaming = true;
                 }
             }
 
@@ -312,51 +365,73 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:tool:call', (payload) => {
       const { correlationId, toolId, name, arguments: args } = payload;
 
-      console.log('[StoreMapper] 🔧 Tool call event received:');
-      console.log('[StoreMapper] 🔧   correlationId:', correlationId);
-      console.log('[StoreMapper] 🔧   toolId:', toolId);
-      console.log('[StoreMapper] 🔧   name:', name);
-      console.log('[StoreMapper] 🔧   arguments:', args?.substring(0, 50));
+      console.log('[StoreMapper] 🔧 Tool call event received:', { correlationId, toolId, name });
+
+      // 🏆 NEW: 物理合并 - 通知 ContentSegmentManager
+      contentSegmentManager.onToolCall({
+          id: toolId,
+          type: 'function',
+          function: {
+              name,
+              arguments: args
+          }
+      }, correlationId);
 
       // 🏆 FIX: 在 updater 外部保存 existingToolIndex，用于后续自动审批逻辑
       let existingToolIndex = -1;
 
       const updater = (state: any) => {
         const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-        console.log('[StoreMapper] 🔧 Message index for correlationId:', messageIndex);
-
-        if (messageIndex === -1) {
-            console.warn('[StoreMapper] ⚠️ Message not found for correlationId:', correlationId);
-            console.log('[StoreMapper] 🔧 Available message IDs:', state.messages.map((m: any) => m.id));
-            return state;
-        }
+        if (messageIndex === -1) return state;
 
         const newMessages = [...state.messages];
         const targetMsg = { ...newMessages[messageIndex] };
-
-        console.log('[StoreMapper] 🔧 Target message before:', {
-            id: targetMsg.id,
-            existingToolCalls: targetMsg.toolCalls?.length || 0
-        });
 
         if (!targetMsg.toolCalls) targetMsg.toolCalls = [];
         existingToolIndex = targetMsg.toolCalls.findIndex((tc: any) => tc.id === toolId);
 
         // 🏆 FIX: 解析 JSON 参数为对象，兼容 UI 组件
-        let parsedArgs = {};
+        let parsedArgs: any = {};
+        
+        // 🏆 内部辅助：尝试从不完整的 JSON 字符串中提取关键字段
+        const extractPartialJSON = (jsonStr: string) => {
+          const result: any = { _raw: jsonStr };
+          
+          // 提取 rel_path
+          const relPathMatch = jsonStr.match(/"rel_path"\s*:\s*"([^"]*)"?/);
+          if (relPathMatch) result.rel_path = relPathMatch[1];
+          
+          // 提取 content (处理转义字符和多行)
+          // 这是一个近似提取，直到找到下一个可能的键或字符串结尾
+          const contentMatch = jsonStr.match(/"content"\s*:\s*"([\s\S]*)$/);
+          if (contentMatch) {
+            let content = contentMatch[1];
+            // 移除末尾可能的未闭合引号或结束括号
+            content = content.replace(/"\s*\}?$/, '').replace(/"$/, '');
+            // 处理基本的换行转义和引号转义
+            result.content = content.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+          }
+          
+          return result;
+        };
+
         try {
           // 尝试解析 JSON 字符串
           if (args && typeof args === 'string') {
-            console.log('[StoreMapper] 🔧 Parsing JSON args:', args);
+            console.log('[StoreMapper] 🔧 Parsing JSON args:', args.substring(0, 50));
             // 尝试直接解析（完整的 JSON）
-            parsedArgs = JSON.parse(args);
-            console.log('[StoreMapper] ✅ Parsed args successfully:', parsedArgs);
+            try {
+              parsedArgs = JSON.parse(args);
+              console.log('[StoreMapper] ✅ Parsed args successfully');
+            } catch (e) {
+              // 🏆 流式传输中，尝试部分提取
+              parsedArgs = extractPartialJSON(args);
+            }
           } else if (args && typeof args === 'object') {
             parsedArgs = args;
           }
         } catch (e) {
-          console.warn('[StoreMapper] ⚠️ Failed to parse args:', args, e);
-          // 解析失败时，尝试提取有用信息
+          console.warn('[StoreMapper] ⚠️ Unexpected error in args processing:', e);
           parsedArgs = { _raw: args || '' };
         }
 
@@ -421,15 +496,19 @@ export const initStoreMapper = () => {
             const existingArgs = targetMsg.toolCalls[existingToolIndex].args || {};
             if ((parsedArgs as any)._raw) {
               // 如果是新参数是原始字符串，更新 function.arguments
-              targetMsg.toolCalls[existingToolIndex].function.arguments += args || '';
+              targetMsg.toolCalls[existingToolIndex].function.arguments = args || ''; // args 已经是累积的
+              
               // 尝试重新解析完整的 arguments
               try {
                 const fullArgsStr = targetMsg.toolCalls[existingToolIndex].function.arguments;
-                if (fullArgsStr.startsWith('{') && fullArgsStr.endsWith('}')) {
+                try {
                   targetMsg.toolCalls[existingToolIndex].args = JSON.parse(fullArgsStr);
+                } catch (e) {
+                  // 🏆 FIX: 使用部分提取逻辑，恢复流式渲染
+                  targetMsg.toolCalls[existingToolIndex].args = extractPartialJSON(fullArgsStr);
                 }
               } catch (e) {
-                // 解析失败，保持 _raw 格式
+                // 极端错误处理
                 targetMsg.toolCalls[existingToolIndex].args = { _raw: targetMsg.toolCalls[existingToolIndex].function.arguments };
               }
             } else {
@@ -674,76 +753,31 @@ export const initStoreMapper = () => {
       }
     });
 
-    // 5. 映射流式结束
-    chatEventBus.on('chat:stream:finished', (payload: any) => {
-      // 🏆 FIX: 标记流为已完成，防止续播逻辑在工具完成后误触发
-      const correlationId = payload?.correlationId;
-      if (correlationId) {
-        finishedStreams.add(correlationId);
-        continuationInProgress[correlationId] = false; // 物理保险：流结束时强制清除续播标记
-        console.log('[StoreMapper] ✅ Stream finished, marking as completed:', correlationId);
-
-        // 延迟清理标记，防止内存泄漏
-        setTimeout(() => {
-          finishedStreams.delete(correlationId);
-          console.log('[StoreMapper] 🧹 Cleaned up finished stream marker:', correlationId);
-        }, 10000); // 10秒后清理，确保所有事件都已处理
-      }
-
-      useChatStore.setState({ isLoading: false } as any);
-    });
-
-    // 🔥 FIX: 在流完成后延迟同步 segments 到 message.content
-    // 使用单独的事件监听器，确保在所有 chunk 处理完成后执行
-    chatEventBus.on('chat:stream:finished', (payload: any) => {
-      const correlationId = payload?.correlationId;
-      if (!correlationId) return;
-
-      // 延迟执行，确保所有 chunk 事件都已处理完毕
-      setTimeout(() => {
-        const updater = (state: any) => {
-          const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-          if (messageIndex === -1) return state;
-
-          const newMessages = [...state.messages];
-          const targetMsg = { ...newMessages[messageIndex] };
-
-          // 检查是否有 segments
-          if (targetMsg.segments && targetMsg.segments.length > 0) {
-            // 从 segments 组装完整内容
-            const fullContent = targetMsg.segments
-              .filter((s: any) => s.type === 'text' && s.content)
-              .map((s: any) => s.content)
-              .join('');
-
-            // 只有当 segments 内容比当前 content 长时才更新
-            // 避免覆盖已有的完整内容
-            if (fullContent.length > (targetMsg.content || '').length) {
-              console.log('[StoreMapper] 🔧 Syncing segments to content:', {
-                correlationId,
-                segmentsCount: targetMsg.segments.length,
-                contentLength: fullContent.length,
-                oldContentLength: (targetMsg.content || '').length
-              });
-
-              // 更新 message.content
-              targetMsg.content = fullContent;
-              newMessages[messageIndex] = targetMsg;
-
-              return { messages: newMessages };
-            }
-          }
-
-          return state;
-        };
-
-        useChatStore.setState(updater as any);
-      }, 100); // 延迟 100ms 执行，确保所有 chunk 已处理
-    });
-
     // 6. 映射错误
-    chatEventBus.on('chat:error', (payload) => {
-      useChatStore.setState({ isLoading: false } as any);
+    chatEventBus.on('chat:error', (payload: any) => {
+      const { correlationId, error } = payload;
+      console.error('[StoreMapper] ❌ Chat error received:', { correlationId, error });
+
+      const updater = (state: any) => {
+        const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
+        if (messageIndex === -1) return { isLoading: false };
+
+        const newMessages = [...state.messages];
+        const targetMsg = { ...newMessages[messageIndex] };
+        
+        // 如果内容为空，添加错误提示
+        const errorText = typeof error === 'string' ? error : JSON.stringify(error);
+        if (!targetMsg.content || targetMsg.content.length < 10) {
+            targetMsg.content = (targetMsg.content || '') + `\n\n❌ **AI 响应错误**: ${errorText}`;
+        }
+        
+        targetMsg.status = 'error';
+        newMessages[messageIndex] = targetMsg;
+
+        return { messages: newMessages, isLoading: false };
+      };
+
+      useChatStore.setState(updater as any);
     });
 
     // 7. 🏆 FIX: 监听工具审批事件，更新工具状态

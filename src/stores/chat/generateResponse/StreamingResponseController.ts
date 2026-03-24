@@ -50,6 +50,9 @@ export class StreamingResponseController {
   private static instance: StreamingResponseController;
   private activeListeners: Map<string, Function[]> = new Map();
   private activeSessions: Map<string, StreamSession> = new Map();
+  private toolCallBuffer: Map<string, { name: string, arguments: string, hasName: boolean, hasArgs: boolean, toolId: string }> = new Map();
+  private indexToBufferKey: Map<string, string> = new Map();
+  private heartbeatTimer: any = null;
 
   /**
    * 🔥 FIX v0.3.12: 幂等性保护 - 防止 finish 事件被多次触发
@@ -112,9 +115,12 @@ export class StreamingResponseController {
    */
   private startHeartbeatMonitor() {
     if (typeof window === 'undefined') return;
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
 
-    setInterval(() => {
+    this.heartbeatTimer = setInterval(() => {
       const now = Date.now();
+      if (this.activeSessions.size === 0) return;
+
       this.activeSessions.forEach((session, correlationId) => {
         if (!session.isFinished) {
           // 🔥 FIX: 降低超时阈值到 30 秒，适用于慢速 LLM 响应
@@ -258,20 +264,6 @@ export class StreamingResponseController {
     this.pivoBridgeUnlisteners.set(correlationId, unlisten);
     console.log(`[StreamController] ✅ PIVO Bridge listeners registered for ${correlationId}`);
   }
-
-  /**
-   * 工具调用参数累积缓冲区
-   * 用于在流式传输过程中逐步累积完整的 arguments
-   * Key: bufferKey (优先用 id，其次用 index), Value: { name, arguments, hasName, hasArgs, toolId }
-   */
-  private toolCallBuffer: Map<string, { name: string; arguments: string; hasName: boolean; hasArgs: boolean; toolId: string }> = new Map();
-
-  /**
-   * Index 到 ID 的映射
-   * 用于处理流式传输时后续 chunks 的 id 为 null 的情况
-   * Key: index (如 "0"), Value: bufferKey (如 "id-call_123")
-   */
-  private indexToBufferKey: Map<string, string> = new Map();
 
   /**
    * 启动针对特定消息的流式监听
@@ -425,8 +417,20 @@ export class StreamingResponseController {
           this.emitFinished(payload);
         });
 
-        // 4. 记录监听器以便后续清理
-        this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream, unlistenFinish]);
+        // 4. 🔥 FIX: 监听 error 事件（后端 API 错误或致命错误时发送）
+        const unlistenError = await listen(`${eventId}_error`, (event: any) => {
+          console.error(`[StreamController] ❌ Error event received for ${payload.correlationId}:`, event.payload);
+          // 发送错误事件到 EventBus
+          chatEventBus.emit('chat:error', {
+            correlationId: payload.correlationId,
+            error: event.payload
+          });
+          // 结束流并设置 isLoading = false
+          this.emitFinished(payload);
+        });
+
+        // 5. 记录监听器以便后续清理
+        this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream, unlistenFinish, unlistenError]);
         console.log(`[StreamController] ✅ Listening to eventId: ${eventId} (including _finish)`);
         console.log(`[StreamController] 🎯 Registered listeners for correlationId: ${payload.correlationId}`);
     } catch (e) {
@@ -440,10 +444,11 @@ export class StreamingResponseController {
   private handleBackendEvent(raw: any, payload: BasePayload) {
     console.log('[StreamController] 🔍 handleBackendEvent called, raw type:', typeof raw);
 
-    // 🏆 FIX: 标记会话已接收到有效数据块，防止心跳监测误杀
+    // 🏆 FIX: 只要收到数据，立即刷新心跳并标记已接收数据
     const session = this.activeSessions.get(payload.correlationId);
     if (session && raw) {
       session.hasReceivedChunk = true;
+      session.lastHeartbeat = Date.now();
     }
 
     // 🏆 FIX: 如果 raw 是空或已经结束，检测是否需要触发 finish
@@ -600,8 +605,6 @@ export class StreamingResponseController {
               } catch (e) {
                 // JSON 不完整，继续等待更多 chunks
                 console.log('[StreamController] ⏳ Arguments JSON incomplete, waiting for more chunks...');
-                console.log('[StreamController] ⏳ Current arguments:', buffered.arguments);
-                console.log('[StreamController] ⏳ Parse error:', e);
               }
 
               if (isComplete) {
@@ -747,10 +750,16 @@ export class StreamingResponseController {
     window.dispatchEvent(new CustomEvent('ifainew:stream-finished', { detail: { correlationId } }));
     window.dispatchEvent(new CustomEvent(`${correlationId}_finish`, { detail: { payload: 'done' } }));
 
-    // 🏆 FIX: 删除冗余的自动续写逻辑
-    // ToolCallManager 已经在工具完成后处理续写（第199-213行）
-    // 这里的逻辑会导致重复调用 generateResponse，引发流状态混乱
-    // 相关代码已移除，避免与 ToolCallManager 续播逻辑冲突
+    // 🏆 FIX: 检测空响应并提示
+    const chatStore = useChatStore.getState();
+    const targetMsg = chatStore.messages.find(m => m.id === correlationId);
+    if (targetMsg && (!targetMsg.content || targetMsg.content.length < 5) && (!targetMsg.toolCalls || targetMsg.toolCalls.length === 0)) {
+        console.warn(`[StreamController] ⚠️ Empty response detected for ${correlationId}`);
+        chatEventBus.emit('chat:error', {
+            correlationId,
+            error: "AI returned an empty response. This might be due to a safety filter or model limitation. Please try again with a different prompt."
+        });
+    }
 
     // 🏆 FIX: 在清理前标记 session 为已完成，防止心跳监测器误判
     const session = this.activeSessions.get(correlationId);
@@ -760,6 +769,14 @@ export class StreamingResponseController {
     }
 
     this.stopListening(payload.correlationId);
+
+    // 🏆 FIX: 如果没有活跃会话了，物理停止心跳监测
+    if (this.activeSessions.size === 0 && this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+      console.log('[StreamController] 🛑 Heartbeat monitor stopped (no active sessions)');
+    }
+
     chatEventBus.emit('chat:stream:finished', {
       ...payload,
       totalTokens: tokens
