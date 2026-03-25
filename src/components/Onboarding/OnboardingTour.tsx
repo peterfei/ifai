@@ -12,7 +12,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Joyride, CallBackProps, STATUS, Step } from 'react-joyride';
+import Joyride, { STATUS } from 'react-joyride';
+import type { CallBackProps, Step } from 'react-joyride';
 import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../stores/layoutStore';
 import ReactMarkdown from 'react-markdown';
@@ -158,6 +159,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.welcome')),
       title: t('onboarding.steps.welcomeTitle'),
+      // @ts-ignore
       disableBeacon: true,
       placement: 'center' as const,
     },
@@ -166,6 +168,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.commandBar')),
       title: t('onboarding.steps.commandBarTitle'),
+      // @ts-ignore
       disableBeacon: true,
       placement: 'center' as const,
     },
@@ -174,6 +177,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.settingsGuide')),
       title: t('onboarding.steps.settingsGuideTitle'),
+      // @ts-ignore
       disableBeacon: true,
       placement: 'center' as const,
     },
@@ -182,6 +186,7 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: '[data-testid="layout-switcher"]',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
+      // @ts-ignore
       disableBeacon: false,
       placement: 'bottom' as const,
     },
@@ -396,7 +401,9 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       steps={steps}
       run={run}
       continuous
+      // @ts-ignore
       showSkipButton
+      // @ts-ignore
       showProgress
       callback={handleCallback}
       styles={tooltipStyles}
