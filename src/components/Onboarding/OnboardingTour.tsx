@@ -12,8 +12,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Joyride, { STATUS } from 'react-joyride';
-import type { CallBackProps, Step } from 'react-joyride';
+import { Joyride } from 'react-joyride';
 import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../stores/layoutStore';
 import ReactMarkdown from 'react-markdown';
@@ -117,7 +116,7 @@ export const resetTourState = () => {
 // Tour Steps Definition
 // ============================================================================
 
-const getTourSteps = (t: (key: string) => string): Step[] => {
+const getTourSteps = (t: (key: string) => string): any[] => {
   // 创建 Markdown 渲染组件的辅助函数
   const renderMarkdown = (content: string) => (
     <ReactMarkdown
@@ -159,7 +158,6 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.welcome')),
       title: t('onboarding.steps.welcomeTitle'),
-      // @ts-ignore
       disableBeacon: true,
       placement: 'center' as const,
     },
@@ -168,7 +166,6 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.commandBar')),
       title: t('onboarding.steps.commandBarTitle'),
-      // @ts-ignore
       disableBeacon: true,
       placement: 'center' as const,
     },
@@ -177,7 +174,6 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.settingsGuide')),
       title: t('onboarding.steps.settingsGuideTitle'),
-      // @ts-ignore
       disableBeacon: true,
       placement: 'center' as const,
     },
@@ -186,11 +182,10 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       target: '[data-testid="layout-switcher"]',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
-      // @ts-ignore
       disableBeacon: false,
       placement: 'bottom' as const,
     },
-  ];
+  ] as any[];
 };
 
 // ============================================================================
@@ -259,13 +254,13 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   }, [forceStart]);
 
   // 处理引导回调
-  const handleCallback = useCallback((data: CallBackProps) => {
+  const handleCallback = useCallback((data: any) => {
     const { status, index, action, type } = data;
 
     console.log('[OnboardingTour] Callback:', { status, index, action, type });
 
     // 🔥 FIX: 提前处理完成/跳过状态，完全卸载组件避免 DOM 错误
-    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+    if (status === 'finished' || status === 'skipped') {
       // 立即卸载组件，防止 Joyride 继续操作 DOM
       setMounted(false);
       setRun(false);
@@ -275,7 +270,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         setCommandBarOpen(false);
         setSettingsOpen(false);
 
-        if (status === STATUS.FINISHED) {
+        if (status === 'finished') {
           console.log('[OnboardingTour] Tour finished');
           markTourCompleted();
           onTourComplete?.();
@@ -395,15 +390,15 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
     return null;
   }
 
+  const JoyrideComponent = Joyride as any;
+
   return (
-    <Joyride
+    <JoyrideComponent
       key={`onboarding-${i18n.language}`}
       steps={steps}
       run={run}
       continuous
-      // @ts-ignore
       showSkipButton
-      // @ts-ignore
       showProgress
       callback={handleCallback}
       styles={tooltipStyles}
