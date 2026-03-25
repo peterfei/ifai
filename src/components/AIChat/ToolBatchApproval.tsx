@@ -38,7 +38,7 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
 
         let charCount = 0;
         toolCalls.forEach(tc => {
-            const res = tc.result || tc.output || "";
+            const res = tc.result || (tc as any).output || "";
             charCount += typeof res === 'string' ? res.length : JSON.stringify(res).length;
         });
         const estimatedTokens = Math.ceil(charCount / 4) + 1000;
@@ -96,7 +96,8 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
             const running = group.calls.find(tc => tc.isPartial || tc.status === 'approved' || tc.status === 'pending');
             if (running) {
                 const tool = running.tool.toLowerCase();
-                const path = running.args?.rel_path || running.args?.path || '.';
+                const args = running.args as any;
+                const path = args?.rel_path || args?.path || '.';
                 const action = tool.includes('read') ? 'Read' : (tool.includes('list') || tool.includes('dir') ? 'List' : 'Search');
                 return { action, path };
             }
@@ -106,7 +107,10 @@ export const ToolBatchApproval: React.FC<ToolBatchApprovalProps> = ({
 
     // 4. 任务描述
     const taskTitle = useMemo(() => {
-        const paths = toolCalls.map(tc => tc.args?.rel_path || tc.args?.path || '');
+        const paths = toolCalls.map(tc => {
+            const args = tc.args as any;
+            return args?.rel_path || args?.path || '';
+        });
         if (paths.some(p => p.includes('core') || p.includes('private'))) return '访问 ifainew-core 私有库';
         if (toolCalls.length > 5) return '探索项目整体结构';
         return '分析项目关键文件';

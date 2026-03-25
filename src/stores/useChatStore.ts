@@ -462,8 +462,8 @@ export const useChatStore = create<ChatStore>()(
               await invoke('ai_chat', {
                   providerConfig: {
                       ...providerConfig,
-                      api_key: providerConfig.apiKey || "",
-                      base_url: providerConfig.baseUrl || "",
+                      api_key: (providerConfig as any).apiKey || "",
+                      base_url: (providerConfig as any).baseUrl || "",
                       models: [modelName]
                   },
                   messages: sanitizedMessages,

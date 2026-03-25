@@ -523,7 +523,7 @@ export const performanceTestData = {
   },
   // 目标：v0.3.6 批量执行
   target: {
-    version: '0.3.11',
+    version: '0.3.12',
     batchCall: {
       duration: 680,
       paths: [

@@ -57,7 +57,7 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
 
   // 初始化 TimelineLoader
   useEffect(() => {
-    loaderRef.current = new TimelineLoader(messages, {
+    loaderRef.current = new TimelineLoader(messages as any, {
       batchSize,
       timeoutMs
     });

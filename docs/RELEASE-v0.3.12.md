@@ -111,24 +111,32 @@ PersistenceManager {
 ## 🔧 修复列表
 
 ### 关键修复
-1. **输入框禁用问题**：商业版流结束后无法输入
+1. **后端 UTF-8 字符边界 Panic**：
+   - 根因：流式响应在处理多字节 UTF-8 字符（如中文）时，由于物理切片正好落在字符中间导致 Rust `panic`
+   - 修复：引入字符边界感知切片逻辑，确保物理块不破坏 UTF-8 完整性
+
+2. **多 Tab 切换消息乱序与丢失**：
+   - 修复：物理级消息段落 (Segments) 持久化，实现全量 Session 事务隔离，彻底根治 Tab 切换导致的持久化竞态
+
+3. **工具聚合与 `agent_write_file` 异常**：
+   - 修复：补全缺失的 `batchId` 逻辑，确保并发工具调用下的自动审批与写入操作顺序正确
+
+4. **输入框禁用问题**：商业版流结束后无法输入
    - 根因：缺少 `{eventId}_finish` 事件监听
    - 修复：添加 Finish 事件处理逻辑
 
-2. **社区版 Finish 事件**：社区版流响应不发送结束信号
+5. **社区版 Finish 事件**：社区版流响应不发送结束信号
    - 根因：`fetch_ai_completion` 使用非流式 API
    - 修复：手动构造 `finish_reason` 事件
 
-3. **工具调用参数累积**：流式传输中 JSON 被截断
+6. **工具调用参数累积**：流式传输中 JSON 被截断
    - 根因：增量 chunks 直接拼接，未验证 JSON 完整性
    - 修复：使用 Index 映射 + JSON 解析验证
 
-4. **新手引导黑屏**：OnboardingTour 的 Markdown 渲染错误
-   - 根因：`JSON.stringify()` 无法序列化 React 元素（循环引用）
-   - 修复：改用 `String()` 安全转换
+7. **新手引导黑屏**：OnboardingTour 的 Markdown 渲染错误
+   - 修复：优化动态面板联动与布局定位逻辑，增强渲染稳定性
 
-5. **本地模型下载弹窗**：首次启动自动弹出
-   - 修复：禁用自动下载提示，由用户主动选择
+8. **Tab 自动命名**：恢复了基于 AI 对话内容的 Tab 自动重命名功能
 
 ---
 
@@ -204,14 +212,17 @@ PersistenceManager {
 
 ## 🔗 相关提交
 
+- `05af4fb` - 修复 agent_write_file 缺失 batchId 导致的工具聚合失效
+- `be30e7d` - 修复 UTF-8 字符边界切片导致的后端崩溃 (Panic)
+- `2977567` - 实现全量消息段落 (Segments) 的物理级持久化
 - `fba43aa` - 引入有序段管理器
-- `3ea6197` - 修复流式工具调用参数累积
+- `3ea6197` - 修复流式传输下的工具调用参数累积与 OpenAI API 格式兼容性
 - `97ebf77` - 实现 EventBus + Session 持久化
 - `5d41105` - ChatEventBus 基础设施
 - `fc6a9d5` - 引入 IndexedDB 存储
 
 ---
 
-*发布日期：2026-03-21*
+*发布日期：2026-03-25*
 *核心架构：PIVO 3.0 + EventBus + ContentSegmentManager*
 *架构评级：世界先进水平 ⭐⭐⭐⭐*

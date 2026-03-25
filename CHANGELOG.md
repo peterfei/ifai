@@ -1,5 +1,36 @@
 # 更新日志
 
+## [0.3.12] - 2026-03-25
+### 🚀 流式渲染架构重构、ChatEventBus 引入与稳定性物理加固
+
+#### 1. 流式响应架构重构 (Streaming Architecture Refactor)
+- **ChatEventBus 基础设施**：引入全局事件总线 `ChatEventBus`，实现消息发送、流式更新与持久化任务的事务级解耦。
+- **有序段管理器 (ContentSegmentManager)**：重构流式消息渲染逻辑，通过物理级段管理彻底解决内容与工具调用乱序、重复及打字机失效问题。
+- **SendMessageOrchestrator**：实现消息发送全生命周期的协同编排，将复杂的发送逻辑从 Store 中剥离。
+
+#### 2. 状态管理与持久化升级 (State & Persistence Evolution)
+- **ChatStore 深度解构**：彻底重构 `useChatStore`，物理移除臃肿逻辑，引入 Session 事务级持久化，确保多 Tab 切换时的消息绝对隔离与顺序保真。
+- **物理级消息脱敏**：实现消息段落 (Segments) 的物理级持久化，根治长对话场景下的内容丢失难题。
+- **ToolCallManager**：引入专用的工具调用管理器，实现工具调用全生命周期的 TDD 验证与状态同步。
+
+#### 3. 智能代理与工具链优化 (Agent & Toolchain Refinement)
+- **DebuggerAgent v0.5.0**：正式引入 `DebuggerAgent` 实现意图驱动的自主调试闭环，打通 PIVO 3.0 物理授权链路。
+- **流式工具聚合修复**：修复了 `agent_write_file` 缺失 `batchId` 导致的工具聚合失效，并优化了工具参数的累积解析算法。
+- **OpenAI 格式兼容性**：增强了对 OpenAI API 格式的兼容性，确保流式工具调用在不同模型提供商下的稳定性。
+
+#### 4. UI 交互与引导体验 (UI & Onboarding)
+- **引导系统完善 (Onboarding)**：优化了新手引导步骤的动态面板联动、布局定位逻辑及渲染稳定性。
+- **项目树实时渲染**：解除流式传输对项目树渲染的硬阻断，确保 `agent_scan_project` 等结果能即时呈现。
+- **Tab 自动命名**：恢复了 Tab 页签基于对话内容的自动命名功能。
+
+#### 5. 后端与内核稳定性 (Backend & Core Stability)
+- **UTF-8 边界溢出修复**：根治了后端在处理流式切片时由于 UTF-8 字符边界截断导致的 Panic 崩溃。
+- **自愈机制 (Sentinel)**：增强了哨兵自愈机制的启动保护，彻底解决工具调用失败后的对话截断与续播卡死问题。
+
+#### 6. 测试与工程化 (Testing & QA)
+- **E2E 回归体系加固**：通过白盒驱动方式绕过 UI 交互延迟，显著提升了 Playwright 测试在 Zhipu AI 及 Bash 工具链下的稳定性。
+- **物理级 TDD 验证**：为 `ToolCallManager`、`StreamingResponseController` 等核心组件补齐了全生命周期单元测试与信号仿真测试。
+
 ## [0.3.11] - 2026-03-14
 ### 🚀 架构稳定性加固、TypeScript 类型对齐与构建流程优化
 

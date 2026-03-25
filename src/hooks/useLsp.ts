@@ -33,7 +33,7 @@ export const useLsp = (languageId: string, cmd: string, args: string[]) => {
                     },
                     // @ts-ignore: connectionProvider might not be in the type definition but is required by logic
                     connectionProvider: {
-                        get: async () => connection
+                        get: async () => connection as any
                     }
                 });
 

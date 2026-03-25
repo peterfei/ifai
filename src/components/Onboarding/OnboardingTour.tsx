@@ -412,7 +412,6 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       disableOverlayClose={true}
       hideBackButton={false}
       scrollToFirstStep={false}
-      scrollToSteps={false}
       spotlightClicks={true}
       debug={false}
     />

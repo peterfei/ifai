@@ -20,6 +20,7 @@ const originalSendMessage = coreStore.getState().sendMessage;
         console.log('[CoreProxy] 🛡️ Compile-time Shield: Routing via Orchestrator');
         return sendMessageOrchestrator.send(content, pId, model, opts);
     }
+    // @ts-ignore: originalSendMessage signature might not reflect all accepted parameters in types
     return originalSendMessage(content, pId, model, opts);
 };
 

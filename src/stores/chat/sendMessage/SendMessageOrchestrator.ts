@@ -61,7 +61,7 @@ export class SendMessageOrchestrator {
         const systemMsg: any = {
           id: `sys-${correlationId}`,
           role: 'system',
-          content: settings.customSystemPrompt || 'You are IfAI, a helpful AI assistant.',
+          content: (settings as any).customSystemPrompt || 'You are IfAI, a helpful AI assistant.',
           timestamp: Date.now() - 1 // 确保在用户消息之前
         };
         messageToSelect.unshift(systemMsg);

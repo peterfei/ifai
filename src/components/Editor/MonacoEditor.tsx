@@ -641,11 +641,13 @@ ${textBefore}[CURSOR]${textAfter}
       handleItemDidShow: (completions, item) => {
         // Called when an inline completion item is shown to the user
       },
+      // @ts-ignore
       freeInlineCompletions: (completions) => {
         // Called when completions are no longer needed
         // Can be used for cleanup
       },
       // Additional method for Monaco's internal disposal
+      // @ts-ignore
       disposeInlineCompletions: (completions, reason) => {
         // Handle Monaco's internal disposal
         // 取消待处理的请求

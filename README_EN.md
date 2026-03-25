@@ -1,5 +1,11 @@
 # IfAI
 
+### 🌟 v0.3.12 Highlights: Event-Driven Architecture & Streaming Order
+- **ChatEventBus Architecture**: Global event bus decoupling for messaging, streaming, and persistence, ensuring transaction-level consistency.
+- **ContentSegmentManager (Industry First)**: Resolving the "interleaved out-of-order" dilemma in LLM streaming responses via physical segment management.
+- **Industrial Persistence**: Full storage migration to IndexedDB with 200ms throttled persistence and automatic session self-healing.
+- **DebuggerAgent v0.5.0**: Intent-driven autonomous debugging loop with full PIVO 3.0 authorization support.
+
 ### 🌟 v0.3.9 Highlights: Physical Fidelity & Cognitive Upgrade
 - **Symbol-First Probing Engine**: New "skeleton-first" cognition mode, resolving context overflow for 10KB+ files via millisecond-level physical structure analysis.
 - **Physical Fidelity Reinforcement**: Full storage migration to IndexedDB (bye-bye 5MB LocalStorage limit); fixed large JSON rendering fidelity.

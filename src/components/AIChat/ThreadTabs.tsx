@@ -15,7 +15,7 @@
 import React, { useRef, useEffect, useMemo, useCallback, memo, useState } from 'react';
 import { useThreadStore } from '../../stores/threadStore';
 import { useFileStore } from '../../stores/fileStore';
-import { setThreadMessages } from '../../stores/useChatStore';
+import { setThreadMessages, switchThread } from '../../stores/useChatStore';
 import { useChatStore as coreUseChatStore } from 'ifainew-core';
 import { useTranslation } from 'react-i18next';
 import { ThreadSearchBar } from './ThreadSearchBar';
