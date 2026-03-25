@@ -440,37 +440,36 @@ export const initStoreMapper = () => {
         // 私有库使用: { function: { name, arguments } }  arguments 是字符串
         if (existingToolIndex === -1) {
             // 🏆 NEW: 分配 batchId 以支持工具折叠显示
-            const aggregatableTools = ['agent_scan_project', 'agent_list_dir', 'agent_read_file', 'agent_search', 'list_dir', 'read_file'];
+            const aggregatableTools = [
+                'agent_scan_project', 
+                'agent_list_dir', 
+                'agent_read_file', 
+                'agent_write_file', 
+                'agent_create_file',
+                'agent_delete_file', 
+                'agent_rename_file',
+                'agent_move_file',
+                'agent_replace_content',
+                'agent_replace_text',
+                'agent_search', 
+                'list_dir', 
+                'read_file'
+            ];
             const lowerToolName = name.toLowerCase();
             let batchId: string | undefined = undefined;
 
             if (aggregatableTools.some(t => lowerToolName.includes(t))) {
                 const lastToolCall = targetMsg.toolCalls.length > 0 ? targetMsg.toolCalls[targetMsg.toolCalls.length - 1] : null;
-                console.log('[StoreMapper] 🔍 BatchId check:', {
-                    currentTool: name,
-                    lastTool: lastToolCall?.tool,
-                    lastToolBatchId: (lastToolCall as any)?.batchId,
-                    toolCallsLength: targetMsg.toolCalls.length
-                });
 
                 // 🏆 FIX: 简化batchId复用逻辑
-                // 如果上一个工具有batchId，说明它是可聚合工具，直接复用
-                // 不需要再次检查上一个工具的名称（因为它有batchId就说明是可聚合的）
                 if (lastToolCall && (lastToolCall as any).batchId) {
                     batchId = (lastToolCall as any).batchId;
-                    console.log('[StoreMapper] ✅ Reusing batchId from last tool:', batchId);
                 } else {
-                    const currentEditorMode = (window as any).__IFAI_EDITOR_MODE__ || 'vibe';
-                    console.log('[StoreMapper] 🔍 Current editor mode:', currentEditorMode, '(no last tool with batchId)');
+                    const currentEditorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
                     if (currentEditorMode === 'vibe' || currentEditorMode === 'spec') {
                         batchId = `batch_${crypto.randomUUID().slice(0, 8)}`;
-                        console.log('[StoreMapper] 🆕 Created new batchId:', batchId);
-                    } else {
-                        console.log('[StoreMapper] ⚠️ Editor mode not vibe/spec, no batchId created');
                     }
                 }
-            } else {
-                console.log('[StoreMapper] ⚠️ Tool not in aggregatable list:', name);
             }
 
             targetMsg.toolCalls.push({
