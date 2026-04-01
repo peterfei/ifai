@@ -335,7 +335,18 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         if (process.env.NODE_ENV === 'development' && isStreaming && message.role === 'assistant') {
             console.log('[MessageItem] 🚀 Message is actively streaming:', message.id);
         }
-    }, [isStreaming, message.id]);
+
+        // 🔥 FIX: When streaming stops, immediately clear activelyStreaming state
+        // This prevents the "生成中..." indicator from staying forever
+        if (!isStreaming && isActivelyStreaming) {
+            console.log('[MessageItem] 🏁 Streaming stopped, clearing activelyStreaming state');
+            setIsActivelyStreaming(false);
+            if (streamingTimeoutRef.current) {
+                clearTimeout(streamingTimeoutRef.current);
+                streamingTimeoutRef.current = undefined;
+            }
+        }
+    }, [isStreaming, message.id, isActivelyStreaming]);
     // Count pending tool calls for batch actions
     const pendingCount = React.useMemo(() => {
         if (!message.toolCalls) return 0;

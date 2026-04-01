@@ -25,6 +25,25 @@ pub struct Choice {
 pub struct Delta {
     pub content: Option<String>,
     pub role: Option<String>,
+    /// 🆕 P2: 工具调用（OpenAI/DeepSeek 格式）
+    pub tool_calls: Option<Vec<ToolCallDelta>>,
+}
+
+/// 🆕 P2: 工具调用增量数据
+#[derive(Debug, Deserialize)]
+pub struct ToolCallDelta {
+    pub index: i32,
+    pub id: Option<String>,
+    #[serde(rename = "type")]
+    pub call_type: Option<String>,
+    pub function: Option<FunctionDelta>,
+}
+
+/// 🆕 P2: 函数调用增量数据
+#[derive(Debug, Deserialize)]
+pub struct FunctionDelta {
+    pub name: Option<String>,
+    pub arguments: Option<String>,
 }
 
 /// 解析 OpenAI 格式的 SSE 帧

@@ -124,6 +124,15 @@ pub async fn fetch_ai_completion(
 
     if let Some(t) = tools {
         request_body["tools"] = json!(t);
+        println!("[AIUtils] ✅ Added {} tools to request body", t.len());
+        for (i, tool) in t.iter().enumerate() {
+            if let Some(func) = tool.get("function") {
+                let name = func.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+                println!("  [{}] {}", i + 1, name);
+            }
+        }
+    } else {
+        println!("[AIUtils] ⚠️ No tools provided to fetch_ai_completion!");
     }
 
     let calibrated_url = calibrate_provider_url(&config.base_url, &config.name);

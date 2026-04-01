@@ -104,31 +104,36 @@ impl IntelligenceRouter {
         // 判断复杂度
         let is_simple_query = self.is_simple_query(&text);
         let is_tool_request = self.is_tool_request(&text);
+        let requires_ai_tool = self.requires_ai_tool_call(&text); // 🆕 P2: 需要 AI 工具调用
         let is_long_context = estimated_tokens > 4000 || conversation_length > 20;
 
         // 打印调试信息
-        println!("[Router] text='{}', is_tool_request={}, is_long_context={}, tokens={}, msg_len={}",
-                 text.chars().take(1024).collect::<String>(), is_tool_request, is_long_context, estimated_tokens, conversation_length);
+        println!("[Router] text='{}', is_tool_request={}, requires_ai_tool={}, is_long_context={}, tokens={}, msg_len={}",
+                 text.chars().take(1024).collect::<String>(), is_tool_request, requires_ai_tool, is_long_context, estimated_tokens, conversation_length);
 
-        match (is_tool_request, is_simple_query, is_long_context) {
+        match (is_tool_request, is_simple_query, is_long_context, requires_ai_tool) {
+            // 🆕 P2: 需要 AI 工具调用的任务（TodoWrite 等）必须路由到云端
+            (_, _, _, true) => {
+                TaskComplexity::Complex // 强制使用云端 API
+            }
             // 工具调用优先 - 即使上下文较长也优先使用本地
-            (true, false, _) | (true, true, false) => {
-                // 工具调用请求
+            (true, false, _, _) | (true, true, false, _) => {
+                // 工具调用请求（文件操作类）
                 if estimated_tokens < 2000 {
                     TaskComplexity::Simple
                 } else {
                     TaskComplexity::Medium
                 }
             }
-            (_, _, true) => {
+            (_, _, true, _) => {
                 // 长上下文但没有工具请求
                 TaskComplexity::Complex
             }
-            (false, true, false) => {
+            (false, true, false, _) => {
                 // 简单问答且上下文不长
                 TaskComplexity::Simple
             }
-            (false, false, false) => {
+            (false, false, false, _) => {
                 // 其他情况
                 if estimated_tokens < 1000 {
                     TaskComplexity::Simple
@@ -196,7 +201,24 @@ impl IntelligenceRouter {
         is_short && has_simple_keyword
     }
 
-    /// 判断是否是工具调用请求
+    /// 🆕 P2: 判断是否需要 AI 工具调用（TodoWrite 等）
+    /// 这些任务必须路由到云端，因为本地模型不支持工具调用
+    fn requires_ai_tool_call(&self, text: &str) -> bool {
+        let text_lower = text.to_lowercase();
+
+        // TodoWrite 相关关键词
+        let todowrite_keywords = [
+            "任务列表", "todo list", "todolist", "to-do",
+            "创建任务", "添加任务", "新建任务",
+            "任务清单", "checklist", "check list",
+            "行动计划", "action items", "action plan",
+        ];
+
+        // 检测是否需要 AI 工具调用
+        todowrite_keywords.iter().any(|kw| text_lower.contains(kw))
+    }
+
+    /// 判断是否是工具调用请求（文件操作类）
     fn is_tool_request(&self, text: &str) -> bool {
         let text_lower = text.to_lowercase();
 
@@ -205,15 +227,15 @@ impl IntelligenceRouter {
             return true;
         }
 
-        // 检查明确的工具调用关键词
+        // 检查明确的工具调用关键词（文件操作类）
         let tool_keywords = [
-            "读取", "写入", "创建", "删除", "搜索", "查找",
-            "read", "write", "create", "delete", "search", "find",
+            "读取文件", "写入文件", "创建文件", "删除文件", "搜索", "查找",
+            "read file", "write file", "create file", "delete file", "search", "find",
             "打开", "关闭", "列出", "显示",
             "open", "close", "list", "show",
             // 添加更多关键词
-            "explore", "scan", "查看", "目录", "文件",
-            "文件", "folder", "dir", "ls",
+            "explore", "scan", "查看", "目录",
+            "folder", "dir", "ls",
         ];
 
         tool_keywords.iter().any(|kw| text_lower.contains(kw))

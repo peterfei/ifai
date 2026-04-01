@@ -14,6 +14,8 @@ pub struct StreamRequest {
     pub system: Option<String>,
     pub temperature: Option<f32>,
     pub stream: bool,
+    /// 🆕 P2: 工具定义列表
+    pub tools: Option<Vec<serde_json::Value>>,
 }
 
 /// 消息

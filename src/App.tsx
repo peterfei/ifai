@@ -312,6 +312,15 @@ function App() {
       } catch (error) {
         console.error('[App] ❌ Failed to expose formatToolResultToMarkdown:', error);
       }
+
+      // P2: 暴露 todoWriteStore 到 window 对象供 E2E 测试使用
+      try {
+        const { useTodoWriteStore } = await import('./stores/todoWriteStore');
+        (window as any).__todoWriteStore = useTodoWriteStore;
+        console.log('[App] ✅ TodoWriteStore exposed to window.__todoWriteStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose TodoWriteStore:', error);
+      }
     };
 
     init();

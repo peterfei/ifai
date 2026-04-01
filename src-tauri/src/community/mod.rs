@@ -23,6 +23,19 @@ impl AIService for BasicAIService {
         tools: Option<Vec<serde_json::Value>>,
         callback: Box<dyn Fn(String) + Send>,
     ) -> Result<(), String> {
+        // 🔍 P2 调试：打印接收到的工具列表
+        if let Some(ref tools) = tools {
+            println!("[CommunityAIService] 🛠️ Received {} tools in stream_chat:", tools.len());
+            for (i, tool) in tools.iter().enumerate() {
+                if let Some(func) = tool.get("function") {
+                    let name = func.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+                    println!("  [{}] {}", i + 1, name);
+                }
+            }
+        } else {
+            println!("[CommunityAIService] ⚠️ No tools received in stream_chat!");
+        }
+
         // Enhanced implementation that supports tool_calls
         match ai_utils::fetch_ai_completion(config, messages, tools).await {
             Ok(msg) => {

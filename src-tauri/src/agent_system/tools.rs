@@ -1,5 +1,19 @@
 use ifainew_core::agent;
 use serde_json::Value;
+use crate::harness::task::TaskStore;
+use crate::harness::tool::executor::todoutil::TodoWriteExecutor;
+use crate::harness::tool::executor::ToolExecutor;
+
+// 🆕 全局 TaskStore 单例
+use std::sync::OnceLock;
+
+static GLOBAL_TASK_STORE: OnceLock<TaskStore> = OnceLock::new();
+
+fn get_global_task_store() -> &'static TaskStore {
+    GLOBAL_TASK_STORE.get_or_init(|| {
+        TaskStore::new()
+    })
+}
 
 /// Convert snake_case to camelCase (e.g., "rel_path" -> "relPath")
 fn to_camel_case(snake: &str) -> String {
@@ -323,6 +337,29 @@ pub async fn execute_tool_internal(
                 Err(e) => {
                     println!("[AgentTools] BASH ERROR: {}", e);
                     Err(e)
+                },
+            }
+        },
+        "TodoWrite" => {
+            println!("[AgentTools] Executing TodoWrite with args: {}", args);
+
+            // 提取 todos 数组
+            let todos_array = args.get("todos")
+                .and_then(|v| v.as_array())
+                .ok_or("Missing or invalid 'todos' array in TodoWrite arguments")?;
+
+            // 创建 TodoWriteExecutor 并执行
+            let store = get_global_task_store();
+            let mut executor = TodoWriteExecutor::new(store.clone());
+
+            match executor.execute("TodoWrite", args) {
+                Ok(result) => {
+                    println!("[AgentTools] TodoWrite SUCCESS: {}", result);
+                    Ok(result)
+                },
+                Err(e) => {
+                    println!("[AgentTools] TodoWrite ERROR: {:?}", e);
+                    Err(format!("TodoWrite failed: {:?}", e))
                 },
             }
         },

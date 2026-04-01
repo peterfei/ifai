@@ -98,6 +98,11 @@ export const initStoreMapper = () => {
     // 监听内容块 → 通知 ContentSegmentManager
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
         const { delta, correlationId } = payload;
+        console.log('[StoreMapper] 📨 chat:stream:chunk received:', {
+            correlationId,
+            deltaLength: delta?.length || 0,
+            deltaPreview: delta?.substring(0, 50) || ''
+        });
         
         // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
         if (!contentSegmentManager.isStreamActive(correlationId)) {
@@ -144,12 +149,26 @@ export const initStoreMapper = () => {
         }, 10000);
 
         // C. 重置 UI 加载状态
+        console.log('[StoreMapper] 🔄 Setting isLoading to false for', correlationId);
+        const currentState = useChatStore.getState();
+        console.log('[StoreMapper] 🔍 Current isLoading before update:', currentState.isLoading);
+
         useChatStore.setState((state: any) => ({
-            messages: state.messages.map((m: any) => 
+            messages: state.messages.map((m: any) =>
                 m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
             ),
             isLoading: false
         }) as any);
+
+        // 🔥 DEBUG: 验证状态是否正确更新
+        setTimeout(() => {
+            const newState = useChatStore.getState();
+            console.log('[StoreMapper] 🔍 Current isLoading after update:', newState.isLoading);
+            if (newState.isLoading) {
+                console.error('[StoreMapper] ❌ isLoading is still true after setState! Force resetting...');
+                useChatStore.setState({ isLoading: false } as any);
+            }
+        }, 50);
 
         // D. 终极同步：确保正文内容与分段完全一致 (延迟 100ms 确保所有 chunk 已落盘)
         setTimeout(() => {

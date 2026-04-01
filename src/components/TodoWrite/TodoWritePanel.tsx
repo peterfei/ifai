@@ -104,14 +104,14 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
   };
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${className}`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${className}`} data-testid="todowrite-panel">
       {/* 头部 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">
             任务列表
           </h3>
-          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full text-xs font-medium">
+          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full text-xs font-medium" data-testid="task-count">
             {stats.total}
           </span>
         </div>
@@ -123,6 +123,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
               onClick={onClose}
               className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
               title="关闭面板"
+              data-testid="close-panel-button"
             >
               <X className="w-4 h-4" />
             </button>
@@ -134,8 +135,9 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
             disabled={isLoading}
             className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
             title="刷新"
+            data-testid="refresh-tasks-button"
           >
-            <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-gray-400 ${isLoading ? 'animate-spin' : ''}`} data-testid="refresh-icon" />
           </button>
 
           {/* 清空按钮 */}
@@ -144,6 +146,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
               onClick={handleClearTasks}
               className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
               title="清空所有任务"
+              data-testid="clear-tasks-button"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -156,19 +159,19 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
         <div className="flex items-center gap-4 px-4 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-1.5">
             <Circle className="w-3 h-3 text-gray-400" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-gray-600 dark:text-gray-400" data-testid="stat-pending">
               待办: {stats.pending}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <Loader2 className="w-3 h-3 text-blue-500" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-gray-600 dark:text-gray-400" data-testid="stat-in-progress">
               进行中: {stats.inProgress}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-green-500" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-gray-600 dark:text-gray-400" data-testid="stat-completed">
               已完成: {stats.completed}
             </span>
           </div>
@@ -196,6 +199,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
               <div
                 key={index}
                 className="group flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                data-testid="task-item"
               >
                 {/* 状态图标 */}
                 <div className="flex-shrink-0 mt-0.5">
@@ -216,7 +220,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
 
                 {/* 状态标签和操作 */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={getStatusBadgeStyle(task.status)}>
+                  <span className={getStatusBadgeStyle(task.status)} data-testid="task-status">
                     {task.status === 'in_progress' ? '进行中' :
                      task.status === 'completed' ? '已完成' : '待办'}
                   </span>
@@ -229,6 +233,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
                         onClick={() => handleStatusChange(index, task.status === 'pending' ? 'in_progress' : 'completed')}
                         className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                         title={task.status === 'pending' ? '开始任务' : '完成任务'}
+                        data-testid={task.status === 'pending' ? 'task-start-button' : 'task-complete-button'}
                       >
                         {task.status === 'pending' ? (
                           <Circle className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
@@ -243,6 +248,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
                       onClick={() => handleRemoveTask(index)}
                       className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                       title="删除任务"
+                      data-testid="task-delete-button"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

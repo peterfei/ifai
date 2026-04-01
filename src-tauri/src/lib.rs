@@ -22,6 +22,7 @@ mod performance;
 mod core_traits;
 mod project_config;
 mod community;
+mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
 mod local_model;
 mod intelligence_router;
 mod token_counter; // v0.2.6 新增：Token 计数模块
@@ -417,13 +418,24 @@ async fn ai_chat(
         let mut final_system_prompt = prompt_manager::get_main_system_prompt(&root);
         
         // 注入工具定义兜底：确保模型即便没收到 tools 参数，也能通过提示词学会调用
-        final_system_prompt.push_str("\n\n# ADDITIONAL TOOLS AVAILABLE\n");
-        final_system_prompt.push_str("You also have access to the following tool. You MUST use it by outputting a standard tool call JSON:\n");
+        final_system_prompt.push_str("\n\n# IMPORTANT: WHEN TO USE TOOLS\n");
+        final_system_prompt.push_str("When users ask you to create tasks, to-do lists, checklists, or action items:\n");
+        final_system_prompt.push_str("1. ⚠️ DO NOT create a file with agent_write_file - this creates a messy text file!\n");
+        final_system_prompt.push_str("2. ✅ ALWAYS use the TodoWrite tool instead - this creates a proper interactive task panel!\n");
+        final_system_prompt.push_str("3. The TodoWrite tool will create a structured task list that users can interact with.\n\n");
+
+        final_system_prompt.push_str("# ADDITIONAL TOOLS AVAILABLE\n");
+        final_system_prompt.push_str("You also have access to the following tools. You MUST use them by outputting standard tool call JSON:\n");
         final_system_prompt.push_str(r#"
 - name: bash
   description: Execute a shell command
   parameters: { "command": "string", "working_dir": "string (optional)" }
   example: {"name": "bash", "arguments": {"command": "ls -la"}}
+
+- name: TodoWrite
+  description: Create or update a task list for tracking progress. Use this when the user asks you to create tasks, to-do items, or a task list.
+  parameters: { "todos": "array of task objects", "todos": [{ "content": "string (task name)", "activeForm": "string (active form)", "status": "string (pending/in_progress/completed, optional)" }] }
+  example: {"name": "TodoWrite", "arguments": {"todos": [{"content": "Implement login", "activeForm": "Implementing login", "status": "pending"}, {"content": "Write tests", "activeForm": "Writing tests", "status": "in_progress"}]}}
 "#);
 
         if let Some(context) = rag_context {
@@ -753,6 +765,43 @@ async fn ai_chat(
                     "required": ["command"]
                 }
             }
+        }),
+        // 🆕 P2: TodoWrite 工具
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "TodoWrite",
+                "description": "Create or update a structured task list. IMPORTANT: You MUST use this tool (not plain text) whenever the user asks you to create tasks, to-do items, checklists, action items, or task lists. Always call this tool instead of listing tasks in your response.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "todos": {
+                            "type": "array",
+                            "description": "Array of tasks to manage",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "content": {
+                                        "type": "string",
+                                        "description": "The task description in noun form (e.g., 'Implement login feature')"
+                                    },
+                                    "activeForm": {
+                                        "type": "string",
+                                        "description": "The task in active/verb form (e.g., 'Implementing login feature')"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": ["pending", "in_progress", "completed"],
+                                        "description": "Current status: 'pending' (not started), 'in_progress' (working on it), 'completed' (done). Default is 'pending'."
+                                    }
+                                },
+                                "required": ["content", "activeForm"]
+                            }
+                        }
+                    },
+                    "required": ["todos"]
+                }
+            }
         })
     ];
 
@@ -763,10 +812,17 @@ async fn ai_chat(
             println!("[AI Chat] Vibe Mode active: Filtering for safe PIVO tools");
             final_tools.retain(|t| {
                 let name = t["function"]["name"].as_str().unwrap_or("");
-                name == "agent_scan_project" || name == "agent_read_file" || name == "agent_list_dir" || name == "bash"
+                name == "agent_scan_project" || name == "agent_read_file" || name == "agent_list_dir" || name == "bash" || name == "TodoWrite" // 🆕 P2: 添加 TodoWrite 到 Vibe Mode 白名单
             });
         }
         // Spec 模式不进行 retain，保持全量 tools
+    }
+
+    // 🔍 P2 调试：打印工具列表
+    println!("[AI Chat] 🛠️ Sending {} tools to AI:", final_tools.len());
+    for (i, tool) in final_tools.iter().enumerate() {
+        let name = tool["function"]["name"].as_str().unwrap_or("?");
+        println!("  [{}] {}", i + 1, name);
     }
 
     let is_vibe_mode = mode.as_deref() == Some("vibe");
@@ -1148,7 +1204,9 @@ pub fn run() {
             let app_handle = app.handle().clone();
             
             #[cfg(feature = "commercial")]
-            let (ai, rag, agent) = {             let ai = Arc::new(commercial::impls::CommercialAIService::new(app_handle.clone()));
+            let (ai, rag, agent) = {
+             // 🆕 P0+P1+P2: 商业版本也使用新的 Harness AI Service（支持 tools）
+             let ai = Arc::new(crate::harness_ai_service::HarnessAIService::new(app_handle.clone()));
              let rag = Arc::new(commercial::impls::CommercialRagService::new(app_handle.clone()));
              let agent = Arc::new(commercial::impls::CommercialAgentService::new());
              (ai, rag, agent)
@@ -1156,12 +1214,13 @@ pub fn run() {
         
         #[cfg(not(feature = "commercial"))]
         let (ai, rag, agent) = {
-             let ai = Arc::new(community::BasicAIService);
+             // 🆕 P0+P1+P2: 使用新的 Harness AI Service
+             let ai = Arc::new(crate::harness_ai_service::HarnessAIService::new(app_handle.clone()));
              let rag = Arc::new(community::CommunityRagService);
              let agent = Arc::new(community::CommunityAgentService);
              (
-                 ai as Arc<dyn core_traits::ai::AIService>, 
-                 rag as Arc<dyn core_traits::rag::RagService>, 
+                 ai as Arc<dyn core_traits::ai::AIService>,
+                 rag as Arc<dyn core_traits::rag::RagService>,
                  agent as Arc<dyn core_traits::agent::AgentService>
              )
         };

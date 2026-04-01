@@ -18,13 +18,23 @@ pub struct OpenAIClient {
 
 impl OpenAIClient {
     pub fn new(config: &super::super::types::ProviderConfig) -> Self {
+        // 🆕 P2: 规范化 base_url，移除可能存在的路径后缀
+        let base_url = if let Some(url) = &config.base_url {
+            // 如果用户配置的 base_url 已经包含完整路径（如 /chat/completions），使用它
+            // 否则添加标准路径
+            if url.contains("/chat/completions") || url.contains("/v1/") {
+                url.clone()
+            } else {
+                format!("{}/v1/chat/completions", url.trim_end_matches('/'))
+            }
+        } else {
+            "https://api.openai.com/v1/chat/completions".to_string()
+        };
+
         Self {
             http: HttpClient::new(),
             api_key: config.api_key.clone(),
-            base_url: config
-                .base_url
-                .clone()
-                .unwrap_or_else(|| "https://api.openai.com".to_string()),
+            base_url,
         }
     }
 }
@@ -36,7 +46,7 @@ impl ApiClient for OpenAIClient {
         request: StreamRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError> {
         // OpenAI 使用标准的 chat completions 格式
-        let openai_request = serde_json::json!({
+        let mut openai_request = serde_json::json!({
             "model": request.model,
             "messages": request.messages,
             "max_tokens": request.max_tokens,
@@ -44,15 +54,43 @@ impl ApiClient for OpenAIClient {
             "stream": true
         });
 
+        // 🆕 P2: 添加 tools 参数（如果存在）
+        if let Some(tools) = request.tools {
+            if let Some(obj) = openai_request.as_object_mut() {
+                obj.insert("tools".to_string(), serde_json::Value::Array(tools));
+            }
+        }
+
+        // 🔍 P2 调试：打印请求 URL 和负载
+        eprintln!("[OpenAIClient] 📤 Sending request to: {}", self.base_url);
+        eprintln!("[OpenAIClient] 📋 Request payload: {}", serde_json::to_string_pretty(&openai_request).unwrap_or_else(|_| "<invalid>".to_string()));
+
         let response = self
             .http
-            .post(format!("{}/v1/chat/completions", self.base_url))
+            .post(&self.base_url)  // 🆕 P2: 直接使用 base_url，不再添加路径
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&openai_request)
             .send()
             .await
-            .map_err(|e| ApiError::Network(e.to_string()))?;
+            .map_err(|e| {
+                eprintln!("[OpenAIClient] ❌ Network error: {:?}", e);
+                ApiError::Network(e.to_string())
+            })?;
+
+        eprintln!("[OpenAIClient] 📡 Response status: {}", response.status());
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            eprintln!("[OpenAIClient] ❌ API error: {} - {}", status, message);
+            return Err(ApiError::HttpError { status, message });
+        }
+
+        eprintln!("[OpenAIClient] ✅ Stream starting...");
 
         if !response.status().is_success() {
             let status = response.status();

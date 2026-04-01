@@ -442,7 +442,9 @@ export class StreamingResponseController {
    * 处理后端返回的原始事件
    */
   private handleBackendEvent(raw: any, payload: BasePayload) {
-    console.log('[StreamController] 🔍 handleBackendEvent called, raw type:', typeof raw);
+    console.log('[StreamController] 🔍 handleBackendEvent called');
+    console.log('[StreamController] 🔍 Raw type:', typeof raw);
+    console.log('[StreamController] 🔍 Raw value (first 500 chars):', typeof raw === 'string' ? raw.substring(0, Math.min(500, raw.length)) : raw);
 
     // 🏆 FIX: 只要收到数据，立即刷新心跳并标记已接收数据
     const session = this.activeSessions.get(payload.correlationId);
@@ -493,8 +495,17 @@ export class StreamingResponseController {
 
       console.log('[StreamController] 🔍 Processed data type:', data.type, 'full data:', data);
 
+      // 🆕 P2: 兼容 OpenAI/DeepSeek 格式（没有 type 字段）
+      // 检查是否有 choices.delta.content（文本内容）
+      const isOpenAIFormat = !data.type && data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content !== undefined;
+
+      if (isOpenAIFormat) {
+        const content = data.choices[0].delta.content;
+        console.log('[StreamController] 📝 OpenAI format content chunk:', content?.substring(0, 50));
+        this.emitChunk(content || '', false, payload);
+      }
       // 情况 A: 文本内容
-      if (data.type === 'content') {
+      else if (data.type === 'content') {
         // 🏆 FIX: 检测空内容作为备用 finish 信号
         // 某些后端（如本地模型）可能不发送标准 finish 事件
         const isEmpty = !data.content || data.content === '';
@@ -630,9 +641,54 @@ export class StreamingResponseController {
         }
       }
 
-      // 情况 C: 结束标志 (高度兼容模式：finish, finish_reason, done)
-      else if (data.type === 'finish' || data.finish_reason || data.finish || data.done === true) {
-        console.log(`[StreamController] 🏁 End of stream detected via: ${data.finish || data.finish_reason || 'type:finish'}`);
+      // 🆕 P2: 工具完成事件（从 DeepSeek/OpenAI 流式响应中累积的参数）
+      else if (data.type === 'tool_done') {
+        console.log('[StreamController] 🎯 Tool done event detected!');
+        console.log('[StreamController] 🎯 Tool done data:', data);
+
+        const toolCallId = data.tool_call_id || data.toolCallId;
+        const result = data.result || data.arguments || '{}';
+
+        console.log('[StreamController] 🔍 Debug - toolCallId:', toolCallId, 'result type:', typeof result, 'result:', result);
+
+        if (toolCallId) {
+          console.log('[StreamController] 🎯 Processing tool_done for:', toolCallId);
+          console.log('[StreamController] 🎯 Tool result:', result);
+
+          // 🔥 FIX: 检查 data.todos（直接从事件数据中获取，不需要从 result 解析）
+          if (data.todos && Array.isArray(data.todos)) {
+            console.log('[StreamController] ✅ TodoWrite detected in data.todos, syncing to store:', data.todos);
+            console.log('[StreamController] 🔍 Todos array length:', data.todos.length);
+
+            // 动态导入 todoWriteStore
+            console.log('[StreamController] 📦 Importing todoWriteStore...');
+            import('../../todoWriteStore').then(({ useTodoWriteStore }) => {
+              console.log('[StreamController] 📦 todoWriteStore imported, calling syncFromToolCall...');
+              useTodoWriteStore.getState().syncFromToolCall(data.todos);
+              console.log('[StreamController] ✅ TodoWrite synced successfully');
+            }).catch(err => {
+              console.error('[StreamController] ❌ Failed to import or sync TodoWrite:', err);
+            });
+          } else {
+            console.log('[StreamController] ⚠️ data.todos not found or not an array, skipping sync');
+            console.log('[StreamController] ⚠️ data.todos:', data.todos, 'type:', typeof data.todos);
+          }
+        } else {
+          console.log('[StreamController] ⚠️ No toolCallId found, skipping tool_done processing');
+        }
+      }
+
+      // 情况 C: 结束标志 (高度兼容模式：finish, finish_reason, done, OpenAI 格式)
+      else if (
+        data.type === 'finish' ||
+        data.finish_reason ||
+        data.finish ||
+        data.done === true ||
+        // 🆕 P2: 兼容 OpenAI/DeepSeek 格式的 finish_reason
+        (data.choices && data.choices[0] && data.choices[0].finish_reason)
+      ) {
+        const finishReason = data.finish || data.finish_reason || (data.choices && data.choices[0] && data.choices[0].finish_reason);
+        console.log(`[StreamController] 🏁 End of stream detected via: ${finishReason || 'type:finish'}`);
         console.log('[StreamController] 🏁 Finish data:', data);
         this.emitFinished(payload, data.usage?.total_tokens);
       }
@@ -669,10 +725,16 @@ export class StreamingResponseController {
   }
 
   private emitChunk(delta: string, isFinal: boolean, payload: BasePayload) {
+    console.log('[StreamController] 📤 emitChunk called:', {
+      correlationId: payload.correlationId,
+      deltaLength: delta.length,
+      deltaPreview: delta.substring(0, 50),
+      isFinal
+    });
     chatEventBus.emit('chat:stream:chunk', {
       ...payload,
       delta,
-      fullContent: '', 
+      fullContent: '',
       isFinal
     });
   }
