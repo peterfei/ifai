@@ -51,6 +51,7 @@ pub struct AppState {
     pub ai_service: Arc<dyn core_traits::ai::AIService>,
     pub rag_service: Arc<dyn core_traits::rag::RagService>,
     pub agent_service: Arc<dyn core_traits::agent::AgentService>,
+    pub task_store: crate::harness::task::TaskStore,
 }
 
 #[tauri::command]
@@ -1169,6 +1170,7 @@ pub fn run() {
             ai_service: ai,
             rag_service: rag,
             agent_service: agent,
+            task_store: crate::harness::task::TaskStore::new(),
         });
 
         // v0.2.8: 符号索引状态
@@ -1351,6 +1353,12 @@ pub fn run() {
             ai::pivo::commands::pivo_init_assets,
             // 🏆 新增：Agent 工具审批
             approve_tool_call,
+            // P2: TodoWrite 任务存储
+            commands::task_store_commands::get_tasks,
+            commands::task_store_commands::update_task,
+            commands::task_store_commands::clear_tasks,
+            commands::task_store_commands::remove_task,
+            commands::task_store_commands::get_task_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

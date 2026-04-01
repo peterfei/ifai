@@ -5,6 +5,7 @@
 pub mod api;
 pub mod tool;
 pub mod permission;
+pub mod task;
 
 // TODO: 添加其他模块
 // pub mod agent;

@@ -2,10 +2,15 @@
 //!
 //! 定义工具执行接口和错误类型。
 
+pub mod todoutil;
+
 use serde_json::Value;
 use std::collections::HashSet;
 
 use super::spec::ToolPermissionMode;
+
+// 重新导出 TodoWriteExecutor
+pub use todoutil::TodoWriteExecutor;
 
 /// 工具执行错误
 #[derive(Debug, thiserror::Error)]

@@ -3,6 +3,7 @@ pub mod prompt_commands;
 pub mod agent_commands;
 pub mod bash_commands;
 pub mod task_commands;
+pub mod task_store_commands;
 pub mod proposal_commands;
 pub mod symbol_commands;
 pub mod error_commands;
