@@ -6,6 +6,9 @@ pub mod registry;
 pub mod spec;
 pub mod executor;
 
+#[cfg(test)]
+mod integration_tests;
+
 pub use registry::ToolRegistry;
 pub use spec::{ToolSpec, ToolPermissionMode};
 pub use executor::{ToolExecutor, ToolError};

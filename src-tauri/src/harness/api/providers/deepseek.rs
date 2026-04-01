@@ -9,8 +9,8 @@ use reqwest::Client as HttpClient;
 use std::pin::Pin;
 
 use super::super::client::ApiClient;
-use super::super::sse::SseParser;
 use super::super::types::{ApiError, ModelInfo, StreamEvent, StreamRequest};
+use super::openai_format::parse_openai_frame;
 
 pub struct DeepSeekClient {
     http: HttpClient,
@@ -66,31 +66,38 @@ impl ApiClient for DeepSeekClient {
         }
 
         let byte_stream = response.bytes_stream();
-        let parser = SseParser::new();
+        let mut buffer = Vec::new();
 
         Ok(Box::pin(stream! {
-            let mut parser = parser;
-
             for await chunk_result in byte_stream {
                 match chunk_result {
                     Ok(chunk) => {
-                        match parser.push(&chunk) {
-                            Ok(events) => {
-                                for event in events {
-                                    yield Ok(convert_deepseek_event(&event));
+                        buffer.extend_from_slice(&chunk);
+
+                        // 按 SSE 帧分隔（\n\n 或 \r\n\r\n）
+                        loop {
+                            let separator_pos = find_separator(&buffer);
+                            if separator_pos == 0 {
+                                break;
+                            }
+
+                            let frame_bytes = buffer.drain(..separator_pos).collect::<Vec<_>>();
+                            // 移除分隔符
+                            if buffer.starts_with(b"\n\n") {
+                                buffer.drain(..2);
+                            } else if buffer.starts_with(b"\r\n\r\n") {
+                                buffer.drain(..4);
+                            }
+
+                            let frame = String::from_utf8_lossy(&frame_bytes);
+                            if let Ok(Some(data)) = parse_openai_frame(&frame) {
+                                if let Some(event) = convert_deepseek_data(&data) {
+                                    yield Ok(event);
                                 }
                             }
-                            Err(e) => yield Err(ApiError::Sse(e.to_string())),
                         }
                     }
                     Err(e) => yield Err(ApiError::Network(e.to_string())),
-                }
-            }
-
-            // 处理剩余数据
-            if let Ok(events) = parser.finish() {
-                for event in events {
-                    yield Ok(convert_deepseek_event(&event));
                 }
             }
         }))
@@ -125,19 +132,36 @@ fn is_chinese(c: char) -> bool {
     matches!(c as u32, 0x4E00..=0x9FFF)
 }
 
-/// 转换 DeepSeek/OpenAI 格式的 SSE 事件为统一格式
-fn convert_deepseek_event(event: &super::super::sse::SseEvent) -> StreamEvent {
-    match event {
-        super::super::sse::SseEvent::ContentBlockDelta { delta, .. } => {
-            StreamEvent::TextDelta {
-                text: delta.text.clone(),
+/// 查找 SSE 帧分隔符位置
+fn find_separator(buffer: &[u8]) -> usize {
+    // 查找 \n\n
+    if let Some(pos) = buffer.windows(2).position(|w| w == b"\n\n") {
+        return pos + 2;
+    }
+    // 查找 \r\n\r\n
+    if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+        return pos + 4;
+    }
+    0
+}
+
+/// 转换 DeepSeek/OpenAI 格式的数据为统一事件
+fn convert_deepseek_data(data: &super::openai_format::OpenAiSseData) -> Option<StreamEvent> {
+    if let Some(choice) = data.choices.first() {
+        // 检查是否有内容
+        if let Some(content) = &choice.delta.content {
+            if !content.is_empty() {
+                return Some(StreamEvent::TextDelta {
+                    text: content.clone(),
+                });
             }
         }
-        super::super::sse::SseEvent::MessageStop => StreamEvent::MessageDone {
-            tokens_used: 0,
-        },
-        _ => StreamEvent::TextDelta {
-            text: String::new(),
-        },
+
+        // 检查是否完成
+        if choice.finish_reason.is_some() {
+            return Some(StreamEvent::MessageDone { tokens_used: 0 });
+        }
     }
+
+    None
 }

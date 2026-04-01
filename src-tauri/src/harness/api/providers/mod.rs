@@ -4,6 +4,7 @@ pub mod anthropic;
 pub mod custom;
 pub mod deepseek;
 pub mod openai;
+pub mod openai_format;
 
 #[cfg(test)]
 mod tests;
