@@ -28,6 +28,7 @@ mod intelligence_router;
 mod token_counter; // v0.2.6 新增：Token 计数模块
 mod openspec; // v0.2.6 新增：OpenSpec 集成
 mod multimodal; // v0.3.0 新增：多模态功能
+mod harness; // v0.4.0 新增：Claude Code Harness 架构
 mod tool_classification; // v0.3.3 新增：工具分类系统
 
 // LLM inference using llama.cpp (GGUF native support)
