@@ -1,6 +1,7 @@
 //! API 提供商实现
 
 pub mod anthropic;
+pub mod custom;
 pub mod deepseek;
 pub mod openai;
 
@@ -8,6 +9,7 @@ pub mod openai;
 mod tests;
 
 pub use anthropic::AnthropicClient;
+pub use custom::CustomClient;
 pub use deepseek::DeepSeekClient;
 pub use openai::OpenAIClient;
 

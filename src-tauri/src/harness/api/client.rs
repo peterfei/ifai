@@ -34,16 +34,21 @@ impl ApiClientFactory {
     pub fn create_provider(
         provider: crate::harness::api::types::AiProvider,
         config: &crate::harness::api::types::ProviderConfig,
-    ) -> Box<dyn ApiClient> {
+    ) -> Result<Box<dyn ApiClient>, String> {
         match provider {
             crate::harness::api::types::AiProvider::Anthropic => {
-                Box::new(super::providers::anthropic::AnthropicClient::new(config))
+                Ok(Box::new(super::providers::anthropic::AnthropicClient::new(config)))
             }
             crate::harness::api::types::AiProvider::DeepSeek => {
-                Box::new(super::providers::deepseek::DeepSeekClient::new(config))
+                Ok(Box::new(super::providers::deepseek::DeepSeekClient::new(config)))
             }
             crate::harness::api::types::AiProvider::OpenAI => {
-                Box::new(super::providers::openai::OpenAIClient::new(config))
+                Ok(Box::new(super::providers::openai::OpenAIClient::new(config)))
+            }
+            crate::harness::api::types::AiProvider::Custom { .. } => {
+                // 创建自定义供应商客户端
+                super::providers::CustomClient::new(&provider, config)
+                    .map(|client| Box::new(client) as Box<dyn ApiClient>)
             }
         }
     }

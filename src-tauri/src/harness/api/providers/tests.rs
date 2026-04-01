@@ -17,19 +17,22 @@ mod tests {
 
         // Anthropic
         let anthropic = ApiClientFactory::create_provider(AiProvider::Anthropic, &config);
-        let models = anthropic.list_models().await;
+        assert!(anthropic.is_ok());
+        let models = anthropic.unwrap().list_models().await;
         assert!(models.is_ok());
         assert!(!models.unwrap().is_empty());
 
         // DeepSeek
         let deepseek = ApiClientFactory::create_provider(AiProvider::DeepSeek, &config);
-        let models = deepseek.list_models().await;
+        assert!(deepseek.is_ok());
+        let models = deepseek.unwrap().list_models().await;
         assert!(models.is_ok());
         assert!(!models.unwrap().is_empty());
 
         // OpenAI
         let openai = ApiClientFactory::create_provider(AiProvider::OpenAI, &config);
-        let models = openai.list_models().await;
+        assert!(openai.is_ok());
+        let models = openai.unwrap().list_models().await;
         assert!(models.is_ok());
         assert!(!models.unwrap().is_empty());
     }
@@ -77,20 +80,22 @@ mod tests {
         };
 
         let anthropic = ApiClientFactory::create_provider(AiProvider::Anthropic, &config);
+        assert!(anthropic.is_ok());
+        let client = anthropic.unwrap();
 
         // 纯英文
         let english = "Hello world";
-        let tokens = anthropic.estimate_tokens(english);
+        let tokens = client.estimate_tokens(english);
         assert!(tokens > 0 && tokens < english.len());
 
         // 纯中文
         let chinese = "你好世界";
-        let tokens = anthropic.estimate_tokens(chinese);
+        let tokens = client.estimate_tokens(chinese);
         assert!(tokens > 0 && tokens <= chinese.len());
 
         // 混合
         let mixed = "Hello 你好";
-        let tokens = anthropic.estimate_tokens(mixed);
+        let tokens = client.estimate_tokens(mixed);
         assert!(tokens > 0);
     }
 
@@ -130,5 +135,86 @@ mod tests {
         assert_eq!(request.max_tokens, 1000);
         assert_eq!(request.temperature, Some(0.7));
         assert!(request.stream);
+    }
+
+    /// 测试自定义供应商
+    #[test]
+    fn test_custom_provider() {
+        use std::str::FromStr;
+
+        // 解析自定义供应商
+        let provider = AiProvider::from_str("custom:MyProvider");
+        assert!(provider.is_ok());
+        let provider = provider.unwrap();
+        assert!(provider.is_custom());
+        assert_eq!(provider.name(), "MyProvider");
+
+        // 解析通用 custom
+        let provider = AiProvider::from_str("custom");
+        assert!(provider.is_ok());
+        let provider = provider.unwrap();
+        assert!(provider.is_custom());
+        assert_eq!(provider.name(), "Custom");
+    }
+
+    /// 测试自定义供应商创建（需要 base_url）
+    #[test]
+    fn test_custom_provider_requires_base_url() {
+        let config = ProviderConfig {
+            api_key: "test-key".to_string(),
+            base_url: None,
+            organization: None,
+        };
+
+        let provider = AiProvider::Custom {
+            name: "TestProvider".to_string(),
+        };
+
+        let result = ApiClientFactory::create_provider(provider, &config);
+        assert!(result.is_err());
+        // 检查错误消息包含 base_url
+        match result {
+            Err(msg) => assert!(msg.contains("base_url"), "Error should mention base_url: {}", msg),
+            Ok(_) => panic!("Expected error for missing base_url"),
+        }
+    }
+
+    /// 测试自定义供应商创建（成功）
+    #[test]
+    fn test_custom_provider_with_base_url() {
+        let config = ProviderConfig {
+            api_key: "test-key".to_string(),
+            base_url: Some("http://localhost:8080".to_string()),
+            organization: None,
+        };
+
+        let provider = AiProvider::Custom {
+            name: "Ollama".to_string(),
+        };
+
+        let result = ApiClientFactory::create_provider(provider, &config);
+        assert!(result.is_ok());
+    }
+
+    /// 测试自定义供应商 URL 验证
+    #[test]
+    fn test_custom_provider_url_validation() {
+        let config_invalid = ProviderConfig {
+            api_key: "test-key".to_string(),
+            base_url: Some("invalid-url".to_string()),
+            organization: None,
+        };
+
+        let provider = AiProvider::Custom {
+            name: "Test".to_string(),
+        };
+
+        let result = ApiClientFactory::create_provider(provider, &config_invalid);
+        assert!(result.is_err());
+        // 检查错误消息包含 http://
+        match result {
+            Err(msg) => assert!(msg.contains("http://"), "Error should mention http:// or https://: {}", msg),
+            Ok(_) => panic!("Expected error for invalid URL"),
+        }
     }
 }

@@ -91,23 +91,75 @@ pub enum ApiError {
 }
 
 /// AI 提供商
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AiProvider {
     Anthropic,
     DeepSeek,
     OpenAI,
+    /// 自定义供应商（使用 OpenAI 兼容 API）
+    Custom { name: String },
+}
+
+// 为 Copy trait 实现特殊处理（Custom 不能是 Copy）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiProviderType {
+    Anthropic,
+    DeepSeek,
+    OpenAI,
+    Custom,
+}
+
+impl From<AiProvider> for AiProviderType {
+    fn from(provider: AiProvider) -> Self {
+        match provider {
+            AiProvider::Anthropic => AiProviderType::Anthropic,
+            AiProvider::DeepSeek => AiProviderType::DeepSeek,
+            AiProvider::OpenAI => AiProviderType::OpenAI,
+            AiProvider::Custom { .. } => AiProviderType::Custom,
+        }
+    }
 }
 
 impl std::str::FromStr for AiProvider {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
+        let s_lower = s.to_lowercase();
+        match s_lower.as_str() {
             "anthropic" => Ok(AiProvider::Anthropic),
             "deepseek" => Ok(AiProvider::DeepSeek),
             "openai" => Ok(AiProvider::OpenAI),
-            _ => Err(format!("Unknown provider: {}", s)),
+            "custom" => Ok(AiProvider::Custom {
+                name: "Custom".to_string(),
+            }),
+            _ => {
+                // 尝试解析为自定义供应商 "custom:name"
+                if let Some(name) = s.strip_prefix("custom:") {
+                    Ok(AiProvider::Custom {
+                        name: name.to_string(),
+                    })
+                } else {
+                    Err(format!("Unknown provider: {}. Supported: anthropic, deepseek, openai, custom[:name]", s))
+                }
+            }
         }
+    }
+}
+
+impl AiProvider {
+    /// 获取供应商显示名称
+    pub fn name(&self) -> &str {
+        match self {
+            AiProvider::Anthropic => "Anthropic",
+            AiProvider::DeepSeek => "DeepSeek",
+            AiProvider::OpenAI => "OpenAI",
+            AiProvider::Custom { name } => name.as_str(),
+        }
+    }
+
+    /// 检查是否为自定义供应商
+    pub fn is_custom(&self) -> bool {
+        matches!(self, AiProvider::Custom { .. })
     }
 }
 
