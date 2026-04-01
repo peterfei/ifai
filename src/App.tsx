@@ -19,6 +19,8 @@ const DiffEditorModal = React.lazy(() => import('./components/InlineEdit').then(
 const ToolClassificationTestPage = React.lazy(() => import('./components/Debug/ToolClassificationTestPage').then(m => ({ default: m.ToolClassificationTestPage })));
 const CodeSmellPanel = React.lazy(() => import('./components/CodeAnalysis/CodeSmellPanel').then(m => ({ default: m.CodeSmellPanel })));
 const RefactoringPreviewPanel = React.lazy(() => import('./components/Refactoring/RefactoringPreviewPanel').then(m => ({ default: m.RefactoringPreviewPanel })));
+// P2: TodoWrite 任务面板
+const TodoWritePanel = React.lazy(() => import('./components/TodoWrite').then(m => ({ default: m.TodoWritePanel })));
 
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -62,6 +64,8 @@ import { shallow } from 'zustand/shallow';
 // v0.3.3: Debug panels
 import { useDebugStore } from './stores/debugStore';
 import { writeFileContent, readFileContent } from './utils/fileSystem';
+// P2: TodoWrite 任务面板
+import { useTodoWriteStore } from './stores/todoWriteStore';
 import { Toaster, toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
@@ -854,6 +858,15 @@ function App() {
         {useRefactoringStore((state) => state.isPreviewOpen) && (
           <div className="w-[500px] border-l border-gray-700">
             <RefactoringPreviewPanel onClose={() => useRefactoringStore.getState().clearPreview()} />
+          </div>
+        )}
+
+        {/* P2: TodoWrite 任务面板 */}
+        {useTodoWriteStore((state) => state.isPanelOpen) && (
+          <div className="w-96 border-l border-gray-700">
+            <Suspense fallback={null}>
+              <TodoWritePanel onClose={() => useTodoWriteStore.getState().setPanelOpen(false)} />
+            </Suspense>
           </div>
         )}
 

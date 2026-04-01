@@ -192,6 +192,20 @@ export const useChatStore = create<ChatStore>()(
             toolArgs = '{}';
         }
 
+        // 🏆 P2: 检测 TodoWrite 工具调用并同步到 todoWriteStore
+        if (toolName === 'TodoWrite') {
+          try {
+            const argsObj = typeof toolArgs === 'string' ? JSON.parse(toolArgs) : toolArgs;
+            if (argsObj.todos && Array.isArray(argsObj.todos)) {
+              const { useTodoWriteStore } = await import('./todoWriteStore');
+              useTodoWriteStore.getState().syncFromToolCall(argsObj.todos);
+              console.log('[ChatStore] ✅ TodoWrite synced:', argsObj.todos);
+            }
+          } catch (error) {
+            console.error('[ChatStore] ❌ Failed to sync TodoWrite:', error);
+          }
+        }
+
         // 🏆 获取项目根目录
         const projectRoot = useFileStore.getState().rootPath;
 
