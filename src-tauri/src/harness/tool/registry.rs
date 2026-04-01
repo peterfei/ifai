@@ -1,0 +1,277 @@
+//! 工具注册表
+//!
+//! 集中管理所有工具的定义和注册。
+
+use serde_json::json;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::RwLock;
+
+use super::spec::{ToolPermissionMode, ToolSpec};
+
+/// 全局工具注册表
+pub struct ToolRegistry {
+    tools: RwLock<BTreeMap<String, ToolSpec>>,
+    permissions: RwLock<HashMap<String, ToolPermissionMode>>,
+}
+
+impl ToolRegistry {
+    /// 创建新的工具注册表
+    pub fn new() -> Self {
+        let registry = Self {
+            tools: RwLock::new(BTreeMap::new()),
+            permissions: RwLock::new(HashMap::new()),
+        };
+
+        // 注册所有内置工具
+        registry.register_builtin_tools();
+
+        registry
+    }
+
+    /// 注册工具
+    pub fn register(&self, spec: ToolSpec) {
+        let mut tools = self.tools.write().unwrap();
+        tools.insert(spec.name.to_string(), spec);
+    }
+
+    /// 获取工具规范
+    pub fn get(&self, name: &str) -> Option<ToolSpec> {
+        let tools = self.tools.read().unwrap();
+        tools.get(name).cloned()
+    }
+
+    /// 获取所有工具
+    pub fn all(&self) -> Vec<ToolSpec> {
+        let tools = self.tools.read().unwrap();
+        tools.values().cloned().collect()
+    }
+
+    /// 按权限过滤工具
+    pub fn filter_by_permission(&self, max_permission: ToolPermissionMode) -> Vec<ToolSpec> {
+        let tools = self.tools.read().unwrap();
+        tools
+            .values()
+            .filter(|spec| spec.required_permission.level() <= max_permission.level())
+            .cloned()
+            .collect()
+    }
+
+    /// 设置工具的当前权限级别
+    pub fn set_permission(&self, tool_name: &str, permission: ToolPermissionMode) {
+        let mut permissions = self.permissions.write().unwrap();
+        permissions.insert(tool_name.to_string(), permission);
+    }
+
+    /// 获取工具的当前权限级别
+    pub fn get_permission(&self, tool_name: &str) -> Option<ToolPermissionMode> {
+        let permissions = self.permissions.read().unwrap();
+        permissions.get(tool_name).copied()
+    }
+
+    /// 注册所有内置工具
+    fn register_builtin_tools(&self) {
+        // 文件操作工具
+        self.register(ToolSpec {
+            name: "read_file",
+            description: "Read the contents of a file",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        self.register(ToolSpec {
+            name: "write_file",
+            description: "Write content to a file",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path", "content"]
+            }),
+            required_permission: ToolPermissionMode::WorkspaceWrite,
+        });
+
+        self.register(ToolSpec {
+            name: "edit_file",
+            description: "Edit specific parts of a file",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "old_text": { "type": "string" },
+                    "new_text": { "type": "string" }
+                },
+                "required": ["path", "old_text", "new_text"]
+            }),
+            required_permission: ToolPermissionMode::WorkspaceWrite,
+        });
+
+        // 搜索工具
+        self.register(ToolSpec {
+            name: "glob_search",
+            description: "Search for files using glob patterns",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": { "type": "string" },
+                    "path": { "type": "string" }
+                },
+                "required": ["pattern"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        self.register(ToolSpec {
+            name: "grep_search",
+            description: "Search for text in files",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "pattern": { "type": "string" },
+                    "path": { "type": "string" }
+                },
+                "required": ["pattern"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // 命令执行工具
+        self.register(ToolSpec {
+            name: "bash",
+            description: "Execute bash commands",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "command": { "type": "string" }
+                },
+                "required": ["command"]
+            }),
+            required_permission: ToolPermissionMode::DangerFullAccess,
+        });
+
+        self.register(ToolSpec {
+            name: "PowerShell",
+            description: "Execute PowerShell commands (Windows)",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "command": { "type": "string" }
+                },
+                "required": ["command"]
+            }),
+            required_permission: ToolPermissionMode::DangerFullAccess,
+        });
+
+        // 网络工具
+        self.register(ToolSpec {
+            name: "WebFetch",
+            description: "Fetch content from a URL",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string" }
+                },
+                "required": ["url"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        self.register(ToolSpec {
+            name: "WebSearch",
+            description: "Search the web",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" }
+                },
+                "required": ["query"]
+            }),
+            required_permission: ToolPermissionMode::ReadOnly,
+        });
+
+        // 任务管理工具
+        self.register(ToolSpec {
+            name: "TodoWrite",
+            description: "Update the structured task list for the current session",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "todos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": { "type": "string" },
+                                "activeForm": { "type": "string" },
+                                "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] }
+                            },
+                            "required": ["content", "activeForm", "status"]
+                        }
+                    }
+                },
+                "required": ["todos"]
+            }),
+            required_permission: ToolPermissionMode::WorkspaceWrite,
+        });
+    }
+
+    /// 获取工具白名单（用于子 Agent）
+    pub fn get_whitelist_for_permission(&self, permission: ToolPermissionMode) -> Vec<String> {
+        self.filter_by_permission(permission)
+            .into_iter()
+            .map(|spec| spec.name.to_string())
+            .collect()
+    }
+}
+
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tool_registration() {
+        let registry = ToolRegistry::new();
+
+        // 检查内置工具已注册
+        assert!(registry.get("read_file").is_some());
+        assert!(registry.get("bash").is_some());
+        assert!(registry.get("TodoWrite").is_some());
+    }
+
+    #[test]
+    fn test_permission_filtering() {
+        let registry = ToolRegistry::new();
+
+        // 只读权限只能看到只读工具
+        let readonly_tools = registry.filter_by_permission(ToolPermissionMode::ReadOnly);
+        assert!(readonly_tools.iter().any(|t| t.name == "read_file"));
+        assert!(!readonly_tools.iter().any(|t| t.name == "bash"));
+
+        // 完全权限可以看到所有工具
+        let all_tools = registry.filter_by_permission(ToolPermissionMode::DangerFullAccess);
+        assert!(all_tools.iter().any(|t| t.name == "read_file"));
+        assert!(all_tools.iter().any(|t| t.name == "bash"));
+    }
+
+    #[test]
+    fn test_whitelist_generation() {
+        let registry = ToolRegistry::new();
+
+        let whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::ReadOnly);
+        assert!(whitelist.contains(&"read_file".to_string()));
+        assert!(!whitelist.contains(&"bash".to_string()));
+    }
+}
