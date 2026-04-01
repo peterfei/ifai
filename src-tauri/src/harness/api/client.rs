@@ -39,12 +39,11 @@ impl ApiClientFactory {
             crate::harness::api::types::AiProvider::Anthropic => {
                 Box::new(super::providers::anthropic::AnthropicClient::new(config))
             }
-            // TODO: 实现 DeepSeek 和 OpenAI 客户端
             crate::harness::api::types::AiProvider::DeepSeek => {
-                panic!("DeepSeek client not implemented yet")
+                Box::new(super::providers::deepseek::DeepSeekClient::new(config))
             }
             crate::harness::api::types::AiProvider::OpenAI => {
-                panic!("OpenAI client not implemented yet")
+                Box::new(super::providers::openai::OpenAIClient::new(config))
             }
         }
     }
