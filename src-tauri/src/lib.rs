@@ -1063,14 +1063,31 @@ async fn ai_chat(
                  let mut should_finish = false;
 
                  // 1. 检查 finish_reason 字段（OpenAI 格式）
+                 // 🔥 CRITICAL FIX: 只有 "stop" 或 "length" 才是真正的流结束
+                 // "tool_calls" 表示需要 continuation，不应该发送 _finish 事件
                  if let Some(finish_reason) = json_obj["choices"][0].get("finish_reason").and_then(|v| v.as_str()) {
-                     println!("[AI Chat] Detected finish_reason: {}, triggering _finish event", finish_reason);
-                     should_finish = true;
+                     // 🔥 DIAGNOSTIC: 打印所有 finish_reason 检测
+                     println!("[AI Chat] 🔍 Detected finish_reason: \"{}\", chunk preview: {}",
+                         finish_reason,
+                         chunk.chars().take(100).collect::<String>()
+                     );
+
+                     if finish_reason == "stop" || finish_reason == "length" {
+                         println!("[AI Chat] ✅ finish_reason={} indicates stream end, triggering _finish event", finish_reason);
+                         should_finish = true;
+                     } else if finish_reason == "tool_calls" {
+                         println!("[AI Chat] 🔄 finish_reason=tool_calls indicates continuation, NOT triggering _finish event");
+                     } else {
+                         println!("[AI Chat] ⚠️ finish_reason={} unknown, treating as continuation", finish_reason);
+                     }
                  }
 
                  // 2. 检查 [DONE] 标记（某些 API 的流结束标记）
-                 if chunk.trim() == "[DONE]" || chunk.contains("\"finish_reason\"") {
-                     println!("[AI Chat] Detected [DONE] or finish_reason in chunk, triggering _finish event");
+                 // 🔥 CRITICAL FIX: 只有 [DONE] 才是流结束信号
+                 // finish_reason 的检测已在上面完成（line 1068-1083），这里不再重复检测
+                 // 避免将 finish_reason="tool_calls" 误判为流结束
+                 if chunk.trim() == "[DONE]" {
+                     println!("[AI Chat] Detected [DONE] marker, triggering _finish event");
                      should_finish = true;
                  }
 
@@ -1092,7 +1109,24 @@ async fn ai_chat(
                  }
 
                  if !should_suppress {
-                     let _ = app_handle_for_stream.emit(&event_id_clone, chunk.clone());
+                     // 🔥 DIAGNOSTIC: 检测 Tauri emit 失败（前端断开）
+                     match app_handle_for_stream.emit(&event_id_clone, chunk.clone()) {
+                         Ok(_) => {},
+                         Err(e) => {
+                             static mut EMIT_ERROR_COUNT: usize = 0;
+                             unsafe {
+                                 EMIT_ERROR_COUNT += 1;
+                                 if EMIT_ERROR_COUNT <= 5 {
+                                     println!("[AI Chat] ❌ Tauri emit failed #{}: {:?}", EMIT_ERROR_COUNT, e);
+                                     println!("[AI Chat] ❌ Chunk preview: {}", chunk.chars().take(100).collect::<String>());
+                                 }
+                                 // 在第 5 次错误后，停止发送日志
+                                 if EMIT_ERROR_COUNT == 5 {
+                                     println!("[AI Chat] ❌ Tauri emit failing repeatedly, suppressing further error logs");
+                                 }
+                             }
+                         }
+                     }
                  }
 
                  // 触发完成事件

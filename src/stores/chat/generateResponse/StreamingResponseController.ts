@@ -131,22 +131,42 @@ export class StreamingResponseController {
           const hasPendingTools = msg?.toolCalls?.some((tc: any) =>
             tc.status === 'pending' || tc.status === 'approved' || tc.status === 'executing' || tc.isPartial
           );
+          // 🔥 CRITICAL FIX: 检查是否有已完成的工具（continuation 场景）
+          // 如果有 completed 状态的工具，说明后端正在准备续播，不应该触发 Fast finish
+          const hasCompletedTools = msg?.toolCalls?.some((tc: any) => tc.status === 'completed');
 
           // 🚀 OPTIMIZATION: 更激进的超时策略
           // 如果有内容但没有待处理工具，5秒超时后强制完成（从30秒缩短到5秒）
           // 🏆 FIX: 增加 session.hasReceivedChunk 判断，确保不会在续播刚开始、首包还没到时就触发快杀
           // 🏆 FIX: 增加 session.startTime 保护期判断，前 15 秒内绝对禁止快杀，给续播/思考留出充足时间
-          if (session.hasReceivedChunk && (hasContent || hasToolCalls) && !hasPendingTools && (now - session.lastHeartbeat > 5000) && (now - session.startTime > 15000)) {
-            console.warn(`[SC] Fast finish (5s timeout): ${correlationId}`);
-            this.emitFinished({ correlationId, sessionId: session.sessionId || '', timestamp: Date.now() });
+          // 🔥 CRITICAL FIX: 如果有已完成的工具，不触发 Fast finish（continuation 场景）
+          // 因为后端会在 continuation loop 中发送新的数据，Fast finish 会误杀续播
+
+          // 🔥 DIAGNOSTIC: 每次心跳检查都打印状态（临时调试）
+          console.log(`[SC] 💓 Heartbeat check: correlationId=${correlationId}, hasContent=${hasContent}, hasToolCalls=${hasToolCalls}, hasPendingTools=${hasPendingTools}, hasCompletedTools=${hasCompletedTools}, timeSinceLastHeartbeat=${now - session.lastHeartbeat}ms, timeSinceStart=${now - session.startTime}ms`);
+
+          // 检查 Fast finish 条件
+          const fastFinishCondition = session.hasReceivedChunk && hasContent && !hasToolCalls && !hasPendingTools && (now - session.lastHeartbeat > 5000) && (now - session.startTime > 15000);
+          const sentinelStallCondition = (now - session.lastHeartbeat > 15000 && now - session.startTime > 15000);
+
+          console.log(`[SC] 💓 Heartbeat conditions: fastFinish=${fastFinishCondition}, sentinelStall=${sentinelStallCondition}, hasReceivedChunk=${session.hasReceivedChunk}`);
+
+          // 🔥 CRITICAL FIX: 完全禁用心跳监测器的自动 finish 逻辑
+          // 只保留诊断日志，不调用 emitFinished 或 triggerPhysicalSelfHealing
+          // 只有后端明确发送 finish 事件时才结束流
+          if (fastFinishCondition) {
+            console.warn(`[SC] ⚠️ Fast finish condition met but NOT triggering finish (disabled): correlationId=${correlationId}, hasContent=${hasContent}, hasToolCalls=${hasToolCalls}, hasPendingTools=${hasPendingTools}, timeSinceLastHeartbeat=${now - session.lastHeartbeat}ms`);
+            // 不调用 emitFinished，只重置心跳
+            session.lastHeartbeat = Date.now();
             return;
           }
 
           // 15 秒超时阈值（原有逻辑）
-          // 🏆 FIX: 增加 startTime 保护，确保前 15 秒内不触发自愈/终止
-          if (now - session.lastHeartbeat > 15000 && now - session.startTime > 15000) {
-            console.warn(`[SC] Sentinel stall detected: ${correlationId}`);
-            this.triggerPhysicalSelfHealing(correlationId);
+          // 🔥 CRITICAL FIX: 同样禁用 Sentinel stall 的自动处理
+          if (sentinelStallCondition) {
+            console.warn(`[SC] ⚠️ Sentinel stall detected but NOT triggering self-healing (disabled): ${correlationId}, timeSinceLastHeartbeat=${now - session.lastHeartbeat}ms`);
+            // 不调用 triggerPhysicalSelfHealing，只重置心跳
+            session.lastHeartbeat = Date.now();
           }
         }
       });
@@ -167,10 +187,13 @@ export class StreamingResponseController {
     const msg = chatStore.messages.find(m => m.id === correlationId);
     if (!msg || !msg.isStreaming) return;
 
+    // 🔥 DIAGNOSTIC: 打印自愈触发信息
+    console.log(`[SC] 🔧 Physical Self-Healing triggered: correlationId=${correlationId}`);
+
     // PIVO 信号存根用于测试
     if (typeof window !== 'undefined') {
       if (!(window as any).__PIVO_SIGNALS__) (window as any).__PIVO_SIGNALS__ = {};
-      (window as any).__PIVO_SIGNALS__['ifainew:self-healing-triggered'] = {
+      (window as any).__PIVO_SIGNALS__['ifainev:self-healing-triggered'] = {
         correlationId,
         timestamp: Date.now()
       };
@@ -179,6 +202,12 @@ export class StreamingResponseController {
     const hasUnclosedTool = msg.toolCalls?.some(tc => tc.isPartial);
     const hasContent = !!msg.content && String(msg.content).trim().length > 0;
     const hasAnyTool = msg.toolCalls && msg.toolCalls.length > 0;
+    const hasPendingTools = msg?.toolCalls?.some((tc: any) =>
+      tc.status === 'pending' || tc.status === 'approved' || tc.status === 'executing' || tc.isPartial
+    );
+
+    // 🔥 DIAGNOSTIC: 打印状态
+    console.log(`[SC] 🔧 Self-Healing state: hasUnclosedTool=${hasUnclosedTool}, hasContent=${hasContent}, hasAnyTool=${hasAnyTool}, hasPendingTools=${hasPendingTools}`);
 
     if (hasUnclosedTool || (!hasContent && !hasAnyTool)) {
       const reason = hasUnclosedTool ? "Unclosed tool" : "Startup stall";
@@ -194,6 +223,17 @@ export class StreamingResponseController {
         (chatStore as any).generateResponse(chatStore.messages, providerConfig);
       }
     } else {
+      // 🔥 CRITICAL FIX: 如果有内容，不调用 emitFinished
+      // 因为后端可能正在准备 continuation（工具调用参数累积中）
+      // 只有在没有内容和工具的情况下，才认为是真正的流结束
+      if (hasContent) {
+        console.log(`[SC] ⚠️ Self-Healing: has content, NOT finishing (possible continuation in progress)`);
+        // 重置心跳，给后端更多时间
+        const session = this.activeSessions.get(correlationId);
+        if (session) session.lastHeartbeat = Date.now();
+        return;
+      }
+
       console.log(`[SC] Physical Finalize: ${correlationId}`);
       this.emitFinished({ correlationId, sessionId: '', timestamp: Date.now() });
     }
@@ -370,7 +410,29 @@ export class StreamingResponseController {
         }
 
         // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
+        // 🔥 CRITICAL FIX: 在 continuation 场景下，后端会发送 _finish 事件但不应该结束流
+        // 我们需要在 emitFinished 之前检查是否有真正的结束条件
         const unlistenFinish = await listen(`${eventId}_finish`, (event: any) => {
+          // 🔥 DIAGNOSTIC: 打印 _finish 事件接收信息
+          console.log(`[SC] 🏁 _finish event received: correlationId=${payload.correlationId}`);
+
+          // 检查是否有待处理的工具调用
+          const chatStore = useChatStore.getState();
+          const msg = chatStore.messages.find(m => m.id === payload.correlationId);
+          const hasPendingTools = msg?.toolCalls?.some((tc: any) =>
+            tc.status === 'pending' || tc.status === 'approved' || tc.status === 'executing' || tc.isPartial
+          );
+
+          console.log(`[SC] _finish event: hasPendingTools=${hasPendingTools}, msg.toolCalls.length=${msg?.toolCalls?.length || 0}`);
+
+          // 🔥 FIX: 如果有待处理的工具，不结束流（continuation 场景）
+          if (hasPendingTools) {
+            console.log(`[SC] _finish event received but has pending tools, continuing stream`);
+            return;
+          }
+
+          // 只有在没有待处理工具时才真正结束
+          console.log(`[SC] _finish event received with no pending tools, calling emitFinished`);
           this.emitFinished(payload);
         });
 
@@ -406,6 +468,9 @@ export class StreamingResponseController {
 
     // 🏆 FIX: 如果 raw 是空或已经结束，检测是否需要触发 finish
     if (!raw) {
+      // 🔥 DIAGNOSTIC: 打印 Event Fallback 触发信息
+      console.log(`[SC] ⚠️ Event Fallback: raw is falsy (raw=${raw}), correlationId=${payload.correlationId}`);
+
       // 检查是否有待处理的工具或内容
       const chatStore = useChatStore.getState();
       const msg = chatStore.messages.find(m => m.id === payload.correlationId);
@@ -413,8 +478,13 @@ export class StreamingResponseController {
         tc.status === 'pending' || tc.status === 'approved' || tc.status === 'executing' || tc.isPartial
       );
 
+      console.log(`[SC] Event Fallback: hasPendingTools=${hasPendingTools}, msg.toolCalls.length=${msg?.toolCalls?.length || 0}`);
+
       if (!hasPendingTools) {
+        console.log(`[SC] Event Fallback: triggering emitFinished`);
         this.emitFinished(payload);
+      } else {
+        console.log(`[SC] Event Fallback: has pending tools, NOT triggering emitFinished`);
       }
       return;
     }
@@ -591,12 +661,20 @@ export class StreamingResponseController {
         (data.choices && data.choices[0] && data.choices[0].finish_reason)
       ) {
         const finishReason = data.finish || data.finish_reason || (data.choices && data.choices[0] && data.choices[0].finish_reason);
-        console.log(`[SC] End of stream detected: ${finishReason || 'type:finish'}`);
-        this.emitFinished(payload, data.usage?.total_tokens);
-      }
 
-      // 🏆 FIX: 检测 finish=tool_calls 的情况
-      else if (data.finish === 'tool_calls' || data.finish === 'tool') {
+        // 🔥 DIAGNOSTIC: 打印 finish 事件详情
+        console.log(`[SC] 🏁 Finish event received: finishReason=${finishReason}, correlationId=${payload.correlationId}`);
+
+        // 🔥 CRITICAL FIX: 在 continuation 场景下，finish_reason: "tool_calls" 不是流结束
+        // 它只是表示这一轮结束，需要继续下一轮 continuation
+        // 只有 "stop" 或 "length" 才是真正的流结束
+        if (finishReason === 'tool_calls' || finishReason === 'tool') {
+          console.log(`[SC] Continuation signal detected: finish_reason=${finishReason}, NOT ending stream`);
+          // 不调用 emitFinished，继续监听下一轮
+          return;
+        }
+
+        console.log(`[SC] End of stream detected: ${finishReason || 'type:finish'}, calling emitFinished`);
         this.emitFinished(payload, data.usage?.total_tokens);
       }
 
@@ -641,6 +719,10 @@ export class StreamingResponseController {
   private emitFinished(payload: BasePayload, tokens?: number) {
     // 🔥 FIX v0.3.12: 幂等性保护 - 防止同一个 correlationId 多次触发 finish
     const correlationId = payload.correlationId;
+
+    // 🔥 DIAGNOSTIC: 打印堆栈跟踪，追踪是哪个路径触发了 emitFinished
+    console.log(`[SC] 🔥 emitFinished called: correlationId=${correlationId}`);
+    console.log(`[SC] 🔥 Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
 
     if (this.emittedFinish.has(correlationId)) {
       console.warn(`[SC] Duplicate finish suppressed: ${correlationId}`);

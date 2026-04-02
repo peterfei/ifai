@@ -31,8 +31,17 @@ impl OpenAIClient {
             "https://api.openai.com/v1/chat/completions".to_string()
         };
 
+        // 🔥 FIX: 增加 HTTP 客户端超时时间，支持长 continuation 流
+        use std::time::Duration;
+        let http = HttpClient::builder()
+            .timeout(Duration::from_secs(300))
+            .connect_timeout(Duration::from_secs(30))
+            .read_timeout(Duration::from_secs(300))
+            .build()
+            .expect("Failed to create HTTP client");
+
         Self {
-            http: HttpClient::new(),
+            http,
             api_key: config.api_key.clone(),
             base_url,
         }

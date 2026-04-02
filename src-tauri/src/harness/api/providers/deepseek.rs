@@ -34,8 +34,18 @@ impl DeepSeekClient {
             "https://api.deepseek.com/chat/completions".to_string()
         };
 
+        // 🔥 FIX: 增加 HTTP 客户端超时时间，支持长 continuation 流
+        // 默认 30 秒对于复杂多工具任务不够，增加到 300 秒（5 分钟）
+        use std::time::Duration;
+        let http = HttpClient::builder()
+            .timeout(Duration::from_secs(300))
+            .connect_timeout(Duration::from_secs(30))
+            .read_timeout(Duration::from_secs(300))
+            .build()
+            .expect("Failed to create HTTP client");
+
         Self {
-            http: HttpClient::new(),
+            http,
             api_key: config.api_key.clone(),
             base_url,
         }
@@ -104,6 +114,10 @@ impl ApiClient for DeepSeekClient {
         let mut tool_args_buffer: HashMap<i32, (String, String)> = HashMap::new(); // 🆕 P2: (tool_id, 累积的参数)
         let mut tool_started: HashMap<i32, bool> = HashMap::new(); // 🆕 P2: 跟踪工具是否已发送 Start 事件
 
+        // 🔥 DIAGNOSTIC: 添加帧计数器和状态追踪
+        let mut frame_count: usize = 0;
+        let mut last_finish_reason: Option<String> = None;
+
         Ok(Box::pin(stream! {
             for await chunk_result in byte_stream {
                 match chunk_result {
@@ -126,6 +140,16 @@ impl ApiClient for DeepSeekClient {
                             }
 
                             let frame = String::from_utf8_lossy(&frame_bytes);
+                            frame_count += 1;
+
+                            // 🔥 DIAGNOSTIC: 打印原始帧内容（前5帧和每10帧）
+                            if frame_count <= 5 || frame_count % 10 == 0 {
+                                println!("[DeepSeek] 📨 Frame {}: {} bytes, preview=\"{}\"",
+                                    frame_count,
+                                    frame_bytes.len(),
+                                    frame.chars().take(80).collect::<String>()
+                                );
+                            }
 
                             if let Ok(Some(data)) = parse_openai_frame(&frame) {
                                 // 🆕 P2: 处理工具调用
@@ -133,6 +157,15 @@ impl ApiClient for DeepSeekClient {
                                     if let Some(tool_calls) = &choice.delta.tool_calls {
                                         for tc in tool_calls {
                                             let index = tc.index;
+
+                                            // 🔥 DIAGNOSTIC: 打印工具调用详情
+                                            println!("[DeepSeek] 🔧 Tool call delta: index={}, id={:?}, name={:?}, args={:?}",
+                                                index,
+                                                tc.id,
+                                                tc.function.as_ref().and_then(|f| f.name.as_ref()),
+                                                tc.function.as_ref().and_then(|f| f.arguments.as_ref())
+                                                    .map(|a| a.chars().take(50).collect::<String>())
+                                            );
 
                                             // 发送 ToolStart 事件（仅一次）
                                             if !tool_started.get(&index).unwrap_or(&false) {
@@ -144,6 +177,7 @@ impl ApiClient for DeepSeekClient {
                                                     });
                                                     tool_started.insert(index, true);
                                                     tool_args_buffer.insert(index, (id.clone(), String::new()));
+                                                    println!("[DeepSeek] ✅ ToolStart sent: index={}, id={}, name={}", index, id, name);
                                                 }
                                             }
 
@@ -151,7 +185,11 @@ impl ApiClient for DeepSeekClient {
                                             if let Some(func) = &tc.function {
                                                 if let Some(args) = &func.arguments {
                                                     if let Some((tool_id, current)) = tool_args_buffer.get_mut(&index) {
+                                                        let before_len = current.len();
                                                         current.push_str(args);
+                                                        let after_len = current.len();
+                                                        println!("[DeepSeek] 📝 Args accumulated: index={}, tool_id={}, added={}, total={}",
+                                                            index, tool_id, after_len - before_len, after_len);
                                                     }
                                                 }
                                             }
@@ -163,6 +201,15 @@ impl ApiClient for DeepSeekClient {
                                 // 🔥 FIX: 确保 ToolDone 在 MessageDone 之前发送，避免前端提前停止监听
                                 if let Some(choice) = data.choices.first() {
                                     if let Some(reason) = &choice.finish_reason {
+                                        last_finish_reason = Some(reason.clone());
+
+                                        // 🔥 DIAGNOSTIC: 打印 finish_reason 和工具状态
+                                        println!("[DeepSeek] 🏁 Finish reason: {}, pending_tools={}, tool_args_buffer_keys={:?}",
+                                            reason,
+                                            tool_started.len(),
+                                            tool_args_buffer.keys().collect::<Vec<_>>()
+                                        );
+
                                         // 发送所有累积的工具参数
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
                                             if !args.is_empty() {
@@ -182,12 +229,37 @@ impl ApiClient for DeepSeekClient {
                                 if let Some(event) = convert_deepseek_data(&data) {
                                     yield Ok(event);
                                 }
+                            } else {
+                                // 🔥 DIAGNOSTIC: 记录无法解析的帧
+                                println!("[DeepSeek] ⚠️ Frame {} could not be parsed, preview=\"{}\"",
+                                    frame_count,
+                                    frame.chars().take(100).collect::<String>()
+                                );
                             }
                         }
                     }
-                    Err(e) => yield Err(ApiError::Network(e.to_string())),
+                    Err(e) => {
+                        // 🔥 DIAGNOSTIC: 记录网络错误
+                        println!("[DeepSeek] ❌ Network error after {} frames: {:?}", frame_count, e);
+                        yield Err(ApiError::Network(e.to_string()));
+                    }
                 }
             }
+
+            // 🔥 DIAGNOSTIC: 流结束时检查状态
+            if !tool_args_buffer.is_empty() {
+                println!("[DeepSeek] ⚠️ Stream ended with {} incomplete tool calls!",
+                    tool_args_buffer.len()
+                );
+                for (index, (tool_id, args)) in tool_args_buffer.iter() {
+                    println!("[DeepSeek]    [{}] tool_id={}, args_len={}",
+                        index, tool_id, args.len()
+                    );
+                }
+            }
+            println!("[DeepSeek] 🏁 Stream completed: frames={}, finish_reason={:?}",
+                frame_count, last_finish_reason
+            );
         }))
     }
 

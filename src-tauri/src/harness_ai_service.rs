@@ -190,10 +190,14 @@ impl AIService for HarnessAIService {
             }
 
             // 构建请求
+            // 🔥 FIX: 根据 DeepSeek API 文档，deepseek-chat 最大支持 8K 输出 tokens
+            // 之前设置的 4096 对于复杂多工具任务可能不足，导致 AI 提前结束
+            // 设置为 8192（API 允许的最大值）以确保 AI 有足够预算完成所有任务
+            // 注意：如果 finish_reason="length" 说明内容被截断
             let request = StreamRequest {
                 model: model.clone(),
                 messages: stream_messages.clone(),
-                max_tokens: 4096,
+                max_tokens: 8192,
                 system: None,
                 temperature: Some(0.7),
                 stream: true,
@@ -218,6 +222,11 @@ impl AIService for HarnessAIService {
             let mut loop_text = String::new();
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<CollectedToolCall> = Vec::new();
+
+            // 🔥 FIX: 临时禁用批量发送，确保每个 delta 立即发送
+            // 批量发送导致数据延迟，前端提前断开
+            let mut batch_buffer: Vec<String> = Vec::new();
+            let batch_size = 1; // 立即发送（禁用批量）
             let mut has_error = false;
             let mut event_count = 0;
 
@@ -260,12 +269,29 @@ impl AIService for HarnessAIService {
                                         }
                                     }]
                                 });
-                                callback(chunk.to_string());
+
+                                // 🔥 FIX: 批量发送，减少 Tauri IPC 调用频率
+                                batch_buffer.push(chunk.to_string());
+
+                                // 达到批次大小时批量发送
+                                if batch_buffer.len() >= batch_size {
+                                    for batched_chunk in batch_buffer.drain(..) {
+                                        callback(batched_chunk);
+                                    }
+                                }
 
                                 global_delta_index += 1;
                             }
                             crate::harness::api::StreamEvent::ToolStart { tool_id, name, input } => {
                                 tool_name_map.insert(tool_id.clone(), name.clone());
+
+                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
+                                if !batch_buffer.is_empty() {
+                                    println!("[AI] 📦 Flushing {} chunks before ToolStart", batch_buffer.len());
+                                    for batched_chunk in batch_buffer.drain(..) {
+                                        callback(batched_chunk);
+                                    }
+                                }
 
                                 let tool_event = json!({
                                     "type": "tool_call",
@@ -279,6 +305,14 @@ impl AIService for HarnessAIService {
                                 callback(tool_event.to_string());
                             }
                             crate::harness::api::StreamEvent::ToolDone { tool_id, result } => {
+                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
+                                if !batch_buffer.is_empty() {
+                                    println!("[AI] 📦 Flushing {} chunks before ToolDone", batch_buffer.len());
+                                    for batched_chunk in batch_buffer.drain(..) {
+                                        callback(batched_chunk);
+                                    }
+                                }
+
                                 let result_str = result;
 
                                 // 从 tool_name_map 获取工具名称（ToolStart 时已保存）
@@ -352,8 +386,24 @@ impl AIService for HarnessAIService {
                                     execution_result: exec_result,
                                 });
                             }
-                            crate::harness::api::StreamEvent::MessageDone { tokens_used: _ } => {}
+                            crate::harness::api::StreamEvent::MessageDone { tokens_used: _ } => {
+                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
+                                if !batch_buffer.is_empty() {
+                                    println!("[AI] 📦 Flushing {} chunks before MessageDone", batch_buffer.len());
+                                    for batched_chunk in batch_buffer.drain(..) {
+                                        callback(batched_chunk);
+                                    }
+                                }
+                            }
                             crate::harness::api::StreamEvent::Error { code, message } => {
+                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
+                                if !batch_buffer.is_empty() {
+                                    println!("[AI] 📦 Flushing {} chunks before Error", batch_buffer.len());
+                                    for batched_chunk in batch_buffer.drain(..) {
+                                        callback(batched_chunk);
+                                    }
+                                }
+
                                 println!("[AI] Stream error: {} - {}", code, message);
                                 let error_event = json!({
                                     "type": "error", "code": code, "message": message
@@ -366,12 +416,29 @@ impl AIService for HarnessAIService {
                     Err(e) => {
                         println!("[AI] ❌ Stream error: {:?}", e);
                         has_error = true;
+
+                        // 🔥 FIX: 清空剩余的批量 buffer
+                        if !batch_buffer.is_empty() {
+                            println!("[AI] 📦 Flushing {} chunks on error", batch_buffer.len());
+                            for remaining_chunk in batch_buffer.drain(..) {
+                                callback(remaining_chunk);
+                            }
+                        }
+
                         break;
                     }
                 }
             }
 
             println!("[AI] 🔚 While loop ended, event_count={}", event_count);
+
+            // 🔥 FIX: 清空剩余的批量 buffer
+            if !batch_buffer.is_empty() {
+                println!("[AI] 📦 Flushing {} remaining chunks from batch_buffer", batch_buffer.len());
+                for remaining_chunk in batch_buffer.drain(..) {
+                    callback(remaining_chunk);
+                }
+            }
 
             // 🔥 DEBUG: 显示本轮 loop 收到的事件数
             println!("[AI] 🔍 Loop {} stream ended: events={}, has_error={}, tool_calls={}, text_len={}",
