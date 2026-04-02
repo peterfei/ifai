@@ -12,13 +12,13 @@ export function getApprovalCoordinator(): ApprovalCoordinator {
   if (!instance) {
     console.log('[ApprovalEngine] 🚀 PIVO 2.0 Engine Initializing...');
     instance = new ApprovalCoordinator();
-    
+
     // 1. 初始化文件执行器
     const rootPath = useFileStore.getState().rootPath || '';
     const fsExecutor = new FileSystemExecutor(invoke, rootPath);
     const fsTools = [
-      "agent_write_file", "agent_read_file", "agent_list_dir", 
-      "agent_delete_file", "agent_list_functions", 
+      "agent_write_file", "agent_read_file", "agent_list_dir",
+      "agent_delete_file", "agent_list_functions",
       "agent_read_file_range", "agent_scan_project",
       "write_file", "read_file"
     ];
@@ -38,8 +38,22 @@ export function getApprovalCoordinator(): ApprovalCoordinator {
     const symbolExecutor = new SymbolExecutor(invoke, rootPath);
     const symbolTools = ["get_file_symbols", "agent_list_functions"];
     symbolTools.forEach(tool => instance!.registerExecutor(tool, symbolExecutor));
-    
-    console.log(`[ApprovalEngine] ✅ Registered ${fsTools.length} FS, ${shellTools.length} Shell, ${searchTools.length} Search, & ${symbolTools.length} Symbol tools.`);
+
+    // 5. 🆕 P4: 注册 TodoWrite 工具（需要用户批准）
+    // TodoWrite 创建任务列表，虽然是只读操作，但应该告知用户
+    const todoTools = ["TodoWrite"];
+    // 使用一个特殊的执行器，总是返回 true（自动批准，但会显示通知）
+    class TodoExecutor {
+      async execute(toolName: string, args: any): Promise<any> {
+        console.log(`[ApprovalEngine] 📝 TodoWrite tool invoked: ${toolName}`, args);
+        // 直接返回 args，让后端处理
+        return args;
+      }
+    }
+    const todoExecutor = new TodoExecutor() as any;
+    todoTools.forEach(tool => instance!.registerExecutor(tool, todoExecutor));
+
+    console.log(`[ApprovalEngine] ✅ Registered ${fsTools.length} FS, ${shellTools.length} Shell, ${searchTools.length} Search, ${symbolTools.length} Symbol, & ${todoTools.length} Todo tools.`);
   }
   return instance;
 }

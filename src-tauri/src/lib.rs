@@ -399,7 +399,26 @@ async fn ai_chat(
 
         // Insert Main System Prompt
         let mut final_system_prompt = prompt_manager::get_main_system_prompt(&root);
-        
+
+        // 🔔 P4: 在提示词开头添加关键行为规则
+        final_system_prompt = format!(
+            "# 🚨 CRITICAL BEHAVIOR RULES - READ FIRST!\n\n\
+            **🛑 FORBIDDEN: Stopping after tool calls!**\n\
+            **✅ REQUIRED: Always continue with more content after tools!**\n\n\
+            ## After TodoWrite Tool Call:\n\
+            1. DO NOT STOP! Do NOT send finish_reason: stop!\n\
+            2. Continue immediately: \"Perfect! Now let me start with the first task: [name]\"\n\
+            3. Execute the task (call write_file, etc.)\n\
+            4. Continue with remaining tasks\n\
+            5. Keep working until ALL tasks are complete!\n\n\
+            **⚠️ WARNING:** Users want RESULTS, not just task lists! DO THE WORK!\n\n\
+            # Current Working Directory\n\
+            **Current Project Directory:** `{}`\n\
+            **Important:** All file operations are relative to this directory.\n\n\
+            {}\n",
+            root, final_system_prompt
+        );
+
         // 注入工具定义兜底：确保模型即便没收到 tools 参数，也能通过提示词学会调用
         final_system_prompt.push_str("\n\n# IMPORTANT: WHEN TO USE TOOLS\n");
         final_system_prompt.push_str("You have access to SPECIALIZED TOOLS. ALWAYS prefer them over generic bash:\n\n");
@@ -417,9 +436,30 @@ async fn ai_chat(
         final_system_prompt.push_str("✅ ALWAYS use the TodoWrite tool instead - this creates a proper interactive task panel!\n");
         final_system_prompt.push_str("The TodoWrite tool will create a structured task list that users can interact with.\n\n");
 
+        // 🔔 P4: 添加任务执行指导（加强版）
+        final_system_prompt.push_str("## 🚨 CRITICAL WORKFLOW - DO NOT DEVIATE\n");
+        final_system_prompt.push_str("**MANDATORY: After calling TodoWrite, you MUST continue with the first task immediately!**\n\n");
+        final_system_prompt.push_str("Step 1: Ask: \"Should I create a task list?\"\n");
+        final_system_prompt.push_str("Step 2: If user says yes, call TodoWrite\n");
+        final_system_prompt.push_str("Step 3: **IMMEDIATELY continue** - DO NOT STOP! Say: \"Perfect! Now let me start with the first task: [Task Name]\"\n");
+        final_system_prompt.push_str("Step 4: Execute the first task (create file, write code, etc.)\n");
+        final_system_prompt.push_str("Step 5: Continue with remaining tasks one by one\n\n");
+        final_system_prompt.push_str("⛔ **FORBIDDEN: Stopping after TodoWrite** - This frustrates users!\n");
+        final_system_prompt.push_str("✅ **REQUIRED: Always execute tasks** - Keep working until complete!\n\n");
+        final_system_prompt.push_str("💡 Remember: Users want you to DO the work, not just plan it!\n\n");
+
         final_system_prompt.push_str("## When to use bash\n");
         final_system_prompt.push_str("- Only use bash for system queries (pwd, date, uname) or complex shell scripts\n");
         final_system_prompt.push_str("- For file operations, ALWAYS use the specialized tools above\n\n");
+
+        // 🔔 P4: 添加目录确认要求
+        final_system_prompt.push_str("## CRITICAL: Always Confirm Working Directory\n");
+        final_system_prompt.push_str("**Before performing any file operations, ALWAYS run `pwd` first** to confirm the current working directory.\n");
+        final_system_prompt.push_str("If the directory is not what you expect, ask the user to confirm or specify the correct directory.\n");
+        final_system_prompt.push_str("Example: \n");
+        final_system_prompt.push_str("  1. User: 'Create a 2048 game in /Users/mac/project/demo/2048'\n");
+        final_system_prompt.push_str("  2. AI: [First runs `pwd` to confirm directory]\n");
+        final_system_prompt.push_str("  3. If directory is wrong: Ask user 'The current directory is X. Should I use Y instead?'\n\n");
 
         final_system_prompt.push_str("# ADDITIONAL TOOLS AVAILABLE\n");
         final_system_prompt.push_str("You also have access to the following tools. You MUST use them by outputting standard tool call JSON:\n");
@@ -844,7 +884,7 @@ async fn ai_chat(
             "type": "function",
             "function": {
                 "name": "TodoWrite",
-                "description": "Create or update a structured task list. IMPORTANT: You MUST use this tool (not plain text) whenever the user asks you to create tasks, to-do items, checklists, action items, or task lists. Always call this tool instead of listing tasks in your response.",
+                "description": "Create or update a structured task list. CRITICAL: After calling this tool, you MUST IMMEDIATELY continue executing the first task! DO NOT STOP after creating tasks! Users want you to DO the work, not just plan it. Always call this tool instead of listing tasks in your response.",
                 "parameters": {
                     "type": "object",
                     "properties": {

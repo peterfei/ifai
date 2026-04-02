@@ -8,7 +8,7 @@ export interface RiskContext {
 
 export class RiskPolicy {
   private highRiskTools = new Set(['agent_delete_file', 'agent_run_command', 'delete_file']);
-  private mediumRiskTools = new Set(['agent_write_file', 'write_file', 'agent_replace_text']);
+  private mediumRiskTools = new Set(['agent_write_file', 'write_file', 'agent_replace_text', 'TodoWrite']);
 
   /**
    * 计算路径的风险等级

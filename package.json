@@ -65,7 +65,8 @@
     "test:e2e:slow": "playwright test --grep '@slow'",
     "test:e2e:regression": "playwright test --grep '@regression'",
     "test:e2e:report": "playwright show-report",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:task-continuation": "tsx scripts/e2e-test-task-continuation.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
