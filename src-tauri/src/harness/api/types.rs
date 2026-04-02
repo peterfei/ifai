@@ -23,6 +23,28 @@ pub struct StreamRequest {
 pub struct Message {
     pub role: MessageRole,
     pub content: String,
+    /// 🆕 P3: 工具调用（仅用于 Assistant 消息）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+    /// 🆕 P3: 工具调用 ID（仅用于 Tool 消息）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+/// 🆕 P3: 工具调用（OpenAI 格式）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub call_type: String,
+    pub function: ToolCallFunction,
+}
+
+/// 🆕 P3: 工具调用函数
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallFunction {
+    pub name: String,
+    pub arguments: String,
 }
 
 /// 消息角色
@@ -32,6 +54,8 @@ pub enum MessageRole {
     User,
     Assistant,
     System,
+    /// 🆕 P3: 工具结果消息
+    Tool,
 }
 
 /// 流式事件（用于前后端通信）

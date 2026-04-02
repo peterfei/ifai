@@ -97,6 +97,8 @@ impl AIService for HarnessAIService {
                     crate::core_traits::ai::Content::Text(text) => text.clone(),
                     _ => String::new(),
                 },
+                tool_calls: None,  // 🆕 P3: 默认无工具调用
+                tool_call_id: None,  // 🆕 P3: 默认无工具调用 ID
             })
             .collect();
 

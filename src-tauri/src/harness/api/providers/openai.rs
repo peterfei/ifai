@@ -53,6 +53,8 @@ impl ApiClient for OpenAIClient {
             messages.push(Message {
                 role: MessageRole::System,
                 content: system.clone(),
+                tool_calls: None,
+                tool_call_id: None,
             });
         }
 

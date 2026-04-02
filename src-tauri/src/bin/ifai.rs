@@ -12,6 +12,9 @@ use serde_json::json;
 use rustyline::Editor;
 use futures_util::StreamExt;
 
+// 🆕 P3: 导入工具调用类型
+use ifainew_lib::harness::api::types::{ToolCall, ToolCallFunction};
+
 /// 配置结构
 struct Config {
     provider: String,
@@ -286,6 +289,8 @@ impl Session {
         self.messages.push(ifainew_lib::harness::api::Message {
             role,
             content,
+            tool_calls: None,
+            tool_call_id: None,
         });
     }
 
@@ -298,121 +303,216 @@ impl Session {
         // 添加用户消息
         self.add_message(ifainew_lib::harness::api::MessageRole::User, prompt.to_string());
 
-        // 创建 Provider 配置
-        let provider_config = ifainew_lib::harness::api::ProviderConfig {
-            api_key: self.api_key.clone(),
-            base_url: self.base_url.clone(),
-            organization: None,
-        };
-
-        // 确定 Provider 类型
-        let provider = match self.provider.as_str() {
-            "anthropic" | "claude" => ifainew_lib::harness::api::AiProvider::Anthropic,
-            "deepseek" => ifainew_lib::harness::api::AiProvider::DeepSeek,
-            "openai" | "gpt" => ifainew_lib::harness::api::AiProvider::OpenAI,
-            _ => return Err(format!("不支持的 provider: {}", self.provider).into()),
-        };
-
-        // 创建 API 客户端
-        let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(provider, &provider_config)?;
-
-        // 获取工具列表
-        let tools: Vec<serde_json::Value> = self.tool_registry.all()
-            .into_iter()
-            .map(|tool| {
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.input_schema
-                    }
-                })
-            })
-            .collect();
-
-        // 构建请求
-        let request = ifainew_lib::harness::api::StreamRequest {
-            model: self.model.clone(),
-            messages: self.messages.clone(),
-            max_tokens: 4096,
-            system: Some(self.system_prompt.clone()),
-            temperature: Some(0.7),
-            stream: true,
-            tools: Some(tools),
-        };
-
-        // 发送流式请求
-        let mut stream = client.stream(request).await?;
+        // 🆕 P3: 支持多轮对话（工具调用续播）
         let mut full_response = String::new();
+        let mut continuation_count = 0;
+        const MAX_CONTINUATIONS: u32 = 5; // 防止无限循环
 
-        // 🆕 P3: 保存 tool_id -> tool_name 映射
-        use std::collections::HashMap;
-        let mut tool_name_map: HashMap<String, String> = HashMap::new();
+        loop {
+            if continuation_count >= MAX_CONTINUATIONS {
+                println!("⚠️  达到最大续播次数，停止续播");
+                break;
+            }
 
-        // 处理流式响应
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(event) => {
-                    use ifainew_lib::harness::api::StreamEvent;
+            // 创建 Provider 配置
+            let provider_config = ifainew_lib::harness::api::ProviderConfig {
+                api_key: self.api_key.clone(),
+                base_url: self.base_url.clone(),
+                organization: None,
+            };
 
-                    match event {
-                        StreamEvent::TextDelta { text } => {
-                            print!("{}", text);
-                            io::stdout().flush().unwrap();
-                            full_response.push_str(&text);
+            // 确定 Provider 类型
+            let provider = match self.provider.as_str() {
+                "anthropic" | "claude" => ifainew_lib::harness::api::AiProvider::Anthropic,
+                "deepseek" => ifainew_lib::harness::api::AiProvider::DeepSeek,
+                "openai" | "gpt" => ifainew_lib::harness::api::AiProvider::OpenAI,
+                _ => return Err(format!("不支持的 provider: {}", self.provider).into()),
+            };
+
+            // 创建 API 客户端
+            let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(provider, &provider_config)?;
+
+            // 获取工具列表
+            let tools: Vec<serde_json::Value> = self.tool_registry.all()
+                .into_iter()
+                .map(|tool| {
+                    json!({
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.input_schema
                         }
-                        StreamEvent::ToolStart { tool_id, name, .. } => {
-                            println!();
-                            println!("🔧 工具调用: {} ({})", name, tool_id);
-                            // 🆕 P3: 保存工具名称映射
-                            tool_name_map.insert(tool_id.clone(), name.clone());
-                        }
-                        StreamEvent::ToolDone { tool_id, result } => {
-                            // 🆕 P3: 执行工具
-                            if let Ok(args) = serde_json::from_str::<serde_json::Value>(&result) {
-                                // 从映射中获取工具名称
-                                let tool_name = tool_name_map.get(&tool_id)
-                                    .map(|s| s.as_str())
-                                    .or_else(|| args.get("name").and_then(|v| v.as_str()))
-                                    .or_else(|| args.get("tool").and_then(|v| v.as_str()))
-                                    .unwrap_or("TodoWrite");
+                    })
+                })
+                .collect();
 
-                                match self.tool_router.execute(tool_name, &args) {
-                                    Ok(exec_result) => {
-                                        println!("✅ 工具完成: {} ({})", tool_id, exec_result);
-                                    }
-                                    Err(e) => {
-                                        println!("❌ 工具执行失败: {} => {:?}", tool_id, e);
-                                    }
-                                }
-                            } else {
-                                println!("✅ 工具完成: {} => {}", tool_id, result);
+            // 构建请求
+            let request = ifainew_lib::harness::api::StreamRequest {
+                model: self.model.clone(),
+                messages: self.messages.clone(),
+                max_tokens: 4096,
+                system: Some(self.system_prompt.clone()),
+                temperature: Some(0.7),
+                stream: true,
+                tools: Some(tools),
+            };
+
+            // 发送流式请求
+            let mut stream = client.stream(request).await?;
+            let mut current_response = String::new();
+
+            // 🆕 P3: 保存工具调用信息（参数和结果）
+            use std::collections::HashMap;
+            let mut tool_calls_info: HashMap<String, (String, String)> = HashMap::new(); // (tool_id, name, args)
+            let mut tool_results: HashMap<String, String> = HashMap::new(); // (tool_id, result)
+
+            // 处理流式响应
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(event) => {
+                        use ifainew_lib::harness::api::StreamEvent;
+
+                        match event {
+                            StreamEvent::TextDelta { text } => {
+                                print!("{}", text);
+                                io::stdout().flush().unwrap();
+                                current_response.push_str(&text);
+                                full_response.push_str(&text);
                             }
+                            StreamEvent::ToolStart { tool_id, name, input } => {
+                                println!();
+                                println!("🔧 工具调用: {} ({})", name, tool_id);
+                                // 🆕 P3: 保存工具调用信息（包括参数）
+                                tool_calls_info.insert(tool_id.clone(), (name.clone(), input));
+                            }
+                            StreamEvent::ToolDone { tool_id, result } => {
+                                // 🆕 P3: 执行工具
+                                if let Ok(args) = serde_json::from_str::<serde_json::Value>(&result) {
+                                    // 从 tool_calls_info 获取工具名称
+                                    let (tool_name, _args_str) = tool_calls_info.get(&tool_id)
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            // 回退：从 args 中解析
+                                            let name = args.get("name")
+                                                .and_then(|v| v.as_str())
+                                                .or_else(|| args.get("tool").and_then(|v| v.as_str()))
+                                                .unwrap_or("TodoWrite");
+                                            let args_json = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+                                            (name.to_string(), args_json)
+                                        });
+
+                                    let exec_result = match self.tool_router.execute(&tool_name, &args) {
+                                        Ok(res) => {
+                                            println!("✅ 工具完成: {} ({})", tool_id, res);
+                                            res
+                                        }
+                                        Err(e) => {
+                                            println!("❌ 工具执行失败: {} => {:?}", tool_id, e);
+                                            format!("Error: {:?}", e)
+                                        }
+                                    };
+
+                                    // 🆕 P3: 保存工具结果
+                                    tool_results.insert(tool_id.clone(), exec_result);
+                                } else {
+                                    println!("✅ 工具完成: {} => {}", tool_id, result);
+                                }
+                            }
+                            StreamEvent::MessageDone { .. } => {
+                                // 消息完成，但不在交互模式中显示
+                            }
+                            StreamEvent::Error { code, message } => {
+                                println!();
+                                println!("❌ 错误 [{}]: {}", code, message);
+                            }
+                            _ => {}
                         }
-                        StreamEvent::MessageDone { .. } => {
-                            // 消息完成，但不在交互模式中显示
-                        }
-                        StreamEvent::Error { code, message } => {
-                            println!();
-                            println!("❌ 错误 [{}]: {}", code, message);
-                        }
-                        _ => {}
                     }
-                }
-                Err(e) => {
-                    println!();
-                    println!("❌ 流错误: {:?}", e);
-                    break;
+                    Err(e) => {
+                        println!();
+                        println!("❌ 流错误: {:?}", e);
+                        break;
+                    }
                 }
             }
+
+            // 🆕 P3: 检查是否有工具调用需要续播
+            if tool_calls_info.is_empty() {
+                // 没有工具调用，正常结束
+                self.add_message(ifainew_lib::harness::api::MessageRole::Assistant, current_response.clone());
+                break;
+            }
+
+            // 有工具调用，需要续播
+            println!();
+            println!("🔄 续播中...");
+
+            // 🆕 P3: 构建 tool_calls（使用实际参数）
+            let mut tool_calls_json = Vec::new();
+            for (tool_id, (name, args)) in tool_calls_info.iter() {
+                tool_calls_json.push(json!({
+                    "id": tool_id,
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": args
+                    }
+                }));
+            }
+
+            // 添加带有 tool_calls 的 assistant 消息
+            let assistant_msg = if !tool_calls_json.is_empty() {
+                json!({
+                    "role": "assistant",
+                    "content": current_response,
+                    "tool_calls": tool_calls_json
+                })
+            } else {
+                json!({
+                    "role": "assistant",
+                    "content": current_response
+                })
+            };
+
+            // 将 assistant 消息添加到历史
+            // 🆕 P3: 构建 tool_calls（如果有）
+            let tool_calls_value = if !tool_calls_json.is_empty() {
+                Some(tool_calls_json.into_iter().map(|tc| {
+                    ToolCall {
+                        id: tc["id"].as_str().unwrap_or("").to_string(),
+                        call_type: tc["type"].as_str().unwrap_or("function").to_string(),
+                        function: ToolCallFunction {
+                            name: tc["function"]["name"].as_str().unwrap_or("").to_string(),
+                            arguments: tc["function"]["arguments"].as_str().unwrap_or("{}").to_string(),
+                        },
+                    }
+                }).collect::<Vec<_>>())
+            } else {
+                None
+            };
+
+            self.messages.push(ifainew_lib::harness::api::Message {
+                role: ifainew_lib::harness::api::MessageRole::Assistant,
+                content: assistant_msg.to_string(),
+                tool_calls: tool_calls_value,
+                tool_call_id: None,
+            });
+
+            // 添加工具结果消息
+            for (tool_id, result) in tool_results {
+                self.messages.push(ifainew_lib::harness::api::Message {
+                    role: ifainew_lib::harness::api::MessageRole::Tool,
+                    content: result,
+                    tool_calls: None,
+                    tool_call_id: Some(tool_id),
+                });
+            }
+
+            continuation_count += 1;
         }
 
         println!();
-
-        // 添加助手回复到历史
-        self.add_message(ifainew_lib::harness::api::MessageRole::Assistant, full_response.clone());
-
         Ok(full_response)
     }
 }

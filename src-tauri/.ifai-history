@@ -2,3 +2,5 @@
 你是谁？
 你是谁
 帮我创建一个文件 /tmp/hello.txt 内容是 Hello World
+帮我创建一个文件 /tmp/test-continue1.txt 内容是 'Testing continue flow1'
+帮我创建一个文件 /tmp/cli-test.txt 内容是 'CLI continue test'
