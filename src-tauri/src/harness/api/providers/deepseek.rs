@@ -85,9 +85,24 @@ impl ApiClient for DeepSeekClient {
 
         // 🆕 P2: 添加 tools 参数（如果存在）
         if let Some(tools) = request.tools {
+            println!("[DeepSeek] 🔧 Adding {} tools to request", tools.len());
+            for tool in &tools {
+                if let Some(name) = tool.get("function").and_then(|f| f.get("name")).and_then(|n| n.as_str()) {
+                    println!("[DeepSeek]   - {}", name);
+                }
+            }
             if let Some(obj) = deepseek_request.as_object_mut() {
                 obj.insert("tools".to_string(), serde_json::Value::Array(tools));
             }
+        } else {
+            println!("[DeepSeek] ⚠️ No tools provided in request!");
+        }
+
+        // 🔥 DIAGNOSTIC: 打印请求详情（仅在调试时）
+        println!("[DeepSeek] 📤 Sending request to: {}", self.base_url);
+        if let Ok(pretty) = serde_json::to_string_pretty(&deepseek_request) {
+            println!("[DeepSeek] 📋 Request preview (first 500 chars):");
+            println!("{}", pretty.chars().take(500).collect::<String>());
         }
 
         let response = self

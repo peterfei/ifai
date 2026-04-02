@@ -651,6 +651,18 @@ export class StreamingResponseController {
         }
       }
 
+      // 🔥 CRITICAL FIX: 处理警告事件（如 finish_reason=length 时的输出截断警告）
+      else if (data.type === 'warning') {
+        console.warn(`[SC] ⚠️ Warning event received: code=${data.code}, message=${data.message}`, payload.correlationId);
+        // 将警告事件发送到 EventBus，UI 层可以显示给用户
+        chatEventBus.emit('chat:warning', {
+          ...payload,
+          warningCode: data.code,
+          warningMessage: data.message,
+          finishReason: data.finish_reason
+        } as any);
+      }
+
       // 情况 C: 结束标志 (高度兼容模式：finish, finish_reason, done, OpenAI 格式)
       else if (
         data.type === 'finish' ||

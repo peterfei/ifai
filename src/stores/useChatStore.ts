@@ -486,7 +486,8 @@ export const useChatStore = create<ChatStore>()(
                   messages: sanitizedMessages,
                   // 🏆 FIX: 使用私有库的 eventId 格式 "chat_${correlationId}"
                   eventId: `chat_${correlationId}`,
-                  projectRoot: useFileStore.getState().rootPath,
+                  // 🔥 FIX: 优先使用多工作区模式的 getActiveRoot()，否则回退到 rootPath
+                  projectRoot: useFileStore.getState().getActiveRoot()?.path || useFileStore.getState().rootPath,
                   enableTools: true,
                   mode: (window as any).__IFAI_EDITOR_MODE__ || "vibe"
               });

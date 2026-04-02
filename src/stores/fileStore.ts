@@ -580,7 +580,34 @@ export const useFileStore = create<FileState>()(
       },
       
       setRootPath: async (path) => {
+        // 🔥 FIX: 同时更新 deprecated 的 rootPath 和多工作区模式
         set({ rootPath: path });
+
+        // 🔥 FIX: 如果有路径但没有对应的工作区，自动添加到工作区
+        if (path) {
+          const state = get();
+          const existingRoot = state.workspaceRoots.find(r => r.path === path);
+          if (!existingRoot) {
+            // 自动添加到工作区（向后兼容）
+            console.log('[FileStore] 🔧 Auto-adding path to workspace:', path);
+            const name = path.split('/').filter(Boolean).pop() || path;
+            const newRoot: WorkspaceRoot = {
+              id: `root-auto-${Date.now()}`,
+              path,
+              name,
+              fileTree: null,
+              isActive: state.workspaceRoots.length === 0,
+              indexedAt: null,
+            };
+            set({
+              workspaceRoots: [...state.workspaceRoots, newRoot],
+              activeRootId: newRoot.isActive ? newRoot.id : state.activeRootId,
+            });
+          } else if (!state.activeRootId) {
+            // 如果有工作区但没有活动的，设置第一个为活动
+            set({ activeRootId: existingRoot.id });
+          }
+        }
 
         // Auto-initialize RAG index when project is opened
         if (path) {

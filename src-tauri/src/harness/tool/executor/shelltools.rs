@@ -32,6 +32,18 @@ impl ShellToolsExecutor {
                 ToolError::InvalidInput("Missing 'command' parameter".to_string())
             })?;
 
+        // 🔥 FIX: 获取工作目录参数
+        let working_dir = input
+            .get("working_dir")
+            .and_then(|v| v.as_str());
+
+        // 🔥 DIAGNOSTIC: 打印工作目录信息
+        if let Some(dir) = working_dir {
+            println!("[Bash] 🔧 Executing in working_dir: {}", dir);
+        } else {
+            println!("[Bash] ⚠️ No working_dir specified, using default");
+        }
+
         // 检测操作系统
         #[cfg(target_os = "windows")]
         let shell = "cmd";
@@ -43,14 +55,18 @@ impl ShellToolsExecutor {
         #[cfg(not(target_os = "windows"))]
         let shell_arg = "-c";
 
-        // 执行命令
-        let output = Command::new(shell)
-            .arg(shell_arg)
-            .arg(command)
-            .output()
-            .map_err(|e| {
-                ToolError::Execution(format!("Failed to execute command: {}", e))
-            })?;
+        // 🔥 FIX: 执行命令时设置工作目录
+        let mut cmd = Command::new(shell);
+        cmd.arg(shell_arg).arg(command);
+
+        // 如果指定了工作目录，设置它
+        if let Some(dir) = working_dir {
+            cmd.current_dir(dir);
+        }
+
+        let output = cmd.output().map_err(|e| {
+            ToolError::Execution(format!("Failed to execute command: {}", e))
+        })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();

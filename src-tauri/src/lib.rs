@@ -466,8 +466,8 @@ async fn ai_chat(
         final_system_prompt.push_str(r#"
 - name: bash
   description: Execute a shell command
-  parameters: { "command": "string", "working_dir": "string (optional)" }
-  example: {"name": "bash", "arguments": {"command": "ls -la"}}
+  parameters: { "command": "string", "working_dir": "string (optional, defaults to project root)" }
+  example: {"name": "bash", "arguments": {"command": "ls -la", "working_dir": "/Users/mac/project/demo/2048"}}
 
 - name: TodoWrite
   description: Create or update a task list for tracking progress. Use this when the user asks you to create tasks, to-do items, or a task list.
@@ -793,11 +793,12 @@ async fn ai_chat(
             "type": "function",
             "function": {
                 "name": "bash",
-                "description": "Execute a bash/shell command. Use this for system queries (date, uname) or running scripts. Results are returned as text.",
+                "description": "Execute a bash/shell command. Use this for system queries (pwd, date, uname) or running scripts. Results are returned as text.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "command": { "type": "string", "description": "The command line string to execute" }
+                        "command": { "type": "string", "description": "The command line string to execute" },
+                        "working_dir": { "type": "string", "description": "Optional working directory. If not specified, uses project root." }
                     },
                     "required": ["command"]
                 }
@@ -884,7 +885,7 @@ async fn ai_chat(
             "type": "function",
             "function": {
                 "name": "TodoWrite",
-                "description": "Create or update a structured task list. CRITICAL: After calling this tool, you MUST IMMEDIATELY continue executing the first task! DO NOT STOP after creating tasks! Users want you to DO the work, not just plan it. Always call this tool instead of listing tasks in your response.",
+                "description": "Create or update a task list for tracking work progress. Use this tool whenever the user asks you to create tasks, to-do items, task lists, or project plans. The tool accepts an array of task objects with content (task name), activeForm (active verb form like 'Doing X'), and optional status (pending/in_progress/completed).",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1074,6 +1075,21 @@ async fn ai_chat(
 
                      if finish_reason == "stop" || finish_reason == "length" {
                          println!("[AI Chat] ✅ finish_reason={} indicates stream end, triggering _finish event", finish_reason);
+
+                         // 🔥 CRITICAL FIX: 如果是 finish_reason="length"，发送警告事件
+                         // 说明输出因达到 max_tokens 而被截断，可能需要 continuation
+                         if finish_reason == "length" {
+                             println!("[AI Chat] ⚠️ Output truncated due to max_tokens limit (8192)");
+                             let warning_event = json!({
+                                 "type": "warning",
+                                 "code": "OUTPUT_TRUNCATED",
+                                 "message": "AI 输出因达到最大长度限制而被截断。如果内容不完整，可能需要继续生成。",
+                                 "finish_reason": "length"
+                             });
+                             // 发送警告事件到前端
+                             let _ = app_handle_for_stream.emit(&event_id_clone, warning_event.to_string());
+                         }
+
                          should_finish = true;
                      } else if finish_reason == "tool_calls" {
                          println!("[AI Chat] 🔄 finish_reason=tool_calls indicates continuation, NOT triggering _finish event");

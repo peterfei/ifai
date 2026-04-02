@@ -148,6 +148,13 @@ impl AIService for HarnessAIService {
         // P4: Tool Call Auto-Continuation Loop (参考 claw-code/conversation.rs)
         // OpenAI 协议：模型返回 tool_calls + finish_reason:stop → 应用执行工具 →
         // 以 role:"tool" 消息发回 API → 模型继续生成
+
+        // 🔥 CRITICAL FIX: 添加最大迭代次数保护（参考 claw-code 的 max_iterations）
+        // 防止 AI 陷入工具调用循环，导致 API 费用失控和资源耗尽
+        // 注意：claw-code 默认是 usize::MAX（几乎无限），但这里限制为合理值
+        // 复杂任务（如创建多个文件）可能需要 20-30 次工具调用
+        const MAX_ITERATIONS: usize = 25;  // 允许最多 25 轮 continuation（可调整）
+
         let mut loop_count = 0;
 
         // 防止无限循环：追踪连续相同的工具调用签名
@@ -165,8 +172,24 @@ impl AIService for HarnessAIService {
         loop {
             loop_count += 1;
 
+            // 🔥 CRITICAL: 添加最大迭代次数保护（参考 claw-code/conversation.rs line 168-172）
+            if loop_count > MAX_ITERATIONS {
+                let error_msg = format!("超过最大迭代次数限制 ({})，可能陷入工具调用循环", MAX_ITERATIONS);
+                println!("[AI] ❌ {}: loop_count={}, stopping", error_msg, loop_count);
+                callback(json!({
+                    "type": "error",
+                    "code": "MAX_ITERATIONS_EXCEEDED",
+                    "message": error_msg
+                }).to_string());
+                let finish_event = json!({
+                    "choices": [{ "finish_reason": "stop" }]
+                });
+                callback(finish_event.to_string());
+                break;
+            }
+
             // 🔥 DEBUG: 添加详细的 loop 开始日志
-            println!("[AI] ➡️ Starting loop {} (global_delta_index={})", loop_count, global_delta_index);
+            println!("[AI] ➡️ Starting loop {} (global_delta_index={}, max_iterations={})", loop_count, global_delta_index, MAX_ITERATIONS);
 
             // 🔥 FIX: 使用全局 delta_index，并在每轮开始时记录当前值
             let loop_start_delta_index = global_delta_index;
@@ -222,6 +245,7 @@ impl AIService for HarnessAIService {
             let mut loop_text = String::new();
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<CollectedToolCall> = Vec::new();
+            let mut loop_finish_reason: Option<String> = None;  // 🔥 CRITICAL FIX: 追踪本轮的 finish_reason
 
             // 🔥 FIX: 临时禁用批量发送，确保每个 delta 立即发送
             // 批量发送导致数据延迟，前端提前断开
@@ -331,10 +355,27 @@ impl AIService for HarnessAIService {
                                         .unwrap_or("TodoWrite")
                                         .to_string();
 
+                                    // 🔥 CRITICAL FIX: 工具执行错误时返回 JSON 格式，让 AI 知道失败
+                                    // 参考 claw-code/conversation.rs line 222-225: 将错误转为输出
                                     let exec_result = match router.execute(&tool_name, &args) {
                                         Ok(res) => res,
-                                        Err(e) => format!("Error: {:?}", e),
+                                        Err(e) => {
+                                            // 返回明确的 JSON 错误格式，包含 error=true 标志
+                                            serde_json::json!({
+                                                "error": true,
+                                                "success": false,
+                                                "message": format!("{}", e),
+                                                "tool_name": tool_name
+                                            }).to_string()
+                                        }
                                     };
+
+                                    // 🔥 DIAGNOSTIC: 打印工具执行详情，用于调试 TodoWrite
+                                    println!("[AI] 🔧 Tool executed: name={}, args_keys={:?}, has_todos={}",
+                                        tool_name,
+                                        args.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+                                        args.get("todos").is_some()
+                                    );
 
                                     // 构建并发送 tool_done 事件
                                     let mut done_event = json!({
@@ -345,7 +386,10 @@ impl AIService for HarnessAIService {
                                     });
                                     if tool_name == "TodoWrite" {
                                         if let Some(todos) = args.get("todos") {
+                                            println!("[AI] ✅ Adding todos to tool_done event: {} tasks", todos.as_array().map(|a| a.len()).unwrap_or(0));
                                             done_event["todos"] = todos.clone();
+                                        } else {
+                                            println!("[AI] ⚠️ TodoWrite tool but no todos in args! args={}", args);
                                         }
                                     }
                                     callback(done_event.to_string());
@@ -353,27 +397,64 @@ impl AIService for HarnessAIService {
                                     (tool_name, exec_result)
                                 } else {
                                     // JSON 解析失败：使用 tool_name_map 中的名称尝试执行
+                                    println!("[AI] ⚠️ Failed to parse tool args as JSON, trying fallback. result_str preview: {}",
+                                        result_str.chars().take(100).collect::<String>()
+                                    );
+
                                     let (resolved_name, exec_result) = if tool_name_from_map != "unknown" {
+                                        // 🔥 CRITICAL FIX: 尝试从 result_str 中提取 todos（用于 TodoWrite）
+                                        let maybe_todos = if tool_name_from_map == "TodoWrite" {
+                                            serde_json::from_str::<serde_json::Value>(&result_str)
+                                                .ok()
+                                                .and_then(|v| v.get("todos").cloned())
+                                        } else {
+                                            None
+                                        };
+
                                         let fallback_args = serde_json::json!({"raw_input": &result_str});
+                                        // 🔥 CRITICAL FIX: fallback 执行失败时也返回 JSON 格式
                                         let exec = match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
                                             Ok(res) => res,
-                                            Err(e) => format!("Error: args parse failed, fallback also failed: {:?}", e),
+                                            Err(e) => {
+                                                // 返回明确的 JSON 错误格式
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": format!("参数解析失败: {}", e),
+                                                    "tool_name": tool_name_from_map,
+                                                    "raw_input": result_str.chars().take(200).collect::<String>()  // 只保留前 200 字符
+                                                }).to_string()
+                                            }
                                         };
-                                        callback(json!({
+
+                                        let mut done_event = json!({
                                             "type": "tool_done",
                                             "tool_call_id": tool_id,
                                             "tool": tool_name_from_map,
                                             "result": exec
-                                        }).to_string());
+                                        });
+                                        // 🔥 CRITICAL FIX: 如果是 TodoWrite 且有 todos，添加到事件中
+                                        if let Some(todos) = maybe_todos {
+                                            println!("[AI] ✅ Adding todos to fallback tool_done event");
+                                            done_event["todos"] = todos;
+                                        }
+                                        callback(done_event.to_string());
                                         (tool_name_from_map, exec)
                                     } else {
-                                        let err_msg = format!("Error: tool args parse failed, tool name unknown");
+                                        // 🔥 CRITICAL FIX: 工具名称未知时也返回 JSON 格式
+                                        let err_json = serde_json::json!({
+                                            "error": true,
+                                            "success": false,
+                                            "message": "工具参数解析失败，且无法确定工具名称",
+                                            "tool_call_id": tool_id,
+                                            "raw_input": result_str.chars().take(200).collect::<String>()
+                                        }).to_string();
                                         callback(json!({
                                             "type": "tool_done",
                                             "tool_call_id": tool_id,
-                                            "result": err_msg
+                                            "result": err_json
                                         }).to_string());
-                                        ("unknown".to_string(), err_msg)
+                                        ("unknown".to_string(), err_json)
                                     };
 
                                     (resolved_name, exec_result)
