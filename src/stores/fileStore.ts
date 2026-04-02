@@ -159,11 +159,21 @@ export const useFileStore = create<FileState>()(
 
         set((state) => {
           const newRoots = [...state.workspaceRoots, root];
-          const newActiveId = state.activeRootId || (newRoots.length === 1 ? root.id : state.activeRootId);
+          const isFirstRoot = newRoots.length === 1;
+          // 🔥 FIX: 新添加的根目录自动成为活动根目录
+          const newActiveId = root.id;
+
+          // 更新所有根目录的 isActive 状态
+          newRoots.forEach((r, i) => {
+            r.isActive = (r.id === newActiveId);
+          });
 
           return {
             workspaceRoots: newRoots,
             activeRootId: newActiveId,
+            // 🔥 FIX: 同时更新 rootPath 和 fileTree，确保新添加的工作区立即生效
+            rootPath: path,
+            fileTree: root.fileTree,
           };
         });
 

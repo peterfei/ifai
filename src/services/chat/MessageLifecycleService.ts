@@ -232,9 +232,20 @@ ${workspaceInfo}
 
 [PRINCIPLE] Action oriented. No mere descriptions.`) + inlineInstruction;
 
-    if (!msgHistory.some((m: any) => m.content === PIVO_PROMPT) && msgHistory.length < 5) {
-        msgHistory.unshift({ role: "system", content: PIVO_PROMPT } as any);
-    }
+    // 🔥 FIX: 移除旧的 PIVO 系统提示，确保使用最新的 workspaceInfo
+    // 旧的 PIVO_PROMPT 可能包含错误的 rootPath，所以需要先移除再添加
+    const pivoSystemPromptMarker = isChinese ? '【物理工具箱授权】' : '[PIVO 2.0 PHYSICAL TOOL AUTHORIZATION]';
+    msgHistory = msgHistory.filter((m: any) => {
+      // 移除旧的 PIVO 系统提示（通过标识符识别）
+      const isOldPIVOPrompt = m.role === 'system' && (
+        m.content?.includes(pivoSystemPromptMarker)
+      );
+      return !isOldPIVOPrompt;
+    });
+
+    // 添加最新的 PIVO_PROMPT
+    msgHistory.unshift({ role: "system", content: PIVO_PROMPT } as any);
+
     return msgHistory;
   }
 }

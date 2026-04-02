@@ -443,7 +443,12 @@ export class StreamingResponseController {
 
       if (isOpenAIFormat) {
         const content = data.choices[0].delta.content;
-        this.emitChunk(content || '', false, payload);
+
+        // 🔥 序号校验：提取 delta_index
+        const index = data.choices[0]?.index;
+        const deltaIndex = index?.delta_index ?? -1;
+
+        this.emitChunk(content || '', false, payload, deltaIndex);
       }
       // 情况 A: 文本内容
       else if (data.type === 'content') {
@@ -616,10 +621,18 @@ export class StreamingResponseController {
     }
   }
 
-  private emitChunk(delta: string, isFinal: boolean, payload: BasePayload) {
+  private emitChunk(delta: string, isFinal: boolean, payload: BasePayload, deltaIndex: number = -1) {
+    // 🔥 DEBUG: 只在检测到问题时打印（乱序、大片段等）
+    const shouldLog = deltaIndex % 50 === 0 || delta.length > 100;
+
+    if (shouldLog) {
+      console.log(`[SC] emitChunk: correlationId=${payload.correlationId}, deltaIndex=${deltaIndex}, deltaPreview="${delta.slice(0, 30)}", deltaLength=${delta.length}`);
+    }
+
     chatEventBus.emit('chat:stream:chunk', {
       ...payload,
       delta,
+      deltaIndex,  // 🔥 序号校验：添加序号
       fullContent: '',
       isFinal
     });

@@ -167,36 +167,10 @@ if (import.meta.env.DEV && !devMiddlewareRegistered) {
   devMiddlewareRegistered = true;
   chatEventBus.use((event, payload) => {
     // 🔥 FIX: 减少 chat:stream:chunk 和 chat:segment:updated 事件的日志输出
-    // 这些事件每个字符都触发一次，导致日志量过大
-    if (event === 'chat:stream:chunk') {
-      const delta = (payload as any).delta || '';
-      // 只对较长的 delta 或者每 20 个字符打印一次
-      if (delta.length > 20 || delta.length % 20 === 0) {
-        console.log(`[ChatEventBus] 🚀 ${event}`, {
-          id: payload.correlationId,
-          time: new Date(payload.timestamp).toLocaleTimeString(),
-          delta: delta.substring(0, 30),
-          length: delta.length
-        });
-      }
-    } else if (event === 'chat:segment:updated') {
-      const delta = (payload as any).delta || '';
-      // 只对较长的 delta 或者每 30 个字符打印一次
-      if (delta.length > 30 || delta.length % 30 === 0) {
-        console.log(`[ChatEventBus] 🚀 ${event}`, {
-          id: payload.correlationId,
-          time: new Date(payload.timestamp).toLocaleTimeString(),
-          delta: delta.substring(0, 30),
-          length: delta.length
-        });
-      }
-    } else {
-      // 其他事件正常打印
-      console.log(`[ChatEventBus] 🚀 ${event}`, {
-        id: payload.correlationId,
-        time: new Date(payload.timestamp).toLocaleTimeString(),
-        data: payload
-      });
+    // 🔥 FIX: 减少日志输出 - 这些事件触发频繁
+    if (event === 'chat:stream:chunk' || event === 'chat:segment:updated') {
+      // 不打印流式事件
+      return;
     }
   });
 }

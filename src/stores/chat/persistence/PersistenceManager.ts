@@ -127,7 +127,6 @@ export class PersistenceManager {
         if (messages.length > 0) {
           await threadPersistence.saveThreadMessages(sessionId, messages as any);
         }
-        console.log(`[PersistenceManager] ✅ Session ${sessionId} persisted successfully.`);
       }
     } catch (error) {
       console.error(`[PersistenceManager] ❌ Persistence failure for ${sessionId}:`, error);

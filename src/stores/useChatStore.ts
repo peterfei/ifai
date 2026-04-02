@@ -315,12 +315,15 @@ export const useChatStore = create<ChatStore>()(
         } as any);
 
         // 拒绝后也需要续播，让 AI 继续生成
+        // 注意：这个续播会创建新的 correlationId，与之前的流独立
+        // 🔥 与工具执行完成的续播不同：后端 loop 在工具被拒绝时已结束，需要前端触发续播
         const { useSettingsStore } = await import('./settingsStore');
         const settings = useSettingsStore.getState();
         await get().generateResponse(
           get().messages,
           settings.currentProviderId || 'openai',
           settings.currentModel || 'gpt-4o'
+          // 注意：不传递 existingCorrelationId，会创建新的 ID
         );
       },
 

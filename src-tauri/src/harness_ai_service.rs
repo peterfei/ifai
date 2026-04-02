@@ -154,12 +154,40 @@ impl AIService for HarnessAIService {
         let mut consecutive_same_tool_count: usize = 0;
         let mut last_tool_signature: String = String::new();
 
+        // 🔥 FIX: 将 delta_index 移到 loop 外部，确保在整个 continuation 过程中单调递增
+        // 这样每轮续播都会接续上一轮的序号，而不是从 0 重新开始
+        let mut global_delta_index: usize = 0;
+
         use tokio::time::{timeout, Duration};
 
         println!("[AI] stream_chat start: model={}, tools={}", model, tool_count);
 
         loop {
             loop_count += 1;
+
+            // 🔥 DEBUG: 添加详细的 loop 开始日志
+            println!("[AI] ➡️ Starting loop {} (global_delta_index={})", loop_count, global_delta_index);
+
+            // 🔥 FIX: 使用全局 delta_index，并在每轮开始时记录当前值
+            let loop_start_delta_index = global_delta_index;
+
+            // 🔥 DEBUG: 显示当前消息历史
+            println!("[AI] 📋 Loop {} message count: {}", loop_count, stream_messages.len());
+            for (i, msg) in stream_messages.iter().enumerate() {
+                let role = match msg.role {
+                    MessageRole::System => "system",
+                    MessageRole::User => "user",
+                    MessageRole::Assistant => "assistant",
+                    MessageRole::Tool => "tool",
+                };
+                let content_preview = if msg.content.len() > 50 {
+                    format!("{}...", &msg.content.chars().take(50).collect::<String>())
+                } else {
+                    msg.content.clone()
+                };
+                println!("[AI]   [{}] role={}, has_tool_calls={}, content=\"{}\"",
+                    i, role, msg.tool_calls.is_some(), content_preview);
+            }
 
             // 构建请求
             let request = StreamRequest {
@@ -191,20 +219,50 @@ impl AIService for HarnessAIService {
             let mut tool_name_map: HashMap<String, String> = HashMap::new();
             let mut collected_tool_calls: Vec<CollectedToolCall> = Vec::new();
             let mut has_error = false;
+            let mut event_count = 0;
+
+            // 🔥 DEBUG: 添加 stream 处理开始日志
+            println!("[AI] 🔊 Loop {} starting to process stream...", loop_count);
 
             // 处理流式响应
+            println!("[AI] 🔗 About to call stream.next()...");
             while let Some(result) = stream.next().await {
+                println!("[AI] ✅ Got result from stream!");
+                event_count += 1;
                 match result {
                     Ok(event) => {
+                        // 🔥 DEBUG: 打印所有收到的事件类型
+                        println!("[AI] 📨 Event {}: {:?}", event_count, event);
+
                         match event {
                             crate::harness::api::StreamEvent::MessageStart { .. } => {}
                             crate::harness::api::StreamEvent::TextDelta { text } => {
                                 loop_text.push_str(&text);
 
+                                // 🔥 DEBUG: 只在每 50 个 delta 或大片段时打印，同时显示 loop 信息
+                                if global_delta_index % 50 == 0 || text.len() > 50 {
+                                    println!("[AI] TextDelta: loop={}, idx={}, localIdx={}, textPreview=\"{}\", len={}",
+                                        loop_count,
+                                        global_delta_index,
+                                        global_delta_index - loop_start_delta_index,
+                                        text.chars().take(30).collect::<String>(),
+                                        text.len()
+                                    );
+                                }
+
+                                // 🔥 FIX: 使用全局 delta_index，确保跨整个 continuation 流单调递增
                                 let chunk = json!({
-                                    "choices": [{ "delta": { "content": text } }]
+                                    "choices": [{
+                                        "delta": { "content": text },
+                                        "index": {
+                                            "content_block_index": 0,
+                                            "delta_index": global_delta_index
+                                        }
+                                    }]
                                 });
                                 callback(chunk.to_string());
+
+                                global_delta_index += 1;
                             }
                             crate::harness::api::StreamEvent::ToolStart { tool_id, name, input } => {
                                 tool_name_map.insert(tool_id.clone(), name.clone());
@@ -306,28 +364,38 @@ impl AIService for HarnessAIService {
                         }
                     }
                     Err(e) => {
-                        println!("[AI] Stream error: {:?}", e);
+                        println!("[AI] ❌ Stream error: {:?}", e);
                         has_error = true;
                         break;
                     }
                 }
             }
 
+            println!("[AI] 🔚 While loop ended, event_count={}", event_count);
+
+            // 🔥 DEBUG: 显示本轮 loop 收到的事件数
+            println!("[AI] 🔍 Loop {} stream ended: events={}, has_error={}, tool_calls={}, text_len={}",
+                loop_count, event_count, has_error, collected_tool_calls.len(), loop_text.len());
+
             // 判断是否需要续接 (claw-code 模式：主要退出条件)
+            // 🔥 DEBUG: 添加详细的退出原因日志
             if has_error {
-                println!("[AI] Loop {} error, stopping", loop_count);
+                println!("[AI] ❌ Loop {} error, stopping", loop_count);
                 break;
             }
 
             if collected_tool_calls.is_empty() {
                 // 没有工具调用 → 模型完成生成
+                println!("[AI] ✅ No tool calls in loop {}, model finished generating", loop_count);
                 let finish_event = json!({
                     "choices": [{ "finish_reason": "stop" }]
                 });
                 callback(finish_event.to_string());
-                println!("[AI] Completed after {} loop(s)", loop_count);
+                println!("[AI] ✅ Completed after {} loop(s)", loop_count);
                 break;
             }
+
+            println!("[AI] 🔄 Loop {} has {} tool(s), continuing to next loop...", loop_count, collected_tool_calls.len());
 
             // 安全网：检测连续相同的工具调用签名
             let current_sig: String = collected_tool_calls.iter()

@@ -201,27 +201,28 @@ private init() {
           toolId: tc.id,
           result: result,
           timestamp: Date.now(),
-          shouldContinue: true // 🏆 FIX: 即使是 ToolCallManager 处理的，也应明确标记需续播
+          shouldContinue: false // 🔥 FIX: 禁用前端续播，后端已在内部 loop 中处理
       });
 
       this.activeToolCalls.delete(tc.id);
 
-// 🏆 物理隔离保护：延迟 100ms 触发续播，确保渲染已完成
-setTimeout(async () => {
-    if (this.activeToolCalls.size === 0 && globalStore) {
-        const state = globalStore.getState();
-
-        const { useSettingsStore } = await import('../../settingsStore');
-        const settings = useSettingsStore.getState();
-        const providerId = settings.currentProviderId || 'openai';
-        const modelId = settings.currentModel || 'gpt-4o';
-
-        // 🏆 FIX: 复用原始 assistant 消息 ID 作为 correlationId，确保后续工具调用能找到正确的消息
-        const existingCorrelationId = payload.correlationId;
-        console.log(`[ToolCallManager] 🔄 Resuming AI response with existingCorrelationId: ${existingCorrelationId}`);
-        state.generateResponse(state.messages, providerId, modelId, existingCorrelationId);
-    }
-}, 100);
+// 🔥 CRITICAL FIX: 禁用前端续播（后端已在内部 loop 中处理 continuation）
+// 双重续播会导致 delta_index 冲突和内容混乱
+// setTimeout(async () => {
+//     if (this.activeToolCalls.size === 0 && globalStore) {
+//         const state = globalStore.getState();
+//
+//         const { useSettingsStore } = await import('../../settingsStore');
+//         const settings = useSettingsStore.getState();
+//         const providerId = settings.currentProviderId || 'openai';
+//         const modelId = settings.currentModel || 'gpt-4o';
+//
+//         // 🏆 FIX: 复用原始 assistant 消息 ID 作为 correlationId，确保后续工具调用能找到正确的消息
+//         const existingCorrelationId = payload.correlationId;
+//         console.log(`[ToolCallManager] 🔄 Resuming AI response with existingCorrelationId: ${existingCorrelationId}`);
+//         state.generateResponse(state.messages, providerId, modelId, existingCorrelationId);
+//     }
+// }, 100);
     } catch (e) {
       console.error('[ToolCallManager] ❌ Execution failed:', e);
       this.activeToolCalls.delete(tc.id);

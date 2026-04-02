@@ -332,10 +332,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     }, [message.toolCalls, message.id]);
     // Debug: Log when isStreaming changes
     React.useEffect(() => {
-        if (process.env.NODE_ENV === 'development' && isStreaming && message.role === 'assistant') {
-            console.log('[MessageItem] 🚀 Message is actively streaming:', message.id);
-        }
-
         // 🔥 FIX: When streaming stops, immediately clear activelyStreaming state
         // This prevents the "生成中..." indicator from staying forever
         if (!isStreaming && isActivelyStreaming) {
@@ -546,8 +542,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const mergedSegments = React.useMemo(() => {
         // A. 🏆 新增：优先使用 segmentsFromStore (新逻辑)
         if (segmentsFromStore && segmentsFromStore.length > 0) {
-            console.log('[MessageItem] ✅ Using segments from store:', segmentsFromStore.length);
-
             return segmentsFromStore.filter(seg => {
                 // 基础验证
                 if (!seg || typeof seg !== 'object' || !seg.type) {

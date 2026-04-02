@@ -158,7 +158,6 @@ class ThreadPersistenceService {
     try {
       const stored = threadToStored(thread);
       await indexedDBHelper.saveThread(stored);
-      console.log(`[ThreadPersistence] Saved thread: ${thread.id}`);
     } catch (error) {
       console.error('[ThreadPersistence] Failed to save thread:', error);
     }
@@ -209,11 +208,6 @@ class ThreadPersistenceService {
       const validStoredMessages: StoredMessage[] = [];
       const skippedCount = { invalidId: 0 };
 
-      // 🏆 调试日志：打印消息内容预览
-      const messagePreview = messages.map((m: any) => `${m.role}: ${(m.content || '').substring(0, 30)}`).join(', ');
-      console.log(`[ThreadPersistence] 💾 准备保存 ${messages.length} 条消息到 thread: ${threadId.substring(0, 20)}`);
-      console.log(`[ThreadPersistence] 消息预览: [${messagePreview}]`);
-
       for (const message of messages) {
         const stored = messageToStored(message, threadId);
         if (stored !== null) {
@@ -229,7 +223,6 @@ class ThreadPersistenceService {
 
       if (validStoredMessages.length > 0) {
         await indexedDBHelper.saveMessages(validStoredMessages);
-        console.log(`[ThreadPersistence] ✅ 已保存 ${validStoredMessages.length} 条消息到 thread: ${threadId.substring(0, 20)}`);
       }
     } catch (error) {
       console.error('[ThreadPersistence] Failed to save messages:', error);
@@ -264,11 +257,6 @@ class ThreadPersistenceService {
     try {
       const stored = await indexedDBHelper.getThreadMessages(threadId);
       const messages = stored.map(storedToMessage);
-
-      // 🏆 调试日志：打印加载的消息内容
-      const messagePreview = messages.map((m: any) => `${m.role}: ${(m.content || '').substring(0, 30)}`).join(', ');
-      console.log(`[ThreadPersistence] 📥 从 thread: ${threadId.substring(0, 20)} 加载了 ${messages.length} 条消息`);
-      console.log(`[ThreadPersistence] 加载消息预览: [${messagePreview}]`);
 
       return messages;
     } catch (error) {
@@ -341,9 +329,6 @@ class ThreadPersistenceService {
           if (threadId === currentThreadId) {
             const messages = useChatStore.getState().messages;
             await this.saveThreadMessages(threadId, messages as any);
-            console.log('[ThreadPersistence] ✅ Saved thread:', threadId.substring(0, 20), 'messages:', messages.length);
-          } else {
-            console.log('[ThreadPersistence] ⏭️  Skipped saving messages for', threadId.substring(0, 20), '(not active anymore)');
           }
         }
       }

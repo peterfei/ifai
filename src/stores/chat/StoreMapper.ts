@@ -13,6 +13,9 @@ import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolic
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 
 export const initStoreMapper = () => {
+    // 🔥 序号校验：追踪每个流的 delta 序号
+    const streamIndexTracker = new Map<string, number>();
+
     // 🔥 CRITICAL FIX: 设置全局标记，表明 initStoreMapper 被调用了
     if (typeof window !== 'undefined') {
       (window as any).__STORE_MAPPER_CALLED__ = true;
@@ -97,12 +100,35 @@ export const initStoreMapper = () => {
 
     // 监听内容块 → 通知 ContentSegmentManager
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
-        const { delta, correlationId } = payload;
-        console.log('[StoreMapper] 📨 chat:stream:chunk received:', {
-            correlationId,
-            deltaLength: delta?.length || 0,
-            deltaPreview: delta?.substring(0, 50) || ''
-        });
+        const { delta, correlationId, deltaIndex } = payload;
+
+        // 🔥 DEBUG: 只在异常情况或每 50 个 delta 打印一次
+        const shouldLog = deltaIndex === undefined || deltaIndex < 0 || deltaIndex % 50 === 0;
+
+        if (shouldLog) {
+            console.log('[StoreMapper] 📨 chat:stream:chunk received:', {
+                correlationId,
+                deltaIndex,
+                deltaLength: delta?.length || 0,
+                deltaPreview: delta?.substring(0, 30) || ''
+            });
+        }
+
+        // 🔥 DEBUG: 检查 delta 是否包含路径混乱的迹象
+        if (delta && delta.includes('/') && delta.length > 50) {
+            console.log('[StoreMapper] 🔍 Chunk with path detected:', delta);
+        }
+
+        // 🔥 序号校验：如果有序号，记录并检查顺序
+        if (deltaIndex !== undefined && deltaIndex >= 0) {
+            const lastIdx = streamIndexTracker.get(correlationId) ?? -1;
+            streamIndexTracker.set(correlationId, deltaIndex);
+
+            // 检测乱序 - 只在乱序时打印警告
+            if (deltaIndex !== lastIdx + 1) {
+                console.warn(`[StoreMapper] ⚠️ Out-of-order delta detected: expected ${lastIdx + 1}, got ${deltaIndex}`);
+            }
+        }
         
         // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
         if (!contentSegmentManager.isStreamActive(correlationId)) {
@@ -114,12 +140,26 @@ export const initStoreMapper = () => {
         // 这是最基础的打字机效果保障，防止分段渲染逻辑失效导致空白
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
-            if (messageIndex === -1) return state;
+            if (messageIndex === -1) {
+                // 🔥 DEBUG: 找不到消息时的调试信息
+                console.warn(`[StoreMapper] ⚠️ Message not found for correlationId: ${correlationId}`);
+                console.log(`[StoreMapper] Available message IDs:`, state.messages.map((m: any) => m.id));
+                return state;
+            }
 
             const newMessages = [...state.messages];
             const targetMsg = { ...newMessages[messageIndex], isStreaming: true };
-            targetMsg.content = (targetMsg.content || '') + delta;
+            const oldContent = targetMsg.content || '';
+            targetMsg.content = oldContent + delta;
             newMessages[messageIndex] = targetMsg;
+
+            // 🔥 DEBUG: 检查内容拼接是否有问题
+            if (delta.includes('/') && delta.length > 30) {
+                console.log(`[StoreMapper] 🔍 Appending delta to message ${correlationId}:`);
+                console.log(`  Old content ended: "...${oldContent.slice(-50)}"`);
+                console.log(`  Delta: "${delta.slice(0, 100)}"`);
+                console.log(`  New content: "...${targetMsg.content.slice(-100)}"`);
+            }
 
             return { messages: newMessages, isLoading: true };
         });
@@ -133,7 +173,8 @@ export const initStoreMapper = () => {
         const { correlationId, totalTokens } = payload;
         if (!correlationId) return;
 
-        console.log('[StoreMapper] 🏁 Stream finished:', correlationId);
+        // 🔥 序号校验：清理序号追踪器
+        streamIndexTracker.delete(correlationId);
 
         // A. 通知 ContentSegmentManager
         contentSegmentManager.onStreamFinish(correlationId);
@@ -145,14 +186,9 @@ export const initStoreMapper = () => {
         // 延迟清理 finishedStreams 标记，防止内存泄漏
         setTimeout(() => {
           finishedStreams.delete(correlationId);
-          console.log('[StoreMapper] 🧹 Cleaned up finished stream marker:', correlationId);
         }, 10000);
 
         // C. 重置 UI 加载状态
-        console.log('[StoreMapper] 🔄 Setting isLoading to false for', correlationId);
-        const currentState = useChatStore.getState();
-        console.log('[StoreMapper] 🔍 Current isLoading before update:', currentState.isLoading);
-
         useChatStore.setState((state: any) => ({
             messages: state.messages.map((m: any) =>
                 m.id === correlationId ? { ...m, isStreaming: false, status: 'completed' } : m
@@ -163,7 +199,6 @@ export const initStoreMapper = () => {
         // 🔥 DEBUG: 验证状态是否正确更新
         setTimeout(() => {
             const newState = useChatStore.getState();
-            console.log('[StoreMapper] 🔍 Current isLoading after update:', newState.isLoading);
             if (newState.isLoading) {
                 console.error('[StoreMapper] ❌ isLoading is still true after setState! Force resetting...');
                 useChatStore.setState({ isLoading: false } as any);
@@ -240,12 +275,6 @@ export const initStoreMapper = () => {
 
     chatEventBus.on('chat:segment:updated', (payload: any) => {
         const { correlationId, segmentId, delta } = payload;
-        console.log('[StoreMapper] 📝 Segment updated, updating store:', {
-            correlationId,
-            segmentId,
-            delta: delta.substring(0, 30)
-        });
-
         const updater = (state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) return state;
@@ -608,21 +637,15 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:tool:completed', (payload) => {
       const { toolId, result, error, correlationId, shouldContinue } = payload;
 
-      console.log('[StoreMapper] ✅ Tool completed event received:', { toolId, correlationId, hasResult: !!result, shouldContinue });
-      console.log('[StoreMapper] 🔍 Result type:', typeof result, 'Result value:', result);
-      console.log('[StoreMapper] 🔍 Result keys:', result ? Object.keys(result) : 'N/A');
-
       const updater = (state: any) => {
         // 🏆 注意：保持原始结果格式（JSON 对象或字符串），由 UI 层的 toolResultFormatter 负责格式化
         const content = error || (typeof result === 'string' ? result : JSON.stringify(result));
-        console.log('[StoreMapper] 📝 Content created:', content);
 
         // 🏆 FIX: 更新工具调用状态为 completed
         const updatedMessages = state.messages.map((msg: any) => {
           if (msg.toolCalls && msg.toolCalls.length > 0) {
             const updatedToolCalls = msg.toolCalls.map((tc: any) => {
               if (tc.id === toolId) {
-                console.log('[StoreMapper] 🔄 Updating tool status to completed:', toolId);
                 return {
                   ...tc,
                   status: 'completed',
@@ -655,8 +678,11 @@ export const initStoreMapper = () => {
       };
       useChatStore.setState(updater as any);
 
-      // 🏆 FIX: 检查是否所有工具都已完成，如果是才触发续播
-      if (shouldContinue) {
+      // 🔥 CRITICAL FIX: 禁用前端续播（后端已在内部 loop 中处理 continuation）
+      // 后端的 harness_ai_service.rs 已有完整的 continuation loop 机制
+      // 前端续播会导致双重流并发，造成 delta_index 冲突和内容混乱
+      // 如果后端 continuation 失败，流会自然结束，用户可以手动重新发送
+      if (false && shouldContinue) {
         // 🏆 防抖处理：清除之前的定时器，确保多个并行工具完成后只触发一次续播
         if (continuationTimers[correlationId]) {
           clearTimeout(continuationTimers[correlationId]);
@@ -669,21 +695,18 @@ export const initStoreMapper = () => {
 
           // 🏆 FIX: 检查是否已经有续播在进行中
           if (continuationInProgress[correlationId]) {
-            console.log('[StoreMapper] ⏳ Continuation already in progress for:', correlationId);
             return;
           }
 
           // 🔥 FIX: 如果需要续播，清除 finishedStreams 标记
           // 当 LLM 发送工具调用后空 content 导致流被标记为完成时，需要清除标记允许续播
           if (finishedStreams.has(correlationId)) {
-            console.log('[StoreMapper] 🔄 Clearing finishedStreams for continuation:', correlationId);
             finishedStreams.delete(correlationId);
           }
 
           // 🏆 FIX: 检查流是否已经完成，如果完成则不触发续播
           // （这个检查现在应该不会触发，因为上面已经清除了标记）
           if (finishedStreams.has(correlationId)) {
-            console.log('[StoreMapper] ✅ Stream already finished for:', correlationId, '- skipping continuation');
             // 流已完成，确保 isLoading 为 false
             if (currentState.isLoading) {
               useChatStore.setState({ isLoading: false } as any);
