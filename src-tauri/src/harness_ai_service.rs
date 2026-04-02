@@ -149,11 +149,10 @@ impl AIService for HarnessAIService {
         // OpenAI 协议：模型返回 tool_calls + finish_reason:stop → 应用执行工具 →
         // 以 role:"tool" 消息发回 API → 模型继续生成
 
-        // 🔥 CRITICAL FIX: 添加最大迭代次数保护（参考 claw-code 的 max_iterations）
-        // 防止 AI 陷入工具调用循环，导致 API 费用失控和资源耗尽
-        // 注意：claw-code 默认是 usize::MAX（几乎无限），但这里限制为合理值
-        // 复杂任务（如创建多个文件）可能需要 20-30 次工具调用
-        const MAX_ITERATIONS: usize = 25;  // 允许最多 25 轮 continuation（可调整）
+        // 🔥 FIX: 设置最大迭代次数（参考 claw-code/conversation.rs）
+        // claw-code 默认使用 usize::MAX（几乎无限），这里设置为较大值
+        // 复杂任务（如创建多个文件、完整功能开发）可能需要 50-100 次工具调用
+        const MAX_ITERATIONS: usize = 1000;  // 足够大的值（依靠循环检测机制保护）
 
         let mut loop_count = 0;
 
@@ -175,7 +174,7 @@ impl AIService for HarnessAIService {
             // 🔥 CRITICAL: 添加最大迭代次数保护（参考 claw-code/conversation.rs line 168-172）
             if loop_count > MAX_ITERATIONS {
                 let error_msg = format!("超过最大迭代次数限制 ({})，可能陷入工具调用循环", MAX_ITERATIONS);
-                println!("[AI] ❌ {}: loop_count={}, stopping", error_msg, loop_count);
+                eprintln!("[AI] ❌ {}: loop_count={}, stopping", error_msg, loop_count);
                 callback(json!({
                     "type": "error",
                     "code": "MAX_ITERATIONS_EXCEEDED",
@@ -188,29 +187,15 @@ impl AIService for HarnessAIService {
                 break;
             }
 
-            // 🔥 DEBUG: 添加详细的 loop 开始日志
-            println!("[AI] ➡️ Starting loop {} (global_delta_index={}, max_iterations={})", loop_count, global_delta_index, MAX_ITERATIONS);
+            // 🔥 FIX: 简化日志（只在关键时刻输出）
+            if loop_count == 1 || loop_count % 10 == 0 {
+                println!("[AI] ➡️ Loop {} starting (delta_index={})", loop_count, global_delta_index);
+            }
 
             // 🔥 FIX: 使用全局 delta_index，并在每轮开始时记录当前值
             let loop_start_delta_index = global_delta_index;
 
-            // 🔥 DEBUG: 显示当前消息历史
-            println!("[AI] 📋 Loop {} message count: {}", loop_count, stream_messages.len());
-            for (i, msg) in stream_messages.iter().enumerate() {
-                let role = match msg.role {
-                    MessageRole::System => "system",
-                    MessageRole::User => "user",
-                    MessageRole::Assistant => "assistant",
-                    MessageRole::Tool => "tool",
-                };
-                let content_preview = if msg.content.len() > 50 {
-                    format!("{}...", &msg.content.chars().take(50).collect::<String>())
-                } else {
-                    msg.content.clone()
-                };
-                println!("[AI]   [{}] role={}, has_tool_calls={}, content=\"{}\"",
-                    i, role, msg.tool_calls.is_some(), content_preview);
-            }
+            // 🔥 FIX: 移除消息历史打印（占用大量内存）
 
             // 构建请求
             // 🔥 FIX: 根据 DeepSeek API 文档，deepseek-chat 最大支持 8K 输出 tokens
@@ -227,8 +212,9 @@ impl AIService for HarnessAIService {
                 tools: tools.clone(),
             };
 
-            // 首次 60s，续接 120s
-            let timeout_secs = if loop_count == 1 { 60 } else { 120 };
+            // 🔥 FIX: 增加超时时间，避免复杂任务被中断
+            // 首次请求 180s，续接 300s（与 DeepSeek HTTP 客户端超时对齐）
+            let timeout_secs = if loop_count == 1 { 180 } else { 300 };
             let stream_result = timeout(Duration::from_secs(timeout_secs), client.stream(request)).await;
 
             let mut stream = match stream_result {
@@ -247,39 +233,39 @@ impl AIService for HarnessAIService {
             let mut collected_tool_calls: Vec<CollectedToolCall> = Vec::new();
             let mut loop_finish_reason: Option<String> = None;  // 🔥 CRITICAL FIX: 追踪本轮的 finish_reason
 
-            // 🔥 FIX: 临时禁用批量发送，确保每个 delta 立即发送
-            // 批量发送导致数据延迟，前端提前断开
+            // 🔥 FIX: 立即发送 delta chunks（禁用批量）
+            // 批量发送可能导致缓冲区问题，暂时禁用
             let mut batch_buffer: Vec<String> = Vec::new();
             let batch_size = 1; // 立即发送（禁用批量）
             let mut has_error = false;
             let mut event_count = 0;
 
-            // 🔥 DEBUG: 添加 stream 处理开始日志
-            println!("[AI] 🔊 Loop {} starting to process stream...", loop_count);
+            // 🔥 DEBUG: 添加 stream 处理开始日志（仅一次）
+            if loop_count == 1 {
+                println!("[AI] 🔊 Starting stream processing...");
+            }
 
             // 处理流式响应
-            println!("[AI] 🔗 About to call stream.next()...");
             while let Some(result) = stream.next().await {
-                println!("[AI] ✅ Got result from stream!");
                 event_count += 1;
                 match result {
                     Ok(event) => {
-                        // 🔥 DEBUG: 打印所有收到的事件类型
-                        println!("[AI] 📨 Event {}: {:?}", event_count, event);
+                        // 🔥 FIX: 移除过度日志（每个事件都打印会导致内存爆炸）
+                        // 只在每 100 个事件时打印一次
+                        if event_count % 100 == 0 {
+                            println!("[AI] 📨 Processed {} events so far...", event_count);
+                        }
 
                         match event {
                             crate::harness::api::StreamEvent::MessageStart { .. } => {}
                             crate::harness::api::StreamEvent::TextDelta { text } => {
                                 loop_text.push_str(&text);
 
-                                // 🔥 DEBUG: 只在每 50 个 delta 或大片段时打印，同时显示 loop 信息
-                                if global_delta_index % 50 == 0 || text.len() > 50 {
-                                    println!("[AI] TextDelta: loop={}, idx={}, localIdx={}, textPreview=\"{}\", len={}",
-                                        loop_count,
-                                        global_delta_index,
-                                        global_delta_index - loop_start_delta_index,
-                                        text.chars().take(30).collect::<String>(),
-                                        text.len()
+                                // 🔥 FIX: 移除过度日志（减少内存占用）
+                                // 只在每 500 个 delta 时打印一次
+                                if global_delta_index % 500 == 0 {
+                                    println!("[AI] 📝 TextDelta: loop={}, idx={}, len={}",
+                                        loop_count, global_delta_index, text.len()
                                     );
                                 }
 
@@ -311,7 +297,6 @@ impl AIService for HarnessAIService {
 
                                 // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
                                 if !batch_buffer.is_empty() {
-                                    println!("[AI] 📦 Flushing {} chunks before ToolStart", batch_buffer.len());
                                     for batched_chunk in batch_buffer.drain(..) {
                                         callback(batched_chunk);
                                     }
@@ -329,9 +314,7 @@ impl AIService for HarnessAIService {
                                 callback(tool_event.to_string());
                             }
                             crate::harness::api::StreamEvent::ToolDone { tool_id, result } => {
-                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
                                 if !batch_buffer.is_empty() {
-                                    println!("[AI] 📦 Flushing {} chunks before ToolDone", batch_buffer.len());
                                     for batched_chunk in batch_buffer.drain(..) {
                                         callback(batched_chunk);
                                     }
@@ -345,7 +328,7 @@ impl AIService for HarnessAIService {
                                     .unwrap_or("unknown")
                                     .to_string();
 
-                                let (tool_name, exec_result) = if let Ok(args) = serde_json::from_str::<serde_json::Value>(&result_str) {
+                                let (tool_name, exec_result) = if let Ok(mut args) = serde_json::from_str::<serde_json::Value>(&result_str) {
                                     let router = get_global_tool_router();
 
                                     let tool_name = tool_name_map.get(&tool_id)
@@ -354,6 +337,18 @@ impl AIService for HarnessAIService {
                                         .or_else(|| args.get("tool").and_then(|v| v.as_str()))
                                         .unwrap_or("TodoWrite")
                                         .to_string();
+
+                                    // 🔥 FIX: 为 bash 工具自动注入 working_dir 参数
+                                    if tool_name == "bash" || tool_name == "PowerShell" {
+                                        if let Some(obj) = args.as_object_mut() {
+                                            if !obj.contains_key("working_dir") {
+                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                                    println!("[AI] 🔧 Auto-injecting working_dir={} for {}", project_root, tool_name);
+                                                    obj.insert("working_dir".to_string(), serde_json::json!(project_root));
+                                                }
+                                            }
+                                        }
+                                    }
 
                                     // 🔥 CRITICAL FIX: 工具执行错误时返回 JSON 格式，让 AI 知道失败
                                     // 参考 claw-code/conversation.rs line 222-225: 将错误转为输出
@@ -411,7 +406,19 @@ impl AIService for HarnessAIService {
                                             None
                                         };
 
-                                        let fallback_args = serde_json::json!({"raw_input": &result_str});
+                                        // 🔥 FIX: 为 bash 工具自动注入 working_dir（fallback 路径）
+                                        let mut fallback_args = serde_json::json!({"raw_input": &result_str});
+                                        if tool_name_from_map == "bash" || tool_name_from_map == "PowerShell" {
+                                            if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                                if let Some(obj) = fallback_args.as_object_mut() {
+                                                    if !obj.contains_key("working_dir") {
+                                                        println!("[AI] 🔧 Auto-injecting working_dir={} for {} (fallback)", project_root, tool_name_from_map);
+                                                        obj.insert("working_dir".to_string(), serde_json::json!(project_root));
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         // 🔥 CRITICAL FIX: fallback 执行失败时也返回 JSON 格式
                                         let exec = match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
                                             Ok(res) => res,
@@ -468,18 +475,14 @@ impl AIService for HarnessAIService {
                                 });
                             }
                             crate::harness::api::StreamEvent::MessageDone { tokens_used: _ } => {
-                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
                                 if !batch_buffer.is_empty() {
-                                    println!("[AI] 📦 Flushing {} chunks before MessageDone", batch_buffer.len());
                                     for batched_chunk in batch_buffer.drain(..) {
                                         callback(batched_chunk);
                                     }
                                 }
                             }
                             crate::harness::api::StreamEvent::Error { code, message } => {
-                                // 🔥 FIX: 清空批量 buffer，确保之前的数据立即发送
                                 if !batch_buffer.is_empty() {
-                                    println!("[AI] 📦 Flushing {} chunks before Error", batch_buffer.len());
                                     for batched_chunk in batch_buffer.drain(..) {
                                         callback(batched_chunk);
                                     }
@@ -498,9 +501,7 @@ impl AIService for HarnessAIService {
                         println!("[AI] ❌ Stream error: {:?}", e);
                         has_error = true;
 
-                        // 🔥 FIX: 清空剩余的批量 buffer
                         if !batch_buffer.is_empty() {
-                            println!("[AI] 📦 Flushing {} chunks on error", batch_buffer.len());
                             for remaining_chunk in batch_buffer.drain(..) {
                                 callback(remaining_chunk);
                             }
@@ -515,18 +516,18 @@ impl AIService for HarnessAIService {
 
             // 🔥 FIX: 清空剩余的批量 buffer
             if !batch_buffer.is_empty() {
-                println!("[AI] 📦 Flushing {} remaining chunks from batch_buffer", batch_buffer.len());
                 for remaining_chunk in batch_buffer.drain(..) {
                     callback(remaining_chunk);
                 }
             }
 
-            // 🔥 DEBUG: 显示本轮 loop 收到的事件数
-            println!("[AI] 🔍 Loop {} stream ended: events={}, has_error={}, tool_calls={}, text_len={}",
-                loop_count, event_count, has_error, collected_tool_calls.len(), loop_text.len());
+            // 🔥 FIX: 简化日志（只输出关键信息）
+            if has_error || collected_tool_calls.is_empty() {
+                println!("[AI] Loop {} ended: events={}, tool_calls={}, error={}",
+                    loop_count, event_count, collected_tool_calls.len(), has_error);
+            }
 
             // 判断是否需要续接 (claw-code 模式：主要退出条件)
-            // 🔥 DEBUG: 添加详细的退出原因日志
             if has_error {
                 println!("[AI] ❌ Loop {} error, stopping", loop_count);
                 break;
@@ -534,16 +535,18 @@ impl AIService for HarnessAIService {
 
             if collected_tool_calls.is_empty() {
                 // 没有工具调用 → 模型完成生成
-                println!("[AI] ✅ No tool calls in loop {}, model finished generating", loop_count);
+                println!("[AI] ✅ Completed after {} loop(s)", loop_count);
                 let finish_event = json!({
                     "choices": [{ "finish_reason": "stop" }]
                 });
                 callback(finish_event.to_string());
-                println!("[AI] ✅ Completed after {} loop(s)", loop_count);
                 break;
             }
 
-            println!("[AI] 🔄 Loop {} has {} tool(s), continuing to next loop...", loop_count, collected_tool_calls.len());
+            // 🔥 FIX: 简化续接日志
+            if loop_count % 5 == 0 {
+                println!("[AI] 🔄 Loop {} continuing ({} tools)", loop_count, collected_tool_calls.len());
+            }
 
             // 安全网：检测连续相同的工具调用签名
             let current_sig: String = collected_tool_calls.iter()
@@ -572,11 +575,8 @@ impl AIService for HarnessAIService {
                 break;
             }
 
-            // 打印简洁的续接日志（每轮一行）
-            let tool_names: Vec<&str> = collected_tool_calls.iter()
-                .map(|tc| tc.tool_name.as_str())
-                .collect();
-            println!("[AI] Loop {}: {} tool(s) [{}]", loop_count, collected_tool_calls.len(), tool_names.join(", "));
+            // 🔥 FIX: 移除工具名称打印（减少日志量）
+            // 工具调用信息已在 ToolStart/ToolDone 时输出
 
             // 构建 assistant 消息（包含 tool_calls）
             let tool_calls_for_msg: Vec<HarnessToolCall> = collected_tool_calls.iter().map(|tc| {
