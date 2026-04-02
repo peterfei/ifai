@@ -919,10 +919,10 @@ async fn ai_chat(
     ];
 
     // 🚀 v0.5.0: 双模引擎工具策略
+    let original_tool_count = tools.len();
     let mut final_tools = tools;
     if let Some(ref m) = mode {
         if m == "vibe" {
-            println!("[AI Chat] Vibe Mode active: Filtering for safe PIVO tools");
             final_tools.retain(|t| {
                 let name = t["function"]["name"].as_str().unwrap_or("");
                 // 🆕 P3: 添加新工具到 Vibe Mode 白名单
@@ -937,16 +937,16 @@ async fn ai_chat(
                     || name == "glob_search"
                     || name == "grep_search"
             });
+            println!("[AI Chat] Vibe Mode: {} → {} PIVO tools", original_tool_count, final_tools.len());
         }
         // Spec 模式不进行 retain，保持全量 tools
     }
 
-    // 🔍 P2 调试：打印工具列表
-    println!("[AI Chat] 🛠️ Sending {} tools to AI:", final_tools.len());
-    for (i, tool) in final_tools.iter().enumerate() {
-        let name = tool["function"]["name"].as_str().unwrap_or("?");
-        println!("  [{}] {}", i + 1, name);
-    }
+    // 打印工具列表（单行）
+    let tool_names: Vec<&str> = final_tools.iter()
+        .map(|t| t["function"]["name"].as_str().unwrap_or("?"))
+        .collect();
+    println!("[AI Chat] Sending {} tools: [{}]", final_tools.len(), tool_names.join(", "));
 
     let is_vibe_mode = mode.as_deref() == Some("vibe");
     state.ai_service.stream_chat(

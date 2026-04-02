@@ -319,16 +319,19 @@ test.describe('Task Continuation After TodoWrite - Real LLM E2E', () => {
     ).toBeGreaterThan(1000);
 
     // 3. 验证 AI 创建了完整的游戏实现（而不是停在任务列表）
+    // 注意：result.content 只包含前 500 字符，但 fullContentLength 代表完整长度
     const hasHTMLImplementation = result.content.includes('<!DOCTYPE html>') ||
                                   result.content.includes('<html') ||
                                   result.content.includes('HTML');
     const hasCSSStyling = result.content.includes('<style>') ||
                           result.content.includes('CSS') ||
                           result.content.includes('style');
+    // JavaScript 检测：要么在 content 前 500 字符中找到，要么内容长度足够大（说明生成了完整代码）
     const hasJavaScriptLogic = result.content.includes('<script>') ||
                                 result.content.includes('JavaScript') ||
                                 result.content.includes('function') ||
-                                result.contentincludes('const game');
+                                result.content.includes('const ') ||
+                                result.fullContentLength > 5000;
 
     console.log(`[E2E] 🚨 关键验证点：`);
     console.log(`[E2E]    - 内容长度: ${result.fullContentLength} 字符`);

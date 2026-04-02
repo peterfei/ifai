@@ -30,7 +30,7 @@ async function getTauriListen() {
     const eventModule = await import('@tauri-apps/api/event');
     return eventModule.listen;
   } catch (e) {
-    console.error('[StreamingResponseController] ❌ Failed to get Tauri listen function:', e);
+    console.error('[SC] Failed to get Tauri listen function:', e);
     throw new Error('Tauri event listen function not available');
   }
 }
@@ -94,7 +94,6 @@ export class StreamingResponseController {
 
       if (session && !session.isFinished) {
         session.lastHeartbeat = Date.now();
-        console.log(`[StreamController] 💓 Heartbeat updated for ${correlationId} (tool completed)`);
       }
     });
   }
@@ -138,7 +137,7 @@ export class StreamingResponseController {
           // 🏆 FIX: 增加 session.hasReceivedChunk 判断，确保不会在续播刚开始、首包还没到时就触发快杀
           // 🏆 FIX: 增加 session.startTime 保护期判断，前 15 秒内绝对禁止快杀，给续播/思考留出充足时间
           if (session.hasReceivedChunk && (hasContent || hasToolCalls) && !hasPendingTools && (now - session.lastHeartbeat > 5000) && (now - session.startTime > 15000)) {
-            console.warn(`[StreamController] ⚡ Fast finish: Content received, no pending tools, 5s timeout for ${correlationId}`);
+            console.warn(`[SC] Fast finish (5s timeout): ${correlationId}`);
             this.emitFinished({ correlationId, sessionId: session.sessionId || '', timestamp: Date.now() });
             return;
           }
@@ -146,7 +145,7 @@ export class StreamingResponseController {
           // 15 秒超时阈值（原有逻辑）
           // 🏆 FIX: 增加 startTime 保护，确保前 15 秒内不触发自愈/终止
           if (now - session.lastHeartbeat > 15000 && now - session.startTime > 15000) {
-            console.warn(`[StreamController] 🛡️ Sentinel detected stall for session: ${correlationId}`);
+            console.warn(`[SC] Sentinel stall detected: ${correlationId}`);
             this.triggerPhysicalSelfHealing(correlationId);
           }
         }
@@ -183,7 +182,7 @@ export class StreamingResponseController {
 
     if (hasUnclosedTool || (!hasContent && !hasAnyTool)) {
       const reason = hasUnclosedTool ? "Unclosed tool" : "Startup stall";
-      console.log(`[StreamController] 🔄 Physical Auto-Continue (${reason}): ${correlationId}`);
+      console.log(`[SC] Physical Auto-Continue (${reason}): ${correlationId}`);
 
       // 重置心跳防止死循环
       const session = this.activeSessions.get(correlationId);
@@ -195,7 +194,7 @@ export class StreamingResponseController {
         (chatStore as any).generateResponse(chatStore.messages, providerConfig);
       }
     } else {
-      console.log(`[StreamController] 🛡️ Physical Finalize (Normal stop): ${correlationId}`);
+      console.log(`[SC] Physical Finalize: ${correlationId}`);
       this.emitFinished({ correlationId, sessionId: '', timestamp: Date.now() });
     }
   }
@@ -221,15 +220,12 @@ export class StreamingResponseController {
     if (!(window as any).__PIVO_BRIDGE__) {
       (window as any).__PIVO_BRIDGE__ = {
         push: (id: string, payload: any) => {
-          console.log(`[PIVO-BRIDGE] 📥 Direct Injection: ${id}`, payload);
           window.dispatchEvent(new CustomEvent(`pivo:direct-chunk:${id}`, { detail: payload }));
         },
         finalize: (id: string) => {
-          console.log(`[PIVO-BRIDGE] 🏁 Direct Finalize: ${id}`);
           window.dispatchEvent(new CustomEvent(`pivo:direct-finish:${id}`));
         }
       };
-      console.log('[StreamController] ✅ PIVO Bridge initialized');
     }
   }
 
@@ -242,13 +238,11 @@ export class StreamingResponseController {
     // 监听直接注入的 chunk
     const chunkHandler = (e: Event) => {
       const customEvent = e as CustomEvent;
-      console.log('[PIVO-BRIDGE] 📨 Received chunk via PIVO Bridge:', customEvent.detail);
       this.handleBackendEvent(customEvent.detail, payload);
     };
 
     // 监听直接注入的 finish
     const finishHandler = () => {
-      console.log('[PIVO-BRIDGE] 🏁 Received finish via PIVO Bridge');
       this.emitFinished(payload);
     };
 
@@ -262,17 +256,13 @@ export class StreamingResponseController {
     };
 
     this.pivoBridgeUnlisteners.set(correlationId, unlisten);
-    console.log(`[StreamController] ✅ PIVO Bridge listeners registered for ${correlationId}`);
   }
 
   /**
    * 启动针对特定消息的流式监听
    */
   async startListening(messageId: string, payload: BasePayload) {
-    console.log(`[StreamController] 📡 ========== START LISTENING ==========`);
-    console.log(`[StreamController] 📡 Starting listener for ${messageId}`);
-    console.log(`[StreamController] 📡 Payload correlationId: ${payload.correlationId}`);
-    console.log(`[StreamController] 📡 Payload sessionId: ${payload.sessionId}`);
+    console.log(`[SC] Stream start: ${messageId} (correlation: ${payload.correlationId})`);
 
     const threadId = useThreadStore.getState().activeThreadId || payload.sessionId || 'default';
 
@@ -292,19 +282,16 @@ export class StreamingResponseController {
 
     // 如果该 ID 已经在 emittedFinish 中，说明这是新的续播片段，物理重置
     if (this.emittedFinish.has(payload.correlationId)) {
-      console.log(`[StreamController] 🔄 Continuation mode: Physical Reset for ${payload.correlationId}`);
       this.emittedFinish.delete(payload.correlationId);
     }
 
     // 🏆 物理隔离：仅在彻底新建会话时清理旧监听器
     if (!isContinuation && this.activeListeners.has(payload.correlationId)) {
-      console.log(`[StreamController] 🛡️ Non-continuation: Performing full cleanup for ${payload.correlationId}`);
       this.stopListening(payload.correlationId);
     }
 
     // 🔥 FIX v0.3.13: 续播场景下清理旧监听器 (必须在创建新 session 之前)
     if (isContinuation && this.activeListeners.has(payload.correlationId)) {
-      console.log(`[StreamController] 🧹 Cleaning up old listeners for continuation: ${payload.correlationId}`);
       this.stopListening(payload.correlationId);
     }
 
@@ -325,16 +312,8 @@ export class StreamingResponseController {
     // 注意：后端发射格式始终为 "chat_${correlationId}"
     const eventId = `chat_${payload.correlationId}`;
 
-    console.log(`[StreamController] 🎯 Target eventId: ${eventId}`);
-    console.log(`[StreamController] 🎯 correlationId: ${payload.correlationId}`);
-    console.log(`[StreamController] 🎯 messageId: ${messageId}`);
-    console.log(`[StreamController] 🎯 Payload sessionId: ${threadId}`);
-
     if (messageId !== payload.correlationId) {
-      console.warn(`[StreamController] ⚠️ MESSAGE ID MISMATCH: messageId="${messageId}" vs correlationId="${payload.correlationId}"`);
-      console.warn(`[StreamController] ⚠️ This may cause eventId mismatch - backend sends to "chat_${payload.correlationId}" but we listen to "chat_${messageId}"`);
-    } else {
-      console.log(`[StreamController] ✅ Message ID matches correlationId - eventId should be consistent`);
+      console.warn(`[SC] MESSAGE ID MISMATCH: messageId="${messageId}" vs correlationId="${payload.correlationId}"`);
     }
 
     // 🔧 注册 PIVO Bridge 监听器（E2E 测试支持）
@@ -342,7 +321,7 @@ export class StreamingResponseController {
 
     // 🏆 物理兼容性：如果不在真实 Tauri 环境，使用仿真监听器
     if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
-        console.warn('[StreamController] 🛡️ Non-Tauri environment detected. Using simulated listeners.');
+        console.warn('[SC] Non-Tauri environment, using simulated listeners.');
         this.activeListeners.set(payload.correlationId, [() => {}]);
         return;
     }
@@ -351,17 +330,8 @@ export class StreamingResponseController {
         // 🔥 FIX: 使用动态获取的 listen 函数，修复 E2E 环境中的模块解析问题
         const listen = await getTauriListen();
 
-        // 🔥 DEBUG: 诊断 Tauri event listen 是否可用
-        console.log('[StreamController] 🔍 Tauri Event Listen Check:', {
-          eventId,
-          listenFunctionExists: typeof listen === 'function',
-          listenSource: typeof window !== 'undefined' && (window as any).__TAURI__?.event?.listen ? 'global' : 'module',
-          correlationId: payload.correlationId
-        });
-
         // 1. 监听状态更新 (Status)
         const unlistenStatus = await listen(`${eventId}_status`, (event: any) => {
-          console.log(`[StreamController] 📨 Status event received:`, event.payload);
           session.lastHeartbeat = Date.now();
           chatEventBus.emit('chat:session:sync', {
             ...payload,
@@ -370,9 +340,6 @@ export class StreamingResponseController {
         });
 
         // 2. 监听核心内容流 (Stream)
-        console.log(`[StreamController] 🔍 Attempting to listen to eventId: ${eventId}`);
-        console.log(`[StreamController] 🔍 Is this a continuation?`, isContinuation);
-        console.log(`[StreamController] 🔍 ActiveListeners before:`, Array.from(this.activeListeners.keys()));
         let unlistenStream;
         let eventReceived = false;
 
@@ -383,11 +350,7 @@ export class StreamingResponseController {
         const timeoutMs = isContinuation ? 30000 : 15000;
         const eventTimeoutCheck = setTimeout(() => {
           if (!eventReceived) {
-            console.warn(`[StreamController] ⏰ EVENT TIMEOUT: No events received within ${timeoutMs}ms for eventId: ${eventId}`);
-            console.warn(`[StreamController] ⏰ This is expected for slow LLMs (DeepSeek, local models) - the stream may still arrive`);
-            console.warn(`[StreamController] 🔍 Expected eventId: ${eventId}`);
-            console.warn(`[StreamController] 🔍 Is continuation: ${isContinuation}`);
-            console.warn(`[StreamController] 🔍 correlationId: ${payload.correlationId}`);
+            console.warn(`[SC] Event timeout (${timeoutMs}ms) for ${eventId}${isContinuation ? ' (continuation)' : ''}`);
           }
         }, timeoutMs);
 
@@ -396,30 +359,24 @@ export class StreamingResponseController {
                 if (!eventReceived) {
                   eventReceived = true;
                   clearTimeout(eventTimeoutCheck);
-                  console.log(`[StreamController] ✅ First event received after ${(Date.now() - session.lastHeartbeat)}ms`);
                 }
-                console.log(`[StreamController] 📨 Stream event received, type:`, typeof event.payload);
-                console.log(`[StreamController] 📨 Raw payload:`, event.payload);
                 session.lastHeartbeat = Date.now();
                 this.handleBackendEvent(event.payload, payload);
             });
-            console.log(`[StreamController] ✅ Successfully registered listener for ${eventId}`);
         } catch (e) {
             clearTimeout(eventTimeoutCheck);
-            console.error(`[StreamController] ❌ Failed to listen to ${eventId}:`, e);
+            console.error(`[SC] Failed to listen to ${eventId}:`, e);
             throw e;
         }
 
         // 3. 🔥 FIX: 监听 finish 事件（商业版 ifainew_core 发送）
         const unlistenFinish = await listen(`${eventId}_finish`, (event: any) => {
-          console.log(`[StreamController] 🏁 Finish event received for ${payload.correlationId}:`, event.payload);
-          console.log(`[StreamController] 🏁 Already emitted? ${this.emittedFinish.has(payload.correlationId)}`);
           this.emitFinished(payload);
         });
 
         // 4. 🔥 FIX: 监听 error 事件（后端 API 错误或致命错误时发送）
         const unlistenError = await listen(`${eventId}_error`, (event: any) => {
-          console.error(`[StreamController] ❌ Error event received for ${payload.correlationId}:`, event.payload);
+          console.error(`[SC] Error event for ${payload.correlationId}:`, event.payload);
           // 发送错误事件到 EventBus
           chatEventBus.emit('chat:error', {
             correlationId: payload.correlationId,
@@ -431,10 +388,8 @@ export class StreamingResponseController {
 
         // 5. 记录监听器以便后续清理
         this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream, unlistenFinish, unlistenError]);
-        console.log(`[StreamController] ✅ Listening to eventId: ${eventId} (including _finish)`);
-        console.log(`[StreamController] 🎯 Registered listeners for correlationId: ${payload.correlationId}`);
     } catch (e) {
-        console.error('[StreamController] ❌ Failed to setup Tauri listeners:', e);
+        console.error('[SC] Failed to setup Tauri listeners:', e);
     }
   }
 
@@ -442,10 +397,6 @@ export class StreamingResponseController {
    * 处理后端返回的原始事件
    */
   private handleBackendEvent(raw: any, payload: BasePayload) {
-    console.log('[StreamController] 🔍 handleBackendEvent called');
-    console.log('[StreamController] 🔍 Raw type:', typeof raw);
-    console.log('[StreamController] 🔍 Raw value (first 500 chars):', typeof raw === 'string' ? raw.substring(0, Math.min(500, raw.length)) : raw);
-
     // 🏆 FIX: 只要收到数据，立即刷新心跳并标记已接收数据
     const session = this.activeSessions.get(payload.correlationId);
     if (session && raw) {
@@ -455,7 +406,6 @@ export class StreamingResponseController {
 
     // 🏆 FIX: 如果 raw 是空或已经结束，检测是否需要触发 finish
     if (!raw) {
-      console.log('[StreamController] ⚠️ Raw is empty/null, checking if stream should finish...');
       // 检查是否有待处理的工具或内容
       const chatStore = useChatStore.getState();
       const msg = chatStore.messages.find(m => m.id === payload.correlationId);
@@ -464,13 +414,10 @@ export class StreamingResponseController {
       );
 
       if (!hasPendingTools) {
-        console.log('[StreamController] 🏁 No pending tools, triggering finish (empty raw)');
         this.emitFinished(payload);
       }
       return;
     }
-
-    console.log('[StreamController] 🔍 Raw value:', raw);
 
     // 🏆 物理保险丝：如果 raw 为空或 undefined，可能意味着流已结束
     if (!raw) {
@@ -481,19 +428,14 @@ export class StreamingResponseController {
     try {
       let data = raw;
       if (typeof raw === 'string') {
-        console.log('[StreamController] 🔍 Raw is string, attempting JSON parse...');
         try {
           data = JSON.parse(raw);
-          console.log('[StreamController] ✅ JSON parse success, data:', data);
         } catch (e) {
-          console.log('[StreamController] ⚠️ JSON parse failed, treating as text chunk');
           // 🏆 文本片段处理
           this.emitChunk(raw, false, payload);
           return;
         }
       }
-
-      console.log('[StreamController] 🔍 Processed data type:', data.type, 'full data:', data);
 
       // 🆕 P2: 兼容 OpenAI/DeepSeek 格式（没有 type 字段）
       // 检查是否有 choices.delta.content（文本内容）
@@ -501,7 +443,6 @@ export class StreamingResponseController {
 
       if (isOpenAIFormat) {
         const content = data.choices[0].delta.content;
-        console.log('[StreamController] 📝 OpenAI format content chunk:', content?.substring(0, 50));
         this.emitChunk(content || '', false, payload);
       }
       // 情况 A: 文本内容
@@ -518,31 +459,17 @@ export class StreamingResponseController {
           // 等待工具调用完成后，由真正的 _finish 事件来结束流
           // 空的 content chunk 只是 LLM 表示"我暂时没有更多文本"，不应该结束整个流
           if (hasCompleteToolCalls) {
-            console.log('[StreamController] ⏸️ Empty content with tool calls - waiting for tool completion and finish event');
-            // 不要触发 emitFinished，等待真正的 _finish 事件
             return;
           }
-
-          // 没有工具调用时的空 content，可能是真正的流结束
-          console.log('[StreamController] 🏁 Empty content without tool calls - potential stream end');
-          // 继续处理，但不立即 finish，等待 _finish 事件
         }
 
-        console.log('[StreamController] 📝 Content chunk:', data.content?.substring(0, 50));
         this.emitChunk(data.content || '', false, payload);
       }
 
       // 情况 B: 工具调用 (深度提取支持)
       else if (data.type === 'tool_call' || data.type === 'toolCall' || data.tool_calls) {
-        console.log('[StreamController] 🔧 Tool call detected!');
-        console.log('[StreamController] 🔧 data.tool_call:', data.tool_call);
-        console.log('[StreamController] 🔧 data.toolCall:', data.toolCall);
-        console.log('[StreamController] 🔧 data.tool_calls:', data.tool_calls);
-
         // 🏆 兼容私有库的数据结构：优先使用 tool_call 字段（私有库使用的格式）
         const tc = data.tool_call || data.toolCall || data.tool_calls?.[0];
-
-        console.log('[StreamController] 🔧 Extracted tc:', tc);
 
         if (tc) {
             // 🏆 FIX: 增量累积 tool call data（处理流式传输）
@@ -560,26 +487,14 @@ export class StreamingResponseController {
               // 第一个 chunk 有 id，建立映射
               bufferKey = `id-${originalId}`;
               this.indexToBufferKey.set(indexKey, bufferKey);
-              console.log('[StreamController] 📝 Index mapping created:', indexKey, '->', bufferKey);
             } else {
               // 后续 chunks 没有 id，尝试通过 index 找到对应的 buffer key
               bufferKey = this.indexToBufferKey.get(indexKey) || indexKey;
             }
 
-            console.log('[StreamController] 🔧 Chunk analysis:', {
-              bufferKey,
-              originalId,
-              index: tc.index,
-              indexKey,
-              toolName: toolName || '(empty)',
-              toolArgs: toolArgs.substring(0, 50),
-              hasName: !!toolName,
-              hasArgs: toolArgs.length > 0
-            });
-
             // 跳过既没有 name 也没有 arguments 的无效 chunk
             if (!toolName && !toolArgs) {
-              console.warn('[StreamController] ⚠️ Empty chunk (no name, no args), skipping');
+              console.warn('[SC] Empty tool chunk (no name, no args), skipping');
               return;
             }
 
@@ -594,15 +509,12 @@ export class StreamingResponseController {
             if (toolName && !buffered.hasName) {
               buffered.name = toolName;
               buffered.hasName = true;
-              console.log('[StreamController] 📝 Tool name buffered:', toolName);
             }
 
             // 🏆 累积 arguments（可能流式到达）
             if (toolArgs) {
               buffered.arguments += toolArgs;
               buffered.hasArgs = buffered.arguments.length > 0;
-              console.log('[StreamController] 📝 Arguments buffered, total length:', buffered.arguments.length);
-              console.log('[StreamController] 📝 Current arguments:', buffered.arguments);
             }
 
             // 🏆 当有 name 且有完整的 arguments 时，emit 工具调用
@@ -612,19 +524,11 @@ export class StreamingResponseController {
               try {
                 JSON.parse(buffered.arguments);
                 isComplete = true;
-                console.log('[StreamController] ✅ Arguments JSON is complete:', buffered.arguments);
               } catch (e) {
                 // JSON 不完整，继续等待更多 chunks
-                console.log('[StreamController] ⏳ Arguments JSON incomplete, waiting for more chunks...');
               }
 
               if (isComplete) {
-                console.log('[StreamController] 🎯 Emitting complete tool call:', {
-                  toolId: buffered.toolId,
-                  name: buffered.name,
-                  argsLength: buffered.arguments.length
-                });
-
                 chatEventBus.emit('chat:tool:call', {
                   ...payload,
                   toolId: buffered.toolId,
@@ -637,48 +541,27 @@ export class StreamingResponseController {
               }
             }
         } else {
-            console.warn('[StreamController] ⚠️ Tool call data structure not recognized:', data);
+            console.warn('[SC] Tool call data structure not recognized:', data);
         }
       }
 
       // 🆕 P2: 工具完成事件（从 DeepSeek/OpenAI 流式响应中累积的参数）
       else if (data.type === 'tool_done') {
-        console.log('[StreamController] 🎯 Tool done event detected!');
-        console.log('[StreamController] 🎯 Tool done data:', data);
-
         const toolCallId = data.tool_call_id || data.toolCallId;
         const result = data.result || data.arguments || '{}';
         const toolName = data.tool || '';
 
-        console.log('[StreamController] 🔍 Debug - toolCallId:', toolCallId, 'toolName:', toolName, 'result type:', typeof result, 'result:', result);
-
         if (toolCallId) {
-          console.log('[StreamController] 🎯 Processing tool_done for:', toolCallId);
-          console.log('[StreamController] 🎯 Tool result:', result);
-
           // 🔥 FIX: 检查 data.todos（直接从事件数据中获取，不需要从 result 解析）
           if (data.todos && Array.isArray(data.todos)) {
-            console.log('[StreamController] ✅ TodoWrite detected in data.todos, syncing to store:', data.todos);
-            console.log('[StreamController] 🔍 Todos array length:', data.todos.length);
-
-            // 动态导入 todoWriteStore
-            console.log('[StreamController] 📦 Importing todoWriteStore...');
             import('../../todoWriteStore').then(({ useTodoWriteStore }) => {
-              console.log('[StreamController] 📦 todoWriteStore imported, calling syncFromToolCall...');
               useTodoWriteStore.getState().syncFromToolCall(data.todos);
-              console.log('[StreamController] ✅ TodoWrite synced successfully');
             }).catch(err => {
-              console.error('[StreamController] ❌ Failed to import or sync TodoWrite:', err);
+              console.error('[SC] Failed to sync TodoWrite:', err);
             });
           } else {
-            console.log('[StreamController] ⚠️ data.todos not found or not an array, skipping sync');
-            console.log('[StreamController] ⚠️ data.todos:', data.todos, 'type:', typeof data.todos);
-
             // 🆕 P3: 对于非 TodoWrite 工具，发送工具完成事件
             if (toolName && toolName !== 'TodoWrite') {
-              console.log('[StreamController] 🛠️ Emitting tool completion event for:', toolName);
-
-              // 发送工具完成事件，让 UI 显示结果
               chatEventBus.emit('chat:tool:completed', {
                 ...payload,
                 toolId: toolCallId,  // 🔧 FIX: StoreMapper 期待的是 toolId
@@ -689,7 +572,7 @@ export class StreamingResponseController {
             }
           }
         } else {
-          console.log('[StreamController] ⚠️ No toolCallId found, skipping tool_done processing');
+          // no toolCallId, skipping
         }
       }
 
@@ -703,15 +586,12 @@ export class StreamingResponseController {
         (data.choices && data.choices[0] && data.choices[0].finish_reason)
       ) {
         const finishReason = data.finish || data.finish_reason || (data.choices && data.choices[0] && data.choices[0].finish_reason);
-        console.log(`[StreamController] 🏁 End of stream detected via: ${finishReason || 'type:finish'}`);
-        console.log('[StreamController] 🏁 Finish data:', data);
+        console.log(`[SC] End of stream detected: ${finishReason || 'type:finish'}`);
         this.emitFinished(payload, data.usage?.total_tokens);
       }
 
       // 🏆 FIX: 检测 finish=tool_calls 的情况
       else if (data.finish === 'tool_calls' || data.finish === 'tool') {
-        console.log(`[StreamController] 🏁 End of stream detected (tool_calls):`, data.finish);
-        console.log('[StreamController] 🏁 Finish data:', data);
         this.emitFinished(payload, data.usage?.total_tokens);
       }
 
@@ -723,29 +603,20 @@ export class StreamingResponseController {
           .some(([key, buffered]) => buffered.hasName && buffered.hasArgs);
 
         if (hasCompleteToolCalls) {
-          console.log('[StreamController] 🏁 Detected finish via empty content chunk with complete tool calls');
           this.emitFinished(payload);
         } else {
           // 正常的空 content chunk，继续等待
           this.emitChunk('', false, payload);
         }
-      } else {
-        console.log('[StreamController] ⚠️ Unhandled event type:', data.type);
       }
     } catch (error) {
-      console.error('[StreamController] ❌ Parse error:', error);
+      console.error('[SC] Parse error:', error);
       // 解析失败不代表流断了，尝试作为纯文本发出
       if (typeof raw === 'string') this.emitChunk(raw, false, payload);
     }
   }
 
   private emitChunk(delta: string, isFinal: boolean, payload: BasePayload) {
-    console.log('[StreamController] 📤 emitChunk called:', {
-      correlationId: payload.correlationId,
-      deltaLength: delta.length,
-      deltaPreview: delta.substring(0, 50),
-      isFinal
-    });
     chatEventBus.emit('chat:stream:chunk', {
       ...payload,
       delta,
@@ -757,15 +628,14 @@ export class StreamingResponseController {
   private emitFinished(payload: BasePayload, tokens?: number) {
     // 🔥 FIX v0.3.12: 幂等性保护 - 防止同一个 correlationId 多次触发 finish
     const correlationId = payload.correlationId;
-    console.log(`[StreamController] 🔍 emitFinished called for ${correlationId}, emittedFinish.size: ${this.emittedFinish.size}, has: ${this.emittedFinish.has(correlationId)}`);
 
     if (this.emittedFinish.has(correlationId)) {
-      console.warn(`[StreamController] ⚠️ Finish already emitted for ${correlationId}, skipping duplicate`);
+      console.warn(`[SC] Duplicate finish suppressed: ${correlationId}`);
 
       // 🏆 FIX: 强制清理可能残留的 session（续播场景可能导致 session 泄漏）
       const session = this.activeSessions.get(correlationId);
       if (session) {
-        console.warn(`[StreamController] 🛡️ Found stale session for ${correlationId}, force cleaning up...`);
+        console.warn(`[SC] Stale session cleanup: ${correlationId}`);
         session.isFinished = true;
         this.stopListening(correlationId);
       }
@@ -773,7 +643,6 @@ export class StreamingResponseController {
       // 🏆 CRITICAL FIX: 确保输入框被启用，但避免重复发送事件导致循环
       const chatStore = useChatStore.getState();
       if (chatStore.isLoading) {
-        console.log(`[StreamController] 🔄 Force setting isLoading to false (duplicate finish)`);
         chatStore.setLoading(false);
       }
 
@@ -783,21 +652,12 @@ export class StreamingResponseController {
     // 🏆 第一次 finish：正常处理
     this.emittedFinish.add(correlationId);
     this.finishedEventEmitted.add(correlationId); // 记录已发送 finished 事件
-    console.log(`[StreamController] ✅ First finish for ${correlationId}, proceeding... Added to Set, size now: ${this.emittedFinish.size}`);
+    console.log(`[SC] Stream finished: ${correlationId}`);
 
     // 🏆 FIX: Emit 任何缓冲中的 tool calls（即使 JSON 不完整）
     if (this.toolCallBuffer.size > 0) {
-      console.log('[StreamController] 🔄 Emitting buffered tool calls before finish:', this.toolCallBuffer.size);
-
       for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
         if (buffered.hasName && buffered.arguments.length > 0) {
-          console.log('[StreamController] 🎯 Emitting buffered tool call:', {
-            toolId: buffered.toolId,
-            name: buffered.name,
-            argsLength: buffered.arguments.length,
-            arguments: buffered.arguments
-          });
-
           chatEventBus.emit('chat:tool:call', {
             ...payload,
             toolId: buffered.toolId,
@@ -812,8 +672,6 @@ export class StreamingResponseController {
     }
 
     // 🏆 PIVO 3.0: 物理闭环信号
-    console.log(`[PIVO-SIGNAL] 🏁 Stream Finalized: ${correlationId}`);
-
     // 用于 E2E 自动化测试的权威信号存根
     if (typeof window !== 'undefined') {
       if (!(window as any).__PIVO_SIGNALS__) (window as any).__PIVO_SIGNALS__ = {};
@@ -831,7 +689,7 @@ export class StreamingResponseController {
     const chatStore = useChatStore.getState();
     const targetMsg = chatStore.messages.find(m => m.id === correlationId);
     if (targetMsg && (!targetMsg.content || targetMsg.content.length < 5) && (!targetMsg.toolCalls || targetMsg.toolCalls.length === 0)) {
-        console.warn(`[StreamController] ⚠️ Empty response detected for ${correlationId}`);
+        console.warn(`[SC] Empty response detected: ${correlationId}`);
         chatEventBus.emit('chat:error', {
             correlationId,
             error: "AI returned an empty response. This might be due to a safety filter or model limitation. Please try again with a different prompt."
@@ -842,7 +700,6 @@ export class StreamingResponseController {
     const session = this.activeSessions.get(correlationId);
     if (session) {
       session.isFinished = true;
-      console.log(`[StreamController] ✅ Session ${correlationId} marked as finished before stopListening`);
     }
 
     this.stopListening(payload.correlationId);
@@ -851,7 +708,6 @@ export class StreamingResponseController {
     if (this.activeSessions.size === 0 && this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
-      console.log('[StreamController] 🛑 Heartbeat monitor stopped (no active sessions)');
     }
 
     chatEventBus.emit('chat:stream:finished', {
@@ -866,7 +722,6 @@ export class StreamingResponseController {
   stopListening(correlationId: string) {
     const listeners = this.activeListeners.get(correlationId);
     if (listeners) {
-      console.log(`[StreamController] 🛑 Cleaning up listeners for ${correlationId}`);
       listeners.forEach(unlisten => unlisten());
       this.activeListeners.delete(correlationId);
     }
@@ -874,7 +729,6 @@ export class StreamingResponseController {
     // 🔧 清理 PIVO Bridge 监听器
     const pivoUnlisten = this.pivoBridgeUnlisteners.get(correlationId);
     if (pivoUnlisten) {
-      console.log(`[StreamController] 🛑 Cleaning up PIVO Bridge listeners for ${correlationId}`);
       pivoUnlisten();
       this.pivoBridgeUnlisteners.delete(correlationId);
     }
@@ -883,7 +737,6 @@ export class StreamingResponseController {
     const session = this.activeSessions.get(correlationId);
     if (session) {
       session.isFinished = true;
-      console.log(`[StreamController] ✅ Session ${correlationId} marked as finished before deletion`);
     }
 
     // 🏆 清理会话
