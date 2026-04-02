@@ -20,6 +20,7 @@ import type {
   ProbeSymbolsResult,
   BashResult
 } from '@/types/toolTypes';
+import ToolService from '@/services/toolService';
 
 /** 全局工具注册表实例 */
 export const toolRegistry = new ToolRegistry();
@@ -47,12 +48,13 @@ toolRegistry.register<WriteFileArgs, WriteFileResult>({
   isDangerous: true,
   handler: async (args, context) => {
     try {
-      await invoke('agent_write_file', {
-        messageId: context.messageId,
-        path: args.path,
+      // 🔄 P4: 使用 ToolService 统一调用
+      const result = await ToolService.writeFile({
+        rootPath: context.projectRoot || '',
+        relPath: args.path,
         content: args.content
       });
-      return { success: true, output: `File written: ${args.path}` };
+      return { success: true, output: result };
     } catch (error) {
       return {
         success: false,
@@ -79,9 +81,10 @@ toolRegistry.register<ReadFileArgs, ReadFileResult>({
   requiresApproval: false,
   handler: async (args, context) => {
     try {
-      const content = await invoke<string>('agent_read_file', {
-        messageId: context.messageId,
-        path: args.path
+      // 🔄 P4: 使用 ToolService 统一调用
+      const content = await ToolService.readFile({
+        rootPath: context.projectRoot || '',
+        relPath: args.path
       });
       return { success: true, output: content };
     } catch (error) {
@@ -140,11 +143,12 @@ toolRegistry.register<ListDirArgs, ListDirResult>({
   requiresApproval: false,
   handler: async (args, context) => {
     try {
-      const entries = await invoke<string>('agent_list_dir', {
-        messageId: context.messageId,
-        path: args.path
+      // 🔄 P4: 使用 ToolService 统一调用
+      const entries = await ToolService.listDir({
+        rootPath: context.projectRoot || '',
+        relPath: args.path
       });
-      return { success: true, output: entries };
+      return { success: true, output: entries.join('\n') };
     } catch (error) {
       return {
         success: false,
@@ -172,11 +176,12 @@ toolRegistry.register<DeleteFileArgs, DeleteFileResult>({
   isDangerous: true,
   handler: async (args, context) => {
     try {
-      await invoke('agent_delete_file', {
-        messageId: context.messageId,
-        path: args.path
+      // 🔄 P4: 使用 ToolService 统一调用
+      const result = await ToolService.deleteFile({
+        rootPath: context.projectRoot || '',
+        relPath: args.path
       });
-      return { success: true, output: `File deleted: ${args.path}` };
+      return { success: true, output: result };
     } catch (error) {
       return {
         success: false,

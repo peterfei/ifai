@@ -11,6 +11,7 @@ import { useFileStore } from '../../stores/fileStore';
 import { readFileContent } from '../../utils/fileSystem';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
+import ToolService from '../../services/toolService';
 // 🔥 FIX: 移除静态导入，改为动态导入以避免 Tauri bridge 未初始化问题
 // import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1785,11 +1786,8 @@ ${context}
           // 修改的文件：恢复原始内容
           const rootPath = useFileStore.getState().rootPath;
           if (rootPath) {
-            await invoke('agent_write_file', {
-              rootPath,
-              relPath: change.path,
-              content: change.originalContent
-            });
+            // 🔄 P4: 使用 ToolService 统一调用
+            await ToolService.rollbackFile(rootPath, change.path, change.originalContent);
             console.log('[Composer] Rolled back modified file:', change.path);
             rolledBack++;
           }
@@ -1798,10 +1796,8 @@ ${context}
           const rootPath = useFileStore.getState().rootPath;
           if (rootPath) {
             try {
-              await invoke('agent_delete_file', {
-                rootPath,
-                relPath: change.path
-              });
+              // 🔄 P4: 使用 ToolService 统一调用
+              await ToolService.rollbackDelete(rootPath, change.path);
               console.log('[Composer] Deleted new file:', change.path);
               deleted++;
             } catch (e) {
@@ -1892,19 +1888,14 @@ ${context}
       // 执行回滚操作
       if (change.changeType === 'modified' && change.originalContent) {
         // 修改的文件：恢复原始内容
-        await invoke('agent_write_file', {
-          rootPath,
-          relPath: path,
-          content: change.originalContent
-        });
+        // 🔄 P4: 使用 ToolService 统一调用
+        await ToolService.rollbackFile(rootPath, path, change.originalContent);
         console.log('[Composer] Rolled back single file:', path);
       } else if (change.changeType === 'added') {
         // 新增的文件：删除
         try {
-          await invoke('agent_delete_file', {
-            rootPath,
-            relPath: path
-          });
+          // 🔄 P4: 使用 ToolService 统一调用
+          await ToolService.rollbackDelete(rootPath, path);
           console.log('[Composer] Deleted new file:', path);
         } catch (e) {
           console.warn('[Composer] Failed to delete file (may not exist):', path);

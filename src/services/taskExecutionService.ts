@@ -7,10 +7,10 @@
 
 import { readFileContent } from '../utils/fileSystem';
 import { parseTasksMarkdown, updateTaskStatus, generateTasksMarkdown, findTask, getTaskPath, TasksFile, Task } from '../utils/taskParser';
-import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useTaskStore } from '../stores/taskStore';
 import { TaskStatus as MonitorStatus, TaskCategory, TaskPriority, TaskMetadata } from '../components/TaskMonitor/types';
+import ToolService from './toolService';
 
 export class TaskExecutionService {
   private tasksFile: TasksFile | null = null;
@@ -187,25 +187,17 @@ export class TaskExecutionService {
     const newContent = generateTasksMarkdown(this.tasksFile);
 
     try {
-      // 从完整路径中提取项目根路径和相对路径
-      // 路径格式：/Users/xxx/projectName/.ifai/changes/xxx/tasks.md
-      // 需要提取：rootPath=/Users/xxx/projectName, relPath=.ifai/changes/xxx/tasks.md
-
       const parts = this.tasksFilePath.split('/.ifai/');
       if (parts.length !== 2) {
         throw new Error(`Invalid tasks path format: ${this.tasksFilePath}`);
       }
 
       const rootPath = parts[0]; // /Users/xxx/projectName
-      const relPath = '.ifai/' + parts[1]; // .ifai/changes/xxx/tasks.md
 
-      console.log('[TaskExecution] Saving tasks:', { rootPath, relPath });
+      console.log('[TaskExecution] Saving tasks:', { rootPath, tasksFilePath: this.tasksFilePath });
 
-      await invoke('agent_write_file', {
-        rootPath: rootPath,
-        relPath: relPath,
-        content: newContent
-      });
+      // 🔄 P4: 使用 ToolService 统一调用
+      await ToolService.writeTasksFile(rootPath, this.tasksFilePath, newContent);
       console.log('[TaskExecution] Saved tasks to:', this.tasksFilePath);
     } catch (e) {
       console.error('[TaskExecution] Failed to save tasks:', e);
