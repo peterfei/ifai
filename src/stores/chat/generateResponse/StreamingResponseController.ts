@@ -648,8 +648,9 @@ export class StreamingResponseController {
 
         const toolCallId = data.tool_call_id || data.toolCallId;
         const result = data.result || data.arguments || '{}';
+        const toolName = data.tool || '';
 
-        console.log('[StreamController] 🔍 Debug - toolCallId:', toolCallId, 'result type:', typeof result, 'result:', result);
+        console.log('[StreamController] 🔍 Debug - toolCallId:', toolCallId, 'toolName:', toolName, 'result type:', typeof result, 'result:', result);
 
         if (toolCallId) {
           console.log('[StreamController] 🎯 Processing tool_done for:', toolCallId);
@@ -672,6 +673,20 @@ export class StreamingResponseController {
           } else {
             console.log('[StreamController] ⚠️ data.todos not found or not an array, skipping sync');
             console.log('[StreamController] ⚠️ data.todos:', data.todos, 'type:', typeof data.todos);
+
+            // 🆕 P3: 对于非 TodoWrite 工具，发送工具完成事件
+            if (toolName && toolName !== 'TodoWrite') {
+              console.log('[StreamController] 🛠️ Emitting tool completion event for:', toolName);
+
+              // 发送工具完成事件，让 UI 显示结果
+              chatEventBus.emit('chat:tool:completed', {
+                ...payload,
+                toolId: toolCallId,  // 🔧 FIX: StoreMapper 期待的是 toolId
+                result,
+                timestamp: Date.now(),
+                shouldContinue: true  // 🔥 FIX: 触发续播，让 AI 继续生成回复
+              } as any);
+            }
           }
         } else {
           console.log('[StreamController] ⚠️ No toolCallId found, skipping tool_done processing');

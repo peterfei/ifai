@@ -230,7 +230,14 @@ setTimeout(async () => {
 
   private checkAutoApprove(toolName: string): boolean {
     // 🔧 FIX: 添加 agent_read_file 到自动批准列表（与 readFile 行为一致）
-    const safeTools = ['agent_scan_project', 'agent_list_dir', 'readFile', 'agent_read_file', 'listFiles', 'getSymbol', 'bash'];
+    // 🆕 P3: 添加新工具到自动批准列表
+    const safeTools = [
+      'agent_scan_project', 'agent_list_dir', 'readFile', 'agent_read_file', 'listFiles', 'getSymbol', 'bash',
+      // P3 工具系统
+      'read_file', 'write_file', 'edit_file',      // 文件工具
+      'glob_search', 'grep_search',                 // 搜索工具
+      'PowerShell',                                  // Shell 工具（bash 已存在）
+    ];
     return safeTools.includes(toolName);
   }
 }
