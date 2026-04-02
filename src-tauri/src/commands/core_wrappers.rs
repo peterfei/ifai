@@ -42,94 +42,67 @@ pub async fn build_context(
 
 // FS / Agent Tools Wrappers
 // NOTE: Signatures must match ifainew_core implementation as frontend relies on it
+//
+// ⚠️ DEPRECATED (P4): The following functions are now handled by AliasExecutor via ToolRouter:
+// - agent_write_file → use ToolRouter::execute("agent_write_file", ...)
+// - agent_read_file → use ToolRouter::execute("agent_read_file", ...)
+// - agent_list_dir → use ToolRouter::execute("agent_list_dir", ...)
+// - agent_scan_project → use ToolRouter::execute("agent_scan_project", ...)
+//
+// These functions are kept for backward compatibility with ai_utils.rs::AgentStream.
+// New code should use ToolRouter instead of calling these functions directly.
 
 #[tauri::command]
+#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_write_file\", ...) instead")]
 pub async fn agent_write_file(root_path: String, rel_path: String, content: String) -> Result<String, String> {
-    #[cfg(feature = "commercial")]
-    {
-        // Call the core library which now returns WriteFileResult
-        let result = ifainew_core::agent::agent_write_file(root_path, rel_path, content).await?;
+    // 🔄 P4: 委托给 ToolRouter
+    use crate::harness::tool::ToolRouter;
+    let router = ToolRouter::new();
+    router.set_project_root(root_path);
 
-        // Serialize to JSON string for Tauri transport (maintains Result<String, String> interface)
-        return serde_json::to_string(&result)
-            .map_err(|e| format!("Failed to serialize WriteFileResult: {}", e));
-    }
-    #[cfg(not(feature = "commercial"))]
-    {
-        // Community edition: provide basic implementation with diff data
-        let path = std::path::Path::new(&root_path).join(&rel_path);
+    let args = serde_json::json!({
+        "rel_path": rel_path,
+        "content": content
+    });
 
-        // Read original content for diff (before writing)
-        let original_content = if path.exists() {
-            Some(tokio::fs::read_to_string(&path).await.unwrap_or_default())
-        } else {
-            None
-        };
-
-        // Create parent dirs
-        if let Some(parent) = path.parent() {
-            let _ = tokio::fs::create_dir_all(parent).await;
-        }
-
-        // Write new content
-        tokio::fs::write(&path, &content).await.map_err(|e| e.to_string())?;
-
-        // 🔥 FIX v0.3.9: 失效缓存
-        crate::file_cache::invalidate_cache(&path).await;
-
-        // Get timestamp
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
-
-        // Build result with diff data
-        let result = serde_json::json!({
-            "success": true,
-            "message": "File written successfully",
-            "originalContent": original_content,
-            "newContent": content,
-            "filePath": rel_path,
-            "timestamp": timestamp
-        });
-
-        serde_json::to_string(&result)
-            .map_err(|e| format!("Failed to serialize result: {}", e))
-    }
+    router.execute("agent_write_file", &args)
+        .map_err(|e| format!("{:?}", e))
 }
 
 #[tauri::command]
+#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_read_file\", ...) instead")]
 pub async fn agent_read_file(root_path: String, rel_path: String) -> Result<String, String> {
-    #[cfg(feature = "commercial")]
-    {
-        // 商业版：目前仍然调用 core，但如果 core 没有内部缓存，建议后续将 GLOBAL_CACHE 注入给 core
-        return ifainew_core::agent::agent_read_file(root_path, rel_path).await;
-    }
-    #[cfg(not(feature = "commercial"))]
-    {
-        crate::file_cache::cached_read_file(&root_path, &rel_path).await
-    }
+    // 🔄 P4: 委托给 ToolRouter
+    use crate::harness::tool::ToolRouter;
+    let router = ToolRouter::new();
+    router.set_project_root(root_path);
+
+    let args = serde_json::json!({
+        "rel_path": rel_path
+    });
+
+    router.execute("agent_read_file", &args)
+        .map_err(|e| format!("{:?}", e))
 }
 
 #[tauri::command]
+#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_list_dir\", ...) instead")]
 pub async fn agent_list_dir(root_path: String, rel_path: String) -> Result<Vec<String>, String> {
-    #[cfg(feature = "commercial")]
-    {
-        return ifainew_core::agent::agent_list_dir(root_path, rel_path).await;
-    }
-    #[cfg(not(feature = "commercial"))]
-    {
-        let path = std::path::Path::new(&root_path).join(&rel_path);
-        let mut entries = Vec::new();
-        let mut read_dir = tokio::fs::read_dir(&path).await.map_err(|e| e.to_string())?;
-        while let Ok(Some(entry)) = read_dir.next_entry().await {
-            if let Ok(name) = entry.file_name().into_string() {
-                entries.push(name);
-            }
-        }
-        Ok(entries)
-    }
+    // 🔄 P4: 委托给 ToolRouter
+    use crate::harness::tool::ToolRouter;
+    let router = ToolRouter::new();
+    router.set_project_root(root_path);
+
+    let args = serde_json::json!({
+        "rel_path": rel_path
+    });
+
+    let result = router.execute("agent_list_dir", &args)
+        .map_err(|e| format!("{:?}", e))?;
+
+    // 解析 JSON 数组
+    serde_json::from_str(&result)
+        .map_err(|e| format!("Failed to parse result: {}", e))
 }
 
 /// Delete a file
@@ -191,116 +164,20 @@ pub async fn agent_batch_read(root_path: String, paths: Vec<String>) -> Result<S
 /// Supports glob patterns and file limits
 
 #[tauri::command]
+#[deprecated(since = "0.3.13", note = "Use ToolRouter::execute(\"agent_scan_project\", ...) instead")]
 pub async fn agent_scan_project(root_path: String, rel_path: String, max_depth: Option<usize>) -> Result<String, String> {
-    println!("[Wrapper] agent_scan_project: root={}, rel={}, depth={:?}", root_path, rel_path, max_depth);
-    #[cfg(feature = "commercial")]
-    {
-        let depth = max_depth.unwrap_or(3);
-        let result = ifainew_core::agent::agent_scan_project(root_path, rel_path, depth).await?;
-        return serde_json::to_string(&result).map_err(|e| e.to_string());
-    }
-    #[cfg(not(feature = "commercial"))]
-    {
-        // 🏆 FIX: 社区版实现 - 返回正确格式 (structure + key_files) 并忽略常见目录
-        use serde_json::json;
-        use std::path::Path;
-        use std::collections::HashMap;
+    // 🔄 P4: 委托给 ToolRouter
+    use crate::harness::tool::ToolRouter;
+    let router = ToolRouter::new();
+    router.set_project_root(root_path);
 
-        let base_path = Path::new(&root_path).join(&rel_path);
-        let max_depth = max_depth.unwrap_or(3);
+    let args = serde_json::json!({
+        "rel_path": rel_path,
+        "max_depth": max_depth
+    });
 
-        // 常见需要忽略的目录
-        let ignore_dirs = [
-            "node_modules", ".git", "target", "dist", "build",
-            ".vscode", ".idea", "coverage", ".next", ".nuxt",
-            ".venv", "venv", "__pycache__", "node_modules_cache",
-            ".cache", ".tsbuildinfo", "bin", "obj"
-        ];
-
-        // 常见需要忽略的文件
-        let ignore_files = [
-            ".DS_Store", "*.log", "*.tsbuildinfo", "*.lock",
-            "package-lock.json", "yarn.lock", "pnpm-lock.yaml"
-        ];
-
-        let mut structure: HashMap<String, String> = HashMap::new();
-        let mut key_files: HashMap<String, String> = HashMap::new();
-
-        // 递归扫描目录
-        fn scan_dir(
-            path: &std::path::Path,
-            rel_base: &str,
-            current_depth: usize,
-            max_depth: usize,
-            ignore_dirs: &[&str],
-            ignore_files: &[&str],
-            structure: &mut HashMap<String, String>,
-            key_files: &mut HashMap<String, String>
-        ) -> std::io::Result<()> {
-            if current_depth > max_depth {
-                return Ok(());
-            }
-
-            let entries = std::fs::read_dir(path)?;
-
-            for entry in entries {
-                let entry = entry?;
-                let file_name = entry.file_name().to_string_lossy().to_string();
-                let file_path = entry.path();
-                let rel_path = if rel_base.is_empty() {
-                    file_name.clone()
-                } else {
-                    format!("{}/{}", rel_base, file_name)
-                };
-
-                // 检查是否应该忽略
-                let should_ignore = ignore_dirs.contains(&file_name.as_str())
-                    || ignore_files.iter().any(|&pattern| {
-                        if pattern.starts_with('*') {
-                            file_name.ends_with(&pattern[1..])
-                        } else {
-                            file_name == pattern
-                        }
-                    });
-
-                if should_ignore {
-                    continue;
-                }
-
-                if file_path.is_dir() {
-                    structure.insert(format!("{}/", rel_path), "dir".to_string());
-                    // 递归扫描子目录
-                    let _ = scan_dir(&file_path, &rel_path, current_depth + 1, max_depth, ignore_dirs, ignore_files, structure, key_files);
-                } else {
-                    structure.insert(rel_path.clone(), "file".to_string());
-
-                    // 对于一些关键文件，读取内容（限制大小）
-                    if matches!(file_name.as_str(), "README.md" | "package.json" | "tsconfig.json" | "vite.config.js" | "Cargo.toml" | "index.html" | "App.tsx" | "main.tsx") {
-                        if let Ok(content) = std::fs::read_to_string(&file_path) {
-                            // 限制内容大小为 10KB
-                            if content.len() < 10240 {
-                                key_files.insert(rel_path, content);
-                            }
-                        }
-                    }
-                }
-            }
-
-            Ok(())
-        }
-
-        if base_path.is_dir() {
-            scan_dir(&base_path, "", 0, max_depth, &ignore_dirs, &ignore_files, &mut structure, &mut key_files)
-                .map_err(|e| format!("Scan failed: {}", e))?;
-        }
-
-        let result = json!({
-            "structure": structure,
-            "key_files": key_files
-        });
-
-        serde_json::to_string(&result).map_err(|e| e.to_string())
-    }
+    router.execute("agent_scan_project", &args)
+        .map_err(|e| format!("{:?}", e))
 }
 
 #[tauri::command]

@@ -648,26 +648,16 @@ pub async fn agent_stream_chat_with_root(
                         let args_value: serde_json::Value = serde_json::from_str(&args_json)
                             .unwrap_or_else(|_| serde_json::json!({}));
 
-                        // 执行工具调用 - 直接调用 core_wrappers
-                        use crate::commands::core_wrappers;
+                        // 执行工具调用 - 使用 ToolRouter (P4 迁移)
+                        use crate::harness::tool::ToolRouter;
                         let tool_result = match tool_call.name.as_str() {
-                            "agent_read_file" => {
-                                let rel_path = args_value["rel_path"].as_str().unwrap_or("");
-                                core_wrappers::agent_read_file(root.to_string(), rel_path.to_string()).await
-                                    .unwrap_or_else(|e| format!("错误: {}", e))
-                            }
-                            "agent_list_dir" => {
-                                let rel_path = args_value["rel_path"].as_str().unwrap_or(".");
-                                match core_wrappers::agent_list_dir(root.to_string(), rel_path.to_string()).await {
-                                    Ok(entries) => entries.join("\n"),
-                                    Err(e) => format!("错误: {}", e)
+                            "agent_read_file" | "agent_write_file" | "agent_list_dir" | "agent_scan_project" => {
+                                let router = ToolRouter::new();
+                                router.set_project_root(root.to_string());
+                                match router.execute(&tool_call.name, &args_value) {
+                                    Ok(result) => result,
+                                    Err(e) => format!("错误: {:?}", e)
                                 }
-                            }
-                            "agent_write_file" => {
-                                let rel_path = args_value["rel_path"].as_str().unwrap_or("");
-                                let content = args_value["content"].as_str().unwrap_or("");
-                                core_wrappers::agent_write_file(root.to_string(), rel_path.to_string(), content.to_string()).await
-                                    .unwrap_or_else(|e| format!("错误: {}", e))
                             }
                             "bash" => {
                                 let command = args_value["command"].as_str().unwrap_or("");
@@ -796,7 +786,8 @@ pub async fn agent_stream_chat_with_root(
                                                 serde_json::from_str(&args_json)
                                                     .unwrap_or_else(|_| serde_json::json!({}));
 
-                                            use crate::commands::core_wrappers;
+                                            // 执行工具调用 - 使用 ToolRouter (P4 迁移)
+                                            use crate::harness::tool::ToolRouter;
                                             let tool_result = match tool_call.name.as_str() {
                                                 "bash" => {
                                                     let command = args_value["command"].as_str().unwrap_or("");
@@ -822,12 +813,13 @@ pub async fn agent_stream_chat_with_root(
                                                         Err(e) => format!("错误: {}", e)
                                                     }
                                                 }
-                                                "agent_read_file" => {
-                                                    let rel_path = args_value["rel_path"].as_str().unwrap_or("");
-                                                    core_wrappers::agent_read_file(
-                                                        root.to_string(),
-                                                        rel_path.to_string()
-                                                    ).await.unwrap_or_else(|e| format!("错误: {}", e))
+                                                "agent_read_file" | "agent_write_file" | "agent_list_dir" | "agent_scan_project" => {
+                                                    let router = ToolRouter::new();
+                                                    router.set_project_root(root.to_string());
+                                                    match router.execute(&tool_call.name, &args_value) {
+                                                        Ok(result) => result,
+                                                        Err(e) => format!("错误: {:?}", e)
+                                                    }
                                                 }
                                                 _ => format!("未知的工具: {}", tool_call.name)
                                             };
