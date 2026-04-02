@@ -350,6 +350,42 @@ impl AIService for HarnessAIService {
                                         }
                                     }
 
+                                    // 🔥 FIX: 为文件工具自动解析相对路径
+                                    if tool_name == "write_file" || tool_name == "edit_file" || tool_name == "read_file" {
+                                        if let Some(obj) = args.as_object_mut() {
+                                            if let Some(path) = obj.get("path").and_then(|v| v.as_str()) {
+                                                // 如果是相对路径（不以 / 开头），自动加上项目根目录
+                                                if !path.starts_with('/') {
+                                                    if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                                        let full_path = format!("{}/{}", project_root.trim_end_matches('/'), path);
+                                                        println!("[AI] 🔧 Auto-resolving path: {} -> {}", path, full_path);
+                                                        obj.insert("path".to_string(), serde_json::json!(full_path));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // 🔥 FIX: 为搜索工具自动解析相对路径
+                                    if tool_name == "glob_search" || tool_name == "grep_search" {
+                                        if let Some(obj) = args.as_object_mut() {
+                                            // 获取或设置 path 参数（默认为 "."）
+                                            let path = obj.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+                                            // 如果 path 是 "." 或者相对路径，自动解析为项目根目录
+                                            if path == "." || !path.starts_with('/') {
+                                                if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                                    let resolved_path = if path == "." {
+                                                        project_root.clone()
+                                                    } else {
+                                                        format!("{}/{}", project_root.trim_end_matches('/'), path)
+                                                    };
+                                                    println!("[AI] 🔧 Auto-resolving search path: {} -> {}", path, resolved_path);
+                                                    obj.insert("path".to_string(), serde_json::json!(resolved_path));
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     // 🔥 CRITICAL FIX: 工具执行错误时返回 JSON 格式，让 AI 知道失败
                                     // 参考 claw-code/conversation.rs line 222-225: 将错误转为输出
                                     let exec_result = match router.execute(&tool_name, &args) {
@@ -414,6 +450,42 @@ impl AIService for HarnessAIService {
                                                     if !obj.contains_key("working_dir") {
                                                         println!("[AI] 🔧 Auto-injecting working_dir={} for {} (fallback)", project_root, tool_name_from_map);
                                                         obj.insert("working_dir".to_string(), serde_json::json!(project_root));
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // 🔥 FIX: 为文件工具自动解析相对路径（fallback 路径）
+                                        if tool_name_from_map == "write_file" || tool_name_from_map == "edit_file" || tool_name_from_map == "read_file" {
+                                            if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                                if let Some(obj) = fallback_args.as_object_mut() {
+                                                    if let Some(path) = obj.get("path").and_then(|v| v.as_str()) {
+                                                        // 如果是相对路径（不以 / 开头），自动加上项目根目录
+                                                        if !path.starts_with('/') {
+                                                            let full_path = format!("{}/{}", project_root.trim_end_matches('/'), path);
+                                                            println!("[AI] 🔧 Auto-resolving path (fallback): {} -> {}", path, full_path);
+                                                            obj.insert("path".to_string(), serde_json::json!(full_path));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // 🔥 FIX: 为搜索工具自动解析相对路径（fallback 路径）
+                                        if tool_name_from_map == "glob_search" || tool_name_from_map == "grep_search" {
+                                            if let Some(project_root) = crate::harness::tool::router::get_global_project_root() {
+                                                if let Some(obj) = fallback_args.as_object_mut() {
+                                                    // 获取或设置 path 参数（默认为 "."）
+                                                    let path = obj.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+                                                    // 如果 path 是 "." 或者相对路径，自动解析为项目根目录
+                                                    if path == "." || !path.starts_with('/') {
+                                                        let resolved_path = if path == "." {
+                                                            project_root.clone()
+                                                        } else {
+                                                            format!("{}/{}", project_root.trim_end_matches('/'), path)
+                                                        };
+                                                        println!("[AI] 🔧 Auto-resolving search path (fallback): {} -> {}", path, resolved_path);
+                                                        obj.insert("path".to_string(), serde_json::json!(resolved_path));
                                                     }
                                                 }
                                             }
