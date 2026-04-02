@@ -3,14 +3,20 @@
 //! 定义工具执行接口和错误类型。
 
 pub mod todoutil;
+pub mod filetools;
+pub mod searchtools;
+pub mod shelltools;
 
 use serde_json::Value;
 use std::collections::HashSet;
 
 use super::spec::ToolPermissionMode;
 
-// 重新导出 TodoWriteExecutor
+// 重新导出执行器
 pub use todoutil::TodoWriteExecutor;
+pub use filetools::FileToolsExecutor;
+pub use searchtools::SearchToolsExecutor;
+pub use shelltools::ShellToolsExecutor;
 
 /// 工具执行错误
 #[derive(Debug, thiserror::Error)]
