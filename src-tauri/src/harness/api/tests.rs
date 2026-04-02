@@ -62,6 +62,7 @@ mod integration_tests {
             system: None,
             temperature: Some(1.0),
             stream: true,
+            tools: None,
         };
 
         let mut stream = client.stream(request).await.unwrap();
@@ -121,6 +122,7 @@ mod integration_tests {
             system: None,
             temperature: Some(1.0),
             stream: true,
+            tools: None,
         };
 
         let mut stream = client.stream(request).await.unwrap();
@@ -180,6 +182,7 @@ mod integration_tests {
             system: None,
             temperature: Some(1.0),
             stream: true,
+            tools: None,
         };
 
         let mut stream = client.stream(request).await.unwrap();

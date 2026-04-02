@@ -9,26 +9,24 @@
 use crate::core_traits::ai::{AIService, AIProviderConfig, Message};
 use crate::harness::api::{ApiClientFactory, AiProvider, StreamRequest};
 use crate::harness::tool::ToolRegistry;
-use crate::harness::task::TaskStore;
-use crate::harness::tool::executor::todoutil::TodoWriteExecutor;
-use crate::harness::tool::executor::ToolExecutor;
+use crate::harness::tool::ToolRouter;
 use tauri::{AppHandle, Emitter};
 use std::sync::OnceLock;
 use serde_json::json;
 use futures_util::StreamExt; // 用于 next() 方法
-
-/// 全局 TaskStore (P2)
-static GLOBAL_TASK_STORE: OnceLock<TaskStore> = OnceLock::new();
-
-fn get_global_task_store() -> &'static TaskStore {
-    GLOBAL_TASK_STORE.get_or_init(|| TaskStore::new())
-}
 
 /// 全局 ToolRegistry (P1)
 static GLOBAL_TOOL_REGISTRY: OnceLock<ToolRegistry> = OnceLock::new();
 
 fn get_global_tool_registry() -> &'static ToolRegistry {
     GLOBAL_TOOL_REGISTRY.get_or_init(|| ToolRegistry::new())
+}
+
+/// 全局 ToolRouter (P3)
+static GLOBAL_TOOL_ROUTER: OnceLock<ToolRouter> = OnceLock::new();
+
+fn get_global_tool_router() -> &'static ToolRouter {
+    GLOBAL_TOOL_ROUTER.get_or_init(|| ToolRouter::new())
 }
 
 pub struct HarnessAIService {
@@ -222,51 +220,55 @@ impl AIService for HarnessAIService {
                         crate::harness::api::StreamEvent::ToolDone { tool_id, result } => {
                             println!("[HarnessAIService] ✅ Tool done: {}", tool_id);
                             println!("[HarnessAIService] 🔧 Tool result: {}", result);
-                            println!("[HarnessAIService] 🔧 Preparing tool_done event JSON...");
 
-                            // 🔥 FIX: 在 ToolDone 时执行 TodoWrite（因为 result 包含完整的累积参数）
-                            // result 格式应该是：{"todos":[{"content":"...","activeForm":"...","status":"..."}]}
+                            // 🔥 P3: 使用 ToolRouter 执行所有工具
                             let done_event = if let Ok(args) = serde_json::from_str::<serde_json::Value>(&result) {
-                                // 检查是否有 todos 字段（TodoWrite 工具的特征）
-                                if args.get("todos").is_some() {
-                                    println!("[HarnessAIService] 🔧 Detected TodoWrite result, executing...");
+                                println!("[HarnessAIService] 🔧 Executing tool with router...");
 
-                                    let store = get_global_task_store();
-                                    let mut executor = TodoWriteExecutor::new(store.clone());
+                                let router = get_global_tool_router();
 
-                                    match executor.execute("TodoWrite", &args) {
-                                        Ok(exec_result) => {
-                                            println!("[HarnessAIService] ✅ TodoWrite executed: {}", exec_result);
+                                // 从 tool_id 中提取工具名称（格式通常是 call_xxx）
+                                // 先尝试从 args 中获取工具名称
+                                let tool_name = args.get("name")
+                                    .or(args.get("tool"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("TodoWrite"); // 默认 TodoWrite
 
-                                            // 发送工具完成事件（包含执行结果和 todos 数据）
-                                            json!({
-                                                "type": "tool_done",
-                                                "tool_call_id": tool_id,
-                                                "result": exec_result,
-                                                "todos": args["todos"]  // 🆕 包含原始 todos 数据供前端使用
-                                            })
+                                match router.execute(tool_name, &args) {
+                                    Ok(exec_result) => {
+                                        println!("[HarnessAIService] ✅ Tool '{}' executed: {}", tool_name, exec_result);
+
+                                        // 构建工具完成事件
+                                        let mut event = json!({
+                                            "type": "tool_done",
+                                            "tool_call_id": tool_id,
+                                            "tool": tool_name,
+                                            "result": exec_result
+                                        });
+
+                                        // 如果是 TodoWrite，添加 todos 数据供前端使用
+                                        if tool_name == "TodoWrite" {
+                                            if let Some(todos) = args.get("todos") {
+                                                event["todos"] = todos.clone();
+                                            }
                                         }
-                                        Err(e) => {
-                                            println!("[HarnessAIService] ❌ TodoWrite failed: {:?}", e);
 
-                                            json!({
-                                                "type": "tool_done",
-                                                "tool_call_id": tool_id,
-                                                "result": format!("Error: {:?}", e),
-                                                "todos": args["todos"]  // 即使失败也返回 todos 数据
-                                            })
-                                        }
+                                        event
                                     }
-                                } else {
-                                    // 不是 TodoWrite，发送原始的 tool_done 事件
-                                    json!({
-                                        "type": "tool_done",
-                                        "tool_call_id": tool_id,
-                                        "result": result
-                                    })
+                                    Err(e) => {
+                                        println!("[HarnessAIService] ❌ Tool '{}' failed: {:?}", tool_name, e);
+
+                                        json!({
+                                            "type": "tool_done",
+                                            "tool_call_id": tool_id,
+                                            "tool": tool_name,
+                                            "result": format!("Error: {:?}", e)
+                                        })
+                                    }
                                 }
                             } else {
                                 // 解析失败，发送原始的 tool_done 事件
+                                println!("[HarnessAIService] ⚠️  Failed to parse tool result as JSON");
                                 json!({
                                     "type": "tool_done",
                                     "tool_call_id": tool_id,

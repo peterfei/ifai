@@ -128,6 +128,7 @@ mod tests {
             system: None,
             temperature: Some(0.7),
             stream: true,
+            tools: None,
         };
 
         assert_eq!(request.model, "claude-sonnet-4");

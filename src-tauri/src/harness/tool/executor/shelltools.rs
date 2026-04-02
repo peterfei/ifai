@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_bash_echo() {
-        let executor = ShellToolsExecutor::new();
+        let mut executor = ShellToolsExecutor::new();
         let input = serde_json::json!({
             "command": "echo 'Hello, World!'"
         });
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_bash_list_files() {
-        let executor = ShellToolsExecutor::new();
+        let mut executor = ShellToolsExecutor::new();
         let input = serde_json::json!({
             "command": "ls"
         });
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_bash_missing_command() {
-        let executor = ShellToolsExecutor::new();
+        let mut executor = ShellToolsExecutor::new();
         let input = serde_json::json!({});
 
         let result = executor.execute("bash", &input);
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_allowed_tools() {
-        let executor = ShellToolsExecutor::new();
+        let mut executor = ShellToolsExecutor::new();
         assert!(executor.is_available("bash"));
         assert!(executor.is_available("PowerShell"));
         assert!(!executor.is_available("read_file"));
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_execute_unknown_tool() {
-        let executor = ShellToolsExecutor::new();
+        let mut executor = ShellToolsExecutor::new();
         let input = serde_json::json!({});
 
         let result = executor.execute("unknown_tool", &input);
