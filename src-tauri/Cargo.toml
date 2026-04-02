@@ -28,6 +28,11 @@ commercial-local-llm-rag = ["commercial", "llm-inference", "rag"]  # 完整版�
 name = "ifainew_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# CLI binary configuration
+[[bin]]
+name = "ifai"
+path = "src/bin/ifai.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -76,6 +81,8 @@ tiktoken-rs = "0.9.1"
 regex = "1.12.2"
 dirs = "5.0"
 md5 = "0.7"
+# CLI dependencies
+rustyline = "14"
 base64 = "0.22"
 tree-sitter = "0.24.3"
 tree-sitter-rust = "0.23.0"

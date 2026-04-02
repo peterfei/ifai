@@ -19,7 +19,7 @@ mod ai_utils;
 mod file_cache;
 mod commands;
 mod performance;
-mod core_traits;
+pub mod core_traits; // 公开 core_traits 供 CLI 使用
 mod project_config;
 mod community;
 mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
@@ -28,7 +28,7 @@ mod intelligence_router;
 mod token_counter; // v0.2.6 新增：Token 计数模块
 mod openspec; // v0.2.6 新增：OpenSpec 集成
 mod multimodal; // v0.3.0 新增：多模态功能
-mod harness; // v0.4.0 新增：Claude Code Harness 架构
+pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
 mod tool_classification; // v0.3.3 新增：工具分类系统
 
 // LLM inference using llama.cpp (GGUF native support)

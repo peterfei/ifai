@@ -7,7 +7,7 @@ use reqwest::Client as HttpClient;
 use std::pin::Pin;
 
 use super::super::client::ApiClient;
-use super::super::types::{ApiError, ModelInfo, StreamEvent, StreamRequest};
+use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 use super::openai_format::parse_openai_frame;
 
 pub struct OpenAIClient {
@@ -45,10 +45,24 @@ impl ApiClient for OpenAIClient {
         &self,
         request: StreamRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError> {
+        // 🔧 CLI: 构建 messages 数组，system prompt 作为第一条消息
+        let mut messages = Vec::new();
+
+        // 如果有 system prompt，作为第一条消息添加
+        if let Some(system) = &request.system {
+            messages.push(Message {
+                role: MessageRole::System,
+                content: system.clone(),
+            });
+        }
+
+        // 添加所有原始消息
+        messages.extend(request.messages.clone());
+
         // OpenAI 使用标准的 chat completions 格式
         let mut openai_request = serde_json::json!({
             "model": request.model,
-            "messages": request.messages,
+            "messages": messages,
             "max_tokens": request.max_tokens,
             "temperature": request.temperature,
             "stream": true
@@ -61,10 +75,6 @@ impl ApiClient for OpenAIClient {
             }
         }
 
-        // 🔍 P2 调试：打印请求 URL 和负载
-        eprintln!("[OpenAIClient] 📤 Sending request to: {}", self.base_url);
-        eprintln!("[OpenAIClient] 📋 Request payload: {}", serde_json::to_string_pretty(&openai_request).unwrap_or_else(|_| "<invalid>".to_string()));
-
         let response = self
             .http
             .post(&self.base_url)  // 🆕 P2: 直接使用 base_url，不再添加路径
@@ -73,24 +83,7 @@ impl ApiClient for OpenAIClient {
             .json(&openai_request)
             .send()
             .await
-            .map_err(|e| {
-                eprintln!("[OpenAIClient] ❌ Network error: {:?}", e);
-                ApiError::Network(e.to_string())
-            })?;
-
-        eprintln!("[OpenAIClient] 📡 Response status: {}", response.status());
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let message = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            eprintln!("[OpenAIClient] ❌ API error: {} - {}", status, message);
-            return Err(ApiError::HttpError { status, message });
-        }
-
-        eprintln!("[OpenAIClient] ✅ Stream starting...");
+            .map_err(|e| ApiError::Network(e.to_string()))?;
 
         if !response.status().is_success() {
             let status = response.status();

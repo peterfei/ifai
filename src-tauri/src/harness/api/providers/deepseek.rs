@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::collections::HashMap;
 
 use super::super::client::ApiClient;
-use super::super::types::{ApiError, ModelInfo, StreamEvent, StreamRequest};
+use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 use super::openai_format::{parse_openai_frame, ToolCallDelta, FunctionDelta};
 
 pub struct DeepSeekClient {
@@ -48,10 +48,24 @@ impl ApiClient for DeepSeekClient {
         &self,
         request: StreamRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError> {
+        // 🔧 CLI: 构建 messages 数组，system prompt 作为第一条消息
+        let mut messages = Vec::new();
+
+        // 如果有 system prompt，作为第一条消息添加
+        if let Some(system) = &request.system {
+            messages.push(Message {
+                role: MessageRole::System,
+                content: system.clone(),
+            });
+        }
+
+        // 添加所有原始消息
+        messages.extend(request.messages.clone());
+
         // DeepSeek 使用 OpenAI 兼容的 API 格式
         let mut deepseek_request = serde_json::json!({
             "model": request.model,
-            "messages": request.messages,
+            "messages": messages,
             "max_tokens": request.max_tokens,
             "temperature": request.temperature,
             "stream": true
@@ -64,10 +78,6 @@ impl ApiClient for DeepSeekClient {
             }
         }
 
-        // 🔍 P2 调试：打印请求 URL 和负载
-        eprintln!("[DeepSeekClient] 📤 Sending request to: {}", self.base_url);
-        eprintln!("[DeepSeekClient] 📋 Request payload: {}", serde_json::to_string_pretty(&deepseek_request).unwrap_or_else(|_| "<invalid>".to_string()));
-
         let response = self
             .http
             .post(&self.base_url)  // 🆕 P2: 直接使用 base_url，不再添加路径
@@ -76,12 +86,7 @@ impl ApiClient for DeepSeekClient {
             .json(&deepseek_request)
             .send()
             .await
-            .map_err(|e| {
-                eprintln!("[DeepSeekClient] ❌ Network error: {:?}", e);
-                ApiError::Network(e.to_string())
-            })?;
-
-        eprintln!("[DeepSeekClient] 📡 Response status: {}", response.status());
+            .map_err(|e| ApiError::Network(e.to_string()))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -89,11 +94,8 @@ impl ApiClient for DeepSeekClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            eprintln!("[DeepSeekClient] ❌ API error: {} - {}", status, message);
             return Err(ApiError::HttpError { status, message });
         }
-
-        eprintln!("[DeepSeekClient] ✅ Stream starting...");
 
         let byte_stream = response.bytes_stream();
         let mut buffer = Vec::new();
@@ -123,11 +125,6 @@ impl ApiClient for DeepSeekClient {
 
                             let frame = String::from_utf8_lossy(&frame_bytes);
 
-                            // 🔍 P2 调试：打印原始 SSE 帧（如果包含 tool_calls）
-                            if frame.contains("tool_calls") || frame.contains("TodoWrite") {
-                                eprintln!("[DeepSeekClient] 🔍 SSE frame with tool_calls: {}", frame);
-                            }
-
                             if let Ok(Some(data)) = parse_openai_frame(&frame) {
                                 // 🆕 P2: 处理工具调用
                                 if let Some(choice) = data.choices.first() {
@@ -151,10 +148,8 @@ impl ApiClient for DeepSeekClient {
                                             // 累积函数参数
                                             if let Some(func) = &tc.function {
                                                 if let Some(args) = &func.arguments {
-                                                    eprintln!("[DeepSeekClient] 📥 Accumulating args for tool[{}]: '{}'", index, args);
                                                     if let Some((tool_id, current)) = tool_args_buffer.get_mut(&index) {
                                                         current.push_str(args);
-                                                        eprintln!("[DeepSeekClient] 📝 Tool[{} / {}] accumulated args: '{}'", index, tool_id, current);
                                                     }
                                                 }
                                             }
@@ -166,18 +161,13 @@ impl ApiClient for DeepSeekClient {
                                 // 🔥 FIX: 确保 ToolDone 在 MessageDone 之前发送，避免前端提前停止监听
                                 if let Some(choice) = data.choices.first() {
                                     if let Some(reason) = &choice.finish_reason {
-                                        eprintln!("[DeepSeekClient] 🏁 Finish reason: {}", reason);
                                         // 发送所有累积的工具参数
-                                        for (index, (tool_id, args)) in &tool_args_buffer {
-                                            eprintln!("[DeepSeekClient] 🔧 Tool[{} / {}] accumulated args: '{}'", index, tool_id, args);
+                                        for (_index, (tool_id, args)) in tool_args_buffer.iter() {
                                             if !args.is_empty() {
-                                                eprintln!("[DeepSeekClient] ✅ Sending ToolDone for {}", tool_id);
                                                 yield Ok(StreamEvent::ToolDone {
                                                     tool_id: tool_id.clone(),
                                                     result: args.clone(),
                                                 });
-                                            } else {
-                                                eprintln!("[DeepSeekClient] ⚠️ Tool[{} / {}] has no arguments, skipping ToolDone", index, tool_id);
                                             }
                                         }
                                         // 清空缓冲区
