@@ -419,10 +419,24 @@ async fn ai_chat(
         
         // 注入工具定义兜底：确保模型即便没收到 tools 参数，也能通过提示词学会调用
         final_system_prompt.push_str("\n\n# IMPORTANT: WHEN TO USE TOOLS\n");
-        final_system_prompt.push_str("When users ask you to create tasks, to-do lists, checklists, or action items:\n");
-        final_system_prompt.push_str("1. ⚠️ DO NOT create a file with agent_write_file - this creates a messy text file!\n");
-        final_system_prompt.push_str("2. ✅ ALWAYS use the TodoWrite tool instead - this creates a proper interactive task panel!\n");
-        final_system_prompt.push_str("3. The TodoWrite tool will create a structured task list that users can interact with.\n\n");
+        final_system_prompt.push_str("You have access to SPECIALIZED TOOLS. ALWAYS prefer them over generic bash:\n\n");
+
+        // 🆕 P3: 文件操作工具优先级
+        final_system_prompt.push_str("## File Operations (PREFER THESE OVER BASH)\n");
+        final_system_prompt.push_str("1. ✅ read_file - Read file contents (PREFER over 'cat' in bash)\n");
+        final_system_prompt.push_str("2. ✅ write_file - Write/create files (PREFER over 'echo' in bash)\n");
+        final_system_prompt.push_str("3. ✅ edit_file - Edit/replace text in files (PREFER over 'sed' in bash)\n");
+        final_system_prompt.push_str("4. ✅ glob_search - Find files by pattern (PREFER over 'find' in bash)\n");
+        final_system_prompt.push_str("5. ✅ grep_search - Search text in files (PREFER over 'grep' in bash)\n\n");
+
+        final_system_prompt.push_str("## Task Management\n");
+        final_system_prompt.push_str("⚠️ DO NOT create a file with agent_write_file - this creates a messy text file!\n");
+        final_system_prompt.push_str("✅ ALWAYS use the TodoWrite tool instead - this creates a proper interactive task panel!\n");
+        final_system_prompt.push_str("The TodoWrite tool will create a structured task list that users can interact with.\n\n");
+
+        final_system_prompt.push_str("## When to use bash\n");
+        final_system_prompt.push_str("- Only use bash for system queries (pwd, date, uname) or complex shell scripts\n");
+        final_system_prompt.push_str("- For file operations, ALWAYS use the specialized tools above\n\n");
 
         final_system_prompt.push_str("# ADDITIONAL TOOLS AVAILABLE\n");
         final_system_prompt.push_str("You also have access to the following tools. You MUST use them by outputting standard tool call JSON:\n");
@@ -766,6 +780,82 @@ async fn ai_chat(
                 }
             }
         }),
+        // 🆕 P3: 新工具系统
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "Read the contents of a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string" }
+                    },
+                    "required": ["path"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "write_file",
+                "description": "Write content to a file (creates parent directories if needed)",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string" },
+                        "content": { "type": "string" }
+                    },
+                    "required": ["path", "content"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "edit_file",
+                "description": "Edit specific parts of a file by replacing text",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string" },
+                        "old_text": { "type": "string" },
+                        "new_text": { "type": "string" }
+                    },
+                    "required": ["path", "old_text", "new_text"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "glob_search",
+                "description": "Search for files using glob patterns (e.g., '*.rs' to find all Rust files)",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": { "type": "string" },
+                        "path": { "type": "string" }
+                    },
+                    "required": ["pattern"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "grep_search",
+                "description": "Search for text patterns in files (supports regular expressions)",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": { "type": "string" },
+                        "path": { "type": "string" }
+                    },
+                    "required": ["pattern"]
+                }
+            }
+        }),
         // 🆕 P2: TodoWrite 工具
         serde_json::json!({
             "type": "function",
@@ -812,7 +902,17 @@ async fn ai_chat(
             println!("[AI Chat] Vibe Mode active: Filtering for safe PIVO tools");
             final_tools.retain(|t| {
                 let name = t["function"]["name"].as_str().unwrap_or("");
-                name == "agent_scan_project" || name == "agent_read_file" || name == "agent_list_dir" || name == "bash" || name == "TodoWrite" // 🆕 P2: 添加 TodoWrite 到 Vibe Mode 白名单
+                // 🆕 P3: 添加新工具到 Vibe Mode 白名单
+                name == "agent_scan_project"
+                    || name == "agent_read_file"
+                    || name == "agent_list_dir"
+                    || name == "bash"
+                    || name == "TodoWrite"
+                    || name == "read_file"
+                    || name == "write_file"
+                    || name == "edit_file"
+                    || name == "glob_search"
+                    || name == "grep_search"
             });
         }
         // Spec 模式不进行 retain，保持全量 tools

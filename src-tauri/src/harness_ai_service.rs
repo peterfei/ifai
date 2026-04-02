@@ -173,6 +173,9 @@ impl AIService for HarnessAIService {
         // 处理流式响应
         let mut full_text = String::new();
         let mut tool_calls_buffer: Vec<String> = Vec::new();
+        // 🆕 P3: 保存 tool_id -> tool_name 映射，用于 ToolDone 事件
+        use std::collections::HashMap;
+        let mut tool_name_map: HashMap<String, String> = HashMap::new();
 
         while let Some(result) = stream.next().await {
             match result {
@@ -197,6 +200,9 @@ impl AIService for HarnessAIService {
                         crate::harness::api::StreamEvent::ToolStart { tool_id, name, input } => {
                             println!("[HarnessAIService] 🔧 Tool start: {} ({})", name, tool_id);
                             println!("[HarnessAIService] 🔧 Tool input: {}", input);  // 🆕 调试：打印输入
+
+                            // 🆕 P3: 保存工具名称映射
+                            tool_name_map.insert(tool_id.clone(), name.clone());
 
                             // 发送工具调用事件
                             let tool_event = json!({
@@ -227,12 +233,14 @@ impl AIService for HarnessAIService {
 
                                 let router = get_global_tool_router();
 
-                                // 从 tool_id 中提取工具名称（格式通常是 call_xxx）
-                                // 先尝试从 args 中获取工具名称
-                                let tool_name = args.get("name")
-                                    .or(args.get("tool"))
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("TodoWrite"); // 默认 TodoWrite
+                                // 🆕 P3: 从映射中获取工具名称（ToolStart 时保存的）
+                                let tool_name = tool_name_map.get(&tool_id)
+                                    .map(|s| s.as_str())
+                                    .or_else(|| args.get("name").and_then(|v| v.as_str()))
+                                    .or_else(|| args.get("tool").and_then(|v| v.as_str()))
+                                    .unwrap_or("TodoWrite");
+
+                                println!("[HarnessAIService] 🔧 Resolved tool name: {}", tool_name);
 
                                 match router.execute(tool_name, &args) {
                                     Ok(exec_result) => {

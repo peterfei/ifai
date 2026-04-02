@@ -176,6 +176,7 @@ struct Session {
     base_url: Option<String>,
     messages: Vec<ifainew_lib::harness::api::Message>,
     tool_registry: ifainew_lib::harness::tool::ToolRegistry,
+    tool_router: ifainew_lib::harness::tool::ToolRouter,
     system_prompt: String,
 }
 
@@ -189,6 +190,7 @@ impl Session {
             base_url,
             messages: Vec::new(),
             tool_registry: ifainew_lib::harness::tool::ToolRegistry::new(),
+            tool_router: ifainew_lib::harness::tool::ToolRouter::new(),
             system_prompt,
         }
     }
@@ -344,6 +346,10 @@ impl Session {
         let mut stream = client.stream(request).await?;
         let mut full_response = String::new();
 
+        // 🆕 P3: 保存 tool_id -> tool_name 映射
+        use std::collections::HashMap;
+        let mut tool_name_map: HashMap<String, String> = HashMap::new();
+
         // 处理流式响应
         while let Some(result) = stream.next().await {
             match result {
@@ -359,9 +365,30 @@ impl Session {
                         StreamEvent::ToolStart { tool_id, name, .. } => {
                             println!();
                             println!("🔧 工具调用: {} ({})", name, tool_id);
+                            // 🆕 P3: 保存工具名称映射
+                            tool_name_map.insert(tool_id.clone(), name.clone());
                         }
                         StreamEvent::ToolDone { tool_id, result } => {
-                            println!("✅ 工具完成: {} => {}", tool_id, result);
+                            // 🆕 P3: 执行工具
+                            if let Ok(args) = serde_json::from_str::<serde_json::Value>(&result) {
+                                // 从映射中获取工具名称
+                                let tool_name = tool_name_map.get(&tool_id)
+                                    .map(|s| s.as_str())
+                                    .or_else(|| args.get("name").and_then(|v| v.as_str()))
+                                    .or_else(|| args.get("tool").and_then(|v| v.as_str()))
+                                    .unwrap_or("TodoWrite");
+
+                                match self.tool_router.execute(tool_name, &args) {
+                                    Ok(exec_result) => {
+                                        println!("✅ 工具完成: {} ({})", tool_id, exec_result);
+                                    }
+                                    Err(e) => {
+                                        println!("❌ 工具执行失败: {} => {:?}", tool_id, e);
+                                    }
+                                }
+                            } else {
+                                println!("✅ 工具完成: {} => {}", tool_id, result);
+                            }
                         }
                         StreamEvent::MessageDone { .. } => {
                             // 消息完成，但不在交互模式中显示
