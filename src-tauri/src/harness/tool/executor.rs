@@ -6,6 +6,7 @@ pub mod todoutil;
 pub mod filetools;
 pub mod searchtools;
 pub mod shelltools;
+pub mod aliastools;
 
 use serde_json::Value;
 use std::collections::HashSet;
@@ -17,6 +18,7 @@ pub use todoutil::TodoWriteExecutor;
 pub use filetools::FileToolsExecutor;
 pub use searchtools::SearchToolsExecutor;
 pub use shelltools::ShellToolsExecutor;
+pub use aliastools::AliasExecutor;
 
 /// 工具执行错误
 #[derive(Debug, thiserror::Error)]

@@ -4,12 +4,25 @@
 
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock, Arc};
 
 use super::{
-    executor::{ToolExecutor, TodoWriteExecutor, FileToolsExecutor, SearchToolsExecutor, ShellToolsExecutor},
+    executor::{ToolExecutor, TodoWriteExecutor, FileToolsExecutor, SearchToolsExecutor, ShellToolsExecutor, AliasExecutor},
     ToolError,
 };
+
+/// 全局项目根目录（P4: 用于 agent_* 工具的相对路径解析）
+static GLOBAL_PROJECT_ROOT: OnceLock<Option<String>> = OnceLock::new();
+
+/// 设置全局项目根目录
+pub fn set_global_project_root(root: String) {
+    GLOBAL_PROJECT_ROOT.set(Some(root)).ok();
+}
+
+/// 获取全局项目根目录
+pub fn get_global_project_root() -> Option<String> {
+    GLOBAL_PROJECT_ROOT.get().cloned().flatten()
+}
 
 /// 工具路由器
 pub struct ToolRouter {
@@ -39,9 +52,21 @@ impl ToolRouter {
         executors.insert("bash".to_string(), Box::new(ShellToolsExecutor::new()));
         executors.insert("PowerShell".to_string(), Box::new(ShellToolsExecutor::new()));
 
+        // 🆕 P4: 注册 agent_* 工具（使用 AliasExecutor）
+        executors.insert("agent_read_file".to_string(), Box::new(AliasExecutor::new()));
+        executors.insert("agent_write_file".to_string(), Box::new(AliasExecutor::new()));
+        executors.insert("agent_list_dir".to_string(), Box::new(AliasExecutor::new()));
+        executors.insert("agent_scan_project".to_string(), Box::new(AliasExecutor::new()));
+
         Self {
             executors: Mutex::new(executors),
         }
+    }
+
+    /// 设置项目根目录（用于 agent_* 工具）
+    pub fn set_project_root(&self, root: String) {
+        // 设置全局 project_root
+        set_global_project_root(root);
     }
 
     /// 执行工具

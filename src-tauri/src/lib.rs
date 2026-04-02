@@ -134,90 +134,73 @@ pub async fn execute_local_tool(
 
     println!("[LocalTool] Executing: {} with args: {}", tool_name, args);
 
+    // 🔧 P4: 优先使用 ToolRouter 处理 agent_* 工具
     match tool_name {
-        "agent_probe_symbols" => {
-            let rel_path = args["rel_path"].as_str().unwrap_or("");
-            let abs_path = std::path::Path::new(project_root).join(rel_path);
-            match analysis::symbol_stream::probe_file_symbols(&abs_path) {
-                Ok(probes) => serde_json::to_string(&probes).unwrap_or_else(|_| "[]".to_string()),
-                Err(e) => format!("错误: {}", e)
-            }
-        }
-        "agent_read_file" => {
-            let rel_path = args["rel_path"].as_str().unwrap_or("");
-            match core_wrappers::agent_read_file(project_root.to_string(), rel_path.to_string()).await {
-                Ok(content) => content,
-                Err(e) => format!("错误: {}", e)
-            }
-        }
-        "agent_list_dir" => {
-            let rel_path = args["rel_path"].as_str().unwrap_or(".");
-            match core_wrappers::agent_list_dir(project_root.to_string(), rel_path.to_string()).await {
-                Ok(entries) => entries.join("\n"),
-                Err(e) => format!("错误: {}", e)
-            }
-        }
-        "agent_write_file" => {
-            let rel_path = args["rel_path"].as_str().unwrap_or("");
-            let content = args["content"].as_str().unwrap_or("");
-            match core_wrappers::agent_write_file(project_root.to_string(), rel_path.to_string(), content.to_string()).await {
-                // Parse JSON result and return formatted message
-                Ok(json_result) => {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_result) {
-                        if parsed["success"].as_bool().unwrap_or(false) {
-                            format!("文件写入成功: {}", rel_path)
-                        } else {
-                            format!("错误: {}", parsed["message"].as_str().unwrap_or("未知错误"))
-                        }
-                    } else {
-                        // Fallback to raw string for backward compatibility
-                        json_result
-                    }
-                },
-                Err(e) => format!("错误: {}", e)
-            }
-        }
-        "agent_batch_read" => {
-            if let Some(paths_array) = args["paths"].as_array() {
-                let paths: Vec<String> = paths_array.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect();
-                core_wrappers::agent_batch_read(project_root.to_string(), paths).await
-                    .unwrap_or_else(|e| format!("错误: {}", e))
-            } else {
-                "错误: 缺少 paths 参数".to_string()
-            }
-        }
-        "bash" | "agent_run_shell_command" | "agent_execute_command" => {
-            let cmd_str = args["command"].as_str().unwrap_or("");
-            let cwd = args["working_dir"]
-                .as_str()
-                .or_else(|| args["cwd"].as_str())
-                .unwrap_or(project_root);
-            let timeout_val = args["timeout"]
-                .as_u64()
-                .or_else(|| args["timeout_ms"].as_u64());
-            let env_vars = args.get("env_vars")
-                .and_then(|v| v.as_object())
-                .map(|obj| {
-                    obj.iter()
-                        .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
-                        .collect::<std::collections::HashMap<String, String>>()
-                });
-
-            match commands::bash_commands::execute_bash_command(
-                cmd_str.to_string(),
-                Some(cwd.to_string()),
-                timeout_val,
-                env_vars,
-            ).await {
-                Ok(result) => serde_json::to_string(&result).unwrap_or_default(),
-                Err(e) => format!("命令执行失败: {}", e),
+        "agent_read_file" | "agent_write_file" | "agent_list_dir" | "agent_scan_project" => {
+            use crate::harness::tool::ToolRouter;
+            let router = ToolRouter::new();
+            // 确保设置了 project_root
+            router.set_project_root(project_root.to_string());
+            // 执行工具
+            match router.execute(tool_name, args) {
+                Ok(result) => result,
+                Err(e) => format!("错误: {:?}", e)
             }
         }
         _ => {
-            format!("未知的工具: {}", tool_name)
+            // 其他工具继续使用旧的实现
+            match tool_name {
+                "agent_probe_symbols" => {
+                    let rel_path = args["rel_path"].as_str().unwrap_or("");
+                    let abs_path = std::path::Path::new(project_root).join(rel_path);
+                    match analysis::symbol_stream::probe_file_symbols(&abs_path) {
+                        Ok(probes) => serde_json::to_string(&probes).unwrap_or_else(|_| "[]".to_string()),
+                        Err(e) => format!("错误: {}", e)
+                    }
+                }
+                "agent_batch_read" => {
+                    if let Some(paths_array) = args["paths"].as_array() {
+                        let paths: Vec<String> = paths_array.iter()
+                            .filter_map(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .collect();
+                        core_wrappers::agent_batch_read(project_root.to_string(), paths).await
+                            .unwrap_or_else(|e| format!("错误: {}", e))
+                    } else {
+                        "错误: 缺少 paths 参数".to_string()
+                    }
+                }
+                "bash" | "agent_run_shell_command" | "agent_execute_command" => {
+                    let cmd_str = args["command"].as_str().unwrap_or("");
+                    let cwd = args["working_dir"]
+                        .as_str()
+                        .or_else(|| args["cwd"].as_str())
+                        .unwrap_or(project_root);
+                    let timeout_val = args["timeout"]
+                        .as_u64()
+                        .or_else(|| args["timeout_ms"].as_u64());
+                    let env_vars = args.get("env_vars")
+                        .and_then(|v| v.as_object())
+                        .map(|obj| {
+                            obj.iter()
+                                .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                                .collect::<std::collections::HashMap<String, String>>()
+                        });
+
+                    match commands::bash_commands::execute_bash_command(
+                        cmd_str.to_string(),
+                        Some(cwd.to_string()),
+                        timeout_val,
+                        env_vars,
+                    ).await {
+                        Ok(result) => serde_json::to_string(&result).unwrap_or_default(),
+                        Err(e) => format!("命令执行失败: {}", e),
+                    }
+                }
+                _ => {
+                    format!("未知的工具: {}", tool_name)
+                }
+            }
         }
     }
 }
@@ -257,6 +240,13 @@ async fn ai_chat(
     // Sanitize messages
     ai_utils::sanitize_messages(&mut messages);
     println!("[AI Chat] After sanitize: {} messages", messages.len());
+
+    // 🔧 P4: 设置 project_root 到 ToolRouter（用于 agent_* 工具）
+    if let Some(ref root) = project_root {
+        use crate::harness::tool::ToolRouter;
+        let router = ToolRouter::new();
+        router.set_project_root(root.clone());
+    }
 
     if let Some(ref root) = project_root {
         let root_clone = root.clone();
