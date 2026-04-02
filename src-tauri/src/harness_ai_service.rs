@@ -145,11 +145,10 @@ impl AIService for HarnessAIService {
         let model = config.models.get(0).cloned().unwrap_or_default();
         let tool_count = tools.as_ref().map_or(0, |t| t.len());
 
-        // P4: Tool Call Auto-Continuation Loop
+        // P4: Tool Call Auto-Continuation Loop (参考 claw-code/conversation.rs)
         // OpenAI 协议：模型返回 tool_calls + finish_reason:stop → 应用执行工具 →
         // 以 role:"tool" 消息发回 API → 模型继续生成
         let mut loop_count = 0;
-        const MAX_LOOPS: usize = 24;
 
         // 防止无限循环：追踪连续相同的工具调用签名
         let mut consecutive_same_tool_count: usize = 0;
@@ -157,9 +156,9 @@ impl AIService for HarnessAIService {
 
         use tokio::time::{timeout, Duration};
 
-        println!("[AI] stream_chat start: model={}, tools={}, max_loops={}", model, tool_count, MAX_LOOPS);
+        println!("[AI] stream_chat start: model={}, tools={}", model, tool_count);
 
-        while loop_count < MAX_LOOPS {
+        loop {
             loop_count += 1;
 
             // 构建请求
@@ -314,7 +313,7 @@ impl AIService for HarnessAIService {
                 }
             }
 
-            // 判断是否需要续接
+            // 判断是否需要续接 (claw-code 模式：主要退出条件)
             if has_error {
                 println!("[AI] Loop {} error, stopping", loop_count);
                 break;
@@ -326,11 +325,11 @@ impl AIService for HarnessAIService {
                     "choices": [{ "finish_reason": "stop" }]
                 });
                 callback(finish_event.to_string());
-                println!("[AI] Loop {} done (no tool calls), total loops: {}", loop_count, loop_count);
+                println!("[AI] Completed after {} loop(s)", loop_count);
                 break;
             }
 
-            // 防止无限循环：检测连续相同的工具调用签名
+            // 安全网：检测连续相同的工具调用签名
             let current_sig: String = collected_tool_calls.iter()
                 .map(|tc| format!("{}:{}", tc.tool_name, tc.arguments.len()))
                 .collect::<Vec<_>>()
@@ -361,7 +360,7 @@ impl AIService for HarnessAIService {
             let tool_names: Vec<&str> = collected_tool_calls.iter()
                 .map(|tc| tc.tool_name.as_str())
                 .collect();
-            println!("[AI] Loop {}: {} tool(s) [{}], continuing...", loop_count, collected_tool_calls.len(), tool_names.join(", "));
+            println!("[AI] Loop {}: {} tool(s) [{}]", loop_count, collected_tool_calls.len(), tool_names.join(", "));
 
             // 构建 assistant 消息（包含 tool_calls）
             let tool_calls_for_msg: Vec<HarnessToolCall> = collected_tool_calls.iter().map(|tc| {
@@ -391,14 +390,6 @@ impl AIService for HarnessAIService {
                     tool_call_id: Some(tc.tool_id.clone()),
                 });
             }
-        }
-
-        if loop_count >= MAX_LOOPS {
-            println!("[AI] Reached MAX_LOOPS ({}), finishing", MAX_LOOPS);
-            let finish_event = json!({
-                "choices": [{ "finish_reason": "stop" }]
-            });
-            callback(finish_event.to_string());
         }
 
         println!("[AI] stream_chat completed: {} loop(s)", loop_count);
