@@ -1333,6 +1333,44 @@ ${context}
     };
   }, [isLoading, handleAddImageAttachment]);
 
+  // 🔄 监听后端文件操作完成事件，刷新文件树
+  useEffect(() => {
+    let unlistenFileRefresh: (() => void) | null = null;
+
+    const setupFileRefreshListener = async () => {
+      try {
+        // 🔥 FIX: 确保 Tauri bridge 已初始化并动态导入 listen
+        await ensureTauriInitialized();
+        const { listen } = await import('@tauri-apps/api/event');
+
+        unlistenFileRefresh = await listen<any>('file-tree-refresh', (event) => {
+          console.log('[AIChat] 🔄 File tree refresh event received:', event.payload);
+
+          // 刷新文件树
+          try {
+            const { refreshFileTreeDebounced } = useFileStore.getState();
+            refreshFileTreeDebounced();
+            console.log('[AIChat] ✅ File tree refreshed after file operation');
+          } catch (e) {
+            console.warn('[AIChat] ⚠️ Failed to refresh file tree:', e);
+          }
+        });
+
+        console.log('[AIChat] Tauri file-tree-refresh listener setup complete');
+      } catch (error) {
+        console.warn('[AIChat] Failed to setup file-tree-refresh listener:', error);
+      }
+    };
+
+    setupFileRefreshListener();
+
+    return () => {
+      if (unlistenFileRefresh) {
+        unlistenFileRefresh();
+      }
+    };
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInput(val);

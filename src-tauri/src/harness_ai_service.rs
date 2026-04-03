@@ -408,6 +408,15 @@ impl AIService for HarnessAIService {
                                         args.get("todos").is_some()
                                     );
 
+                                    // 🔄 文件操作工具执行成功后，刷新文件树
+                                    if matches!(tool_name.as_str(), "write_file" | "edit_file" | "agent_write_file" | "agent_delete_file") {
+                                        let _ = self.app.emit("file-tree-refresh", json!({
+                                            "action": "write",
+                                            "tool": tool_name
+                                        }));
+                                        println!("[AI] 🔄 Emitted file-tree-refresh event after {}", tool_name);
+                                    }
+
                                     // 构建并发送 tool_done 事件
                                     let mut done_event = json!({
                                         "type": "tool_done",
@@ -505,6 +514,15 @@ impl AIService for HarnessAIService {
                                                 }).to_string()
                                             }
                                         };
+
+                                        // 🔄 文件操作工具执行成功后，刷新文件树（fallback 路径）
+                                        if matches!(tool_name_from_map.as_str(), "write_file" | "edit_file" | "agent_write_file" | "agent_delete_file") {
+                                            let _ = self.app.emit("file-tree-refresh", json!({
+                                                "action": "write",
+                                                "tool": tool_name_from_map
+                                            }));
+                                            println!("[AI] 🔄 Emitted file-tree-refresh event after {} (fallback)", tool_name_from_map);
+                                        }
 
                                         let mut done_event = json!({
                                             "type": "tool_done",
