@@ -11,15 +11,16 @@ fn get_prompt_root(project_root: &str) -> PathBuf {
 }
 
 #[tauri::command]
-pub async fn list_prompts(project_root: String, locale: Option<String>) -> Result<Vec<PromptTemplate>, String> {
+pub async fn list_prompts(project_root: String, locale: Option<String>, expert_mode: Option<bool>) -> Result<Vec<PromptTemplate>, String> {
     let mut prompts_map = HashMap::new();
     let lang = locale.unwrap_or_else(|| "en".to_string());
     let lang_code = if lang.starts_with("zh") { "zh-CN" } else { "en" };
+    let expert_mode_enabled = expert_mode.unwrap_or(false);
 
     // 1. Load Builtin Prompts with I18n Deduplication
     for file_path in BuiltinPrompts::iter() {
         if !file_path.ends_with(".md") { continue; }
-        
+
         let path_str = file_path.as_ref();
         // 逻辑路径定义：移除语言前缀
         let logical_path = if path_str.starts_with("zh-CN/") {
@@ -32,7 +33,7 @@ pub async fn list_prompts(project_root: String, locale: Option<String>) -> Resul
 
         // 优先级：当前语言 > 默认版
         let is_current_lang = path_str.starts_with(lang_code);
-        
+
         if !prompts_map.contains_key(&logical_path) || is_current_lang {
             if let Some(content_file) = BuiltinPrompts::get(path_str) {
                 let content = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
@@ -65,6 +66,12 @@ pub async fn list_prompts(project_root: String, locale: Option<String>) -> Resul
     }
 
     let mut result: Vec<_> = prompts_map.into_values().collect();
+
+    // 3. Filter by access tier based on expert mode
+    if !expert_mode_enabled {
+        result.retain(|p| p.metadata.access_tier != crate::prompt_manager::AccessTier::Private);
+    }
+
     result.sort_by(|a, b| a.metadata.name.cmp(&b.metadata.name));
     Ok(result)
 }
@@ -104,10 +111,56 @@ pub async fn get_prompt(project_root: String, path: String, locale: Option<Strin
 }
 
 #[tauri::command]
-pub async fn update_prompt(project_root: String, path: String, content: String) -> Result<String, String> {
+pub async fn update_prompt(project_root: String, path: String, content: String, expert_mode: Option<bool>) -> Result<String, String> {
+    let expert_mode_enabled = expert_mode.unwrap_or(false);
+
+    // 权限检查：获取当前提示词的访问层级
+    if path.starts_with("builtin://") {
+        let logical_path = &path[10..];
+
+        // 尝试加载内置提示词以检查其访问层级
+        let lang_code = "en"; // 默认语言，可以扩展
+        let i18n_path = format!("{}/{}", lang_code, logical_path);
+
+        let access_tier = if let Some(content_file) = BuiltinPrompts::get(&i18n_path) {
+            let content_str = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
+            if let Ok(template) = storage::load_prompt_from_str(content_str, None) {
+                template.metadata.access_tier
+            } else {
+                crate::prompt_manager::AccessTier::Public
+            }
+        } else if let Some(content_file) = BuiltinPrompts::get(logical_path) {
+            let content_str = std::str::from_utf8(content_file.data.as_ref()).unwrap_or("");
+            if let Ok(template) = storage::load_prompt_from_str(content_str, None) {
+                template.metadata.access_tier
+            } else {
+                crate::prompt_manager::AccessTier::Public
+            }
+        } else {
+            crate::prompt_manager::AccessTier::Public
+        };
+
+        // 权限检查
+        match access_tier {
+            crate::prompt_manager::AccessTier::Private => {
+                if !expert_mode_enabled {
+                    return Err("Cannot edit private prompts without expert mode".to_string());
+                }
+            }
+            crate::prompt_manager::AccessTier::Protected => {
+                // Protected 提示词只能通过覆盖文件编辑
+                // 继续下面的逻辑，会创建 .override.md 文件
+            }
+            crate::prompt_manager::AccessTier::Public => {
+                // Public 提示词可以直接编辑
+            }
+        }
+    }
+
     storage::validate_prompt_content(&content)?;
     let final_rel_path = if path.starts_with("builtin://") {
         let internal = &path[10..];
+        // 对于内置提示词，总是创建覆盖文件
         internal.replace(".md", ".override.md")
     } else {
         path

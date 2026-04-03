@@ -28,14 +28,18 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   loadPrompts: async () => {
     set({ isLoading: true, error: null });
     const rootPath = useFileStore.getState().rootPath;
-    
+    const expertMode = get().expertMode;
+
     if (!rootPath) {
         set({ prompts: [], isLoading: false });
         return;
     }
 
     try {
-      const prompts = await invoke<PromptTemplate[]>('list_prompts', { projectRoot: rootPath });
+      const prompts = await invoke<PromptTemplate[]>('list_prompts', {
+        projectRoot: rootPath,
+        expertMode: expertMode
+      });
       set({ prompts, isLoading: false });
     } catch (err) {
       console.error('Failed to load prompts:', err);
@@ -68,18 +72,24 @@ export const usePromptStore = create<PromptState>((set, get) => ({
 
   updatePrompt: async (path: string, content: string) => {
       const rootPath = useFileStore.getState().rootPath;
+      const expertMode = get().expertMode;
       if (!rootPath) return;
 
       try {
           // Backend returns the final path (handles builtin -> override transition)
-          const finalPath = await invoke<string>('update_prompt', { projectRoot: rootPath, path, content });
-          
+          const finalPath = await invoke<string>('update_prompt', {
+            projectRoot: rootPath,
+            path,
+            content,
+            expertMode: expertMode
+          });
+
           // Refresh the list to show the new file
           await get().loadPrompts();
-          
+
           // Important: Switch selection to the new path
           await get().selectPrompt(finalPath);
-          
+
       } catch (err) {
           console.error('Failed to update prompt:', err);
           // Don't set state error here if we want to show a toast or alert instead
@@ -96,7 +106,11 @@ export const usePromptStore = create<PromptState>((set, get) => ({
       }
   },
 
-  toggleExpertMode: () => {
+  toggleExpertMode: async () => {
+    const currentMode = get().expertMode;
     set(state => ({ expertMode: !state.expertMode }));
+
+    // Reload prompts with new expert mode setting
+    await get().loadPrompts();
   },
 }));
