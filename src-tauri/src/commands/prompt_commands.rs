@@ -297,3 +297,13 @@ pub async fn read_git_status(project_root: String) -> Option<String> {
     manager.read_git_status()
 }
 
+
+// === 验证命令 ===
+
+use crate::prompt_manager::validation::{PromptValidator, ValidationResult};
+
+/// 验证提示词语法
+#[tauri::command]
+pub async fn validate_prompt(content: String) -> Result<ValidationResult, String> {
+    PromptValidator::validate(&content).map_err(|e| e.to_string())
+}

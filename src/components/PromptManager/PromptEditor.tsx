@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePromptStore } from '../../stores/promptStore';
 import { useAgentStore } from '../../stores/agentStore';
-import { Play, X, Save, AlertTriangle, Lock, History } from 'lucide-react';
+import { Play, X, Save, AlertTriangle, Lock, History, CheckCircle, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkFeature, IS_COMMERCIAL } from '../../config/edition';
 import { VersionHistory } from './VersionHistory';
 import { VersionDiffViewer } from './VersionDiffViewer';
 import { OverrideConfirmDialog } from './OverrideConfirmDialog';
 import { PromptMonacoEditor } from './PromptMonacoEditor';
+import { ValidationPanel } from './ValidationPanel';
 import { AccessTier } from '../../types/prompt';
 
 export const PromptEditor: React.FC = () => {
@@ -20,6 +21,7 @@ export const PromptEditor: React.FC = () => {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [diffVersions, setDiffVersions] = useState<{ old: string; new: string } | null>(null);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
+  const [showValidationPanel, setShowValidationPanel] = useState(false);
   
   // Dummy variables for preview
   const [testVariables, setTestVariables] = useState<Record<string, string>>({
@@ -133,6 +135,15 @@ export const PromptEditor: React.FC = () => {
     setShowVersionHistory(false);
   };
 
+  const handleValidationComplete = (result: any) => {
+    if (result.is_valid) {
+      // 可以在编辑器上显示一个验证通过的指示器
+      console.log('[PromptEditor] Validation passed');
+    } else {
+      console.log('[PromptEditor] Validation failed:', result.errors.length, 'errors');
+    }
+  };
+
   if (!selectedPrompt) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-800/20">
@@ -207,6 +218,18 @@ export const PromptEditor: React.FC = () => {
             >
                 <History size={14} />
             </button>
+            <button
+                onClick={() => setShowValidationPanel(!showValidationPanel)}
+                className={`p-1.5 rounded transition-shadow shadow-sm active:shadow-none ${
+                  showValidationPanel
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                }`}
+                title="验证提示词"
+                data-testid="validation-toggle-button"
+            >
+                <Shield size={14} />
+            </button>
             <button 
                 onClick={handleRun}
                 className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-shadow shadow-sm active:shadow-none"
@@ -279,6 +302,18 @@ export const PromptEditor: React.FC = () => {
           newVersion={diffVersions.new}
           onClose={() => setDiffVersions(null)}
         />
+      )}
+
+      {/* 验证面板 */}
+      {showValidationPanel && (
+        <div className="absolute bottom-0 left-0 right-0 z-10">
+          <ValidationPanel
+            content={content}
+            isVisible={showValidationPanel}
+            onClose={() => setShowValidationPanel(false)}
+            onValidationComplete={handleValidationComplete}
+          />
+        </div>
       )}
 
       {/* 覆盖确认对话框 */}

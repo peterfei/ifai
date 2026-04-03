@@ -8,6 +8,7 @@ pub mod variables;
 pub mod tool_parser;
 pub mod version;
 pub mod export;
+pub mod validation;
 
 #[derive(RustEmbed)]
 #[folder = "../.ifai/prompts/"]
