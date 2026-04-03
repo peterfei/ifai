@@ -325,7 +325,11 @@ function App() {
       // P2: 暴露 promptStore 到 window 对象供 E2E 测试使用
       try {
         const { usePromptStore } = await import('./stores/promptStore');
-        (window as any).__promptStore = usePromptStore;
+        // Zustand store 可以直接调用 setState
+        (window as any).__promptStore = {
+          setState: usePromptStore.setState,
+          getState: usePromptStore.getState,
+        };
         console.log('[App] ✅ PromptStore exposed to window.__promptStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose PromptStore:', error);

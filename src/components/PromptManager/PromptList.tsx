@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { usePromptStore } from '../../stores/promptStore';
 import { useFileStore } from '../../stores/fileStore';
-import { RefreshCw, AlertCircle, FileText, Eye, EyeOff } from 'lucide-react';
+import { RefreshCw, AlertCircle, FileText, Eye, EyeOff, Download, Upload } from 'lucide-react';
 import { AccessTierBadge } from './AccessTierBadge';
 import { AccessTier } from '../../types/prompt';
+import { ExportDialog } from './ExportDialog';
+import { ImportDialog } from './ImportDialog';
 
 export const PromptList: React.FC = () => {
   const { prompts, loadPrompts, selectPrompt, selectedPrompt, isLoading, error, expertMode, toggleExpertMode } = usePromptStore();
   const rootPath = useFileStore(state => state.rootPath);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   // 根据 expertMode 过滤提示词
   const filteredPrompts = useMemo(() => {
@@ -32,14 +36,30 @@ export const PromptList: React.FC = () => {
             <FileText size={16} />
             Prompts
           </h2>
-          <button
-            onClick={() => loadPrompts()}
-            disabled={isLoading}
-            className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors ${isLoading ? 'animate-spin text-blue-500' : 'text-gray-500'}`}
-            title="Refresh"
-          >
-            <RefreshCw size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setExportDialogOpen(true)}
+              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors text-gray-500"
+              title="导出提示词"
+            >
+              <Download size={14} />
+            </button>
+            <button
+              onClick={() => setImportDialogOpen(true)}
+              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors text-gray-500"
+              title="导入提示词"
+            >
+              <Upload size={14} />
+            </button>
+            <button
+              onClick={() => loadPrompts()}
+              disabled={isLoading}
+              className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors ${isLoading ? 'animate-spin text-blue-500' : 'text-gray-500'}`}
+              title="刷新"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
         </div>
         <button
           data-testid="expert-mode-toggle"
@@ -108,6 +128,26 @@ export const PromptList: React.FC = () => {
           );
         })}
       </div>
+
+      {/* 导入导出对话框 - 始终渲染，内部检查 rootPath */}
+      <ExportDialog
+        isOpen={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        projectRoot={rootPath || ''}
+        onSuccess={(msg) => {
+          console.log('[ExportDialog] Success:', msg);
+          if (rootPath) loadPrompts();
+        }}
+      />
+      <ImportDialog
+        isOpen={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        projectRoot={rootPath || ''}
+        onSuccess={(result) => {
+          console.log('[ImportDialog] Success:', result);
+          if (rootPath) loadPrompts();
+        }}
+      />
     </div>
   );
 };

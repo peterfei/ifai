@@ -228,6 +228,40 @@ pub async fn render_prompt_template(content: String, variables: HashMap<String, 
 
 use crate::prompt_manager::version::{PromptVersionManager, PromptVersion, VersionDiff};
 
+// === 导入导出命令 ===
+
+use crate::prompt_manager::export::{PromptExporter, PackageInfo, ImportResult};
+
+/// 导出提示词到文件
+#[tauri::command]
+pub async fn export_prompts(
+    project_root: String,
+    prompt_paths: Vec<String>,
+    package_info: PackageInfo,
+    output_path: String,
+) -> Result<String, String> {
+    let exporter = PromptExporter::new(project_root).map_err(|e| e.to_string())?;
+    exporter.export_prompts(prompt_paths, package_info, output_path).map_err(|e| e.to_string())
+}
+
+/// 从文件导入提示词
+#[tauri::command]
+pub async fn import_prompts(
+    project_root: String,
+    package_path: String,
+    overwrite: bool,
+) -> Result<ImportResult, String> {
+    let exporter = PromptExporter::new(project_root).map_err(|e| e.to_string())?;
+    exporter.import_prompts(package_path, overwrite).map_err(|e| e.to_string())
+}
+
+/// 获取可导出的提示词列表
+#[tauri::command]
+pub async fn list_exportable_prompts(project_root: String) -> Result<Vec<crate::prompt_manager::export::PromptExportMetadata>, String> {
+    let exporter = PromptExporter::new(project_root).map_err(|e| e.to_string())?;
+    exporter.list_available_prompts().map_err(|e| e.to_string())
+}
+
 /// 获取提示词版本历史
 #[tauri::command]
 pub async fn get_prompt_versions(project_root: String, prompt_path: String, limit: Option<usize>) -> Result<Vec<PromptVersion>, String> {

@@ -7,6 +7,7 @@ import { checkFeature, IS_COMMERCIAL } from '../../config/edition';
 import { VersionHistory } from './VersionHistory';
 import { VersionDiffViewer } from './VersionDiffViewer';
 import { OverrideConfirmDialog } from './OverrideConfirmDialog';
+import { PromptMonacoEditor } from './PromptMonacoEditor';
 import { AccessTier } from '../../types/prompt';
 
 export const PromptEditor: React.FC = () => {
@@ -227,18 +228,15 @@ export const PromptEditor: React.FC = () => {
 
       <div className="flex-1 overflow-hidden relative flex flex-col bg-gray-50 dark:bg-gray-900/40">
           {activeTab === 'edit' ? (
-              <textarea
-                className="flex-1 p-6 font-mono text-sm bg-white dark:bg-[#1e1e1e] text-gray-800 dark:text-gray-300 resize-none outline-none custom-scrollbar leading-relaxed"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                readOnly={isReadOnly}
-                spellCheck={false}
-                placeholder="---
-name: My Agent
----
-
-Write your prompt here..."
-              />
+              <div className="h-full">
+                  <PromptMonacoEditor
+                    value={content}
+                    onChange={setContent}
+                    readOnly={isReadOnly}
+                    variables={selectedPrompt?.metadata?.variables || []}
+                    height="100%"
+                  />
+              </div>
           ) : (
               <div className="flex flex-col h-full bg-white dark:bg-[#1e1e1e]">
                   <div className="p-3 bg-gray-100/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex gap-4 overflow-x-auto custom-scrollbar items-center">
