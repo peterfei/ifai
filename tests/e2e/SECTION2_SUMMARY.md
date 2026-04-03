@@ -124,13 +124,69 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 167 filtered out
 | `src/main.tsx` | 修复 Mock 数据类型 |
 | `src-tauri/src/harness/api/tests.rs` | 修复 Message 结构体 |
 
+### 6. 阶段 2：访问控制增强 ✅
+
+**实现时间**: 2025-04-03（延续阶段 1）
+
+**核心功能**：
+
+#### 后端权限检查 ✅
+- `src-tauri/src/commands/prompt_commands.rs` (lines 159-220)
+- `expert_mode` 参数支持
+- AccessTier 权限检查逻辑：
+  - `Private`: 需要专家模式
+  - `Protected`: 创建 `.override.md` 文件
+  - `Public`: 直接编辑
+
+#### 前端 UI 组件 ✅
+
+**已有组件**（在阶段 1 已完成）：
+- `AccessTierBadge.tsx` - 访问层级徽章（🟢Public、🟡Protected、🔴Private）
+- `PromptList.tsx` - 专家模式开关 + 过滤逻辑
+
+**新增组件**：
+- `OverrideConfirmDialog.tsx` (150+ 行) - 覆盖确认对话框
+  - Private 提示词：专家模式警告
+  - Protected 提示词：覆盖文件说明
+  - 内置提示词：项目覆盖说明
+
+**组件集成**：
+- `PromptEditor.tsx` - 集成覆盖确认对话框
+  - 检测 Protected/Private 提示词
+  - 显示确认对话框
+  - 处理用户确认/取消
+
+#### 测试文件 ✅
+- `tests/e2e/section2/access-control.spec.ts` (160+ 行)
+  - AC-001: 专家模式开关测试
+  - AC-002: AccessTierBadge 显示测试
+  - AC-003: 普通模式隐藏 Private 提示词
+  - AC-004: 专家模式显示 Private 提示词
+  - AC-005: 覆盖确认对话框测试
+  - AC-006: 只读模式提示测试
+
+### 阶段 2 新增文件清单
+
+| 文件 | 行数 | 说明 |
+|------|------|------|
+| `src/components/PromptManager/OverrideConfirmDialog.tsx` | 150+ | 覆盖确认对话框 |
+| `tests/e2e/section2/access-control.spec.ts` | 160+ | 访问控制 E2E 测试 |
+
+### 阶段 2 修改文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| `src/components/PromptManager/PromptEditor.tsx` | 集成覆盖确认对话框 |
+| `tests/e2e/SECTION2_SUMMARY.md` | 添加阶段 2 工作总结 |
+| `tests/e2e/SECTION2_PROGRESS.md` | 更新进度 |
+
 ## ⏭️  下一步工作
 
-### 阶段 2：访问控制增强（1 周）
-- [ ] 实现权限检查逻辑
-- [ ] AccessTierBadge 组件
-- [ ] 专家模式开关
-- [ ] 覆盖确认对话框
+### 阶段 2：访问控制增强 ✅ **已完成**
+- ✅ 实现权限检查逻辑
+- ✅ AccessTierBadge 组件
+- ✅ 专家模式开关
+- ✅ 覆盖确认对话框
 
 ### 阶段 3：编辑器增强（1-2 周）
 - [ ] Monaco Editor 集成
@@ -149,14 +205,30 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 167 filtered out
 
 ## 📈 统计数据
 
-| 指标 | 数值 |
-|------|------|
-| 新增代码行数 | ~1000 行 |
-| 新增文件数 | 5 个 |
-| 修改文件数 | 8 个 |
-| 测试用例数 | 10 个 |
-| 测试通过率 | 100% (10/10) |
-| Bug 修复数 | 8 个 |
+| 指标 | 阶段 1 | 阶段 2 | 总计 |
+|------|--------|--------|------|
+| 新增代码行数 | ~1000 行 | ~310 行 | ~1310 行 |
+| 新增文件数 | 5 个 | 2 个 | 7 个 |
+| 修改文件数 | 8 个 | 3 个 | 11 个 |
+| 测试用例数 | 10 个 | 6 个 | 16 个 |
+| 测试通过率 | 100% (10/10) | 待验证 | - |
+| Bug 修复数 | 8 个 | 0 个 | 8 个 |
+
+### 阶段 1 统计（版本管理）
+- 新增代码行数: ~1000 行
+- 新增文件数: 5 个
+- 修改文件数: 8 个
+- 测试用例数: 10 个（Rust 单元测试）
+- 测试通过率: 100% (10/10)
+- Bug 修复数: 8 个
+
+### 阶段 2 统计（访问控制）
+- 新增代码行数: ~310 行
+- 新增文件数: 2 个
+- 修改文件数: 3 个
+- 测试用例数: 6 个（E2E 测试）
+- 测试通过率: 待验证
+- Bug 修复数: 0 个
 
 ## 🎓 经验总结
 
@@ -194,6 +266,7 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 167 filtered out
 
 ## 🏆 成功指标
 
+### 阶段 1 成功指标 ✅
 - ✅ 版本管理功能完全实现
 - ✅ Git 集成正常工作
 - ✅ 所有单元测试通过（10/10）
@@ -201,10 +274,28 @@ test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 167 filtered out
 - ✅ 架构问题有明确解决方案
 - ✅ 代码质量良好（无编译警告）
 
+### 阶段 2 成功指标 ✅
+- ✅ 后端权限检查逻辑实现
+- ✅ AccessTierBadge 组件集成
+- ✅ 专家模式开关集成
+- ✅ 覆盖确认对话框创建
+- ✅ E2E 测试文件创建（6 个测试用例）
+- ✅ 前端 UI 完整集成
+
 ## 📝 备注
 
+### 阶段 1 备注
 - 本工作遵循 Section 2 实施计划
 - 采用了 claw-code 项目的版本管理设计
 - 使用了 Git2 Rust 库进行版本控制集成
 - 所有代码已通过 Rust 单元测试验证
 - 前端组件已创建，等待 E2E 测试验证
+
+### 阶段 2 备注
+- **完成时间**: 2025-04-03
+- 访问控制功能已完整实现
+- 后端权限检查逻辑在 `src-tauri/src/commands/prompt_commands.rs` (lines 159-220)
+- 前端 UI 完全集成（PromptList + PromptEditor + OverrideConfirmDialog）
+- E2E 测试文件已创建，待执行验证
+- 所有组件遵循 React + TypeScript 最佳实践
+- 使用 sonner toast 进行用户通知

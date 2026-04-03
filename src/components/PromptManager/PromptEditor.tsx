@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { checkFeature, IS_COMMERCIAL } from '../../config/edition';
 import { VersionHistory } from './VersionHistory';
 import { VersionDiffViewer } from './VersionDiffViewer';
+import { OverrideConfirmDialog } from './OverrideConfirmDialog';
+import { AccessTier } from '../../types/prompt';
 
 export const PromptEditor: React.FC = () => {
   const canEdit = checkFeature('promptEditing');
@@ -16,6 +18,7 @@ export const PromptEditor: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [diffVersions, setDiffVersions] = useState<{ old: string; new: string } | null>(null);
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false);
   
   // Dummy variables for preview
   const [testVariables, setTestVariables] = useState<Record<string, string>>({
@@ -57,22 +60,55 @@ export const PromptEditor: React.FC = () => {
 
   const handleSave = async () => {
     if (!selectedPrompt?.path) return;
-    
+
     const isBuiltin = selectedPrompt.path.startsWith('builtin://');
+    const accessTier = selectedPrompt.metadata?.access_tier || AccessTier.Public;
+    const needsOverride = isBuiltin || accessTier === AccessTier.Protected || accessTier === AccessTier.Private;
+
+    // 显示覆盖确认对话框
+    if (needsOverride) {
+      setShowOverrideDialog(true);
+      return;
+    }
+
+    // 直接保存 Public 提示词
     try {
       await updatePrompt(selectedPrompt.path, content);
+      toast.success('Prompt saved successfully');
+    } catch (e) {
+      toast.error('Failed to save prompt', {
+        description: String(e)
+      });
+    }
+  };
+
+  const handleOverrideConfirm = async () => {
+    if (!selectedPrompt?.path) return;
+
+    const isBuiltin = selectedPrompt.path.startsWith('builtin://');
+
+    try {
+      await updatePrompt(selectedPrompt.path, content);
+      setShowOverrideDialog(false);
+
       if (isBuiltin) {
         toast.success('Project-specific override created', {
           description: 'This prompt will now be used for the current project.'
         });
       } else {
-        toast.success('Prompt saved successfully');
+        toast.success('Override file created successfully', {
+          description: `${selectedPrompt.metadata.name}.override.md has been created.`
+        });
       }
     } catch (e) {
       toast.error('Failed to save prompt', {
         description: String(e)
       });
     }
+  };
+
+  const handleOverrideCancel = () => {
+    setShowOverrideDialog(false);
   };
 
   const handleRun = async () => {
@@ -244,6 +280,17 @@ Write your prompt here..."
           oldVersion={diffVersions.old}
           newVersion={diffVersions.new}
           onClose={() => setDiffVersions(null)}
+        />
+      )}
+
+      {/* 覆盖确认对话框 */}
+      {showOverrideDialog && selectedPrompt && (
+        <OverrideConfirmDialog
+          isOpen={showOverrideDialog}
+          accessTier={selectedPrompt.metadata.access_tier || AccessTier.Public}
+          promptName={selectedPrompt.metadata.name || 'Unknown'}
+          onConfirm={handleOverrideConfirm}
+          onCancel={handleOverrideCancel}
         />
       )}
     </div>
