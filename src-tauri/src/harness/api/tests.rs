@@ -57,6 +57,8 @@ mod integration_tests {
             messages: vec![Message {
                 role: MessageRole::User,
                 content: "Say 'Hello, Anthropic!' in exactly this way.".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
             }],
             max_tokens: 50,
             system: None,
@@ -117,6 +119,8 @@ mod integration_tests {
             messages: vec![Message {
                 role: MessageRole::User,
                 content: "Say 'Hello, OpenAI!' in exactly this way.".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
             }],
             max_tokens: 50,
             system: None,
@@ -177,6 +181,8 @@ mod integration_tests {
             messages: vec![Message {
                 role: MessageRole::User,
                 content: "Say 'Hello, DeepSeek!' in exactly this way.".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
             }],
             max_tokens: 50,
             system: None,

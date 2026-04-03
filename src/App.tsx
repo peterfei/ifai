@@ -321,6 +321,15 @@ function App() {
       } catch (error) {
         console.error('[App] ❌ Failed to expose TodoWriteStore:', error);
       }
+
+      // P2: 暴露 promptStore 到 window 对象供 E2E 测试使用
+      try {
+        const { usePromptStore } = await import('./stores/promptStore');
+        (window as any).__promptStore = usePromptStore;
+        console.log('[App] ✅ PromptStore exposed to window.__promptStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose PromptStore:', error);
+      }
     };
 
     init();

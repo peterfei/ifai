@@ -26,23 +26,40 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   expertMode: false,
 
   loadPrompts: async () => {
+    console.log('[promptStore] 🔄 loadPrompts called');
     set({ isLoading: true, error: null });
     const rootPath = useFileStore.getState().rootPath;
     const expertMode = get().expertMode;
 
+    console.log('[promptStore]   rootPath:', rootPath);
+    console.log('[promptStore]   expertMode:', expertMode);
+
     if (!rootPath) {
+        console.log('[promptStore] ❌ No rootPath, skipping load');
         set({ prompts: [], isLoading: false });
         return;
     }
 
     try {
-      const prompts = await invoke<PromptTemplate[]>('list_prompts', {
+      const params = {
         projectRoot: rootPath,
         expertMode: expertMode
-      });
+      };
+      console.log('[promptStore] 📡 Invoking list_prompts with params:', JSON.stringify(params));
+      const result = await invoke('list_prompts', params);
+      console.log('[promptStore] 📦 Raw result type:', typeof result);
+      console.log('[promptStore] 📦 Raw result:', result);
+      console.log('[promptStore] 📦 Is array?:', Array.isArray(result));
+
+      const prompts = result as PromptTemplate[];
+      console.log('[promptStore] ✅ Received prompts:', prompts.length);
+      console.log('[promptStore]   Prompts:', prompts.map(p => ({ name: p.metadata.name, path: p.path })));
       set({ prompts, isLoading: false });
     } catch (err) {
-      console.error('Failed to load prompts:', err);
+      console.error('[promptStore] ❌ Failed to load prompts:', err);
+      console.error('[promptStore]   Error type:', typeof err);
+      console.error('[promptStore]   Error message:', String(err));
+      console.error('[promptStore]   Error stack:', err instanceof Error ? err.stack : 'No stack');
       set({ error: String(err), isLoading: false });
     }
   },

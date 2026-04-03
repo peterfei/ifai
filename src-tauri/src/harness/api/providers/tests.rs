@@ -123,6 +123,8 @@ mod tests {
             messages: vec![Message {
                 role: MessageRole::User,
                 content: "Hello".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
             }],
             max_tokens: 1000,
             system: None,

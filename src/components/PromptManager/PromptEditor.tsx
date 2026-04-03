@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePromptStore } from '../../stores/promptStore';
 import { useAgentStore } from '../../stores/agentStore';
-import { Play, X, Save, AlertTriangle, Lock } from 'lucide-react';
+import { Play, X, Save, AlertTriangle, Lock, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { checkFeature, IS_COMMERCIAL } from '../../config/edition';
+import { VersionHistory } from './VersionHistory';
+import { VersionDiffViewer } from './VersionDiffViewer';
 
 export const PromptEditor: React.FC = () => {
   const canEdit = checkFeature('promptEditing');
@@ -12,6 +14,8 @@ export const PromptEditor: React.FC = () => {
   const [content, setContent] = useState('');
   const [preview, setPreview] = useState('');
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [diffVersions, setDiffVersions] = useState<{ old: string; new: string } | null>(null);
   
   // Dummy variables for preview
   const [testVariables, setTestVariables] = useState<Record<string, string>>({
@@ -83,6 +87,15 @@ export const PromptEditor: React.FC = () => {
       }
   };
 
+  const handleVersionCompare = (oldVersion: string, newVersion: string) => {
+    setDiffVersions({ old: oldVersion, new: newVersion });
+  };
+
+  const handleVersionRollback = async (versionId: string) => {
+    toast.success(`已回滚到版本 ${versionId.substring(0, 7)}`);
+    setShowVersionHistory(false);
+  };
+
   if (!selectedPrompt) {
     return (
         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-800/20">
@@ -149,6 +162,14 @@ export const PromptEditor: React.FC = () => {
                     READ-ONLY
                 </span>
             )}
+            <button
+                onClick={() => setShowVersionHistory(true)}
+                className="p-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition-shadow shadow-sm active:shadow-none"
+                title="版本历史"
+                data-testid="version-history-button"
+            >
+                <History size={14} />
+            </button>
             <button 
                 onClick={handleRun}
                 className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-shadow shadow-sm active:shadow-none"
@@ -203,6 +224,28 @@ Write your prompt here..."
               </div>
           )}
       </div>
+
+      {/* 版本历史 */}
+      {showVersionHistory && selectedPrompt?.path && (
+        <div className="absolute inset-0 bg-white dark:bg-gray-800 z-10">
+          <VersionHistory
+            promptPath={selectedPrompt.path}
+            onCompare={handleVersionCompare}
+            onRollback={handleVersionRollback}
+            onClose={() => setShowVersionHistory(false)}
+          />
+        </div>
+      )}
+
+      {/* 版本对比 */}
+      {diffVersions && selectedPrompt?.path && (
+        <VersionDiffViewer
+          promptPath={selectedPrompt.path}
+          oldVersion={diffVersions.old}
+          newVersion={diffVersions.new}
+          onClose={() => setDiffVersions(null)}
+        />
+      )}
     </div>
   );
 };

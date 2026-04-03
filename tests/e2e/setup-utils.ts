@@ -129,6 +129,10 @@ export async function setupE2ETestEnvironment(
 
   // 1. 注入核心拦截与锁定脚本 (在 goto 之前)
   await page.addInitScript((params) => {
+    // 🔥 DEBUG: 打印接收到的参数
+    console.log('[E2E Setup Init] 📦 Received params:', JSON.stringify(params));
+    console.log('[E2E Setup Init] useRealTauri:', params?.useRealTauri);
+
     // 🔥 FIX: 总是设置 __E2E__ 标志，无论是否使用真实 Tauri
     // 这样可以确保 formatToolResultToMarkdown 等测试辅助函数被正确暴露
     window.__E2E__ = true;
@@ -155,14 +159,51 @@ export async function setupE2ETestEnvironment(
           // 为真实 Tauri 模式设置等待和检查逻辑
           // 不创建 mock，让真实的 Tauri 初始化
           const checkTauriReady = () => {
-            const ready = !!(
-              w.__TAURI_INTERNALS__?.invoke ||
-              w.__TAURI__?.core?.invoke
-            );
-            if (ready) {
-              console.log('[E2E Setup] ✅ Real Tauri bridge detected and ready');
+            const invoke = w.__TAURI_INTERNALS__?.invoke || w.__TAURI__?.core?.invoke;
+
+            if (!invoke) {
+              return false;
             }
-            return ready;
+
+            // 检查是否是 mock invoke（通过检查源代码）
+            const invokeStr = invoke.toString();
+            const isMock = invokeStr.includes('PIVO3-Mock') ||
+                           invokeStr.includes('E2E Mock') ||
+                           invokeStr.includes('E2E Tauri Mock');
+
+            if (!isMock) {
+              console.log('[E2E Setup] ✅ Real Tauri bridge detected and ready');
+              // 🔥 FIX: 替换 mock 的 invoke 为真实的 invoke
+              // 保存真实的 invoke 供后续使用
+              w._realTauriInvoke = invoke;
+
+              // 如果 __TAURI_INTERNALS__.invoke 是 mock，替换它
+              if (w.__TAURI_INTERNALS__?.invoke?.toString().includes('PIVO3-Mock')) {
+                console.log('[E2E Setup] 🔄 Replacing mock invoke in __TAURI_INTERNALS__');
+                Object.defineProperty(w.__TAURI_INTERNALS__, 'invoke', {
+                  value: invoke,
+                  writable: true,
+                  configurable: true,
+                  enumerable: true
+                });
+              }
+
+              // 如果 __TAURI__.core.invoke 是 mock，替换它
+              if (w.__TAURI__?.core?.invoke?.toString().includes('PIVO3-Mock')) {
+                console.log('[E2E Setup] 🔄 Replacing mock invoke in __TAURI__.core');
+                Object.defineProperty(w.__TAURI__.core, 'invoke', {
+                  value: invoke,
+                  writable: true,
+                  configurable: true,
+                  enumerable: true
+                });
+              }
+
+              return true;
+            }
+
+            console.log('[E2E Setup] ⏳ Mock invoke found, still waiting for real Tauri bridge...');
+            return false;
           };
 
           // 轮询检查 Tauri 是否就绪（最多等待 5 秒）
