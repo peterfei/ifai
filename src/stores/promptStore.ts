@@ -9,11 +9,13 @@ interface PromptState {
   selectedPrompt: PromptTemplate | null;
   isLoading: boolean;
   error: string | null;
+  expertMode: boolean;
 
   loadPrompts: () => Promise<void>;
   selectPrompt: (path: string) => Promise<void>;
   updatePrompt: (path: string, content: string) => Promise<void>;
   renderTemplate: (content: string, variables: Record<string, string>) => Promise<string>;
+  toggleExpertMode: () => void;
 }
 
 export const usePromptStore = create<PromptState>((set, get) => ({
@@ -21,6 +23,7 @@ export const usePromptStore = create<PromptState>((set, get) => ({
   selectedPrompt: null,
   isLoading: false,
   error: null,
+  expertMode: false,
 
   loadPrompts: async () => {
     set({ isLoading: true, error: null });
@@ -91,5 +94,9 @@ export const usePromptStore = create<PromptState>((set, get) => ({
           console.error('Render error:', err);
           return `Error rendering template: ${err}`;
       }
-  }
+  },
+
+  toggleExpertMode: () => {
+    set(state => ({ expertMode: !state.expertMode }));
+  },
 }));

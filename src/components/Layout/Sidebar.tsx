@@ -144,6 +144,7 @@ export const Sidebar = () => {
 
           {/* Prompts / Settings Icon */}
           <button
+            data-testid="prompt-manager-button"
             className={clsx(
               "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
               isPromptManagerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
