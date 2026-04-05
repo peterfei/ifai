@@ -93,8 +93,9 @@ export async function invoke<T = any>(cmd: string, args?: any): Promise<T> {
     return { size: 1024, mtime: Date.now(), fingerprint: `mock_${Date.now()}` } as any;
   }
 
-  // 🔥 P3: Mock get_tool_descriptions 命令
-  if (cmd === 'get_tool_descriptions') {
+  // 🔥 P3: Mock get_tool_descriptions 命令（优先级最高，必须在 invokeHandler 检查之前）
+  if (cmd === 'get_tool_descriptions' || cmd === 'get_tool_description' || cmd === 'get_tools_by_permission') {
+    console.log('[tauri-mocks/core] 🔧 Using built-in get_tool_descriptions mock');
     return {
       tools: [
         {
