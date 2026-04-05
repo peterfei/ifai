@@ -1,0 +1,15 @@
+/**
+ * Tool Card Styles
+ */
+
+.tool-card {
+  transition: all 0.2s ease;
+}
+
+.tool-card:hover {
+  transform: translateY(-2px);
+}
+
+.tool-card:hover .tool-card-title {
+  color: hsl(var(--primary));
+}

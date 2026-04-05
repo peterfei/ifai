@@ -9,3 +9,4 @@ pub mod symbol_commands;
 pub mod error_commands;
 pub mod skill_commands;
 pub mod atomic_commands;
+pub mod tool_commands;

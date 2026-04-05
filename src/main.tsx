@@ -284,6 +284,7 @@ const exposeDebugStores = () => {
         if ((window as any).__E2E__ || (window as any).process?.env?.NODE_ENV === 'test') {
           (window as any).__chatStore = chat.useChatStore;
           (window as any).__pivoStore = pivo.usePivoStore;
+          (window as any).__layoutStore = layout.useLayoutStore; // P3: 暴露 layoutStore
         }
 
         console.log('[Main] 🛠️  Core Stores and Utils exposed to window.__DEBUG__ (Idle)');

@@ -18,6 +18,7 @@ export interface LayoutState {
   isSettingsOpen: boolean;
   isCommandBarOpen: boolean; // v0.2.7 新增：底部命令行
   isPromptManagerOpen: boolean;
+  isToolExplorerOpen: boolean; // P3: 工具浏览器
   chatWidth: number;
 
   // v0.2.6 新增：侧边栏状态
@@ -40,6 +41,8 @@ export interface LayoutState {
   toggleChat: () => void;
   setPromptManagerOpen: (isOpen: boolean) => void;
   togglePromptManager: () => void;
+  setToolExplorerOpen: (isOpen: boolean) => void; // P3: 工具浏览器
+  toggleToolExplorer: () => void; // P3: 工具浏览器
   setCommandPaletteOpen: (isOpen: boolean) => void;
   toggleCommandPalette: () => void;
   setTerminalOpen: (isOpen: boolean) => void;
@@ -82,13 +85,12 @@ export interface LayoutState {
 const MAX_PANES = 4;
 const MIN_PANE_SIZE = 20; // 最小窗格大小 (百分比)
 
-
 // 🔥 v0.5.0: 物理层绝对同步
 const syncModeToGlobal = (mode: 'vibe' | 'spec') => {
   if (typeof window !== 'undefined') {
     (window as any).__IFAI_EDITOR_MODE__ = mode;
-    // 🔥 FIX v0.3.9: Vibe 模式必须启用意图识别才能实现“自然语言触发”
-    (window as any).__IFAI_DISABLE_INTENT__ = false; 
+    // 🔥 FIX v0.3.9: Vibe 模式必须启用意图识别才能实现"自然语言触发"
+    (window as any).__IFAI_DISABLE_INTENT__ = false;
     console.log('[LayoutStore] Persistent Mode Synced:', mode);
   }
 };
@@ -103,6 +105,7 @@ export const useLayoutStore = create<LayoutState>()(
       isSettingsOpen: false,
       isCommandBarOpen: false,
       isPromptManagerOpen: false,
+      isToolExplorerOpen: false, // P3: 工具浏览器
       chatWidth: 384,
 
       // v0.2.6 新增：侧边栏初始状态
@@ -127,13 +130,29 @@ export const useLayoutStore = create<LayoutState>()(
       activePaneId: 'pane-1',
       splitDirection: 'horizontal',
 
-      syncState: (newState) => set((state) => ({ ...state, ...newState })),
+      syncState: (newState) => {
+        console.log('[LayoutStore] syncState called with:', newState);
+        console.log('[LayoutStore] Current isToolExplorerOpen before:', get().isToolExplorerOpen);
+        set((state) => {
+          const newState2 = { ...state, ...newState };
+          console.log('[LayoutStore] syncState setting state to:', newState2.isToolExplorerOpen);
+          return newState2;
+        });
+        console.log('[LayoutStore] Current isToolExplorerOpen after:', get().isToolExplorerOpen);
+      },
 
       // 现有操作函数
       setChatOpen: (isOpen) => set({ isChatOpen: isOpen }),
       toggleChat: () => set((state) => ({ isChatOpen: !state.isChatOpen })),
       setPromptManagerOpen: (isOpen) => set({ isPromptManagerOpen: isOpen }),
       togglePromptManager: () => set((state) => ({ isPromptManagerOpen: !state.isPromptManagerOpen })),
+      setToolExplorerOpen: (isOpen) => {
+        console.log('[LayoutStore] setToolExplorerOpen called with:', isOpen);
+        console.log('[LayoutStore] Current isToolExplorerOpen before setToolExplorerOpen:', get().isToolExplorerOpen);
+        set({ isToolExplorerOpen: isOpen });
+        console.log('[LayoutStore] Current isToolExplorerOpen after setToolExplorerOpen:', get().isToolExplorerOpen);
+      }, // P3: 工具浏览器
+      toggleToolExplorer: () => set((state) => ({ isToolExplorerOpen: !state.isToolExplorerOpen })), // P3: 工具浏览器
       setCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
       setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -388,7 +407,7 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'layout-storage',
-      version: 1,
+      version: 2, // P3: 版本升级以支持 isToolExplorerOpen
       partialize: (state) => ({
         panes: state.panes,
         activePaneId: state.activePaneId,
@@ -401,9 +420,11 @@ export const useLayoutStore = create<LayoutState>()(
         sidebarWidth: state.sidebarWidth,
         // 新增：持久化布局模式
         layoutMode: state.layoutMode,
+        // P3: 持久化工具浏览器状态
+        isToolExplorerOpen: state.isToolExplorerOpen,
         editorMode: state.editorMode,
       }),
-      
+
       onRehydrateStorage: () => (state) => {
         if (state) {
           syncModeToGlobal(state.editorMode);
@@ -411,8 +432,20 @@ export const useLayoutStore = create<LayoutState>()(
       },
 
       migrate: (persistedState: any, version: number) => {
-        console.log(`[LayoutStore] Migrating from version ${version} to 1`);
-        return persistedState;
+        if (version === 1) {
+          // P3: 从版本 1 迁移到版本 2，添加 isToolExplorerOpen
+          console.log(`[LayoutStore] Migrating from version ${version} to 2, adding isToolExplorerOpen`);
+          return {
+            ...persistedState,
+            isToolExplorerOpen: false, // 新字段的默认值
+          };
+        }
+        // 版本 0 或其他版本
+        console.log(`[LayoutStore] Migrating from version ${version} to 2`);
+        return {
+          ...persistedState,
+          isToolExplorerOpen: false,
+        };
       },
     }
   )

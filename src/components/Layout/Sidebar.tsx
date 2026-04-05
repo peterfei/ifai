@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
 import { openDirectory, readDirectory } from '../../utils/fileSystem';
-import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2, ListChecks } from 'lucide-react';
+import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2, ListChecks, Wrench } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
 import { SnippetManager } from '../SnippetManager/SnippetManager';
@@ -23,6 +23,8 @@ export const Sidebar = () => {
     setSidebarActiveTab,
     isPromptManagerOpen,
     togglePromptManager,
+    isToolExplorerOpen,
+    toggleToolExplorer,
     sidebarWidth,
   } = useLayoutStore();
 
@@ -142,6 +144,27 @@ export const Sidebar = () => {
 
           <div className="flex-1" />
 
+          {/* Tool Explorer Icon */}
+          <button
+            data-testid="tool-explorer-button"
+            className={clsx(
+              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              isToolExplorerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
+            )}
+            onClick={() => toggleToolExplorer()}
+            title={String(t('sidebar.tools') || 'Tools')}
+          >
+            <Wrench size={20} className="relative z-10" />
+            {isToolExplorerOpen && (
+              <motion.div
+                layoutId="activity-active-pill"
+                data-testid="activity-active-pill"
+                className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+              />
+            )}
+          </button>
+
           {/* Prompts / Settings Icon */}
           <button
             data-testid="prompt-manager-button"
@@ -149,7 +172,10 @@ export const Sidebar = () => {
               "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
               isPromptManagerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
             )}
-            onClick={() => togglePromptManager()}
+            onClick={() => {
+              togglePromptManager();
+              if (isToolExplorerOpen) toggleToolExplorer();
+            }}
             title={`${String(t('sidebar.prompts'))}${!IS_COMMERCIAL ? ' (Community - Read Only)' : ''}`}
           >
             <div className="relative z-10">

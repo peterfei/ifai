@@ -1,0 +1,30 @@
+/**
+ * Tool Detail Dialog Styles
+ */
+
+/* 对话框覆盖层 */
+.tool-detail-dialog-overlay {
+  backdrop-filter: blur(4px);
+}
+
+/* 代码块样式 */
+.tool-detail-dialog pre {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 参数列表样式 */
+.tool-detail-dialog dt {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* 示例列表样式 */
+.tool-detail-dialog ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tool-detail-dialog li {
+  padding: 4px 0;
+}

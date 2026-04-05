@@ -11,7 +11,7 @@ pub mod router;
 mod integration_tests;
 
 pub use registry::ToolRegistry;
-pub use spec::{ToolSpec, ToolPermissionMode};
+pub use spec::{ToolSpec, ToolPermissionMode, ToolCategory};
 pub use executor::{ToolExecutor, ToolError};
 pub use router::ToolRouter;
 

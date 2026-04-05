@@ -93,6 +93,487 @@ export async function invoke<T = any>(cmd: string, args?: any): Promise<T> {
     return { size: 1024, mtime: Date.now(), fingerprint: `mock_${Date.now()}` } as any;
   }
 
+  // 🔥 P3: Mock get_tool_descriptions 命令
+  if (cmd === 'get_tool_descriptions') {
+    return {
+      tools: [
+        {
+          name: 'read_file',
+          description: 'Read the contents of a file',
+          input_schema: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' }
+            },
+            required: ['path']
+          },
+          required_permission: 'ReadOnly',
+          category: 'File',
+          is_dangerous: false,
+          examples: ['Read a file', 'View source code'],
+          parameter_descriptions: {
+            path: '文件路径'
+          }
+        },
+        {
+          name: 'write_file',
+          description: 'Write content to a file',
+          input_schema: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              content: { type: 'string' }
+            },
+            required: ['path', 'content']
+          },
+          required_permission: 'WorkspaceWrite',
+          category: 'File',
+          is_dangerous: false,
+          examples: ['Create a new file', 'Save generated code'],
+          parameter_descriptions: {
+            path: 'File path to write',
+            content: 'Content to write'
+          }
+        },
+        {
+          name: 'edit_file',
+          description: 'Edit specific parts of a file',
+          input_schema: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              old_text: { type: 'string' },
+              new_text: { type: 'string' }
+            },
+            required: ['path', 'old_text', 'new_text']
+          },
+          required_permission: 'WorkspaceWrite',
+          category: 'File',
+          is_dangerous: false,
+          examples: ['Fix a bug', 'Update function'],
+          parameter_descriptions: {
+            path: 'File path to edit',
+            old_text: 'Text to replace',
+            new_text: 'New text'
+          }
+        },
+        {
+          name: 'glob_search',
+          description: 'Search files using glob patterns',
+          input_schema: {
+            type: 'object',
+            properties: {
+              pattern: { type: 'string' },
+              path: { type: 'string' }
+            },
+            required: ['pattern']
+          },
+          required_permission: 'ReadOnly',
+          category: 'Search',
+          is_dangerous: false,
+          examples: ['Find all TypeScript files', 'Search for test files'],
+          parameter_descriptions: {
+            pattern: 'Glob pattern',
+            path: 'Search path'
+          }
+        },
+        {
+          name: 'grep_search',
+          description: 'Search text in files',
+          input_schema: {
+            type: 'object',
+            properties: {
+              pattern: { type: 'string' },
+              path: { type: 'string' }
+            },
+            required: ['pattern']
+          },
+          required_permission: 'ReadOnly',
+          category: 'Search',
+          is_dangerous: false,
+          examples: ['Search for function', 'Find all imports'],
+          parameter_descriptions: {
+            pattern: 'Search pattern',
+            path: 'Search path'
+          }
+        },
+        {
+          name: 'bash',
+          description: 'Execute bash commands',
+          input_schema: {
+            type: 'object',
+            properties: {
+              command: { type: 'string' }
+            },
+            required: ['command']
+          },
+          required_permission: 'DangerFullAccess',
+          category: 'Command',
+          is_dangerous: true,
+          examples: ['Run shell command', 'Execute git operation'],
+          parameter_descriptions: {
+            command: 'Bash command to execute'
+          }
+        },
+        {
+          name: 'PowerShell',
+          description: 'Execute PowerShell commands',
+          input_schema: {
+            type: 'object',
+            properties: {
+              command: { type: 'string' }
+            },
+            required: ['command']
+          },
+          required_permission: 'DangerFullAccess',
+          category: 'Command',
+          is_dangerous: true,
+          examples: ['Run PowerShell script', 'Execute Windows command'],
+          parameter_descriptions: {
+            command: 'PowerShell command to execute'
+          }
+        },
+        {
+          name: 'WebFetch',
+          description: 'Fetch and read web content',
+          input_schema: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' }
+            },
+            required: ['url']
+          },
+          required_permission: 'Allow',
+          category: 'Network',
+          is_dangerous: false,
+          examples: ['Fetch webpage', 'Read documentation'],
+          parameter_descriptions: {
+            url: 'URL to fetch'
+          }
+        },
+        {
+          name: 'WebSearch',
+          description: 'Search the web for information',
+          input_schema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' }
+            },
+            required: ['query']
+          },
+          required_permission: 'Allow',
+          category: 'Network',
+          is_dangerous: false,
+          examples: ['Search for answers', 'Find resources'],
+          parameter_descriptions: {
+            query: 'Search query'
+          }
+        },
+        {
+          name: 'TodoWrite',
+          description: 'Update the structured task list for the current session',
+          input_schema: {
+            type: 'object',
+            properties: {
+              todos: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    content: { type: 'string' },
+                    activeForm: { type: 'string' },
+                    status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] }
+                  },
+                  required: ['content', 'activeForm', 'status']
+                }
+              }
+            },
+            required: ['todos']
+          },
+          required_permission: 'WorkspaceWrite',
+          category: 'System',
+          is_dangerous: false,
+          examples: ['创建任务列表', 'Update task progress'],
+          parameter_descriptions: {
+            todos: 'Task list array'
+          }
+        }
+      ],
+      by_category: {
+        'File': [
+          {
+            name: 'read_file',
+            description: 'Read the contents of a file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+            required_permission: 'ReadOnly',
+            category: 'File',
+            is_dangerous: false,
+            examples: ['Read a file', 'View source code'],
+            parameter_descriptions: { path: '文件路径' }
+          },
+          {
+            name: 'write_file',
+            description: 'Write content to a file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] },
+            required_permission: 'WorkspaceWrite',
+            category: 'File',
+            is_dangerous: false,
+            examples: ['Create a new file', 'Save generated code'],
+            parameter_descriptions: { path: 'File path to write', content: 'Content to write' }
+          },
+          {
+            name: 'edit_file',
+            description: 'Edit specific parts of a file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' }, old_text: { type: 'string' }, new_text: { type: 'string' } }, required: ['path', 'old_text', 'new_text'] },
+            required_permission: 'WorkspaceWrite',
+            category: 'File',
+            is_dangerous: false,
+            examples: ['Fix a bug', 'Update function'],
+            parameter_descriptions: { path: 'File path to edit', old_text: 'Text to replace', new_text: 'New text' }
+          }
+        ],
+        'Search': [
+          {
+            name: 'glob_search',
+            description: 'Search files using glob patterns',
+            input_schema: { type: 'object', properties: { pattern: { type: 'string' }, path: { type: 'string' } }, required: ['pattern'] },
+            required_permission: 'ReadOnly',
+            category: 'Search',
+            is_dangerous: false,
+            examples: ['Find all TypeScript files', 'Search for test files'],
+            parameter_descriptions: { pattern: 'Glob pattern', path: 'Search path' }
+          },
+          {
+            name: 'grep_search',
+            description: 'Search text in files',
+            input_schema: { type: 'object', properties: { pattern: { type: 'string' }, path: { type: 'string' } }, required: ['pattern'] },
+            required_permission: 'ReadOnly',
+            category: 'Search',
+            is_dangerous: false,
+            examples: ['Search for function', 'Find all imports'],
+            parameter_descriptions: { pattern: 'Search pattern', path: 'Search path' }
+          }
+        ],
+        'Command': [
+          {
+            name: 'bash',
+            description: 'Execute bash commands',
+            input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+            required_permission: 'DangerFullAccess',
+            category: 'Command',
+            is_dangerous: true,
+            examples: ['Run shell command', 'Execute git operation'],
+            parameter_descriptions: { command: 'Bash command to execute' }
+          },
+          {
+            name: 'PowerShell',
+            description: 'Execute PowerShell commands',
+            input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+            required_permission: 'DangerFullAccess',
+            category: 'Command',
+            is_dangerous: true,
+            examples: ['Run PowerShell script', 'Execute Windows command'],
+            parameter_descriptions: { command: 'PowerShell command to execute' }
+          }
+        ],
+        'Network': [
+          {
+            name: 'WebFetch',
+            description: 'Fetch and read web content',
+            input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] },
+            required_permission: 'Allow',
+            category: 'Network',
+            is_dangerous: false,
+            examples: ['Fetch webpage', 'Read documentation'],
+            parameter_descriptions: { url: 'URL to fetch' }
+          },
+          {
+            name: 'WebSearch',
+            description: 'Search the web for information',
+            input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+            required_permission: 'Allow',
+            category: 'Network',
+            is_dangerous: false,
+            examples: ['Search for answers', 'Find resources'],
+            parameter_descriptions: { query: 'Search query' }
+          }
+        ],
+        'System': [
+          {
+            name: 'TodoWrite',
+            description: 'Update the structured task list for the current session',
+            input_schema: {
+              type: 'object',
+              properties: {
+                todos: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      content: { type: 'string' },
+                      activeForm: { type: 'string' },
+                      status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] }
+                    },
+                    required: ['content', 'activeForm', 'status']
+                  }
+                }
+              },
+              required: ['todos']
+            },
+            required_permission: 'WorkspaceWrite',
+            category: 'System',
+            is_dangerous: false,
+            examples: ['创建任务列表', 'Update task progress'],
+            parameter_descriptions: { todos: 'Task list array' }
+          }
+        ]
+      },
+      by_permission: {
+        'ReadOnly': [
+          {
+            name: 'read_file',
+            description: 'Read the contents of a file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+            required_permission: 'ReadOnly',
+            category: 'File',
+            is_dangerous: false,
+            examples: ['Read a file', 'View source code'],
+            parameter_descriptions: { path: '文件路径' }
+          },
+          {
+            name: 'glob_search',
+            description: 'Search files using glob patterns',
+            input_schema: { type: 'object', properties: { pattern: { type: 'string' }, path: { type: 'string' } }, required: ['pattern'] },
+            required_permission: 'ReadOnly',
+            category: 'Search',
+            is_dangerous: false,
+            examples: ['Find all TypeScript files', 'Search for test files'],
+            parameter_descriptions: { pattern: 'Glob pattern', path: 'Search path' }
+          },
+          {
+            name: 'grep_search',
+            description: 'Search text in files',
+            input_schema: { type: 'object', properties: { pattern: { type: 'string' }, path: { type: 'string' } }, required: ['pattern'] },
+            required_permission: 'ReadOnly',
+            category: 'Search',
+            is_dangerous: false,
+            examples: ['Search for function', 'Find all imports'],
+            parameter_descriptions: { pattern: 'Search pattern', path: 'Search path' }
+          }
+        ],
+        'WorkspaceWrite': [
+          {
+            name: 'write_file',
+            description: 'Write content to a file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] },
+            required_permission: 'WorkspaceWrite',
+            category: 'File',
+            is_dangerous: false,
+            examples: ['Create a new file', 'Save generated code'],
+            parameter_descriptions: { path: 'File path to write', content: 'Content to write' }
+          },
+          {
+            name: 'edit_file',
+            description: 'Edit specific parts of a file',
+            input_schema: { type: 'object', properties: { path: { type: 'string' }, old_text: { type: 'string' }, new_text: { type: 'string' } }, required: ['path', 'old_text', 'new_text'] },
+            required_permission: 'WorkspaceWrite',
+            category: 'File',
+            is_dangerous: false,
+            examples: ['Fix a bug', 'Update function'],
+            parameter_descriptions: { path: 'File path to edit', old_text: 'Text to replace', new_text: 'New text' }
+          },
+          {
+            name: 'TodoWrite',
+            description: 'Update the structured task list for the current session',
+            input_schema: {
+              type: 'object',
+              properties: {
+                todos: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      content: { type: 'string' },
+                      activeForm: { type: 'string' },
+                      status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] }
+                    },
+                    required: ['content', 'activeForm', 'status']
+                  }
+                }
+              },
+              required: ['todos']
+            },
+            required_permission: 'WorkspaceWrite',
+            category: 'System',
+            is_dangerous: false,
+            examples: ['创建任务列表', 'Update task progress'],
+            parameter_descriptions: { todos: 'Task list array' }
+          }
+        ],
+        'DangerFullAccess': [
+          {
+            name: 'bash',
+            description: 'Execute bash commands',
+            input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+            required_permission: 'DangerFullAccess',
+            category: 'Command',
+            is_dangerous: true,
+            examples: ['Run shell command', 'Execute git operation'],
+            parameter_descriptions: { command: 'Bash command to execute' }
+          },
+          {
+            name: 'PowerShell',
+            description: 'Execute PowerShell commands',
+            input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+            required_permission: 'DangerFullAccess',
+            category: 'Command',
+            is_dangerous: true,
+            examples: ['Run PowerShell script', 'Execute Windows command'],
+            parameter_descriptions: { command: 'PowerShell command to execute' }
+          }
+        ],
+        'Allow': [
+          {
+            name: 'WebFetch',
+            description: 'Fetch and read web content',
+            input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] },
+            required_permission: 'Allow',
+            category: 'Network',
+            is_dangerous: false,
+            examples: ['Fetch webpage', 'Read documentation'],
+            parameter_descriptions: { url: 'URL to fetch' }
+          },
+          {
+            name: 'WebSearch',
+            description: 'Search the web for information',
+            input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+            required_permission: 'Allow',
+            category: 'Network',
+            is_dangerous: false,
+            examples: ['Search for answers', 'Find resources'],
+            parameter_descriptions: { query: 'Search query' }
+          }
+        ]
+      },
+      stats: {
+        total_count: 10,
+        category_counts: {
+          'File': 3,
+          'Search': 2,
+          'Command': 2,
+          'Network': 2,
+          'System': 1
+        },
+        permission_counts: {
+          'ReadOnly': 3,
+          'WorkspaceWrite': 3,
+          'DangerFullAccess': 2,
+          'Allow': 2
+        }
+      }
+    } as any;
+  }
+
   if (invokeHandler) {
     console.log('[tauri-mocks/core] ✅ Using invokeHandler');
     return invokeHandler(cmd, args);

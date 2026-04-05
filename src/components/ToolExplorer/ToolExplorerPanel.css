@@ -1,0 +1,91 @@
+/**
+ * Tool Explorer Panel Styles
+ */
+
+.tool-explorer-panel {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* 工具卡片网格响应式布局 */
+@media (max-width: 768px) {
+  .tool-card {
+    max-width: 100%;
+  }
+
+  .tool-category > div:last-child {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 滚动条样式 */
+.tool-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tool-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tool-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+.tool-list::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+/* 对话框动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.tool-detail-dialog-overlay {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.tool-detail-dialog {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* 移动端全屏对话框 */
+@media (max-width: 640px) {
+  .tool-detail-dialog {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}
+
+/* 文本截断 */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 过滤按钮激活状态 */
+.tool-filters button.active {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}

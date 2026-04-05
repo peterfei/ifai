@@ -1,0 +1,7 @@
+/**
+ * Tool Stats Styles
+ */
+
+.tool-stats {
+  border: 1px solid hsl(var(--border));
+}

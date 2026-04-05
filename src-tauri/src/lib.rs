@@ -1599,6 +1599,10 @@ pub fn run() {
             commands::task_store_commands::clear_tasks,
             commands::task_store_commands::remove_task,
             commands::task_store_commands::get_task_stats,
+            // P3: 通用工具系统 UI
+            commands::tool_commands::get_tool_descriptions,
+            commands::tool_commands::get_tool_description,
+            commands::tool_commands::get_tools_by_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

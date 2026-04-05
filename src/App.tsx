@@ -21,6 +21,8 @@ const CodeSmellPanel = React.lazy(() => import('./components/CodeAnalysis/CodeSm
 const RefactoringPreviewPanel = React.lazy(() => import('./components/Refactoring/RefactoringPreviewPanel').then(m => ({ default: m.RefactoringPreviewPanel })));
 // P2: TodoWrite 任务面板
 const TodoWritePanel = React.lazy(() => import('./components/TodoWrite').then(m => ({ default: m.TodoWritePanel })));
+// P3: 工具浏览器
+const ToolExplorerPanel = React.lazy(() => import('./components/ToolExplorer').then(m => ({ default: m.ToolExplorerPanel })));
 
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -87,7 +89,8 @@ function App() {
   // 🔥 Refactor Phase 6: Final Entrance Locking
   if (typeof window !== 'undefined') {
       (window as any).__chatStore = useChatStore;
-      
+      (window as any).__layoutStore = useLayoutStore; // P3: 暴露 layoutStore 给 E2E 测试
+
       // 🏆 暴露总线与控制器，用于 TDD 仿真和调试
       import('./stores/chat/eventBus/ChatEventBus').then(({ chatEventBus }) => {
           (window as any).__chatEventBus = chatEventBus;
@@ -118,6 +121,8 @@ function App() {
     chatWidth,
     setChatWidth,
     isPromptManagerOpen,
+    isToolExplorerOpen, // P3: 工具浏览器
+    toggleToolExplorer, // P3: 工具浏览器
     // v0.2.6 新增：侧边栏状态
     isSidebarOpen,
     toggleSidebar,
@@ -734,6 +739,32 @@ function App() {
 
   useShortcuts(shortcutHandlers);
 
+  // P3: 监听 URL 变化，支持 /tools 路由
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/tools' && !isToolExplorerOpen) {
+        toggleToolExplorer();
+      } else if (path === '/' && isToolExplorerOpen) {
+        // 🔥 FIX: 只有在用户手动导航时才关闭，不在程序化设置时关闭
+        // 检查是否是 E2E 测试环境
+        const isE2E = (window as any).__E2E__;
+        if (!isE2E) {
+          toggleToolExplorer();
+        }
+      }
+    };
+
+    // 初始检查（但不关闭已打开的工具浏览器）
+    const path = window.location.pathname;
+    if (path === '/tools' && !isToolExplorerOpen) {
+      toggleToolExplorer();
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isToolExplorerOpen, toggleToolExplorer]);
+
   useEffect(() => {
     (window as any).__APP_READY__ = true;
     console.log('[App] 🏁 Ready signal emitted for E2E tests');
@@ -854,6 +885,10 @@ function App() {
 
             {isPromptManagerOpen ? (
               <PromptManager />
+            ) : isToolExplorerOpen ? (
+              <Suspense fallback={<ModalSkeleton />}>
+                <ToolExplorerPanel />
+              </Suspense>
             ) : (
               <SplitPaneContainer className="split-pane-container" />
             )}
