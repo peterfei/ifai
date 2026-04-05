@@ -1,6 +1,6 @@
 use tauri::{State, Emitter};
 use crate::agent_system::Supervisor;
-#[cfg(feature = "commercial")]
+// 🔥 P4: 移除 commercial 限制，让基础 agent 功能在社区版可用
 use crate::agent_system::{AgentContext, runner};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -35,78 +35,62 @@ pub async fn launch_agent(
     println!("[AgentCommands] provider: {:?}", provider_config.protocol);
     println!("[AgentCommands] model: {:?}", provider_config.models.first());
 
-    #[cfg(feature = "commercial")]
-    {
-        log::info!("[AgentCommands] ✅ Commercial feature IS enabled");
-        println!("[AgentCommands] ✅ Commercial feature IS enabled");
+    // 🔥 P4: 移除 commercial 限制 - 现在社区版也可以使用 agent 功能
+    log::info!("[AgentCommands] ✅ Launching agent (Community Edition supported)");
+    println!("[AgentCommands] ✅ Launching agent (Community Edition supported)");
 
-        // 🔥 发送事件到前端，用于测试诊断
-        let _ = app.emit("agent_diagnostic", format!("launch_agent: Commercial feature enabled, id={}", id));
+    // 🔥 发送事件到前端，用于测试诊断
+    let _ = app.emit("agent_diagnostic", format!("launch_agent: Community Edition supported, id={}", id));
 
-        println!("[AgentSystem] launch_agent called with id: {}, agent_type: {}", id, agent_type);
-        supervisor.register_agent(id.clone(), agent_type.clone()).await;
+    println!("[AgentSystem] launch_agent called with id: {}, agent_type: {}", id, agent_type);
+    supervisor.register_agent(id.clone(), agent_type.clone()).await;
 
-        let context = AgentContext {
-            project_root,
-            task_description: task,
-            initial_prompt: String::new(),
-            variables: HashMap::new(),
-            provider_config,
-        };
+    let context = AgentContext {
+        project_root,
+        task_description: task,
+        initial_prompt: String::new(),
+        variables: HashMap::new(),
+        provider_config,
+    };
 
-        let supervisor_inner = supervisor.inner().clone();
-        let id_clone = id.clone();
-        let agent_type_clone = agent_type.clone();
+    let supervisor_inner = supervisor.inner().clone();
+    let id_clone = id.clone();
+    let agent_type_clone = agent_type.clone();
 
-        // 🔥 发送诊断事件：即将 spawn
-        let _ = app.emit("agent_diagnostic", format!("About to spawn task for agent: {}", id));
+    // 🔥 发送诊断事件：即将 spawn
+    let _ = app.emit("agent_diagnostic", format!("About to spawn task for agent: {}", id));
 
-        // Clone app for use in spawned task
-        let app_clone = app.clone();
-        tokio::spawn(async move {
-            // 🔥 发送诊断事件：任务开始执行
-            let _ = app_clone.emit("agent_diagnostic", format!("Task started for agent: {}", id_clone));
-            runner::run_agent_task(app_clone, supervisor_inner, id_clone, agent_type_clone, context).await;
-        });
+    // Clone app for use in spawned task
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        // 🔥 发送诊断事件：任务开始执行
+        let _ = app_clone.emit("agent_diagnostic", format!("Task started for agent: {}", id_clone));
+        runner::run_agent_task(app_clone, supervisor_inner, id_clone, agent_type_clone, context).await;
+    });
 
-        // 🔥 发送诊断事件：任务已 spawn
-        let _ = app.emit("agent_diagnostic", format!("Task spawned for agent: {}", id));
+    // 🔥 发送诊断事件：任务已 spawn
+    let _ = app.emit("agent_diagnostic", format!("Task spawned for agent: {}", id));
 
-        println!("[AgentSystem] Agent launched: {} ({})", id, agent_type);
-        log::info!("[AgentCommands] Agent launched: {} ({})", id, agent_type);
-        Ok(id)
-    }
-
-    #[cfg(not(feature = "commercial"))]
-    {
-        println!("[AgentCommands] ❌ Commercial feature NOT enabled!");
-        println!("[AgentCommands] ❌ launch_agent will fail - Agents are available in Commercial Edition only");
-        Err("Agents are available in Commercial Edition".to_string())
-    }
+    println!("[AgentSystem] Agent launched: {} ({})", id, agent_type);
+    log::info!("[AgentCommands] Agent launched: {} ({})", id, agent_type);
+    Ok(id)
 }
 
 #[tauri::command]
 pub async fn list_running_agents(
     supervisor: State<'_, Supervisor>,
 ) -> Result<Vec<AgentInfo>, String> {
-    #[cfg(feature = "commercial")]
-    {
-        let agents = supervisor.list_agents().await;
-        // Convert status (assuming serde compatibility or manual mapping)
-        // Since we can't see agent_system::AgentStatus definition easily, we use JSON hack
-        
-        let mut info_list = Vec::new();
-        for (id, agent_type, status) in agents {
-             let status_json = serde_json::to_value(status).unwrap();
-             let trait_status: AgentStatus = serde_json::from_value(status_json).unwrap_or(AgentStatus::Failed("Conversion Error".into()));
-             info_list.push(AgentInfo { id, agent_type, status: trait_status });
-        }
-        Ok(info_list)
+    let agents = supervisor.list_agents().await;
+    // Convert status (assuming serde compatibility or manual mapping)
+    // Since we can't see agent_system::AgentStatus definition easily, we use JSON hack
+
+    let mut info_list = Vec::new();
+    for (id, agent_type, status) in agents {
+         let status_json = serde_json::to_value(status).unwrap();
+         let trait_status: AgentStatus = serde_json::from_value(status_json).unwrap_or(AgentStatus::Failed("Conversion Error".into()));
+         info_list.push(AgentInfo { id, agent_type, status: trait_status });
     }
-    #[cfg(not(feature = "commercial"))]
-    {
-        Ok(vec![])
-    }
+    Ok(info_list)
 }
 
 #[tauri::command]
@@ -115,15 +99,8 @@ pub async fn approve_agent_action(
     id: String,
     approved: bool,
 ) -> Result<(), String> {
-    #[cfg(feature = "commercial")]
-    {
-        println!("[AgentCommands] approve_agent_action called: id={}, approved={}", id, approved);
-        supervisor.notify_approval(&id, approved).await;
-        println!("[AgentCommands] notify_approval completed for id={}", id);
-        Ok(())
-    }
-    #[cfg(not(feature = "commercial"))]
-    {
-        Err("Agents are available in Commercial Edition".to_string())
-    }
+    println!("[AgentCommands] approve_agent_action called: id={}, approved={}", id, approved);
+    supervisor.notify_approval(&id, approved).await;
+    println!("[AgentCommands] notify_approval completed for id={}", id);
+    Ok(())
 }

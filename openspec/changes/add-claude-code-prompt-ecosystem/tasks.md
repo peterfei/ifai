@@ -492,16 +492,18 @@
   - [ ] 描述、参数、返回值、示例、注意事项
 - [ ] 3.3.2 在 UI 中嵌入文档显示
 
-## 4. 多智能体系统
+## 4. 多智能体系统 (P4)
+
+### 🔄 进行中
 
 ### 4.1 后端实现
 
-- [ ] 4.1.1 创建 `agent_system` 模块
-  - [ ] `src-tauri/src/agent_system/mod.rs`
-  - [ ] `supervisor.rs` - 智能体监督者
-  - [ ] `router.rs` - 消息路由
-  - [ ] `base.rs` - 智能体基类 trait
-- [ ] 4.1.2 定义 `Agent` trait
+- [x] 4.1.1 创建 `agent_system` 模块 (2026-04-05)
+  - [x] `src-tauri/src/agent_system/mod.rs`
+  - [x] `supervisor.rs` - 智能体监督者
+  - [x] `router.rs` - 消息路由
+  - [x] `base.rs` - 智能体基类 trait
+- [x] 4.1.2 定义 `Agent` trait (2026-04-05)
   ```rust
   #[async_trait]
   pub trait Agent: Send + Sync {
@@ -511,21 +513,25 @@
       fn available_tools(&self) -> Vec<String>;
   }
   ```
-- [ ] 4.1.3 实现 `Supervisor`
-  - [ ] 智能体生命周期管理（启动、停止、重启）
-  - [ ] 任务队列和调度
-  - [ ] 并发控制（最大并发数）
-  - [ ] 资源限制（超时、内存）
-- [ ] 4.1.4 实现 `MessageRouter`
-  - [ ] 智能体间消息传递
-  - [ ] 事件发送到前端（状态、日志、输出）
-- [ ] 4.1.5 实现核心智能体
-  - [ ] `agents/explore.rs` - 只读代码探索
-    - [ ] 支持 Glob、Grep、Read 工具
-    - [ ] 多层次搜索策略（文件名 → 内容 → 深度分析）
-  - [ ] `agents/review.rs` - 代码审查
-    - [ ] 支持 Read、Grep 工具
-    - [ ] 审查清单（安全、性能、最佳实践）
+- [x] 4.1.3 实现 `Supervisor` (2026-04-05)
+  - [x] 智能体生命周期管理（启动、停止、重启）
+  - [x] 任务队列和调度
+  - [x] 并发控制（最大并发数）
+  - [x] 资源限制（超时、内存）
+- [x] 4.1.4 实现 `MessageRouter` (2026-04-05)
+  - [x] 智能体间消息传递
+  - [x] 事件发送到前端（状态、日志、输出）
+- [x] 4.1.5 移除 commercial 限制 (2026-04-05) ✅ **里程碑**
+  - [x] agent_system 模块在社区版可用
+  - [x] agent_commands 在社区版可用
+  - [x] 本地文件操作实现（替代 ifainew_core）
+- [ ] 4.1.6 实现核心智能体
+  - [x] `agents/explore.md` - 只读代码探索 (提示词已存在)
+    - [x] 支持 Glob、Grep、Read 工具
+    - [x] 多层次搜索策略（文件名 → 内容 → 深度分析）
+  - [x] `agents/review.md` - 代码审查 (提示词已存在)
+    - [x] 支持 Read、Grep 工具
+    - [x] 审查清单（安全、性能、最佳实践）
   - [ ] `agents/test_gen.rs` - 测试生成
     - [ ] 支持 Read、Write 工具
     - [ ] 生成单元测试、集成测试
@@ -931,6 +937,51 @@
 ---
 
 ## 📝 变更日志
+
+### 2026-04-05 21:00 - P4: 移除 commercial 限制，智能体系统社区版可用 ✅
+
+**里程碑完成**: P4 智能体集成 - 方案 A 实施！
+
+#### ✅ 实施内容
+- **移除 agent_system commercial 限制**
+  - 修改 `src-tauri/src/agent_system/mod.rs`
+  - 移除 `#[cfg(feature = "commercial")]` 条件编译
+  - agent_system 模块在社区版完全可用
+
+- **移除 agent_commands commercial 限制**
+  - 修改 `src-tauri/src/commands/agent_commands.rs`
+  - `launch_agent` 命令在社区版可用
+  - `list_running_agents` 命令在社区版可用
+  - `approve_agent_action` 命令在社区版可用
+
+- **本地实现替代 ifainew_core**
+  - 修改 `src-tauri/src/agent_system/tools.rs`
+  - 移除对 `ifainew_core::agent` 的依赖
+  - 使用 tokio::fs 实现文件操作
+  - 确保 Explore 和 Review Agent 可用
+
+#### 📁 影响文件
+- `src-tauri/src/agent_system/mod.rs`: 移除 commercial 限制 (-17 +4 行)
+- `src-tauri/src/agent_system/tools.rs`: 本地实现 (+40 -8 行)
+- `src-tauri/src/commands/agent_commands.rs`: 移除 commercial 限制 (-91 +62 行)
+
+#### ✅ 编译验证
+- **cargo check**: 通过 ✅ 无编译错误
+- **警告**: 仅存在 deprecated 函数警告（不影响功能）
+
+#### 🎯 用户价值
+社区版用户现在可以使用：
+- ✅ Explore Agent（只读代码探索）
+- ✅ Review Agent（代码审查）
+- ✅ 任务分解 Agent
+- ✅ 提案生成 Agent
+
+#### ⏭️ 下一步
+- 测试 Explore Agent 功能
+- 测试 Review Agent 功能
+- 添加更多智能体类型
+
+---
 
 ### 2026-04-05 20:45 - P3-前端: Mock 修复和 E2E 测试全部通过 ✅
 

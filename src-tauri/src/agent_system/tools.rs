@@ -1,8 +1,10 @@
-use ifainew_core::agent;
+// 🔥 P4: 移除对 ifainew_core::agent 的依赖，改用本地实现
+// use ifainew_core::agent;
 use serde_json::Value;
 use crate::harness::task::TaskStore;
 use crate::harness::tool::executor::todoutil::TodoWriteExecutor;
 use crate::harness::tool::executor::ToolExecutor;
+use std::path::Path;
 
 // 🆕 全局 TaskStore 单例
 use std::sync::OnceLock;
@@ -212,11 +214,26 @@ pub async fn execute_tool_internal(
     match tool_name {
         "agent_read_file" => {
             let rel_path = get_arg_str(args, "rel_path", "");
-            agent::agent_read_file(calibrated_root, rel_path.to_string()).await
+            // 🔥 P4: 使用本地实现替代 ifainew_core::agent
+            let path = Path::new(&calibrated_root).join(rel_path);
+            tokio::fs::read_to_string(&path)
+                .await
+                .map_err(|e| format!("Failed to read file: {}", e))
         },
         "agent_list_dir" => {
             let rel_path = get_arg_str(args, "rel_path", ".");
-            let result = agent::agent_list_dir(calibrated_root, rel_path.to_string()).await?;
+            // 🔥 P4: 使用本地实现替代 ifainew_core::agent
+            let path = Path::new(&calibrated_root).join(rel_path);
+            let mut entries = tokio::fs::read_dir(&path).await
+                .map_err(|e| format!("Failed to list directory: {}", e))?;
+
+            let mut result = Vec::new();
+            while let Some(entry) = entries.next_entry().await
+                .map_err(|e| format!("Failed to read directory entry: {}", e))? {
+                let name = entry.file_name().to_string_lossy().to_string();
+                result.push(name);
+            }
+            result.sort();
             Ok(result.join("\n"))
         },
         "agent_write_file" => {
@@ -228,10 +245,19 @@ pub async fn execute_tool_internal(
 
             println!("[AgentTools] Writing file: {} (content length: {})", rel_path, unescaped_content.len());
 
-            // Call the core library which now returns WriteFileResult, then serialize to JSON
-            let result = agent::agent_write_file(calibrated_root, rel_path.to_string(), unescaped_content).await?;
-            serde_json::to_string(&result)
-                .map_err(|e| format!("Failed to serialize WriteFileResult: {}", e))
+            // 🔥 P4: 使用本地实现替代 ifainew_core::agent
+            let path = Path::new(&calibrated_root).join(rel_path);
+
+            // Ensure parent directory exists
+            if let Some(parent) = path.parent() {
+                tokio::fs::create_dir_all(parent).await
+                    .map_err(|e| format!("Failed to create directory: {}", e))?;
+            }
+
+            tokio::fs::write(&path, unescaped_content).await
+                .map_err(|e| format!("Failed to write file: {}", e))?;
+
+            Ok(format!("File written: {}", rel_path))
         },
         "agent_batch_read" => {
             let paths_array = args["paths"].as_array()
