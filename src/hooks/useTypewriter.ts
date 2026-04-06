@@ -86,8 +86,6 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterRetur
   const prevEnabledRef = useRef(enabled);
 
   useEffect(() => {
-    prevEnabledRef.current = enabled;
-
     if (!enabled) {
       // 禁用时直接显示全部内容，停止 RAF
       if (contentRef.current.length > 0) {
@@ -101,7 +99,17 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterRetur
         rafRef.current = null;
       }
       onCompleteRef.current?.();
+      prevEnabledRef.current = false;
       return;
+    }
+
+    // enabled 从 false → true：重置打字位置，从头开始动画
+    const wasDisabled = !prevEnabledRef.current;
+    prevEnabledRef.current = true;
+    if (wasDisabled) {
+      charIndexRef.current = 0;
+      setDisplayText('');
+      setProgress(0);
     }
 
     // 如果已有 RAF 在运行，不要重复启动

@@ -3,6 +3,26 @@ import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, Rota
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTypewriter } from '../../hooks/useTypewriter';
+
+/**
+ * 打字机文本包装组件（提取到外部，避免每次渲染重建导致 hook 状态丢失）
+ */
+const TypewriterText: React.FC<{
+    content: string;
+    isStreaming: boolean;
+    children: (text: string) => React.ReactNode;
+}> = ({ content, isStreaming, children }) => {
+    const { displayText, isTyping } = useTypewriter({
+        content,
+        enabled: isStreaming,
+        baseCPS: 100,
+        fastCPS: 250,
+        threshold: 300,
+    });
+    // 打字未完成时继续使用 displayText，避免闪烁
+    const visibleText = (isStreaming || isTyping) ? displayText : content;
+    return <>{children(visibleText)}</>;
+};
 import { useThreadStore } from '../../stores/threadStore';
 import { toast } from 'sonner';
 import { ToolApproval } from './ToolApproval';
@@ -753,22 +773,6 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         const processedText = processScanResult(text);
         return <SimpleMarkdownRenderer key={key} content={processedText} />;
     }, [processScanResult]);
-    // 打字机文本包装组件：流式时逐字显示，完成后直接渲染
-    const TypewriterText: React.FC<{
-        content: string;
-        isStreaming: boolean;
-        children: (text: string) => React.ReactNode;
-    }> = ({ content, isStreaming, children }) => {
-        const { displayText } = useTypewriter({
-            content,
-            enabled: isStreaming,
-            baseCPS: 100,
-            fastCPS: 250,
-            threshold: 300,
-        });
-        return <>{children(isStreaming ? displayText : content)}</>;
-    };
-
     // 使用统一的 MarkdownRenderer（带语法高亮和代码折叠）
     // NOTE: Streaming detection is now handled at the CALL SITE, not inside this function
     // This function ALWAYS applies formatting (Markdown + syntax highlighting) when called
