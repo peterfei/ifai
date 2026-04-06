@@ -93,6 +93,8 @@ impl ApiClient for DeepSeekClient {
             }
             if let Some(obj) = deepseek_request.as_object_mut() {
                 obj.insert("tools".to_string(), serde_json::Value::Array(tools));
+                // 🔥 FIX: 显式设置 tool_choice 为 auto，确保 DeepSeek 启用工具调用模式
+                obj.insert("tool_choice".to_string(), serde_json::json!("auto"));
             }
         } else {
             println!("[DeepSeek] ⚠️ No tools provided in request!");

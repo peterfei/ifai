@@ -17,6 +17,7 @@ import { StreamingToolArgsViewer } from './StreamingToolArgsViewer';
 import { ToolExecutionIndicator, StreamingContentLoader } from './ToolExecutionIndicator';
 import ReactMarkdown from 'react-markdown';
 import { BashConsoleOutput } from './BashConsoleOutput';
+import { StreamingBashOutput } from './StreamingBashOutput';
 import { ProbeSymbolView } from './ProbeSymbolView';
 import { toast } from 'sonner';
 import { RiskPolicy, RiskLevel } from '../../core/approval/policies/RiskPolicy';
@@ -937,8 +938,50 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                 </div>
             )}
 
-            {/* ✅ 执行状态指示器 - 批准后显示，但有结果时隐藏 */}
-            {toolCall.status === 'approved' && !toolCall.result && (
+            {/* ✅ Bash 工具执行中 - 终端风格实时输出 */}
+            {toolCall.status === 'approved' && !toolCall.result && shouldShowConsole() && (() => {
+                const bashCommand = getToolArg('command', '');
+                const workingDir = getToolArg('working_dir', '');
+                return (
+                    <div className="px-5 pb-4">
+                        <StreamingBashOutput
+                            command={bashCommand}
+                            workingDir={workingDir || undefined}
+                            timeoutMs={30000}
+                            throttleLines={5}
+                            className="border-gray-700"
+                        />
+                    </div>
+                );
+            })()}
+
+            {/* ✅ Bash 工具自动执行中 - 终端风格等待动画（后端已在执行，不重复调用） */}
+            {(toolCall.status === 'executing') && !toolCall.result && shouldShowConsole() && (() => {
+                const bashCommand = getToolArg('command', '');
+                return (
+                    <div className="px-5 pb-4">
+                        <div className="border border-gray-700 rounded-lg overflow-hidden bg-[#1e1e1e]">
+                            <div className="flex items-center justify-between px-3 py-2 bg-[#252526] border-b border-gray-700">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Terminal size={14} className="text-gray-400 shrink-0" />
+                                    <code className="text-xs text-gray-300 truncate font-mono">{bashCommand}</code>
+                                </div>
+                                <div className="flex items-center gap-2 text-yellow-400">
+                                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                                    <span className="text-xs">执行中...</span>
+                                </div>
+                            </div>
+                            <div className="p-3 font-mono text-xs text-gray-500 flex items-center gap-2">
+                                <div className="w-2 h-4 bg-yellow-500/50 animate-pulse" />
+                                <span className="italic">等待命令输出...</span>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* ✅ 非bash工具执行中指示器 */}
+            {((toolCall.status === 'approved' || toolCall.status === 'executing') && !toolCall.result && !shouldShowConsole()) && (
                 <div className="px-5 pb-4">
                     <ToolExecutionIndicator
                         status="running"

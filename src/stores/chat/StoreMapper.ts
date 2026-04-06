@@ -649,7 +649,8 @@ export const initStoreMapper = () => {
                 return {
                   ...tc,
                   status: 'completed',
-                  result: content
+                  result: content,
+                  isPartial: false  // 确保清除 isPartial 标志，避免阻塞 _finish 检测
                 };
               }
               return tc;
@@ -673,7 +674,8 @@ export const initStoreMapper = () => {
               timestamp: Date.now()
             }
           ],
-          isLoading: true  // 保持加载状态，准备续播
+          // 🔥 FIX: 不再强制 isLoading=true，因为后端 continuation loop 已禁用前端续播
+          // _finish 事件会通过 emitFinished 正确设置 isLoading=false
         };
       };
       useChatStore.setState(updater as any);

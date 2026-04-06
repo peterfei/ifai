@@ -463,19 +463,8 @@ async fn ai_chat(
         final_system_prompt.push_str("  2. AI: [First runs `pwd` to confirm directory]\n");
         final_system_prompt.push_str("  3. If directory is wrong: Ask user 'The current directory is X. Should I use Y instead?'\n\n");
 
-        final_system_prompt.push_str("# ADDITIONAL TOOLS AVAILABLE\n");
-        final_system_prompt.push_str("You also have access to the following tools. You MUST use them by outputting standard tool call JSON:\n");
-        final_system_prompt.push_str(r#"
-- name: bash
-  description: Execute a shell command
-  parameters: { "command": "string", "working_dir": "string (optional, defaults to project root)" }
-  example: {"name": "bash", "arguments": {"command": "ls -la", "working_dir": "/Users/mac/project/demo/2048"}}
-
-- name: TodoWrite
-  description: Create or update a task list for tracking progress. Use this when the user asks you to create tasks, to-do items, or a task list.
-  parameters: { "todos": "array of task objects", "todos": [{ "content": "string (task name)", "activeForm": "string (active form)", "status": "string (pending/in_progress/completed, optional)" }] }
-  example: {"name": "TodoWrite", "arguments": {"todos": [{"content": "Implement login", "activeForm": "Implementing login", "status": "pending"}, {"content": "Write tests", "activeForm": "Writing tests", "status": "in_progress"}]}}
-"#);
+        // 🔥 NOTE: 工具定义通过 API 的 tools 参数以 OpenAI function calling 格式发送
+        // 不再在系统提示词中重复描述工具格式，避免与标准格式冲突导致模型混淆
 
         if let Some(ref context) = rag_context {
              if !context.is_empty() {
@@ -663,12 +652,13 @@ async fn ai_chat(
     }
 
     // 本地模型预处理 - 智能路由决策
-    // 先检查是否应该使用本地模型处理
-    let preprocess_result = if has_image {
-        // 如果有图片，不使用本地模型
+    // 🔥 暂时禁用本地模型工具执行，所有请求走云端 API
+    let preprocess_result: Result<local_model::PreprocessResult, String> = if has_image {
         Err("Image content detected, routing to cloud Vision LLM".to_string())
     } else {
-        local_model::local_model_preprocess(messages.clone()).await
+        // 🔥 TODO: 本地模型工具执行暂时禁用，恢复时取消注释
+        // local_model::local_model_preprocess(messages.clone()).await
+        Err("Local model tool execution disabled, routing to cloud API".to_string())
     };
 
     // 检查是否应该使用本地处理
@@ -1630,6 +1620,7 @@ pub fn run() {
             commands::proposal_commands::list_proposals,
             commands::proposal_commands::init_demo_proposal,
             commands::bash_commands::execute_bash_command,
+            commands::bash_streaming::bash_execute_streaming,
             // v0.2.8 新增：符号索引与跨文件关联
             commands::symbol_commands::extract_symbols,
             commands::symbol_commands::index_project_symbols,

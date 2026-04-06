@@ -2,6 +2,7 @@ pub mod core_wrappers;
 pub mod prompt_commands;
 pub mod agent_commands;
 pub mod bash_commands;
+pub mod bash_streaming;
 pub mod task_commands;
 pub mod task_store_commands;
 pub mod proposal_commands;

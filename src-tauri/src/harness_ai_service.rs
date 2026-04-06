@@ -328,6 +328,23 @@ impl AIService for HarnessAIService {
                                     .unwrap_or("unknown")
                                     .to_string();
 
+                                // 🔥 FIX: 发送完整的 tool_call 事件给前端（包含完整 arguments）
+                                // ToolStart 时 arguments 为空，前端 toolCallBuffer 等待完整 arguments
+                                // 在 ToolDone 时 result 就是完整的 arguments JSON，发送给前端以完成累积
+                                let complete_tool_event = json!({
+                                    "type": "tool_call",
+                                    "tool_call": {
+                                        "index": 0,
+                                        "id": tool_id,
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool_name_from_map,
+                                            "arguments": result_str
+                                        }
+                                    }
+                                });
+                                callback(complete_tool_event.to_string());
+
                                 let (tool_name, exec_result) = if let Ok(mut args) = serde_json::from_str::<serde_json::Value>(&result_str) {
                                     let router = get_global_tool_router();
 
