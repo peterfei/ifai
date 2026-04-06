@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { User, FileCode, CheckCheck, XCircle, ChevronDown, ChevronUp, Copy, RotateCcw, MoreHorizontal, Bot, CheckCircle, X } from 'lucide-react';
 import { Message, ContentPart, useChatStore, ContentSegment } from '../../stores/useChatStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useTypewriter } from '../../hooks/useTypewriter';
 import { useThreadStore } from '../../stores/threadStore';
 import { toast } from 'sonner';
 import { ToolApproval } from './ToolApproval';
@@ -752,6 +753,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         const processedText = processScanResult(text);
         return <SimpleMarkdownRenderer key={key} content={processedText} />;
     }, [processScanResult]);
+    // 打字机文本包装组件：流式时逐字显示，完成后直接渲染
+    const TypewriterText: React.FC<{
+        content: string;
+        isStreaming: boolean;
+        children: (text: string) => React.ReactNode;
+    }> = ({ content, isStreaming, children }) => {
+        const { displayText } = useTypewriter({
+            content,
+            enabled: isStreaming,
+            baseCPS: 100,
+            fastCPS: 250,
+            threshold: 300,
+        });
+        return <>{children(isStreaming ? displayText : content)}</>;
+    };
+
     // 使用统一的 MarkdownRenderer（带语法高亮和代码折叠）
     // NOTE: Streaming detection is now handled at the CALL SITE, not inside this function
     // This function ALWAYS applies formatting (Markdown + syntax highlighting) when called
@@ -759,17 +776,24 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         if (part.type === 'text' && part.text) {
             // Process scan result i18n before rendering
             const processedText = processScanResult(part.text);
-            // 使用统一的 MarkdownRenderer
+            // 使用统一的 MarkdownRenderer（打字机效果在流式时通过子组件实现）
             return (
-                <MarkdownRenderer
+                <TypewriterText
                     key={index}
                     content={processedText}
                     isStreaming={isStreaming}
-                    maxLinesBeforeCollapse={50}
-                    isExpanded={expandedBlocksRef.current.has(index)}
-                    onToggleExpand={() => toggleBlock(index)}
-                    index={index}
-                />
+                >
+                    {(text) => (
+                        <MarkdownRenderer
+                            content={text}
+                            isStreaming={isStreaming}
+                            maxLinesBeforeCollapse={50}
+                            isExpanded={expandedBlocksRef.current.has(index)}
+                            onToggleExpand={() => toggleBlock(index)}
+                            index={index}
+                        />
+                    )}
+                </TypewriterText>
             );
         } else if (part.type === 'image_url' && part.image_url?.url) {
             return (

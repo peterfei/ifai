@@ -99,6 +99,9 @@ export interface SettingsState {
   // AI Transparency (v0.4.0)
   transparencyLevel: 'minimal' | 'standard' | 'verbose' | 'debug';
 
+  // Typewriter Effect (v0.5.0)
+  enableTypewriterEffect: boolean;
+
   // RAG
   enableAutoRAG: boolean;
   enableSmartRAG: boolean;
@@ -214,6 +217,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       // AI Transparency
       transparencyLevel: 'standard',
+      enableTypewriterEffect: true,
 
       // RAG settings
       enableAutoRAG: true,
@@ -329,7 +333,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 5, // v0.4.0: AI Transparency
+      version: 6, // v0.5.0: Typewriter Effect
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -372,9 +376,19 @@ export const useSettingsStore = create<SettingsState>()(
         trustedSessions: state.trustedSessions,
         // v0.4.0: AI 透明度设置
         transparencyLevel: state.transparencyLevel,
+        // v0.5.0: 打字机效果
+        enableTypewriterEffect: state.enableTypewriterEffect,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 5`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 6`);
+
+        // v0.5.0: 版本 5 -> 6：添加打字机效果开关
+        if (version < 6) {
+          if (persistedState.enableTypewriterEffect === undefined) {
+            persistedState.enableTypewriterEffect = true;
+            console.log('[SettingsStore] Set default enableTypewriterEffect=true (v5->6)');
+          }
+        }
 
         // v0.4.0: 版本 4 -> 5：添加 AI 透明度级别
         if (version < 5) {

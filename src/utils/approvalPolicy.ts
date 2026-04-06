@@ -34,7 +34,9 @@ export function categorizeTool(toolName: string): ToolCategory {
     'search',
     'glob',
     'list_files',
-    'ls'
+    'ls',
+    'todowrite',
+    'todo_write'
   ];
 
   const destructiveBaseNames = [

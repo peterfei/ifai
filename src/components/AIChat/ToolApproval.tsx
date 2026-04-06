@@ -1,6 +1,7 @@
 import { PivoProjectTree } from "./PivoProjectTree";
 import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { DiffPreview } from './DiffPreview';
+import { useTypewriter } from '../../hooks/useTypewriter';
 import React, { useState, useLayoutEffect, useMemo } from 'react';
 import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink } from 'lucide-react';
 import { ToolCall, useChatStore } from '../../stores/useChatStore';
@@ -123,9 +124,19 @@ const TypewriterCodeBlock: React.FC <{
     isExpanded: boolean;
     onToggleExpand: () => void;
 }> = ({ code, isPartial, language, fileName, isExpanded, onToggleExpand }) => {
-    const lines = code.split('\n');
+    // 打字机效果：仅在流式传输（isPartial）时启用
+    const { displayText, isTyping, skip } = useTypewriter({
+        content: code,
+        enabled: isPartial,
+        baseCPS: 120,
+        fastCPS: 300,
+        threshold: 300,
+    });
+
+    const effectiveCode = isPartial ? displayText : code;
+    const lines = effectiveCode.split('\n');
     const displayLines = isExpanded ? lines : lines.slice(0, PREVIEW_LINES);
-    const shouldCollapse = lines.length > PREVIEW_LINES;
+    const shouldCollapse = code.split('\n').length > PREVIEW_LINES;
 
     return (
         <div className="group/typewriter relative rounded-xl border border-gray-700/40 bg-[#0d1117] shadow-2xl overflow-hidden transition-all duration-300 hover:border-blue-500/30">
@@ -159,7 +170,11 @@ const TypewriterCodeBlock: React.FC <{
             </div>
 
             {/* Code Content with Dynamic Typewriter Cursor */}
-            <div className="relative max-h-80 overflow-auto scrollbar-thin scrollbar-thumb-gray-700">
+            <div
+                className="relative max-h-80 overflow-auto scrollbar-thin scrollbar-thumb-gray-700"
+                onClick={isTyping ? skip : undefined}
+                style={isTyping ? { cursor: 'pointer' } : undefined}
+            >
                 <pre className="p-4 text-[12px] leading-6 text-gray-300 font-mono whitespace-pre-wrap break-all">
                     <code>
                         {displayLines.join('\n')}
@@ -471,6 +486,8 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
     };
 
     const isWriteFile = toolCall.tool?.includes('write_file') || false;
+    const isEditFile = toolCall.tool?.includes('edit_file') || false;
+    const isFileTool = isWriteFile || isEditFile;
 
     // 🔥 FIX: 安全地从 args 中提取值（处理 string | Record<string, any>）
     const getToolArg = (key: string, defaultValue: string = ''): string => {
@@ -661,7 +678,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
 
             {/* Content Area */}
             <div className="px-5 pb-4 pt-4">
-                {isWriteFile ? (
+                {isFileTool ? (
                     <div className="space-y-4 overflow-hidden">
                         {/* ✅ 流式参数显示 - write_file 也显示参数 */}
                         {isPartial && (
@@ -1047,7 +1064,9 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                 // 1. 检测 PIVO (健壮性增强)
                                 try {
                                     const resultData = toolCall.result;
-                                    const parsed = typeof resultData === 'string' ? JSON.parse(resultData) : resultData;
+                                    // 守卫：仅对看起来像 JSON 的字符串做 parse，避免非 JSON 结果报错
+                                    if (typeof resultData === 'string' && (resultData.trim().startsWith('{') || resultData.trim().startsWith('['))) {
+                                    const parsed = JSON.parse(resultData);
 
                                     // 🏆 FIX: 处理双重包装格式 { output: "{...}", status: "success" }
                                     let scanData = null;
@@ -1084,6 +1103,7 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                                         const nestedStructure = flatStructureToNested(scanData.structure);
                                         console.log('[ToolApproval] ✅ Rendering PivoProjectTree for agent_scan_project');
                                         return <PivoProjectTree structure={nestedStructure} keyFiles={scanData.key_files} />;
+                                    }
                                     }
                                 } catch (e) {
                                     console.log('[ToolApproval] ❌ Failed to parse agent_scan_project result:', e);
