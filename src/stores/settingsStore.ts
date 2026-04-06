@@ -96,6 +96,9 @@ export interface SettingsState {
   toolClassificationFallbackStrategy: 'always' | 'on-low-confidence' | 'never';
   showToolClassificationIndicator: boolean;
 
+  // AI Transparency (v0.4.0)
+  transparencyLevel: 'minimal' | 'standard' | 'verbose' | 'debug';
+
   // RAG
   enableAutoRAG: boolean;
   enableSmartRAG: boolean;
@@ -208,6 +211,9 @@ export const useSettingsStore = create<SettingsState>()(
       toolClassificationConfidenceThreshold: 0.7,
       toolClassificationFallbackStrategy: 'on-low-confidence',
       showToolClassificationIndicator: true,
+
+      // AI Transparency
+      transparencyLevel: 'standard',
 
       // RAG settings
       enableAutoRAG: true,
@@ -323,7 +329,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 4, // 🔥 v0.3.4: 增加版本号确保迁移执行
+      version: 5, // v0.4.0: AI Transparency
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -364,9 +370,21 @@ export const useSettingsStore = create<SettingsState>()(
         // 🔥 v0.3.4: 持久化审批模式设置
         agentApprovalMode: state.agentApprovalMode,
         trustedSessions: state.trustedSessions,
+        // v0.4.0: AI 透明度设置
+        transparencyLevel: state.transparencyLevel,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 4`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 5`);
+
+        // v0.4.0: 版本 4 -> 5：添加 AI 透明度级别
+        if (version < 5) {
+          if (!persistedState.transparencyLevel) {
+            persistedState.transparencyLevel = 'standard';
+            console.log('[SettingsStore] Set default transparencyLevel=standard (v4->5)');
+          }
+        }
+
+        // 🔥 v0.3.4: 版本 3 -> 4：确保新字段存在（安全迁移）
 
         // 🔥 v0.3.4: 版本 3 -> 4：确保新字段存在（安全迁移）
         if (!persistedState.agentApprovalMode) {

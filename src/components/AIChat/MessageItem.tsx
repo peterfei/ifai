@@ -242,11 +242,16 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         // If content is already a string, use as-is
         rawText = content || '';
       }
-      // v0.2.6: 过滤思维链标记 <think>...</think>
-      // 移除完整的 think 块以及由于流式截断可能残留的 </think> 标签
-      return rawText
-        .replace(/<think>[\s\S]*?<\/think>/gi, '') // 移除完整的思考块
-        .replace(/<\/think>/gi, '');               // 移除残留的闭合标签
+      // v0.2.6: 过滤思维链标记 <think...>
+      // AI Transparency: debug 模式下保留思考内容
+      const isDebugMode = useSettingsStore.getState().transparencyLevel === 'debug';
+      if (!isDebugMode) {
+        // 移除完整的 think 块以及由于流式截断可能残留的 </think 标签
+        return rawText
+          .replace(/<think[\s\S]*?<\/think>/gi, '') // 移除完整的思考块
+          .replace(/<\/think>/gi, '');               // 移除残留的闭合标签
+      }
+      return rawText;
     }, [message.content]);
     // v0.2.6: 检测任务拆解内容
     const taskBreakdown = React.useMemo(() => {

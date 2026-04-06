@@ -4,6 +4,7 @@ import { Send, Settings, X, ChevronDown, Search } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useTransparencyStore } from '../../stores/transparencyStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useThreadStore } from '../../stores/threadStore';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -40,6 +41,7 @@ import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import { ThreadSearchBar } from './ThreadSearchBar';
 import { ModelCapsulePanel } from './ModelCapsulePanel';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
+import { SystemPromptCard } from './SystemPromptCard';
 import { VirtualMessageList } from './VirtualMessageList';
 import { ChatInputArea } from './ChatInputArea';
 // v0.3.1: 时间线视图
@@ -97,6 +99,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const providers = useSettingsStore(state => state.providers);
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
+  const transparencyLevel = useSettingsStore(state => state.transparencyLevel);
+  const currentPromptMeta = useTransparencyStore(state => state.currentPromptMeta);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
 
   // Scroll throttling to prevent "flickering" during streaming
@@ -2363,6 +2367,11 @@ ${suggestion.fixContext.code_context}
       )}
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
+
+      {/* AI Transparency: 系统提示词卡片 */}
+      {transparencyLevel !== 'minimal' && currentPromptMeta && (
+        <SystemPromptCard meta={currentPromptMeta} />
+      )}
 
       <TokenUsageIndicator />
 

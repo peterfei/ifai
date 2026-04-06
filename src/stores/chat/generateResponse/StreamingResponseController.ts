@@ -448,8 +448,18 @@ export class StreamingResponseController {
           this.emitFinished(payload);
         });
 
-        // 5. 记录监听器以便后续清理
-        this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream, unlistenFinish, unlistenError]);
+        // 5. 监听系统提示词元数据事件 (AI Transparency)
+        const unlistenPromptMeta = await listen('ai:system_prompt_meta', (event: any) => {
+          // 只处理当前会话的事件
+          if (event.payload?.event_id === eventId) {
+            import('../../transparencyStore').then(({ useTransparencyStore }) => {
+              useTransparencyStore.getState().setPromptMeta(event.payload);
+            });
+          }
+        });
+
+        // 6. 记录监听器以便后续清理
+        this.activeListeners.set(payload.correlationId, [unlistenStatus, unlistenStream, unlistenFinish, unlistenError, unlistenPromptMeta]);
     } catch (e) {
         console.error('[SC] Failed to setup Tauri listeners:', e);
     }

@@ -1,8 +1,10 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Check, ChevronRight } from 'lucide-react';
+import { Settings, Check, ChevronRight, Eye, EyeOff, Bug } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
+
+type TransparencyLevel = 'minimal' | 'standard' | 'verbose' | 'debug';
 
 interface ModelCapsulePanelProps {
   onClose: () => void;
@@ -14,8 +16,24 @@ export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, s
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
+  const transparencyLevel = useSettingsStore(state => state.transparencyLevel);
+  const updateSettings = useSettingsStore(state => state.updateSettings);
 
   const currentProvider = providers.find(p => p.id === currentProviderId);
+
+  const cycleTransparency = () => {
+    const levels: TransparencyLevel[] = ['standard', 'verbose', 'debug', 'standard'];
+    const currentIdx = levels.indexOf(transparencyLevel);
+    const next = levels[(currentIdx + 1) % levels.length];
+    updateSettings({ transparencyLevel: next });
+  };
+
+  const transparencyLabels: Record<TransparencyLevel, { icon: React.ReactNode; label: string }> = {
+    minimal: { icon: <EyeOff size={12} />, label: '隐藏' },
+    standard: { icon: <Eye size={12} />, label: '标准' },
+    verbose: { icon: <Eye size={12} />, label: '详细' },
+    debug: { icon: <Bug size={12} />, label: '调试' },
+  };
 
   return (
     <motion.div
@@ -60,7 +78,20 @@ export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, s
         ))}
       </div>
 
-      <div className="p-1.5 border-t border-white/5 bg-gray-950/50">
+      <div className="p-1.5 border-t border-white/5 bg-gray-950/50 space-y-1">
+        {/* AI Transparency 切换 */}
+        <button
+          onClick={cycleTransparency}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+          title={`AI 透明度: ${transparencyLabels[transparencyLevel].label}`}
+        >
+          {transparencyLabels[transparencyLevel].icon}
+          <span>AI 透明度: {transparencyLabels[transparencyLevel].label}</span>
+          <span className="ml-auto text-[9px] text-gray-600 font-mono">
+            {transparencyLevel.toUpperCase()}
+          </span>
+        </button>
+
         <button
           onClick={() => {
             setSettingsOpen(true);

@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::fs;
+use std::sync::Mutex;
 use crate::prompt_manager::{PromptMetadata, PromptTemplate, BuiltinPrompts};
 use crate::prompt_manager::storage;
 use crate::prompt_manager::template;
 use walkdir::WalkDir;
+use tauri::State;
 
 fn get_prompt_root(project_root: &str) -> PathBuf {
     PathBuf::from(project_root).join(".ifai/prompts")
@@ -306,4 +308,27 @@ use crate::prompt_manager::validation::{PromptValidator, ValidationResult};
 #[tauri::command]
 pub async fn validate_prompt(content: String) -> Result<ValidationResult, String> {
     PromptValidator::validate(&content).map_err(|e| e.to_string())
+}
+
+
+// === AI 透明化命令 ===
+
+/// 获取最近一次 AI 请求中指定 section 的系统提示词完整内容
+#[tauri::command]
+pub async fn get_system_prompt_detail(
+    section_name: String,
+    state: State<'_, crate::AppState>,
+) -> Result<String, String> {
+    let cache = state.system_prompt_cache.lock().map_err(|e| format!("Lock error: {}", e))?;
+
+    // 支持特殊 section 名称
+    if section_name == "full_prompt" {
+        return cache.get("full_prompt")
+            .cloned()
+            .ok_or_else(|| "No cached system prompt available".to_string());
+    }
+
+    cache.get(&section_name)
+        .cloned()
+        .ok_or_else(|| format!("Section '{}' not found in cache", section_name))
 }

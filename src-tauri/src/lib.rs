@@ -53,6 +53,8 @@ pub struct AppState {
     pub rag_service: Arc<dyn core_traits::rag::RagService>,
     pub agent_service: Arc<dyn core_traits::agent::AgentService>,
     pub task_store: crate::harness::task::TaskStore,
+    /// 缓存最近一次 AI 请求的系统提示词各段落内容，供 transparency 功能按需获取
+    pub system_prompt_cache: Arc<std::sync::Mutex<std::collections::HashMap<String, String>>>,
 }
 
 #[tauri::command]
@@ -475,12 +477,12 @@ async fn ai_chat(
   example: {"name": "TodoWrite", "arguments": {"todos": [{"content": "Implement login", "activeForm": "Implementing login", "status": "pending"}, {"content": "Write tests", "activeForm": "Writing tests", "status": "in_progress"}]}}
 "#);
 
-        if let Some(context) = rag_context {
+        if let Some(ref context) = rag_context {
              if !context.is_empty() {
                 let truncated_context = if context.len() > 12000 {
-                    format!("{}... [Context Truncated]", ai_utils::safe_truncate(&context, 12000))
+                    format!("{}... [Context Truncated]", ai_utils::safe_truncate(context, 12000))
                 } else {
-                    context
+                    context.clone()
                 };
                 final_system_prompt.push_str("\n\nProject Context:\n");
                 final_system_prompt.push_str(&truncated_context);
@@ -542,6 +544,84 @@ async fn ai_chat(
                 system_content.push_str(&mode_prompt);
                 system_content.push_str("\n[END_MODE_OVERRIDE]\n");
             }
+        }
+
+        // === AI Transparency: 缓存各 section 内容并发射元数据事件 ===
+        {
+            // 构建各 section 的内容缓存
+            let main_prompt_content = prompt_manager::get_main_system_prompt(&root);
+            let rag_content = rag_context.as_ref()
+                .map(|c| if c.len() > 12000 { format!("{}... [Context Truncated]", ai_utils::safe_truncate(c, 12000)) } else { c.clone() });
+            let skills_content = skills_prompt.as_ref().map(|s| format!("[FINAL_SYSTEM_OVERRIDE_PRIORITY_MAX]\n{}\n[END_OF_ALL_SYSTEM_INSTRUCTIONS]", s));
+            let has_mode = mode.is_some() && cfg!(feature = "commercial");
+
+            // 估算各 section token 数 (简易: chars / 4)
+            let main_tokens = main_prompt_content.len() / 4;
+            let rag_tokens = rag_content.as_ref().map(|c| c.len() / 4).unwrap_or(0);
+            let skills_tokens = skills_content.as_ref().map(|c| c.len() / 4).unwrap_or(0);
+
+            // 更新缓存
+            {
+                let mut cache = state.system_prompt_cache.lock().map_err(|e| e.to_string())?;
+                cache.clear();
+                cache.insert("main_prompt".to_string(), main_prompt_content.clone());
+                cache.insert("behavior_rules".to_string(), format!(
+                    "# CRITICAL BEHAVIOR RULES + TOOL DEFINITIONS\n(See final_system_prompt after behavior rules injection)"
+                ));
+                if let Some(ref c) = rag_content {
+                    cache.insert("rag_context".to_string(), c.clone());
+                }
+                if let Some(ref c) = skills_content {
+                    cache.insert("skills".to_string(), c.clone());
+                }
+                cache.insert("full_prompt".to_string(), system_content.clone());
+            }
+
+            // 发射元数据事件 (不包含完整内容，仅摘要)
+            let meta = serde_json::json!({
+                "event_id": &event_id,
+                "sections": [
+                    {
+                        "name": "main_prompt",
+                        "label": "主系统提示词",
+                        "char_count": main_prompt_content.len(),
+                        "tokens_estimate": main_tokens,
+                    },
+                    {
+                        "name": "behavior_rules",
+                        "label": "行为规则与工具定义",
+                        "char_count": system_content.len() - main_prompt_content.len() - rag_tokens * 4 - skills_tokens * 4,
+                        "tokens_estimate": (system_content.len() - main_prompt_content.len()) / 4,
+                    },
+                    {
+                        "name": "rag_context",
+                        "label": "RAG 上下文",
+                        "char_count": rag_content.as_ref().map(|c| c.len()).unwrap_or(0),
+                        "tokens_estimate": rag_tokens,
+                        "present": rag_content.is_some(),
+                    },
+                    {
+                        "name": "skills",
+                        "label": "技能指令",
+                        "char_count": skills_content.as_ref().map(|c| c.len()).unwrap_or(0),
+                        "tokens_estimate": skills_tokens,
+                        "present": skills_content.is_some(),
+                    },
+                    {
+                        "name": "mode_instructions",
+                        "label": "模式指令",
+                        "char_count": 0,
+                        "tokens_estimate": 0,
+                        "present": has_mode,
+                    },
+                ],
+                "skills": active_skill_ids.as_ref().cloned().unwrap_or_default(),
+                "mode": mode.clone().unwrap_or_default(),
+                "total_chars": system_content.len(),
+                "total_tokens_estimate": system_content.len() / 4,
+                "message_count": messages.len(),
+            });
+            let _ = app.emit("ai:system_prompt_meta", meta);
         }
 
         // 将最终结果同步回 messages 头部
@@ -1403,6 +1483,7 @@ pub fn run() {
             rag_service: rag,
             agent_service: agent,
             task_store: crate::harness::task::TaskStore::new(),
+            system_prompt_cache: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         });
 
         // v0.2.8: 符号索引状态
@@ -1503,6 +1584,7 @@ pub fn run() {
             commands::prompt_commands::export_prompts,
             commands::prompt_commands::import_prompts,
             commands::prompt_commands::list_exportable_prompts,
+            commands::prompt_commands::get_system_prompt_detail,
             commands::agent_commands::launch_agent,
             commands::agent_commands::list_running_agents,
             commands::agent_commands::approve_agent_action,
