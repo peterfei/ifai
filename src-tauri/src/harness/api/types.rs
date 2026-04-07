@@ -122,6 +122,8 @@ pub enum AiProvider {
     Anthropic,
     DeepSeek,
     OpenAI,
+    /// 智谱 AI (Zhipu / GLM)
+    Zhipu,
     /// 自定义供应商（使用 OpenAI 兼容 API）
     Custom { name: String },
 }
@@ -132,6 +134,7 @@ pub enum AiProviderType {
     Anthropic,
     DeepSeek,
     OpenAI,
+    Zhipu,
     Custom,
 }
 
@@ -141,6 +144,7 @@ impl From<AiProvider> for AiProviderType {
             AiProvider::Anthropic => AiProviderType::Anthropic,
             AiProvider::DeepSeek => AiProviderType::DeepSeek,
             AiProvider::OpenAI => AiProviderType::OpenAI,
+            AiProvider::Zhipu => AiProviderType::Zhipu,
             AiProvider::Custom { .. } => AiProviderType::Custom,
         }
     }
@@ -155,6 +159,7 @@ impl std::str::FromStr for AiProvider {
             "anthropic" => Ok(AiProvider::Anthropic),
             "deepseek" => Ok(AiProvider::DeepSeek),
             "openai" => Ok(AiProvider::OpenAI),
+            "zhipu" | "zhipuai" | "glm" => Ok(AiProvider::Zhipu),
             "custom" => Ok(AiProvider::Custom {
                 name: "Custom".to_string(),
             }),
@@ -165,7 +170,7 @@ impl std::str::FromStr for AiProvider {
                         name: name.to_string(),
                     })
                 } else {
-                    Err(format!("Unknown provider: {}. Supported: anthropic, deepseek, openai, custom[:name]", s))
+                    Err(format!("Unknown provider: {}. Supported: anthropic, deepseek, openai, zhipu, custom[:name]", s))
                 }
             }
         }
@@ -179,6 +184,7 @@ impl AiProvider {
             AiProvider::Anthropic => "Anthropic",
             AiProvider::DeepSeek => "DeepSeek",
             AiProvider::OpenAI => "OpenAI",
+            AiProvider::Zhipu => "Zhipu AI",
             AiProvider::Custom { name } => name.as_str(),
         }
     }

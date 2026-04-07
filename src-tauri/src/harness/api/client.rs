@@ -45,6 +45,9 @@ impl ApiClientFactory {
             crate::harness::api::types::AiProvider::OpenAI => {
                 Ok(Box::new(super::providers::openai::OpenAIClient::new(config)))
             }
+            crate::harness::api::types::AiProvider::Zhipu => {
+                Ok(Box::new(super::providers::zhipu::ZhipuClient::new(config)))
+            }
             crate::harness::api::types::AiProvider::Custom { .. } => {
                 // 创建自定义供应商客户端
                 super::providers::CustomClient::new(&provider, config)

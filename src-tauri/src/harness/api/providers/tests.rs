@@ -35,6 +35,18 @@ mod tests {
         let models = openai.unwrap().list_models().await;
         assert!(models.is_ok());
         assert!(!models.unwrap().is_empty());
+
+        // Zhipu
+        let zhipu = ApiClientFactory::create_provider(AiProvider::Zhipu, &config);
+        assert!(zhipu.is_ok());
+        let models = zhipu.unwrap().list_models().await;
+        assert!(models.is_ok());
+        let models = models.unwrap();
+        assert!(!models.is_empty());
+        // 验证关键模型
+        let model_ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+        assert!(model_ids.contains(&"glm-4.7"));
+        assert!(model_ids.contains(&"glm-4.6"));
     }
 
     /// 测试提供商字符串解析
@@ -55,6 +67,18 @@ mod tests {
             AiProvider::from_str("openai"),
             Ok(AiProvider::OpenAI)
         ));
+        assert!(matches!(
+            AiProvider::from_str("zhipu"),
+            Ok(AiProvider::Zhipu)
+        ));
+        assert!(matches!(
+            AiProvider::from_str("zhipuai"),
+            Ok(AiProvider::Zhipu)
+        ));
+        assert!(matches!(
+            AiProvider::from_str("glm"),
+            Ok(AiProvider::Zhipu)
+        ));
 
         // 大小写不敏感
         assert!(matches!(
@@ -64,6 +88,14 @@ mod tests {
         assert!(matches!(
             AiProvider::from_str("DeepSeek"),
             Ok(AiProvider::DeepSeek)
+        ));
+        assert!(matches!(
+            AiProvider::from_str("Zhipu"),
+            Ok(AiProvider::Zhipu)
+        ));
+        assert!(matches!(
+            AiProvider::from_str("ZHIPU"),
+            Ok(AiProvider::Zhipu)
         ));
 
         // 无效提供商
@@ -219,5 +251,71 @@ mod tests {
             Err(msg) => assert!(msg.contains("http://"), "Error should mention http:// or https://: {}", msg),
             Ok(_) => panic!("Expected error for invalid URL"),
         }
+    }
+
+    /// 测试 Zhipu 提供商名称
+    #[test]
+    fn test_zhipu_provider_name() {
+        let provider = AiProvider::Zhipu;
+        assert_eq!(provider.name(), "Zhipu AI");
+    }
+
+    /// 测试 Zhipu Token 估算
+    #[test]
+    fn test_zhipu_token_estimation() {
+        let config = ProviderConfig {
+            api_key: "test-key".to_string(),
+            base_url: None,
+            organization: None,
+        };
+
+        let zhipu = ApiClientFactory::create_provider(AiProvider::Zhipu, &config);
+        assert!(zhipu.is_ok());
+        let client = zhipu.unwrap();
+
+        // 纯英文
+        let english = "Hello world";
+        let tokens = client.estimate_tokens(english);
+        assert!(tokens > 0 && tokens < english.len());
+
+        // 纯中文
+        let chinese = "你好世界智谱AI";
+        let tokens = client.estimate_tokens(chinese);
+        assert!(tokens > 0 && tokens <= chinese.len());
+
+        // 混合
+        let mixed = "Hello 你好 GLM-4";
+        let tokens = client.estimate_tokens(mixed);
+        assert!(tokens > 0);
+    }
+
+    /// 测试 Zhipu 自定义 base_url
+    #[tokio::test]
+    async fn test_zhipu_custom_base_url() {
+        let config = ProviderConfig {
+            api_key: "test-key".to_string(),
+            base_url: Some("https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string()),
+            organization: None,
+        };
+
+        let zhipu = ApiClientFactory::create_provider(AiProvider::Zhipu, &config);
+        assert!(zhipu.is_ok());
+        let models = zhipu.unwrap().list_models().await;
+        assert!(models.is_ok());
+    }
+
+    /// 测试所有支持的模型包含智谱模型
+    #[test]
+    fn test_all_supported_models_includes_zhipu() {
+        use crate::harness::api::providers::get_all_supported_models;
+
+        let models = get_all_supported_models();
+        let model_ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+
+        // 验证智谱模型存在
+        assert!(model_ids.contains(&"glm-4.7"), "Should contain glm-4.7");
+        assert!(model_ids.contains(&"glm-4.7-flash"), "Should contain glm-4.7-flash");
+        assert!(model_ids.contains(&"glm-4.6"), "Should contain glm-4.6");
+        assert!(model_ids.contains(&"glm-4-plus"), "Should contain glm-4-plus");
     }
 }
