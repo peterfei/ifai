@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { CheckCircle2, Circle, Loader2, Trash2, RefreshCw, X } from 'lucide-react';
+import { CheckCircle2, CheckSquare2, Circle, Loader2, Trash2, RefreshCw, X, ChevronLeft } from 'lucide-react';
 import { useTodoWriteTasks, useTodoWriteStats, useTodoWriteLoading, useTodoWriteStore } from '../../stores/todoWriteStore';
 import { useTodoWriteStore as useTodoWriteActions } from '../../stores/todoWriteStore';
 import type { TaskStatus } from '../../services/taskStoreService';
@@ -54,7 +54,8 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
   const tasks = useTodoWriteTasks();
   const stats = useTodoWriteStats();
   const isLoading = useTodoWriteLoading();
-  const { loadTasks, updateTaskStatus, clearTasks, removeTask } = useTodoWriteActions();
+  const panelState = useTodoWriteStore((s) => s.panelState);
+  const { loadTasks, updateTaskStatus, clearTasks, removeTask, setPanelState } = useTodoWriteActions();
 
   // 初始加载
   useEffect(() => {
@@ -102,6 +103,24 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
       toast.error('刷新任务列表失败');
     }
   };
+
+  // 折叠态：紧凑摘要栏
+  if (panelState === 'collapsed') {
+    const allDone = stats.total > 0 && stats.completed === stats.total;
+    return (
+      <div
+        className="flex items-center gap-1 px-1 py-3 cursor-pointer hover:bg-gray-700/50 transition-colors h-full"
+        onClick={() => setPanelState('full')}
+        title="展开任务面板"
+        data-testid="todowrite-panel-collapsed"
+      >
+        <CheckSquare2 size={16} className={allDone ? 'text-green-400' : 'text-blue-400'} />
+        <span className={`text-[10px] whitespace-nowrap ${allDone ? 'text-green-400' : 'text-gray-400'}`}>
+          {stats.completed}/{stats.total}{allDone ? ' ✓' : ''}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${className}`} data-testid="todowrite-panel">

@@ -85,6 +85,21 @@ import i18nInstance from './i18n/config';
 (window as any).i18n = i18nInstance;
 console.log('[App] i18n exposed at module load, language:', i18nInstance.language);
 
+/** TodoWrite 面板三态包装器（full/collapsed/hidden） */
+function TodoWritePanelWrapper() {
+  const panelState = useTodoWriteStore((s) => s.panelState);
+  if (panelState === 'hidden') return null;
+  return (
+    <div className={`border-l border-gray-700 transition-all duration-300 ease-in-out overflow-hidden ${
+      panelState === 'collapsed' ? 'w-10' : 'w-96'
+    }`}>
+      <Suspense fallback={null}>
+        <TodoWritePanel onClose={() => useTodoWriteStore.getState().setPanelState('hidden')} />
+      </Suspense>
+    </div>
+  );
+}
+
 function App() {
   // 🔥 Refactor Phase 6: Final Entrance Locking
   if (typeof window !== 'undefined') {
@@ -918,14 +933,8 @@ function App() {
           </div>
         )}
 
-        {/* P2: TodoWrite 任务面板 */}
-        {useTodoWriteStore((state) => state.isPanelOpen) && (
-          <div className="w-96 border-l border-gray-700">
-            <Suspense fallback={null}>
-              <TodoWritePanel onClose={() => useTodoWriteStore.getState().setPanelOpen(false)} />
-            </Suspense>
-          </div>
-        )}
+        {/* P2: TodoWrite 任务面板（三态：full/collapsed/hidden） */}
+        <TodoWritePanelWrapper />
 
         {/* v0.2.6 新增：右侧侧栏位置 */}
         {isSidebarOpen && sidebarPosition === 'right' && (

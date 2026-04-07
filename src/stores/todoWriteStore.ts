@@ -12,15 +12,17 @@ import { persist } from 'zustand/middleware';
 import type { TaskItem, TaskStatus } from '../services/taskStoreService';
 import { taskStoreService } from '../services/taskStoreService';
 
+export type PanelState = 'full' | 'collapsed' | 'hidden';
+
 interface TodoWriteStoreState {
   // 状态
   tasks: TaskItem[];
   isLoading: boolean;
   error: string | null;
 
-  // 面板状态
-  isPanelOpen: boolean;
-  setPanelOpen: (open: boolean) => void;
+  // 面板状态（三态：full/collapsed/hidden）
+  panelState: PanelState;
+  setPanelState: (state: PanelState) => void;
   togglePanel: () => void;
 
   // 统计信息
@@ -42,6 +44,7 @@ interface TodoWriteStoreState {
 
   // 内部方法
   updateStats: () => void;
+  checkAutoCollapse: () => void;
 }
 
 /**
@@ -56,7 +59,7 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
       tasks: [],
       isLoading: false,
       error: null,
-      isPanelOpen: false,
+      panelState: 'hidden' as PanelState,
       stats: {
         total: 0,
         pending: 0,
@@ -65,8 +68,12 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
       },
 
       // 面板控制
-      setPanelOpen: (open: boolean) => set({ isPanelOpen: open }),
-      togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
+      setPanelState: (state: PanelState) => set({ panelState: state }),
+      togglePanel: () => set((state) => {
+        if (state.panelState === 'hidden') return { panelState: 'full' };
+        if (state.panelState === 'collapsed') return { panelState: 'full' };
+        return { panelState: 'hidden' };
+      }),
 
       // 加载任务列表
       loadTasks: async () => {
@@ -95,6 +102,7 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
             updatedTasks[index] = { ...updatedTasks[index], status };
             set({ tasks: updatedTasks });
             get().updateStats();
+            get().checkAutoCollapse();
           }
 
           // 调用后端
@@ -157,9 +165,10 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
             status: (todo.status || 'pending') as TaskStatus,
           }));
 
-          // 自动打开面板当有新任务时
-          set({ tasks, isPanelOpen: true });
+          // 自动展开面板
+          set({ tasks, panelState: 'full' });
           get().updateStats();
+          get().checkAutoCollapse();
         } catch (error) {
           console.error('[TodoWriteStore] Failed to sync from tool call:', error);
           set({
@@ -179,12 +188,25 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
         };
         set({ stats });
       },
+
+      // 检查是否应自动折叠（所有任务完成时）
+      checkAutoCollapse: () => {
+        const { stats, panelState } = get();
+        if (stats.total > 0 && stats.completed === stats.total && panelState === 'full') {
+          setTimeout(() => {
+            if (get().panelState === 'full' && get().stats.completed === get().stats.total) {
+              set({ panelState: 'collapsed' });
+            }
+          }, 800);
+        }
+      },
     }),
     {
       name: 'ifai-todowrite-store',
-      // 只持久化任务列表
+      // 持久化任务列表和面板状态
       partialize: (state) => ({
         tasks: state.tasks,
+        panelState: state.panelState,
       }),
     }
   )

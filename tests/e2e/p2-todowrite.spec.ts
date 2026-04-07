@@ -86,7 +86,7 @@ test.describe('P2: TodoWrite Tool Integration', () => {
     // 2. 打开任务面板
     await page.evaluate(() => {
       const useTodoWriteStore = (window as any).__todoWriteStore;
-      useTodoWriteStore.getState().setPanelOpen(true);
+      useTodoWriteStore.getState().setPanelState('full');
     });
 
     // 3. 等待面板加载
@@ -123,7 +123,7 @@ test.describe('P2: TodoWrite Tool Integration', () => {
     // 2. 打开面板
     await page.evaluate(() => {
       const useTodoWriteStore = (window as any).__todoWriteStore;
-      useTodoWriteStore.getState().setPanelOpen(true);
+      useTodoWriteStore.getState().setPanelState('full');
     });
 
     await page.waitForTimeout(500);
@@ -154,7 +154,7 @@ test.describe('P2: TodoWrite Tool Integration', () => {
     // 2. 打开面板
     await page.evaluate(() => {
       const useTodoWriteStore = (window as any).__todoWriteStore;
-      useTodoWriteStore.getState().setPanelOpen(true);
+      useTodoWriteStore.getState().setPanelState('full');
     });
 
     await page.waitForTimeout(500);
@@ -185,7 +185,7 @@ test.describe('P2: TodoWrite Tool Integration', () => {
     // 2. 打开面板
     await page.evaluate(() => {
       const useTodoWriteStore = (window as any).__todoWriteStore;
-      useTodoWriteStore.getState().setPanelOpen(true);
+      useTodoWriteStore.getState().setPanelState('full');
     });
 
     await page.waitForTimeout(500);
@@ -210,7 +210,7 @@ test.describe('P2: TodoWrite Tool Integration', () => {
       useTodoWriteStore.getState().syncFromToolCall([
         { content: 'Test Task', activeForm: 'Test Task', status: 'pending' },
       ]);
-      useTodoWriteStore.getState().setPanelOpen(true);
+      useTodoWriteStore.getState().setPanelState('full');
     });
 
     await page.waitForTimeout(500);
@@ -234,7 +234,7 @@ test.describe('P2: TodoWrite Tool Integration', () => {
     // 1. 打开面板
     await page.evaluate(() => {
       const useTodoWriteStore = (window as any).__todoWriteStore;
-      useTodoWriteStore.getState().setPanelOpen(true);
+      useTodoWriteStore.getState().setPanelState('full');
     });
 
     await page.waitForTimeout(500);
