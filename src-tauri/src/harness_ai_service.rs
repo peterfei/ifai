@@ -7,7 +7,7 @@
 
 use crate::core_traits::ai::{AIService, AIProviderConfig, Message};
 use crate::harness::api::{ApiClientFactory, AiProvider, StreamRequest, Message as HarnessMessage, MessageRole};
-use crate::harness::api::types::{ToolCall as HarnessToolCall, ToolCallFunction as HarnessToolCallFunction};
+use crate::harness::api::types::{ApiError, ToolCall as HarnessToolCall, ToolCallFunction as HarnessToolCallFunction};
 use crate::harness::tool::ToolRegistry;
 use crate::harness::tool::ToolRouter;
 use tauri::{AppHandle, Emitter};
@@ -134,6 +134,12 @@ impl AIService for HarnessAIService {
         // 确定提供商
         let provider = self.resolve_provider(config);
 
+        // 从 event_id 中提取 correlation_id（格式： "chat_xxx" -> "xxx"）
+        let correlation_id = event_id
+            .strip_prefix("chat_")
+            .unwrap_or(event_id)
+            .to_string();
+
         // 创建 ProviderConfig
         let provider_config = crate::harness::api::ProviderConfig {
             api_key: config.api_key.clone(),
@@ -223,10 +229,73 @@ impl AIService for HarnessAIService {
             let mut stream = match stream_result {
                 Ok(Ok(s)) => s,
                 Ok(Err(e)) => {
-                    return Err(format!("API stream error: {:?}", e));
+                    let err_msg = format!("API stream error: {:?}", e);
+                    eprintln!("[AI] ❌ {}", err_msg);
+                    // 通过 callback 通知前端，让 StoreMapper 能接收并显示
+                    let error_code = match &e {
+                        ApiError::HttpError { status, .. } => format!("HTTP_{}", status.as_u16()),
+                        ApiError::Network(_) => "NETWORK_ERROR".to_string(),
+                        ApiError::Sse(_) => "SSE_ERROR".to_string(),
+                        _ => "UNKNOWN_ERROR".to_string(),
+                    };
+
+                    // 🔥 FIX: 直接提取内层 error.message（对于智谱等 API 返回的 JSON）
+                    let error_detail = match &e {
+                        ApiError::HttpError { message, .. } => {
+                            // 尝试解析 JSON 并提取内层 error.message
+                            if message.trim().starts_with('{') {
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(message) {
+                                    if let Some(err_obj) = parsed.get("error") {
+                                        if let Some(inner_msg) = err_obj.get("message") {
+                                            if let Some(msg_str) = inner_msg.as_str() {
+                                                msg_str.to_string()
+                                            } else {
+                                                message.clone()
+                                            }
+                                        } else {
+                                            message.clone()
+                                        }
+                                    } else {
+                                        message.clone()
+                                    }
+                                } else {
+                                    message.clone()
+                                }
+                            } else {
+                                message.clone()
+                            }
+                        },
+                        ApiError::Network(msg) => msg.clone(),
+                        ApiError::Sse(msg) => msg.clone(),
+                        _ => err_msg.clone(),
+                    };
+
+                    callback(json!({
+                        "type": "error",
+                        "correlationId": correlation_id,
+                        "error": {
+                            "code": error_code,
+                            "message": error_detail  // 直接发送内层错误消息，不再包装
+                        }
+                    }).to_string());
+                    // 发送 finish 事件，让前端停止 loading
+                    callback(json!({
+                        "choices": [{ "finish_reason": "stop" }]
+                    }).to_string());
+                    return Err(err_msg);
                 }
                 Err(_) => {
-                    return Err(format!("API request timeout after {}s", timeout_secs));
+                    let err_msg = format!("API request timeout after {}s", timeout_secs);
+                    eprintln!("[AI] ❌ {}", err_msg);
+                    callback(json!({
+                        "type": "error",
+                        "code": "TIMEOUT",
+                        "message": err_msg
+                    }).to_string());
+                    callback(json!({
+                        "choices": [{ "finish_reason": "stop" }]
+                    }).to_string());
+                    return Err(err_msg);
                 }
             };
 

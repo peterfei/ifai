@@ -494,8 +494,30 @@ export const useChatStore = create<ChatStore>()(
 
               const invokeElapsed = Date.now() - invokeStart;
               console.log('[ChatStore] ✅ ai_chat invoke completed after', invokeElapsed, 'ms');
-          } catch (e) {
+         } catch (e) {
               console.error('[ChatStore] AI Chat Invoke failed:', e);
+              // 🔥 FIX: 避免重复处理 API 错误
+              // 后端已经通过 callback 发送了错误事件，StreamingResponseController 会转发到 EventBus
+              // 这里只处理没有被 callback 处理的错误（如网络错误、参数错误等）
+              const errorMsg = e instanceof Error ? e.message : String(e);
+
+              // 检查是否是 API 错误（已被后端 callback 处理）
+              const isApiError = errorMsg.includes('API stream error:') ||
+                                errorMsg.includes('API request timeout') ||
+                                (errorMsg.includes('"code":') && errorMsg.includes('"message":'));
+
+              if (!isApiError) {
+                // 只有非 API 错误才发送事件
+                chatEventBus.emit('chat:error', {
+                  correlationId: correlationId,
+                  error: {
+                    code: 'INVOKE_ERROR',
+                    message: errorMsg
+                  }
+                });
+              } else {
+                console.log('[ChatStore] API error already handled by backend callback, skipping duplicate error event');
+              }
               set({ isLoading: false });
           } finally {
               clearTimeout(safetyTimer);

@@ -11,6 +11,7 @@ import { useChatStore } from '../useChatStore';
 import { useSettingsStore } from '../settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolicy';
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
+import { toast } from 'sonner';
 
 export const initStoreMapper = () => {
     // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
@@ -815,19 +816,59 @@ export const initStoreMapper = () => {
       const { correlationId, error } = payload;
       console.error('[StoreMapper] ❌ Chat error received:', { correlationId, error });
 
+      // 提取错误消息
+      let errorMessage: string;
+      if (typeof error === 'object' && error !== null && error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = JSON.stringify(error);
+      }
+
+      // 🔥 FIX: 尝试提取内层的 error.message（对于智谱等 API 返回的 JSON 字符串）
+      // 支持格式：
+      // 1. "API 请求失败: {\"error\":{\"code\":\"1210\",\"message\":\"API 调用参数有误，请检查文档。\"}}"
+      // 2. "{\"error\":{\"code\":\"1210\",\"message\":\"API 调用参数有误，请检查文档。\"}}"
+      const extractInnerErrorMessage = (msg: string): string => {
+        // 尝试去除 "API 请求失败: " 前缀
+        let cleanedMsg = msg;
+        if (msg.startsWith('API 请求失败: ')) {
+          cleanedMsg = msg.substring('API 请求失败: '.length);
+        }
+
+        // 尝试解析 JSON
+        if (cleanedMsg.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(cleanedMsg);
+            if (parsed.error && parsed.error.message) {
+              return parsed.error.message;
+            }
+          } catch {
+            // JSON 解析失败，返回原始消息
+          }
+        }
+
+        return msg;
+      };
+
+      errorMessage = extractInnerErrorMessage(errorMessage);
+
+      // 🔥 FIX: 显示 toast 错误提示（只显示内层 error.message）
+      toast.error(errorMessage);
+
       const updater = (state: any) => {
         const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
         if (messageIndex === -1) return { isLoading: false };
 
         const newMessages = [...state.messages];
         const targetMsg = { ...newMessages[messageIndex] };
-        
-        // 如果内容为空，添加错误提示
-        const errorText = typeof error === 'string' ? error : JSON.stringify(error);
+
+        // 如果内容为空，添加错误提示（只显示内层 error.message）
         if (!targetMsg.content || targetMsg.content.length < 10) {
-            targetMsg.content = (targetMsg.content || '') + `\n\n❌ **AI 响应错误**: ${errorText}`;
+          targetMsg.content = (targetMsg.content || '') + `\n\n❌ **AI 响应错误**: ${errorMessage}`;
         }
-        
+
         targetMsg.status = 'error';
         newMessages[messageIndex] = targetMsg;
 

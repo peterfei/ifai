@@ -1110,6 +1110,22 @@ async fn ai_chat(
                      }
                  }
 
+                 // 🔥 FIX: 检测 error 类型事件，发送到专门的错误事件通道
+                 if json_obj["type"].as_str() == Some("error") {
+                     println!("[AI Chat] ❌ Error event detected, sending to {}_error", event_id_clone);
+                     // 提取 correlationId 和 error 字段
+                     let correlation_id = json_obj.get("correlationId").and_then(|v| v.as_str()).unwrap_or("");
+                     let error_obj = json_obj.get("error").cloned().unwrap_or(serde_json::json!({}));
+                     // 构造符合前端期望的 payload
+                     let error_payload = serde_json::json!({
+                         "correlationId": correlation_id,
+                         "error": error_obj
+                     });
+                     let _ = app_handle_for_stream.emit(&format!("{}_error", event_id_clone), error_payload);
+                     // error 事件不需要继续处理
+                     return;
+                 }
+
                  // 如果已经拦截过工具，或者正在输出 XML 标签，则彻底静默后续所有块
                  // 这样可以防止 AI 在工具调用后输出重复的 XML 或者废话
                  // 🔥 FIX: 只检测当前 chunk 是否包含 XML 片段，而不是检测累积的 combined
