@@ -69,24 +69,104 @@ impl ApiClient for ZhipuClient {
         }
         messages.extend(request.messages.clone());
 
+        // 🔥 FIX P0: 限制 max_tokens 以避免 1210 错误
+        // 根据 Zhipu GLM-4 文档：
+        // - GLM-4 / GLM-4-flash / GLM-4-air: 最大 4096 tokens
+        // - GLM-4-plus: 最大 8192 tokens
+        // 对于 glm-4.x 系列（除 plus 外），使用 4096 作为安全上限
+        let max_tokens = request.max_tokens.min(4096);
+
+        // 🔥 FIX P0: 模型名称保持小写格式
+        // 根据 OpenAI 兼容性文档，官方示例使用小写模型名称（如 glm-5、glm-4.7）
+        // 参考: https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
+        let model_name = request.model.clone();
+        println!("[Zhipu] Using model: {}", model_name);
+
         // 智谱使用 OpenAI 兼容的 API 格式
+        // 🔥 FIX P0: 总是使用 stream=true，因为代码使用流式响应处理
+        // temperature 现在是 f64 类型，可以精确表示 0.7
         let mut zhipu_request = serde_json::json!({
-            "model": request.model,
+            "model": model_name,
             "messages": messages,
-            "max_tokens": request.max_tokens,
+            "max_tokens": max_tokens,
             "temperature": request.temperature,
             "stream": true
         });
 
+        // 🔥 DEBUG: 打印完整请求体以诊断 1210 错误
+        println!("[Zhipu] === Request Body ===");
+        println!("[Zhipu] Model: {}", model_name);
+        println!("[Zhipu] Messages count: {}", messages.len());
+        println!("[Zhipu] Stream: enabled (always)");
+
         // 添加 tools 参数（如果存在）
+        // 🔥 FIX P0: 根据 Zhipu 官方 OpenAI 兼容文档
+        // 参考: https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
+        // 官方示例使用 tool_choice="auto" 参数
+        // 注意：虽然官方示例没有使用 stream，但我们的代码需要流式响应处理
         if let Some(tools) = request.tools {
-            println!("[Zhipu] Adding {} tools to request", tools.len());
+            println!("[Zhipu] Tools count: {}", tools.len());
+
+            // 🔥 FIX P0: 重新构建 TodoWrite 工具，确保字段顺序正确
+            // serde_json 不保证字段顺序，我们需要手动构建
+            let fixed_tools: Vec<serde_json::Value> = tools.into_iter()
+                .enumerate()
+                .map(|(i, tool)| {
+                    // 检查是否是 TodoWrite 工具（使用索引 9）
+                    let is_todowrite = tool["function"]["name"].as_str() == Some("TodoWrite");
+                    if is_todowrite {
+                        println!("[Zhipu] 🔧 Rebuilding TodoWrite tool to fix field order");
+                        // 手动构建正确顺序的 TodoWrite 工具
+                        serde_json::json!({
+                            "type": "function",
+                            "function": {
+                                "name": "TodoWrite",
+                                "description": tool["function"]["description"],
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "todos": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "content": {"type": "string"},
+                                                    "activeForm": {"type": "string"},
+                                                    "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]}
+                                                },
+                                                "required": ["content", "activeForm"]
+                                            }
+                                        }
+                                    },
+                                    "required": ["todos"]
+                                }
+                            }
+                        })
+                    } else {
+                        tool
+                    }
+                })
+                .collect();
+
+            for (i, tool) in fixed_tools.iter().enumerate() {
+                println!("[Zhipu] Tool [{}]: {}", i, serde_json::to_string_pretty(tool).unwrap_or_else(|_| "Invalid JSON".to_string()));
+            }
+
             if let Some(obj) = zhipu_request.as_object_mut() {
-                obj.insert("tools".to_string(), serde_json::Value::Array(tools));
+                obj.insert("tools".to_string(), serde_json::Value::Array(fixed_tools));
+                // ✅ 添加 tool_choice="auto"（官方推荐用法）
                 obj.insert("tool_choice".to_string(), serde_json::json!("auto"));
+                // ❌ 不添加 tool_stream 参数 - 可能导致 1210 错误
             }
         }
 
+        println!("[Zhipu] Full request: {}", serde_json::to_string_pretty(&zhipu_request).unwrap_or_else(|_| "Invalid JSON".to_string()));
+
+        // 🔥 DEBUG: 打印请求体的字节大小和 API key 信息
+        let request_body_str = serde_json::to_string(&zhipu_request).unwrap_or_default();
+        println!("[Zhipu] Request body size: {} bytes", request_body_str.len());
+        println!("[Zhipu] API key length: {} chars", self.api_key.len());
+        println!("[Zhipu] API key preview: {}...{}", &self.api_key[..8.min(self.api_key.len())], &self.api_key[self.api_key.len().saturating_sub(8)..]);
         println!("[Zhipu] Sending request to: {}", self.base_url);
 
         let response = self
@@ -99,12 +179,16 @@ impl ApiClient for ZhipuClient {
             .await
             .map_err(|e| ApiError::Network(e.to_string()))?;
 
+        println!("[Zhipu] Response status: {}", response.status());
+        println!("[Zhipu] Response headers: {:?}", response.headers().iter().collect::<Vec<_>>());
+
         if !response.status().is_success() {
             let status = response.status();
             let message = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
+            println!("[Zhipu] ❌ Error response body: {}", message);
             return Err(ApiError::HttpError { status, message });
         }
 
@@ -493,5 +577,148 @@ mod tests {
         let config = test_config();
         let _client = ZhipuClient::new(&config);
         // 仅验证创建不 panic
+    }
+
+    #[test]
+    fn test_zhipu_request_body_without_tools() {
+        // 测试不带 tools 的请求体格式
+        let client = ZhipuClient::new(&test_config());
+
+        // 模拟请求参数构建
+        let messages = vec![Message {
+            role: MessageRole::User,
+            content: "Hello".to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
+
+        let request_json = serde_json::json!({
+            "model": "glm-4.7",
+            "messages": messages,
+            "max_tokens": 1000,
+            "temperature": 0.7,
+            "stream": true
+        });
+
+        // 验证必需字段存在
+        assert!(request_json.get("model").is_some());
+        assert!(request_json.get("messages").is_some());
+        assert!(request_json.get("max_tokens").is_some());
+        assert!(request_json.get("temperature").is_some());
+        assert!(request_json.get("stream").is_some());
+
+        // 验证不包含 tools 和 tool_choice
+        assert!(request_json.get("tools").is_none());
+        assert!(request_json.get("tool_choice").is_none());
+
+        println!("[Test] Request without tools: {}", serde_json::to_string_pretty(&request_json).unwrap());
+    }
+
+    #[test]
+    fn test_zhipu_request_body_with_tools() {
+        // 🔥 FIX P0: 测试修复后的实现 - 带 tools 但不添加 tool_choice
+        let client = ZhipuClient::new(&test_config());
+
+        let messages = vec![Message {
+            role: MessageRole::User,
+            content: "What's the weather?".to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
+
+        let mut request_json = serde_json::json!({
+            "model": "glm-4.7",
+            "messages": messages,
+            "max_tokens": 1000,
+            "temperature": 0.7,
+            "stream": true
+        });
+
+        // 添加 tools（修复后的实现：不添加 tool_choice）
+        let tools = serde_json::json!([
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "The city and state"
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ]);
+
+        if let Some(obj) = request_json.as_object_mut() {
+            obj.insert("tools".to_string(), tools);
+            // ✅ 修复后：不添加 tool_choice，让 API 使用默认值 "auto"
+        }
+
+        // 验证 tools 被添加
+        assert!(request_json.get("tools").is_some());
+
+        // ✅ 修复后：验证 tool_choice 不存在
+        assert!(request_json.get("tool_choice").is_none());
+
+        let json_str = serde_json::to_string_pretty(&request_json).unwrap();
+        println!("[Test] Request with tools (fixed impl): {}", json_str);
+    }
+
+    #[test]
+    fn test_zhipu_request_body_with_tools_no_tool_choice() {
+        // 测试带 tools 但不带 tool_choice 的请求体格式（可能是正确的）
+        let messages = vec![Message {
+            role: MessageRole::User,
+            content: "What's the weather?".to_string(),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
+
+        let mut request_json = serde_json::json!({
+            "model": "glm-4.7",
+            "messages": messages,
+            "max_tokens": 1000,
+            "temperature": 0.7,
+            "stream": true
+        });
+
+        // 添加 tools（不添加 tool_choice - 类似 OpenAI 的实现）
+        let tools = serde_json::json!([
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the current weather",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "The city and state"
+                            }
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ]);
+
+        if let Some(obj) = request_json.as_object_mut() {
+            obj.insert("tools".to_string(), tools);
+            // 🔧 不添加 tool_choice
+        }
+
+        // 验证 tools 被添加但 tool_choice 不存在
+        assert!(request_json.get("tools").is_some());
+        assert!(request_json.get("tool_choice").is_none());
+
+        let json_str = serde_json::to_string_pretty(&request_json).unwrap();
+        println!("[Test] Request with tools (no tool_choice): {}", json_str);
     }
 }

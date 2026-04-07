@@ -63,15 +63,32 @@ impl HarnessAIService {
         let tools = registry.all();
 
         tools.into_iter()
-            .map(|tool| {
-                json!({
+            .enumerate()
+            .map(|(i, tool)| {
+                let tool_json = json!({
                     "type": "function",
                     "function": {
                         "name": tool.name,
                         "description": tool.description,
                         "parameters": tool.input_schema
                     }
-                })
+                });
+
+                // 🔍 DEBUG: 检查每个工具的序列化结果
+                println!("[ToolConversion] Tool #{}: {}", i, tool.name);
+                if let Some(obj) = tool_json.as_object() {
+                    println!("  - Has 'type' field: {}", obj.contains_key("type"));
+                    if let Some(type_val) = obj.get("type") {
+                        println!("  - type value: {:?}", type_val);
+                    }
+                    if let Some(function) = obj.get("function") {
+                        if let Some(func_obj) = function.as_object() {
+                            println!("  - function keys: {:?}", func_obj.keys().collect::<Vec<_>>());
+                        }
+                    }
+                }
+
+                tool_json
             })
             .collect()
     }

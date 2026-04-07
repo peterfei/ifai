@@ -12,7 +12,9 @@ pub struct StreamRequest {
     pub messages: Vec<Message>,
     pub max_tokens: u32,
     pub system: Option<String>,
-    pub temperature: Option<f32>,
+    /// 🔥 FIX P0: 使用 f64 避免 Zhipu API 1210 错误
+    /// f32 无法精确表示 0.7，会变成 0.699999988079071
+    pub temperature: Option<f64>,
     pub stream: bool,
     /// 🆕 P2: 工具定义列表
     pub tools: Option<Vec<serde_json::Value>>,
