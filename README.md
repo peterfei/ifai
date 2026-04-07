@@ -16,6 +16,13 @@
 
 ---
 
+### 🌟 v0.4.0 新特性：提示词生态系统与多智能体架构
+- **提示词管理系统**：基于业界最佳实践，实现分层透明策略（80%/15%/5%），支持版本控制、Monaco Editor 集成、导入导出、安全验证。
+- **多智能体系统**：社区版解锁！Explore/Review/TaskBreakdown/ProposalGenerator/Refactor Agent，支持智能体协作机制和 DAG 可视化。
+- **工具系统**：10+ 核心工具（文件操作、搜索、Shell 命令、TodoWrite），三级权限分级，AI 服务自动路径解析。
+- **CLI 交互式工具**：`ifai` 命令行工具，支持多 Provider、命令历史、System Prompt 正确集成。
+- **UI 体验优化**：TodoWrite 面板三态自动折叠（full/collapsed/hidden），CSS transition 平滑过渡。
+
 ### 🌟 v0.3.12 新特性：事件驱动架构与流式秩序重建
 - **ChatEventBus 架构**：引入全局事件总线解耦消息传递、流式响应与持久化，实现事务级数据一致性与逻辑高内聚。
 - **有序段管理器 (ContentSegmentManager)**：**行业首创**的物理级 Segments 管理，根治 LLM 流式响应中内容与工具调用乱序、重复及乱码难题。
@@ -51,6 +58,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.4.0** | **提示词生态与多智能体** | **提示词管理系统、多智能体系统（Explore/Review/TaskBreakdown/ProposalGenerator/Refactor）、工具系统（10+ 工具）、CLI 工具、社区版解锁智能体功能** |
 | **v0.3.9** | **物理保真与认知升级** | **Symbol-First 探测引擎、全量 IndexedDB 迁移、NVIDIA NIM 集成、动态 Token 物理统计** |
 | **v0.3.7** | **资产安全与沉浸预览** | **路径感知风险引擎、编辑器原位审批、自动聚焦变更点、Rust 执行层物理沙箱** |
 | **v0.3.6** | **UI 重构与结构化** | **模型胶囊面板、PIVO 2.0 异步预览、全链路结构化 PivoProjectTree 渲染** |
@@ -153,5 +161,5 @@ IfAI 处于高速成长期，我们欢迎任何形式的贡献！无论是 Bug �
 
 <div align="center">
   <p><strong>Made with ❤️ by peterfei</strong></p>
-  <p>如果 IfAI 帮助到了你，请点个 ⭐️ 支持我们！</p>
+  <p>如果 IfAI 帮助到了你，请点个 ⭐️ 支持我！</p>
 </div>

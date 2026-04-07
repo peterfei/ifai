@@ -2794,7 +2794,7 @@ dependencies = [
 
 [[package]]
 name = "ifainew"
-version = "0.3.12"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "async-stream",
