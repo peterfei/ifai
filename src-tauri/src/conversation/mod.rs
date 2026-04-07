@@ -1,5 +1,6 @@
 pub mod token_counter;
 pub mod summarizer;
+pub mod notes;
 
 #[cfg(test)]
 mod tests;

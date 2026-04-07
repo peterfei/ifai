@@ -1756,6 +1756,21 @@ pub fn run() {
             commands::conversation_commands::get_conversation_archives,
             commands::conversation_commands::get_token_stats,
             commands::conversation_commands::save_conversation_archive,
+            // P5: 会话笔记系统
+            commands::session_notes_commands::create_session_notes,
+            commands::session_notes_commands::extract_notes_from_messages,
+            commands::session_notes_commands::add_tech_concept,
+            commands::session_notes_commands::add_file_change_to_notes,
+            commands::session_notes_commands::add_error_fix_to_notes,
+            commands::session_notes_commands::add_todo_task_to_notes,
+            commands::session_notes_commands::update_todo_task_status,
+            commands::session_notes_commands::generate_notes_summary,
+            commands::session_notes_commands::export_notes_to_markdown,
+            commands::session_notes_commands::export_notes_to_json,
+            commands::session_notes_commands::import_notes_from_json,
+            commands::session_notes_commands::save_session_notes,
+            commands::session_notes_commands::load_session_notes,
+            commands::session_notes_commands::list_session_notes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
