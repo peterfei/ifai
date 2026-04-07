@@ -585,5 +585,32 @@
     "ERR_UNKNOWN_ERROR": "Unknown error",
     "ERR_FILE_OPERATION_FAILED": "Failed to {{operation}} file {{fileName}}",
     "ERR_GENERIC": "Error occurred: {{message}}"
+  },
+  "conversation": {
+    "notes": {
+      "title": "Session Notes",
+      "loading": "Loading...",
+      "noNotes": "No session notes",
+      "error": "Error",
+      "export": "Export",
+      "generateSummary": "Generate Summary",
+      "save": "Save",
+      "techConcepts": "Technical Concepts",
+      "fileChanges": "File Changes",
+      "errorFixes": "Error Fixes",
+      "todoTasks": "Todo Tasks",
+      "summary": "Summary",
+      "mentions": "mentions",
+      "solution": "Solution"
+    },
+    "summary": {
+      "title": "Conversation Summary",
+      "tokens": "tokens",
+      "messages": "messages",
+      "copy": "Copy",
+      "copied": "Copied",
+      "export": "Export",
+      "compacted": "Conversation compacted"
+    }
   }
 }

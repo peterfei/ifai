@@ -583,5 +583,32 @@
     "ERR_UNKNOWN_ERROR": "未知错误",
     "ERR_FILE_OPERATION_FAILED": "文件 {{fileName}} {{operation}} 失败",
     "ERR_GENERIC": "发生错误: {{message}}"
+  },
+  "conversation": {
+    "notes": {
+      "title": "会话笔记",
+      "loading": "加载中...",
+      "noNotes": "暂无会话笔记",
+      "error": "错误",
+      "export": "导出",
+      "generateSummary": "生成摘要",
+      "save": "保存",
+      "techConcepts": "技术概念",
+      "fileChanges": "文件变更",
+      "errorFixes": "错误修复",
+      "todoTasks": "待办任务",
+      "summary": "摘要",
+      "mentions": "提及",
+      "solution": "解决方案"
+    },
+    "summary": {
+      "title": "对话总结",
+      "tokens": "tokens",
+      "messages": "条消息",
+      "copy": "复制",
+      "copied": "已复制",
+      "export": "导出",
+      "compacted": "对话已压缩"
+    }
   }
 }
