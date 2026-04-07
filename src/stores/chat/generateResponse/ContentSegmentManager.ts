@@ -148,6 +148,8 @@ export class ContentSegmentManager {
       return;
     }
 
+    // 追加到当前 text segment
+
     // 🔥 FIX: 减少日志输出，每个字符不再打印日志
     // console.log('[ContentSegmentManager] 📝 Content chunk received:', {
     //     correlationId,

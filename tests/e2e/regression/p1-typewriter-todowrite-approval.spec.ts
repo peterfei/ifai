@@ -1,356 +1,328 @@
 /**
- * E2E 测试：P1 打字机流式效果 + TodoWrite 自动审批 + 多工具调用
+ * E2E 测试：P1 打字机流式效果 — 确定性 Mock 复现
  *
- * 高保真场景还原（基于真实用户控制台日志）：
- *   用户请求："重构下README.md 90行左右"
- *   预期行为：
- *     1. AI 文本回复有逐字打字机效果（非一次性出现）
- *     2. TodoWrite 工具自动审批（不弹出审批卡片）
- *     3. read_file 工具自动审批
- *     4. bash / edit_file 需要手动审批
- *     5. 工具调用之间文本有流式打字机效果
- *     6. 不出现 JSON Parse error
+ * 目标：精确定位并验证流式过程中文本重复问题
  *
- * 运行方式：
- *   APP_EDITION=commercial npx playwright test tests/e2e/regression/p1-typewriter-todowrite-approval.spec.ts --headed
+ * 场景还原：
+ *   1. 发送消息 → AI 回复文本 delta
+ *   2. 文本后接工具调用（TodoWrite，自动审批）
+ *   3. 工具后继续文本 delta
+ *   4. 验证 segment content 与 message.content 一致（无重复）
  *
- * 前置条件：
- *   - .env.e2e.local 中配置 E2E_AI_API_KEY / E2E_AI_BASE_URL / E2E_AI_MODEL
+ * 运行：
+ *   npx playwright test tests/e2e/regression/p1-typewriter-todowrite-approval.spec.ts --headed
  */
 
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from '../setup-utils';
 
 /**
- * 注入直接调用 OpenAI 兼容 API 的 invoke handler
- * 通过 window.__TAURI_EVENT_LISTENERS__ 模拟 Tauri app.emit()
+ * 设置 mock invoke handler，拦截 ai_chat 并通过 Tauri 事件模拟 SSE 流
  */
-async function injectDirectAIHandler(page: any, aiConfig: { apiKey: string; baseUrl: string; modelId: string }) {
-  await page.evaluate((config) => {
-    const w = window as any;
+async function setupMockStreamAndWait(page: any, params: {
+  textBefore: string;
+  toolName: string;
+  toolId: string;
+  toolArgs: string;
+  textAfter: string;
+  chunkDelayMs?: number;
+  finishReason?: string;
+}) {
+  const {
+    textBefore, toolName, toolId, toolArgs, textAfter,
+    chunkDelayMs = 20, finishReason = 'stop',
+  } = params;
 
-    const tauriEmit = (event: string, payload: any) => {
+  await page.evaluate(async (p) => {
+    const w = window as any;
+    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    const emit = (event: string, payload: any) => {
       const listeners = w.__TAURI_EVENT_LISTENERS__?.[event] || [];
       for (const fn of listeners) {
-        try { fn({ payload }); } catch (e) { console.error(`[E2E tauriEmit] ${event}:`, e); }
+        try { fn({ payload: typeof payload === 'string' ? payload : JSON.stringify(payload) }); }
+        catch (e) { console.error(`[MockStream] ${event}:`, e); }
       }
     };
 
-    w.__E2E_DIRECT_AI_HANDLER__ = async (cmd: string, args: any) => {
-      if (cmd !== 'ai_chat') return {};
-
-      const pc = args?.providerConfig || {};
-      const apiKey = config.apiKey || pc.api_key || pc.apiKey;
-      const baseUrl = (config.baseUrl || pc.base_url || pc.baseUrl).replace(/\/chat\/completions$/, '').replace(/\/+$/, '');
-      const model = config.modelId || (pc.models?.[0]);
-      const messages = args?.messages || [];
-      const eventId = args?.eventId || `chat_e2e_${Date.now()}`;
-
-      console.log('[E2E Direct AI] Calling API:', { baseUrl, model, messagesCount: messages.length });
-
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages, stream: true })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[E2E Direct AI] API ${response.status}:`, errText);
-        tauriEmit(`${eventId}_error`, { error: errText });
+    w.__E2E_INVOKE_HANDLER__ = async (cmd: string, args: any) => {
+      if (cmd !== 'ai_chat') {
+        if (cmd === 'approve_tool_call') return { status: 'success', output: 'Done' };
         return {};
       }
 
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      const eventId = args.eventId || `chat_${Date.now()}`;
+      const correlationId = args.correlationId || eventId.replace('chat_', '');
+      w.__E2E_LAST_CORRELATION_ID__ = correlationId;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Stream start
+      emit(eventId, { type: 'start', correlationId, messageId: correlationId });
+      await delay(50);
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+      // Text before tool
+      for (let i = 0; i < p.textBefore.length; i++) {
+        emit(eventId, { type: 'content', content: p.textBefore[i], correlationId, deltaIndex: i });
+        await delay(p.chunkDelayMs);
+      }
+      await delay(80);
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') continue;
+      // Tool call
+      if (p.toolName) {
+        emit(eventId, {
+          type: 'tool_call',
+          tool_call: { id: p.toolId, function: { name: p.toolName, arguments: p.toolArgs } },
+          correlationId
+        });
+        await delay(150);
 
-          try {
-            const parsed = JSON.parse(data);
-            const choice = parsed.choices?.[0];
-            if (!choice) continue;
-
-            if (choice.delta?.content) {
-              tauriEmit(eventId, { type: 'content', content: choice.delta.content });
-            }
-
-            if (choice.delta?.tool_calls) {
-              for (const tc of choice.delta.tool_calls) {
-                tauriEmit(eventId, {
-                  type: 'tool_call',
-                  tool_call: { id: tc.id || '', function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' } }
-                });
-              }
-            }
-
-            if (choice.finish_reason) {
-              console.log(`[E2E Direct AI] finish_reason: ${choice.finish_reason}`);
-              tauriEmit(eventId, { type: 'finish', finish_reason: choice.finish_reason });
-              tauriEmit(`${eventId}_finish`, 'DONE');
-            }
-          } catch (e) {
-            // Ignore parse errors for incomplete chunks
-          }
-        }
+        emit(eventId, {
+          type: 'tool_done',
+          tool_call_id: p.toolId, tool: p.toolName,
+          result: JSON.stringify({ status: 'success', output: 'Done' }),
+          correlationId
+        });
+        await delay(80);
       }
 
-      tauriEmit(`${eventId}_finish`, 'DONE');
+      // Text after tool
+      for (let i = 0; i < p.textAfter.length; i++) {
+        emit(eventId, { type: 'content', content: p.textAfter[i], correlationId, deltaIndex: p.textBefore.length + i });
+        await delay(p.chunkDelayMs);
+      }
+      await delay(80);
+
+      // Finish
+      emit(eventId, { type: 'finish', finish_reason: p.toolName ? 'tool_calls' : p.finishReason, correlationId });
+      emit(`${eventId}_finish`, 'DONE');
+
       return {};
     };
 
-    if (w.__tauriSetInvokeHandler__) w.__tauriSetInvokeHandler__(w.__E2E_DIRECT_AI_HANDLER__);
-    w.__E2E_INVOKE_HANDLER__ = w.__E2E_DIRECT_AI_HANDLER__;
-    console.log('[E2E Direct AI] Handler injected');
-  }, aiConfig);
+    if (w.__tauriSetInvokeHandler__) w.__tauriSetInvokeHandler__(w.__E2E_INVOKE_HANDLER__);
+  }, params as any);
 }
 
-test.describe('P1 Typewriter + TodoWrite Auto-Approve - Real LLM E2E', () => {
-  test.setTimeout(300_000); // 5 分钟超时
+/** 检测相邻重复子串 */
+function findAdjacentDuplicates(text: string, minLen = 4): string[] {
+  const dupes: string[] = [];
+  for (let len = minLen; len <= text.length / 2; len++) {
+    for (let i = 0; i <= text.length - len * 2; i++) {
+      const s = text.substring(i, i + len), n = text.substring(i + len, i + len * 2);
+      if (s === n && s.trim().length >= minLen) dupes.push(`"${s}" at pos ${i}`);
+    }
+  }
+  return [...new Set(dupes)];
+}
+
+test.describe('P1 Typewriter - Deterministic Mock', () => {
+  test.setTimeout(60_000);
 
   test.beforeEach(async ({ page }) => {
-    await setupE2ETestEnvironment(page, {
-      skipWelcome: true,
-      useRealAI: true
-    });
-
+    await setupE2ETestEnvironment(page, { skipWelcome: true });
     await page.goto('/');
-    await page.waitForFunction(() => {
-      return (window as any).__chatStore !== undefined;
-    }, { timeout: 30000 });
+    await page.waitForFunction(() => (window as any).__chatStore !== undefined, { timeout: 30000 });
+    await page.waitForTimeout(1000);
 
-    // 等待 PersistenceManager 恢复完成
-    await page.waitForTimeout(2000);
+    // 设置 mock API Key，使 isProviderConfigured 为 true，聊天面板能渲染消息列表
+    const providerAfterUpdate = await page.evaluate(() => {
+      const settingsStore = (window as any).__settingsStore;
+      if (!settingsStore) return { error: 'no settingsStore' };
+      const state = settingsStore.getState();
+      const pid = state.currentProviderId || 'zhipu';
+      settingsStore.getState().updateProviderConfig(pid, {
+        apiKey: 'mock-api-key-for-e2e-test',
+      });
+      const afterState = settingsStore.getState();
+      return {
+        pid,
+        provider: afterState.providers.find((p: any) => p.id === pid),
+        currentProviderId: afterState.currentProviderId,
+      };
+    });
+    console.log('[E2E] Provider after update:', JSON.stringify(providerAfterUpdate));
+    expect(providerAfterUpdate.error, 'settingsStore 应该存在').toBeUndefined();
+    expect(providerAfterUpdate.provider?.apiKey, 'API Key 应该已设置').toBeTruthy();
+    await page.waitForTimeout(500);
   });
 
-  test('scenario: typewriter streaming + TodoWrite auto-approve + multi-tool flow', async ({ page }) => {
-    console.log('[E2E] 开始测试：P1 打字机 + TodoWrite 自动审批 + 多工具流程');
+  test('mock stream: text → TodoWrite → text — no duplicate content in segments', async ({ page }) => {
+    const TEXT_BEFORE = '让我帮你分析一下项目结构。';
+    const TEXT_AFTER = '现在让我读取文件内容。';
 
-    // 1. 获取 AI 配置
-    const realAIConfig = await page.evaluate(() => {
-      const config = (window as any).__E2E_REAL_AI_CONFIG__ || {};
-      return {
-        apiKey: config.realAIApiKey || '',
-        baseUrl: (config.realAIBaseUrl || 'https://api.deepseek.com').replace(/\/chat\/completions$/, '').replace(/\/+$/, ''),
-        providerId: config.providerId || 'deepseek',
-        modelId: config.realAIModel || 'deepseek-chat'
-      };
+    await setupMockStreamAndWait(page, {
+      textBefore: TEXT_BEFORE, toolName: 'TodoWrite',
+      toolId: 'call_mock_todowrite_001',
+      toolArgs: JSON.stringify({ todos: [{ content: '分析项目', status: 'pending' }] }),
+      textAfter: TEXT_AFTER, chunkDelayMs: 20,
     });
 
-    if (!realAIConfig.apiKey) {
-      test.skip(true, 'No API key configured in .env.e2e.local');
-    }
-
-    console.log('[E2E] AI 配置:', { ...realAIConfig, apiKey: '***' });
-
-    // 2. 注入直接 HTTP AI handler
-    await injectDirectAIHandler(page, realAIConfig);
-
-    // 3. 设置 AI 配置到 settingsStore
-    await page.evaluate((config) => {
-      const settingsStore = (window as any).__settingsStore;
-      if (settingsStore) {
-        settingsStore.getState().updateProviderConfig(config.providerId, {
-          apiKey: config.apiKey,
-          baseUrl: config.baseUrl + '/chat/completions'
-        });
-        settingsStore.getState().setCurrentProviderAndModel(config.providerId, config.modelId);
-      }
-    }, realAIConfig);
-
-    // 4. 监听控制台日志，捕获关键事件
-    const consoleLogs: string[] = [];
-    page.on('console', (msg) => {
-      const text = msg.text();
-      if (
-        text.includes('[ToolApproval]') ||
-        text.includes('[Approval]') ||
-        text.includes('Typewriter') ||
-        text.includes('JSON Parse') ||
-        text.includes('auto-approve') ||
-        text.includes('Auto-approved')
-      ) {
-        consoleLogs.push(text);
-      }
-    });
-
-    // 5. 捕获审批决策
-    const approvalDecisions: { toolName: string; autoApproved: boolean; category: string }[] = [];
     await page.evaluate(() => {
-      const origLog = console.log;
-      (window as any).__E2E_APPROVAL_DECISIONS__ = [];
-      console.log = function (...args: any[]) {
-        const text = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-        if (text.includes('[Approval]') && text.includes('Decision context:')) {
-          const match = text.match(/\[Approval\] \[(\w+)\] Decision context:/);
-          if (match) {
-            const catMatch = text.match(/category:\s*"(\w+)"/);
-            const autoMatch = text.includes('Auto-approved');
-            (window as any).__E2E_APPROVAL_DECISIONS__.push({
-              toolName: match[1],
-              autoApproved: autoMatch,
-              category: catMatch?.[1] || 'unknown'
-            });
+      const chatStore = (window as any).__chatStore;
+      const settingsStore = (window as any).__settingsStore;
+      chatStore.getState().sendMessage(
+        '重构下README.md',
+        settingsStore.getState().currentProviderId || 'deepseek',
+        settingsStore.getState().currentModel || 'deepseek-chat'
+      );
+    });
+
+    await page.waitForFunction(() => {
+      const w = window as any;
+      const cid = w.__E2E_LAST_CORRELATION_ID__;
+      if (!cid) return false;
+      const msg = w.__chatStore?.getState().messages.find((m: any) => m.id === cid);
+      return msg && !msg.isStreaming && (msg.content || '').length > 0;
+    }, { timeout: 30000 });
+
+    await page.waitForTimeout(1500);
+
+    const analysis = await page.evaluate(() => {
+      const w = window as any;
+      const cid = w.__E2E_LAST_CORRELATION_ID__;
+      if (!cid) return { error: 'No correlationId' };
+      const msg = w.__chatStore.getState().messages.find((m: any) => m.id === cid);
+      if (!msg) return { error: 'Message not found', cid };
+
+      // 🔥 检查用户消息
+      const userMsg = w.__chatStore.getState().messages.find((m: any) => m.role === 'user');
+      const userMsgData = userMsg ? {
+        id: userMsg.id,
+        content: userMsg.content,
+        contentLength: (userMsg.content || '').length,
+        segments: userMsg.segments?.map((s: any) => ({ type: s.type, content: s.content, order: s.order })),
+        isStreaming: userMsg.isStreaming,
+      } : null;
+
+      const rawContent = msg.content || '';
+      const segments = msg.segments || [];
+
+      const segTextTotal = segments
+        .filter((s: any) => s.type === 'text')
+        .reduce((sum: number, s: any) => sum + (s.content || '').length, 0);
+
+      const assistantMsgs = document.querySelectorAll('[data-testid^="message-"]');
+      const fullDomText = Array.from(assistantMsgs).map(el => el.textContent || '').join('\n');
+
+      // 检测相邻重复子串
+      const findDupes = (text: string, minLen: number) => {
+        const d: string[] = [];
+        for (let l = minLen; l <= text.length / 2; l++)
+          for (let i = 0; i <= text.length - l * 2; i++) {
+            const s = text.substring(i, i + l), n = text.substring(i + l, i + l * 2);
+            if (s === n && s.trim().length >= minLen) d.push(`"${s}" at ${i}`);
           }
-        }
-        origLog.apply(console, args);
+        return [...new Set(d)];
+      };
+
+      // 🔥 UI 渲染验证：检查 DOM 中是否有可见文本
+      const allMsgEls = document.querySelectorAll('[data-testid^="message-"]');
+      const domRenderInfo = Array.from(allMsgEls).map(el => ({
+        testId: el.getAttribute('data-testid'),
+        textLength: (el.textContent || '').length,
+        textPreview: (el.textContent || '').substring(0, 80),
+        hasVisibleText: (el.textContent || '').trim().length > 0,
+      }));
+
+      return {
+        userMsgData,
+        rawContent, rawContentLength: rawContent.length,
+        segTextTotal, segVsContentDiff: segTextTotal - rawContent.length,
+        segments: segments.map((s: any) => ({
+          type: s.type, order: s.order, content: s.content || ''
+        })),
+        contentDupes: findDupes(rawContent, 4),
+        domDupes: findDupes(fullDomText, 4),
+        isStreaming: msg.isStreaming,
+        toolCallCount: msg.toolCalls?.length || 0,
+        domRenderInfo,
       };
     });
 
-    // 6. 记录发送前的消息状态
-    const existingMsgCount = await page.evaluate(() => {
-      return ((window as any).__chatStore?.getState().messages || []).length;
+    console.log('[E2E] 分析结果:', JSON.stringify(analysis, null, 2));
+
+    // 🔥 验证用户消息数据正确
+    expect(analysis.userMsgData, '用户消息应该存在').not.toBeNull();
+    expect(analysis.userMsgData!.content, '用户消息应该有内容').toBeTruthy();
+    expect(analysis.userMsgData!.segments?.length, '用户消息应该有 segments').toBeGreaterThan(0);
+
+    expect(analysis.error, '消息应该存在').toBeUndefined();
+    expect(analysis.isStreaming, '流式应该已结束').toBe(false);
+
+    // 核心：segment 文本总量必须与 content 一致
+    expect(analysis.segVsContentDiff,
+      `segment 文本总量(${analysis.segTextTotal}) 与 content(${analysis.rawContentLength}) 不一致，差值=${analysis.segVsContentDiff}`
+    ).toBe(0);
+
+    // 无重复子串
+    expect(analysis.contentDupes.length,
+      `content 不应有重复: ${analysis.contentDupes.join(', ')}`
+    ).toBe(0);
+    expect(analysis.domDupes.length,
+      `DOM 不应有重复: ${analysis.domDupes.join(', ')}`
+    ).toBe(0);
+
+    // 包含预期文本
+    expect(analysis.rawContent).toContain(TEXT_BEFORE);
+    expect(analysis.rawContent).toContain(TEXT_AFTER);
+  });
+
+  test('mock stream: text only (no tools) — no duplicate content', async ({ page }) => {
+    const FULL_TEXT = '这是一段测试文本，用于验证纯文本模式下不会出现重复。';
+
+    await setupMockStreamAndWait(page, {
+      textBefore: FULL_TEXT, toolName: '', toolId: '', toolArgs: '', textAfter: '',
     });
 
-    // 7. 发送消息（不等待完成，后台运行）
-    await page.evaluate((payload) => {
+    await page.evaluate(() => {
       const chatStore = (window as any).__chatStore;
       const settingsStore = (window as any).__settingsStore;
-      if (chatStore && settingsStore) {
-        const state = settingsStore.getState();
-        chatStore.getState().sendMessage(
-          payload.text,
-          state.currentProviderId || payload.providerId,
-          state.currentModel || payload.modelId
-        ).then(() => {
-          console.log('[E2E] sendMessage completed');
-        }).catch((e: any) => {
-          console.error('[E2E] sendMessage error:', e);
-        });
-      }
-    }, {
-      text: '重构下README.md 90行左右',
-      providerId: realAIConfig.providerId,
-      modelId: realAIConfig.modelId
+      chatStore.getState().sendMessage(
+        '你好',
+        settingsStore.getState().currentProviderId || 'deepseek',
+        settingsStore.getState().currentModel || 'deepseek-chat'
+      );
     });
 
-    console.log('[E2E] 消息已发送');
+    await page.waitForFunction(() => {
+      const w = window as any;
+      const cid = w.__E2E_LAST_CORRELATION_ID__;
+      if (!cid) return false;
+      const msg = w.__chatStore?.getState().messages.find((m: any) => m.id === cid);
+      return msg && !msg.isStreaming && (msg.content || '').length > 0;
+    }, { timeout: 30000 });
 
-    // 8. 等待新的助手消息出现
-    await page.waitForFunction(({ prevCount }) => {
-      const messages = (window as any).__chatStore?.getState().messages || [];
-      return messages.length > prevCount;
-    }, { prevCount: existingMsgCount }, { timeout: 60000 });
+    await page.waitForTimeout(1500);
 
-    console.log('[E2E] 新消息已出现');
+    const result = await page.evaluate(() => {
+      const w = window as any;
+      const cid = w.__E2E_LAST_CORRELATION_ID__;
+      if (!cid) return { error: 'No cid' };
+      const msg = w.__chatStore.getState().messages.find((m: any) => m.id === cid);
+      if (!msg) return { error: 'not found' };
+      const rawContent = msg.content || '';
+      const findDupes = (text: string, minLen: number) => {
+        const d: string[] = [];
+        for (let l = minLen; l <= text.length / 2; l++)
+          for (let i = 0; i <= text.length - l * 2; i++) {
+            const s = text.substring(i, i + l), n = text.substring(i + l, i + l * 2);
+            if (s === n && s.trim().length >= minLen) d.push(`"${s}" at ${i}`);
+          }
+        return [...new Set(d)];
+      };
+      // 🔥 UI 渲染验证
+      const allMsgEls = document.querySelectorAll('[data-testid^="message-"]');
+      const domRenderInfo = Array.from(allMsgEls).map(el => ({
+        testId: el.getAttribute('data-testid'),
+        textLength: (el.textContent || '').length,
+        textPreview: (el.textContent || '').substring(0, 80),
+      }));
 
-    // 9. 轮询等待流式完成（最多 240 秒）
-    const finalState = await page.evaluate(async () => {
-      const chatStore = (window as any).__chatStore;
-
-      for (let i = 0; i < 480; i++) {
-        const state = chatStore.getState();
-        const messages = state.messages;
-        const lastMsg = messages[messages.length - 1];
-
-        // 检查流式是否结束（不在 streaming 状态且内容不为空）
-        if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.isStreaming && lastMsg.content && lastMsg.content.length > 50) {
-          await new Promise(r => setTimeout(r, 2000)); // 等待 2 秒确保所有后处理完成
-
-          const finalMsgs = chatStore.getState().messages;
-          const finalLastMsg = finalMsgs[finalMsgs.length - 1];
-
-          // 获取工具调用信息
-          const toolCalls = finalLastMsg.toolCalls || [];
-
-          return {
-            success: true,
-            contentLength: finalLastMsg.content?.length || 0,
-            contentPreview: finalLastMsg.content?.substring(0, 300) || '',
-            toolCallCount: toolCalls.length,
-            toolCallNames: toolCalls.map((tc: any) => tc.name),
-            toolCallStatuses: toolCalls.map((tc: any) => ({ name: tc.name, status: tc.status })),
-            isLoading: chatStore.getState().isLoading,
-            approvalDecisions: (window as any).__E2E_APPROVAL_DECISIONS__ || [],
-            hasToolCalls: toolCalls.length > 0
-          };
-        }
-
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      return { success: false, reason: 'Timeout waiting for completion' };
+      return { rawContent, dupes: findDupes(rawContent, 4), isStreaming: msg.isStreaming, domRenderInfo };
     });
 
-    console.log('[E2E] 最终状态:', JSON.stringify(finalState, null, 2));
-
-    // ========================================
-    // 断言验证
-    // ========================================
-
-    // 10.1 消息应成功完成
-    expect(finalState.success, '消息应该成功完成').toBe(true);
-    expect(finalState.isLoading, '不应该是加载状态').toBe(false);
-
-    // 10.2 内容长度应合理（AI 回复了实质内容）
-    expect(
-      finalState.contentLength,
-      'AI 回复内容应 > 100 字符'
-    ).toBeGreaterThan(100);
-
-    // 10.3 工具调用验证（LLM 行为不确定，条件断言）
-    if (finalState.hasToolCalls) {
-      console.log('[E2E] 检测到工具调用:', JSON.stringify(finalState.toolCallNames));
-
-      // 10.4 TodoWrite 应该被自动审批
-      const todoWriteDecision = finalState.approvalDecisions.find(
-        (d: any) => d.toolName.toLowerCase() === 'todowrite'
-      );
-      if (todoWriteDecision) {
-        console.log(`[E2E] TodoWrite 审批决策:`, todoWriteDecision);
-        expect(
-          todoWriteDecision.autoApproved,
-          'TodoWrite 应该被自动审批'
-        ).toBe(true);
-        expect(
-          todoWriteDecision.category,
-          'TodoWrite 应该被分类为 safe'
-        ).toBe('safe');
-      } else {
-        console.log('[E2E] 本次测试未触发 TodoWrite，跳过此断言');
-      }
-
-      // 10.5 read_file 应该被自动审批
-      const readFileDecision = finalState.approvalDecisions.find(
-        (d: any) => d.toolName.toLowerCase() === 'read_file'
-      );
-      if (readFileDecision) {
-        console.log(`[E2E] read_file 审批决策:`, readFileDecision);
-        expect(
-          readFileDecision.autoApproved,
-          'read_file 应该被自动审批'
-        ).toBe(true);
-      }
-    } else {
-      console.log('[E2E] 本次 LLM 未触发工具调用（E2E mock 模式下 LLM 可能直接回复文本），跳过工具相关断言');
-    }
-
-    // 10.6 不应该有 JSON Parse error
-    const hasJsonParseError = consoleLogs.some(log =>
-      log.includes('JSON Parse error') || log.includes('Failed to parse')
-    );
-    expect(hasJsonParseError, '不应该有 JSON Parse error').toBe(false);
-
-    // 10.7 打字机效果验证：检查是否有逐步渲染
-    // 由于打字机效果是 RAF 驱动的，在 E2E 中我们验证组件确实被渲染
-    // 真正的视觉打字效果需要 headed 模式下人工观察
-    console.log('[E2E] 内容预览:', finalState.contentPreview?.substring(0, 200));
-    console.log('[E2E] 工具调用:', JSON.stringify(finalState.toolCallNames));
-    console.log('[E2E] 审批决策:', JSON.stringify(finalState.approvalDecisions));
-
-    console.log('[E2E] 测试通过！');
+    expect(result.error).toBeUndefined();
+    expect(result.isStreaming).toBe(false);
+    expect(result.dupes.length, `纯文本不应有重复: ${result.dupes.join(', ')}`).toBe(0);
+    expect(result.rawContent).toBe(FULL_TEXT);
   });
 });

@@ -1393,6 +1393,13 @@ async fn approve_tool_call(
                 "output": format!("File written: {}", rel_path)
             })
         }
+        // 前端状态管理工具，无需后端执行
+        "TodoWrite" | "todo_write" => {
+            serde_json::json!({
+                "status": "success",
+                "output": "Task list updated"
+            })
+        }
         _ => {
             return Err(format!("Unknown tool: {}", tool_name));
         }

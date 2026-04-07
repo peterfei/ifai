@@ -12,16 +12,15 @@ const TypewriterText: React.FC<{
     isStreaming: boolean;
     children: (text: string) => React.ReactNode;
 }> = ({ content, isStreaming, children }) => {
-    const { displayText, isTyping } = useTypewriter({
+    const { displayText } = useTypewriter({
         content,
         enabled: isStreaming,
-        baseCPS: 100,
-        fastCPS: 250,
+        baseCPS: 40,
+        fastCPS: 120,
         threshold: 300,
     });
-    // 打字未完成时继续使用 displayText，避免闪烁
-    const visibleText = (isStreaming || isTyping) ? displayText : content;
-    return <>{children(visibleText)}</>;
+    // useTypewriter 在 enabled=false 时自动跳到末尾，displayText === content
+    return <>{children(displayText)}</>;
 };
 import { useThreadStore } from '../../stores/threadStore';
 import { toast } from 'sonner';
@@ -202,13 +201,18 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // v0.2.9: Track ignored actions for E2E testing
     const [ignoredActions, setIgnoredActions] = useState<Set<number>>(new Set());
     // 强制使用外部传进来的 isStreaming 作为主要判定依据
-    // 🔥 FIX v0.3.1: 恢复到工作版本（8572973）的逻辑
-    // 问题分析：
-    // - hasPendingToolCalls 逻辑导致：当 partial=false 时立即退出流式模式
-    // - 这破坏了打字机效果，也影响了工具批准 UI 的显示
-    // - 恢复原始逻辑：effectivelyStreaming 只由 isStreaming 和 isActivelyStreaming 控制
-    // - 工具执行完成的检测由 isActivelyStreaming 的 timeout 处理（1500ms）
-    const effectivelyStreaming = isStreaming || isActivelyStreaming;
+    // 🔥 FIX v0.3.1 → v0.4.2: effectivelyStreaming 三维检测
+    // 问题分析（多轮调试结论）：
+    //   isStreaming: SSE 流式传输中 → true
+    //   isActivelyStreaming: 文本内容增长中 → true（1500ms 超时后 false）
+    //   hasActiveToolCalls: 有工具正在执行 → true
+    // 根因：AI 生成工具调用后，文本 delta 暂停，isActivelyStreaming 超时变 false，
+    //        但工具仍在执行/等待审批。新文本到达时 effectivelyStreaming=false，
+    //        TypewriterText 不被渲染，文本直接通过 MarkdownRenderer 全量显示。
+    const hasActiveToolCalls = !!(message.toolCalls?.some(tc =>
+        tc.status === 'pending' || tc.status === 'executing' || tc.status === 'running' || tc.isPartial
+    ));
+    const effectivelyStreaming = isStreaming || isActivelyStreaming || hasActiveToolCalls;
     // v0.2.8: Composer 2.0 - 检测消息中是否有文件变更
     const hasFileChanges = React.useMemo(() => {
         if (!message.toolCalls || isStreaming) return false;
@@ -765,6 +769,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
         return finalSegments;
     }, [segmentsFromStore, message.contentSegments, contentWithoutThinking, message.toolCalls, effectivelyStreaming, thinkingText]);
+
     let toolCallIndex = 0;
     // Helper to render Markdown WITHOUT syntax highlighting (for streaming mode)
     // 使用统一的 SimpleMarkdownRenderer（无语法高亮，性能优化）
@@ -774,13 +779,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         return <SimpleMarkdownRenderer key={key} content={processedText} />;
     }, [processScanResult]);
     // 使用统一的 MarkdownRenderer（带语法高亮和代码折叠）
-    // NOTE: Streaming detection is now handled at the CALL SITE, not inside this function
-    // This function ALWAYS applies formatting (Markdown + syntax highlighting) when called
+    // 🔥 FIX: 始终使用 TypewriterText 包裹，避免 isStreaming 闪烁时组件卸载/重新挂载导致文本重复
     const renderContentPart = useCallback((part: ContentPart, index: number, isStreaming: boolean) => {
         if (part.type === 'text' && part.text) {
             // Process scan result i18n before rendering
             const processedText = processScanResult(part.text);
-            // 使用统一的 MarkdownRenderer（打字机效果在流式时通过子组件实现）
             return (
                 <TypewriterText
                     key={index}
@@ -990,11 +993,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
-                                        const renderedContent = renderContentPart({ type: 'text', text: content }, index, effectivelyStreaming);
+                                        const stableKey = segment.order ?? segment.timestamp ?? index;
+                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, effectivelyStreaming);
 
                                         return (
                                             <div
-                                                key={`text-segment-${index}`}
+                                                key={`text-seg-${stableKey}`}
                                                 data-phase={segmentPhase}
                                                 data-test={`segment-${index}`}
                                                 data-type="text"
@@ -1057,7 +1061,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                         return (
                                             <div
-                                                key={`tool-segment-${index}`}
+                                                key={`tool-seg-${segment.toolCallId || index}`}
                                                 data-phase={segmentPhase}
                                                 data-test={`segment-${index}`}
                                                 data-type="tool"

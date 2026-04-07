@@ -722,11 +722,9 @@ export class StreamingResponseController {
   }
 
   private emitChunk(delta: string, isFinal: boolean, payload: BasePayload, deltaIndex: number = -1) {
-    // 🔥 DEBUG: 只在检测到问题时打印（乱序、大片段等）
-    const shouldLog = deltaIndex % 50 === 0 || delta.length > 100;
-
-    if (shouldLog) {
-      console.log(`[SC] emitChunk: correlationId=${payload.correlationId}, deltaIndex=${deltaIndex}, deltaPreview="${delta.slice(0, 30)}", deltaLength=${delta.length}`);
+    // DEBUG: 仅在异常时打印（大片段）
+    if (delta.length > 100) {
+      console.log(`[SC] emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);
     }
 
     chatEventBus.emit('chat:stream:chunk', {

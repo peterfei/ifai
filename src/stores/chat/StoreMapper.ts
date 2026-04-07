@@ -13,6 +13,14 @@ import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolic
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 
 export const initStoreMapper = () => {
+    // 🔥 CRITICAL: 防止重复初始化（HMR / E2E 模块双加载 / 循环依赖）
+    const g = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {} as any);
+    if ((g as any).__STORE_MAPPER_INITIALIZED__) {
+        console.log('[StoreMapper] ⏭️ Already initialized, skipping duplicate init');
+        return;
+    }
+    (g as any).__STORE_MAPPER_INITIALIZED__ = true;
+
     // 🔥 序号校验：追踪每个流的 delta 序号
     const streamIndexTracker = new Map<string, number>();
 
@@ -153,13 +161,6 @@ export const initStoreMapper = () => {
             targetMsg.content = oldContent + delta;
             newMessages[messageIndex] = targetMsg;
 
-            // 🔥 DEBUG: 检查内容拼接是否有问题
-            if (delta.includes('/') && delta.length > 30) {
-                console.log(`[StoreMapper] 🔍 Appending delta to message ${correlationId}:`);
-                console.log(`  Old content ended: "...${oldContent.slice(-50)}"`);
-                console.log(`  Delta: "${delta.slice(0, 100)}"`);
-                console.log(`  New content: "...${targetMsg.content.slice(-100)}"`);
-            }
 
             return { messages: newMessages, isLoading: true };
         });
@@ -205,7 +206,9 @@ export const initStoreMapper = () => {
             }
         }, 50);
 
-        // D. 终极同步：确保正文内容与分段完全一致 (延迟 100ms 确保所有 chunk 已落盘)
+        // D. 终极同步：确保 segments 中缺失的内容补齐到 content
+        // 🔥 FIX: 仅在 segments 有 content 而 message.content 为空或明显更短时补齐
+        // 不再无条件覆盖 message.content，避免 segments 重复时污染正文
         setTimeout(() => {
           const state = useChatStore.getState();
           const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
@@ -213,16 +216,17 @@ export const initStoreMapper = () => {
 
           const newMessages = [...state.messages];
           const targetMsg = { ...newMessages[messageIndex] };
+          const currentContent = targetMsg.content || '';
 
-          if (targetMsg.segments && targetMsg.segments.length > 0) {
+          if (targetMsg.segments && targetMsg.segments.length > 0 && currentContent.length === 0) {
+            // 仅当 content 完全为空时，从 segments 恢复
             const fullContent = targetMsg.segments
               .filter((s: any) => s.type === 'text' && s.content)
               .map((s: any) => s.content)
               .join('');
 
-            // 只有当 segments 内容比当前 content 长时才更新，或者强制对齐
-            if (fullContent.length > (targetMsg.content || '').length) {
-              console.log('[StoreMapper] 🔧 Final sync of segments to content:', {
+            if (fullContent.length > 0) {
+              console.log('[StoreMapper] 🔧 Recovering content from segments:', {
                 correlationId,
                 contentLength: fullContent.length
               });
@@ -295,9 +299,17 @@ export const initStoreMapper = () => {
 
                 if (segmentIndex !== -1) {
                     // 🏆 FIX: 物理替换数组和对象引用，确保 React 监听到深层变化
+                    // 🔥 CRITICAL FIX: 不在这里追加 delta！ContentSegmentManager.onContentChunk
+                    // 已经将 delta 追加到 segment.content 中。这里只需要触发 React re-render。
+                    // 如果在这里也追加，会导致 segment content 双重追加（每个字符重复）。
                     const newSegments = [...targetMsg.segments];
                     const updatedSegment = { ...newSegments[segmentIndex] };
-                    updatedSegment.content = (updatedSegment.content || '') + delta;
+                    // 🔥 FIX: 从 ContentSegmentManager 同步最新 content（而非自己追加 delta）
+                    const csmSegments = contentSegmentManager.getSegments(correlationId);
+                    const csmSeg = csmSegments.find((s: any) => `segment-${s.order}` === segmentId);
+                    if (csmSeg) {
+                        updatedSegment.content = csmSeg.content;
+                    }
                     newSegments[segmentIndex] = updatedSegment;
                     targetMsg.segments = newSegments;
                     

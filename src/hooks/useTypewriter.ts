@@ -16,7 +16,7 @@ export interface UseTypewriterOptions {
 }
 
 export interface UseTypewriterReturn {
-  /** 当前应显示的文本 */
+  /** 当前应显示的文本（仅 enabled=true 时有效） */
   displayText: string;
   /** 是否正在打字 */
   isTyping: boolean;
@@ -34,8 +34,10 @@ export interface UseTypewriterReturn {
  * - 跳过机制：点击/按键立即显示完整内容
  * - 流式追加：新内容到达时从当前位置继续打字（不重启 RAF）
  *
- * 关键：useEffect 不依赖 content，避免流式场景下 RAF 被不断 cancel+restart。
- * 所有对 content 的读取通过 contentRef。
+ * 设计要点：
+ * - enabled=false 时不修改 charIndexRef/displayText，由调用方通过 visibleText 控制
+ * - enabled=true 时启动 RAF，从当前 charIndex 位置继续打字
+ * - 首次挂载 enabled=true 时 charIndex 从 0 开始
  */
 export function useTypewriter(options: UseTypewriterOptions): UseTypewriterReturn {
   const {
@@ -82,45 +84,29 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterRetur
     onCompleteRef.current?.();
   }, []);
 
-  // RAF 动画循环 —— 只在 enabled 首次变为 true 时启动，content 变化不重启
-  const prevEnabledRef = useRef(enabled);
-
   useEffect(() => {
     if (!enabled) {
-      // 禁用时直接显示全部内容，停止 RAF
-      if (contentRef.current.length > 0) {
-        charIndexRef.current = contentRef.current.length;
-        setDisplayText(contentRef.current);
-      }
+      // 禁用时停止 RAF，并跳到内容末尾
+      // 这样下次 enabled=true 时 displayText = content，不会出现从完整文本跳回截断文本的闪烁
+      charIndexRef.current = contentRef.current.length;
+      setDisplayText(contentRef.current);
+      setProgress(1);
       setIsTyping(false);
-      setProgress(contentRef.current.length > 0 ? 1 : 0);
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      onCompleteRef.current?.();
-      prevEnabledRef.current = false;
       return;
-    }
-
-    // enabled 从 false → true：重置打字位置，从头开始动画
-    const wasDisabled = !prevEnabledRef.current;
-    prevEnabledRef.current = true;
-    if (wasDisabled) {
-      charIndexRef.current = 0;
-      setDisplayText('');
-      setProgress(0);
     }
 
     // 如果已有 RAF 在运行，不要重复启动
     if (rafRef.current !== null) return;
 
-    // 启动 RAF（content 可能为空，RAF 会空转等待）
+    // 启动 RAF
     setIsTyping(true);
     lastTimeRef.current = performance.now();
 
     const animate = (now: number) => {
-      // 检查是否被禁用
       if (!enabledRef.current) {
         rafRef.current = null;
         return;
@@ -130,15 +116,20 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterRetur
       lastTimeRef.current = now;
 
       const totalLen = contentRef.current.length;
-      const remaining = totalLen - charIndexRef.current;
 
-      // 内容可能还没到或者已经清空
       if (totalLen === 0) {
         rafRef.current = requestAnimationFrame(animate);
         return;
       }
 
-      // 根据剩余内容决定速度
+      const remaining = totalLen - charIndexRef.current;
+
+      // 已追上内容长度，空转等待新内容
+      if (remaining <= 0) {
+        rafRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
       const th = thresholdRef.current;
       const cps = remaining > th ? fastCPSRef.current : baseCPSRef.current;
       const charsToAdd = Math.ceil(cps * elapsed);
@@ -146,11 +137,9 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterRetur
       if (charsToAdd > 0) {
         charIndexRef.current = Math.min(charIndexRef.current + charsToAdd, totalLen);
         setDisplayText(contentRef.current.slice(0, charIndexRef.current));
-        setProgress(totalLen > 0 ? charIndexRef.current / totalLen : 1);
+        setProgress(charIndexRef.current / totalLen);
       }
 
-      // 追上当前内容长度时，不停止 RAF，继续空转等待新内容到达
-      // 只有 enabled=false（流式结束）时 useEffect 才会 cleanup 停止 RAF
       rafRef.current = requestAnimationFrame(animate);
     };
 
@@ -162,7 +151,7 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterRetur
         rafRef.current = null;
       }
     };
-  }, [enabled]); // 仅依赖 enabled，不依赖 content
+  }, [enabled]);
 
   return { displayText, isTyping, progress, skip };
 }
