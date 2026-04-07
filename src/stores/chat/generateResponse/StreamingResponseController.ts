@@ -512,6 +512,11 @@ export class StreamingResponseController {
           data = JSON.parse(raw);
         } catch (e) {
           // 🏆 文本片段处理
+          // 🔥 FIX: 检查是否是 JSON 控制数据（防止错误地将流式控制数据作为文本发送）
+          if (raw.includes('"choices":') && raw.includes('"delta":') && raw.includes('"content":')) {
+            console.warn('[SC] Detected JSON control data that failed to parse:', raw.substring(0, 100));
+            return; // 丢弃无法解析的 JSON 控制数据
+          }
           this.emitChunk(raw, false, payload);
           return;
         }
@@ -524,11 +529,37 @@ export class StreamingResponseController {
       if (isOpenAIFormat) {
         const content = data.choices[0].delta.content;
 
+        // 🔥 FIX: 确保内容是字符串类型，防止 JSON 对象被当作内容发送
+        let contentStr = '';
+        if (typeof content === 'string') {
+          contentStr = content;
+
+          // 🔥 FIX P0: 检查 content 是否包含 JSON 控制数据
+          // 防止后端错误地将 JSON 控制数据作为内容发送
+          if (contentStr.includes('"choices":') && contentStr.includes('"delta":') && contentStr.includes('"content":')) {
+            console.warn('[SC] ⚠️ JSON control data detected in content field, skipping:', contentStr.substring(0, 100));
+            return;
+          }
+
+          // 🔥 FIX P0: 检查 content 是否以 { 开头且包含大量 JSON 特征（可能是被错误包装的 JSON）
+          const trimmed = contentStr.trim();
+          if (trimmed.startsWith('{') && contentStr.length > 50 &&
+              (contentStr.includes('"index":') || contentStr.includes('"content_block_index"'))) {
+            console.warn('[SC] ⚠️ Suspicious JSON-like content detected, skipping:', contentStr.substring(0, 100));
+            return;
+          }
+        } else if (content !== null && content !== undefined) {
+          // 如果 content 不是字符串（比如是对象或数组），转换为 JSON 字符串
+          // 但这种情况不应该发生，记录警告
+          console.warn('[SC] Non-string content detected:', content);
+          contentStr = String(content);
+        }
+
         // 🔥 序号校验：提取 delta_index
         const index = data.choices[0]?.index;
         const deltaIndex = index?.delta_index ?? -1;
 
-        this.emitChunk(content || '', false, payload, deltaIndex);
+        this.emitChunk(contentStr || '', false, payload, deltaIndex);
       }
       // 情况 A: 文本内容
       else if (data.type === 'content') {
@@ -716,12 +747,59 @@ export class StreamingResponseController {
       }
     } catch (error) {
       console.error('[SC] Parse error:', error);
-      // 解析失败不代表流断了，尝试作为纯文本发出
-      if (typeof raw === 'string') this.emitChunk(raw, false, payload);
+      console.error('[SC] Failed raw data:', raw);
+
+      // 🔥 FIX P0: 检查 raw 是否包含 JSON 控制数据后再发送
+      if (typeof raw === 'string') {
+        // 检查是否是 JSON 控制数据
+        if (raw.includes('"choices":') && raw.includes('"delta":') && raw.includes('"content":')) {
+          console.warn('[SC] ⚠️ JSON control data detected in parse error handler, discarding:', raw.substring(0, 100));
+          return;
+        }
+
+        // 检查是否以 { 开头的可疑 JSON
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{') && raw.length > 50 &&
+            (raw.includes('"index":') || raw.includes('"content_block_index"'))) {
+          console.warn('[SC] ⚠️ Suspicious JSON-like data in parse error handler, discarding:', raw.substring(0, 100));
+          return;
+        }
+
+        // 🔥 DEBUG: 打印即将发送的原始数据
+        console.log('[SC] 📤 Sending raw string as delta (parse fallback):', raw.substring(0, 50));
+        this.emitChunk(raw, false, payload);
+      }
     }
   }
 
   private emitChunk(delta: string, isFinal: boolean, payload: BasePayload, deltaIndex: number = -1) {
+    // 🔥 FIX P0: 在发送前检查 delta 是否包含 JSON 控制数据
+    if (delta && delta.length > 0) {
+      // 检查是否包含完整的 JSON 控制数据格式
+      if (delta.includes('"choices":') && delta.includes('"delta":') && delta.includes('"content":')) {
+        console.error('[SC] 🚨 CRITICAL: JSON control data detected in emitChunk!');
+        console.error('[SC] 🚨 delta:', delta.substring(0, 200));
+        console.error('[SC] 🚨 correlationId:', payload.correlationId);
+        console.error('[SC] 🚨 deltaIndex:', deltaIndex);
+        console.error('[SC] 🚨 Stack trace:', new Error().stack);
+        // 丢弃这个包含 JSON 控制数据的 delta
+        return;
+      }
+
+      // 检查是否以 { 开头的可疑 JSON
+      const trimmed = delta.trim();
+      if (trimmed.startsWith('{') && delta.length > 30 &&
+          (delta.includes('"index":') || delta.includes('"content_block_index"'))) {
+        console.error('[SC] 🚨 CRITICAL: Suspicious JSON-like data detected in emitChunk!');
+        console.error('[SC] 🚨 delta:', delta.substring(0, 200));
+        console.error('[SC] 🚨 correlationId:', payload.correlationId);
+        console.error('[SC] 🚨 deltaIndex:', deltaIndex);
+        console.error('[SC] 🚨 Stack trace:', new Error().stack);
+        // 丢弃这个可疑的 delta
+        return;
+      }
+    }
+
     // DEBUG: 仅在异常时打印（大片段）
     if (delta.length > 100) {
       console.log(`[SC] emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);

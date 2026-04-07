@@ -304,6 +304,7 @@ impl AIService for HarnessAIService {
                 Err(_) => {
                     let err_msg = format!("API request timeout after {}s", timeout_secs);
                     eprintln!("[AI] ❌ {}", err_msg);
+
                     callback(json!({
                         "type": "error",
                         "code": "TIMEOUT",

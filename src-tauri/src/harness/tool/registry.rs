@@ -199,20 +199,31 @@ impl ToolRegistry {
         // 任务管理工具
         self.register(ToolSpec {
             name: "TodoWrite",
-            description: "Update the structured task list for the current session",
+            description: "Create or update a task list for tracking work progress. Use this tool whenever the user asks you to create tasks, to-do items, task lists, or project plans. The tool accepts an array of task objects with content (task name), activeForm (active verb form like 'Doing X'), and optional status (pending/in_progress/completed).",
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "todos": {
                         "type": "array",
+                        "description": "Array of tasks to manage",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "content": { "type": "string" },
-                                "activeForm": { "type": "string" },
-                                "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] }
+                                "activeForm": {
+                                    "type": "string",
+                                    "description": "The task in active/verb form (e.g., 'Implementing login feature')"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The task description in noun form (e.g., 'Implement login feature')"
+                                },
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["pending", "in_progress", "completed"],
+                                    "description": "Current status: 'pending' (not started), 'in_progress' (working on it), 'completed' (done). Default is 'pending'."
+                                }
                             },
-                            "required": ["content", "activeForm", "status"]
+                            "required": ["content", "activeForm"]
                         }
                     }
                 },

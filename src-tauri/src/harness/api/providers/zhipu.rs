@@ -99,6 +99,21 @@ impl ApiClient for ZhipuClient {
         println!("[Zhipu] Messages count: {}", messages.len());
         println!("[Zhipu] Stream: enabled (always)");
 
+        // 🔥 DEBUG: 打印 messages 内容（特别是 system prompt）
+        for (i, msg) in messages.iter().enumerate() {
+            // 安全截断：按字符而非字节截取（避免 UTF-8 中文字符边界错误）
+            let preview = if msg.content.chars().count() > 50 {
+                format!("{}...", msg.content.chars().take(50).collect::<String>())
+            } else {
+                msg.content.clone()
+            };
+            println!("[Zhipu] Message [{}] role: {:?}, content preview: {}",
+                i,
+                msg.role,
+                preview
+            );
+        }
+
         // 添加 tools 参数（如果存在）
         // 🔥 FIX P0: 根据 Zhipu 官方 OpenAI 兼容文档
         // 参考: https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
@@ -107,53 +122,12 @@ impl ApiClient for ZhipuClient {
         if let Some(tools) = request.tools {
             println!("[Zhipu] Tools count: {}", tools.len());
 
-            // 🔥 FIX P0: 重新构建 TodoWrite 工具，确保字段顺序正确
-            // serde_json 不保证字段顺序，我们需要手动构建
-            let fixed_tools: Vec<serde_json::Value> = tools.into_iter()
-                .enumerate()
-                .map(|(i, tool)| {
-                    // 检查是否是 TodoWrite 工具（使用索引 9）
-                    let is_todowrite = tool["function"]["name"].as_str() == Some("TodoWrite");
-                    if is_todowrite {
-                        println!("[Zhipu] 🔧 Rebuilding TodoWrite tool to fix field order");
-                        // 手动构建正确顺序的 TodoWrite 工具
-                        serde_json::json!({
-                            "type": "function",
-                            "function": {
-                                "name": "TodoWrite",
-                                "description": tool["function"]["description"],
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "todos": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "content": {"type": "string"},
-                                                    "activeForm": {"type": "string"},
-                                                    "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]}
-                                                },
-                                                "required": ["content", "activeForm"]
-                                            }
-                                        }
-                                    },
-                                    "required": ["todos"]
-                                }
-                            }
-                        })
-                    } else {
-                        tool
-                    }
-                })
-                .collect();
-
-            for (i, tool) in fixed_tools.iter().enumerate() {
+            for (i, tool) in tools.iter().enumerate() {
                 println!("[Zhipu] Tool [{}]: {}", i, serde_json::to_string_pretty(tool).unwrap_or_else(|_| "Invalid JSON".to_string()));
             }
 
             if let Some(obj) = zhipu_request.as_object_mut() {
-                obj.insert("tools".to_string(), serde_json::Value::Array(fixed_tools));
+                obj.insert("tools".to_string(), serde_json::Value::Array(tools));
                 // ✅ 添加 tool_choice="auto"（官方推荐用法）
                 obj.insert("tool_choice".to_string(), serde_json::json!("auto"));
                 // ❌ 不添加 tool_stream 参数 - 可能导致 1210 错误
@@ -379,6 +353,19 @@ fn convert_zhipu_data(data: &super::openai_format::OpenAiSseData) -> Option<Stre
     if let Some(choice) = data.choices.first() {
         if let Some(content) = &choice.delta.content {
             if !content.is_empty() {
+                // 🔥 FIX P0: 检查 content 是否包含 JSON 控制数据
+                // 防止智谱 API 返回异常格式导致 JSON 泄漏到消息内容中
+                if content.contains("\"choices\":") && content.contains("\"delta\":") {
+                    println!("[Zhipu] ⚠️ Detected JSON control data in content field, skipping: {}", &content[..80.min(content.len())]);
+                    return None;
+                }
+
+                // 🔥 FIX P0: 检查 content 是否以 { 开头（可能是被错误包装的 JSON）
+                if content.trim_start().starts_with('{') && content.len() > 100 {
+                    println!("[Zhipu] ⚠️ Suspicious JSON-like content detected, skipping: {}", &content[..80.min(content.len())]);
+                    return None;
+                }
+
                 return Some(StreamEvent::TextDelta {
                     text: content.clone(),
                 });
