@@ -16,7 +16,7 @@ pub async fn should_summarize(messages: &[Message]) -> bool {
     let token_count = token_counter::count_messages_tokens(messages);
     println!("[Conversation] Check summary: {} messages, {} tokens", messages.len(), token_count);
 
-    // Thresholds: 150k tokens or 100 messages
+    // 阈值：150k tokens or 100 messages
     token_count > 150_000 || messages.len() > 100
 }
 

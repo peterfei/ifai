@@ -228,13 +228,18 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   // v0.4.0: 自动压缩对话（当总结生成后）
   useEffect(() => {
     const compressConversation = async () => {
-      // 跳过：没有总结或没有消息
-      if (!conversationSummary || rawMessages.length === 0) {
+      // 跳过：没有消息
+      if (rawMessages.length === 0) {
         return;
       }
 
-      // 跳过：消息数量未超过阈值
-      if (rawMessages.length < 30) {
+      // 压缩触发条件
+      // 条件1: 有总结且消息 >= 100
+      // 条件2: 消息 >= 150（即使没有总结，也生成临时总结并压缩）
+      const shouldCompress = (conversationSummary && rawMessages.length >= 100)
+        || (!conversationSummary && rawMessages.length >= 150);
+
+      if (!shouldCompress) {
         return;
       }
 
@@ -242,8 +247,15 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
       const originalCount = rawMessages.length;
 
       try {
+        // 如果没有总结，生成临时总结
+        let summaryToUse = conversationSummary;
+        if (!summaryToUse) {
+          summaryToUse = `[对话压缩] 原始对话包含 ${originalCount} 条消息，已压缩以优化性能。压缩时间: ${new Date().toLocaleString()}`;
+          console.log('[AIChat] 📝 Generated temporary summary for compression');
+        }
+
         // 压缩对话
-        const result = await compactConversation(rawMessages, conversationSummary, 10);
+        const result = await compactConversation(rawMessages, summaryToUse, 10);
 
         // 🔥 FIX: 实际更新消息列表
         if (result.original_count !== result.compressed_count) {
@@ -260,8 +272,11 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
           console.log('[AIChat] ✅ Conversation compressed:', {
             original: result.original_count,
             compressed: result.compressed_count,
-            reduction: ((result.original_count - result.compressed_count) / result.original_count * 100).toFixed(1) + '%'
+            reduction: ((result.original_count - result.compressed_count) / result.original_count * 100).toFixed(1) + '%',
+            hadSummary: !!conversationSummary
           });
+        } else {
+          console.log('[AIChat] ℹ️ Conversation compression skipped (no reduction)');
         }
       } catch (error) {
         console.error('[AIChat] Failed to compress conversation:', error);

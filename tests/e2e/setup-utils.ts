@@ -246,10 +246,80 @@ export async function setupE2ETestEnvironment(
           };
         }
 
-        // Mock invoke（Mock 模式下拒绝调用，提醒测试需要正确 mock）
+        // Mock invoke（Mock 模式下支持特定命令）
         if (!w.__TAURI_INTERNALS__.invoke) {
           w.__TAURI_INTERNALS__.invoke = (cmd: string, args: any) => {
             console.log(`[E2E Tauri Mock] invoke: ${cmd}`, args);
+
+            // 🎯 Mock: should_summarize_conversation
+            if (cmd === 'should_summarize_conversation') {
+              const messages = args.messages || [];
+              const msgCount = messages.length;
+              // 简单估算：每条消息平均 1500 tokens（约 1100 中文字符）
+              const estimatedTokens = msgCount * 1500;
+              // 阈值：100条消息 或 150k tokens
+              const shouldSummarize = msgCount > 100 || estimatedTokens > 150000;
+              console.log(`[E2E Mock] should_summarize: ${shouldSummarize} (${msgCount} messages, ~${estimatedTokens} tokens)`);
+              return Promise.resolve(shouldSummarize);
+            }
+
+            // 🎯 Mock: get_token_stats
+            if (cmd === 'get_token_stats') {
+              const messages = args.messages || [];
+              const msgCount = messages.length;
+              // 简单估算：每条消息平均 100 tokens
+              const totalTokens = msgCount * 100;
+              console.log(`[E2E Mock] get_token_stats: ${msgCount} messages, ${totalTokens} tokens`);
+              return Promise.resolve({
+                messageCount: msgCount,
+                totalTokens: totalTokens,
+                systemTokens: 50,
+                userTokens: Math.floor(totalTokens * 0.6),
+                assistantTokens: Math.floor(totalTokens * 0.4)
+              });
+            }
+
+            // 🎯 Mock: compact_conversation
+            if (cmd === 'compact_conversation') {
+              const messages = args.messages || [];
+              const summary = args.summary || '## 对话总结\n\n测试对话总结。';
+              const keepLastN = args.keep_last_n || 10;
+
+              console.log(`[E2E Mock] compact_conversation: ${messages.length} messages -> keep last ${keepLastN}`);
+
+              // 实现压缩逻辑
+              const systemMessages = messages.filter((m: any) => m.role === 'system');
+              const lastMessages = messages.slice(-keepLastN);
+
+              // 创建总结消息
+              const summaryMsg = {
+                id: `summary-${Date.now()}`,
+                role: 'system',
+                content: `CONVERSATION SUMMARY:\n\n${summary}`,
+                timestamp: Date.now()
+              };
+
+              // 组合：系统消息 + 总结 + 最后N条消息
+              const compressed = [...systemMessages, summaryMsg, ...lastMessages];
+
+              console.log(`[E2E Mock] compressed: ${messages.length} -> ${compressed.length} messages`);
+
+              return Promise.resolve(compressed);
+            }
+
+            // 🎯 Mock: ai_chat (返回模拟响应)
+            if (cmd === 'ai_chat') {
+              console.log(`[E2E Mock] ai_chat called - returning mock response`);
+              return Promise.resolve({
+                id: `mock-${Date.now()}`,
+                role: 'assistant',
+                content: '这是一个模拟的 AI 响应。在测试环境中，我们不需要真实的 LLM 调用。',
+                status: 'completed',
+                timestamp: Date.now()
+              });
+            }
+
+            // 其他命令：拒绝并提示
             return Promise.reject(new Error(
               `E2E Mock: Tauri invoke called but not properly mocked: ${cmd}. ` +
               `Please ensure your test properly mocks Tauri API calls.`
@@ -564,4 +634,29 @@ export async function skipOnboardingTour(page: Page) {
 
     console.log('[E2E Helper] ✅ Onboarding tour skipped');
   });
+}
+
+/**
+ * 获取真实 AI 配置
+ *
+ * 从页面环境中读取已配置的 AI 服务商和模型信息
+ *
+ * @param page Playwright Page 对象
+ * @returns AI 配置对象，包含 providerId 和 modelId
+ */
+export async function getRealAIConfig(page: Page) {
+  const config = await page.evaluate(() => {
+    const settingsStore = (window as any).__settingsStore;
+    if (!settingsStore) {
+      return { providerId: null, modelId: null };
+    }
+
+    const state = settingsStore.getState();
+    return {
+      providerId: state.currentProviderId || null,
+      modelId: state.currentModel || null
+    };
+  });
+
+  return config;
 }
