@@ -12,9 +12,9 @@ import type {
   ArchiveInfo,
   SummaryConfig,
   Message,
-  AIProviderConfig,
   CompactResult
 } from '../types/conversation';
+import type { AIProviderConfig } from '../stores/settingsStore';
 
 /**
  * 对话 Store 状态

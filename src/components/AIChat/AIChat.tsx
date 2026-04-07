@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Settings, X, ChevronDown, Search } from 'lucide-react';
+import { Send, Settings, X, ChevronDown, Search, FileText } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';
 import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -46,6 +46,7 @@ import { VirtualMessageList } from './VirtualMessageList';
 import { ChatInputArea } from './ChatInputArea';
 // v0.3.1: 时间线视图
 import { MessageTimeline } from './MessageTimeline';
+import { SessionNotesPanel, TokenStatsDisplay, ConversationSummary, CompactIndicator } from '../Conversation';
 import ifaiLogo from '../../../imgs/ifai.png'; // Import the IfAI logo
 // v0.2.6: 任务拆解 Store（测试中）
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
@@ -56,6 +57,7 @@ import { useProposalStore } from '../../stores/proposalStore';
 import { ProposalReviewModal } from '../ProposalWorkflow';
 // v0.2.6: Agent Store
 import { useAgentStore } from '../../stores/agentStore';
+import { useConversationStore } from '../../stores/conversationStore';
 // 🔥 修复版本显示:导入版本配置
 import { IS_COMMERCIAL } from '../../config/edition';
 // v0.2.8: Composer 2.0 多文件 Diff 预览
@@ -158,6 +160,105 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { isSearchVisible, toggleSearch } = useChatUIStore();
   const [isModelPanelOpen, setIsModelPanelOpen] = useState(false);
   const modelPanelRef = useRef<HTMLDivElement>(null);
+
+  // v0.4.0: 会话笔记面板状态
+  const [isNotesPanelOpen, setIsNotesPanelOpen] = useState(false);
+  const activeThreadId = useThreadStore(state => state.activeThreadId);
+  const projectRoot = useFileStore(state => state.getActiveRoot()?.path || state.rootPath);
+
+  // v0.4.0: 对话管理 - Token 统计、对话总结和压缩
+  const { tokenStats, getTokenStats, shouldSummarize, generateSummary, compactConversation } = useConversationStore();
+  const [conversationSummary, setConversationSummary] = useState<string | null>(null);
+  const [summaryTimestamp, setSummaryTimestamp] = useState<number | undefined>(undefined);
+  const [isCheckingSummary, setIsCheckingSummary] = useState(false);
+  const [compactInfo, setCompactInfo] = useState<{ originalCount: number; compressedCount: number } | null>(null);
+
+  // 自动计算 Token 统计（消息变化时）
+  useEffect(() => {
+    if (rawMessages.length > 0 && currentModel) {
+      getTokenStats(rawMessages, currentModel);
+    }
+  }, [rawMessages, currentModel, getTokenStats]);
+
+  // 自动触发对话总结（消息变化时检查）
+  useEffect(() => {
+    const checkAndGenerateSummary = async () => {
+      // 跳过：如果正在检查、没有消息、或正在加载
+      if (isCheckingSummary || rawMessages.length === 0 || isLoading) {
+        return;
+      }
+
+      // 跳过：已有总结且消息数量未显著增加
+      if (conversationSummary && rawMessages.length < 50) {
+        return;
+      }
+
+      setIsCheckingSummary(true);
+
+      try {
+        // 检查是否需要总结
+        const needsSummary = await shouldSummarize(rawMessages);
+
+        if (needsSummary && currentProviderId) {
+          // 获取当前提供商配置
+          const provider = providers.find(p => p.id === currentProviderId);
+
+          if (provider) {
+            // 生成对话总结
+            const summary = await generateSummary(rawMessages, provider);
+
+            if (summary) {
+              setConversationSummary(summary);
+              setSummaryTimestamp(Math.floor(Date.now() / 1000));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[AIChat] Failed to generate summary:', error);
+      } finally {
+        setIsCheckingSummary(false);
+      }
+    };
+
+    // 使用防抖避免频繁检查
+    const timeoutId = setTimeout(checkAndGenerateSummary, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [rawMessages, isLoading, shouldSummarize, generateSummary, currentProviderId, providers, conversationSummary, isCheckingSummary]);
+
+  // v0.4.0: 自动压缩对话（当总结生成后）
+  useEffect(() => {
+    const compressConversation = async () => {
+      // 跳过：没有总结或没有消息
+      if (!conversationSummary || rawMessages.length === 0) {
+        return;
+      }
+
+      // 跳过：消息数量未超过阈值
+      if (rawMessages.length < 30) {
+        return;
+      }
+
+      // 记录压缩前的消息数量
+      const originalCount = rawMessages.length;
+
+      try {
+        // 压缩对话
+        const result = await compactConversation(rawMessages, conversationSummary, 10);
+
+        // 更新压缩信息
+        if (result.original_count !== result.compressed_count) {
+          setCompactInfo({
+            originalCount: result.original_count,
+            compressedCount: result.compressed_count
+          });
+        }
+      } catch (error) {
+        console.error('[AIChat] Failed to compress conversation:', error);
+      }
+    };
+
+    compressConversation();
+  }, [conversationSummary, rawMessages, compactConversation]);
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -2216,6 +2317,15 @@ ${suggestion.fixContext.code_context}
           >
             <Search size={isSidekickMode ? 18 : 14} />
           </button>
+          {/* 会话笔记按钮 */}
+          <button
+            onClick={() => setIsNotesPanelOpen(!isNotesPanelOpen)}
+            data-testid="ai-notes-toggle"
+            className={`p-1 rounded-lg transition-all active:scale-95 ${isNotesPanelOpen ? 'text-green-400 bg-green-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            title="会话笔记"
+          >
+            <FileText size={isSidekickMode ? 18 : 14} />
+          </button>
         </div>
       </div>
     </div>
@@ -2276,6 +2386,27 @@ ${suggestion.fixContext.code_context}
             data-testid="ai-search-panel"
           >
             <ThreadSearchBar />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Session Notes Panel (Conditional) */}
+      <AnimatePresence>
+        {isNotesPanelOpen && activeThreadId && projectRoot && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+            className="overflow-hidden border-b border-white/5 bg-[#1e1e1e]"
+            data-testid="ai-notes-panel"
+          >
+            <div className="h-[400px] overflow-y-auto">
+              <SessionNotesPanel
+                sessionId={activeThreadId}
+                projectRoot={projectRoot}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2362,6 +2493,39 @@ ${suggestion.fixContext.code_context}
             isLoading={isLoading}
             parentRef={scrollContainerRef}
           />
+
+          {/* v0.4.0: Token 统计显示 */}
+          {tokenStats && rawMessages.length > 0 && (
+            <div className="my-2 mx-2" data-testid="conversation-token-stats">
+              <TokenStatsDisplay stats={tokenStats} model={currentModel} />
+            </div>
+          )}
+
+          {/* v0.4.0: 对话总结显示 */}
+          {conversationSummary && (
+            <div className="my-2 mx-2" data-testid="conversation-summary">
+              <ConversationSummary
+                summary={conversationSummary}
+                timestamp={summaryTimestamp}
+                onCopy={() => navigator.clipboard.writeText(conversationSummary)}
+              />
+            </div>
+          )}
+
+          {/* v0.4.0: 对话压缩状态显示 */}
+          {compactInfo && compactInfo.originalCount > compactInfo.compressedCount && (
+            <div className="my-2 mx-2" data-testid="conversation-compact-indicator">
+              <CompactIndicator
+                originalCount={compactInfo.originalCount}
+                compressedCount={compactInfo.compressedCount}
+                onClick={() => {
+                  // 可以添加点击事件，例如显示压缩详情
+                  console.log('[AIChat] Compact info:', compactInfo);
+                }}
+              />
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       )}
