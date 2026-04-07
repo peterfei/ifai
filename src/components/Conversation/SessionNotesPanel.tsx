@@ -24,6 +24,7 @@ import {
 interface SessionNotesProps {
   sessionId: string;
   projectRoot: string;
+  messages?: any[]; // 🔥 FIX: 添加 messages 属性以自动提取笔记
 }
 
 /**
@@ -114,13 +115,14 @@ function CollapsibleSection({
 /**
  * 主组件
  */
-export function SessionNotesPanel({ sessionId, projectRoot }: SessionNotesProps) {
+export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionNotesProps) {
   const { t } = useTranslation();
   const {
     sessionNotes,
     isLoading,
     error,
     createNotes,
+    extractNotesFromMessages,
     generateNotesSummary,
     saveNotes,
     exportNotesToMarkdown,
@@ -129,9 +131,12 @@ export function SessionNotesPanel({ sessionId, projectRoot }: SessionNotesProps)
     reset
   } = useConversationStore();
 
+  // 🔥 FIX: 使用传入的 messages 或默认为空数组
+  const currentMessages = messages || [];
+
   const [exportFormat, setExportFormat] = useState<'markdown' | 'json'>('markdown');
 
-  // 初始化笔记
+  // 初始化笔记并自动提取内容
   useEffect(() => {
     if (sessionId && projectRoot) {
       createNotes(sessionId, projectRoot);
@@ -141,6 +146,24 @@ export function SessionNotesPanel({ sessionId, projectRoot }: SessionNotesProps)
       reset();
     };
   }, [sessionId, projectRoot]);
+
+  // 🔥 FIX: 自动从消息中提取笔记内容
+  useEffect(() => {
+    const extractNotes = async () => {
+      if (currentMessages.length > 0 && sessionNotes) {
+        try {
+          await extractNotesFromMessages(currentMessages);
+          console.log('[SessionNotesPanel] ✅ Extracted notes from', currentMessages.length, 'messages');
+        } catch (error) {
+          console.error('[SessionNotesPanel] ❌ Failed to extract notes from messages:', error);
+        }
+      }
+    };
+
+    // 使用防抖避免频繁提取
+    const timeoutId = setTimeout(extractNotes, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [currentMessages, sessionNotes, extractNotesFromMessages]);
 
   // 处理导出
   const handleExport = async () => {
@@ -250,6 +273,19 @@ export function SessionNotesPanel({ sessionId, projectRoot }: SessionNotesProps)
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            {/* 🔥 新增：手动触发笔记提取按钮 */}
+            <button
+              onClick={async () => {
+                if (currentMessages.length > 0) {
+                  await extractNotesFromMessages(currentMessages);
+                  console.log('[SessionNotesPanel] 🔄 Manual extraction triggered');
+                }
+              }}
+              className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors"
+              title="从消息中重新提取笔记"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
             <button
               onClick={handleSave}
               className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
@@ -269,7 +305,11 @@ export function SessionNotesPanel({ sessionId, projectRoot }: SessionNotesProps)
             </span>
           </div>
           <span>•</span>
-          <span>{t('conversation.notes.messages')}: {sessionNotes.tech_concepts.length}</span>
+          <span>技术概念: {sessionNotes.tech_concepts.length}</span>
+          <span>•</span>
+          <span>文件变更: {sessionNotes.file_changes.length}</span>
+          <span>•</span>
+          <span>待办任务: {sessionNotes.todo_tasks.length}</span>
         </div>
       </div>
 

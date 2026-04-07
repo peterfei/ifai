@@ -245,11 +245,22 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
         // 压缩对话
         const result = await compactConversation(rawMessages, conversationSummary, 10);
 
-        // 更新压缩信息
+        // 🔥 FIX: 实际更新消息列表
         if (result.original_count !== result.compressed_count) {
+          // 导入 setThreadMessages 来更新消息
+          const { setThreadMessages } = await import('../../stores/useChatStore');
+          setThreadMessages(activeThreadId, result.messages);
+
+          // 更新压缩信息
           setCompactInfo({
             originalCount: result.original_count,
             compressedCount: result.compressed_count
+          });
+
+          console.log('[AIChat] ✅ Conversation compressed:', {
+            original: result.original_count,
+            compressed: result.compressed_count,
+            reduction: ((result.original_count - result.compressed_count) / result.original_count * 100).toFixed(1) + '%'
           });
         }
       } catch (error) {
@@ -258,7 +269,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     };
 
     compressConversation();
-  }, [conversationSummary, rawMessages, compactConversation]);
+  }, [conversationSummary, rawMessages, compactConversation, activeThreadId]);
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -2423,6 +2434,7 @@ ${suggestion.fixContext.code_context}
               <SessionNotesPanel
                 sessionId={activeThreadId}
                 projectRoot={projectRoot}
+                messages={rawMessages}
               />
             </div>
           </motion.div>

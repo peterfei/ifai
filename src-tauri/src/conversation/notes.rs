@@ -188,8 +188,10 @@ impl SessionNotes {
     fn extract_from_text(&mut self, text: &str) {
         let lower_text = text.to_lowercase();
 
-        // 提取错误信息
-        if lower_text.contains("error") || lower_text.contains("failed") {
+        // 🔥 改进：更智能的提取逻辑
+
+        // 1. 提取错误信息
+        if lower_text.contains("error") || lower_text.contains("failed") || lower_text.contains("错误") || lower_text.contains("失败") {
             if let Some(error_msg) = self.extract_error_message(text) {
                 let error_type = self.detect_error_type(text);
                 self.add_error_fix(
@@ -201,27 +203,94 @@ impl SessionNotes {
             }
         }
 
-        // 提取待办任务
-        if lower_text.contains("todo:") || lower_text.contains("待办") || lower_text.contains("需要") {
+        // 2. 提取待办任务
+        if lower_text.contains("todo:") || lower_text.contains("待办") || lower_text.contains("需要")
+            || lower_text.contains("TODO:") || lower_text.contains("fixme") || lower_text.contains("hack") {
             if let Some(task) = self.extract_todo_task(text) {
                 self.add_todo_task(task, "medium".to_string());
             }
         }
 
-        // 提取技术概念（简单实现）
-        if text.contains("实现") || text.contains("使用") || text.contains("调用") {
-            // 简单的关键词提取
-            let keywords = vec![
-                "React", "Vue", "TypeScript", "Rust", "Tauri",
-                "useState", "useEffect", "组件", "函数", "模块"
-            ];
-            for keyword in keywords {
+        // 3. 🔥 改进：提取技术概念（更智能的实现）
+        // 扩展关键词列表，包括更多技术栈
+        let tech_keywords = vec![
+            // 前端框架
+            "React", "Vue", "Angular", "Svelte", "Solid",
+            // 语言
+            "TypeScript", "JavaScript", "Rust", "Go", "Python", "Java", "C++", "C#",
+            // 框架和库
+            "Tauri", "Vite", "Webpack", "Rollup", "Next.js", "Nuxt",
+            "useState", "useEffect", "useRef", "useCallback", "useMemo",
+            // 概念
+            "组件", "函数", "模块", "接口", "类型", "类", "对象", "数组",
+            "Hook", "Effect", "Context", "Reducer", "State",
+            // 工具
+            "Git", "Docker", "Kubernetes", "Linux", "Shell", "Bash",
+            "API", "REST", "GraphQL", "gRPC", "WebSocket",
+            // 数据库
+            "SQL", "NoSQL", "MongoDB", "PostgreSQL", "MySQL", "Redis",
+            // AI/ML
+            "AI", "ML", "LLM", "GPT", "Claude", "Transformer", "Neural",
+            // 测试
+            "Jest", "Vitest", "Cypress", "Playwright", "Selenium",
+            // 样式
+            "CSS", "SCSS", "Tailwind", "Styled-components",
+            // 构建工具
+            "npm", "yarn", "pnpm", "bun", "Node.js",
+        ];
+
+        // 🔥 改进：更宽松的触发条件
+        let has_tech_keyword = text.contains("实现") || text.contains("使用")
+            || text.contains("调用") || text.contains("创建") || text.contains("添加")
+            || text.contains("修改") || text.contains("删除") || text.contains("更新")
+            || text.contains("配置") || text.contains("设置") || text.contains("安装")
+            || text.contains("导入") || text.contains("导出") || text.contains("编写")
+            || text.contains("实现") || text.contains("开发") || text.contains("调试")
+            || lower_text.contains("use") || lower_text.contains("using")
+            || lower_text.contains("implement") || lower_text.contains("create")
+            || lower_text.contains("add") || lower_text.contains("modify")
+            || lower_text.contains("config") || lower_text.contains("setup");
+
+        // 如果消息包含技术相关动作，检查是否有技术关键词
+        if has_tech_keyword {
+            for keyword in tech_keywords {
                 if text.contains(keyword) {
-                    self.add_concept(
-                        keyword.to_string(),
-                        format!("从对话中提取的{}相关概念", keyword),
-                        "concept".to_string(),
-                    );
+                    // 🔥 FIX: 避免重复添加相同概念
+                    if !self.tech_concepts.iter().any(|c| c.name == keyword) {
+                        self.add_concept(
+                            keyword.to_string(),
+                            format!("从对话中提取的{}相关概念", keyword),
+                            "concept".to_string(),
+                        );
+                    }
+                }
+            }
+        }
+
+        // 🔥 新增：即使没有技术关键词，也记录有意义的对话内容
+        // 如果消息长度超过50个字符且包含中文或英文，记录为一般概念
+        if text.len() > 50 && self.tech_concepts.is_empty() {
+            if text.contains("是") || text.contains("的") || text.contains("了")
+                || lower_text.contains("is") || lower_text.contains("the") {
+                // 提取第一个有意义的短语（简单的启发式方法）
+                let meaningful_phrase = if let Some(pos) = text.find(|c| c == '是' || c == '的' || c == '。') {
+                    if pos > 5 && pos < 50 {
+                        Some(text[..pos].to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                if let Some(phrase) = meaningful_phrase {
+                    if !self.tech_concepts.iter().any(|c| c.name == phrase) {
+                        self.add_concept(
+                            phrase.clone(),
+                            format!("从对话中提取的关键内容"),
+                            "concept".to_string(),
+                        );
+                    }
                 }
             }
         }
