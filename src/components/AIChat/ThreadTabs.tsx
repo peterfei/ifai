@@ -452,7 +452,8 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
           {/* Scrollable tab list */}
           <div
             ref={scrollContainerRef}
-            className={clsx("flex-1 flex gap-2 overflow-x-auto scrollbar-none py-1", isSidekick ? "flex-col overflow-y-auto overflow-x-hidden w-full px-1" : "items-center")}
+            data-testid="thread-tabs-container"
+            className={clsx("flex-1 flex gap-2 overflow-x-auto scrollbar-hide py-1", isSidekick ? "flex-col overflow-y-auto overflow-x-hidden w-full px-1" : "items-center")}
           >
             {filteredThreads.map((thread) => (
               <ThreadItem

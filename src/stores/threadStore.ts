@@ -408,8 +408,8 @@ export const useThreadStore = create<ThreadStore>()(
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
       partialize: (state) => ({
         threads: Object.fromEntries(Object.entries(state.threads).filter(([id, t]) => t.status !== 'deleted')),
-        // 🏆 PIVO 3.0: 不再由 Zustand 自动持久化 activeThreadId
-        // 交由 threadPersistence.ts 在恢复时权威判定，防止覆盖冲突。
+        // 🔥 FIX: 持久化 activeThreadId，确保重新进入应用时恢复到最后活跃的 tab
+        activeThreadId: state.activeThreadId,
         maxThreads: state.maxThreads,
         titleCounters: state.titleCounters,
       }),

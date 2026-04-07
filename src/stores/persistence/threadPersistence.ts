@@ -385,6 +385,7 @@ class ThreadPersistenceService {
       const { useThreadStore } = await import('../threadStore');
       const currentStore = useThreadStore.getState();
       const hasExistingThreads = Object.keys(currentStore.threads).length > 0;
+      const storedActiveThreadId = currentStore.activeThreadId;
 
       if (threads.length === 0 && !hasExistingThreads) {
         const uuid = await import('uuid');
@@ -411,7 +412,11 @@ class ThreadPersistenceService {
         }
       });
 
-      useThreadStore.setState({ threads: threadsMap });
+      // 🔥 FIX: 恢复 activeThreadId 和 threads
+      useThreadStore.setState({
+        threads: threadsMap,
+        activeThreadId: storedActiveThreadId || null
+      });
 
       // 🏆 FIX: 只收集统计信息，不为所有线程调用 setThreadMessages
       // 因为 setThreadMessages 会覆盖全局 messages，导致所有线程显示相同内容
@@ -422,23 +427,32 @@ class ThreadPersistenceService {
       }
 
       if (threads.length > 0) {
-        // 🏆 FIX: 选择有消息的最新线程，而不是所有线程中最新的
-        // 因为空的线程可能因为用户点击而更新了 lastActiveAt
-        const threadsWithMessages = await Promise.all(
-          threads.map(async (thread) => ({
-            ...thread,
-            messageCount: (await this.loadThreadMessages(thread.id)).length
-          }))
-        );
+        // 🔥 FIX: 优先使用持久化的 activeThreadId，如果不存在则选择有消息的最新线程
+        let targetThreadId = storedActiveThreadId;
 
-        // 先筛选有消息的线程，再按 lastActiveAt 排序
-        const validThreads = threadsWithMessages.filter(t => t.messageCount > 0);
-        const mostRecent = validThreads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
+        if (!targetThreadId || !threadsMap[targetThreadId]) {
+          // 如果没有持久化的 activeThreadId 或该线程不存在，选择有消息的最新线程
+          const threadsWithMessages = await Promise.all(
+            threads.map(async (thread) => ({
+              ...thread,
+              messageCount: (await this.loadThreadMessages(thread.id)).length
+            }))
+          );
 
-        if (mostRecent) {
+          const validThreads = threadsWithMessages.filter(t => t.messageCount > 0);
+          const mostRecent = validThreads.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0];
+
+          if (mostRecent) {
+            targetThreadId = mostRecent.id;
+            // 更新 activeThreadId
+            useThreadStore.setState({ activeThreadId: targetThreadId });
+          }
+        }
+
+        if (targetThreadId) {
           const { switchThread } = await import('../useChatStore');
-          // 🏆 FIX: 只为选中的线程调用 switchThread，它会加载该线程的消息
-          switchThread(mostRecent.id);
+          // 🏆 FIX: 为选中的线程调用 switchThread，它会加载该线程的消息
+          switchThread(targetThreadId);
         }
       }
 

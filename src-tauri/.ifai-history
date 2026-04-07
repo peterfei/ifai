@@ -8,3 +8,4 @@
 帮我创建一个文件 /tmp/cli-test.txt 内容是 'CLI continue test'
 /help
 /exit
+帮我探索当前目录
