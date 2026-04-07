@@ -116,7 +116,7 @@ interface TokenStatsProps {
   stats: {
     total_tokens: number;
     message_count: number;
-    estimated_cost_usd?: number;
+    estimated_cost_cny?: number;
   };
   model?: string;
 }
@@ -142,11 +142,11 @@ export function TokenStatsDisplay({ stats, model }: TokenStatsProps) {
           <span className="font-mono">{model}</span>
         </>
       )}
-      {stats.estimated_cost_usd !== undefined && (
+      {stats.estimated_cost_cny !== undefined && (
         <>
           <span>•</span>
           <span>
-            ~${stats.estimated_cost_usd.toFixed(4)}
+            ¥{stats.estimated_cost_cny.toFixed(4)}
           </span>
         </>
       )}

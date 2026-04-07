@@ -309,7 +309,9 @@ DataMigrator.migrationPromise.catch(e => console.error('[Main] Migration Error:'
 exposeDebugStores();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <App />
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
 );
 
 // v0.3.0: 渲染完成日志

@@ -52,7 +52,7 @@ export interface SessionNotes {
 export interface TokenStats {
   total_tokens: number;
   message_count: number;
-  estimated_cost_usd?: number;
+  estimated_cost_cny?: number;
 }
 
 /**

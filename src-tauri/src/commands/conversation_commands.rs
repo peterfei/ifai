@@ -15,7 +15,7 @@ use std::path::PathBuf;
 pub struct TokenStats {
     pub total_tokens: usize,
     pub message_count: usize,
-    pub estimated_cost_usd: Option<f64>,
+    pub estimated_cost_cny: Option<f64>,
 }
 
 /// 归档信息
@@ -187,10 +187,11 @@ pub async fn get_token_stats(
     let total_tokens = token_counter::count_messages_tokens(&messages);
     let message_count = messages.len();
 
-    // 估算成本（基于 GPT-4o 定价）
-    // Input: $2.50 per 1M tokens
+    // 估算成本（基于国内 AI 服务定价，如智谱 AI GLM-4）
+    // 输入: ¥0.50 per 1M tokens, 输出: ¥2.00 per 1M tokens
+    // 平均约 ¥1.25 per 1M tokens
     let estimated_cost = if total_tokens > 0 {
-        Some((total_tokens as f64 / 1_000_000.0) * 2.50)
+        Some((total_tokens as f64 / 1_000_000.0) * 1.25)
     } else {
         None
     };
@@ -198,7 +199,7 @@ pub async fn get_token_stats(
     Ok(TokenStats {
         total_tokens,
         message_count,
-        estimated_cost_usd: estimated_cost,
+        estimated_cost_cny: estimated_cost,
     })
 }
 

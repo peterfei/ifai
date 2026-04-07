@@ -1479,7 +1479,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
       return () => {
           console.log('[AgentStore] 🛑 Cleaning up global event listeners...');
-          unlisteners.forEach(u => u());
+          // 🔥 FIX: 添加错误处理，避免单个 unlisten 失败导致整个应用崩溃
+          unlisteners.forEach((u, index) => {
+              try {
+                  u();
+              } catch (error) {
+                  console.error(`[AgentStore] ❌ Error unlistening listener ${index}:`, error);
+              }
+          });
       };
   }
 }));

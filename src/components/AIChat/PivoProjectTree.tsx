@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Folder, File, ChevronRight, ChevronDown, Star, Code, Eye, EyeOff } from "lucide-react";
 
 interface TreeNode {
@@ -135,33 +135,90 @@ const TreeItem: React.FC<{
   );
 };
 
-export const PivoProjectTree: React.FC<ProjectTreeProps> = ({ structure, keyFiles = {} }) => {
-  // 🏆 修复：在解析时保存完整路径
-  const parseStructure = (obj: any, name: string = "root", parentPath: string = ""): TreeNode => {
-    const children: TreeNode[] = [];
-    const currentPath = parentPath ? `${parentPath}/${name}` : name;
+// 🔥 PERFORMANCE FIX: 添加比较函数，使用 JSON 序列化进行深度比较
+const arePivoProjectTreePropsEqual = (prevProps: ProjectTreeProps, nextProps: ProjectTreeProps) => {
+    // 🐛 DEBUG: 添加日志追踪React.memo比较
+    const prevStructureKeys = Object.keys(prevProps.structure || {}).length;
+    const nextStructureKeys = Object.keys(nextProps.structure || {}).length;
+    const prevKeyFilesKeys = Object.keys(prevProps.keyFiles || {}).length;
+    const nextKeyFilesKeys = Object.keys(nextProps.keyFiles || {}).length;
 
-    for (const key in obj) {
-      const itemPath = name === "root" ? key : `${currentPath}/${key}`;
-
-      if (obj[key] === "file") {
-        children.push({ name: key, type: "file", fullPath: itemPath });
-      } else {
-        // 递归解析目录
-        children.push(parseStructure(obj[key], key, currentPath));
-      }
-    }
-
-    children.sort((a, b) => {
-      if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
-      return a.name.localeCompare(b.name);
+    console.log('[PivoProjectTree] 🔍 React.memo comparing props:', {
+        prevStructureKeys,
+        nextStructureKeys,
+        prevKeyFilesKeys,
+        nextKeyFilesKeys
     });
 
-    return { name, type: "directory", children };
-  };
+    // 使用 JSON 序列化进行深度比较，避免对象引用不同导致的重新渲染
+    try {
+        const structureEqual = JSON.stringify(prevProps.structure) === JSON.stringify(nextProps.structure);
+        const keyFilesEqual = JSON.stringify(prevProps.keyFiles) === JSON.stringify(nextProps.keyFiles);
+        const result = structureEqual && keyFilesEqual;
 
-  const treeData = parseStructure(structure);
-  const keyFilesPaths = Object.keys(keyFiles);
+        console.log('[PivoProjectTree] 📊 Comparison result:', {
+            structureEqual,
+            keyFilesEqual,
+            shouldReuse: result
+        });
+
+        return result;
+    } catch {
+        // 如果序列化失败，使用浅比较作为后备
+        const result = (
+            prevProps.structure === nextProps.structure &&
+            prevProps.keyFiles === nextProps.keyFiles
+        );
+        console.log('[PivoProjectTree] ⚠️ Fallback to shallow comparison:', result);
+        return result;
+    }
+};
+
+export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structure, keyFiles = {} }) => {
+  // 🔥 PERFORMANCE FIX: 使用 useMemo 缓存解析结果，避免重复计算
+  const treeData = useMemo(() => {
+    // 🐛 DEBUG: 添加日志追踪useMemo调用
+    console.log('[PivoProjectTree] 🔍 treeData useMemo computing...', {
+      structureKeys: Object.keys(structure || {}).length
+    });
+
+    // 🏆 修复：在解析时保存完整路径
+    const parseStructure = (obj: any, name: string = "root", parentPath: string = ""): TreeNode => {
+      const children: TreeNode[] = [];
+      const currentPath = parentPath ? `${parentPath}/${name}` : name;
+
+      for (const key in obj) {
+        const itemPath = name === "root" ? key : `${currentPath}/${key}`;
+
+        if (obj[key] === "file") {
+          children.push({ name: key, type: "file", fullPath: itemPath });
+        } else {
+          // 递归解析目录
+          children.push(parseStructure(obj[key], key, currentPath));
+        }
+      }
+
+      children.sort((a, b) => {
+        if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      return { name, type: "directory", children };
+    };
+
+    const result = parseStructure(structure);
+    console.log('[PivoProjectTree] ✅ treeData computed successfully');
+    return result;
+  }, [structure]);
+
+  const keyFilesPaths = useMemo(() => {
+    console.log('[PivoProjectTree] 🔍 keyFilesPaths useMemo computing...', {
+      keys: Object.keys(keyFiles || {}).length
+    });
+    const result = Object.keys(keyFiles);
+    console.log('[PivoProjectTree] ✅ keyFilesPaths computed successfully');
+    return result;
+  }, [keyFiles]);
 
   return (
     <div className="space-y-3">
@@ -222,4 +279,4 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = ({ structure, keyFile
       )}
     </div>
   );
-};
+}, arePivoProjectTreePropsEqual);

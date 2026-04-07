@@ -1426,14 +1426,27 @@ ${context}
     setupFileDropListener();
 
     return () => {
+      // 🔥 FIX: 添加错误处理，避免清理失败导致应用崩溃
       if (unlisten) {
-        unlisten();
+        try {
+          unlisten();
+        } catch (error) {
+          console.error('[AIChat] ❌ Error unlistening file-drop:', error);
+        }
       }
       if (unlistenHover) {
-        unlistenHover();
+        try {
+          unlistenHover();
+        } catch (error) {
+          console.error('[AIChat] ❌ Error unlistening file-drop-hover:', error);
+        }
       }
       if (unlistenLeave) {
-        unlistenLeave();
+        try {
+          unlistenLeave();
+        } catch (error) {
+          console.error('[AIChat] ❌ Error unlistening file-drop-leave:', error);
+        }
       }
     };
   }, [isLoading, handleAddImageAttachment]);
@@ -1470,8 +1483,13 @@ ${context}
     setupFileRefreshListener();
 
     return () => {
+      // 🔥 FIX: 添加错误处理，避免清理失败导致应用崩溃
       if (unlistenFileRefresh) {
-        unlistenFileRefresh();
+        try {
+          unlistenFileRefresh();
+        } catch (error) {
+          console.error('[AIChat] ❌ Error unlistening file-tree-refresh:', error);
+        }
       }
     };
   }, []);

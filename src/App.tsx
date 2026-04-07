@@ -384,7 +384,12 @@ function App() {
     return () => {
         if (cleanupFn) {
             console.log('[App] 🧹 Cleaning up agent event listeners...');
-            cleanupFn();
+            // 🔥 FIX: 添加错误处理，避免清理失败导致应用崩溃
+            try {
+                cleanupFn();
+            } catch (error) {
+                console.error('[App] ❌ Error cleaning up agent event listeners:', error);
+            }
         }
     };
   }, []);
@@ -1056,4 +1061,17 @@ function App() {
   );
 }
 
-export default App;
+// 🔥 ErrorBoundary 包装器：捕获应用崩溃
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// 保留原始 App 组件的导出（用于测试）
+export { App };
+
+// 默认导出带有错误边界的版本
+export default function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}

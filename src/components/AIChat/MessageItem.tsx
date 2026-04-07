@@ -166,6 +166,22 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     return true;
 };
 // 🔥 FIX: 添加自定义比较函数，确保 toolCalls 变化时触发重新渲染
+// 🔥 PERFORMANCE FIX: 添加 MessageItem 比较函数，防止无关消息重新渲染
+const areMessageItemPropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps) => {
+    // 如果 message 引用相同，跳过渲染
+    if (prevProps.message === nextProps.message) {
+        return true;
+    }
+    // 检查关键字段
+    return (
+        prevProps.message.id === nextProps.message.id &&
+        prevProps.message.role === nextProps.message.role &&
+        prevProps.message.content === nextProps.message.content &&
+        prevProps.message.toolCalls === nextProps.message.toolCalls &&
+        prevProps.isStreaming === nextProps.isStreaming
+    );
+};
+
 export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
     const isUser = message.role === 'user';
@@ -339,7 +355,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 streamingTimeoutRef.current = undefined;
             }
         };
-    }, [displayContent, message.toolCalls, isActivelyStreaming]);
+        // 🔥 FIX: 移除 isActivelyStreaming 依赖，防止无限循环
+        // 这个 useEffect 内部会调用 setIsActivelyStreaming，如果将它作为依赖项
+        // 会导致每次状态变化都重新触发 useEffect，造成无限循环
+    }, [displayContent, message.toolCalls]);
     const toggleBlock = useCallback((index: number) => {
         setExpandedBlocks(prev => {
             const newSet = new Set(prev);

@@ -2,7 +2,7 @@ import { PivoProjectTree } from "./PivoProjectTree";
 import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { DiffPreview } from './DiffPreview';
 import { useTypewriter } from '../../hooks/useTypewriter';
-import React, { useState, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useLayoutEffect, useMemo, useRef } from 'react';
 import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink } from 'lucide-react';
 import { ToolCall, useChatStore } from '../../stores/useChatStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -258,7 +258,26 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
 // PERFORMANCE: Large file thresholds
 const MAX_DIFF_SIZE = 5000;
 
-export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool = false, message }: ToolApprovalProps) => {
+// 🔥 PERFORMANCE FIX: 使用 React.memo 避免不必要的重新渲染
+// 当单条消息包含多个工具调用时，防止过度渲染
+// ⚡️ 注意：已移除调试日志以避免性能问题
+const areToolApprovalPropsEqual = (prevProps: ToolApprovalProps, nextProps: ToolApprovalProps) => {
+    // 如果 toolCall 引用相同，跳过渲染
+    if (prevProps.toolCall === nextProps.toolCall) {
+        return true;
+    }
+
+    // 检查关键字段
+    return (
+        prevProps.toolCall.id === nextProps.toolCall.id &&
+        prevProps.toolCall.status === nextProps.toolCall.status &&
+        prevProps.toolCall.result === nextProps.toolCall.result &&
+        prevProps.isLatestBashTool === nextProps.isLatestBashTool &&
+        prevProps.message?.id === nextProps.message?.id
+    );
+};
+
+export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLatestBashTool = false, message }: ToolApprovalProps) => {
     // 🔥 PIVO 2.0: 获取新引擎的审批状态与预览数据
     const approvalItem = useApprovalStore(state => state.items[toolCall.id]);
     const previewData = approvalItem?.previewData;
@@ -269,6 +288,10 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
     const chatStore = useChatStore();
     const [isExpanded, setIsExpanded] = useState(false);
     const [oldContent, setOldContent] = useState<string | null>(null);
+
+    // 🐛 DEBUG: 添加 ref 用于追踪 props 引用变化
+    const previousNestedStructureRef = useRef<any>(null);
+    const previousKeyFilesRef = useRef<Record<string, string>>(null);
 
     // 🔥 回滚功能状态
     const [isRollingBack, setIsRollingBack] = useState(false);
@@ -528,6 +551,59 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
             editorMode: editorMode as any || 'standard'
         });
     }, [toolCall.tool, toolCall.args, editorMode]);
+
+    // 🔥 PERFORMANCE FIX: 缓存 agent_scan_project 的解析结果，避免每次工具状态变化都重新解析
+    const scanData = useMemo(() => {
+        if (toolCall.tool !== 'agent_scan_project' || !toolCall.result) {
+            return null;
+        }
+
+        // 🐛 DEBUG: 添加日志追踪useMemo调用
+        console.log('[ToolApproval] 🔍 scanData useMemo computing...', {
+            toolId: toolCall.id,
+            tool: toolCall.tool,
+            hasResult: !!toolCall.result,
+            resultLength: toolCall.result?.length || 0,
+            resultPreview: toolCall.result?.substring(0, 50) || 'N/A'
+        });
+
+        try {
+            const parsed = JSON.parse(toolCall.result);
+            // 检查 output 字段
+            if (parsed.output && typeof parsed.output === 'object') {
+                if (parsed.output.structure || parsed.output.key_files) {
+                    console.log('[ToolApproval] ✅ scanData computed successfully (path 1)');
+                    return parsed.output;
+                }
+            }
+            // 情况 3: output 是对象
+            else if (parsed.output && typeof parsed.output === 'object') {
+                if (parsed.output.structure || parsed.output.key_files) {
+                    console.log('[ToolApproval] ✅ scanData computed successfully (path 2)');
+                    return parsed.output;
+                }
+            }
+            console.log('[ToolApproval] ⚠️ scanData parse found no structure/key_files');
+        } catch (e) {
+            console.log('[ToolApproval] ❌ scanData parse error:', e);
+        }
+        return null;
+    }, [toolCall.tool, toolCall.result, toolCall.id]);
+
+    // 🔥 PERFORMANCE FIX: 缓存嵌套结构转换结果
+    const nestedStructure = useMemo(() => {
+        if (!scanData?.structure) {
+            console.log('[ToolApproval] ⚠️ nestedStructure skipped - no scanData.structure');
+            return null;
+        }
+        // 🏆 FIX: 应用 flatStructureToNested 转换，确保正确解析混合格式
+        console.log('[ToolApproval] 🔍 nestedStructure useMemo computing...', {
+            keys: Object.keys(scanData.structure).length
+        });
+        const result = flatStructureToNested(scanData.structure);
+        console.log('[ToolApproval] ✅ nestedStructure computed successfully');
+        return result;
+    }, [scanData?.structure]);
 
     // 获取风险图标与颜色
     const getRiskVisuals = (level: RiskLevel) => {
@@ -1062,52 +1138,17 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
                         <div className="overflow-auto leading-relaxed">
                             {(() => {
                                 // 1. 检测 PIVO (健壮性增强)
-                                try {
-                                    const resultData = toolCall.result;
-                                    // 守卫：仅对看起来像 JSON 的字符串做 parse，避免非 JSON 结果报错
-                                    if (typeof resultData === 'string' && (resultData.trim().startsWith('{') || resultData.trim().startsWith('['))) {
-                                    const parsed = JSON.parse(resultData);
-
-                                    // 🏆 FIX: 处理双重包装格式 { output: "{...}", status: "success" }
-                                    let scanData = null;
-                                    if (parsed && typeof parsed === 'object') {
-                                        // 情况 1: 直接包含 structure/key_files
-                                        if (parsed.structure || parsed.key_files) {
-                                            scanData = parsed;
-                                        }
-                                        // 情况 2: 包装在 output 字段中（JSON 字符串）
-                                        // 🔥 FIX: 检查是否是有效的 JSON 字符串（以 { 或 [ 开头）
-                                        else if (parsed.output && typeof parsed.output === 'string') {
-                                            const trimmed = parsed.output.trim();
-                                            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-                                                try {
-                                                    const outputParsed = JSON.parse(parsed.output);
-                                                    if (outputParsed.structure || outputParsed.key_files) {
-                                                        scanData = outputParsed;
-                                                    }
-                                                } catch (e) {
-                                                    console.log('[ToolApproval] ❌ Failed to parse output:', e);
-                                                }
-                                            }
-                                        }
-                                        // 情况 3: output 是对象
-                                        else if (parsed.output && typeof parsed.output === 'object') {
-                                            if (parsed.output.structure || parsed.output.key_files) {
-                                                scanData = parsed.output;
-                                            }
-                                        }
-                                    }
-
-                                    if (scanData && (scanData.structure || scanData.key_files)) {
-                                        // 🏆 FIX: 应用 flatStructureToNested 转换，确保正确解析混合格式
-                                        const nestedStructure = flatStructureToNested(scanData.structure);
-                                        console.log('[ToolApproval] ✅ Rendering PivoProjectTree for agent_scan_project');
-                                        return <PivoProjectTree structure={nestedStructure} keyFiles={scanData.key_files} />;
-                                    }
-                                    }
-                                } catch (e) {
-                                    console.log('[ToolApproval] ❌ Failed to parse agent_scan_project result:', e);
-                                    // 解析失败或不是 JSON 格式，忽略并继续
+                                // 🔥 PERFORMANCE FIX: 使用缓存的 scanData 和 nestedStructure
+                                if (scanData && (scanData.structure || scanData.key_files) && nestedStructure) {
+                                    console.log('[ToolApproval] ✅ Rendering PivoProjectTree for agent_scan_project', {
+                                        structureKeys: Object.keys(nestedStructure || {}).length,
+                                        keyFilesCount: Object.keys(scanData.key_files || {}).length,
+                                        structureRef: nestedStructure === (previousNestedStructureRef.current) ? 'SAME' : 'NEW',
+                                        keyFilesRef: scanData.key_files === (previousKeyFilesRef.current) ? 'SAME' : 'NEW'
+                                    });
+                                    previousNestedStructureRef.current = nestedStructure;
+                                    previousKeyFilesRef.current = scanData.key_files;
+                                    return <PivoProjectTree structure={nestedStructure} keyFiles={scanData.key_files} />;
                                 }
 
                                 // 2. 检测 Bash 控制台
@@ -1155,4 +1196,4 @@ export const ToolApproval = ({ toolCall, onApprove, onReject, isLatestBashTool =
             )}
         </div>
     );
-};
+}, areToolApprovalPropsEqual);
