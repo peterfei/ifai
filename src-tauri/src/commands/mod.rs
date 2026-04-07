@@ -11,3 +11,4 @@ pub mod error_commands;
 pub mod skill_commands;
 pub mod atomic_commands;
 pub mod tool_commands;
+pub mod conversation_commands;

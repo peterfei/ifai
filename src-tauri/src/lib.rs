@@ -1748,6 +1748,14 @@ pub fn run() {
             commands::tool_commands::get_tool_descriptions,
             commands::tool_commands::get_tool_description,
             commands::tool_commands::get_tools_by_permission,
+            // P5: 对话管理系统
+            commands::conversation_commands::count_messages_tokens,
+            commands::conversation_commands::should_summarize_conversation,
+            commands::conversation_commands::summarize_conversation,
+            commands::conversation_commands::compact_conversation,
+            commands::conversation_commands::get_conversation_archives,
+            commands::conversation_commands::get_token_stats,
+            commands::conversation_commands::save_conversation_archive,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
