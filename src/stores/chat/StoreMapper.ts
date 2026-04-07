@@ -13,13 +13,15 @@ import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolic
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 
 export const initStoreMapper = () => {
-    // 🔥 CRITICAL: 防止重复初始化（HMR / E2E 模块双加载 / 循环依赖）
-    const g = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {} as any);
-    if ((g as any).__STORE_MAPPER_INITIALIZED__) {
+    // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
+    // 仅检查 window 级别，不检查 globalThis，避免跨 page 隔离问题
+    if (typeof window !== 'undefined' && (window as any).__STORE_MAPPER_INITIALIZED__) {
         console.log('[StoreMapper] ⏭️ Already initialized, skipping duplicate init');
         return;
     }
-    (g as any).__STORE_MAPPER_INITIALIZED__ = true;
+    if (typeof window !== 'undefined') {
+        (window as any).__STORE_MAPPER_INITIALIZED__ = true;
+    }
 
     // 🔥 序号校验：追踪每个流的 delta 序号
     const streamIndexTracker = new Map<string, number>();
