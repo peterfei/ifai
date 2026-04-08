@@ -9,6 +9,11 @@ pub mod scheduler;
 pub mod runner;
 pub mod executor;
 
+#[cfg(test)]
+pub mod integration_tests;
+
+pub mod examples;
+
 pub use types::{
     AgentConfig, AgentType, Workflow, WorkflowEdge, WorkflowNode, WorkflowValidationError,
 };

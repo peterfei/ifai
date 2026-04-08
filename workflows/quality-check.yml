@@ -1,0 +1,38 @@
+# 代码质量检查工作流
+# 用于 CI/CD 流水线
+
+id: "quality-check"
+name: "代码质量检查"
+description: "全面的代码质量检查和分析"
+
+variables:
+  target_path: "./src-tauri/src"
+  severity_level: "2"
+
+nodes:
+  - id: "code_review"
+    agentType: "review"
+    label: "代码审查"
+    config:
+      severity_threshold: 2
+      task_description: "检查代码质量、安全性、性能问题"
+
+  - id: "security_scan"
+    agentType: "review"
+    label: "安全扫描"
+    config:
+      severity_threshold: 3
+      task_description: "检查安全漏洞和风险"
+
+  - id: "performance_check"
+    agentType: "review"
+    label: "性能检查"
+    config:
+      severity_threshold: 2
+      task_description: "检查性能瓶颈和优化机会"
+
+edges:
+  - from: "code_review"
+    to: "security_scan"
+  - from: "security_scan"
+    to: "performance_check"

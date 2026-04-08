@@ -10,6 +10,33 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use anyhow::Result;
 
+/// 创建默认的 AI 提供商配置
+#[cfg(feature = "commercial")]
+fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
+    crate::core_traits::ai::AIProviderConfig {
+        id: String::new(),
+        name: String::new(),
+        api_key: String::new(),
+        base_url: String::new(),
+        models: Vec::new(),
+        protocol: crate::core_traits::ai::AIProtocol::OpenAI,
+        enabled: true,
+    }
+}
+
+/// 创建默认的 AI 提供商配置（community 版本）
+#[cfg(not(feature = "commercial"))]
+fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
+    crate::core_traits::ai::AIProviderConfig {
+        id: String::new(),
+        name: String::new(),
+        api_key: String::new(),
+        base_url: String::new(),
+        models: Vec::new(),
+        protocol: crate::core_traits::ai::AIProtocol::Openai,
+    }
+}
+
 /// 节点执行上下文
 #[derive(Debug, Clone)]
 pub struct NodeExecutionContext {
@@ -86,7 +113,8 @@ impl NodeExecutionContext {
             task_description: self.get_full_task_description(),
             initial_prompt: String::new(),
             variables,
-            provider_config: self.provider_config.clone().unwrap_or_default(),
+            provider_config: self.provider_config.clone()
+                .unwrap_or_else(|| default_provider_config()),
         }
     }
 }
@@ -175,7 +203,8 @@ impl NodeExecutor for AgentNodeExecutor {
             task_description: full_description,
             initial_prompt: String::new(),
             variables: ctx.workflow_variables.clone(),
-            provider_config: ctx.provider_config.clone().unwrap_or_default(),
+            provider_config: ctx.provider_config.clone()
+                .unwrap_or_else(|| default_provider_config()),
         };
 
         // 执行智能体

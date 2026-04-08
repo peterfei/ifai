@@ -1,0 +1,76 @@
+# 默认代码审查工作流
+# 这是开箱即用的多智能体协作示例
+
+id: "default-code-review"
+name: "默认代码审查工作流"
+description: "自动探索、审查、测试和生成文档"
+
+# 工作流变量 - 可以根据需要修改
+variables:
+  target_path: "./src-tauri/src"
+  severity_threshold: "2"
+  timeout: "300"
+
+# 工作流节点
+nodes:
+  # 第一步：探索代码结构
+  - id: "explore"
+    agentType: "explore"
+    label: "探索代码结构"
+    config:
+      target: "${target_path}"
+      task_description: "分析项目结构、模块依赖和架构设计"
+      timeout_secs: 60
+
+  # 第二步：代码质量审查
+  - id: "review"
+    agentType: "review"
+    label: "代码质量审查"
+    config:
+      severity_threshold: 2
+      task_description: "检查代码质量、潜在问题和最佳实践"
+
+  # 第三步：并行执行测试生成和重构建议
+  - id: "generate_tests"
+    agentType: "test"
+    label: "生成测试用例"
+    config:
+      task_description: "为核心模块生成单元测试和集成测试"
+      timeout_secs: 120
+
+  - id: "refactor"
+    agentType: "refactor"
+    label: "生成重构建议"
+    config:
+      task_description: "分析代码并提出改进建议"
+      timeout_secs: 120
+
+  # 第四步：生成文档
+  - id: "document"
+    agentType: "doc"
+    label: "生成文档"
+    config:
+      task_description: "生成 API 文档和使用指南"
+      timeout_secs: 90
+
+# 工作流边（定义执行顺序和依赖关系）
+edges:
+  # 探索 → 审查
+  - from: "explore"
+    to: "review"
+
+  # 审查 → 测试生成（并行分支1）
+  - from: "review"
+    to: "generate_tests"
+
+  # 审查 → 重构建议（并行分支2）
+  - from: "review"
+    to: "refactor"
+
+  # 测试生成 → 文档
+  - from: "generate_tests"
+    to: "document"
+
+  # 重构建议 → 文档
+  - from: "refactor"
+    to: "document"

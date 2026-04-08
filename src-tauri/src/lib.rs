@@ -1771,6 +1771,17 @@ pub fn run() {
             commands::session_notes_commands::save_session_notes,
             commands::session_notes_commands::load_session_notes,
             commands::session_notes_commands::list_session_notes,
+            // 🆕 P4: 多智能体工作流系统
+            commands::workflow_commands::parse_workflow_from_yaml,
+            commands::workflow_commands::load_workflow_from_file,
+            commands::workflow_commands::validate_workflow,
+            commands::workflow_commands::get_workflow_schedule,
+            commands::workflow_commands::execute_workflow,
+            commands::workflow_commands::cancel_workflow,
+            commands::workflow_commands::get_workflow_status,
+            commands::workflow_commands::get_default_workflows,
+            commands::workflow_commands::create_custom_workflow,
+            commands::workflow_commands::execute_quick_workflow,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

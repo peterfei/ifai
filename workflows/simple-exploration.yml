@@ -1,0 +1,28 @@
+# 简单代码探索工作流
+# 适合快速了解项目结构
+
+id: "simple-exploration"
+name: "简单代码探索"
+description: "快速探索和分析项目结构"
+
+variables:
+  target_path: "./src-tauri/src"
+
+nodes:
+  - id: "explore_structure"
+    agentType: "explore"
+    label: "探索项目结构"
+    config:
+      target: "${target_path}"
+      task_description: "分析项目的目录结构、主要模块和文件组织"
+
+  - id: "analyze_dependencies"
+    agentType: "explore"
+    label: "分析依赖关系"
+    config:
+      target: "${target_path}"
+      task_description: "分析模块之间的依赖关系和调用链"
+
+edges:
+  - from: "explore_structure"
+    to: "analyze_dependencies"
