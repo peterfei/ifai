@@ -9,5 +9,8 @@ pub mod debugger;
 #[cfg(feature = "commercial")]
 pub mod persistence;
 
+// 🆕 多智能体工作流系统
+pub mod workflow;
+
 pub use base::{AgentStatus, AgentContext};
 pub use supervisor::Supervisor;
