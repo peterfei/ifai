@@ -257,8 +257,8 @@ export async function setupE2ETestEnvironment(
               const msgCount = messages.length;
               // 简单估算：每条消息平均 1500 tokens（约 1100 中文字符）
               const estimatedTokens = msgCount * 1500;
-              // 阈值：100条消息 或 150k tokens
-              const shouldSummarize = msgCount > 100 || estimatedTokens > 150000;
+              // 阈值：100条消息 或 100k tokens
+              const shouldSummarize = msgCount > 100 || estimatedTokens > 100000;
               console.log(`[E2E Mock] should_summarize: ${shouldSummarize} (${msgCount} messages, ~${estimatedTokens} tokens)`);
               return Promise.resolve(shouldSummarize);
             }

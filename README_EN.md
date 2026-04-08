@@ -1,33 +1,41 @@
-# IfAI
+# IfAI — A Mature AI Native Harness 🚀
+
+### 🌟 v0.4.0 Highlights: Prompt Ecosystem, Multi-Agent Architecture & Conversation Management
+- **Prompt Management System**: Layered transparency strategy (80%/15%/5%), version control, Monaco Editor integration
+- **Multi-Agent System**: Community edition unlocked! Explore/Review/TaskBreakdown/ProposalGenerator/Refactor Agents
+- **Tool System**: 10+ core tools (file operations, search, Shell commands, TodoWrite), three-level permission grading
+- **Conversation Management**: Session notes auto-extraction (60+ keywords), Token statistics & threshold detection (100k), auto-summary & smart compression (88.6% Token reduction)
+- **CLI Interactive Tool**: `ifai` command-line tool, multi-Provider support, command history
+- **Mature Harness Milestone**: Completion of conversation management marks IfAI as a fully functional AI Native Harness
 
 ### 🌟 v0.3.12 Highlights: Event-Driven Architecture & Streaming Order
-- **ChatEventBus Architecture**: Global event bus decoupling for messaging, streaming, and persistence, ensuring transaction-level consistency.
-- **ContentSegmentManager (Industry First)**: Resolving the "interleaved out-of-order" dilemma in LLM streaming responses via physical segment management.
-- **Industrial Persistence**: Full storage migration to IndexedDB with 200ms throttled persistence and automatic session self-healing.
-- **DebuggerAgent v0.5.0**: Intent-driven autonomous debugging loop with full PIVO 3.0 authorization support.
+- **ChatEventBus Architecture**: Global event bus decoupling for messaging, streaming, and persistence
+- **ContentSegmentManager (Industry First)**: Resolving streaming response ordering issues
+- **Industrial Persistence**: Full IndexedDB migration with automatic session self-healing
 
 ### 🌟 v0.3.9 Highlights: Physical Fidelity & Cognitive Upgrade
-- **Symbol-First Probing Engine**: New "skeleton-first" cognition mode, resolving context overflow for 10KB+ files via millisecond-level physical structure analysis.
-- **Physical Fidelity Reinforcement**: Full storage migration to IndexedDB (bye-bye 5MB LocalStorage limit); fixed large JSON rendering fidelity.
-- **NVIDIA NIM Deep Integration**: Rust-based URL auto-calibration for industrial-grade inference protocols, resolving 404 configuration pitfalls.
-- **Precise Token Metering**: Dynamic physical metrics based on actual character length, ensuring 100% trustworthy usage statistics.
+- **Symbol-First Probing Engine**: Millisecond-level physical structure analysis for large files
+- **Physical Fidelity Reinforcement**: Full IndexedDB storage migration (bye-bye 5MB LocalStorage limit)
+- **NVIDIA NIM Deep Integration**: Rust-based URL auto-calibration for industrial inference protocols
 
 ### 🌟 v0.3.6 Highlights: UI Refactor, PIVO 2.0 & Structured Workflow
-- **Industrial UI Refactor**: Introducing the Model Capsule panel and enhanced multi-threading management for a professional coding environment.
-- **PIVO 2.0 Engine**: A risk-aware instruction engine supporting executor decoupling, asynchronous previews, and concurrent batch processing.
-- **Structured Workflow**: Tool results are directly consumed as PivoProjectTree graphical nodes, achieving symbol-level precise context injection.
-- **NVIDIA GLM-5 Support**: Deep adaptation for NIM platform reasoning models and thinking protocols.
- - AI Code Editor
+- **Industrial UI Refactor**: Model Capsule panel and enhanced multi-threading management
+- **PIVO 2.0 Engine**: Risk-aware instruction engine with asynchronous previews
+- **Structured Workflow**: Tool results consumed as PivoProjectTree graphical nodes
 
 <div align="center">
 
-**A Cross-Platform AI Code Editor Built with Tauri 2.0**
+**A Mature AI Native Harness — Empowering Autonomous Agents**
+
+Built with Tauri 2.0 + React 19
 
 [简体中文](./README.md) | English
 
 [![Downloads](https://img.shields.io/github/downloads/peterfei/ifai/total.svg)](https://github.com/peterfei/ifai/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-blue)](https://tauri.app/)
+[![AI Native](https://img.shields.io/badge/AI-Native-green)](https://ai-native.dev)
+[![Harness Ready](https://img.shields.io/badge/Harness-Mature-brightgreen)](https://github.com/peterfei/ifai#harness-capabilities)
 [![React](https://img.shields.io/badge/React-19-61dafb)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)](https://www.typescriptlang.org/)
 [![Rust](https://img.shields.io/badge/Rust-Latest-orange)](https://www.rust-lang.org/)
@@ -42,12 +50,24 @@
 
 ## 📖 Introduction
 
-**IfAI (若爱)** is a modern cross-platform code editor that perfectly integrates powerful AI assistance with traditional code editing. The name "若爱" (IfAI) means "if there is love, code will be warm" - we believe AI should be the most caring programming companion for developers.
+**IfAI (若爱)** is a mature AI Native Harness that empowers autonomous agents with complete runtime environment. With v0.4.0, IfAI achieves full core capability coverage including tool execution, multi-agent collaboration, prompt management, conversation management, and persistence. The name "若爱" (IfAI) means "if there is love, code will be warm" — we believe AI should be the most caring programming companion for developers.
+
+### 🎖️ Mature Harness Capabilities
+
+As a mature AI Native Harness, IfAI provides:
+
+- **Complete Tool Execution System**: 10+ core tools with standardized interfaces, three-level permission grading, and automatic path resolution
+- **Multi-Agent Collaboration**: 5 core agents (Explore, Review, TaskBreakdown, ProposalGenerator, Refactor) with collaboration mechanisms and DAG visualization
+- **Prompt Management System**: Layered transparency strategy, version control with Git integration, Monaco Editor integration
+- **Conversation Management**: Auto-summarization, smart compression (88.6% Token reduction), session notes auto-extraction
+- **Production-Ready Persistence**: IndexedDB storage with transaction-level consistency and automatic repair
 
 ### 📈 Project Status
 
-- **🎉 v0.3.2 Performance Patch** - Jan 21, 2026 (Windows CPU Optimization, Rendering Engine Upgrade, Smart Debounce)
-- **🎉 v0.3.1 Stability & Zhipu Integration** - Jan 20, 2026 (Zhipu AI Native Support, Agent Architecture Refactor, Bash Tool, Resource Limits, Timeline UI)
+- **✅ v0.4.0** - Apr 08, 2026 (Prompt Ecosystem, Multi-Agent Architecture & Conversation Management — Mature Harness)
+- **✅ v0.3.12** - Event-Driven Architecture & Streaming Order
+- **✅ v0.3.9** - Physical Fidelity & Cognitive Upgrade
+- **✅ v0.3.6** - UI Refactor, PIVO 2.0 & Structured Workflow
 - **🎉 v0.3.0 Multimodal Vision Upgrade** - Jan 14, 2026 (Vision LLM, Hybrid Scheduling, Code Navigation, Onboarding Tour)
 - **🎉 v0.2.9 Agent Intelligence** - Jan 12, 2026 (Smart Terminal Loop, Inline Editing Experience, AI Code Review)
 - **🎉 v0.2.8 Industrial Evolution** - Jan 10, 2026 (Composer 2.0, RAG Symbol-Aware, Command Palette)

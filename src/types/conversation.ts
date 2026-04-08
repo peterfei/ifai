@@ -127,7 +127,7 @@ export interface SessionNotesData {
  * 对话总结配置
  */
 export interface SummaryConfig {
-  token_threshold?: number; // 默认 150k
+  token_threshold?: number; // 默认 100k
   message_threshold?: number; // 默认 100
   keep_last_n?: number; // 压缩时保留的消息数，默认 10
 }
