@@ -5,7 +5,11 @@
 //! cargo run --bin workflow_runner -- workflows/default-code-review.yml
 //! ```
 
-use ifai::agent_system::workflow::*;
+// 🔥 修复：使用正确的库名称 ifainew_lib
+use ifainew_lib::agent_system::workflow::types::{Workflow, AgentType};
+use ifainew_lib::agent_system::workflow::parser::WorkflowParser;
+use ifainew_lib::agent_system::workflow::scheduler::{WorkflowScheduler, Schedule};
+use ifainew_lib::agent_system::workflow::runner::{WorkflowRunner, WorkflowResult, NodeStatus};
 use std::env;
 use std::process;
 use tokio::runtime::Runtime;
@@ -79,24 +83,21 @@ fn print_result(result: &WorkflowResult) {
     println!("═══════════════════════════════════════════════════");
     println!("  状态: {:?}", result.status);
 
-    if let Some(started) = result.started_at {
-        println!("  开始时间: {}", chrono::DateTime::<chrono::Utc>::from_timestamp(started, 0).unwrap().format("%Y-%m-%d %H:%M:%S"));
-    }
+    // 🔥 修复：started_at 是 i64 类型，不是 Option<i64>
+    println!("  开始时间: {}", chrono::DateTime::<chrono::Utc>::from_timestamp(result.started_at, 0).unwrap().format("%Y-%m-%d %H:%M:%S"));
 
     if let Some(completed) = result.completed_at {
         println!("  结束时间: {}", chrono::DateTime::<chrono::Utc>::from_timestamp(completed, 0).unwrap().format("%Y-%m-%d %H:%M:%S"));
 
-        if let Some(started) = result.started_at {
-            let duration = completed - started;
-            println!("  执行时长: {} 秒", duration / 1000);
-        }
+        let duration = completed - result.started_at;
+        println!("  执行时长: {} 秒", duration / 1000);
     }
 
     println!("\n  节点结果:");
     for (node_id, node_result) in &result.node_results {
         let status_icon = match node_result.status {
             NodeStatus::Completed => "✅",
-            NodeStatus::Failed => "❌",
+            NodeStatus::Failed(_) => "❌",  // 🔥 修复：Failed 是元组变体
             NodeStatus::Running => "🔄",
             NodeStatus::Pending => "⏳",
             NodeStatus::Skipped => "⏭️",

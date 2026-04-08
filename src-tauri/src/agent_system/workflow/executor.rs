@@ -5,14 +5,16 @@
 use super::types::{WorkflowNode, AgentType};
 use super::runner::NodeResult;
 use crate::agent_system::base::{Agent, AgentContext};
+use crate::core_traits::ai::{Message, Content};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use anyhow::Result;
+use crate::ai_utils;  // 🔥 添加 AI 工具导入
 
 /// 创建默认的 AI 提供商配置
 #[cfg(feature = "commercial")]
-fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
+pub(crate) fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
     crate::core_traits::ai::AIProviderConfig {
         id: String::new(),
         name: String::new(),
@@ -26,7 +28,7 @@ fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
 
 /// 创建默认的 AI 提供商配置（community 版本）
 #[cfg(not(feature = "commercial"))]
-fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
+pub(crate) fn default_provider_config() -> crate::core_traits::ai::AIProviderConfig {
     crate::core_traits::ai::AIProviderConfig {
         id: String::new(),
         name: String::new(),
@@ -108,6 +110,9 @@ impl NodeExecutionContext {
         let mut variables = self.workflow_variables.clone();
         variables.extend(self.inputs.clone());
 
+        // 🔥 从工作流变量中获取 current_model
+        let current_model = self.workflow_variables.get("current_model").cloned();
+
         AgentContext {
             project_root: self.project_root.clone(),
             task_description: self.get_full_task_description(),
@@ -115,6 +120,7 @@ impl NodeExecutionContext {
             variables,
             provider_config: self.provider_config.clone()
                 .unwrap_or_else(|| default_provider_config()),
+            current_model,  // 🔥 使用用户选择的模型
         }
     }
 }
@@ -198,6 +204,9 @@ impl NodeExecutor for AgentNodeExecutor {
         };
 
         // 创建 AgentContext
+        // 🔥 从工作流变量中获取 current_model
+        let current_model = ctx.workflow_variables.get("current_model").cloned();
+
         let agent_ctx = AgentContext {
             project_root: ctx.project_root.clone(),
             task_description: full_description,
@@ -205,12 +214,11 @@ impl NodeExecutor for AgentNodeExecutor {
             variables: ctx.workflow_variables.clone(),
             provider_config: ctx.provider_config.clone()
                 .unwrap_or_else(|| default_provider_config()),
+            current_model,  // 🔥 使用用户选择的模型
         };
 
-        // 执行智能体
-        // TODO: 这里需要实际的智能体实现
-        // 暂时返回模拟结果
-        let output = Self::execute_agent_simulation(node, &agent_ctx).await?;
+        // 🔥 执行真实的智能体调用
+        let output = Self::execute_agent_real(node, &agent_ctx).await?;
 
         let end_time = chrono::Utc::now().timestamp_millis();
 
@@ -258,61 +266,249 @@ impl AgentNodeExecutor {
         desc
     }
 
-    /// 模拟智能体执行（临时实现）
-    async fn execute_agent_simulation(
+    /// 🔥 真实的智能体执行实现（带工具调用循环）
+    async fn execute_agent_real(
         node: &WorkflowNode,
         ctx: &AgentContext,
     ) -> Result<String> {
-        // 模拟执行时间
-        let duration = std::time::Duration::from_millis(match node.agent_type {
-            AgentType::Explore => 100,
-            AgentType::Review => 50,
-            AgentType::Refactor => 150,
-            AgentType::Test => 200,
-            AgentType::Doc => 80,
-            AgentType::TaskBreakdown => 120,
-            AgentType::ProposalGenerator => 180,
-            AgentType::GeneralPurpose => 100,
-        });
+        println!("[WorkflowExecutor] 🤖 Executing real agent: {:?}", node.agent_type);
+        println!("[WorkflowExecutor] 📁 Project root: {}", ctx.project_root);
+        println!("[WorkflowExecutor] 📝 Task: {}", ctx.task_description);
+        println!("[WorkflowExecutor] 🤖 Current model from context: {:?}", ctx.current_model);
+        println!("[WorkflowExecutor] 🔧 Provider models: {:?}", ctx.provider_config.models);
 
-        tokio::time::sleep(duration).await;
+        // 构建系统提示词（根据不同的智能体类型）
+        let system_prompt = Self::build_system_prompt(node, ctx);
 
-        // 返回模拟输出
-        let output = match node.agent_type {
-            AgentType::Explore => format!(
-                "探索结果: 分析了项目结构，发现 {} 个关键文件",
-                10
-            ),
-            AgentType::Review => format!(
-                "审查结果: 代码质量良好，发现 {} 个改进建议",
-                3
-            ),
-            AgentType::Refactor => format!(
-                "重构结果: 优化了 {} 处代码，提升了可读性",
-                5
-            ),
-            AgentType::Test => format!(
-                "测试结果: 运行了 {} 个测试用例，全部通过",
-                15
-            ),
-            AgentType::Doc => format!(
-                "文档生成: 生成了 {} 页文档，包含 API 参考",
-                8
-            ),
-            AgentType::TaskBreakdown => format!(
-                "任务分解: 将任务分解为 {} 个子任务",
-                6
-            ),
-            AgentType::ProposalGenerator => format!(
-                "提案生成: 生成了包含 {} 个阶段的实施提案",
-                4
-            ),
-            AgentType::GeneralPurpose => format!(
-                "通用处理: 完成了任务处理，输出结果"
-            ),
+        // 构建用户消息
+        let user_message = ctx.task_description.clone();
+
+        println!("[WorkflowExecutor] 📡 Starting tool-enabled AI call...");
+        println!("[WorkflowExecutor] 📊 System prompt length: {} chars", system_prompt.len());
+        println!("[WorkflowExecutor] 📊 User message length: {} chars", user_message.len());
+
+        let start_time = std::time::Instant::now();
+
+        // 🔥 关键修复：使用用户选择的模型
+        let mut provider_config = ctx.provider_config.clone();
+
+        // 如果用户指定了模型，优先使用它
+        if let Some(ref model) = ctx.current_model {
+            println!("[WorkflowExecutor] 🎯 Using user-selected model: {}", model);
+            // 将用户选择的模型放到数组第一位
+            let mut models = provider_config.models.clone();
+            models.retain(|m| m != model); // 移除重复的
+            models.insert(0, model.clone()); // 插入到第一位
+            provider_config.models = models;
+        } else {
+            println!("[WorkflowExecutor] 📋 Using default model from config: {:?}",
+                provider_config.models.first());
+        }
+
+        // 🔥 使用工具调用循环（参考 claw-code 的 ConversationRuntime）
+        let tool_executor = super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
+        let tool_config = super::tool_loop::ToolLoopConfig::default();
+
+        let response_text = super::tool_loop::execute_with_tools(
+            provider_config,
+            system_prompt,
+            user_message,
+            &tool_executor,
+            tool_config,
+        ).await.map_err(|e| {
+            let elapsed = start_time.elapsed();
+            println!("[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}", elapsed, e);
+            anyhow::anyhow!("AI call failed: {}", e)
+        })?;
+
+        let elapsed = start_time.elapsed();
+        println!("[WorkflowExecutor] ✅ Tool-enabled AI response received successfully (took {:?})", elapsed);
+        println!("[WorkflowExecutor] ✅ Text response: {} chars", response_text.len());
+        println!("[WorkflowExecutor] 📝 Response preview: {}...", response_text.chars().take(100).collect::<String>());
+
+        println!("[WorkflowExecutor] ✅ Returning output to runner (total: {:?})", start_time.elapsed());
+        Ok(response_text)
+    }
+
+    /// 构建系统提示词
+    fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
+        let base_prompt = match node.agent_type {
+            AgentType::Explore => {
+                format!(r#"你是一个专业的代码探索智能体。你有工具可以访问实际文件系统。
+
+**项目信息**：
+- 项目根目录：{}
+- 要扫描的路径：{}
+
+**可用工具**：
+1. `agent_scan_project(rel_path, max_depth)` - 深度扫描项目结构（推荐首先使用）
+   - rel_path: 要扫描的相对路径
+   - max_depth: 最大扫描深度（可选，默认3）
+2. `agent_list_dir(rel_path)` - 列出目录内容
+   - rel_path: 要列出的相对路径
+3. `agent_read_file(rel_path)` - 读取具体文件内容
+   - rel_path: 要读取的文件相对路径
+
+**重要提示**：
+- 请使用 agent_scan_project 扫描路径："{}"
+- 所有工具的 rel_path 参数都是相对于项目根目录的
+
+**你的任务**：
+1. 首先使用 `agent_scan_project` 扫描指定的路径
+2. 识别关键文件和目录
+3. 使用 `agent_read_file` 查看重要文件的内容
+4. 分析项目的技术栈、架构和组织方式
+5. 提供清晰、结构化的发现报告
+
+**输出格式**：
+- 📊 **项目概述**
+- 📁 **目录结构**
+- 🔑 **关键文件分析**
+- 🛠️ **技术栈识别**
+- 🏗️ **架构总结**
+- 💡 **建议**
+
+请使用工具获取真实信息，不要"模拟"或"推测"。"#,
+                    ctx.project_root,
+                    ctx.task_description,
+                    ctx.task_description
+                )
+            }
+            AgentType::Review => {
+                format!(r#"你是一个专业的代码审查智能体。
+
+**项目信息**：
+- 项目根目录：{}
+- 审查目标：{}
+
+你的任务是：
+1. **提供审查建议**：基于项目类型，提供针对性的代码审查清单和建议
+2. **常见问题检查**：列出该类型项目常见的代码问题和注意事项
+3. **最佳实践**：建议适用的编码标准和最佳实践
+4. **安全性检查**：提醒应该注意的安全问题
+5. **性能优化**：建议性能优化的方向
+
+输出格式：
+- ✅ **应该优先检查的文件/模块**
+- ⚠️ **需要特别注意的问题**
+- 💡 **改进建议**
+- 🔒 **安全注意事项**
+
+注意：提供针对该项目的实用审查指南，而不是"模拟"审查过程。"#,
+                    ctx.project_root,
+                    ctx.task_description
+                )
+            }
+            AgentType::Refactor => {
+                format!(r#"你是一个专业的代码重构顾问。
+
+**项目信息**：
+- 项目根目录：{}
+- 重构目标：{}
+
+你的任务是：
+1. **重构建议**：基于项目类型，提供针对性的重构建议和方向
+2. **架构优化**：建议如何改进代码组织和模块化
+3. **代码质量提升**：提供提高代码可读性和可维护性的具体建议
+4. **性能优化**：建议性能优化的机会和方法
+5. **技术债务**：提醒可能存在的技术债务及解决方案
+
+输出格式：
+- 🏗️ **架构优化建议**
+- 📦 **模块化改进方案**
+- ⚡ **性能优化机会**
+- 🧹 **代码清理建议**
+- 📋 **重构优先级清单**
+
+注意：提供实用的重构指南和最佳实践，而不是"模拟"重构过程。"#,
+                    ctx.project_root,
+                    ctx.task_description
+                )
+            }
+            AgentType::Test => {
+                r#"你是一个专业的测试智能体。你的任务是：
+
+1. 分析测试覆盖率和测试策略
+2. 识别未测试的关键功能
+3. 提供测试用例建议
+4. 改进现有测试的质量
+
+请关注：
+- 单元测试
+- 集成测试
+- 边界条件测试
+- 错误处理测试
+
+请输出测试建议和示例测试代码。"#.to_string()
+            }
+            AgentType::Doc => {
+                r#"你是一个专业的文档生成智能体。你的任务是：
+
+1. 分析代码并生成清晰的文档
+2. 编写 API 文档和使用说明
+3. 创建代码示例和教程
+4. 改善现有文档的质量
+
+请确保文档：
+- 准确且完整
+- 易于理解
+- 包含实用示例
+- 遵循文档最佳实践
+
+请输出结构化的文档内容。"#.to_string()
+            }
+            AgentType::TaskBreakdown => {
+                r#"你是一个专业的任务分解智能体。你的任务是：
+
+1. 将复杂任务分解为可管理的子任务
+2. 定义任务的依赖关系
+3. 估算任务的复杂度和工作量
+4. 提供任务执行的优先级建议
+
+请确保任务分解：
+- 具体且可执行
+- 逻辑清晰
+- 依赖关系明确
+- 考虑了风险和不确定性
+
+请输出结构化的任务列表和执行计划。"#.to_string()
+            }
+            AgentType::ProposalGenerator => {
+                r#"你是一个专业的提案生成智能体。你的任务是：
+
+1. 分析需求并生成技术提案
+2. 设计实施方案和架构
+3. 评估风险和资源需求
+4. 提供时间表和里程碑
+
+请确保提案：
+- 全面且可行
+- 考虑了技术选型
+- 包含风险评估
+- 有清晰的交付物
+
+请输出结构化的技术提案。"#.to_string()
+            }
+            AgentType::GeneralPurpose => {
+                r#"你是一个专业的通用智能体。你的任务是：
+
+1. 理解用户的需求
+2. 提供准确、有用的信息
+3. 帮助解决问题
+4. 给出切实可行的建议
+
+请使用清晰、友好的语言，提供高质量的回应。"#.to_string()
+            }
         };
 
-        Ok(output)
+        // 添加项目上下文
+        let full_prompt = format!(
+            "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n请基于以上信息完成任务。",
+            base_prompt,
+            ctx.project_root
+        );
+
+        full_prompt
     }
 }
 

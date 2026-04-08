@@ -7,15 +7,20 @@
  */
 
 import { BasePayload, chatEventBus } from '../eventBus/ChatEventBus';
+import { workflowIntentHandler } from './WorkflowIntentHandler';
 
 export interface IntentResult {
-  type: 'chat' | 'agent' | 'slash' | 'local';
+  type: 'chat' | 'agent' | 'slash' | 'local' | 'workflow';
   category?: string;
   confidence: number;
   metadata?: any;
+  shouldSkipChat?: boolean; // P4: 是否跳过后续聊天流程
 }
 
 const SUPPORTED_SLASH_COMMANDS = ['/explore', '/review', '/test', '/doc', '/refactor'];
+
+// P4: 工作流斜杠命令
+const WORKFLOW_SLASH_COMMANDS = ['/workflow', '/wf', '/code-review', '/exploration', '/quality-check'];
 
 export class IntentHandler {
   /**
@@ -24,11 +29,78 @@ export class IntentHandler {
   async recognize(content: string, payload: BasePayload): Promise<IntentResult> {
     const textInput = content.trim();
 
+    // P4: 0. 工作流命令优先检测（自然语言 + 斜杠）
+    const workflowIntent = workflowIntentHandler.recognizeWorkflowIntent(textInput);
+    console.log('[IntentHandler] Workflow intent check:', {
+      input: textInput,
+      isWorkflow: workflowIntent.isWorkflow,
+      confidence: workflowIntent.confidence,
+      workflowType: workflowIntent.workflowType,
+    });
+
+    if (workflowIntent.isWorkflow && workflowIntent.confidence >= 0.6) {
+      console.log('[IntentHandler] ✅ Workflow intent detected, executing...');
+
+      // 自动执行工作流（同步执行）
+      let workflowId: string | undefined;
+      if (workflowIntent.workflowType) {
+        try {
+          console.log('[IntentHandler] 🚀 Executing workflow:', workflowIntent.workflowType);
+
+          workflowId = await workflowIntentHandler.executeWorkflow(
+            workflowIntent.workflowType,
+            workflowIntent.targetPath || '.',  // 🔥 修复：默认使用当前目录
+            payload
+          );
+
+          console.log('[IntentHandler] ✅ Workflow executed successfully:', workflowId);
+        } catch (error) {
+          console.error('[IntentHandler] ❌ Workflow execution failed:', error);
+
+          // 发布工作流错误事件
+          chatEventBus.emit('workflow:error', {
+            ...payload,
+            error: error instanceof Error ? error.message : '未知错误',
+            timestamp: Date.now(),
+          });
+
+          // 即使失败也返回结果，让流程继续
+          return {
+            type: 'chat',
+            confidence: 0,
+          };
+        }
+      }
+
+      const result: IntentResult = {
+        type: 'workflow',
+        category: workflowIntent.workflowType,
+        confidence: workflowIntent.confidence,
+        shouldSkipChat: true, // P4: 标记为跳过后续聊天流程
+        metadata: {
+          workflowType: workflowIntent.workflowType,
+          targetPath: workflowIntent.targetPath,
+          response: workflowIntent.response,
+          workflowId,
+        }
+      };
+
+      console.log('[IntentHandler] 📤 Workflow result prepared:', {
+        response: result.metadata?.response?.substring(0, 100),
+        workflowId,
+        hasResponse: !!result.metadata?.response,
+      });
+
+      this.emitIntent(result, payload);
+
+      return result;
+    }
+
     // 1. 斜杠命令拦截 (优先)
     if (textInput.startsWith('/')) {
       const parts = textInput.split(' ');
       const command = parts[0].toLowerCase();
-      
+
       if (SUPPORTED_SLASH_COMMANDS.includes(command)) {
         const result: IntentResult = {
           type: 'slash',
@@ -36,7 +108,7 @@ export class IntentHandler {
           confidence: 1.0,
           metadata: { command, args: parts.slice(1) }
         };
-        
+
         this.emitIntent(result, payload);
         return result;
       }

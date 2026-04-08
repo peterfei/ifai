@@ -23,6 +23,8 @@ const RefactoringPreviewPanel = React.lazy(() => import('./components/Refactorin
 const TodoWritePanel = React.lazy(() => import('./components/TodoWrite').then(m => ({ default: m.TodoWritePanel })));
 // P3: 工具浏览器
 const ToolExplorerPanel = React.lazy(() => import('./components/ToolExplorer').then(m => ({ default: m.ToolExplorerPanel })));
+// P4: 多智能体工作流
+const WorkflowsPage = React.lazy(() => import('./pages/workflows').then(m => ({ default: m.WorkflowsPage })));
 
 import { Titlebar } from './components/Layout/Titlebar';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -138,6 +140,8 @@ function App() {
     isPromptManagerOpen,
     isToolExplorerOpen, // P3: 工具浏览器
     toggleToolExplorer, // P3: 工具浏览器
+    isWorkflowsOpen, // P4: 多智能体工作流
+    toggleWorkflows, // P4: 多智能体工作流
     // v0.2.6 新增：侧边栏状态
     isSidebarOpen,
     toggleSidebar,
@@ -785,6 +789,30 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isToolExplorerOpen, toggleToolExplorer]);
 
+  // P4: 监听 URL 变化，支持 /workflows 路由
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/workflows' && !isWorkflowsOpen) {
+        toggleWorkflows();
+      } else if (path === '/' && isWorkflowsOpen) {
+        const isE2E = (window as any).__E2E__;
+        if (!isE2E) {
+          toggleWorkflows();
+        }
+      }
+    };
+
+    // 初始检查
+    const path = window.location.pathname;
+    if (path === '/workflows' && !isWorkflowsOpen) {
+      toggleWorkflows();
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isWorkflowsOpen, toggleWorkflows]);
+
   useEffect(() => {
     (window as any).__APP_READY__ = true;
     console.log('[App] 🏁 Ready signal emitted for E2E tests');
@@ -908,6 +936,10 @@ function App() {
             ) : isToolExplorerOpen ? (
               <Suspense fallback={<ModalSkeleton />}>
                 <ToolExplorerPanel />
+              </Suspense>
+            ) : isWorkflowsOpen ? (
+              <Suspense fallback={<ModalSkeleton />}>
+                <WorkflowsPage />
               </Suspense>
             ) : (
               <SplitPaneContainer className="split-pane-container" />

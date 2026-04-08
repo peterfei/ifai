@@ -19,6 +19,7 @@ export interface LayoutState {
   isCommandBarOpen: boolean; // v0.2.7 新增：底部命令行
   isPromptManagerOpen: boolean;
   isToolExplorerOpen: boolean; // P3: 工具浏览器
+  isWorkflowsOpen: boolean; // P4: 多智能体工作流
   chatWidth: number;
 
   // v0.2.6 新增：侧边栏状态
@@ -43,6 +44,8 @@ export interface LayoutState {
   togglePromptManager: () => void;
   setToolExplorerOpen: (isOpen: boolean) => void; // P3: 工具浏览器
   toggleToolExplorer: () => void; // P3: 工具浏览器
+  setWorkflowsOpen: (isOpen: boolean) => void; // P4: 多智能体工作流
+  toggleWorkflows: () => void; // P4: 多智能体工作流
   setCommandPaletteOpen: (isOpen: boolean) => void;
   toggleCommandPalette: () => void;
   setTerminalOpen: (isOpen: boolean) => void;
@@ -106,6 +109,7 @@ export const useLayoutStore = create<LayoutState>()(
       isCommandBarOpen: false,
       isPromptManagerOpen: false,
       isToolExplorerOpen: false, // P3: 工具浏览器
+      isWorkflowsOpen: false, // P4: 多智能体工作流
       chatWidth: 384,
 
       // v0.2.6 新增：侧边栏初始状态
@@ -153,6 +157,8 @@ export const useLayoutStore = create<LayoutState>()(
         console.log('[LayoutStore] Current isToolExplorerOpen after setToolExplorerOpen:', get().isToolExplorerOpen);
       }, // P3: 工具浏览器
       toggleToolExplorer: () => set((state) => ({ isToolExplorerOpen: !state.isToolExplorerOpen })), // P3: 工具浏览器
+      setWorkflowsOpen: (isOpen) => set({ isWorkflowsOpen: isOpen }), // P4: 多智能体工作流
+      toggleWorkflows: () => set((state) => ({ isWorkflowsOpen: !state.isWorkflowsOpen })), // P4: 多智能体工作流
       setCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
       setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -407,7 +413,7 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: 'layout-storage',
-      version: 2, // P3: 版本升级以支持 isToolExplorerOpen
+      version: 3, // P4: 版本升级以支持 isWorkflowsOpen
       partialize: (state) => ({
         panes: state.panes,
         activePaneId: state.activePaneId,
@@ -422,6 +428,8 @@ export const useLayoutStore = create<LayoutState>()(
         layoutMode: state.layoutMode,
         // P3: 持久化工具浏览器状态
         isToolExplorerOpen: state.isToolExplorerOpen,
+        // P4: 持久化多智能体工作流状态
+        isWorkflowsOpen: state.isWorkflowsOpen,
         editorMode: state.editorMode,
       }),
 
@@ -440,11 +448,20 @@ export const useLayoutStore = create<LayoutState>()(
             isToolExplorerOpen: false, // 新字段的默认值
           };
         }
+        if (version === 2) {
+          // P4: 从版本 2 迁移到版本 3，添加 isWorkflowsOpen
+          console.log(`[LayoutStore] Migrating from version ${version} to 3, adding isWorkflowsOpen`);
+          return {
+            ...persistedState,
+            isWorkflowsOpen: false, // 新字段的默认值
+          };
+        }
         // 版本 0 或其他版本
-        console.log(`[LayoutStore] Migrating from version ${version} to 2`);
+        console.log(`[LayoutStore] Migrating from version ${version} to 3`);
         return {
           ...persistedState,
           isToolExplorerOpen: false,
+          isWorkflowsOpen: false,
         };
       },
     }

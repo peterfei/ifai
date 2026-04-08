@@ -13,7 +13,7 @@ mod terminal;
 mod git;
 mod lsp;
 mod prompt_manager;
-mod agent_system;
+pub mod agent_system; // 🔥 公开 agent_system 供 CLI 使用
 mod conversation;
 mod ai_utils;
 mod file_cache;

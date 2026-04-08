@@ -832,9 +832,10 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     }, [toggleBlock, processScanResult]);
     // 统一渲染逻辑 (v0.4.1: 去分支化重构，杜绝 Hook 冲突)
     return (
-        <div 
-            className={`${styles.messageContainer} ${isUser ? styles.user : styles.assistant} group`} 
+        <div
+            className={`${styles.messageContainer} ${isUser ? styles.user : styles.assistant} group`}
             data-testid={`message-${message.id}`}
+            data-role={message.role} // 🔥 FIX: 添加 role 属性用于 E2E 测试
         >
             <div className={`flex items-start gap-3 w-full ${!shouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
                 {/* A. 头像区 - 始终显示 */}

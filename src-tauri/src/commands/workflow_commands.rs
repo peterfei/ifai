@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tauri::Emitter;  // 🔥 添加 Emitter trait 以使用 emit 方法
 
 /// 工作流执行状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,24 +123,39 @@ pub async fn get_workflow_schedule(workflow: Workflow) -> Result<ScheduleInfo, S
 #[tauri::command]
 pub async fn execute_workflow(
     workflow: Workflow,
-    _window: tauri::Window,
+    window: tauri::Window,
 ) -> Result<String, String> {
     let workflow_id = workflow.id.clone();
 
+    println!("[Workflow] 🎬 execute_workflow called");
+    println!("[Workflow] 🆔 ID: {}", workflow_id);
+    println!("[Workflow] 📋 Name: {}", workflow.name);
+    println!("[Workflow] 📄 Nodes: {:?}", workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
+    println!("[Workflow] 🔗 Edges: {:?}", workflow.edges.iter().map(|e| (e.from.clone(), e.to.clone())).collect::<Vec<_>>());
+
     // 创建运行器
     let runner = WorkflowRunner::with_default_config(workflow)
-        .map_err(|e| format!("创建运行器失败: {}", e))?;
+        .map_err(|e| {
+            let error = format!("创建运行器失败: {}", e);
+            println!("[Workflow] ❌ {}", error);
+            error
+        })?;
+
+    println!("[Workflow] ✅ WorkflowRunner created");
 
     // 注册工作流
     {
         let manager = get_workflow_manager();
         let mut manager = manager.lock().await;
         manager.start_workflow(workflow_id.clone(), runner)?;
+        println!("[Workflow] ✅ Workflow registered in manager");
     }
 
     // 在后台执行
     let workflow_id_clone = workflow_id.clone();
     tokio::spawn(async move {
+        println!("[Workflow] 🔄 Starting background execution for {}", workflow_id_clone);
+
         let manager = get_workflow_manager();
         if let Some(runner_arc) = {
             let mgr = manager.lock().await;
@@ -147,22 +163,61 @@ pub async fn execute_workflow(
         } {
             let mut runner = runner_arc.lock().await;
             match runner.run().await {
-                Ok(_result) => {
-                    // TODO: 发送完成事件（需要使用 AppHandle）
+                Ok(result) => {
+                    println!("[Workflow] ✅ Workflow {} completed successfully", workflow_id_clone);
+                    println!("[Workflow] 📊 Status: {:?}", result.status);
+                    println!("[Workflow] 📄 Nodes completed: {}", result.node_results.len());
+
+                    // 打印每个节点的结果摘要
+                    for (node_id, node_result) in &result.node_results {
+                        println!("[Workflow] 🔍 Node {}: status={:?}", node_id, node_result.status);
+                        if let Some(output) = &node_result.output {
+                            println!("[Workflow] 📝 Node {} output: {} chars", node_id, output.len());
+                        }
+                        if let Some(error) = &node_result.error {
+                            println!("[Workflow] ❌ Node {} error: {}", node_id, error);
+                        }
+                    }
+
+                    // 🔥 发送完成事件到前端
+                    println!("[Workflow] 📤 Emitting workflow:completed event to frontend...");
+                    if let Err(e) = window.emit("workflow:completed", &result) {
+                        println!("[Workflow] ⚠️ Failed to emit completion event: {}", e);
+                    } else {
+                        println!("[Workflow] ✅ Successfully sent workflow:completed event");
+                    }
+
                     // 清理
                     let mut manager = manager.lock().await;
                     manager.remove_workflow(&workflow_id_clone);
                 }
-                Err(_e) => {
-                    // TODO: 发送错误事件（需要使用 AppHandle）
+                Err(e) => {
+                    println!("[Workflow] ❌ Workflow {} failed: {}", workflow_id_clone, e);
+                    println!("[Workflow] ❌ Error details: {:?}", e);
+
+                    // 🔥 发送错误事件到前端
+                    let error_payload = serde_json::json!({
+                        "workflow_id": workflow_id_clone,
+                        "error": e.to_string()
+                    });
+                    println!("[Workflow] 📤 Emitting workflow:error event to frontend...");
+                    if let Err(err) = window.emit("workflow:error", &error_payload) {
+                        println!("[Workflow] ⚠️ Failed to emit error event: {}", err);
+                    } else {
+                        println!("[Workflow] ✅ Successfully sent workflow:error event");
+                    }
+
                     // 清理
                     let mut manager = manager.lock().await;
                     manager.remove_workflow(&workflow_id_clone);
                 }
             }
+        } else {
+            println!("[Workflow] ⚠️ Workflow {} not found in manager", workflow_id_clone);
         }
     });
 
+    println!("[Workflow] ✅ Returning workflow_id: {}", workflow_id);
     Ok(workflow_id)
 }
 
@@ -281,24 +336,67 @@ pub async fn create_custom_workflow(
 pub async fn execute_quick_workflow(
     workflow_type: String,
     target_path: String,
+    project_root: Option<String>,  // 🔥 添加 project_root 参数
+    provider_config: Option<serde_json::Value>,  // 🔥 添加 provider_config 参数
+    current_model: Option<String>,  // 🔥 添加 current_model 参数
     window: tauri::Window,
 ) -> Result<String, String> {
+    println!("[Workflow] 🚀 execute_quick_workflow called");
+    println!("[Workflow] 📋 Type: {}", workflow_type);
+    println!("[Workflow] 📁 Target path: {}", target_path);
+    println!("[Workflow] 📂 Project root: {:?}", project_root);
+    println!("[Workflow] ⚙️ Provider config: {:?}", provider_config.is_some());
+    println!("[Workflow] 🤖 Current model: {:?}", current_model);
+
     let workflow = match workflow_type.as_str() {
         "code_review" => {
+            println!("[Workflow] ✅ Creating code review workflow");
             create_quick_code_review_workflow(&target_path)
         }
         "exploration" => {
+            println!("[Workflow] ✅ Creating exploration workflow");
             create_quick_exploration_workflow(&target_path)
         }
         "quality_check" => {
+            println!("[Workflow] ✅ Creating quality check workflow");
             create_quick_quality_check_workflow(&target_path)
         }
         _ => {
-            return Err(format!("未知的工作流类型: {}", workflow_type));
+            let error = format!("未知的工作流类型: {}", workflow_type);
+            println!("[Workflow] ❌ {}", error);
+            return Err(error);
         }
     };
 
-    execute_workflow(workflow, window).await
+    println!("[Workflow] 🎯 Workflow ID: {}", workflow.id);
+    println!("[Workflow] 📝 Workflow name: {}", workflow.name);
+    println!("[Workflow] 📄 Nodes: {:?}", workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
+
+    // 🔥 将配置存储到 workflow 变量中
+    let mut workflow = workflow;
+
+    // 存储 project_root
+    if let Some(root) = project_root {
+        println!("[Workflow] ✅ Stored project_root in workflow variables: {}", root);
+        workflow.variables.insert("project_root".to_string(), root);
+    }
+
+    // 存储 provider_config
+    if let Some(config) = provider_config {
+        workflow.variables.insert("provider_config".to_string(), config.to_string());
+        println!("[Workflow] ✅ Stored provider config in workflow variables");
+    }
+
+    // 🔥 存储 current_model（用户选择的模型）
+    if let Some(model) = current_model {
+        println!("[Workflow] ✅ Stored current_model in workflow variables: {}", model);
+        workflow.variables.insert("current_model".to_string(), model);
+    }
+
+    let result = execute_workflow(workflow, window).await?;
+
+    println!("[Workflow] ✅ Workflow started successfully: {}", result);
+    Ok(result)
 }
 
 // ==================== 辅助结构 ====================

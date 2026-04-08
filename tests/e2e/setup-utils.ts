@@ -270,12 +270,13 @@ export async function setupE2ETestEnvironment(
               // 简单估算：每条消息平均 100 tokens
               const totalTokens = msgCount * 100;
               console.log(`[E2E Mock] get_token_stats: ${msgCount} messages, ${totalTokens} tokens`);
+              // 🔥 FIX: 使用蛇形命名以匹配 TokenStatsDisplay 的期望
               return Promise.resolve({
-                messageCount: msgCount,
-                totalTokens: totalTokens,
-                systemTokens: 50,
-                userTokens: Math.floor(totalTokens * 0.6),
-                assistantTokens: Math.floor(totalTokens * 0.4)
+                message_count: msgCount,
+                total_tokens: totalTokens,
+                system_tokens: 50,
+                user_tokens: Math.floor(totalTokens * 0.6),
+                assistant_tokens: Math.floor(totalTokens * 0.4)
               });
             }
 

@@ -51,6 +51,7 @@ pub async fn launch_agent(
         initial_prompt: String::new(),
         variables: HashMap::new(),
         provider_config,
+        current_model: None,  // 🔥 使用默认值（从 provider_config 中选择）
     };
 
     let supervisor_inner = supervisor.inner().clone();

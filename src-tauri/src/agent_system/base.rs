@@ -31,6 +31,7 @@ pub struct AgentContext {
     pub initial_prompt: String,
     pub variables: HashMap<String, String>,
     pub provider_config: crate::core_traits::ai::AIProviderConfig,
+    pub current_model: Option<String>,  // 🔥 用户当前选择的模型
 }
 
 #[async_trait]

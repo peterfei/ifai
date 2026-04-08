@@ -421,6 +421,239 @@ export const initStoreMapper = () => {
       useChatStore.setState(updater as any);
     });
 
+    // P4: 映射工作流响应
+    chatEventBus.on('workflow:response', (payload) => {
+      const { correlationId, response, workflowId, workflowType } = payload as any;
+
+      console.log('[StoreMapper] 🔧 workflow:response received:', {
+        correlationId,
+        workflowId,
+        workflowType,
+        response: response?.substring(0, 50),
+      });
+
+      const updater = (state: any) => {
+        // 🔥 FIX: 更新 chat:message:sent 创建的助手消息，而不是创建新的
+        // 找到 ID 为 correlationId 的助手消息（由 chat:message:sent 创建）
+        const assistantIndex = state.messages.findIndex((m: any) =>
+          m.id === correlationId && m.role === 'assistant'
+        );
+
+        if (assistantIndex === -1) {
+          // 如果找不到助手消息（不应该发生），创建一个新的
+          console.warn('[StoreMapper] ⚠️ Assistant message not found, creating new one');
+          const assistantMessage = {
+            id: correlationId,
+            role: 'assistant',
+            content: response,
+            status: 'completed',
+            timestamp: Date.now(),
+            segments: [{
+              id: `seg-workflow-${workflowId}`,
+              type: 'text' as const,
+              phase: 'pre-tool' as const,
+              content: response,
+              order: 1,
+              timestamp: Date.now(),
+            }],
+            metadata: {
+              workflowId,
+              workflowType,
+              correlationId,
+            }
+          };
+
+          return {
+            messages: [...state.messages, assistantMessage],
+            isLoading: false,
+          };
+        }
+
+        // 更新现有的助手消息
+        const newMessages = [...state.messages];
+        newMessages[assistantIndex] = {
+          ...newMessages[assistantIndex],
+          content: response,
+          status: 'completed',
+          timestamp: Date.now(),
+          segments: [{
+            id: `seg-workflow-${workflowId}`,
+            type: 'text' as const,
+            phase: 'pre-tool' as const,
+            content: response,
+            order: 1,
+            timestamp: Date.now(),
+          }],
+          metadata: {
+            workflowId,
+            workflowType,
+            correlationId,
+          }
+        };
+
+        console.log('[StoreMapper] ✅ Updated assistant message with workflow response');
+
+        return {
+          messages: newMessages,
+          isLoading: false,
+        };
+      };
+
+      useChatStore.setState(updater as any);
+    });
+
+    // P4: 映射工作流执行完成（显示实际执行结果）
+    chatEventBus.on('workflow:completed', (payload) => {
+      const { workflow_id, status, node_results, started_at, completed_at } = payload as any;
+
+      console.log('[StoreMapper] ✅ workflow:completed received:', {
+        workflow_id,
+        status,
+        nodes_count: Object.keys(node_results || {}).length,
+        node_results_keys: Object.keys(node_results || {}),
+      });
+
+      // 🔥 详细打印每个节点的结果
+      if (node_results) {
+        for (const [nodeId, nodeResult] of Object.entries(node_results)) {
+          console.log(`[StoreMapper] 🔍 Node ${nodeId}:`, {
+            status: nodeResult.status,
+            has_output: !!nodeResult.output,
+            output_length: nodeResult.output?.length || 0,
+            output_preview: nodeResult.output?.substring(0, 100),
+            has_error: !!nodeResult.error,
+          });
+        }
+      }
+
+      // 🔥 生成详细的执行结果响应
+      let responseContent = `## ✅ 工作流执行完成\n\n`;
+      responseContent += `**工作流 ID**: \`${workflow_id}\`\n`;
+      responseContent += `**状态**: ${status}\n`;
+
+      if (started_at && completed_at) {
+        const duration = ((completed_at - started_at) / 1000).toFixed(2);
+        responseContent += `**执行时长**: ${duration} 秒\n`;
+      }
+
+      responseContent += `\n### 📊 节点执行结果\n\n`;
+
+      const results = node_results || {};
+      const nodeIds = Object.keys(results);
+
+      if (nodeIds.length === 0) {
+        responseContent += `⚠️ 没有节点执行结果\n`;
+      } else {
+        for (const nodeId of nodeIds) {
+          const nodeResult = results[nodeId];
+          // 🔥 修复：后端序列化后是小写（completed, failed, skipped）
+          const statusIcon = nodeResult.status === 'completed' ? '✅' :
+                            nodeResult.status === 'failed' ? '❌' :
+                            nodeResult.status === 'skipped' ? '⏭️' : '⏳';
+
+          responseContent += `#### ${statusIcon} **${nodeId}**\n\n`;
+          responseContent += `**状态**: ${nodeResult.status}\n`;
+
+          if (nodeResult.output) {
+            responseContent += `**输出**:\n\`\`\`\n${nodeResult.output}\n\`\`\`\n\n`;
+          }
+
+          if (nodeResult.error) {
+            responseContent += `**错误**: ${nodeResult.error}\n\n`;
+          }
+        }
+      }
+
+      // 查找并更新对应的工作流消息
+      // 我们需要通过 workflow_id 找到相关消息
+      const updater = (state: any) => {
+        // 查找包含此 workflowId 的助手消息
+        const assistantIndex = state.messages.findIndex((m: any) =>
+          m.role === 'assistant' &&
+          m.metadata?.workflowId === workflow_id
+        );
+
+        if (assistantIndex === -1) {
+          // 如果找不到消息，记录警告但不创建新消息（因为应该已经有 workflow:response 创建的消息）
+          console.warn('[StoreMapper] ⚠️ Workflow message not found for completion:', workflow_id);
+          return null;
+        }
+
+        // 更新现有消息
+        const newMessages = [...state.messages];
+        newMessages[assistantIndex] = {
+          ...newMessages[assistantIndex],
+          content: responseContent,
+          status: 'completed',
+          timestamp: Date.now(),
+          segments: [{
+            id: `seg-workflow-completed-${workflow_id}`,
+            type: 'text' as const,
+            phase: 'pre-tool' as const,
+            content: responseContent,
+            order: 1,
+            timestamp: Date.now(),
+          }],
+          metadata: {
+            ...newMessages[assistantIndex].metadata,
+            completed: true,
+            completedAt: completed_at,
+          }
+        };
+
+        console.log('[StoreMapper] ✅ Updated message with workflow completion results');
+
+        return {
+          messages: newMessages,
+          isLoading: false,
+        };
+      };
+
+      const updateResult = useChatStore.setState(updater as any);
+      if (updateResult === null) {
+        console.warn('[StoreMapper] ⚠️ No update applied for workflow completion');
+      }
+    });
+
+    // P4: 映射工作流错误
+    chatEventBus.on('workflow:error', (payload) => {
+      const { correlationId, error } = payload as any;
+      const assistantId = correlationId;
+
+      console.log('[StoreMapper] ❌ workflow:error received:', {
+        correlationId,
+        error,
+      });
+
+      const errorMessage = `❌ 工作流执行失败\n\n${error}`;
+
+      const updater = (state: any) => {
+        const filtered = state.messages.filter((m: any) => m.id !== assistantId);
+        const assistantMessage = {
+          id: assistantId,
+          role: 'assistant',
+          content: errorMessage,
+          status: 'completed',
+          timestamp: Date.now(),
+          segments: [{
+            id: `seg-workflow-error-${assistantId}`,
+            type: 'text' as const,
+            phase: 'pre-tool' as const,
+            content: errorMessage,
+            order: 1,
+            timestamp: Date.now(),
+          }],
+        };
+
+        return {
+          messages: [...filtered, assistantMessage],
+          isLoading: false,
+        };
+      };
+
+      useChatStore.setState(updater as any);
+    });
+
     // 2. 映射流式 Chunk (🏆 已注销：内容更新现由 contentSegmentManager 统一管理)
     // chatEventBus.on('chat:stream:chunk', (payload) => { ... });
 

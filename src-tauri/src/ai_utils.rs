@@ -100,21 +100,128 @@ pub fn calibrate_provider_url(url: &str, provider_name: &str) -> String {
     calibrated
 }
 
+/// 🔥 清除环境变量中的代理设置，确保 API 请求直连
+fn clear_proxy_env() {
+    std::env::remove_var("HTTP_PROXY");
+    std::env::remove_var("HTTPS_PROXY");
+    std::env::remove_var("http_proxy");
+    std::env::remove_var("https_proxy");
+    std::env::remove_var("ALL_PROXY");
+    std::env::remove_var("all_proxy");
+}
+
+/// 🔥 简化版 API 调用（使用默认 Client 配置，类似 stream_chat）
+/// 这个版本用于工作流，避免了自定义配置可能导致的问题
+pub async fn fetch_ai_completion_simple(
+    config: &AIProviderConfig,
+    messages: Vec<Message>,
+) -> Result<Message, String> {
+    eprintln!("[AIUtils-Simple] 🚀 Starting simple API call (default client config)");
+
+    // 🔥 关键区别：使用默认 Client 配置，与 stream_chat 相同
+    let client = reqwest::Client::new();
+    eprintln!("[AIUtils-Simple] ✅ Client created with default config");
+
+    let calibrated_url = calibrate_provider_url(&config.base_url, &config.name);
+    eprintln!("[AIUtils-Simple] 📤 Calling URL: {}", calibrated_url);
+
+    let request_body = json!({
+        "model": config.models.get(0).unwrap_or(&"unknown".to_string()),
+        "messages": messages,
+        "stream": false
+    });
+
+    eprintln!("[AIUtils-Simple] 📦 Request size: {:.2} KB",
+        request_body.to_string().len() as f64 / 1024.0);
+
+    let start = std::time::Instant::now();
+    eprintln!("[AIUtils-Simple] ⏱️  Sending request at {:?}", start);
+
+    // 🔥 简化的请求发送（与 stream_chat 相同的方式）
+    let response = client
+        .post(&calibrated_url)
+        .header("Authorization", format!("Bearer {}", config.api_key))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| {
+            let elapsed = start.elapsed();
+            eprintln!("[AIUtils-Simple] ❌ Request failed after {:?}: {}", elapsed, e);
+            format!("Request error: {}", e)
+        })?;
+
+    let elapsed_to_response = start.elapsed();
+    eprintln!("[AIUtils-Simple] ✅ Response received after {:?}", elapsed_to_response);
+
+    let status = response.status();
+    eprintln!("[AIUtils-Simple] 📊 HTTP Status: {}", status);
+
+    if !status.is_success() {
+        let err_body = response.text().await.unwrap_or_default();
+        eprintln!("[AIUtils-Simple] ❌ API Error: {}", err_body);
+        return Err(format!("API Error ({}): {}", status, err_body));
+    }
+
+    // 解析响应
+    let response_text = response.text().await.map_err(|e| {
+        eprintln!("[AIUtils-Simple] ❌ Failed to read response: {}", e);
+        e.to_string()
+    })?;
+
+    eprintln!("[AIUtils-Simple] 📦 Response length: {} bytes", response_text.len());
+
+    let res_json: Value = serde_json::from_str(&response_text).map_err(|e| {
+        eprintln!("[AIUtils-Simple] ❌ JSON parse error: {}", e);
+        e.to_string()
+    })?;
+
+    // 提取消息
+    let content = res_json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("No content in response")?
+        .to_string();
+
+    eprintln!("[AIUtils-Simple] ✅ Successfully extracted content: {} chars", content.len());
+    eprintln!("[AIUtils-Simple] ⏱️  Total time: {:?}", start.elapsed());
+
+    Ok(Message {
+        role: "assistant".to_string(),
+        content: Content::Text(content),
+        tool_calls: None,
+        tool_call_id: None,
+    })
+}
+
 pub async fn fetch_ai_completion(
     config: &AIProviderConfig,
     mut messages: Vec<Message>, // Change to mutable to allow sanitization
     tools: Option<Vec<Value>>,
 ) -> Result<Message, String> {
-    // Apply sanitization before every internal API call
+    // 🔥 清除代理设置，确保 API 请求直连
+    clear_proxy_env();
+    eprintln!("[AIUtils] 🧹 Proxy environment variables cleared");
+
+    // Apply sanitization before every internal AI call
     sanitize_messages(&mut messages);
 
+    // 🔥 显式禁用代理，避免系统代理导致请求挂起
+    eprintln!("[AIUtils] 🔧 Configuring client without proxy...");
+
     let client = Client::builder()
-        .timeout(Duration::from_secs(120)) // Increase timeout to 2 minutes
+        .timeout(Duration::from_secs(300)) // 🔥 增加到 5 分钟
+        .connect_timeout(Duration::from_secs(60)) // 🔥 连接超时 60 秒
         .pool_max_idle_per_host(0) // Disable connection pooling
         .http1_only() // Force HTTP/1.1 to avoid HTTP/2 chunking issues
         .http1_title_case_headers() // Better compatibility
+        .no_proxy() // 🔥 显式禁用代理
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[AIUtils] ❌ Failed to create HTTP client: {}", e);
+            e.to_string()
+        })?;
+
+    eprintln!("[AIUtils] ✅ HTTP client created successfully");
     
     let mut request_body = json!({
         "model": config.models[0],
@@ -135,15 +242,62 @@ pub async fn fetch_ai_completion(
         println!("[AIUtils] ⚠️ No tools provided to fetch_ai_completion!");
     }
 
+    // 🔥 显示请求体大小
+    let request_body_str = request_body.to_string();
+    let request_size_bytes = request_body_str.len();
+    let request_size_kb = request_size_bytes as f64 / 1024.0;
+
+    println!("[AIUtils] 📊 Request body size: {} bytes ({:.2} KB)", request_size_bytes, request_size_kb);
+    if request_size_kb > 50.0 {
+        println!("[AIUtils] ⚠️  Large request detected (>50KB), this might take longer to process");
+    }
+
     let calibrated_url = calibrate_provider_url(&config.base_url, &config.name);
     eprintln!("[AIUtils] Requesting calibrated URL: {}", calibrated_url);
+    eprintln!("[AIUtils] 📤 About to send POST request...");
+    eprintln!("[AIUtils] 📊 Request size: {:.2} KB", request_size_kb);
+
+    // 🔥 添加请求前的时间戳
+    let request_start = std::time::Instant::now();
+    eprintln!("[AIUtils] ⏱️  Request started at: {:?}", request_start);
+
+    // 🔥 打印即将发送的请求详情
+    eprintln!("[AIUtils] 📤 Sending POST to: {}", calibrated_url);
+    eprintln!("[AIUtils] 🔑 Authorization: Bearer {}...", &config.api_key[..config.api_key.len().min(20)]);
+    eprintln!("[AIUtils] 📋 Model: {}", config.models.get(0).unwrap_or(&"<unknown>".to_string()));
+    eprintln!("[AIUtils] 📦 Request body preview: {}...",
+        serde_json::to_string_pretty(&request_body)
+            .unwrap_or_default()
+            .chars()
+            .take(200)
+            .collect::<String>()
+    );
+
+    eprintln!("[AIUtils] 🚀 Calling .send().await... (this may take several seconds)");
 
     let response = client.post(&calibrated_url)
         .header("Authorization", format!("Bearer {}", config.api_key))
         .json(&request_body)
         .send()
         .await
-        .map_err(|e| format!("Network/Request error: {}", e))?;
+        .map_err(|e| {
+            let elapsed = request_start.elapsed();
+            eprintln!("[AIUtils] ❌ Request failed after {:?}: {}", elapsed, e);
+            eprintln!("[AIUtils] 💡 Possible causes:");
+            if e.to_string().contains("timed out") || e.to_string().contains("timeout") {
+                eprintln!("  - Request timed out (network slow or proxy issue)");
+            }
+            if e.to_string().contains("dns") || e.to_string().contains("DNS") {
+                eprintln!("  - DNS resolution failed");
+            }
+            if e.to_string().contains("connect") || e.to_string().contains("connection") {
+                eprintln!("  - Connection failed (firewall or proxy)");
+            }
+            format!("Network/Request error: {}", e)
+        })?;
+
+    let elapsed_to_response = request_start.elapsed();
+    eprintln!("[AIUtils] ✅ Response received after {:?}", elapsed_to_response);
 
     let status = response.status();
     let headers = response.headers().clone();
@@ -160,6 +314,24 @@ pub async fn fetch_ai_completion(
     if !status.is_success() {
         let err_body = response.text().await.unwrap_or_default();
         eprintln!("[AIUtils] API HTTP Error {}: {}", status, err_body);
+
+        // 🔥 提供更友好的错误提示
+        if status.as_u16() == 429 {
+            eprintln!("[AIUtils] ⚠️  Rate Limit or Subscription Error");
+            eprintln!("[AIUtils] 💡 Possible causes:");
+            eprintln!("  - API quota exhausted");
+            eprintln!("  - Subscription expired");
+            eprintln!("  - Rate limit exceeded");
+            eprintln!("[AIUtils] 📝 Please check your API provider dashboard");
+        } else if status.as_u16() == 401 {
+            eprintln!("[AIUtils] ⚠️  Authentication Error");
+            eprintln!("[AIUtils] 💡 Check your API key");
+        } else if status.as_u16() >= 500 {
+            eprintln!("[AIUtils] ⚠️  Server Error (HTTP {})", status);
+            eprintln!("[AIUtils] 💡 The API server is experiencing issues");
+            eprintln!("[AIUtils] 📝 This is usually temporary, please retry");
+        }
+
         return Err(format!("AI API Error ({}): {}", status, err_body));
     }
 

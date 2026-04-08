@@ -40,11 +40,46 @@ export class SendMessageOrchestrator {
       const threadId = await this.ensureActiveThread();
       
       // 3. 意图识别 (Slash Commands / Natural Language)
-      const textInput = typeof content === 'string' ? content : 
+      const textInput = typeof content === 'string' ? content :
         (Array.isArray(content) ? content.map(p => p.type === 'text' ? p.text : '').join(' ') : '');
-      
+
       const intentResult = await intentHandler.recognize(textInput, basePayload);
       console.log(`[SendMessageOrchestrator] Intent detected: ${intentResult.type}`);
+
+      // P4: 如果是工作流意图且标记为跳过聊天，直接返回
+      if (intentResult.shouldSkipChat) {
+        console.log('[SendMessageOrchestrator] ⚡ Workflow intent detected, skipping chat flow');
+
+        // 先发布消息发送事件（创建用户消息和空的助手消息）
+        chatEventBus.emit('chat:message:sent', {
+          ...basePayload,
+          content: textInput,
+          messageId: basePayload.correlationId,
+          workflowId: intentResult.metadata?.workflowId,
+        });
+
+        // 等待一小段时间确保消息被创建
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 然后发布工作流响应事件（更新助手消息的内容）
+        console.log('[SendMessageOrchestrator] 📤 Emitting workflow:response event after message creation');
+        console.log('[SendMessageOrchestrator] 📝 Response content:', intentResult.metadata?.response?.substring(0, 100));
+        chatEventBus.emit('workflow:response', {
+          ...basePayload,
+          workflowId: intentResult.metadata?.workflowId,
+          workflowType: intentResult.metadata?.workflowType,
+          response: intentResult.metadata?.response,
+          timestamp: Date.now(),
+        });
+
+        // 返回特殊结果，表示工作流已处理
+        return {
+          success: true,
+          skipped: true,
+          workflowId: intentResult.metadata?.workflowId,
+          response: intentResult.metadata?.response,
+        };
+      }
 
       // 4. 消息构建与引用注入 (References / Multimodal Cache)
       const builtMessage = await messageBuilder.build(content, threadId);

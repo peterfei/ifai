@@ -4,6 +4,7 @@
 
 use super::types::{Workflow, WorkflowNode, AgentType, WorkflowValidationError};
 use super::scheduler::{WorkflowScheduler, Schedule, ScheduleError};
+use super::executor::{NodeExecutionContext, AgentNodeExecutor, NodeExecutor};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
@@ -146,7 +147,7 @@ impl Default for RunnerConfig {
         Self {
             max_concurrent_nodes: 3,
             node_timeout_secs: 300,  // 5 分钟
-            max_retries: 2,
+            max_retries: 5,  // 🔥 增加重试次数以更好地处理速率限制
             fail_fast: false,
         }
     }
@@ -339,8 +340,16 @@ impl WorkflowRunner {
             }
         }
 
-        // 串行执行（暂时简化，TODO: 实现真正的并行执行）
+        // 🔥 串行执行，添加节点间延迟以避免速率限制（参考 claw-code 的快速重试策略）
+        let mut first_node = true;
         for task in tasks {
+            // 如果不是第一个节点，添加延迟以避免速率限制
+            if !first_node {
+                println!("[WorkflowRunner] ⏳ Waiting 500ms before next node to avoid rate limiting...");
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            }
+            first_node = false;
+
             let (node_id, result) = task.await;
             results.insert(node_id, result);
         }
@@ -372,17 +381,39 @@ impl WorkflowRunner {
             });
         }
 
-        // 执行节点（带重试）
+        // 执行节点（带智能重试）
         let mut retry_count = 0;
         let result = loop {
             match self.execute_node_once(&node).await {
                 Ok(result) => break result,
                 Err(e) if retry_count < self.config.max_retries => {
                     retry_count += 1;
-                    // TODO: 添加延迟（指数退避）
+
+                    // 🔥 检查是否是速率限制错误
+                    let error_str = e.to_string().to_lowercase();
+                    let is_rate_limit = error_str.contains("429")
+                        || error_str.contains("rate limit")
+                        || error_str.contains("速率限制")
+                        || error_str.contains("达到速率限制");
+
+                    if is_rate_limit {
+                        // 🔥 指数退避（参考 claw-code）：200ms 起始，每次翻倍，上限 2 秒
+                        let delay_ms = std::cmp::min(2000, 200 * 2usize.pow(retry_count as u32));
+                        println!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
+                            retry_count, self.config.max_retries, delay_ms);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms as u64)).await;
+                        println!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
+                    } else {
+                        // 其他错误，使用较短延迟
+                        println!("[WorkflowRunner] ⚠️ Node {} failed (retry {}/{}): {}",
+                            node_id, retry_count, self.config.max_retries, e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    }
                     continue;
                 }
                 Err(e) => {
+                    println!("[WorkflowRunner] ❌ Node {} failed after {} retries: {}",
+                        node_id, self.config.max_retries, e);
                     break NodeResult::failure(node_id.clone(), e.to_string());
                 }
             }
@@ -399,26 +430,120 @@ impl WorkflowRunner {
 
     /// 执行节点一次（无重试）
     async fn execute_node_once(&self, node: &WorkflowNode) -> Result<NodeResult> {
-        // TODO: 实际执行智能体
-        // 暂时返回模拟结果
+        println!("[WorkflowRunner] 🔧 Executing node: {} ({:?})", node.id, node.agent_type);
 
-        // 根据节点类型模拟不同执行时间
-        let duration = std::time::Duration::from_millis(match node.agent_type {
-            AgentType::Explore => 100,
-            AgentType::Review => 50,
-            AgentType::Refactor => 150,
-            AgentType::Test => 200,
-            AgentType::Doc => 80,
-            AgentType::TaskBreakdown => 120,
-            AgentType::ProposalGenerator => 180,
-            AgentType::GeneralPurpose => 100,
+        // 🔥 构建执行上下文
+        // 优先从 workflow 变量获取 project_root
+        let project_root = self.workflow.variables.get("project_root")
+            .cloned()
+            .unwrap_or_else(|| {
+                // 如果没有配置，使用当前工作目录
+                std::env::current_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| ".".to_string())
+            });
+
+        println!("[WorkflowRunner] 📂 Using project root: {}", project_root);
+
+        // 获取目标路径（从工作流变量中）
+        let target_path = self.workflow.variables.get("target_path")
+            .unwrap_or(&".".to_string())  // 🔥 修复：默认使用当前目录
+            .clone();
+
+        // 🔥 构建完整的绝对路径并获取文件列表
+        let full_path = std::path::Path::new(&project_root).join(&target_path);
+        let file_list_info = if let Ok(entries) = std::fs::read_dir(&full_path) {
+            let mut files: Vec<String> = Vec::new();
+            let mut dirs: Vec<String> = Vec::new();
+
+            for entry in entries.filter_map(|e| e.ok()) {
+                let name = entry.file_name().into_string().ok();
+                if let Some(name) = name {
+                    if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        dirs.push(name);
+                    } else {
+                        files.push(name);
+                    }
+                }
+            }
+
+            format!(
+                "📁 实际目录结构:\n  目录: {}\n  文件: {}",
+                dirs.join(", "),
+                files.join(", ")
+            )
+        } else {
+            "⚠️ 无法读取目录".to_string()
+        };
+
+        println!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
+
+        // 🔥 获取 provider_config（从工作流变量中）
+        let provider_config: Option<crate::core_traits::ai::AIProviderConfig> =
+            self.workflow.variables.get("provider_config")
+                .and_then(|config_str| serde_json::from_str(config_str).ok());
+
+        // 如果没有配置，使用默认配置
+        let provider_config = provider_config.unwrap_or_else(|| {
+            println!("[WorkflowRunner] ⚠️ No provider config found, using default");
+            crate::agent_system::workflow::executor::default_provider_config()
         });
 
-        tokio::time::sleep(duration).await;
+        // 🔥 获取 current_model（从工作流变量中）
+        let current_model = self.workflow.variables.get("current_model").cloned();
+        println!("[WorkflowRunner] 🤖 Current model from workflow variables: {:?}", current_model);
 
-        // 模拟成功结果
-        let output = format!("Executed {:?} agent", node.agent_type);
-        Ok(NodeResult::success(node.id.clone(), output))
+        println!("[WorkflowRunner] ⚙️ Using provider: {} ({} models)",
+            provider_config.name,
+            provider_config.models.len()
+        );
+
+        // 构建任务描述（包含实际的文件列表）
+        let task_description = format!(
+            "请对以下路径进行代码{}: {}\n\n{}",
+            match node.agent_type {
+                AgentType::Explore => "探索",
+                AgentType::Review => "审查",
+                AgentType::Refactor => "重构分析",
+                AgentType::Test => "测试分析",
+                AgentType::Doc => "文档生成",
+                AgentType::TaskBreakdown => "任务分解",
+                AgentType::ProposalGenerator => "提案生成",
+                AgentType::GeneralPurpose => "处理",
+            },
+            target_path,
+            file_list_info  // 🔥 添加实际的文件列表信息
+        );
+
+        // 创建执行上下文
+        let mut ctx = NodeExecutionContext::new(
+            node.id.clone(),
+            project_root,
+            task_description,
+        )
+        .with_variable("target_path".to_string(), target_path)
+        .with_provider_config(provider_config);  // 🔥 添加 provider_config
+
+        // 🔥 如果存在 current_model，将其传递到执行上下文
+        if let Some(model) = current_model {
+            println!("[WorkflowRunner] ✅ Passing current_model to execution context: {}", model);
+            ctx = ctx.with_variable("current_model".to_string(), model);
+        }
+
+        // 🔥 使用真实的执行器
+        let executor = AgentNodeExecutor::new();
+        println!("[WorkflowRunner] 🎯 About to execute node {} with executor", node.id);
+        let result = executor.execute(node, &ctx).await?;
+
+        println!("[WorkflowRunner] ✅ Node {} completed with status: {:?}", node.id, result.status);
+        if let Some(output) = &result.output {
+            println!("[WorkflowRunner] 📝 Output length: {} chars", output.len());
+            println!("[WorkflowRunner] 📝 Output preview: {}...", output.chars().take(100).collect::<String>());
+        }
+        if let Some(error) = &result.error {
+            println!("[WorkflowRunner] ❌ Error: {}", error);
+        }
+        Ok(result)
     }
 
     /// 获取当前状态

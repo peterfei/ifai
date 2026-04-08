@@ -8,6 +8,8 @@ pub mod validator;
 pub mod scheduler;
 pub mod runner;
 pub mod executor;
+pub mod tools;  // 🔥 添加工具模块
+pub mod tool_loop;  // 🔥 添加工具调用循环模块
 
 #[cfg(test)]
 pub mod integration_tests;
@@ -28,3 +30,5 @@ pub use executor::{
     NodeExecutor, AgentNodeExecutor, NodeExecutionContext,
     ConditionEvaluator, DataPassingManager,
 };
+pub use tools::{ToolExecutor, DefaultToolExecutor, ToolCall, ToolResult, create_tool_definitions};
+pub use tool_loop::{execute_with_tools, ToolLoopConfig};

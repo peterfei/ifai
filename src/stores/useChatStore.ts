@@ -130,6 +130,13 @@ export const useChatStore = create<ChatStore>()(
               modelName || 'gpt-4o'
             );
 
+            // 🔥 P4: 如果工作流处理了消息（skipped），跳过 AI 生成
+            if (result.skipped) {
+              console.log('[ChatStore] ⚡ Workflow handled message, skipping AI generation');
+              set({ isLoading: false });
+              return result;
+            }
+
             // 🔥 自动更新线程标题：如果当前线程的标题是默认标题，根据消息内容更新
             const { useThreadStore } = await import('./threadStore');
             const threadStore = useThreadStore.getState();
