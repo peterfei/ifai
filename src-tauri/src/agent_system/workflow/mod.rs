@@ -5,13 +5,14 @@
 pub mod types;
 pub mod parser;
 pub mod validator;
+pub mod scheduler;
 
 pub use types::{
     AgentConfig, AgentType, Workflow, WorkflowEdge, WorkflowNode, WorkflowValidationError,
 };
 pub use parser::{WorkflowParser, ParseError};
 pub use validator::WorkflowValidator;
+pub use scheduler::{WorkflowScheduler, Schedule, ScheduleError};
 
 // TODO: 后续阶段添加
-// pub mod scheduler;
 // pub mod runner;
