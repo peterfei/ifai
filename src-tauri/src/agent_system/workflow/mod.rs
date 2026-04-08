@@ -7,6 +7,7 @@ pub mod parser;
 pub mod validator;
 pub mod scheduler;
 pub mod runner;
+pub mod executor;
 
 pub use types::{
     AgentConfig, AgentType, Workflow, WorkflowEdge, WorkflowNode, WorkflowValidationError,
@@ -17,4 +18,8 @@ pub use scheduler::{WorkflowScheduler, Schedule, ScheduleError};
 pub use runner::{
     WorkflowRunner, RunnerConfig, WorkflowResult, NodeResult,
     NodeStatus, WorkflowStatus,
+};
+pub use executor::{
+    NodeExecutor, AgentNodeExecutor, NodeExecutionContext,
+    ConditionEvaluator, DataPassingManager,
 };
