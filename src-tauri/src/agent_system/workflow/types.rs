@@ -64,28 +64,13 @@ impl Workflow {
     }
 
     /// 验证工作流结构
+    ///
+    /// 使用 WorkflowValidator 进行完整验证，包括：
+    /// - 节点 ID 唯一性检查
+    /// - 边引用的节点存在性检查
+    /// - 循环依赖检测
     pub fn validate(&self) -> Result<(), WorkflowValidationError> {
-        // 检查节点 ID 唯一性
-        let mut node_ids = std::collections::HashSet::new();
-        for node in &self.nodes {
-            if !node_ids.insert(&node.id) {
-                return Err(WorkflowValidationError::DuplicateNode(node.id.clone()));
-            }
-        }
-
-        // 检查边的节点是否存在
-        for edge in &self.edges {
-            if !self.nodes.iter().any(|n| &n.id == &edge.from) {
-                return Err(WorkflowValidationError::NodeNotFound(edge.from.clone()));
-            }
-            if !self.nodes.iter().any(|n| &n.id == &edge.to) {
-                return Err(WorkflowValidationError::NodeNotFound(edge.to.clone()));
-            }
-        }
-
-        // TODO: 检查循环依赖（在后续阶段实现）
-
-        Ok(())
+        crate::agent_system::workflow::validator::WorkflowValidator::validate(self)
     }
 }
 
