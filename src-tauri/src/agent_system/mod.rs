@@ -12,5 +12,8 @@ pub mod persistence;
 // 🆕 多智能体工作流系统
 pub mod workflow;
 
+// 🆕 智能体通信系统
+pub mod communication;
+
 pub use base::{AgentStatus, AgentContext};
 pub use supervisor::Supervisor;
