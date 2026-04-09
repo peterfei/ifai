@@ -11,10 +11,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '../UI/card';
+import { Button } from '../UI/button';
+import { Badge } from '../UI/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../UI/tabs';
 import { Play, FileText, Settings, Zap } from 'lucide-react';
 
 // 动态导入 Tauri API 的辅助函数

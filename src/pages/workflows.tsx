@@ -10,10 +10,10 @@ import {
   WorkflowEditor,
   WorkflowMonitor,
   WorkflowResults,
-} from '@/components/workflow';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+} from '../components/workflow';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/UI/card';
+import { Button } from '../components/UI/button';
 import {
   Zap,
   FileText,

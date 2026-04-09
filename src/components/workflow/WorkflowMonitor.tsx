@@ -11,7 +11,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '../UI/card';
 
 // 动态导入 Tauri API 的辅助函数
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -23,9 +23,9 @@ async function listen<T>(event: string, handler: (event: { payload: T }) => void
   const { listen: tauriListen } = await import('@tauri-apps/api/event');
   return tauriListen<T>(event, handler);
 }
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
+import { Badge } from '../UI/badge';
+import { Progress } from '../UI/progress';
+import { Button } from '../UI/button';
 import { CheckCircle, XCircle, Clock, AlertCircle, X } from 'lucide-react';
 
 interface NodeResultInfo {

@@ -5,25 +5,19 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '../UI/card';
+import { Button } from '../UI/button';
+import { Input } from '../UI/input';
+import { Label } from '../UI/label';
+import { Textarea } from '../UI/textarea';
+import { Select } from '../UI/select';
+import { Badge } from '../UI/badge';
 
 // 动态导入 Tauri API 的辅助函数
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke: tauriInvoke } = await import('@tauri-apps/api/core');
   return tauriInvoke<T>(cmd, args);
 }
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import {
   Plus,
   Trash2,
@@ -366,21 +360,15 @@ function NodeCard({
             <Label>智能体类型</Label>
             <Select
               value={node.agent_type}
-              onValueChange={(value) => {
-                onUpdate({ ...node, agent_type: value });
+              onChange={(e) => {
+                onUpdate({ ...node, agent_type: e.target.value });
               }}
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {agentTypes.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    <span className="mr-2">{type.icon}</span>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              {agentTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.icon} {type.label}
+                </option>
+              ))}
             </Select>
           </div>
 

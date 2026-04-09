@@ -11,10 +11,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '../UI/card';
+import { Badge } from '../UI/badge';
+import { Button } from '../UI/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../UI/tabs';
 import {
   CheckCircle,
   XCircle,
