@@ -24,7 +24,7 @@ pub use validator::WorkflowValidator;
 pub use scheduler::{WorkflowScheduler, Schedule, ScheduleError};
 pub use runner::{
     WorkflowRunner, RunnerConfig, WorkflowResult, NodeResult,
-    NodeStatus, WorkflowStatus,
+    NodeStatus, WorkflowStatus, ProgressEvent,  // 🔥 导出 ProgressEvent
 };
 pub use executor::{
     NodeExecutor, AgentNodeExecutor, NodeExecutionContext,

@@ -85,11 +85,12 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   useThreadKeyboardShortcuts();
 
   // Use specific selectors to avoid subscribing to the entire store
-  const rawMessages = useChatStore(state => state.messages);
-  const isLoading = useChatStore(state => state.isLoading);
-  const sendMessage = useChatStore(state => state.sendMessage);
-  const approveToolCall = useChatStore(state => state.approveToolCall);
-  const rejectToolCall = useChatStore(state => state.rejectToolCall);
+  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
+  const rawMessages = useChatStore(state => state?.messages ?? []);
+  const isLoading = useChatStore(state => state?.isLoading ?? false);
+  const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
+  const approveToolCall = useChatStore(state => state?.approveToolCall ?? (() => Promise.resolve()));
+  const rejectToolCall = useChatStore(state => state?.rejectToolCall ?? (() => Promise.resolve()));
 
   // New Chat UI Store for history
   const inputHistory = useChatUIStore(state => state.inputHistory);

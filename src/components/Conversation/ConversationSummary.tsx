@@ -124,6 +124,11 @@ interface TokenStatsProps {
 export function TokenStatsDisplay({ stats, model }: TokenStatsProps) {
   const { t } = useTranslation();
 
+  // 🔥 FIX: 检查 stats 和 total_tokens 是否存在
+  if (!stats || stats.total_tokens === undefined || stats.total_tokens === null) {
+    return null;
+  }
+
   return (
     <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 px-2">
       <div className="flex items-center gap-1">

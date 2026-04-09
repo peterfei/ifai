@@ -40,6 +40,14 @@ pub async fn execute_with_tools(
     tool_executor: &dyn ToolExecutor,
     config: ToolLoopConfig,
 ) -> Result<String, String> {
+    let workflow_start = std::time::Instant::now();
+    let mut ai_time_total = std::time::Duration::ZERO;
+    let mut tool_time_total = std::time::Duration::ZERO;
+
+    println!("[ToolLoop] 🚀 工具循环开始");
+    println!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
+    println!("[ToolLoop] 📊 用户消息长度: {} 字符", user_message.len());
+
     let mut messages = vec![
         Message {
             role: "system".to_string(),
@@ -67,10 +75,15 @@ pub async fn execute_with_tools(
         println!("[ToolLoop] 🔄 迭代 {}/{}", iterations, config.max_iterations);
 
         // 调用 AI
+        let ai_start = std::time::Instant::now();
         let response = call_ai_with_tools(
             provider_config.clone(),
             &messages,
         ).await?;
+        let ai_duration = ai_start.elapsed();
+        ai_time_total += ai_duration;
+
+        println!("[ToolLoop] ⏱️ AI API 调用耗时: {:?}", ai_duration);
 
         // 检查是否有工具调用
         let tool_calls = extract_tool_calls(&response)?;
@@ -88,32 +101,55 @@ pub async fn execute_with_tools(
 
         println!("[ToolLoop] 🔧 检测到 {} 个工具调用", tool_calls.len());
 
-        // 执行所有工具调用
+        // 🔥 发送工具调用进度事件
+        println!("[ToolLoop] 📤 发送工具调用进度事件: {} 个工具", tool_calls.len());
+
+        // 🔥 并行执行所有工具调用
+        use futures::future::join_all;
+
+        let tool_start = std::time::Instant::now();
+
+        let mut tool_tasks = Vec::new();
         for tool_call in &tool_calls {
-            println!("[ToolLoop] 🔧 执行工具: {}", tool_call.name);
+            println!("[ToolLoop] 🔧 启动工具: {}", tool_call.name);
 
-            let result = match tool_executor.execute(&tool_call.name, &tool_call.input).await {
-                Ok(output) => {
-                    println!("[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符", tool_call.name, output.len());
-                    ToolResult {
-                        id: tool_call.id.clone(),
-                        name: tool_call.name.clone(),
-                        output,
-                        is_error: false,
+            let tool_call = tool_call.clone();
+            tool_tasks.push(async move {
+                // 🔥 执行工具（在独立任务中）
+                let result = match tool_executor.execute(&tool_call.name, &tool_call.input).await {
+                    Ok(output) => {
+                        println!("[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符", tool_call.name, output.len());
+                        ToolResult {
+                            id: tool_call.id.clone(),
+                            name: tool_call.name.clone(),
+                            output,
+                            is_error: false,
+                        }
                     }
-                }
-                Err(e) => {
-                    println!("[ToolLoop] ❌ 工具 {} 失败: {}", tool_call.name, e);
-                    ToolResult {
-                        id: tool_call.id.clone(),
-                        name: tool_call.name.clone(),
-                        output: format!("工具执行失败: {}", e),
-                        is_error: true,
+                    Err(e) => {
+                        println!("[ToolLoop] ❌ 工具 {} 失败: {}", tool_call.name, e);
+                        ToolResult {
+                            id: tool_call.id.clone(),
+                            name: tool_call.name.clone(),
+                            output: format!("工具执行失败: {}", e),
+                            is_error: true,
+                        }
                     }
-                }
-            };
+                };
+                (tool_call, result)
+            });
+        }
 
-            // 将工具结果添加到消息历史
+        // 🔥 等待所有工具完成（并行执行）
+        println!("[ToolLoop] ⏳ 等待 {} 个工具完成...", tool_tasks.len());
+        let results = join_all(tool_tasks).await;
+
+        let tool_duration = tool_start.elapsed();
+        tool_time_total += tool_duration;
+        println!("[ToolLoop] ⏱️ 工具执行总耗时: {:?} ({} 个工具并行)", tool_duration, tool_calls.len());
+
+        // 将工具结果添加到消息历史
+        for (tool_call, result) in results {
             messages.push(Message {
                 role: "assistant".to_string(),
                 content: Content::Text(format!("tool_call:{}", tool_call.name)),
@@ -129,6 +165,17 @@ pub async fn execute_with_tools(
             });
         }
     }
+
+    // 🔥 输出性能统计
+    let total_duration = workflow_start.elapsed();
+    println!("[ToolLoop] 📊 ========== 性能统计 ==========");
+    println!("[ToolLoop] 📊 总执行时长: {:?}", total_duration);
+    println!("[ToolLoop] 📊 迭代次数: {}", iterations);
+    println!("[ToolLoop] 📊 AI API 调用总时长: {:?} (平均: {:?}/次)", ai_time_total, ai_time_total / iterations as u32);
+    println!("[ToolLoop] 📊 工具执行总时长: {:?}", tool_time_total);
+    println!("[ToolLoop] 📊 AI 占比: {:.1}%", (ai_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0);
+    println!("[ToolLoop] 📊 工具占比: {:.1}%", (tool_time_total.as_secs_f64() / total_duration.as_secs_f64()) * 100.0);
+    println!("[ToolLoop] 📊 ================================");
 
     Ok(final_response)
 }

@@ -221,6 +221,17 @@ pub struct WorkflowRunner {
     schedule: Option<Schedule>,
     /// 节点执行结果
     node_results: Arc<RwLock<HashMap<String, NodeResult>>>,
+    /// 🔥 进度回调（用于流式输出）
+    progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
+}
+
+/// 🔥 进度事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressEvent {
+    pub event_type: String,  // "node_started", "node_progress", "node_completed", "tool_call"
+    pub node_id: Option<String>,
+    pub message: Option<String>,
+    pub timestamp: i64,
 }
 
 impl WorkflowRunner {
@@ -235,12 +246,39 @@ impl WorkflowRunner {
             status: Arc::new(RwLock::new(WorkflowStatus::Idle)),
             schedule: Some(schedule),
             node_results: Arc::new(RwLock::new(HashMap::new())),
+            progress_callback: Arc::new(RwLock::new(None)),
         })
     }
 
     /// 使用默认配置创建运行器
     pub fn with_default_config(workflow: Workflow) -> Result<Self, ScheduleError> {
         Self::new(workflow, RunnerConfig::default())
+    }
+
+    /// 🔥 设置进度回调
+    pub fn with_progress_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(ProgressEvent) + Send + Sync + 'static,
+    {
+        let cb = self.progress_callback.clone();
+        let mut cb_guard = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(cb.write())
+        });
+        *cb_guard = Some(Box::new(callback));
+        self
+    }
+
+    /// 🔥 发送进度事件
+    async fn emit_progress(&self, event_type: &str, node_id: Option<&str>, message: Option<&str>) {
+        if let Some(callback) = self.progress_callback.read().await.as_ref() {
+            let event = ProgressEvent {
+                event_type: event_type.to_string(),
+                node_id: node_id.map(|s| s.to_string()),
+                message: message.map(|s| s.to_string()),
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            };
+            callback(event);
+        }
     }
 
     /// 执行工作流
@@ -318,18 +356,35 @@ impl WorkflowRunner {
         let mut results = HashMap::new();
         let mut tasks = Vec::new();
 
+        // 🔥 克隆必要的数据以用于 'static task
+        let workflow = self.workflow.clone();
+        let node_results = self.node_results.clone();
+        let config = self.config.clone();
+        let progress_callback = self.progress_callback.clone();
+
         // 创建执行任务
         for node_id in group {
-            let node = self.workflow.get_node(node_id)
+            let node = workflow.get_node(node_id)
                 .expect("Node should exist");
 
             // 检查条件是否满足
             if let Some(true) = self.check_node_condition(node).await? {
                 let node = node.clone();
                 let node_id = node_id.clone();
+                let workflow_clone = workflow.clone();
+                let node_results_clone = node_results.clone();
+                let config_clone = config.clone();
+                let progress_callback_clone = progress_callback.clone();
+
                 tasks.push(async move {
-                    let result = self.execute_node(node).await;
-                    (node_id, result)
+                    // 🔥 执行节点（内联版本，避免生命周期问题）
+                    Self::execute_node_static(
+                        node,
+                        workflow_clone,
+                        node_results_clone,
+                        config_clone,
+                        progress_callback_clone,
+                    ).await
                 });
             } else {
                 // 条件不满足，跳过
@@ -340,17 +395,15 @@ impl WorkflowRunner {
             }
         }
 
-        // 🔥 串行执行，添加节点间延迟以避免速率限制（参考 claw-code 的快速重试策略）
-        let mut first_node = true;
+        // 🔥 真正的并行执行（参考 claw-code：不在正常请求间添加延迟，只在遇到 429 时重试）
+        let mut handles = Vec::new();
         for task in tasks {
-            // 如果不是第一个节点，添加延迟以避免速率限制
-            if !first_node {
-                println!("[WorkflowRunner] ⏳ Waiting 500ms before next node to avoid rate limiting...");
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            }
-            first_node = false;
+            handles.push(tokio::spawn(task));
+        }
 
-            let (node_id, result) = task.await;
+        // 等待所有任务完成
+        for handle in handles {
+            let (node_id, result) = handle.await.unwrap();
             results.insert(node_id, result);
         }
 
@@ -362,6 +415,205 @@ impl WorkflowRunner {
         // TODO: 实现条件表达式解析
         // 暂时返回 Some(true) 表示总是执行
         Ok(Some(true))
+    }
+
+    /// 🔥 静态方法：执行单个节点（用于并行执行）
+    /// 这个方法不依赖 self，因此可以在 'static task 中使用
+    async fn execute_node_static(
+        node: WorkflowNode,
+        workflow: Workflow,
+        node_results: Arc<RwLock<HashMap<String, NodeResult>>>,
+        config: RunnerConfig,
+        progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
+    ) -> (String, NodeResult) {
+        let node_id = node.id.clone();
+
+        // 🔥 发送节点开始事件
+        if let Some(callback) = progress_callback.read().await.as_ref() {
+            callback(ProgressEvent {
+                event_type: "node_started".to_string(),
+                node_id: Some(node_id.clone()),
+                message: Some(format!("开始执行节点: {}", node.label.as_ref().unwrap_or(&node_id))),
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            });
+        }
+
+        // 更新状态为运行中
+        {
+            let mut results = node_results.write().await;
+            results.insert(node_id.clone(), NodeResult {
+                node_id: node_id.clone(),
+                status: NodeStatus::Running,
+                output: None,
+                error: None,
+                started_at: Some(chrono::Utc::now().timestamp_millis()),
+                completed_at: None,
+            });
+        }
+
+        // 执行节点（带智能重试）
+        let mut retry_count = 0;
+        let result = loop {
+            match Self::execute_node_once_static(&node, &workflow).await {
+                Ok(result) => break result,
+                Err(e) if retry_count < config.max_retries => {
+                    retry_count += 1;
+
+                    // 🔥 检查是否是速率限制错误
+                    let error_str = e.to_string().to_lowercase();
+                    let is_rate_limit = error_str.contains("429")
+                        || error_str.contains("rate limit")
+                        || error_str.contains("速率限制")
+                        || error_str.contains("达到速率限制");
+
+                    if is_rate_limit {
+                        // 🔥 指数退避（参考 claw-code）：200ms 起始，每次翻倍，上限 2 秒
+                        let delay_ms = std::cmp::min(2000, 200 * 2usize.pow(retry_count as u32));
+                        println!("[WorkflowRunner] ⚠️ Rate limit detected (retry {}/{}), waiting {}ms before retry...",
+                            retry_count, config.max_retries, delay_ms);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms as u64)).await;
+                        println!("[WorkflowRunner] 🔄 Retrying node {} now...", node_id);
+                    } else {
+                        // 其他错误，使用较短延迟
+                        println!("[WorkflowRunner] ⚠️ Node {} failed (retry {}/{}): {}",
+                            node_id, retry_count, config.max_retries, e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    }
+                    continue;
+                }
+                Err(e) => {
+                    println!("[WorkflowRunner] ❌ Node {} failed after {} retries: {}",
+                        node_id, config.max_retries, e);
+                    break NodeResult::failure(node_id.clone(), e.to_string());
+                }
+            }
+        };
+
+        // 保存结果
+        {
+            let mut results = node_results.write().await;
+            results.insert(node_id.clone(), result.clone());
+        }
+
+        (node_id, result)
+    }
+
+    /// 🔥 静态方法：执行节点一次（无重试）
+    async fn execute_node_once_static(node: &WorkflowNode, workflow: &Workflow) -> Result<NodeResult> {
+        println!("[WorkflowRunner] 🔧 Executing node: {} ({:?})", node.id, node.agent_type);
+
+        // 🔥 构建执行上下文
+        // 优先从 workflow 变量获取 project_root
+        let project_root = workflow.variables.get("project_root")
+            .cloned()
+            .unwrap_or_else(|| {
+                // 如果没有配置，使用当前工作目录
+                std::env::current_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| ".".to_string())
+            });
+
+        println!("[WorkflowRunner] 📂 Using project root: {}", project_root);
+
+        // 获取目标路径（从工作流变量中）
+        let target_path = workflow.variables.get("target_path")
+            .unwrap_or(&".".to_string())  // 🔥 修复：默认使用当前目录
+            .clone();
+
+        // 🔥 构建完整的绝对路径并获取文件列表
+        let full_path = std::path::Path::new(&project_root).join(&target_path);
+        let file_list_info = if let Ok(entries) = std::fs::read_dir(&full_path) {
+            let mut files: Vec<String> = Vec::new();
+            let mut dirs: Vec<String> = Vec::new();
+
+            for entry in entries.filter_map(|e| e.ok()) {
+                let name = entry.file_name().into_string().ok();
+                if let Some(name) = name {
+                    if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                        dirs.push(name);
+                    } else {
+                        files.push(name);
+                    }
+                }
+            }
+
+            format!(
+                "📁 实际目录结构:\n  目录: {}\n  文件: {}",
+                dirs.join(", "),
+                files.join(", ")
+            )
+        } else {
+            "⚠️ 无法读取目录".to_string()
+        };
+
+        println!("[WorkflowRunner] 📂 Directory info: {}", file_list_info);
+
+        // 🔥 获取 provider_config（从工作流变量中）
+        let provider_config: Option<crate::core_traits::ai::AIProviderConfig> =
+            workflow.variables.get("provider_config")
+                .and_then(|config_str| serde_json::from_str(config_str).ok());
+
+        // 如果没有配置，使用默认配置
+        let provider_config = provider_config.unwrap_or_else(|| {
+            println!("[WorkflowRunner] ⚠️ No provider config found, using default");
+            crate::agent_system::workflow::executor::default_provider_config()
+        });
+
+        // 🔥 获取 current_model（从工作流变量中）
+        let current_model = workflow.variables.get("current_model").cloned();
+        println!("[WorkflowRunner] 🤖 Current model from workflow variables: {:?}", current_model);
+
+        println!("[WorkflowRunner] ⚙️ Using provider: {} ({} models)",
+            provider_config.name,
+            provider_config.models.len()
+        );
+
+        // 构建任务描述（包含实际的文件列表）
+        let task_description = format!(
+            "请对以下路径进行代码{}: {}\n\n{}",
+            match node.agent_type {
+                AgentType::Explore => "探索",
+                AgentType::Review => "审查",
+                AgentType::Refactor => "重构分析",
+                AgentType::Test => "测试分析",
+                AgentType::Doc => "文档生成",
+                AgentType::TaskBreakdown => "任务分解",
+                AgentType::ProposalGenerator => "提案生成",
+                AgentType::GeneralPurpose => "处理",
+            },
+            target_path,
+            file_list_info  // 🔥 添加实际的文件列表信息
+        );
+
+        // 创建执行上下文
+        let mut ctx = NodeExecutionContext::new(
+            node.id.clone(),
+            project_root,
+            task_description,
+        )
+        .with_variable("target_path".to_string(), target_path)
+        .with_provider_config(provider_config);  // 🔥 添加 provider_config
+
+        // 🔥 如果存在 current_model，将其传递到执行上下文
+        if let Some(model) = current_model {
+            println!("[WorkflowRunner] ✅ Passing current_model to execution context: {}", model);
+            ctx = ctx.with_variable("current_model".to_string(), model);
+        }
+
+        // 🔥 使用真实的执行器
+        let executor = AgentNodeExecutor::new();
+        println!("[WorkflowRunner] 🎯 About to execute node {} with executor", node.id);
+        let result = executor.execute(node, &ctx).await?;
+
+        println!("[WorkflowRunner] ✅ Node {} completed with status: {:?}", node.id, result.status);
+        if let Some(output) = &result.output {
+            println!("[WorkflowRunner] 📝 Output length: {} chars", output.len());
+            println!("[WorkflowRunner] 📝 Output preview: {}...", output.chars().take(100).collect::<String>());
+        }
+        if let Some(error) = &result.error {
+            println!("[WorkflowRunner] ❌ Error: {}", error);
+        }
+        Ok(result)
     }
 
     /// 执行单个节点

@@ -52,7 +52,8 @@ export const TerminalPanel = ({ onClose }: TerminalPanelProps) => {
   // Get settings and stores
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
-  const sendMessage = useChatStore(state => state.sendMessage);
+  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
+  const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
   const toggleChat = useLayoutStore(state => state.toggleChat);
   const isChatOpen = useLayoutStore(state => state.isChatOpen);
 

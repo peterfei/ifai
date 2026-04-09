@@ -171,11 +171,35 @@ impl ToolExecutor for DefaultToolExecutor {
 /// 创建工具定义（用于发送给 AI）
 pub fn create_tool_definitions() -> Vec<serde_json::Value> {
     vec![
+        // 🔥 优先级1：扫描工具（放在最前面）
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_scan_project",
+                "description": "【优先使用】深度扫描项目结构，一次性获取完整目录树。递归列出所有目录和文件，是理解项目的最快方式。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "rel_path": {
+                            "type": "string",
+                            "description": "相对于项目根目录的扫描路径"
+                        },
+                        "max_depth": {
+                            "type": "number",
+                            "description": "最大扫描深度（推荐2-3，默认3）",
+                            "default": 3
+                        }
+                    },
+                    "required": ["rel_path"]
+                }
+            }
+        }),
+        // 🔥 优先级2：读取文件
         serde_json::json!({
             "type": "function",
             "function": {
                 "name": "agent_read_file",
-                "description": "读取文件内容。使用此工具查看具体文件的代码。",
+                "description": "读取文件内容。用于查看配置文件、源代码等。可以在一次调用中并行读取多个文件。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -188,39 +212,18 @@ pub fn create_tool_definitions() -> Vec<serde_json::Value> {
                 }
             }
         }),
+        // 🔥 优先级3：列出目录（仅在需要时使用）
         serde_json::json!({
             "type": "function",
             "function": {
                 "name": "agent_list_dir",
-                "description": "列出目录内容。使用此工具查看目录中有哪些文件。",
+                "description": "列出目录内容（仅一层）。注意：agent_scan_project 已包含完整目录结构，通常不需要单独使用此工具。",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "rel_path": {
                             "type": "string",
                             "description": "相对于项目根目录的目录路径"
-                        }
-                    },
-                    "required": ["rel_path"]
-                }
-            }
-        }),
-        serde_json::json!({
-            "type": "function",
-            "function": {
-                "name": "agent_scan_project",
-                "description": "深度扫描项目结构。必须在开始时使用此工具来理解项目结构。它会递归列出目录和文件。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "rel_path": {
-                            "type": "string",
-                            "description": "相对于项目根目录的扫描路径"
-                        },
-                        "max_depth": {
-                            "type": "number",
-                            "description": "最大扫描深度（默认3）",
-                            "default": 3
                         }
                     },
                     "required": ["rel_path"]

@@ -134,14 +134,24 @@ pub async fn execute_workflow(
     println!("[Workflow] 🔗 Edges: {:?}", workflow.edges.iter().map(|e| (e.from.clone(), e.to.clone())).collect::<Vec<_>>());
 
     // 创建运行器
+    let window_clone = window.clone();
     let runner = WorkflowRunner::with_default_config(workflow)
         .map_err(|e| {
             let error = format!("创建运行器失败: {}", e);
             println!("[Workflow] ❌ {}", error);
             error
-        })?;
+        })?
+        .with_progress_callback(move |event| {
+            // 🔥 发送进度事件到前端
+            use crate::agent_system::workflow::runner::ProgressEvent;
+            println!("[Workflow] 📤 Progress: {:?}", event);
 
-    println!("[Workflow] ✅ WorkflowRunner created");
+            if let Err(e) = window_clone.emit("workflow:progress", &event) {
+                println!("[Workflow] ⚠️ Failed to emit progress event: {}", e);
+            }
+        });
+
+    println!("[Workflow] ✅ WorkflowRunner created with progress callback");
 
     // 注册工作流
     {
@@ -454,14 +464,22 @@ fn create_quick_code_review_workflow(target_path: &str) -> Workflow {
 
 fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
     let mut workflow = Workflow::new("quick-exploration", "快速探索")
-        .with_description("快速探索代码结构");
+        .with_description("快速探索代码结构（优化版：单节点）");
 
+    // 🔥 优化：只保留一个节点，避免串行等待
+    // 如果需要完整的"探索+分析"功能，可以取消注释下面的代码，改成并行执行
+    workflow
+        .add_node(WorkflowNode::new("explore", AgentType::Explore)
+            .with_label("快速探索"));
+
+    /*  // 并行版本（保留完整功能）
     workflow
         .add_node(WorkflowNode::new("explore", AgentType::Explore)
             .with_label("探索结构"))
         .add_node(WorkflowNode::new("analyze", AgentType::Explore)
-            .with_label("分析依赖"))
-        .add_edge(WorkflowEdge::new("explore", "analyze"));
+            .with_label("分析依赖"));
+        // 注意：没有 add_edge，所以两个节点会并行执行
+    */
 
     workflow.variables.insert("target_path".to_string(), target_path.to_string());
 

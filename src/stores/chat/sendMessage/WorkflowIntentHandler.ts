@@ -474,9 +474,24 @@ ${workflowInfo.description}
         });
       });
 
+      // 🔥 监听工作流进度事件（实时进度）
+      const unlistenProgress = await listen('workflow:progress', (event: any) => {
+        const progress = event.payload;
+        console.log('[WorkflowIntentHandler] 📊 Received workflow:progress from Tauri:', progress);
+
+        // 转发到 chatEventBus
+        chatEventBus.emit('workflow:progress', {
+          workflowId,
+          event_type: progress.event_type,
+          node_id: progress.node_id,
+          message: progress.message,
+          timestamp: progress.timestamp,
+        });
+      });
+
       // 保存 unlisten 函数以便稍后清理（可选）
       (window as any).__workflowUnlisteners = (window as any).__workflowUnlisteners || [];
-      (window as any).__workflowUnlisteners.push(unlistenCompleted, unlistenError);
+      (window as any).__workflowUnlisteners.push(unlistenCompleted, unlistenError, unlistenProgress);
 
       // 发布工作流启动事件
       chatEventBus.emit('workflow:started', {

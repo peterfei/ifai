@@ -84,7 +84,8 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const setChatOpen = useLayoutStore(state => state.setChatOpen);
   const setActiveFileTokenCount = useEditorStore(state => state.setActiveFileTokenCount);
 
-  const sendMessage = useChatStore(state => state.sendMessage);
+  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
+  const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
 
   // 🔥 修复无限循环：使用 ref 存储稳定的值，避免依赖变化
   // 注意：fileRef.current 会在每次渲染时更新，这是安全的
@@ -742,7 +743,8 @@ ${textBefore}[CURSOR]${textAfter}
   const showLineNumbers = useSettingsStore(state => state.showLineNumbers);
   const tabSize = useSettingsStore(state => state.tabSize);
   const wordWrap = useSettingsStore(state => state.wordWrap);
-  const isChatStreaming = useChatStore(state => state.isLoading);
+  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
+  const isChatStreaming = useChatStore(state => state?.isLoading ?? false);
 
   // Update file size only when file path changes (new file loaded)
   if (file?.path !== lastFilePath.current) {

@@ -12,7 +12,8 @@ import clsx from 'clsx';
  * v0.2.6 新增
  */
 export const TokenUsageIndicator: React.FC = () => {
-  const messages = useChatStore(state => state.messages);
+  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
+  const messages = useChatStore(state => state?.messages ?? []);
   const currentModel = useSettingsStore(state => state.currentModel);
   const transparencyLevel = useSettingsStore(state => state.transparencyLevel);
   const currentPromptMeta = useTransparencyStore(state => state.currentPromptMeta);

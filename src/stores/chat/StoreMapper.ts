@@ -502,6 +502,63 @@ export const initStoreMapper = () => {
       useChatStore.setState(updater as any);
     });
 
+    // P3.5: 映射工作流实时进度（流式显示进度）
+    chatEventBus.on('workflow:progress', (payload) => {
+      const { workflowId, event_type, node_id, message } = payload as any;
+
+      console.log('[StoreMapper] 📊 workflow:progress received:', {
+        workflowId,
+        event_type,
+        node_id,
+        message,
+      });
+
+      // 更新工作流消息，显示实时进度
+      const updater = (state: any) => {
+        // 查找包含此 workflowId 的助手消息
+        const assistantIndex = state.messages.findIndex((m: any) =>
+          m.role === 'assistant' &&
+          m.metadata?.workflowId === workflowId
+        );
+
+        if (assistantIndex === -1) {
+          console.warn('[StoreMapper] ⚠️ Workflow message not found for progress:', workflowId);
+          return null;
+        }
+
+        // 🔥 构建进度显示
+        const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        let progressIndicator = '';
+
+        if (event_type === 'node_started') {
+          progressIndicator = `\n\n#### 🔄 执行中... ( ${timestamp} )\n\n`;
+        }
+
+        const progressContent = progressIndicator + (
+          message ? `${message}\n` : ''
+        );
+
+        // 追加到现有内容（或者创建初始进度消息）
+        const existingMessage = state.messages[assistantIndex];
+        const newContent = existingMessage.content + progressContent;
+
+        const newMessages = [...state.messages];
+        newMessages[assistantIndex] = {
+          ...existingMessage,
+          content: newContent,
+          timestamp: Date.now(),
+          metadata: {
+            ...existingMessage.metadata,
+            lastProgressUpdate: Date.now(),
+          },
+        };
+
+        return { messages: newMessages };
+      };
+
+      useChatStore.setState(updater as any);
+    });
+
     // P4: 映射工作流执行完成（显示实际执行结果）
     chatEventBus.on('workflow:completed', (payload) => {
       const { workflow_id, status, node_results, started_at, completed_at } = payload as any;
@@ -516,12 +573,13 @@ export const initStoreMapper = () => {
       // 🔥 详细打印每个节点的结果
       if (node_results) {
         for (const [nodeId, nodeResult] of Object.entries(node_results)) {
+          const result = nodeResult as any;
           console.log(`[StoreMapper] 🔍 Node ${nodeId}:`, {
-            status: nodeResult.status,
-            has_output: !!nodeResult.output,
-            output_length: nodeResult.output?.length || 0,
-            output_preview: nodeResult.output?.substring(0, 100),
-            has_error: !!nodeResult.error,
+            status: result.status,
+            has_output: !!result.output,
+            output_length: result.output?.length || 0,
+            output_preview: result.output?.substring(0, 100),
+            has_error: !!result.error,
           });
         }
       }

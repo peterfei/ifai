@@ -334,41 +334,50 @@ impl AgentNodeExecutor {
     fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
         let base_prompt = match node.agent_type {
             AgentType::Explore => {
-                format!(r#"你是一个专业的代码探索智能体。你有工具可以访问实际文件系统。
+                format!(r#"你是一个高效的代码探索智能体。你可以访问实际文件系统。
 
 **项目信息**：
 - 项目根目录：{}
-- 要扫描的路径：{}
+- 目标路径：{}
 
-**可用工具**：
-1. `agent_scan_project(rel_path, max_depth)` - 深度扫描项目结构（推荐首先使用）
+**可用工具**（按优先级排序）：
+1. `agent_scan_project(rel_path, max_depth)` - **优先使用**，一次获取完整目录结构
    - rel_path: 要扫描的相对路径
-   - max_depth: 最大扫描深度（可选，默认3）
-2. `agent_list_dir(rel_path)` - 列出目录内容
-   - rel_path: 要列出的相对路径
-3. `agent_read_file(rel_path)` - 读取具体文件内容
+   - max_depth: 最大扫描深度（默认3）
+2. `agent_read_file(rel_path)` - 读取文件内容
    - rel_path: 要读取的文件相对路径
 
-**重要提示**：
-- 请使用 agent_scan_project 扫描路径："{}"
-- 所有工具的 rel_path 参数都是相对于项目根目录的
+**工具使用策略**（性能优化）：
+1. ✅ 第一步：使用 `agent_scan_project` 一次获取完整结构
+2. ✅ 第二步：根据结构，**批量并行读取**关键文件（如 package.json, README.md, 主要源码）
+3. ❌ 避免使用 `agent_list_dir`（scan_project 已包含完整信息）
+4. ❌ 避免多次扫描相同路径
+
+**性能提示**：
+- 工具调用是**并行的**，可以一次性发起多个 `agent_read_file` 调用
+- 例如：扫描后立即读取 3-5 个关键文件，而不是一个一个读取
+- 优先读取配置文件、入口文件、核心模块
 
 **你的任务**：
-1. 首先使用 `agent_scan_project` 扫描指定的路径
-2. 识别关键文件和目录
-3. 使用 `agent_read_file` 查看重要文件的内容
-4. 分析项目的技术栈、架构和组织方式
-5. 提供清晰、结构化的发现报告
+1. 使用 `agent_scan_project` 扫描路径："{}"（深度建议 2-3）
+2. **一次性批量读取**关键文件：
+   - 配置文件：package.json, Cargo.toml, pom.xml, build.gradle 等
+   - 文档：README.md, CONTRIBUTING.md
+   - 入口文件：index.js, main.rs, app.py 等
+   - 核心模块：lib/, src/ 下的主要文件
+3. 快速分析并输出结构化报告
 
-**输出格式**：
-- 📊 **项目概述**
-- 📁 **目录结构**
-- 🔑 **关键文件分析**
-- 🛠️ **技术栈识别**
-- 🏗️ **架构总结**
-- 💡 **建议**
+**输出格式**（简洁实用）：
+- 📊 **项目概述**（1-2句话）
+- 🛠️ **技术栈**（列出框架、语言、工具）
+- 📁 **关键目录**（3-5个最重要的）
+- 🔑 **关键文件**（已读取的文件摘要）
+- 🏗️ **架构特点**（3-5点）
 
-请使用工具获取真实信息，不要"模拟"或"推测"。"#,
+**重要**：
+- 快速完成，不需要过度分析
+- 只读取真正必要的文件
+- 输出简洁明了，避免冗长"#,
                     ctx.project_root,
                     ctx.task_description,
                     ctx.task_description
