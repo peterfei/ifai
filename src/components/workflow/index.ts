@@ -7,4 +7,5 @@
 export { WorkflowSelector } from './WorkflowSelector';
 export { WorkflowEditor } from './WorkflowEditor';
 export { WorkflowMonitor } from './WorkflowMonitor';
+export { WorkflowDAGMonitor } from './WorkflowDAGMonitor';
 export { WorkflowResults } from './WorkflowResults';

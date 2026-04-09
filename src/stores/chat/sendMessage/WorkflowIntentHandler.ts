@@ -384,8 +384,8 @@ ${workflowInfo.description}
           ...(payload || {})
         });
 
-        // 模拟异步执行
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // 模拟异步执行（给监控器足够时间显示）
+        await new Promise(resolve => setTimeout(resolve, 2500));
 
         // 模拟工作流完成并返回结果
         const mockResponse = `📊 **项目探索完成**

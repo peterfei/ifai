@@ -32,7 +32,7 @@ interface WorkflowTemplate {
 }
 
 interface WorkflowSelectorProps {
-  onExecute?: (workflowId: string) => void;
+  onExecute?: (workflowId: string, workflowType?: string) => void;
   targetPath?: string;
 }
 
@@ -60,6 +60,18 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
   const executeQuickWorkflow = async (workflowType: string) => {
     try {
       setExecuting(workflowType);
+
+      // 🔥 通知父组件工作流开始执行（用于 DAG 监控）
+      if (onExecute) {
+        // 映射 workflowType 到实际的工作流 ID
+        const workflowIdMap: Record<string, string> = {
+          'code_review': 'quick-code-review',
+          'exploration': 'quick-exploration',
+          'quality_check': 'quick-quality-check',
+        };
+        const workflowId = workflowIdMap[workflowType] || `quick-${workflowType}`;
+        onExecute(workflowId, workflowType);
+      }
 
       // 🔥 FIX: 通过 sendMessage 触发工作流，而不是直接调用 Tauri 命令
       // 这样可以触发 shouldSkipChat 逻辑，避免重复调用 AI

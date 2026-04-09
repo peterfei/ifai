@@ -1012,8 +1012,7 @@ function App() {
           isOpen={isKeyboardShortcutsOpen}
           onClose={closeKeyboardShortcuts}
         />
-        {/* 🏆 PIVO 3.0: 废除右下角监控器，回归 Chat-Native */}
-        {/* <GlobalAgentMonitor /> */}
+        {/* 🏆 PIVO 3.0: 工作流内嵌监控器 - 在聊天消息流中显示（集成在 AIChat 组件内） */}
         {useSettingsStore((state) => state.showPerformanceMonitor) && (
           <PerformancePanel
             onClose={() => useSettingsStore.getState().updateSettings({ showPerformanceMonitor: false })}

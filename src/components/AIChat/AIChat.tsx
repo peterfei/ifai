@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, Settings, X, ChevronDown, Search, FileText } from 'lucide-react';
 import { useChatStore } from '../../stores/useChatStore';

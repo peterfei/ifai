@@ -8,6 +8,8 @@ import React, { useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
+// 工作流内嵌监控器
+import { WorkflowInlineMonitorContainer } from '../workflow/WorkflowInlineMonitor';
 
 interface VirtualMessageListProps {
   messages: ReturnType<typeof useChatStore.getState>['messages'];
@@ -70,18 +72,42 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   if (visibleMessages.length < 15 || isLoading || hasPendingToolCalls) {
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {visibleMessages.map((message) => (
-          <MessageItem
-            key={message.id}
-            message={message as any}
-            onApprove={onApprove}
-            onReject={onReject}
-            onOpenFile={onOpenFile}
-            onOpenComposer={onOpenComposer}
-            // 🔥 v0.5.0: 只在消息本身的 isStreaming 为 true 时才启用，不使用全局 isLoading
-            // 这样历史消息加载时不会触发打字机效果
-            isStreaming={message.isStreaming || false}
-          />
+        {visibleMessages.map((message, index) => (
+          <React.Fragment key={message.id}>
+            <MessageItem
+              message={message as any}
+              onApprove={onApprove}
+              onReject={onReject}
+              onOpenFile={onOpenFile}
+              onOpenComposer={onOpenComposer}
+              // 🔥 v0.5.0: 只在消息本身的 isStreaming 为 true 时才启用，不使用全局 isLoading
+              // 这样历史消息加载时不会触发打字机效果
+              isStreaming={message.isStreaming || false}
+            />
+            {/* 🔥 只在最新的用户工作流命令后显示监控器 */}
+            {(() => {
+              // 找到所有用户消息的索引
+              const userMessageIndices = visibleMessages
+                .map((msg, idx) => msg.role === 'user' ? idx : -1)
+                .filter(idx => idx !== -1);
+
+              // 最后一条用户消息的索引
+              const lastUserMessageIndex = userMessageIndices.length > 0
+                ? userMessageIndices[userMessageIndices.length - 1]
+                : -1;
+
+              const isWorkflowCommand =
+                message.role === 'user' &&
+                typeof message.content === 'string' &&
+                message.content.trim().startsWith('/');
+
+              const isLastUserMessage = index === lastUserMessageIndex;
+
+              return isWorkflowCommand && isLastUserMessage;
+            })() && (
+              <WorkflowInlineMonitorContainer />
+            )}
+          </React.Fragment>
         ))}
       </div>
     );
@@ -131,6 +157,31 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 onOpenComposer={onOpenComposer}
                 isStreaming={false}
               />
+              {/* 🔥 只在最新的用户工作流命令后显示监控器 */}
+              {(() => {
+                // 找到所有用户消息的索引
+                const userMessageIndices = visibleMessages
+                  .map((msg, idx) => msg.role === 'user' ? idx : -1)
+                  .filter(idx => idx !== -1);
+
+                // 最后一条用户消息的索引
+                const lastUserMessageIndex = userMessageIndices.length > 0
+                  ? userMessageIndices[userMessageIndices.length - 1]
+                  : -1;
+
+                const isWorkflowCommand =
+                  message.role === 'user' &&
+                  typeof message.content === 'string' &&
+                  message.content.trim().startsWith('/');
+
+                const isLastUserMessage = virtualRow.index === lastUserMessageIndex;
+
+                return isWorkflowCommand && isLastUserMessage;
+              })() && (
+                <div style={{ marginTop: '8px' }}>
+                  <WorkflowInlineMonitorContainer />
+                </div>
+              )}
             </div>
           );
         })}

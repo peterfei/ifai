@@ -40,7 +40,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
   const fileSearchRef = useRef<any>(null);
   const symbolSearchRef = useRef<any>(null);
   
-  const { sendMessage, messages } = useChatStore();
+  const { sendMessage, messages = [] } = useChatStore();
   const { providers, currentProviderId, currentModel } = useSettingsStore();
   const { allFilePaths, refreshFileTree } = useFileStore();
 

@@ -9,6 +9,7 @@ import {
   WorkflowSelector,
   WorkflowEditor,
   WorkflowMonitor,
+  WorkflowDAGMonitor,
   WorkflowResults,
 } from '../components/workflow';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/tabs';
@@ -21,6 +22,7 @@ import {
   Activity,
   ArrowLeft,
 } from 'lucide-react';
+import type { DAGNode as DAGNodeType, DAGEdge as DAGEdgeType } from '../components/workflow/WorkflowDAGMonitor';
 
 // 简化的 URL 参数处理
 function useURLSearchParams() {
@@ -40,7 +42,40 @@ interface WorkflowExecution {
   id: string;
   startTime: number;
   status: 'running' | 'completed' | 'failed';
+  workflowType?: string;
+  nodes?: DAGNodeType[];
+  edges?: DAGEdgeType[];
 }
+
+// 工作流节点配置映射（与后端 workflow_commands.rs 保持一致）
+const WORKFLOW_NODE_CONFIGS: Record<string, { nodes: DAGNodeType[]; edges: DAGEdgeType[] }> = {
+  'quick-code-review': {
+    nodes: [
+      { id: 'explore', label: '探索代码', agentType: 'explore', status: 'pending' },
+      { id: 'review', label: '代码审查', agentType: 'review', status: 'pending' },
+      { id: 'refactor', label: '重构建议', agentType: 'refactor', status: 'pending' },
+    ],
+    edges: [
+      { from: 'explore', to: 'review' },
+      { from: 'review', to: 'refactor' },
+    ],
+  },
+  'quick-exploration': {
+    nodes: [
+      { id: 'explore', label: '快速探索', agentType: 'explore', status: 'pending' },
+    ],
+    edges: [],
+  },
+  'quick-quality-check': {
+    nodes: [
+      { id: 'review', label: '代码审查', agentType: 'review', status: 'pending' },
+      { id: 'security', label: '安全检查', agentType: 'review', status: 'pending' },
+    ],
+    edges: [
+      { from: 'review', to: 'security' },
+    ],
+  },
+};
 
 export function WorkflowsPage() {
   const [searchParams, setSearchParams] = useURLSearchParams();
@@ -58,11 +93,17 @@ export function WorkflowsPage() {
   >(null);
   const [targetPath, setTargetPath] = useState('./src');
 
-  const handleWorkflowExecute = (workflowId: string) => {
+  const handleWorkflowExecute = (workflowId: string, workflowType?: string) => {
+    // 获取节点配置
+    const nodeConfig = workflowType ? WORKFLOW_NODE_CONFIGS[workflowType] : undefined;
+
     const execution: WorkflowExecution = {
       id: workflowId,
       startTime: Date.now(),
       status: 'running',
+      workflowType,
+      nodes: nodeConfig?.nodes,
+      edges: nodeConfig?.edges,
     };
 
     setExecutingWorkflows((prev) => [...prev, execution]);
@@ -229,12 +270,34 @@ export function WorkflowsPage() {
         {/* 执行监控 */}
         <TabsContent value="monitor">
           {selectedWorkflowId ? (
-            <WorkflowMonitor
-              workflowId={selectedWorkflowId}
-              onComplete={handleWorkflowComplete}
-              onError={handleWorkflowError}
-              onClose={handleCloseMonitor}
-            />
+            (() => {
+              const currentWorkflow = executingWorkflows.find(w => w.id === selectedWorkflowId);
+              const hasDAGConfig = currentWorkflow?.nodes && currentWorkflow?.edges;
+
+              // 如果有 DAG 配置，使用 DAG 监控器
+              if (hasDAGConfig && currentWorkflow.nodes && currentWorkflow.edges) {
+                return (
+                  <WorkflowDAGMonitor
+                    workflowId={selectedWorkflowId}
+                    nodes={currentWorkflow.nodes}
+                    edges={currentWorkflow.edges}
+                    onComplete={handleWorkflowComplete}
+                    onError={handleWorkflowError}
+                    onClose={handleCloseMonitor}
+                  />
+                );
+              }
+
+              // 否则使用传统的监控器
+              return (
+                <WorkflowMonitor
+                  workflowId={selectedWorkflowId}
+                  onComplete={handleWorkflowComplete}
+                  onError={handleWorkflowError}
+                  onClose={handleCloseMonitor}
+                />
+              );
+            })()
           ) : (
             <Card>
               <CardContent className="pt-6">

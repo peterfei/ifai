@@ -58,18 +58,17 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const [debugTasks, setDebugTasks] = useState<any[]>([]);
 
   // v0.2.9: Inline Edit Store
-  const { 
-    isInlineEditVisible, 
-    showInlineEdit, 
-    hideInlineEdit, 
-    submitInstruction,
-    rejectDiff,
-    pivoStage,
-    pivoTasks,
-    modifiedFiles,
-    modifiedCode,
-    originalCode
-  } = useInlineEditStore();
+  // 🔥 FIX: 使用 selector 避免订阅整个 store，防止无限循环
+  const isInlineEditVisible = useInlineEditStore(state => state.isInlineEditVisible);
+  const showInlineEdit = useInlineEditStore(state => state.showInlineEdit);
+  const hideInlineEdit = useInlineEditStore(state => state.hideInlineEdit);
+  const submitInstruction = useInlineEditStore(state => state.submitInstruction);
+  const rejectDiff = useInlineEditStore(state => state.rejectDiff);
+  const pivoStage = useInlineEditStore(state => state.pivoStage);
+  const pivoTasks = useInlineEditStore(state => state.pivoTasks);
+  const modifiedFiles = useInlineEditStore(state => state.modifiedFiles);
+  const modifiedCode = useInlineEditStore(state => state.modifiedCode);
+  const originalCode = useInlineEditStore(state => state.originalCode);
 
   // 🔥 优化：使用更具体的选择器，只订阅当前 Pane 的 fileId 和对应的文件
   const pane = useLayoutStore(

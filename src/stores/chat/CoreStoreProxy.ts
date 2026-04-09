@@ -62,5 +62,6 @@ export const ensureCoreProxyInstalled = () => {
     return installProxy();
 };
 
-export const useChatStore = coreStore;
-export default useChatStore;
+// 🔥 FIX: 正确导出 Hook 函数，而不是 store 对象
+export { useChatStore } from 'ifainew-core';
+export { useChatStore as default } from 'ifainew-core';

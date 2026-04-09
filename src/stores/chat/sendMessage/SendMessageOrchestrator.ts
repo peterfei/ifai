@@ -65,6 +65,18 @@ export class SendMessageOrchestrator {
         // 等待一小段时间确保消息被创建
         await new Promise(resolve => setTimeout(resolve, 100));
 
+        // 🔥 FIX: 重新触发 workflow:started 事件，确保 WorkflowInlineMonitorContainer 能捕获到
+        if (intentResult.metadata?.workflowId) {
+          console.log('[SendMessageOrchestrator] 📤 Re-emitting workflow:started event for monitor');
+          chatEventBus.emit('workflow:started', {
+            workflowId: intentResult.metadata.workflowId,
+            workflowType: intentResult.metadata.workflowType,
+            targetPath: intentResult.metadata?.targetPath,
+            timestamp: Date.now(),
+            ...basePayload,
+          });
+        }
+
         // 然后发布工作流响应事件（更新助手消息的内容）
         console.log('[SendMessageOrchestrator] 📤 Emitting workflow:response event after message creation');
         console.log('[SendMessageOrchestrator] 📝 Response content:', intentResult.metadata?.response?.substring(0, 100));
