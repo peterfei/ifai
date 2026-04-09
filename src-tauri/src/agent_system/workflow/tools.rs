@@ -169,7 +169,31 @@ impl ToolExecutor for DefaultToolExecutor {
 }
 
 /// 创建工具定义（用于发送给 AI）
+/// 🔥 优先使用私有库的工具定义，确保一致性
 pub fn create_tool_definitions() -> Vec<serde_json::Value> {
+    // 🔥 Commercial 版本：使用私有库的统一工具定义
+    #[cfg(feature = "commercial")]
+    {
+        // 从私有库获取工具定义并转换为 JSON
+        ifainew_core::ai::create_default_tools()
+            .into_iter()
+            .map(|tool| {
+                // 将 ifainew_core::ai::Tool 转换为 serde_json::Value
+                serde_json::to_value(tool).unwrap_or_default()
+            })
+            .collect()
+    }
+
+    // 🔥 Community 版本：使用本地工具定义（向后兼容）
+    #[cfg(not(feature = "commercial"))]
+    {
+        create_tool_definitions_fallback()
+    }
+}
+
+/// Community 版本的工具定义（降级处理）
+#[cfg(not(feature = "commercial"))]
+fn create_tool_definitions_fallback() -> Vec<serde_json::Value> {
     vec![
         // 🔥 优先级1：扫描工具（放在最前面）
         serde_json::json!({

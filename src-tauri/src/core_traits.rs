@@ -4,7 +4,15 @@ pub mod ai {
     use super::*;
 
     #[cfg(feature = "commercial")]
-    pub use ifainew_core::ai::{Message, Content, ContentPart, ToolCall, FunctionCall, AIProviderConfig, ImageUrl, AIProtocol};
+    pub use ifainew_core::ai::{
+        Message, Content, ContentPart, ToolCall, FunctionCall, AIProviderConfig, ImageUrl, AIProtocol,
+        // 🔥 新增：非流式工具调用 API
+        ChatWithToolsResponse, PerformanceMetrics, create_default_tools,
+    };
+
+    // 🔥 新增：非流式工具调用函数
+    #[cfg(feature = "commercial")]
+    pub use ifainew_core::ai::chat_with_tools;
 
     #[cfg(not(feature = "commercial"))]
     mod community_types {
@@ -72,6 +80,23 @@ pub mod ai {
             #[serde(default)] pub base_url: String,
             #[serde(default)] pub models: Vec<String>,
             #[serde(default)] pub protocol: AIProtocol,
+        }
+
+        // 🔥 新增：性能指标
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        pub struct PerformanceMetrics {
+            #[serde(default)] pub total_duration_ms: u128,
+            #[serde(default)] pub ai_api_duration_ms: u128,
+            #[serde(default)] pub tool_execution_duration_ms: u128,
+            #[serde(default)] pub iteration_count: usize,
+        }
+
+        // 🔥 新增：非流式工具调用响应
+        #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        pub struct ChatWithToolsResponse {
+            #[serde(default)] pub content: String,
+            #[serde(default)] pub tool_calls: Option<Vec<ToolCall>>,
+            #[serde(default)] pub metrics: PerformanceMetrics,
         }
     }
 

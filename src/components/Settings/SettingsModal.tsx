@@ -373,6 +373,25 @@ export const SettingsModal = () => {
                   />
                 </div>
 
+                {/* 🔥 v0.5.0: 打字机效果设置 */}
+                <div className="flex items-center justify-between pt-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-300">
+                      启用打字机效果
+                    </label>
+                    <p className="text-xs text-gray-400 mt-1">
+                      逐字显示 AI 响应，关闭后将直接显示完整内容
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.enableTypewriterEffect}
+                    onChange={(e) => settings.updateSettings({ enableTypewriterEffect: e.target.checked })}
+                    data-testid="typewriter-effect-checkbox"
+                    className="ml-4 h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
                 {/* Agent Settings */}
                 <div className="border-t border-gray-600 pt-6 mt-6">
                   <h3 className="text-sm font-bold text-gray-300 mb-4">

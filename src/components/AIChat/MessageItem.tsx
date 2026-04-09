@@ -12,9 +12,12 @@ const TypewriterText: React.FC<{
     isStreaming: boolean;
     children: (text: string) => React.ReactNode;
 }> = ({ content, isStreaming, children }) => {
+    // 🔥 FIX: 使用 enableTypewriterEffect 设置来控制是否启用打字机效果
+    const enableTypewriter = useSettingsStore((s) => s.enableTypewriterEffect);
+
     const { displayText } = useTypewriter({
         content,
-        enabled: isStreaming,
+        enabled: isStreaming && enableTypewriter, // 只在流式传输且启用打字机效果时才启用
         baseCPS: 40,
         fastCPS: 120,
         threshold: 300,

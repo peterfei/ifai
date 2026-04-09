@@ -558,10 +558,11 @@ export const switchThread = async (threadId: string) => {
         console.log(`[ChatStore] 📥 加载了 ${messages.length} 条消息，准备排序`);
 
         // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
+        // 🔥 v0.5.0: 强制重置 isStreaming 状态，避免历史消息触发打字机效果
         const normalizedMessages = (messages || []).map((msg: any, idx: number) => {
             // 如果已经有 segments 且不为空，直接使用
             if (msg.segments && msg.segments.length > 0) {
-                return { ...msg, _loadOrder: idx };  // 添加加载顺序索引
+                return { ...msg, isStreaming: false, _loadOrder: idx };  // 🔥 重置 isStreaming
             }
 
             // 物理恢复：如果没 segments 但有内容，创建一个默认的 pre-tool 段落
@@ -578,6 +579,7 @@ export const switchThread = async (threadId: string) => {
 
             return {
                 ...msg,
+                isStreaming: false,  // 🔥 重置 isStreaming
                 segments,
                 _loadOrder: idx  // 添加加载顺序索引用于稳定排序
             };

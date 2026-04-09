@@ -366,6 +366,7 @@ ${workflowInfo.description}
 
       // 🔥 FIX: 使用真实的 Tauri 调用执行工作流
       // 但在 E2E 测试环境中使用 Mock 模式
+      // 只有明确设置 __E2E__ 标志时才使用 Mock 模式
       const isE2EMode = typeof window !== 'undefined' && (window as any).__E2E__;
 
       if (isE2EMode) {
@@ -386,6 +387,36 @@ ${workflowInfo.description}
         // 模拟异步执行
         await new Promise(resolve => setTimeout(resolve, 100));
 
+        // 模拟工作流完成并返回结果
+        const mockResponse = `📊 **项目探索完成**
+
+目标路径: \`${targetPath || '.'}\`
+
+**项目概览**:
+- 项目类型检测成功
+- 目录结构分析完成
+- 关键文件识别完成
+
+💡 提示: 这是 E2E 测试环境的模拟响应。`;
+
+        // 发布工作流响应事件
+        chatEventBus.emit('workflow:response', {
+          ...payload,
+          workflowId: mockWorkflowId,
+          workflowType,
+          response: mockResponse,
+          timestamp: Date.now(),
+        });
+
+        // 发布工作流完成事件
+        chatEventBus.emit('workflow:completed', {
+          workflow_id: mockWorkflowId,
+          status: 'completed',
+          node_results: {},
+          started_at: Date.now(),
+          completed_at: Date.now(),
+        });
+
         return mockWorkflowId;
       }
 
@@ -404,15 +435,37 @@ ${workflowInfo.description}
           location: window.location.href,
         });
 
-        // 显示友好的错误提示给用户
-        const errorMessage = '工作流功能需要在 Tauri 桌面应用中运行。请使用 npm run tauri dev 启动应用。';
-        console.error('[WorkflowIntentHandler] ⚠️', errorMessage);
+        // 🔥 FIX: 在非 Tauri 环境中，创建带有正确元数据的错误消息
+        const errorWorkflowId = `workflow-error-${Date.now()}`;
+        const errorMessage = `❌ **工作流执行失败**
 
-        // 发布错误事件
-        chatEventBus.emit('workflow:error', {
+工作流功能需要在 Tauri 桌面应用中运行。
+
+**当前环境**: 浏览器 (${window.location.href})
+
+**解决方法**:
+1. 使用 \`npm run tauri dev\` 启动桌面应用
+2. 或者在 Tauri 应用中执行此命令
+
+工作流类型: \`${workflowType}\`
+目标路径: \`${targetPath}\``;
+
+        // 发布工作流响应事件（包含错误信息，但有正确的元数据）
+        chatEventBus.emit('workflow:response', {
           ...payload,
-          error: errorMessage,
+          workflowId: errorWorkflowId,
+          workflowType,
+          response: errorMessage,
           timestamp: Date.now(),
+        });
+
+        // 发布工作流完成事件（标记为失败）
+        chatEventBus.emit('workflow:completed', {
+          workflow_id: errorWorkflowId,
+          status: 'failed',
+          node_results: {},
+          started_at: Date.now(),
+          completed_at: Date.now(),
         });
 
         throw new Error(errorMessage);

@@ -76,7 +76,7 @@ pub async fn execute_with_tools(
 
         // 调用 AI
         let ai_start = std::time::Instant::now();
-        let response = call_ai_with_tools(
+        let response = call_ai_with_tools_unified(
             provider_config.clone(),
             &messages,
         ).await?;
@@ -260,6 +260,43 @@ async fn call_ai_with_tools(
     }
 
     Err("无法解析 AI 响应".to_string())
+}
+
+/// 🔥 调用 AI（支持工具调用）- 使用私有库统一接口
+async fn call_ai_with_tools_unified(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    messages: &[Message],
+) -> Result<String, String> {
+    println!("[ToolLoop] 📤 调用 ifainew_core::ai::chat_with_tools");
+
+    // 🔥 使用私有库的统一接口
+    #[cfg(feature = "commercial")]
+    {
+        let response = ifainew_core::ai::chat_with_tools(
+            provider_config,
+            messages.to_vec(),
+            true, // enable_tools
+        ).await.map_err(|e| format!("AI 调用失败: {}", e))?;
+
+        println!("[ToolLoop] ⏱️ AI API 耗时: {}ms", response.metrics.ai_api_duration_ms);
+
+        // 返回工具调用 JSON 或内容
+        if let Some(tool_calls) = response.tool_calls {
+            let tool_calls_json = serde_json::to_string(&tool_calls)
+                .unwrap_or_default();
+            println!("[ToolLoop] 🔧 返回工具调用: {} 个", tool_calls.len());
+            Ok(tool_calls_json)
+        } else {
+            println!("[ToolLoop] ✅ 返回内容: {} 字符", response.content.len());
+            Ok(response.content)
+        }
+    }
+
+    // 🔥 Community 版本的降级处理（保持向后兼容）
+    #[cfg(not(feature = "commercial"))]
+    {
+        call_ai_with_tools(provider_config, messages).await
+    }
 }
 
 /// 从 AI 响应中提取工具调用

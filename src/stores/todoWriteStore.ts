@@ -42,6 +42,9 @@ interface TodoWriteStoreState {
   // 从 TodoWrite 工具调用同步
   syncFromToolCall: (todos: any[]) => void;
 
+  // 🔥 FIX: 修复损坏的 store 数据
+  repairStore: () => void;
+
   // 内部方法
   updateStats: () => void;
   checkAutoCollapse: () => void;
@@ -198,6 +201,34 @@ export const useTodoWriteStore = create<TodoWriteStoreState>()(
               set({ panelState: 'collapsed' });
             }
           }, 800);
+        }
+      },
+
+      // 🔥 FIX: 修复损坏的 store 数据
+      repairStore: () => {
+        const state = get();
+        let needsRepair = false;
+
+        // 检查 tasks 是否为数组
+        if (!Array.isArray(state.tasks)) {
+          console.error('[TodoWriteStore] ❌ tasks is not an array:', state.tasks);
+          needsRepair = true;
+        }
+
+        // 检查 panelState 是否有效
+        if (!['full', 'collapsed', 'hidden'].includes(state.panelState)) {
+          console.error('[TodoWriteStore] ❌ invalid panelState:', state.panelState);
+          needsRepair = true;
+        }
+
+        if (needsRepair) {
+          console.log('[TodoWriteStore] 🔧 Repairing store...');
+          set({
+            tasks: Array.isArray(state.tasks) ? state.tasks : [],
+            panelState: ['full', 'collapsed', 'hidden'].includes(state.panelState)
+              ? state.panelState
+              : 'hidden',
+          });
         }
       },
     }),

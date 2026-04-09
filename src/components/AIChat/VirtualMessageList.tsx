@@ -78,7 +78,9 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
             onReject={onReject}
             onOpenFile={onOpenFile}
             onOpenComposer={onOpenComposer}
-            isStreaming={message.isStreaming || (isLoading && message.role === 'assistant')}
+            // 🔥 v0.5.0: 只在消息本身的 isStreaming 为 true 时才启用，不使用全局 isLoading
+            // 这样历史消息加载时不会触发打字机效果
+            isStreaming={message.isStreaming || false}
           />
         ))}
       </div>

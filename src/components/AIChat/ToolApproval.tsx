@@ -124,16 +124,19 @@ const TypewriterCodeBlock: React.FC <{
     isExpanded: boolean;
     onToggleExpand: () => void;
 }> = ({ code, isPartial, language, fileName, isExpanded, onToggleExpand }) => {
-    // 打字机效果：仅在流式传输（isPartial）时启用
+    // 🔥 FIX: 使用 enableTypewriterEffect 设置来控制是否启用打字机效果
+    const enableTypewriter = useSettingsStore((s) => s.enableTypewriterEffect);
+
+    // 打字机效果：仅在流式传输（isPartial）且启用打字机效果时启用
     const { displayText, isTyping, skip } = useTypewriter({
         content: code,
-        enabled: isPartial,
+        enabled: isPartial && enableTypewriter,
         baseCPS: 120,
         fastCPS: 300,
         threshold: 300,
     });
 
-    const effectiveCode = isPartial ? displayText : code;
+    const effectiveCode = (isPartial && enableTypewriter) ? displayText : code;
     const lines = effectiveCode.split('\n');
     const displayLines = isExpanded ? lines : lines.slice(0, PREVIEW_LINES);
     const shouldCollapse = code.split('\n').length > PREVIEW_LINES;

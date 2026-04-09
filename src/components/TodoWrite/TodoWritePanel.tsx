@@ -55,7 +55,15 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
   const stats = useTodoWriteStats();
   const isLoading = useTodoWriteLoading();
   const panelState = useTodoWriteStore((s) => s.panelState);
-  const { loadTasks, updateTaskStatus, clearTasks, removeTask, setPanelState } = useTodoWriteActions();
+  const { loadTasks, updateTaskStatus, clearTasks, removeTask, setPanelState, repairStore } = useTodoWriteActions();
+
+  // 🔥 FIX: 确保 tasks 始终是数组，防止 localStorage 损坏导致错误
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+
+  // 初始化时修复可能损坏的 store 数据
+  useEffect(() => {
+    repairStore();
+  }, [repairStore]);
 
   // 初始加载
   useEffect(() => {
@@ -84,7 +92,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
 
   // 处理清空任务
   const handleClearTasks = async () => {
-    if (tasks.length === 0) return;
+    if (safeTasks.length === 0) return;
 
     try {
       await clearTasks();
@@ -160,7 +168,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
           </button>
 
           {/* 清空按钮 */}
-          {tasks.length > 0 && (
+          {safeTasks.length > 0 && (
             <button
               onClick={handleClearTasks}
               className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
@@ -203,7 +211,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
           </div>
-        ) : tasks.length === 0 ? (
+        ) : safeTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             <p className="text-gray-500 dark:text-gray-400 text-sm">
               暂无任务
@@ -214,7 +222,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {tasks.map((task, index) => (
+            {safeTasks.map((task, index) => (
               <div
                 key={index}
                 className="group flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"

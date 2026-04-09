@@ -25,7 +25,11 @@ export class SendMessageOrchestrator {
     const sessionId = useThreadStore.getState().activeThreadId || 'default-thread';
     const timestamp = Date.now();
 
-    const basePayload = { correlationId, sessionId, timestamp };
+    // 🔥 FIX: 为用户消息创建单独的 ID，避免与助手消息 ID 冲突
+    // 用户消息和助手消息必须有不同的 ID，否则持久化时会被覆盖
+    const messageId = `user-${correlationId}`;
+
+    const basePayload = { correlationId, messageId, sessionId, timestamp };
 
     try {
       // 发布开始事件 (触发 UI Loading 和 初始持久化)
@@ -54,7 +58,7 @@ export class SendMessageOrchestrator {
         chatEventBus.emit('chat:message:sent', {
           ...basePayload,
           content: textInput,
-          messageId: basePayload.correlationId,
+          messageId: messageId,  // 🔥 FIX: 使用独立的 messageId
           workflowId: intentResult.metadata?.workflowId,
         });
 
