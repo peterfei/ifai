@@ -397,20 +397,101 @@ ${workflowInfo.description}
         console.log('[WorkflowIntentHandler] 🧪 Using mock workflow execution (E2E mode)');
         console.log('[WorkflowIntentHandler] ✅ Mock workflow ID:', mockWorkflowId);
 
-        // 发布工作流启动事件
-        chatEventBus.emit('workflow:started', {
+        // 🔥 根据工作流类型生成模拟的计划节点
+        const mockPlannedNodes = (() => {
+          if (workflowType === 'exploration') {
+            return [
+              { id: 'explore', label: '探索代码', agent_type: 'explore' }
+            ];
+          } else if (workflowType === 'code_review') {
+            return [
+              { id: 'explore', label: '探索代码', agent_type: 'explore' },
+              { id: 'review', label: '代码审查', agent_type: 'review' },
+              { id: 'refactor', label: '重构建议', agent_type: 'refactor' }
+            ];
+          } else if (workflowType === 'quality_check') {
+            return [
+              { id: 'review', label: '代码审查', agent_type: 'review' },
+              { id: 'security', label: '安全检查', agent_type: 'review' }
+            ];
+          } else {
+            return [
+              { id: 'task', label: '执行任务', agent_type: 'general_purpose' }
+            ];
+          }
+        })();
+
+        console.log('[WorkflowIntentHandler] 📋 Mock planned nodes:', mockPlannedNodes);
+        console.log('[WorkflowIntentHandler] 📋 Nodes length:', mockPlannedNodes.length);
+        console.log('[WorkflowIntentHandler] 📋 First node:', mockPlannedNodes[0]);
+
+        // 🔥 发布工作流启动事件（包含计划节点）
+        const workflowStartedEvent = {
           workflowId: mockWorkflowId,
           workflowType,
           targetPath,
           timestamp: Date.now(),
+          nodes: mockPlannedNodes,  // 🔥 包含计划节点
           ...(payload || {})
-        });
-        console.log('[WorkflowIntentHandler] 📤 Emitted workflow:started event');
+        };
+        console.log('[WorkflowIntentHandler] 📤 About to emit workflow:started event:', JSON.stringify(workflowStartedEvent, null, 2));
+        chatEventBus.emit('workflow:started', workflowStartedEvent);
+        console.log('[WorkflowIntentHandler] ✅ Emitted workflow:started event with nodes');
 
-        // 模拟异步执行（给监控器足够时间显示）
-        // 🔥 FIX: 减少等待时间，避免阻塞测试
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('[WorkflowIntentHandler] ⏰ Mock delay completed');
+        // 🔥 模拟渐进式节点执行（模拟真实工作流的行为）
+        // 每个节点依次启动、执行、完成
+        for (let i = 0; i < mockPlannedNodes.length; i++) {
+          const node = mockPlannedNodes[i];
+
+          // 等待一小段时间
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          // 发送 node_started 事件
+          chatEventBus.emit('workflow:progress', {
+            workflowId: mockWorkflowId,
+            event_type: 'node_started',
+            node_id: node.id,
+            message: `开始执行: ${node.label}`,
+            timestamp: Date.now()
+          });
+          console.log('[WorkflowIntentHandler] 📊 Mock node_started:', node.id);
+
+          // 模拟工具调用（仅对 explore 节点）
+          if (node.agent_type === 'explore') {
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            // 发送 tool_call 事件
+            chatEventBus.emit('workflow:progress', {
+              workflowId: mockWorkflowId,
+              event_type: 'tool_call',
+              node_id: node.id,
+              message: '扫描项目文件',
+              timestamp: Date.now(),
+              tool_details: {
+                tool_name: 'agent_scan_project',
+                tool_input: JSON.stringify({ path: targetPath || '.' }),
+                tool_output: '发现 15 个文件',
+                output_length: 50,
+                execution_time_ms: 350,
+                is_error: false
+              }
+            });
+            console.log('[WorkflowIntentHandler] 🔧 Mock tool_call: agent_scan_project');
+          }
+
+          // 等待节点执行完成
+          await new Promise(resolve => setTimeout(resolve, 600));
+
+          // 发送 node_completed 事件
+          chatEventBus.emit('workflow:progress', {
+            workflowId: mockWorkflowId,
+            event_type: 'node_completed',
+            node_id: node.id,
+            message: `✓ ${node.label} 完成`,
+            timestamp: Date.now()
+          });
+          console.log('[WorkflowIntentHandler] ✅ Mock node_completed:', node.id);
+        }
 
         // 模拟工作流完成并返回结果
         const mockResponse = `📊 **项目探索完成**
@@ -470,12 +551,34 @@ ${workflowInfo.description}
           const mockWorkflowId = `workflow-dev-${Date.now()}`;
           console.log('[WorkflowIntentHandler] ✅ Mock workflow ID:', mockWorkflowId);
 
-          // 🔥 立即发出工作流启动事件
+          // 🔥 根据工作流类型生成模拟的计划节点
+          const mockPlannedNodes = (() => {
+            if (workflowType === 'exploration') {
+              return [
+                { id: 'explore', label: '探索代码', agent_type: 'explore' }
+              ];
+            } else if (workflowType === 'code_review') {
+              return [
+                { id: 'explore', label: '探索代码', agent_type: 'explore' },
+                { id: 'review', label: '代码审查', agent_type: 'review' },
+                { id: 'refactor', label: '重构建议', agent_type: 'refactor' }
+              ];
+            } else {
+              return [
+                { id: 'task', label: '执行任务', agent_type: 'general_purpose' }
+              ];
+            }
+          })();
+
+          console.log('[WorkflowIntentHandler] 📋 Mock planned nodes (dev mode):', mockPlannedNodes);
+
+          // 🔥 立即发出工作流启动事件（包含计划节点）
           chatEventBus.emit('workflow:started', {
             workflowId: mockWorkflowId,
             workflowType,
             targetPath,
             timestamp: Date.now(),
+            nodes: mockPlannedNodes,  // 🔥 包含计划节点
             ...payload
           });
 

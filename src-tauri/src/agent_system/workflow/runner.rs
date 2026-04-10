@@ -236,16 +236,26 @@ pub struct ToolCallDetails {
     pub is_error: bool,               // 是否出错
 }
 
+/// 🔥 计划节点信息（用于 workflow:started 事件）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlannedNode {
+    pub id: String,
+    pub label: String,
+    pub agent_type: String,
+}
+
 /// 🔥 进度事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressEvent {
-    pub event_type: String,  // "node_started", "node_progress", "node_completed", "tool_call"
+    pub event_type: String,  // "node_started", "node_progress", "node_completed", "tool_call", "workflow:started"
     pub workflow_id: Option<String>,  // 🔥 添加 workflow_id 字段，前端用于匹配工作流
     pub node_id: Option<String>,
     pub message: Option<String>,
     pub timestamp: i64,
     /// 🔥 工具调用详细信息（仅当 event_type 为 "tool_call" 时存在）
     pub tool_details: Option<ToolCallDetails>,
+    /// 🔥 计划节点列表（仅当 event_type 为 "workflow:started" 时存在）
+    pub nodes: Option<Vec<PlannedNode>>,
 }
 
 impl WorkflowRunner {
@@ -294,8 +304,53 @@ impl WorkflowRunner {
                 message: message.map(|s| s.to_string()),
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: None,
+                nodes: None,
             };
             callback(event);
+        }
+    }
+
+    /// 🔥 发送 workflow:started 事件（包含计划节点）
+    async fn emit_workflow_started(&self) {
+        if let Some(callback) = self.progress_callback.read().await.as_ref() {
+            // 🔥 提取所有计划节点信息，用于前端立即显示
+            let planned_nodes: Vec<PlannedNode> = self.workflow.nodes.iter().map(|node| {
+                // 将 AgentType 转换为字符串
+                let agent_type_str = match node.agent_type {
+                    AgentType::Explore => "explore".to_string(),
+                    AgentType::Review => "review".to_string(),
+                    AgentType::Refactor => "refactor".to_string(),
+                    AgentType::Test => "test".to_string(),
+                    AgentType::Doc => "doc".to_string(),
+                    AgentType::TaskBreakdown => "task_breakdown".to_string(),
+                    AgentType::ProposalGenerator => "proposal_generator".to_string(),
+                    AgentType::GeneralPurpose => "general_purpose".to_string(),
+                };
+
+                PlannedNode {
+                    id: node.id.clone(),
+                    label: node.label.clone().unwrap_or_else(|| node.id.clone()),
+                    agent_type: agent_type_str,
+                }
+            }).collect();
+
+            println!("[WorkflowRunner] 📋 Extracted {} planned nodes for workflow:started event", planned_nodes.len());
+            for (i, node) in planned_nodes.iter().enumerate() {
+                println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
+            }
+
+            let event = ProgressEvent {
+                event_type: "workflow:started".to_string(),
+                workflow_id: Some(self.workflow.id.clone()),
+                node_id: None,
+                message: Some(format!("工作流开始执行: {}", self.workflow.name)),
+                timestamp: chrono::Utc::now().timestamp_millis(),
+                tool_details: None,
+                nodes: Some(planned_nodes),  // 🔥 包含计划节点
+            };
+            println!("[WorkflowRunner] 📤 Calling callback with workflow:started event (with {} nodes)", event.nodes.as_ref().map(|n| n.len()).unwrap_or(0));
+            callback(event);
+            println!("[WorkflowRunner] ✅ workflow:started callback executed IMMEDIATELY");
         }
     }
 
@@ -306,33 +361,14 @@ impl WorkflowRunner {
         println!("[WorkflowRunner] 🔗 Total edges: {}", self.workflow.edges.len());
         println!("[WorkflowRunner] 📋 Node IDs: {:?}", self.workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
 
-        // 🔥 TEST: 强制发送一个测试 progress 事件来验证 callback 是否工作
-        {
-            let callback_guard = self.progress_callback.read().await;
-            if let Some(callback) = callback_guard.as_ref() {
-                println!("[WorkflowRunner] ✅ Progress callback exists in run(), sending test event");
-                let test_event = ProgressEvent {
-                    event_type: "workflow_started".to_string(),
-                    workflow_id: Some(self.workflow.id.clone()),
-                    node_id: None,
-                    message: Some(format!("工作流开始执行: {}", self.workflow.name)),
-                    timestamp: chrono::Utc::now().timestamp_millis(),
-                    tool_details: None,
-                };
-                println!("[WorkflowRunner] 📤 Calling callback with test event: {:?}", test_event);
-                callback(test_event);
-                println!("[WorkflowRunner] ✅ Test callback executed");
-            } else {
-                println!("[WorkflowRunner] ⚠️ Progress callback is None in run()!");
-            }
-            drop(callback_guard);
-        }
-
         // 更新状态为运行中
         {
             let mut status = self.status.write().await;
             *status = WorkflowStatus::Running;
         }
+
+        // 🔥 CRITICAL FIX: 立即发送 workflow:started 事件（包含计划节点），确保前端能立即显示
+        self.emit_workflow_started().await;
 
         let schedule = self.schedule.as_ref().expect("Schedule should exist");
         println!("[WorkflowRunner] 📅 Schedule created, execution_order: {:?}", schedule.execution_order);
@@ -495,6 +531,7 @@ impl WorkflowRunner {
                 message: Some(format!("开始执行节点: {}", node.label.as_ref().unwrap_or(&node_id))),
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: None,
+                nodes: None,  // node_started 事件不包含计划节点
             };
             println!("[WorkflowRunner] 📤 Calling callback with event: {:?}", event);
             callback(event);
@@ -688,6 +725,7 @@ impl WorkflowRunner {
                         message: Some(format!("工具调用: {}", tool_details.tool_name)),
                         timestamp: chrono::Utc::now().timestamp_millis(),
                         tool_details: Some(tool_details),
+                        nodes: None,  // tool_call 事件不包含计划节点
                     };
                     cb(event);
                 }

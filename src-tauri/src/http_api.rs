@@ -26,7 +26,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::agent_system::workflow::{types::Workflow, runner::WorkflowRunner};
+use crate::agent_system::workflow::{types::Workflow, runner::{WorkflowRunner, PlannedNode}};
 
 /// HTTP API 响应
 #[derive(Debug, Serialize)]
@@ -72,13 +72,8 @@ pub struct ExecuteWorkflowResponse {
     pub status: String,
 }
 
-/// 节点计划信息（用于 workflow:started 事件）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlannedNode {
-    pub id: String,
-    pub label: String,
-    pub agent_type: String,
-}
+/// 🔥 使用 workflow::runner::PlannedNode，避免重复定义
+/// use crate::agent_system::workflow::runner::PlannedNode;
 
 /// Progress 事件（与 Tauri 的 workflow:progress 事件格式一致）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,7 +250,7 @@ async fn execute_workflow_http(
                 message: event.message,
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: event.tool_details.map(|d| serde_json::to_value(d).unwrap_or_else(|_| serde_json::json!(null))),
-                nodes: None,  // 🔥 添加 nodes 字段（progress callback 事件不包含计划节点）
+                nodes: event.nodes,  // 🔥 包含 nodes 字段（从 runner.rs 传递过来）
             };
 
             let _ = sender_for_callback.send(sse_event);
@@ -278,20 +273,11 @@ async fn execute_workflow_http(
     // 在后台执行工作流
     let workflow_id_clone = workflow_id.clone();
     let sender_clone = state.progress_sender.clone();
-    let planned_nodes_clone = planned_nodes.clone();  // 🔥 克隆节点信息用于闭包
     tokio::spawn(async move {
         println!("[HttpAPI] 🔄 Starting background execution for {}", workflow_id_clone);
 
-        // 🔥 发送 workflow:started 事件，包含所有计划节点信息
-        // 这样前端可以在工作流开始时就显示所有节点，而不是等待节点执行
-        send_progress_event_with_nodes(
-            &sender_clone,
-            "workflow:started",
-            Some(&workflow_id_clone),
-            None,
-            Some("工作流已启动"),
-            Some(planned_nodes_clone),  // 🔥 包含计划节点
-        ).await;
+        // 🔥 FIX: 移除 workflow:started 事件发送（现在由 runner.rs 在 run() 开始时立即发送）
+        // 这样可以确保事件顺序正确，避免事件丢失
 
         let manager = crate::commands::workflow_commands::get_workflow_manager();
         if let Some(runner_arc) = {
