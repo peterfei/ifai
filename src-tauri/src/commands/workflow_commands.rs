@@ -171,25 +171,62 @@ pub async fn execute_workflow(
         println!("[Workflow] ✅ Workflow registered in manager");
     }
 
+    // 🔥 在后台任务开始前，先提取计划节点信息（避免在异步任务中访问 runner）
+    let manager_for_nodes = get_workflow_manager();
+    let planned_nodes: Vec<crate::agent_system::workflow::runner::PlannedNode> = {
+        let mgr = manager_for_nodes.lock().await;
+        if let Some(runner_arc) = mgr.get_workflow(&workflow_id) {
+            let runner = runner_arc.lock().await;
+            use crate::agent_system::workflow::types::AgentType;
+            runner.workflow.nodes.iter().map(|node| {
+                let agent_type_str = match node.agent_type {
+                    AgentType::Explore => "explore".to_string(),
+                    AgentType::Review => "review".to_string(),
+                    AgentType::Refactor => "refactor".to_string(),
+                    AgentType::Test => "test".to_string(),
+                    AgentType::Doc => "doc".to_string(),
+                    AgentType::TaskBreakdown => "task_breakdown".to_string(),
+                    AgentType::ProposalGenerator => "proposal_generator".to_string(),
+                    AgentType::GeneralPurpose => "general_purpose".to_string(),
+                };
+                crate::agent_system::workflow::runner::PlannedNode {
+                    id: node.id.clone(),
+                    label: node.label.clone().unwrap_or_else(|| node.id.clone()),
+                    agent_type: agent_type_str,
+                }
+            }).collect()
+        } else {
+            vec![]
+        }
+    };
+
     // 在后台执行
     let workflow_id_clone = workflow_id.clone();
     let window_for_start = window.clone();
+    let planned_nodes_clone = planned_nodes.clone();  // 克隆用于闭包
     tokio::spawn(async move {
         println!("[Workflow] 🔄 Starting background execution for {}", workflow_id_clone);
 
-        // 🔥 CRITICAL FIX: 发送 workflow:started 事件，通知前端 Monitor 开始显示
-        println!("[Workflow] 📤 Emitting workflow:started event to frontend...");
+        // 🔥 CRITICAL FIX: 发送 workflow:started 事件，包含计划节点信息
+        // 这样前端可以立即显示所有计划节点（pending 状态）
+        println!("[Workflow] 📤 Emitting workflow:started event to frontend with planned nodes...");
+        println!("[Workflow] 📋 Sending {} planned nodes in workflow:started event", planned_nodes_clone.len());
+        for (i, node) in planned_nodes_clone.iter().enumerate() {
+            println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
+        }
+
         let started_event = serde_json::json!({
             "workflowId": workflow_id_clone,
             "workflowType": "custom",
             "targetPath": ".",
-            "timestamp": chrono::Utc::now().timestamp_millis()
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+            "nodes": planned_nodes_clone  // 🔥 包含计划节点
         });
 
         if let Err(e) = window_for_start.emit("workflow:started", &started_event) {
             println!("[Workflow] ⚠️ Failed to emit workflow:started event: {}", e);
         } else {
-            println!("[Workflow] ✅ workflow:started event sent successfully");
+            println!("[Workflow] ✅ workflow:started event sent successfully with {} nodes", planned_nodes_clone.len());
         }
 
         let manager = get_workflow_manager();

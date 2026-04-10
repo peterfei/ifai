@@ -867,6 +867,45 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
         }
       });
 
+      // 🔥 监听 workflow:started 事件（包含计划节点）
+      const unlistenStarted = await listen('workflow:started', (event: any) => {
+        try {
+          const startedData = event.payload || {};
+          console.log('[WorkflowIntentHandler] 📋 Received workflow:started from Tauri:', {
+            workflowId: startedData.workflowId,
+            workflowType: startedData.workflowType,
+            nodesCount: startedData.nodes?.length || 0,
+            nodes: startedData.nodes
+          });
+
+          // 🔥 FIX: 检查 workflowId 是否匹配当前工作流
+          const eventWorkflowId = startedData.workflowId;
+          if (eventWorkflowId && eventWorkflowId !== workflowId) {
+            console.log('[WorkflowIntentHandler] ⚠️ Ignoring workflow:started for different workflow:', {
+              expected: workflowId,
+              received: eventWorkflowId
+            });
+            return;
+          }
+
+          console.log('[WorkflowIntentHandler] ✅ Forwarding workflow:started to chatEventBus with', startedData.nodes?.length || 0, 'planned nodes');
+
+          // 🔥 转发到 chatEventBus（包含计划节点）
+          chatEventBus.emit('workflow:started', {
+            workflowId,
+            workflowType: startedData.workflowType || workflowType,
+            targetPath: startedData.targetPath,
+            timestamp: startedData.timestamp,
+            nodes: startedData.nodes || [],  // 🔥 关键：包含计划节点
+            correlationId: payload?.correlationId,
+            messageId: payload?.messageId,
+            sessionId: payload?.sessionId
+          });
+        } catch (error) {
+          console.error('[WorkflowIntentHandler] ❌ Error in workflow:started handler:', error);
+        }
+      });
+
       const unlistenError = await listen('workflow:error', (event: any) => {
         try {
           const errorData = event.payload || {};
@@ -957,7 +996,7 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
 
       // 保存 unlisten 函数以便稍后清理（可选）
       (window as any).__workflowUnlisteners = (window as any).__workflowUnlisteners || [];
-      (window as any).__workflowUnlisteners.push(unlistenResponse, unlistenCompleted, unlistenError, unlistenProgress, uncheckProgressOnce);
+      (window as any).__workflowUnlisteners.push(unlistenStarted, unlistenResponse, unlistenCompleted, unlistenError, unlistenProgress, uncheckProgressOnce);
 
       // 🔥 10 秒后检查，如果没有收到进度事件，发送一个通用提示
       // 不再使用硬编码的节点模拟数据
