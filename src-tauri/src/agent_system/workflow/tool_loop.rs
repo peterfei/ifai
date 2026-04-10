@@ -7,6 +7,7 @@ use super::runner::ToolCallDetails;
 use crate::core_traits::ai::{Message, Content};
 use serde_json::json;
 use std::sync::Arc;
+use futures_util::StreamExt;  // 🔥 添加 StreamExt trait
 
 /// 工具调用循环配置
 #[derive(Debug, Clone)]
@@ -81,11 +82,12 @@ pub async fn execute_with_tools(
 
         println!("[ToolLoop] 🔄 迭代 {}/{}", iterations, config.max_iterations);
 
-        // 调用 AI
+        // 调用 AI（使用流式 API 实现实时工具调用显示）
         let ai_start = std::time::Instant::now();
-        let response = call_ai_with_tools_unified(
+        let response = call_ai_with_tools_stream(
             provider_config.clone(),
             &messages,
+            progress_callback.clone(),  // 🔥 传递进度回调给流式函数
         ).await?;
         let ai_duration = ai_start.elapsed();
         ai_time_total += ai_duration;
@@ -384,4 +386,283 @@ fn extract_tool_calls(response: &str) -> Result<Vec<ToolCall>, String> {
 
     // 不是工具调用，返回空
     Ok(Vec::new())
+}
+
+/// 🔥 流式工具调用数据结构
+#[derive(Debug, Clone, serde::Deserialize)]
+struct StreamToolCallChunk {
+    index: i32,
+    id: Option<String>,
+    #[serde(rename = "type")]
+    tool_type: Option<String>,
+    function: Option<StreamFunction>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct StreamFunction {
+    name: Option<String>,
+    arguments: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct StreamChoice {
+    delta: StreamDelta,
+    #[serde(rename = "finish_reason")]
+    finish_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct StreamDelta {
+    content: Option<String>,
+    tool_calls: Option<Vec<StreamToolCallChunk>>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct OpenAIStreamResponse {
+    choices: Vec<StreamChoice>,
+}
+
+/// 🔥 流式版本：调用 AI 并实时发送工具调用进度
+///
+/// 这个函数使用流式 API，在检测到工具调用时立即通过 progress_callback 发送进度
+/// 这样用户可以看到工具调用渐进式地出现，而不是等待所有工具调用完成后才显示
+async fn call_ai_with_tools_stream(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    messages: &[Message],
+    progress_callback: Option<ToolProgressCallback>,
+) -> Result<String, String> {
+    println!("[ToolLoop] 📤 [STREAM] 调用流式 AI API");
+
+    #[cfg(feature = "commercial")]
+    {
+        use reqwest::Client;
+        use eventsource_stream::Eventsource;
+        use tokio::time::{timeout, Duration};
+        use std::collections::HashMap;
+
+        // 🔥 步骤1：准备请求
+        // 注意：api_key 和 base_url 已经是 String 类型，不是 Option
+        let api_key = &provider_config.api_key;
+        let base_url = &provider_config.base_url;
+        let model = provider_config.models.first()
+            .ok_or("缺少模型配置")?
+            .clone();
+
+        // 🔥 构建工具定义 - create_tool_definitions 已经返回 Vec<serde_json::Value>
+        let tools_value = create_tool_definitions();
+
+        // 构建请求消息
+        let messages_for_api: Vec<serde_json::Value> = messages.iter()
+            .map(|msg| {
+                let mut msg_obj = serde_json::json!({
+                    "role": msg.role,
+                });
+                // 🔥 处理所有 Content 变体
+                match &msg.content {
+                    Content::Text(text) => {
+                        msg_obj["content"] = serde_json::json!(text);
+                    }
+                    Content::Parts(parts) => {
+                        // 如果是多部分内容，连接所有文本部分
+                        use ifainew_core::ai::ContentPart;
+                        let text: String = parts.iter()
+                            .filter_map(|p| match p {
+                                ContentPart::Text { text, .. } => Some(text.as_str()),
+                                ContentPart::ImageUrl { .. } => None,
+                            })
+                            .collect();
+                        msg_obj["content"] = serde_json::json!(text);
+                    }
+                }
+                msg_obj
+            })
+            .collect();
+
+        // 🔥 根据 ifainew-core 的实现，base_url 应该已经是完整的 API 端点 URL
+        // 例如：https://open.bigmodel.cn/api/paas/v4/chat/completions
+        // 不需要再添加 /chat/completions
+        let completions_url = base_url.clone();
+
+        let request = serde_json::json!({
+            "model": model,
+            "messages": messages_for_api,
+            "tools": tools_value,
+            "tool_choice": "auto",
+            "stream": true,
+        });
+
+        println!("[ToolLoop] 📤 [STREAM] 发送流式请求到: {}", completions_url);
+
+        // 🔥 步骤2：发送流式请求
+        let client = Client::new();
+        let response = client
+            .post(&completions_url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| format!("流式请求失败: {}", e))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(format!("API 错误: {}", error_text));
+        }
+
+        // 🔥 步骤3：处理流式响应
+        let mut stream = response.bytes_stream().eventsource();
+
+        // 🔥 步骤4：累积工具调用
+        let mut accumulated_tools: HashMap<i32, (String, String, String)> = HashMap::new();
+        // (id, name, arguments)
+
+        let mut final_content = String::new();
+        let mut chunk_count = 0;
+        let mut sent_tool_notifications = std::collections::HashSet::new();
+
+        // 🔥 步骤5：处理每个流式 chunk
+        while let Some(event_result) = stream.next().await {
+            match event_result {
+                Ok(event) => {
+                    if event.data == "[DONE]" {
+                        println!("[ToolLoop] 📤 [STREAM] 收到 [DONE] 信号");
+                        break;
+                    }
+
+                    chunk_count += 1;
+
+                    // 解析 JSON
+                    if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                        if let Some(choice) = stream_response.choices.first() {
+                            // 处理内容
+                            if let Some(content) = &choice.delta.content {
+                                final_content.push_str(content);
+                            }
+
+                            // 🔥 处理工具调用 - 关键部分！
+                            if let Some(tool_calls) = &choice.delta.tool_calls {
+                                for chunk in tool_calls {
+                                    let index = chunk.index;
+
+                                    // 初始化或获取现有工具调用
+                                    let entry = accumulated_tools.entry(index).or_insert_with(|| {
+                                        let id = chunk.id.clone().unwrap_or_else(|| {
+                                            format!("call_{}", index)
+                                        });
+                                        let name = chunk.function.as_ref()
+                                            .and_then(|f| f.name.clone())
+                                            .unwrap_or_default();
+                                        let arguments = String::new();
+                                        (id, name, arguments)
+                                    });
+
+                                    // 更新工具名称（如果有）
+                                    if let Some(func) = &chunk.function {
+                                        if let Some(name) = &func.name {
+                                            entry.1 = name.clone();
+                                        }
+                                        // 累积 arguments
+                                        if let Some(args) = &func.arguments {
+                                            entry.2.push_str(args);
+                                        }
+                                    }
+
+                                    // 🔥 关键：当工具调用有 ID 或名称时，立即发送进度通知！
+                                    // 这就是实时显示的魔法所在
+                                    let has_id = chunk.id.is_some();
+                                    let has_name = chunk.function.as_ref()
+                                        .and_then(|f| f.name.as_ref())
+                                        .is_some();
+
+                                    if (has_id || has_name) && !sent_tool_notifications.contains(&index) {
+                                        sent_tool_notifications.insert(index);
+
+                                        let tool_id = &entry.0;
+                                        let tool_name = &entry.1;
+
+                                        println!("[ToolLoop] 🔥 [STREAM] 检测到新工具调用 #{}: {} ({})",
+                                            index, tool_name, tool_id);
+
+                                        // 🔥 立即发送进度回调，让前端实时显示
+                                        if let Some(ref cb) = progress_callback {
+                                            // 解析参数（如果可能）
+                                            let input_json = if entry.2.is_empty() {
+                                                serde_json::json!({})
+                                            } else {
+                                                serde_json::from_str(&entry.2)
+                                                    .unwrap_or(serde_json::json!({}))
+                                            };
+
+                                            let details = ToolCallDetails {
+                                                tool_name: tool_name.clone(),
+                                                tool_input: serde_json::to_string_pretty(&input_json)
+                                                    .unwrap_or_default(),
+                                                tool_output: String::new(),  // 还未执行
+                                                output_length: 0,
+                                                execution_time_ms: None,   // 还未执行
+                                                is_error: false,
+                                            };
+                                            cb(details);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 检查是否完成
+                            if choice.finish_reason.is_some() {
+                                println!("[ToolLoop] 📤 [STREAM] 流结束，原因: {:?}",
+                                    choice.finish_reason);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("[ToolLoop] ⚠️ [STREAM] 流处理错误: {}", e);
+                    break;
+                }
+            }
+        }
+
+        println!("[ToolLoop] 📊 [STREAM] 处理了 {} 个 chunks", chunk_count);
+        println!("[ToolLoop] 🔧 [STREAM] 累积了 {} 个工具调用",
+            accumulated_tools.len());
+
+        // 🔥 步骤6：构建最终结果
+        if !accumulated_tools.is_empty() {
+            // 将累积的工具调用转换为最终的 JSON 格式
+            let mut final_tool_calls = Vec::new();
+            for (_, (id, name, arguments)) in accumulated_tools {
+                let tool_call = serde_json::json!({
+                    "id": id,
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": arguments
+                    }
+                });
+                final_tool_calls.push(tool_call);
+            }
+
+            let result_json = serde_json::to_string(&final_tool_calls)
+                .map_err(|e| format!("JSON 序列化失败: {}", e))?;
+
+            println!("[ToolLoop] ✅ [STREAM] 返回 {} 个工具调用，总长度: {} 字符",
+                final_tool_calls.len(), result_json.len());
+
+            Ok(result_json)
+        } else {
+            // 没有工具调用，返回内容
+            println!("[ToolLoop] ✅ [STREAM] 返回文本内容，长度: {} 字符",
+                final_content.len());
+            Ok(final_content)
+        }
+    }
+
+    // 🔥 Community 版本的降级处理
+    #[cfg(not(feature = "commercial"))]
+    {
+        println!("[ToolLoop] ⚠️ [STREAM] Community 版本，回退到非流式 API");
+        call_ai_with_tools_unified(provider_config, messages).await
+    }
 }
