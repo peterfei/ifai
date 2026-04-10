@@ -1,4 +1,4 @@
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, async_runtime};
 use serde_json::json;
 #[cfg(feature = "commercial")]
 use ifainew_core;
@@ -30,6 +30,7 @@ mod openspec; // v0.2.6 新增：OpenSpec 集成
 mod multimodal; // v0.3.0 新增：多模态功能
 pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
 mod tool_classification; // v0.3.3 新增：工具分类系统
+mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实后端访问）
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
@@ -1501,6 +1502,24 @@ async fn create_window(app: tauri::AppHandle, label: String, title: String, url:
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use std::io::Write;
+
+    // 🔥 调试：写入文件证明 run() 被调用了
+    if let Ok(mut file) = std::fs::File::create("/tmp/tauri-run-called.txt") {
+        let _ = file.write_all(b"Tauri run() called at: ");
+        let _ = file.write_all(chrono::Local::now().to_string().as_bytes());
+        let _ = file.write_all(b"\n");
+    }
+
+    // 🔥 调试：检查环境变量
+    if let Ok(enable_http) = std::env::var("ENABLE_HTTP_API") {
+        if let Ok(mut file) = std::fs::File::create("/tmp/tauri-enable-http-var.txt") {
+            let _ = file.write_all(format!("ENABLE_HTTP_API={}\n", enable_http).as_bytes());
+        }
+    }
+
+    println!("[Lib] 🔥 run() function called");
+
     let mut builder = tauri::Builder::default();
     
     // 初始化日志插件
@@ -1563,7 +1582,60 @@ pub fn run() {
         {
             app.manage(ifainew_core::RagState::new());
         }
-        
+
+        // 🔥 v0.4.1: 启动 HTTP API 服务器（为 E2E 测试提供真实后端访问）
+        {
+            use std::io::Write;
+
+            // 🔥 调试：写入测试文件，证明代码被执行了
+            if let Ok(mut file) = std::fs::File::create("/tmp/tauri-setup-executed.txt") {
+                let _ = file.write_all(b"Tauri setup executed at: ");
+                let _ = file.write_all(chrono::Local::now().to_string().as_bytes());
+                let _ = file.write_all(b"\n");
+            }
+
+            // 🔥 调试：打印所有环境变量
+            println!("[HttpAPI] 🔍 Checking environment variables...");
+            if let Ok(enable_http) = std::env::var("ENABLE_HTTP_API") {
+                println!("[HttpAPI] ✅ ENABLE_HTTP_API found: '{}'", enable_http);
+                // 写入文件记录环境变量
+                if let Ok(mut file) = std::fs::File::create("/tmp/tauri-enable-http-api.txt") {
+                    let _ = file.write_all(b"ENABLE_HTTP_API=true\n");
+                }
+            } else {
+                println!("[HttpAPI] ⚠️ ENABLE_HTTP_API not set");
+            }
+
+            // 打印其他相关环境变量
+            if let Ok(app_edition) = std::env::var("APP_EDITION") {
+                println!("[HttpAPI] ✅ APP_EDITION: '{}'", app_edition);
+            }
+            if let Ok(tauri_dev) = std::env::var("TAURI_DEV") {
+                println!("[HttpAPI] ✅ TAURI_DEV: '{}'", tauri_dev);
+            }
+
+            // 检查是否需要启动 HTTP API（通过环境变量）
+            if std::env::var("ENABLE_HTTP_API").ok().as_deref() == Some("true") {
+                println!("[HttpAPI] 🔥 HTTP API enabled via ENABLE_HTTP_API=true");
+
+                async_runtime::spawn(async move {
+                    println!("[HttpAPI] 🚀 About to create HTTP API server...");
+                    let mut http_server = crate::http_api::HttpApiServer::from_env();
+                    println!("[HttpAPI] ✅ HTTP API server created");
+
+                    println!("[HttpAPI] ⚠️ HTTP API server starting in background...");
+
+                    if let Err(e) = http_server.start().await {
+                        eprintln!("[HttpAPI] ❌ Failed to start HTTP API server: {}", e);
+                    }
+                });
+            } else {
+                println!("[HttpAPI] ℹ️ HTTP API not enabled (set ENABLE_HTTP_API=true to enable)");
+            }
+        }
+
+        println!("[HttpAPI] ✅ Setup completed successfully");
+
         Ok(())
     });
 

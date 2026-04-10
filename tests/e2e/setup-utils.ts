@@ -248,8 +248,47 @@ export async function setupE2ETestEnvironment(
 
         // Mock invoke（Mock 模式下支持特定命令）
         if (!w.__TAURI_INTERNALS__.invoke) {
-          w.__TAURI_INTERNALS__.invoke = (cmd: string, args: any) => {
+          w.__TAURI_INTERNALS__.invoke = async (cmd: string, args: any) => {
             console.log(`[E2E Tauri Mock] invoke: ${cmd}`, args);
+
+            // 🔥 HTTP API 代理：execute_quick_workflow 通过真实后端调用
+            if (cmd === 'execute_quick_workflow') {
+              console.log('[E2E Mock] 🌐 execute_quick_workflow - trying HTTP API...');
+
+              try {
+                // 尝试调用真实的后端 HTTP API
+                const response = await fetch('http://localhost:3333/api/workflow/execute', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    workflow_type: args.workflowType,
+                    target_path: args.targetPath,
+                    project_root: args.projectRoot,
+                    provider_config: args.providerConfig,
+                    current_model: args.currentModel,
+                    correlation_id: args.correlationId,
+                  }),
+                });
+
+                if (response.ok) {
+                  const data = await response.json();
+                  console.log('[E2E Mock] ✅ HTTP API call successful:', data);
+                  return data.data.workflow_id;
+                } else {
+                  console.warn(`[E2E Mock] ⚠️ HTTP API returned ${response.status}, falling back to mock`);
+                  throw new Error(`HTTP API failed: ${response.status}`);
+                }
+              } catch (error) {
+                console.warn('[E2E Mock] ⚠️ HTTP API unavailable, using mock:', error);
+
+                // Fallback 到 mock 数据
+                const mockWorkflowId = `workflow-mock-${Date.now()}`;
+                console.log('[E2E Mock] 📝 Returning mock workflow ID:', mockWorkflowId);
+                return mockWorkflowId;
+              }
+            }
 
             // 🎯 Mock: should_summarize_conversation
             if (cmd === 'should_summarize_conversation') {

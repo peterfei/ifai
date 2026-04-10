@@ -48,7 +48,7 @@
     "tauri:commercial": "export MACOSX_DEPLOYMENT_TARGET=10.15 && export APP_EDITION=commercial && tauri build --features commercial",
     "tauri:commercial-local-llm": "export MACOSX_DEPLOYMENT_TARGET=10.15 && export APP_EDITION=commercial && tauri build --features commercial-local-llm",
     "tauri:commercial-local-llm-rag": "export MACOSX_DEPLOYMENT_TARGET=10.15 && export APP_EDITION=commercial && tauri build --features commercial-local-llm-rag",
-    "tauri:dev:commercial": "export APP_EDITION=commercial && tauri dev --features commercial",
+    "tauri:dev:commercial": "export APP_EDITION=commercial && export ENABLE_HTTP_API=true && tauri dev --features commercial",
     "tauri:dev:commercial-local-llm": "export APP_EDITION=commercial && tauri dev --features commercial-local-llm",
     "tauri:dev:commercial-local-llm-rag": "export APP_EDITION=commercial && tauri dev --features commercial-local-llm-rag",
     "tauri:dev:local-llm": "export APP_EDITION=community && tauri dev --features community,llm-inference",

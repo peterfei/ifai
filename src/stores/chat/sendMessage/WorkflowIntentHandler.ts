@@ -387,11 +387,12 @@ ${workflowInfo.description}
 
       // 🔥 FIX: 使用真实的 Tauri 调用执行工作流
       // 但在 E2E 测试环境中使用 Mock 模式
-      // 只有明确设置 __E2E__ 标志时才使用 Mock 模式
+      // 除非设置了 __E2E_REAL_TAURI_MODE__ 标志（表示要在 E2E 测试中使用真实的 Tauri）
       const isE2EMode = typeof window !== 'undefined' && (window as any).__E2E__;
+      const isRealTauriMode = typeof window !== 'undefined' && (window as any).__E2E_REAL_TAURI_MODE__;
 
-      if (isE2EMode) {
-        // E2E 测试环境：使用 Mock 执行
+      if (isE2EMode && !isRealTauriMode) {
+        // E2E 测试环境 + 非 Tauri 模式：使用 Mock 执行
         const mockWorkflowId = `workflow-${Date.now()}`;
         console.log('[WorkflowIntentHandler] 🧪 Using mock workflow execution (E2E mode)');
         console.log('[WorkflowIntentHandler] ✅ Mock workflow ID:', mockWorkflowId);

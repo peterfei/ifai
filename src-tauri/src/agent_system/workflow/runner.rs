@@ -274,11 +274,13 @@ impl WorkflowRunner {
     where
         F: Fn(ProgressEvent) + Send + Sync + 'static,
     {
+        println!("[WorkflowRunner] 🔧 with_progress_callback called, setting up callback...");
         let cb = self.progress_callback.clone();
         let mut cb_guard = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(cb.write())
         });
         *cb_guard = Some(Box::new(callback));
+        println!("[WorkflowRunner] ✅ Progress callback set successfully");
         self
     }
 
@@ -299,6 +301,33 @@ impl WorkflowRunner {
 
     /// 执行工作流
     pub async fn run(&self) -> Result<WorkflowResult> {
+        println!("[WorkflowRunner] 🚀 run() called, workflow_id: {}", self.workflow.id);
+        println!("[WorkflowRunner] 📊 Total nodes: {}", self.workflow.nodes.len());
+        println!("[WorkflowRunner] 🔗 Total edges: {}", self.workflow.edges.len());
+        println!("[WorkflowRunner] 📋 Node IDs: {:?}", self.workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
+
+        // 🔥 TEST: 强制发送一个测试 progress 事件来验证 callback 是否工作
+        {
+            let callback_guard = self.progress_callback.read().await;
+            if let Some(callback) = callback_guard.as_ref() {
+                println!("[WorkflowRunner] ✅ Progress callback exists in run(), sending test event");
+                let test_event = ProgressEvent {
+                    event_type: "workflow_started".to_string(),
+                    workflow_id: Some(self.workflow.id.clone()),
+                    node_id: None,
+                    message: Some(format!("工作流开始执行: {}", self.workflow.name)),
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                    tool_details: None,
+                };
+                println!("[WorkflowRunner] 📤 Calling callback with test event: {:?}", test_event);
+                callback(test_event);
+                println!("[WorkflowRunner] ✅ Test callback executed");
+            } else {
+                println!("[WorkflowRunner] ⚠️ Progress callback is None in run()!");
+            }
+            drop(callback_guard);
+        }
+
         // 更新状态为运行中
         {
             let mut status = self.status.write().await;
@@ -306,6 +335,9 @@ impl WorkflowRunner {
         }
 
         let schedule = self.schedule.as_ref().expect("Schedule should exist");
+        println!("[WorkflowRunner] 📅 Schedule created, execution_order: {:?}", schedule.execution_order);
+        println!("[WorkflowRunner] 📅 Parallel groups: {:?}", schedule.parallel_groups);
+
         let mut result = WorkflowResult::new(self.workflow.id.clone());
 
         // 按并行组执行
@@ -369,6 +401,7 @@ impl WorkflowRunner {
 
     /// 执行一个并行组
     async fn execute_parallel_group(&self, group: &[String]) -> Result<HashMap<String, NodeResult>> {
+        println!("[WorkflowRunner] 🔧 execute_parallel_group called with nodes: {:?}", group);
         let mut results = HashMap::new();
         let mut tasks = Vec::new();
 
@@ -377,6 +410,12 @@ impl WorkflowRunner {
         let node_results = self.node_results.clone();
         let config = self.config.clone();
         let progress_callback = self.progress_callback.clone();
+
+        println!("[WorkflowRunner] 🔧 progress_callback cloned, checking if it exists...");
+        {
+            let cb_check = progress_callback.read().await;
+            println!("[WorkflowRunner] 📊 progress_callback exists: {}", cb_check.is_some());
+        }
 
         // 创建执行任务
         for node_id in group {
@@ -445,16 +484,25 @@ impl WorkflowRunner {
         let node_id = node.id.clone();
 
         // 🔥 发送节点开始事件
-        if let Some(callback) = progress_callback.read().await.as_ref() {
-            callback(ProgressEvent {
+        println!("[WorkflowRunner] 🔧 About to check progress_callback for node_started");
+        let callback_guard = progress_callback.read().await;
+        if let Some(callback) = callback_guard.as_ref() {
+            println!("[WorkflowRunner] ✅ Progress callback exists, sending node_started event for node: {}", node_id);
+            let event = ProgressEvent {
                 event_type: "node_started".to_string(),
                 workflow_id: Some(workflow.id.clone()),
                 node_id: Some(node_id.clone()),
                 message: Some(format!("开始执行节点: {}", node.label.as_ref().unwrap_or(&node_id))),
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: None,
-            });
+            };
+            println!("[WorkflowRunner] 📤 Calling callback with event: {:?}", event);
+            callback(event);
+            println!("[WorkflowRunner] ✅ Callback executed successfully");
+        } else {
+            println!("[WorkflowRunner] ⚠️ Progress callback is None! No event will be sent for node: {}", node_id);
         }
+        drop(callback_guard);  // 🔥 释放锁
 
         // 更新状态为运行中
         {

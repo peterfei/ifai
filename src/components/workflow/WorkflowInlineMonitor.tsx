@@ -542,10 +542,15 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
           instanceId
         });
 
-        // 🔥 特殊处理：如果是 tool_call 事件，只更新工具调用信息，不创建新节点
-        if (payload.event_type === 'tool_call') {
+        // 🔥 根据 event_type 区分处理逻辑（参考 claw-code 的实现）
+        const eventType = payload.event_type;
+
+        // ========================================
+        // 1. tool_call 事件：只更新工具调用信息，不创建新节点
+        // ========================================
+        if (eventType === 'tool_call') {
           if (payload.tool_details) {
-            console.log('[WorkflowInlineMonitor] 🔧 Tool call details:', payload.tool_details);
+            console.log('[WorkflowInlineMonitor] 🔧 Processing tool_call event');
 
             const currentGlobalState = globalWorkflowStates.get(workflowId);
             const existingNodeIndex = currentGlobalState?.nodes?.findIndex(n => n.id === nodeId) ?? -1;
@@ -574,7 +579,8 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
 
               updatedNodes[existingNodeIndex] = {
                 ...existingNode,
-                tool_calls: [...existingToolCalls, payload.tool_details]
+                tool_calls: [...existingToolCalls, payload.tool_details],
+                // 🔥 保持 running 状态，不改变节点状态
               };
 
               globalWorkflowStates.set(workflowId, {
@@ -582,18 +588,142 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 nodes: updatedNodes,
               });
 
+              // 🔥 通知监听器更新
+              updateGlobalWorkflowState(workflowId, {
+                nodes: updatedNodes,
+              });
+
               console.log('[WorkflowInlineMonitor] ✅ Added tool call to node:', {
                 nodeId,
-                toolCount: updatedNodes[existingNodeIndex].tool_calls?.length
+                toolCount: updatedNodes[existingNodeIndex].tool_calls?.length,
+                nodeStatus: updatedNodes[existingNodeIndex].status
               });
 
               return; // 🔥 早期返回，不创建新节点
             } else {
               console.log('[WorkflowInlineMonitor] ⚠️ No node found for tool_call, creating new node');
-              // 如果没有找到节点，创建一个临时节点
+              // 如果没有找到节点，创建一个临时节点（继续执行下面的逻辑）
             }
+          } else {
+            // 没有 tool_details 的 tool_call 事件，忽略
+            console.log('[WorkflowInlineMonitor] ⚠️ tool_call event has no tool_details, ignoring');
+            return;
           }
         }
+
+        // ========================================
+        // 2. node_started 事件：创建新的 running 节点，将之前的 running 节点标记为 completed
+        // ========================================
+        if (eventType === 'node_started') {
+          console.log('[WorkflowInlineMonitor] 🔵 Processing node_started event for node:', nodeId);
+
+          const currentGlobalState = globalWorkflowStates.get(workflowId);
+          let updatedNodes = [...(currentGlobalState?.nodes || [])];
+
+          // 🔥 检查是否已存在相同 ID 的节点
+          const existingNodeIndex = updatedNodes.findIndex(n => n.id === nodeId);
+
+          if (existingNodeIndex >= 0) {
+            console.log('[WorkflowInlineMonitor] ⚠️ Node already exists, marking as running:', nodeId);
+            // 如果节点已存在，更新其状态为 running
+            updatedNodes[existingNodeIndex] = {
+              ...updatedNodes[existingNodeIndex],
+              status: 'running' as const,
+            };
+          } else {
+            // 🔥 将之前的 running 节点标记为 completed
+            updatedNodes = updatedNodes.map(node => {
+              if (node.status === 'running' && node.id !== nodeId) {
+                const duration = Date.now() - (node.timestamp || Date.now());
+                console.log('[WorkflowInlineMonitor] ✅ Marking previous running node as completed:', node.id, 'duration:', duration);
+                return {
+                  ...node,
+                  status: 'completed' as const,
+                  duration,
+                };
+              }
+              return node;
+            });
+
+            // 🔥 解析节点信息
+            const parsedInfo = parseNodeInfo(nodeId, message);
+            const nodeType = parseNodeType(nodeId, parsedInfo);
+
+            // 🔥 创建新的 running 节点
+            const newNode: WorkflowNode = {
+              id: nodeId || `node-${Date.now()}`,
+              type: nodeType,
+              label: formatNodeLabel(parsedInfo),
+              parsedInfo,
+              status: 'running',  // 🔥 关键：新节点应该是 running 状态
+              details: message,
+              timestamp: Date.now(),
+            };
+
+            // 🔥 添加新节点
+            updatedNodes.push(newNode);
+
+            console.log('[WorkflowInlineMonitor] ✅ Created new running node:', {
+              nodeId: newNode.id,
+              label: newNode.label,
+              status: newNode.status,
+              totalNodes: updatedNodes.length
+            });
+          }
+
+          // 🔥 更新全局状态
+          updateGlobalWorkflowState(workflowId, {
+            currentNode: nodeId,
+            nodes: updatedNodes,
+            progress: Math.min(((updatedNodes.length) / 10) * 100, 95)
+          });
+
+          return; // 🔥 早期返回
+        }
+
+        // ========================================
+        // 3. node_completed 事件：将节点标记为 completed
+        // ========================================
+        if (eventType === 'node_completed') {
+          console.log('[WorkflowInlineMonitor] 🟢 Processing node_completed event');
+
+          const currentGlobalState = globalWorkflowStates.get(workflowId);
+          let updatedNodes = [...(currentGlobalState?.nodes || [])];
+
+          const existingNodeIndex = updatedNodes.findIndex(n => n.id === nodeId);
+
+          if (existingNodeIndex >= 0) {
+            const existingNode = updatedNodes[existingNodeIndex];
+            const duration = Date.now() - (existingNode.timestamp || Date.now());
+
+            updatedNodes[existingNodeIndex] = {
+              ...existingNode,
+              status: 'completed' as const,
+              duration,
+              details: message,
+            };
+
+            console.log('[WorkflowInlineMonitor] ✅ Marked node as completed:', {
+              nodeId,
+              duration,
+              totalNodes: updatedNodes.length
+            });
+
+            // 🔥 更新全局状态
+            updateGlobalWorkflowState(workflowId, {
+              nodes: updatedNodes,
+            });
+          } else {
+            console.log('[WorkflowInlineMonitor] ⚠️ Node not found for node_completed:', nodeId);
+          }
+
+          return; // 🔥 早期返回
+        }
+
+        // ========================================
+        // 4. 其他事件：创建新节点（兼容旧逻辑）
+        // ========================================
+        console.log('[WorkflowInlineMonitor] 📝 Processing generic event:', eventType);
 
         // 🔥 解析节点信息
         const parsedInfo = parseNodeInfo(nodeId, message);
@@ -601,29 +731,17 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
 
         // 🔥 解析工具调用详细信息（用于新节点）
         let tool_calls: ToolCallDetails[] | undefined = undefined;
-        if (payload.event_type === 'tool_call' && payload.tool_details) {
+        if (payload.tool_details) {
           tool_calls = [payload.tool_details];
         }
 
-        // 创建新节点
-        const newNode: WorkflowNode = {
-          id: nodeId || `node-${Date.now()}`,
-          type: nodeType,
-          label: formatNodeLabel(parsedInfo),
-          parsedInfo,
-          status: 'running',
-          details: message,
-          timestamp: Date.now(),
-          tool_calls,
-        };
-
-        // 🔥 FIX: 使用全局状态更新
+        // 🔥 使用全局状态更新
         const currentGlobalState = globalWorkflowStates.get(workflowId);
         const existingNodeIndex = currentGlobalState?.nodes?.findIndex(n => n.id === nodeId) ?? -1;
         let updatedNodes = [...(currentGlobalState?.nodes || [])];
 
         if (existingNodeIndex >= 0) {
-          // 更新现有节点状态为 completed
+          // 找到现有节点，更新其状态
           const existingNode = updatedNodes[existingNodeIndex];
           const duration = Date.now() - (existingNode.timestamp || Date.now());
 
@@ -635,16 +753,35 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
             ...existingNode,
             status: 'completed',
             duration,
-            tool_calls: mergedToolCalls.length > 0 ? mergedToolCalls : undefined,  // 🔥 更新工具调用信息
+            tool_calls: mergedToolCalls.length > 0 ? mergedToolCalls : undefined,
             details: message
           };
-
-          // 如果是不同的节点，添加新节点
-          if (existingNode.status === 'completed' && newNode.id !== existingNode.id) {
-            updatedNodes.push(newNode);
-          }
         } else {
+          // 🔥 将之前的 running 节点标记为 completed
+          updatedNodes = updatedNodes.map(node => {
+            if (node.status === 'running') {
+              const duration = Date.now() - (node.timestamp || Date.now());
+              return {
+                ...node,
+                status: 'completed' as const,
+                duration,
+              };
+            }
+            return node;
+          });
+
           // 添加新节点
+          const newNode: WorkflowNode = {
+            id: nodeId || `node-${Date.now()}`,
+            type: nodeType,
+            label: formatNodeLabel(parsedInfo),
+            parsedInfo,
+            status: 'running',
+            details: message,
+            timestamp: Date.now(),
+            tool_calls,
+          };
+
           updatedNodes.push(newNode);
         }
 

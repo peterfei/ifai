@@ -134,8 +134,10 @@ pub async fn execute_workflow(
     println!("[Workflow] 📄 Nodes: {:?}", workflow.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
     println!("[Workflow] 🔗 Edges: {:?}", workflow.edges.iter().map(|e| (e.from.clone(), e.to.clone())).collect::<Vec<_>>());
 
+    // 🔥 创建 window_clone 用于 progress_callback（必须在 tokio::spawn 外部）
+    let window_for_progress = window.clone();
+
     // 创建运行器
-    let window_clone = window.clone();
     let runner = WorkflowRunner::with_default_config(workflow)
         .map_err(|e| {
             let error = format!("创建运行器失败: {}", e);
@@ -144,7 +146,7 @@ pub async fn execute_workflow(
         })?
         .with_progress_callback(move |event| {
             // 🔥 发送进度事件到前端
-            use crate::agent_system::workflow::runner::ProgressEvent;
+            // ProgressEvent 已经通过 `use crate::agent_system::workflow::*;` 导入
             println!("[Workflow] 📤 Sending progress event to frontend:");
             println!("  - event_type: {}", event.event_type);
             println!("  - workflow_id: {:?}", event.workflow_id);
@@ -152,7 +154,7 @@ pub async fn execute_workflow(
             println!("  - message: {:?}", event.message);
             println!("  - has_tool_details: {}", event.tool_details.is_some());
 
-            if let Err(e) = window_clone.emit("workflow:progress", &event) {
+            if let Err(e) = window_for_progress.emit("workflow:progress", &event) {
                 println!("[Workflow] ⚠️ Failed to emit progress event: {}", e);
             } else {
                 println!("[Workflow] ✅ Progress event sent successfully");
@@ -171,8 +173,24 @@ pub async fn execute_workflow(
 
     // 在后台执行
     let workflow_id_clone = workflow_id.clone();
+    let window_for_start = window.clone();
     tokio::spawn(async move {
         println!("[Workflow] 🔄 Starting background execution for {}", workflow_id_clone);
+
+        // 🔥 CRITICAL FIX: 发送 workflow:started 事件，通知前端 Monitor 开始显示
+        println!("[Workflow] 📤 Emitting workflow:started event to frontend...");
+        let started_event = serde_json::json!({
+            "workflowId": workflow_id_clone,
+            "workflowType": "custom",
+            "targetPath": ".",
+            "timestamp": chrono::Utc::now().timestamp_millis()
+        });
+
+        if let Err(e) = window_for_start.emit("workflow:started", &started_event) {
+            println!("[Workflow] ⚠️ Failed to emit workflow:started event: {}", e);
+        } else {
+            println!("[Workflow] ✅ workflow:started event sent successfully");
+        }
 
         let manager = get_workflow_manager();
         if let Some(runner_arc) = {

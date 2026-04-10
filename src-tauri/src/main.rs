@@ -46,5 +46,17 @@ fn main() {
         eprintln!("{}", log_msg);
     }));
 
+    // 🔥 调试：检查环境变量
+    println!("[Main] 🔍 Checking environment variables before run()...");
+    if let Ok(enable_http) = std::env::var("ENABLE_HTTP_API") {
+        println!("[Main] ✅ ENABLE_HTTP_API found: '{}'", enable_http);
+    } else {
+        println!("[Main] ⚠️ ENABLE_HTTP_API not set");
+    }
+    if let Ok(app_edition) = std::env::var("APP_EDITION") {
+        println!("[Main] ✅ APP_EDITION: '{}'", app_edition);
+    }
+
     ifainew_lib::run();
+    println!("[Main] ✅ run() completed");
 }
