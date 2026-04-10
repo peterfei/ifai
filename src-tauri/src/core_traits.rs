@@ -73,6 +73,7 @@ pub mod ai {
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+        #[serde(rename_all = "camelCase")]  // 🔥 FIX: 接受前端发送的 camelCase 字段名
         pub struct AIProviderConfig {
             #[serde(default)] pub id: String,
             #[serde(default)] pub name: String,

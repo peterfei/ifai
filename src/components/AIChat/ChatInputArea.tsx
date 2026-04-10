@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Hash, Image, AtSign, X, Code, Terminal, ChevronRight, Activity } from 'lucide-react';
-import { useChatStore } from '../../stores/useChatStore';
+// 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
+import { useChatStore } from '../../stores/chat/CoreStoreProxy';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
@@ -34,17 +35,21 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isModelPanelOpen, setIsModelPanelOpen] = useState(false);
   const modelPanelRef = useRef<HTMLDivElement>(null);
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const commandListRef = useRef<any>(null);
   const fileSearchRef = useRef<any>(null);
   const symbolSearchRef = useRef<any>(null);
-  
-  const { sendMessage, messages = [] } = useChatStore();
+
+  // 🔥 FIX: 添加 null 检查，防止在 E2E 测试环境中 store 未初始化
+  const chatStoreState = useChatStore();
   const { providers, currentProviderId, currentModel } = useSettingsStore();
   const { allFilePaths, refreshFileTree } = useFileStore();
-
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
+
+  // 🔥 FIX: 使用默认值而不是早期返回，避免违反 React Hooks 规则
+  const sendMessage = chatStoreState?.sendMessage;
+  const messages = chatStoreState?.messages || [];
 
   const currentProvider = React.useMemo(() => 
     providers.find(p => p.id === currentProviderId),
@@ -179,11 +184,25 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
 
   const handleSend = async () => {
     if ((!input.trim() && imageAttachments.length === 0) || isLoading) return;
+
+    // 🔥 FIX: 检查 sendMessage 是否可用
+    if (!sendMessage) {
+      console.error('[ChatInputArea] ⚠️ sendMessage not available');
+      return;
+    }
+
+    // 🔥 DEBUG: 追踪 sendMessage 调用
+    console.log('[ChatInputArea] 🔍 About to call sendMessage');
+    console.log('[ChatInputArea] 🔍 sendMessage function:', sendMessage?.name || 'anonymous');
+    console.log('[ChatInputArea] 🔍 sendMessage toString:', sendMessage?.toString().substring(0, 200));
+
     if (imageAttachments.length > 0) {
       const contentParts: any[] = [{ type: 'text', text: input }];
       imageAttachments.forEach(img => { contentParts.push({ type: 'image_url', image_url: { url: img.previewUrl } }); });
+      console.log('[ChatInputArea] 🔍 Calling sendMessage with multimodal content');
       await sendMessage(contentParts, currentProviderId, currentModel);
     } else {
+      console.log('[ChatInputArea] 🔍 Calling sendMessage with text:', input);
       await sendMessage(input, currentProviderId, currentModel);
     }
     setInput(''); setImageAttachments([]); setHistoryIndex(-1); setOriginalInput('');

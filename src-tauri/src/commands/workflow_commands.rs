@@ -124,6 +124,7 @@ pub async fn get_workflow_schedule(workflow: Workflow) -> Result<ScheduleInfo, S
 pub async fn execute_workflow(
     workflow: Workflow,
     window: tauri::Window,
+    correlation_id: Option<String>,  // 🔥 添加 correlation_id 参数
 ) -> Result<String, String> {
     let workflow_id = workflow.id.clone();
 
@@ -187,6 +188,29 @@ pub async fn execute_workflow(
                         if let Some(error) = &node_result.error {
                             println!("[Workflow] ❌ Node {} error: {}", node_id, error);
                         }
+                    }
+
+                    // 🔥 生成工作流结果总结
+                    let response_summary = generate_workflow_summary(&result);
+
+                    // 🔥 先发送 workflow:response 事件（包含结果总结和 correlation_id）
+                    println!("[Workflow] 📝 Emitting workflow:response event to frontend...");
+                    let mut response_payload = serde_json::json!({
+                        "workflow_id": workflow_id_clone,
+                        "response": response_summary,
+                        "status": result.status,
+                    });
+
+                    // 🔥 包含 correlation_id（如果有），帮助前端匹配消息
+                    if let Some(correlation_id) = &correlation_id {
+                        response_payload["correlation_id"] = serde_json::Value::String(correlation_id.clone());
+                        println!("[Workflow] ✅ Included correlation_id in response: {}", correlation_id);
+                    }
+
+                    if let Err(e) = window.emit("workflow:response", &response_payload) {
+                        println!("[Workflow] ⚠️ Failed to emit response event: {}", e);
+                    } else {
+                        println!("[Workflow] ✅ Successfully sent workflow:response event");
                     }
 
                     // 🔥 发送完成事件到前端
@@ -349,6 +373,7 @@ pub async fn execute_quick_workflow(
     project_root: Option<String>,  // 🔥 添加 project_root 参数
     provider_config: Option<serde_json::Value>,  // 🔥 添加 provider_config 参数
     current_model: Option<String>,  // 🔥 添加 current_model 参数
+    correlation_id: Option<String>,  // 🔥 添加 correlation_id 参数用于关联前端消息
     window: tauri::Window,
 ) -> Result<String, String> {
     println!("[Workflow] 🚀 execute_quick_workflow called");
@@ -357,6 +382,7 @@ pub async fn execute_quick_workflow(
     println!("[Workflow] 📂 Project root: {:?}", project_root);
     println!("[Workflow] ⚙️ Provider config: {:?}", provider_config.is_some());
     println!("[Workflow] 🤖 Current model: {:?}", current_model);
+    println!("[Workflow] 🔗 Correlation ID: {:?}", correlation_id);
 
     let workflow = match workflow_type.as_str() {
         "code_review" => {
@@ -385,6 +411,12 @@ pub async fn execute_quick_workflow(
     // 🔥 将配置存储到 workflow 变量中
     let mut workflow = workflow;
 
+    // 存储 correlation_id（用于关联前端消息）
+    if let Some(correlation_id) = &correlation_id {
+        println!("[Workflow] ✅ Stored correlation_id in workflow variables: {}", correlation_id);
+        workflow.variables.insert("correlation_id".to_string(), correlation_id.clone());
+    }
+
     // 存储 project_root
     if let Some(root) = project_root {
         println!("[Workflow] ✅ Stored project_root in workflow variables: {}", root);
@@ -393,8 +425,12 @@ pub async fn execute_quick_workflow(
 
     // 存储 provider_config
     if let Some(config) = provider_config {
-        workflow.variables.insert("provider_config".to_string(), config.to_string());
-        println!("[Workflow] ✅ Stored provider config in workflow variables");
+        // 🔥 FIX: 使用 serde_json::to_string 而不是 to_string，确保 JSON 格式正确
+        let config_json = serde_json::to_string(&config)
+            .map_err(|e| format!("Failed to serialize provider_config: {}", e))?;
+        let json_len = config_json.len();
+        workflow.variables.insert("provider_config".to_string(), config_json);
+        println!("[Workflow] ✅ Stored provider config in workflow variables (JSON: {} chars)", json_len);
     }
 
     // 🔥 存储 current_model（用户选择的模型）
@@ -403,7 +439,7 @@ pub async fn execute_quick_workflow(
         workflow.variables.insert("current_model".to_string(), model);
     }
 
-    let result = execute_workflow(workflow, window).await?;
+    let result = execute_workflow(workflow, window, correlation_id).await?;
 
     println!("[Workflow] ✅ Workflow started successfully: {}", result);
     Ok(result)
@@ -518,3 +554,82 @@ impl AgentType {
         }
     }
 }
+
+// ==================== 工作流结果总结生成 ====================
+
+/// 生成工作流执行结果的 Markdown 总结
+fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::WorkflowResult) -> String {
+    use crate::agent_system::workflow::runner::{WorkflowStatus, NodeStatus};
+
+    let mut summary = String::from("## ✅ 工作流执行完成\n\n");
+
+    // 添加状态信息
+    let status_text = match &result.status {
+        WorkflowStatus::Completed => "已完成",
+        WorkflowStatus::Failed(_) => "失败",
+        WorkflowStatus::Running => "运行中",
+        WorkflowStatus::Idle => "未开始",
+        WorkflowStatus::Paused => "已暂停",
+        WorkflowStatus::Cancelled => "已取消",
+    };
+    summary.push_str(&format!("**状态**: {}\n\n", status_text));
+
+    // 添加节点执行概览
+    summary.push_str("### 📊 节点执行概览\n\n");
+
+    let completed_count = result.node_results.values()
+        .filter(|r| matches!(r.status, NodeStatus::Completed))
+        .count();
+    let failed_count = result.node_results.values()
+        .filter(|r| matches!(r.status, NodeStatus::Failed(_)))
+        .count();
+    let total_count = result.node_results.len();
+
+    summary.push_str(&format!("- **总计**: {} 个节点\n", total_count));
+    summary.push_str(&format!("- **成功**: {} 个\n", completed_count));
+    summary.push_str(&format!("- **失败**: {} 个\n\n", failed_count));
+
+    // 添加每个节点的详细信息
+    summary.push_str("### 📋 节点详情\n\n");
+
+    // 按节点顺序排列（不排序，保持原始顺序）
+    for (node_id, node_result) in &result.node_results {
+        let status_icon = match &node_result.status {
+            NodeStatus::Completed => "✅",
+            NodeStatus::Failed(_) => "❌",
+            NodeStatus::Running => "🔄",
+            NodeStatus::Pending => "⏳",
+            NodeStatus::Skipped => "⏭️",
+        };
+
+        summary.push_str(&format!("#### {} {}\n\n", status_icon, node_id));
+
+        // 添加输出内容（如果有）
+        if let Some(output) = &node_result.output {
+            // 限制输出长度，避免过长
+            let preview = if output.len() > 500 {
+                format!("{}...\n\n_(输出过长，已截断，完整输出请查看日志)_", &output[..500])
+            } else {
+                output.clone()
+            };
+            summary.push_str(&format!("**输出**:\n```\n{}\n```\n\n", preview));
+        }
+
+        // 添加错误信息（如果有）
+        if let Some(error) = &node_result.error {
+            summary.push_str(&format!("**错误**: {}\n\n", error));
+        }
+    }
+
+    // 添加执行时间信息（时间戳是 i64，单位是毫秒）
+    if let Some(end_time) = result.completed_at {
+        let start_time = result.started_at;
+        let duration_ms = end_time - start_time;
+        let duration_sec = duration_ms / 1000;
+        summary.push_str(&format!("**执行时间**: {} 秒\n", duration_sec));
+    }
+
+    summary
+}
+
+

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, Settings, X, ChevronDown, Search, FileText } from 'lucide-react';
-import { useChatStore } from '../../stores/useChatStore';
+// 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
+import { useChatStore } from '../../stores/chat/CoreStoreProxy';
 import { useChatUIStore } from '../../stores/chatUIStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTransparencyStore } from '../../stores/transparencyStore';
@@ -43,6 +44,7 @@ import { ModelCapsulePanel } from './ModelCapsulePanel';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
 import { SystemPromptCard } from './SystemPromptCard';
 import { VirtualMessageList } from './VirtualMessageList';
+import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
 // v0.3.1: 时间线视图
 import { MessageTimeline } from './MessageTimeline';
@@ -86,11 +88,42 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
   // Use specific selectors to avoid subscribing to the entire store
   // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
-  const rawMessages = useChatStore(state => state?.messages ?? []);
-  const isLoading = useChatStore(state => state?.isLoading ?? false);
-  const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
-  const approveToolCall = useChatStore(state => state?.approveToolCall ?? (() => Promise.resolve()));
-  const rejectToolCall = useChatStore(state => state?.rejectToolCall ?? (() => Promise.resolve()));
+  // 🔥 FIX 2: 先获取整个 store，再解构，避免选择器中的 null 问题
+  const chatStoreState = useChatStore();
+  const rawMessages = chatStoreState?.messages ?? [];
+  const isLoading = chatStoreState?.isLoading ?? false;
+  const sendMessage = chatStoreState?.sendMessage ?? (() => Promise.resolve());
+  const approveToolCall = chatStoreState?.approveToolCall ?? (() => Promise.resolve());
+  const rejectToolCall = chatStoreState?.rejectToolCall ?? (() => Promise.resolve());
+
+  // 🔥 CRITICAL FIX: 直接使用全局状态，避免频繁计算导致卸载
+  // 监听全局 activeWorkflows 变化
+  const [hasActiveWorkflow, setHasActiveWorkflow] = useState(false);
+
+  useEffect(() => {
+    // 监听全局 activeWorkflows 的变化
+    const checkActiveWorkflow = () => {
+      const hasActive = globalActiveWorkflows.size > 0;
+      console.log('[AIChat] 🔍 Checking active workflow:', {
+        hasActive,
+        size: globalActiveWorkflows.size,
+        workflows: Array.from(globalActiveWorkflows)
+      });
+      setHasActiveWorkflow(hasActive);
+    };
+
+    // 初始检查
+    checkActiveWorkflow();
+
+    // 添加监听器
+    globalActiveWorkflowsListeners.add(checkActiveWorkflow);
+    console.log('[AIChat] ✅ Added globalActiveWorkflows listener, total listeners:', globalActiveWorkflowsListeners.size);
+
+    return () => {
+      globalActiveWorkflowsListeners.delete(checkActiveWorkflow);
+      console.log('[AIChat] 🧹 Removed globalActiveWorkflows listener');
+    };
+  }, []);
 
   // New Chat UI Store for history
   const inputHistory = useChatUIStore(state => state.inputHistory);
@@ -2539,6 +2572,24 @@ ${suggestion.fixContext.code_context}
             isLoading={isLoading}
             parentRef={scrollContainerRef}
           />
+
+          {/* 🔥 工作流内嵌监控器 - 始终渲染，让容器自己决定是否显示 */}
+          {/* 🔥 CRITICAL FIX: 移除条件渲染，否则会导致鸡生蛋问题：
+              - 组件需要渲染才能注册监听器
+              - 监听器接收 workflow:started 事件
+              - 事件触发 hasActiveWorkflow 变为 true
+              - hasActiveWorkflow 决定组件是否渲染
+           */}
+          <WorkflowInlineMonitorContainer key="global-workflow-monitor" />
+
+          {/* 🔥 DEBUG: 调试面板 - 显示工作流状态 */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="my-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-500 rounded text-xs">
+              <div className="font-bold">🔍 Workflow Debug:</div>
+              <div>hasActiveWorkflow: {String(hasActiveWorkflow)}</div>
+              <div>globalActiveWorkflows: {JSON.stringify(Array.from((window as any).globalActiveWorkflowsForDebug || []))}</div>
+            </div>
+          )}
 
           {/* v0.4.0: Token 统计显示 */}
           {tokenStats && rawMessages.length > 0 && (

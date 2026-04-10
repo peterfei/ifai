@@ -84,7 +84,9 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   const setActiveFileTokenCount = useEditorStore(state => state.setActiveFileTokenCount);
 
   // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
-  const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
+  // 🔥 FIX 2: 先获取整个 store，再解构，避免选择器中的 null 问题
+  const chatStoreState = useChatStore();
+  const sendMessage = chatStoreState?.sendMessage ?? (() => Promise.resolve());
 
   // 🔥 修复无限循环：使用 ref 存储稳定的值，避免依赖变化
   // 注意：fileRef.current 会在每次渲染时更新，这是安全的

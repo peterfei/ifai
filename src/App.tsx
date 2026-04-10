@@ -77,7 +77,8 @@ import { useShortcuts } from './hooks/useShortcuts';
 import { openFileFromPath } from './utils/fileActions';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { useChatStore } from './stores/useChatStore';
+// 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
+import { useChatStore } from './stores/chat/CoreStoreProxy';
 import { useSettingsStore } from './stores/settingsStore';
 import { useSnippetStore } from './stores/snippetStore';
 
@@ -284,10 +285,11 @@ function App() {
       }
 
       // v0.3.0: 暴露 chatStore 到 window 对象供 E2E 测试使用
+      // 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
       try {
-        const { useChatStore } = await import('./stores/useChatStore');
+        const { useChatStore } = await import('./stores/chat/CoreStoreProxy');
         (window as any).__chatStore = useChatStore;
-        console.log('[App] ✅ ChatStore exposed to window.__chatStore');
+        console.log('[App] ✅ ChatStore (from CoreStoreProxy) exposed to window.__chatStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose ChatStore:', error);
       }

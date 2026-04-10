@@ -77,6 +77,7 @@ type Handler<T = any> = (event: T) => void;
 export class ChatEventBus {
   private handlers: Map<keyof ChatEvents, Handler[]> = new Map();
   private middleware: Array<(event: keyof ChatEvents, payload: any) => void> = [];
+  private emittingError = false;  // 🔥 防止错误事件导致的无限递归
 
   /**
    * 注册事件监听器
@@ -116,16 +117,27 @@ export class ChatEventBus {
         handler(payload);
       } catch (e) {
         // 🏆 防线：Handler 报错转化为系统错误事件，防止重构代码奔溃影响主流程
+        // 🔥 FIX: 防止无限递归 - 如果已经在发送错误事件，就不再递归
+        if (type === 'chat:error' || this.emittingError) {
+          console.error(`[ChatEventBus] ⚠️ Error in error handler, suppressing to prevent infinite recursion:`, e);
+          return;
+        }
+
         console.error(`[ChatEventBus] Handler error for ${type}:`, e);
-        this.emit('chat:error', {
-          correlationId: payload.correlationId,
-          sessionId: payload.sessionId,
-          timestamp: Date.now(),
-          code: 'HANDLER_ERROR',
-          message: e instanceof Error ? e.message : String(e),
-          moduleId: 'EventBus',
-          stack: e instanceof Error ? e.stack : undefined
-        } as any);
+        this.emittingError = true;
+        try {
+          this.emit('chat:error', {
+            correlationId: payload.correlationId,
+            sessionId: payload.sessionId,
+            timestamp: Date.now(),
+            code: 'HANDLER_ERROR',
+            message: e instanceof Error ? e.message : String(e),
+            moduleId: 'EventBus',
+            stack: e instanceof Error ? e.stack : undefined
+          } as any);
+        } finally {
+          this.emittingError = false;
+        }
       }
     });
   }

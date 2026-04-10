@@ -17,7 +17,9 @@ export interface IntentResult {
   shouldSkipChat?: boolean; // P4: 是否跳过后续聊天流程
 }
 
-const SUPPORTED_SLASH_COMMANDS = ['/explore', '/review', '/test', '/doc', '/refactor'];
+// 🔥 FIX: 移除 /explore 和 /review，因为它们已被工作流系统处理
+// 这些命令现在通过 WorkflowIntentHandler 处理，返回 type: 'workflow'
+const SUPPORTED_SLASH_COMMANDS = ['/test', '/doc', '/refactor'];
 
 // P4: 工作流斜杠命令
 const WORKFLOW_SLASH_COMMANDS = ['/workflow', '/wf', '/code-review', '/exploration', '/quality-check'];
@@ -28,6 +30,8 @@ export class IntentHandler {
    */
   async recognize(content: string, payload: BasePayload): Promise<IntentResult> {
     const textInput = content.trim();
+    console.log('[IntentHandler] 🔍 Original content:', JSON.stringify(content));
+    console.log('[IntentHandler] 🔍 Trimmed textInput:', JSON.stringify(textInput));
 
     // P4: 0. 工作流命令优先检测（自然语言 + 斜杠）
     const workflowIntent = workflowIntentHandler.recognizeWorkflowIntent(textInput);

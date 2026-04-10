@@ -8,8 +8,8 @@ import React, { useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
-// 工作流内嵌监控器
-import { WorkflowInlineMonitorContainer } from '../workflow/WorkflowInlineMonitor';
+// 🔥 工作流内嵌监控器已移至 AIChat 组件中，避免频繁卸载
+// import { WorkflowInlineMonitorContainer } from '../workflow/WorkflowInlineMonitor';
 
 interface VirtualMessageListProps {
   messages: ReturnType<typeof useChatStore.getState>['messages'];
@@ -84,29 +84,6 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
               // 这样历史消息加载时不会触发打字机效果
               isStreaming={message.isStreaming || false}
             />
-            {/* 🔥 只在最新的用户工作流命令后显示监控器 */}
-            {(() => {
-              // 找到所有用户消息的索引
-              const userMessageIndices = visibleMessages
-                .map((msg, idx) => msg.role === 'user' ? idx : -1)
-                .filter(idx => idx !== -1);
-
-              // 最后一条用户消息的索引
-              const lastUserMessageIndex = userMessageIndices.length > 0
-                ? userMessageIndices[userMessageIndices.length - 1]
-                : -1;
-
-              const isWorkflowCommand =
-                message.role === 'user' &&
-                typeof message.content === 'string' &&
-                message.content.trim().startsWith('/');
-
-              const isLastUserMessage = index === lastUserMessageIndex;
-
-              return isWorkflowCommand && isLastUserMessage;
-            })() && (
-              <WorkflowInlineMonitorContainer />
-            )}
           </React.Fragment>
         ))}
       </div>
@@ -157,31 +134,6 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
                 onOpenComposer={onOpenComposer}
                 isStreaming={false}
               />
-              {/* 🔥 只在最新的用户工作流命令后显示监控器 */}
-              {(() => {
-                // 找到所有用户消息的索引
-                const userMessageIndices = visibleMessages
-                  .map((msg, idx) => msg.role === 'user' ? idx : -1)
-                  .filter(idx => idx !== -1);
-
-                // 最后一条用户消息的索引
-                const lastUserMessageIndex = userMessageIndices.length > 0
-                  ? userMessageIndices[userMessageIndices.length - 1]
-                  : -1;
-
-                const isWorkflowCommand =
-                  message.role === 'user' &&
-                  typeof message.content === 'string' &&
-                  message.content.trim().startsWith('/');
-
-                const isLastUserMessage = virtualRow.index === lastUserMessageIndex;
-
-                return isWorkflowCommand && isLastUserMessage;
-              })() && (
-                <div style={{ marginTop: '8px' }}>
-                  <WorkflowInlineMonitorContainer />
-                </div>
-              )}
             </div>
           );
         })}

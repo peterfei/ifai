@@ -334,8 +334,9 @@ export const initStoreMapper = () => {
     // ============================================
 
     // 1. 映射用户消息发送
+    console.log('[StoreMapper] 🔍 Registering chat:message:sent listener, EventBus instance:', (chatEventBus as any).constructor.name);
     chatEventBus.on('chat:message:sent', (payload) => {
-      const { messageId, content, correlationId, isAssistantOnly } = payload as any;
+      const { messageId, content, correlationId, isAssistantOnly, isWorkflowMessage } = payload as any;
       const assistantId = correlationId;
 
       console.log('[StoreMapper] 📨 chat:message:sent received:', {
@@ -343,8 +344,74 @@ export const initStoreMapper = () => {
         correlationId,
         assistantId,
         content: content?.substring(0, 50),
-        isAssistantOnly
+        isAssistantOnly,
+        isWorkflowMessage  // 🔥 检查是否是工作流消息
       });
+
+      // 🔥 FIX: 如果是工作流消息，不设置 isLoading: true，防止触发 AI 回复
+      if (isWorkflowMessage) {
+        console.log('[StoreMapper] 🔥 This is a workflow message, NOT setting isLoading=true');
+        console.log('[StoreMapper] 🔥 Creating user message:', { messageId, content: content?.substring(0, 30), assistantId });
+
+        // 🔥 DEBUG: 检查当前 store 状态
+        const currentStateBefore = useChatStore.getState();
+        console.log('[StoreMapper] 🔍 State BEFORE update:', {
+          messageCount: currentStateBefore.messages.length,
+          messages: currentStateBefore.messages.map((m: any) => ({ id: m.id.substring(0, 15), role: m.role })),
+          isLoading: currentStateBefore.isLoading
+        });
+
+        // 仍然创建消息，但不设置 isLoading
+        const updater = (state: any) => {
+          console.log('[StoreMapper] 🔍 updater function called, state.messages.length:', state?.messages?.length || 0);
+
+          const filtered = state.messages.filter((m: any) => m.id !== messageId && m.id !== assistantId);
+          const now = Date.now();
+          const newMessages = [
+            ...filtered,
+            {
+              id: messageId,
+              role: 'user',
+              content,
+              timestamp: now,
+              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }]
+            },
+            {
+              id: assistantId,
+              role: 'assistant',
+              content: '',
+              status: 'streaming',
+              timestamp: now + 1,
+              segments: []
+            }
+          ];
+          console.log('[StoreMapper] 🔥 New messages to set:', newMessages.map((m: any) => ({ id: m.id.substring(0, 15), role: m.role, content: m.content?.substring(0, 20) })));
+
+          const result = {
+            messages: newMessages,
+            isLoading: false  // 🔥 关键：不设置 isLoading，防止触发 AI 回复
+          };
+          console.log('[StoreMapper] 🔥 updater returning:', { messageCount: result.messages.length, isLoading: result.isLoading });
+          return result;
+        };
+
+        console.log('[StoreMapper] 🔍 Calling setState with updater...');
+        useChatStore.setState(updater as any);
+        console.log('[StoreMapper] 🔍 setState called, waiting for state to update...');
+
+        // 🔥 DEBUG: 验证状态是否真的被更新了
+        setTimeout(() => {
+          const currentState = useChatStore.getState();
+          console.log('[StoreMapper] 🔍 State after update:', {
+            messageCount: currentState.messages.length,
+            lastMessage: currentState.messages[currentState.messages.length - 1],
+            hasUserMessage: currentState.messages.some((m: any) => m.id === messageId),
+            isLoading: currentState.isLoading
+          });
+        }, 50);
+
+        return;  // 🔥 提前返回，不执行后续逻辑
+      }
 
       // 🏆 FIX: 清理旧的 chunk 标记，防止内存泄漏
       if (processedChunks[correlationId]) {
@@ -515,6 +582,17 @@ export const initStoreMapper = () => {
 
       // 更新工作流消息，显示实时进度
       const updater = (state: any) => {
+        // 🔥 FIX: 检查 state 是否为 null 或未定义，提供默认状态
+        if (!state) {
+          console.warn('[StoreMapper] ⚠️ State is null in workflow:progress handler, using default state');
+          return { messages: [] }; // 提供默认状态
+        }
+
+        if (!state.messages) {
+          console.warn('[StoreMapper] ⚠️ State.messages is missing in workflow:progress handler, using default messages');
+          return { ...state, messages: [] }; // 提供默认 messages
+        }
+
         // 查找包含此 workflowId 的助手消息
         const assistantIndex = state.messages.findIndex((m: any) =>
           m.role === 'assistant' &&
@@ -523,7 +601,7 @@ export const initStoreMapper = () => {
 
         if (assistantIndex === -1) {
           console.warn('[StoreMapper] ⚠️ Workflow message not found for progress:', workflowId);
-          return null;
+          return null; // 保持当前状态不变
         }
 
         // 🔥 构建进度显示
@@ -625,6 +703,17 @@ export const initStoreMapper = () => {
       // 查找并更新对应的工作流消息
       // 我们需要通过 workflow_id 找到相关消息
       const updater = (state: any) => {
+        // 🔥 FIX: 检查 state 是否为 null 或未定义，提供默认状态
+        if (!state) {
+          console.warn('[StoreMapper] ⚠️ State is null in workflow:completed handler, using default state');
+          return { messages: [] }; // 提供默认状态
+        }
+
+        if (!state.messages) {
+          console.warn('[StoreMapper] ⚠️ State.messages is missing in workflow:completed handler, using default messages');
+          return { ...state, messages: [] }; // 提供默认 messages
+        }
+
         // 查找包含此 workflowId 的助手消息
         const assistantIndex = state.messages.findIndex((m: any) =>
           m.role === 'assistant' &&

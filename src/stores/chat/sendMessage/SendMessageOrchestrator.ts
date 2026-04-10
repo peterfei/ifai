@@ -15,11 +15,25 @@ import { intentHandler } from './IntentHandler';
 import { messageBuilder } from './MessageBuilder';
 import { contextSelector } from './ContextSelector';
 
+console.log('[SendMessageOrchestrator] 🔧🔧🔧 Module loaded!');
+
 export class SendMessageOrchestrator {
+  private instanceId: string;
+
+  constructor() {
+    this.instanceId = `orchestrator-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    console.log('[SendMessageOrchestrator] 🔧 Instance created:', this.instanceId);
+  }
+
   /**
    * 执行消息发送流程
    */
   async send(content: string | any[], providerId: string, modelName: string, options: any = {}) {
+    console.log('[SendMessageOrchestrator] 🔥🔥🔥 send() method called on instance:', this.instanceId);
+    console.log('[SendMessageOrchestrator] 🔥 content:', typeof content === 'string' ? content.substring(0, 50) : 'Array');
+    console.log('[SendMessageOrchestrator] 🔥 providerId:', providerId);
+    console.log('[SendMessageOrchestrator] 🔥 modelName:', modelName);
+
     // 1. 初始化全链路 ID (保险丝 1: 关联 ID)
     const correlationId = chatEventBus.createCorrelationId();
     const sessionId = useThreadStore.getState().activeThreadId || 'default-thread';
@@ -31,14 +45,34 @@ export class SendMessageOrchestrator {
 
     const basePayload = { correlationId, messageId, sessionId, timestamp };
 
+    console.log('[SendMessageOrchestrator] 🔥 basePayload:', { correlationId, messageId, sessionId });
+
     try {
+      console.log('[SendMessageOrchestrator] 🔥 About to emit chat:message:sending event');
+      console.log('[SendMessageOrchestrator] 🔍 chatEventBus:', chatEventBus);
+      console.log('[SendMessageOrchestrator] 🔍 chatEventBus.emit:', typeof chatEventBus?.emit);
+      console.log('[SendMessageOrchestrator] 🔍 chatEventBus.handlers:', (chatEventBus as any).handlers);
+
       // 发布开始事件 (触发 UI Loading 和 初始持久化)
-      chatEventBus.emit('chat:message:sending', {
-        ...basePayload,
-        content: typeof content === 'string' ? content : '[Multimodal Content]',
-        providerId,
-        model: modelName
-      });
+      try {
+        const sendingPayload = {
+          ...basePayload,
+          content: typeof content === 'string' ? content : '[Multimodal Content]',
+          providerId,
+          model: modelName
+        };
+        console.log('[SendMessageOrchestrator] 🔍 sendingPayload:', sendingPayload);
+
+        console.log('[SendMessageOrchestrator] ⏰ Before emit, timestamp:', Date.now());
+        chatEventBus.emit('chat:message:sending', sendingPayload);
+        console.log('[SendMessageOrchestrator] ⏰ After emit, timestamp:', Date.now());
+        console.log('[SendMessageOrchestrator] 🔥 Emitted chat:message:sending event successfully');
+      } catch (emitError) {
+        console.error('[SendMessageOrchestrator] ❌ Error emitting chat:message:sending:', emitError);
+        throw emitError;
+      }
+
+      console.log('[SendMessageOrchestrator] 🔅 After emit block, moving to ensureActiveThread');
 
       // 2. 线程自愈逻辑 (确保有活跃 Thread)
       const threadId = await this.ensureActiveThread();
@@ -49,18 +83,32 @@ export class SendMessageOrchestrator {
 
       const intentResult = await intentHandler.recognize(textInput, basePayload);
       console.log(`[SendMessageOrchestrator] Intent detected: ${intentResult.type}`);
+      console.log(`[SendMessageOrchestrator] shouldSkipChat: ${intentResult.shouldSkipChat}`);
+      console.log(`[SendMessageOrchestrator] Full intentResult:`, {
+        type: intentResult.type,
+        category: intentResult.category,
+        confidence: intentResult.confidence,
+        shouldSkipChat: intentResult.shouldSkipChat,
+        workflowId: intentResult.metadata?.workflowId
+      });
 
       // P4: 如果是工作流意图且标记为跳过聊天，直接返回
       if (intentResult.shouldSkipChat) {
-        console.log('[SendMessageOrchestrator] ⚡ Workflow intent detected, skipping chat flow');
+        console.log('[SendMessageOrchestrator] ⚡🔥 Workflow intent detected, shouldSkipChat = TRUE');
+        console.log('[SendMessageOrchestrator] 🚫 Skipping AI chat flow, only creating messages');
 
         // 先发布消息发送事件（创建用户消息和空的助手消息）
+        // 🔥 添加 isWorkflowMessage 标记，防止 StoreMapper 触发 AI 回复
+        console.log('[SendMessageOrchestrator] 🔍 EventBus instance:', (chatEventBus as any).constructor.name);
+        console.log('[SendMessageOrchestrator] 🔍 EventBus handlers before emit:', (chatEventBus as any).handlers?.get('chat:message:sent')?.length || 0);
         chatEventBus.emit('chat:message:sent', {
           ...basePayload,
           content: textInput,
           messageId: messageId,  // 🔥 FIX: 使用独立的 messageId
           workflowId: intentResult.metadata?.workflowId,
+          isWorkflowMessage: true,  // 🔥 标记为工作流消息
         });
+        console.log('[SendMessageOrchestrator] 📤 Emitted chat:message:sent with isWorkflowMessage=true');
 
         // 等待一小段时间确保消息被创建
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -209,12 +257,16 @@ export class SendMessageOrchestrator {
   }
 
   private async ensureActiveThread(): Promise<string> {
+    console.log('[SendMessageOrchestrator] 🔧 ensureActiveThread() called');
     const threadStore = useThreadStore.getState();
+    console.log('[SendMessageOrchestrator] 🔧 threadStore:', threadStore);
     let activeId = threadStore.activeThreadId;
+    console.log('[SendMessageOrchestrator] 🔧 activeThreadId before:', activeId);
     if (!activeId) {
       activeId = threadStore.createThread();
       console.log(`[SendMessageOrchestrator] Auto-created thread: ${activeId}`);
     }
+    console.log('[SendMessageOrchestrator] 🔧 activeThreadId after:', activeId);
     return activeId;
   }
 
