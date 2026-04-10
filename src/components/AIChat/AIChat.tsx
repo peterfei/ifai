@@ -2443,6 +2443,10 @@ ${suggestion.fixContext.code_context}
         className={`flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative transition-colors ${isDragHighlight ? 'border-blue-500 bg-blue-900/20' : ''}`}
         style={{ width: width ? `${width}px` : '384px', contain: 'layout' }}
     >
+      {/* 🔥 DEBUG: 在最顶层添加一个调试 div */}
+      <div data-testid="aichat-debug" style={{ display: 'none' }}>
+        AIChat Rendered - viewMode: {viewMode}
+      </div>
       {onResizeStart && (
         <div 
             className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
@@ -2580,6 +2584,10 @@ ${suggestion.fixContext.code_context}
               - 事件触发 hasActiveWorkflow 变为 true
               - hasActiveWorkflow 决定组件是否渲染
            */}
+          {/* 🔥 DEBUG: 添加一个简单的 div 来确认代码是否被执行 */}
+          <div data-testid="workflow-monitor-placeholder" style={{ display: 'none' }}>
+            Workflow Monitor Placeholder - viewMode: {viewMode}
+          </div>
           <WorkflowInlineMonitorContainer key="global-workflow-monitor" />
 
           {/* 🔥 DEBUG: 调试面板 - 显示工作流状态 */}

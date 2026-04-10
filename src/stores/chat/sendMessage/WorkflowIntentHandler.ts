@@ -898,7 +898,6 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
             timestamp: startedData.timestamp,
             nodes: startedData.nodes || [],  // 🔥 关键：包含计划节点
             correlationId: payload?.correlationId,
-            messageId: payload?.messageId,
             sessionId: payload?.sessionId
           });
         } catch (error) {
