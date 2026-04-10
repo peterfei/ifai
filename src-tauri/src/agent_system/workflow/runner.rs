@@ -225,13 +225,27 @@ pub struct WorkflowRunner {
     progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
 }
 
+/// 🔥 工具调用详细信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallDetails {
+    pub tool_name: String,           // 工具名称
+    pub tool_input: String,           // 工具输入（JSON字符串）
+    pub tool_output: String,          // 工具输出
+    pub output_length: usize,         // 输出字符数
+    pub execution_time_ms: Option<i64>, // 执行时间（毫秒）
+    pub is_error: bool,               // 是否出错
+}
+
 /// 🔥 进度事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressEvent {
     pub event_type: String,  // "node_started", "node_progress", "node_completed", "tool_call"
+    pub workflow_id: Option<String>,  // 🔥 添加 workflow_id 字段，前端用于匹配工作流
     pub node_id: Option<String>,
     pub message: Option<String>,
     pub timestamp: i64,
+    /// 🔥 工具调用详细信息（仅当 event_type 为 "tool_call" 时存在）
+    pub tool_details: Option<ToolCallDetails>,
 }
 
 impl WorkflowRunner {
@@ -269,13 +283,15 @@ impl WorkflowRunner {
     }
 
     /// 🔥 发送进度事件
-    async fn emit_progress(&self, event_type: &str, node_id: Option<&str>, message: Option<&str>) {
+    async fn emit_progress(&self, event_type: &str, workflow_id: Option<&str>, node_id: Option<&str>, message: Option<&str>) {
         if let Some(callback) = self.progress_callback.read().await.as_ref() {
             let event = ProgressEvent {
                 event_type: event_type.to_string(),
+                workflow_id: workflow_id.map(|s| s.to_string()),
                 node_id: node_id.map(|s| s.to_string()),
                 message: message.map(|s| s.to_string()),
                 timestamp: chrono::Utc::now().timestamp_millis(),
+                tool_details: None,
             };
             callback(event);
         }
@@ -432,9 +448,11 @@ impl WorkflowRunner {
         if let Some(callback) = progress_callback.read().await.as_ref() {
             callback(ProgressEvent {
                 event_type: "node_started".to_string(),
+                workflow_id: Some(workflow.id.clone()),
                 node_id: Some(node_id.clone()),
                 message: Some(format!("开始执行节点: {}", node.label.as_ref().unwrap_or(&node_id))),
                 timestamp: chrono::Utc::now().timestamp_millis(),
+                tool_details: None,
             });
         }
 
@@ -454,7 +472,7 @@ impl WorkflowRunner {
         // 执行节点（带智能重试）
         let mut retry_count = 0;
         let result = loop {
-            match Self::execute_node_once_static(&node, &workflow).await {
+            match Self::execute_node_once_static(&node, &workflow, progress_callback.clone()).await {
                 Ok(result) => break result,
                 Err(e) if retry_count < config.max_retries => {
                     retry_count += 1;
@@ -499,7 +517,11 @@ impl WorkflowRunner {
     }
 
     /// 🔥 静态方法：执行节点一次（无重试）
-    async fn execute_node_once_static(node: &WorkflowNode, workflow: &Workflow) -> Result<NodeResult> {
+    async fn execute_node_once_static(
+        node: &WorkflowNode,
+        workflow: &Workflow,
+        progress_callback: Arc<RwLock<Option<Box<dyn Fn(ProgressEvent) + Send + Sync>>>>,
+    ) -> Result<NodeResult> {
         println!("[WorkflowRunner] 🔧 Executing node: {} ({:?})", node.id, node.agent_type);
 
         // 🔥 构建执行上下文
@@ -599,6 +621,30 @@ impl WorkflowRunner {
             println!("[WorkflowRunner] ✅ Passing current_model to execution context: {}", model);
             ctx = ctx.with_variable("current_model".to_string(), model);
         }
+
+        // 🔥 添加工具调用进度回调
+        let progress_callback_for_tool = progress_callback.clone();
+        let node_id_for_callback = node.id.clone();
+        let workflow_id_for_callback = workflow.id.clone();  // 🔥 捕获 workflow_id
+        ctx = ctx.with_tool_progress_callback(std::sync::Arc::new(move |tool_details| {
+            // 当工具调用完成时，发送包含详细信息的进度事件
+            let callback = progress_callback_for_tool.clone();
+            let node_id_clone = node_id_for_callback.clone();
+            let workflow_id_clone = workflow_id_for_callback.clone();  // 🔥 捕获 workflow_id
+            tokio::spawn(async move {
+                if let Some(cb) = callback.read().await.as_ref() {
+                    let event = ProgressEvent {
+                        event_type: "tool_call".to_string(),
+                        workflow_id: Some(workflow_id_clone),  // 🔥 添加 workflow_id
+                        node_id: Some(node_id_clone),
+                        message: Some(format!("工具调用: {}", tool_details.tool_name)),
+                        timestamp: chrono::Utc::now().timestamp_millis(),
+                        tool_details: Some(tool_details),
+                    };
+                    cb(event);
+                }
+            });
+        }));
 
         // 🔥 使用真实的执行器
         let executor = AgentNodeExecutor::new();

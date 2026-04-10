@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play, Network } from 'lucide-react';
-import { WorkflowDAGMonitor, type DAGNode, type DAGEdge } from './WorkflowDAGMonitor';
+import { WorkflowDAGMonitor, type DAGNode, type DAGEdge, type ToolCallDetails } from './WorkflowDAGMonitor';
 
 // ==================== 类型定义 ====================
 
@@ -27,6 +27,8 @@ interface WorkflowNode {
   details?: string;
   timestamp?: number;
   duration?: number;  // 执行时长（毫秒）
+  /** 🔥 工具调用详细信息列表 */
+  tool_calls?: ToolCallDetails[];
 }
 
 interface WorkflowInfo {
@@ -58,6 +60,7 @@ function convertToDAGNode(workflowNode: WorkflowNode): DAGNode {
     completedAt: workflowNode.timestamp ? workflowNode.timestamp + (workflowNode.duration || 0) : undefined,
     output: workflowNode.details,
     error: workflowNode.status === 'failed' ? workflowNode.details : undefined,
+    tool_calls: workflowNode.tool_calls,  // 🔥 传递工具调用信息
   };
 }
 
@@ -265,6 +268,56 @@ const globalActiveWorkflowsListeners = new Set<() => void>();
 
 // 🔥 导出全局状态供其他组件使用
 export { globalActiveWorkflows, globalActiveWorkflowsListeners };
+
+// 🔥 暴露全局状态到 window 对象供 E2E 测试使用
+if (typeof window !== 'undefined') {
+  (window as any).__GLOBAL_WORKFLOW_STATES__ = globalWorkflowStates;
+  (window as any).__GLOBAL_ACTIVE_WORKFLOWS__ = globalActiveWorkflows;
+  (window as any).__any_workflow_progress_received = false;  // 🔥 诊断标志：是否收到任何进度事件
+
+  // 🔥 全局诊断监听器：捕获所有 workflow:progress 事件，无论 workflow_id 是什么
+  console.log('[WorkflowInlineMonitor] 🔍 Setting up GLOBAL diagnostic listener for ALL workflow:progress events');
+  const setupGlobalDiagnosticListener = () => {
+    // 延迟设置，确保 chatEventBus 已初始化
+    setTimeout(() => {
+      try {
+        const { getChatEventBus } = require('@/stores/chat/eventBus/ChatEventBus');
+        const chatEventBus = getChatEventBus();
+        if (chatEventBus) {
+          chatEventBus.on('workflow:progress' as any, (payload: any) => {
+            // 标记：收到了至少一个进度事件
+            (window as any).__any_workflow_progress_received = true;
+
+            console.log('[WorkflowInlineMonitor] 🔍 [GLOBAL DIAGNOSTIC] Received workflow:progress event:', {
+              eventType: payload.event_type,
+              workflowId: payload.workflowId,
+              workflow_id: payload.workflow_id,
+              nodeId: payload.node_id,
+              hasToolDetails: !!payload.tool_details,
+              toolName: payload.tool_details?.tool_name,
+              message: payload.message,
+              timestamp: payload.timestamp
+            });
+
+            // 🔥 关键诊断：检查 workflow_id 字段是否存在和匹配
+            if (!payload.workflowId && !payload.workflow_id) {
+              console.warn('[WorkflowInlineMonitor] ⚠️ [GLOBAL DIAGNOSTIC] Event has NO workflow_id field!', payload);
+            }
+          });
+          console.log('[WorkflowInlineMonitor] ✅ [GLOBAL DIAGNOSTIC] Listener registered successfully');
+        } else {
+          console.warn('[WorkflowInlineMonitor] ⚠️ [GLOBAL DIAGNOSTIC] chatEventBus not available yet');
+        }
+      } catch (error) {
+        console.error('[WorkflowInlineMonitor] ❌ [GLOBAL DIAGNOSTIC] Failed to setup listener:', error);
+      }
+    }, 1000);  // 延迟 1 秒，确保应用已完全初始化
+  };
+
+  setupGlobalDiagnosticListener();
+
+  console.log('[WorkflowInlineMonitor] 🔓 Exposed global workflow states to window for testing');
+}
 
 export function updateGlobalWorkflowState(workflowId: string, updates: Partial<WorkflowInfo>) {
   const current = globalWorkflowStates.get(workflowId) || {
@@ -482,11 +535,75 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
         const nodeId = payload.node_id || payload.currentNode;
         const message = payload.message || payload.details || '';
 
-        console.log('[WorkflowInlineMonitor] ✅ Processing node:', { nodeId, message, instanceId });
+        console.log('[WorkflowInlineMonitor] ✅ Processing event:', {
+          eventType: payload.event_type,
+          nodeId,
+          message,
+          instanceId
+        });
+
+        // 🔥 特殊处理：如果是 tool_call 事件，只更新工具调用信息，不创建新节点
+        if (payload.event_type === 'tool_call') {
+          if (payload.tool_details) {
+            console.log('[WorkflowInlineMonitor] 🔧 Tool call details:', payload.tool_details);
+
+            const currentGlobalState = globalWorkflowStates.get(workflowId);
+            const existingNodeIndex = currentGlobalState?.nodes?.findIndex(n => n.id === nodeId) ?? -1;
+
+            if (existingNodeIndex >= 0) {
+              // 更新现有节点的工具调用信息
+              let updatedNodes = [...(currentGlobalState?.nodes || [])];
+              const existingNode = updatedNodes[existingNodeIndex];
+              const existingToolCalls = existingNode.tool_calls || [];
+
+              // 🔥 防重复：使用工具名称、输入和时间戳生成唯一标识符
+              const toolKey = `${payload.tool_details.tool_name}_${payload.tool_details.tool_input}_${payload.timestamp || Date.now()}`;
+              const isDuplicate = existingToolCalls.some((existingTool: any) => {
+                const existingKey = `${existingTool.tool_name}_${existingTool.tool_input}_${payload.timestamp || Date.now()}`;
+                return existingKey === toolKey || (
+                  existingTool.tool_name === payload.tool_details.tool_name &&
+                  existingTool.tool_input === payload.tool_details.tool_input &&
+                  existingTool.tool_output === payload.tool_details.tool_output
+                );
+              });
+
+              if (isDuplicate) {
+                console.log('[WorkflowInlineMonitor] ⚠️ Duplicate tool call detected, skipping:', toolKey);
+                return;
+              }
+
+              updatedNodes[existingNodeIndex] = {
+                ...existingNode,
+                tool_calls: [...existingToolCalls, payload.tool_details]
+              };
+
+              globalWorkflowStates.set(workflowId, {
+                ...currentGlobalState!,
+                nodes: updatedNodes,
+              });
+
+              console.log('[WorkflowInlineMonitor] ✅ Added tool call to node:', {
+                nodeId,
+                toolCount: updatedNodes[existingNodeIndex].tool_calls?.length
+              });
+
+              return; // 🔥 早期返回，不创建新节点
+            } else {
+              console.log('[WorkflowInlineMonitor] ⚠️ No node found for tool_call, creating new node');
+              // 如果没有找到节点，创建一个临时节点
+            }
+          }
+        }
 
         // 🔥 解析节点信息
         const parsedInfo = parseNodeInfo(nodeId, message);
         const nodeType = parseNodeType(nodeId, parsedInfo);
+
+        // 🔥 解析工具调用详细信息（用于新节点）
+        let tool_calls: ToolCallDetails[] | undefined = undefined;
+        if (payload.event_type === 'tool_call' && payload.tool_details) {
+          tool_calls = [payload.tool_details];
+        }
 
         // 创建新节点
         const newNode: WorkflowNode = {
@@ -496,7 +613,8 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
           parsedInfo,
           status: 'running',
           details: message,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          tool_calls,
         };
 
         // 🔥 FIX: 使用全局状态更新
@@ -509,10 +627,15 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
           const existingNode = updatedNodes[existingNodeIndex];
           const duration = Date.now() - (existingNode.timestamp || Date.now());
 
+          // 🔥 合并工具调用信息
+          const existingToolCalls = existingNode.tool_calls || [];
+          const mergedToolCalls = tool_calls ? [...existingToolCalls, ...tool_calls] : existingToolCalls;
+
           updatedNodes[existingNodeIndex] = {
             ...existingNode,
             status: 'completed',
             duration,
+            tool_calls: mergedToolCalls.length > 0 ? mergedToolCalls : undefined,  // 🔥 更新工具调用信息
             details: message
           };
 
@@ -816,13 +939,72 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                               {(node.duration / 1000).toFixed(2)}s
                             </span>
                           )}
+
+                          {/* 🔥 工具调用数量指示器 */}
+                          {node.tool_calls && node.tool_calls.length > 0 && (
+                            <span className="text-xs text-purple-500 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                              ⚡ {node.tool_calls.length} 个工具调用
+                            </span>
+                          )}
                         </div>
 
-                        {/* 详细信息 */}
-                        {node.details && node.details !== node.label && (
-                          <div className="text-xs text-muted-foreground mt-0.5 truncate font-mono max-w-md">
-                            {node.details}
+                        {/* 🔥 工具调用详细信息列表 */}
+                        {node.tool_calls && node.tool_calls.length > 0 ? (
+                          <div className="mt-1.5 space-y-1">
+                            {node.tool_calls.map((tool, idx) => (
+                              <div
+                                key={idx}
+                                className={`text-xs font-mono p-1.5 rounded ${
+                                  tool.is_error
+                                    ? 'bg-red-500/10 border border-red-500/20'
+                                    : 'bg-blue-500/10 border border-blue-500/20'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={tool.is_error ? 'text-red-400' : 'text-blue-400'}>
+                                    {tool.is_error ? '❌' : '✅'} {tool.tool_name}
+                                  </span>
+                                  {tool.execution_time_ms !== undefined && (
+                                    <span className="text-gray-500">
+                                      {tool.execution_time_ms}ms
+                                    </span>
+                                  )}
+                                  {tool.output_length > 0 && (
+                                    <span className="text-gray-500">
+                                      {tool.output_length} 字符
+                                    </span>
+                                  )}
+                                </div>
+                                {tool.tool_input && (
+                                  <details className="mt-1 group">
+                                    <summary className="cursor-pointer text-gray-500 hover:text-gray-300 text-xs">
+                                      输入参数
+                                    </summary>
+                                    <pre className="mt-1 text-xs text-gray-600 dark:text-gray-400 overflow-x-auto">
+                                      {tool.tool_input}
+                                    </pre>
+                                  </details>
+                                )}
+                                {tool.tool_output && (
+                                  <details className="mt-1 group">
+                                    <summary className="cursor-pointer text-gray-500 hover:text-gray-300 text-xs">
+                                      输出结果
+                                    </summary>
+                                    <pre className="mt-1 text-xs text-gray-600 dark:text-gray-400 max-h-20 overflow-y-auto">
+                                      {tool.tool_output}
+                                    </pre>
+                                  </details>
+                                )}
+                              </div>
+                            ))}
                           </div>
+                        ) : (
+                          /* 详细信息（后备） */
+                          node.details && node.details !== node.label && (
+                            <div className="text-xs text-muted-foreground mt-0.5 truncate font-mono max-w-md">
+                              {node.details}
+                            </div>
+                          )
                         )}
                       </div>
                     </div>

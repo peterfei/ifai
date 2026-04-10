@@ -3,8 +3,10 @@
 //! 参考 claw-code 的 ConversationRuntime 实现，支持 AI 工具调用的循环执行
 
 use super::tools::{ToolExecutor, ToolCall, ToolResult, create_tool_definitions};
+use super::runner::ToolCallDetails;
 use crate::core_traits::ai::{Message, Content};
 use serde_json::json;
+use std::sync::Arc;
 
 /// 工具调用循环配置
 #[derive(Debug, Clone)]
@@ -22,6 +24,9 @@ impl Default for ToolLoopConfig {
     }
 }
 
+/// 🔥 工具调用进度回调类型
+pub type ToolProgressCallback = Arc<dyn Fn(ToolCallDetails) + Send + Sync>;
+
 /// 执行带工具调用的 AI 对话循环
 ///
 /// # 参数
@@ -29,7 +34,8 @@ impl Default for ToolLoopConfig {
 /// - `system_prompt`: 系统提示词
 /// - `user_message`: 用户消息
 /// - `tool_executor`: 工具执行器
-/// - `project_root`: 项目根目录（用于工具执行）
+/// - `config`: 工具循环配置
+/// - `progress_callback`: 🔥 工具调用进度回调（可选）
 ///
 /// # 返回
 /// AI 的最终响应文本
@@ -39,6 +45,7 @@ pub async fn execute_with_tools(
     user_message: String,
     tool_executor: &dyn ToolExecutor,
     config: ToolLoopConfig,
+    progress_callback: Option<ToolProgressCallback>,  // 🔥 添加进度回调参数
 ) -> Result<String, String> {
     let workflow_start = std::time::Instant::now();
     let mut ai_time_total = std::time::Duration::ZERO;
@@ -104,6 +111,9 @@ pub async fn execute_with_tools(
         // 🔥 发送工具调用进度事件
         println!("[ToolLoop] 📤 发送工具调用进度事件: {} 个工具", tool_calls.len());
 
+        // 🔥 准备进度回调（克隆以在循环中使用）
+        let progress_callback_clone = progress_callback.clone();
+
         // 🔥 并行执行所有工具调用
         use futures::future::join_all;
 
@@ -114,25 +124,65 @@ pub async fn execute_with_tools(
             println!("[ToolLoop] 🔧 启动工具: {}", tool_call.name);
 
             let tool_call = tool_call.clone();
+            let callback_for_task = progress_callback_clone.clone();  // 🔥 为每个任务克隆回调
             tool_tasks.push(async move {
                 // 🔥 执行工具（在独立任务中）
+                let tool_start = std::time::Instant::now();
+                let input_json = serde_json::to_string_pretty(&tool_call.input).unwrap_or_default();
                 let result = match tool_executor.execute(&tool_call.name, &tool_call.input).await {
                     Ok(output) => {
-                        println!("[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符", tool_call.name, output.len());
+                        let execution_time = tool_start.elapsed().as_millis() as i64;
+                        println!("[ToolLoop] ✅ 工具 {} 成功，输出: {} 字符，耗时: {}ms",
+                                 tool_call.name, output.len(), execution_time);
+
+                        // 🔥 发送工具调用进度事件
+                        if let Some(ref cb) = callback_for_task {
+                            let details = ToolCallDetails {
+                                tool_name: tool_call.name.clone(),
+                                tool_input: input_json.clone(),
+                                tool_output: output.clone(),
+                                output_length: output.len(),
+                                execution_time_ms: Some(execution_time),
+                                is_error: false,
+                            };
+                            cb(details);
+                        }
+
                         ToolResult {
                             id: tool_call.id.clone(),
                             name: tool_call.name.clone(),
                             output,
                             is_error: false,
+                            input: Some(input_json),
+                            execution_time_ms: Some(execution_time),
                         }
                     }
                     Err(e) => {
-                        println!("[ToolLoop] ❌ 工具 {} 失败: {}", tool_call.name, e);
+                        let execution_time = tool_start.elapsed().as_millis() as i64;
+                        let error_msg = format!("工具执行失败: {}", e);
+                        println!("[ToolLoop] ❌ 工具 {} 失败: {}，耗时: {}ms",
+                                 tool_call.name, e, execution_time);
+
+                        // 🔥 发送工具调用进度事件（错误情况）
+                        if let Some(ref cb) = callback_for_task {
+                            let details = ToolCallDetails {
+                                tool_name: tool_call.name.clone(),
+                                tool_input: input_json.clone(),
+                                tool_output: error_msg.clone(),
+                                output_length: error_msg.len(),
+                                execution_time_ms: Some(execution_time),
+                                is_error: true,
+                            };
+                            cb(details);
+                        }
+
                         ToolResult {
                             id: tool_call.id.clone(),
                             name: tool_call.name.clone(),
-                            output: format!("工具执行失败: {}", e),
+                            output: error_msg,
                             is_error: true,
+                            input: Some(input_json),
+                            execution_time_ms: Some(execution_time),
                         }
                     }
                 };

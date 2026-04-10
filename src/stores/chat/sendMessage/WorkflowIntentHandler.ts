@@ -762,7 +762,14 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
       const unlistenProgress = await listen('workflow:progress', (event: any) => {
         try {
           const progress = event.payload || {};
-          console.log('[WorkflowIntentHandler] 📊 Received workflow:progress from Tauri:', progress);
+          console.log('[WorkflowIntentHandler] 📊 Received workflow:progress from Tauri:', {
+            ...progress,
+            has_tool_details: !!progress.tool_details,
+            tool_details_preview: progress.tool_details ? {
+              tool_name: progress.tool_details.tool_name,
+              output_length: progress.tool_details.output_length
+            } : undefined
+          });
 
           // 🔥 FIX: 检查 workflow_id 是否匹配当前工作流
           const eventWorkflowId = progress.workflow_id;
@@ -774,6 +781,8 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
             return;
           }
 
+          console.log('[WorkflowIntentHandler] ✅ Forwarding progress event to chatEventBus, has tool_details:', !!progress.tool_details);
+
           // 转发到 chatEventBus
           chatEventBus.emit('workflow:progress', {
             workflowId,
@@ -781,6 +790,8 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
             node_id: progress.node_id,
             message: progress.message,
             timestamp: progress.timestamp,
+            // 🔥 转发工具调用详情（关键修复）
+            tool_details: progress.tool_details,
           });
         } catch (error) {
           console.error('[WorkflowIntentHandler] ❌ Error in workflow:progress handler:', error);
@@ -814,68 +825,47 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
       (window as any).__workflowUnlisteners = (window as any).__workflowUnlisteners || [];
       (window as any).__workflowUnlisteners.push(unlistenResponse, unlistenCompleted, unlistenError, unlistenProgress, uncheckProgressOnce);
 
-      // 2 秒后检查，如果没有收到进度事件就开始模拟
-      // 给真实后端更多时间（从 1 秒改为 2 秒）
+      // 🔥 10 秒后检查，如果没有收到进度事件，发送一个通用提示
+      // 不再使用硬编码的节点模拟数据
       progressTimeout = setTimeout(() => {
         if (!progressReceived) {
-          console.log('[WorkflowIntentHandler] ⚠️ No progress events from backend, simulating in frontend...');
+          console.log('[WorkflowIntentHandler] ⚠️ No progress events from backend after 10s');
+          console.log('[WorkflowIntentHandler] 📊 WorkflowId:', workflowId, 'WorkflowType:', workflowType);
+          console.log('[WorkflowIntentHandler] ℹ️  Waiting for backend to send real progress events...');
+          console.log('[WorkflowIntentHandler] 🔍 Debug info:');
+          console.log('  - Expected workflowId:', workflowId);
+          console.log('  - Frontend workflowId type:', typeof workflowId);
+          console.log('  - Check if backend is sending workflow_id in progress events');
 
-          // 异步模拟进度（不阻塞工作流执行）
-          (async () => {
-            // 根据工作流类型选择不同的节点
-            const mockNodesMap: Record<string, Array<{node_id: string; message: string}>> = {
-              'exploration': [
-                { node_id: 'Search(pattern:"**/*",path:".")', message: '搜索项目文件' },
-                { node_id: 'Read(package.json)', message: '读取 package.json' },
-                { node_id: 'Analyze(structure)', message: '分析项目结构' },
-                { node_id: 'Generate(summary)', message: '生成探索报告' },
-              ],
-              'refactor': [
-                { node_id: 'Analyze(code)', message: '分析代码结构' },
-                { node_id: 'Identify(smells)', message: '识别代码异味' },
-                { node_id: 'Suggest(refactors)', message: '建议重构方案' },
-              ],
-              'default': [
-                { node_id: 'Initialize(workflow)', message: '初始化工作流' },
-                { node_id: 'Execute(tasks)', message: '执行任务' },
-                { node_id: 'Complete(workflow)', message: '完成工作流' },
-              ]
-            };
+          // 🔥 检查是否有任何 workflow:progress 事件到达（但 workflow_id 不匹配）
+          const anyProgressReceived = (window as any).__any_workflow_progress_received || false;
+          const globalWorkflowStates = (window as any).__GLOBAL_WORKFLOW_STATES__;
+          const allWorkflowIds = globalWorkflowStates ? Array.from(globalWorkflowStates.keys()) : [];
 
-            const mockNodes = mockNodesMap[workflowType] || mockNodesMap['default'];
+          console.log('  - Any progress events received:', anyProgressReceived);
+          console.log('  - All workflow IDs in global state:', allWorkflowIds);
+          console.log('  - Expected workflowId:', workflowId);
 
-            // 模拟发送进度事件
-            for (let i = 0; i < mockNodes.length; i++) {
-              await new Promise(resolve => setTimeout(resolve, 1000)); // 每 1 秒一个节点
+          // 🔥 检查是否有任何工作流状态（可能 workflow_id 不匹配）
+          if (allWorkflowIds.length > 0) {
+            console.log('  - ⚠️ Found workflow states but with different IDs!');
+            console.log('    Possible reasons:');
+            console.log('    1. Backend is not sending workflow_id in progress events');
+            console.log('    2. Backend workflow_id does not match frontend workflowId');
+            console.log('    3. Events are being sent but not captured by our listener');
+          }
 
-              const node = mockNodes[i];
-              console.log('[WorkflowIntentHandler] 📊 Simulating progress:', node);
-
-              // 发送节点开始事件
-              chatEventBus.emit('workflow:progress', {
-                workflowId,
-                event_type: 'node_started',
-                node_id: node.node_id,
-                message: node.message,
-                timestamp: Date.now()
-              });
-
-              // 短暂等待后发送节点完成事件
-              await new Promise(resolve => setTimeout(resolve, 500));
-
-              chatEventBus.emit('workflow:progress', {
-                workflowId,
-                event_type: 'node_completed',
-                node_id: node.node_id,
-                message: `✓ ${node.message}`,
-                timestamp: Date.now()
-              });
-            }
-
-            console.log('[WorkflowIntentHandler] ✅ Fallback simulation complete');
-          })();
+          // 🔥 移除硬编码的节点模拟，只发送一个简单的状态更新
+          // 让 WorkflowInlineMonitor 显示真实的工作流状态，而不是虚假的进度
+          chatEventBus.emit('workflow:progress', {
+            workflowId,
+            event_type: 'waiting',
+            node_id: 'waiting',
+            message: '等待后端发送执行进度...',
+            timestamp: Date.now()
+          });
         }
-      }, 1000);
+      }, 10000); // 🔥 增加超时时间到10秒，给真实后端足够时间
     } catch (error) {
       console.error('[WorkflowIntentHandler] ❌ Error setting up event listeners:', error);
     }

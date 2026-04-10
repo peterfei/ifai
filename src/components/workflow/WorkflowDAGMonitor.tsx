@@ -58,12 +58,24 @@ export type NodeStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipp
 /** 进度事件类型 */
 export type ProgressEventType = 'node_started' | 'node_progress' | 'node_completed' | 'tool_call';
 
+/** 🔥 工具调用详细信息 */
+export interface ToolCallDetails {
+  tool_name: string;           // 工具名称
+  tool_input: string;           // 工具输入（JSON字符串）
+  tool_output: string;          // 工具输出
+  output_length: number;        // 输出字符数
+  execution_time_ms?: number;   // 执行时间（毫秒）
+  is_error: boolean;            // 是否出错
+}
+
 /** 工作流进度事件 */
 export interface WorkflowProgressEvent {
   event_type: ProgressEventType;
   node_id?: string;
   message?: string;
   timestamp: number;
+  /** 🔥 工具调用详细信息（仅当 event_type 为 "tool_call" 时存在） */
+  tool_details?: ToolCallDetails;
 }
 
 /** DAG 节点 */
@@ -76,6 +88,8 @@ export interface DAGNode {
   completedAt?: number;
   output?: string;
   error?: string;
+  /** 🔥 工具调用详细信息列表 */
+  tool_calls?: ToolCallDetails[];
 }
 
 /** DAG 连接 */
@@ -91,6 +105,8 @@ export interface TimelineLog {
   type: ProgressEventType;
   nodeId?: string;
   message?: string;
+  /** 🔥 工具调用详细信息（仅当 type 为 "tool_call" 时存在） */
+  tool_details?: ToolCallDetails;
 }
 
 /** 工作流执行结果 */
@@ -837,6 +853,65 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
                 <span>{calculateNodeDuration(selectedNode)}ms</span>
               </div>
             )}
+
+            {/* 🔥 工具调用详细信息 */}
+            {selectedNode.tool_calls && selectedNode.tool_calls.length > 0 && (
+              <div className="mt-3 border-t pt-3">
+                <div className="text-muted-foreground mb-2 font-medium">
+                  ⚡ 工具调用 ({selectedNode.tool_calls.length})
+                </div>
+                <div className="space-y-2">
+                  {selectedNode.tool_calls.map((tool, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-2 rounded text-xs ${
+                        tool.is_error
+                          ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800'
+                          : 'bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">{tool.tool_name}</span>
+                        <span className={tool.is_error ? 'text-red-600' : 'text-green-600'}>
+                          {tool.is_error ? '❌ 失败' : '✅ 成功'}
+                        </span>
+                      </div>
+                      {tool.execution_time_ms !== undefined && (
+                        <div className="text-muted-foreground mb-1">
+                          耗时: {tool.execution_time_ms}ms
+                        </div>
+                      )}
+                      {tool.output_length > 0 && (
+                        <div className="text-muted-foreground mb-1">
+                          输出: {tool.output_length} 字符
+                        </div>
+                      )}
+                      {tool.tool_input && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                            输入参数
+                          </summary>
+                          <pre className="mt-1 p-1 bg-white dark:bg-gray-900 rounded overflow-x-auto">
+                            {tool.tool_input}
+                          </pre>
+                        </details>
+                      )}
+                      {tool.tool_output && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                            输出结果
+                          </summary>
+                          <pre className="mt-1 p-1 bg-white dark:bg-gray-900 rounded overflow-x-auto max-h-32 overflow-y-auto">
+                            {tool.tool_output}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {selectedNode.output && (
               <div className="mt-3">
                 <div className="text-muted-foreground mb-1">输出:</div>

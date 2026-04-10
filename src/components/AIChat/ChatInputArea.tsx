@@ -183,7 +183,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && imageAttachments.length === 0) || isLoading) return;
+    // 🔥 FIX: 移除 isLoading 检查，允许在 LLM 处理时继续发送消息
+    // 这实现了"连续发送"功能：用户可以连续发送多条消息，它们会被排队处理
+    if (!input.trim() && imageAttachments.length === 0) return;
 
     // 🔥 FIX: 检查 sendMessage 是否可用
     if (!sendMessage) {
@@ -196,17 +198,35 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
     console.log('[ChatInputArea] 🔍 sendMessage function:', sendMessage?.name || 'anonymous');
     console.log('[ChatInputArea] 🔍 sendMessage toString:', sendMessage?.toString().substring(0, 200));
 
-    if (imageAttachments.length > 0) {
-      const contentParts: any[] = [{ type: 'text', text: input }];
-      imageAttachments.forEach(img => { contentParts.push({ type: 'image_url', image_url: { url: img.previewUrl } }); });
-      console.log('[ChatInputArea] 🔍 Calling sendMessage with multimodal content');
-      await sendMessage(contentParts, currentProviderId, currentModel);
-    } else {
-      console.log('[ChatInputArea] 🔍 Calling sendMessage with text:', input);
-      await sendMessage(input, currentProviderId, currentModel);
-    }
-    setInput(''); setImageAttachments([]); setHistoryIndex(-1); setOriginalInput('');
+    // 保存当前输入内容，用于清空
+    const messageToSend = input;
+    const attachmentsToSend = [...imageAttachments];
+
+    // 立即清空输入框和附件，允许用户继续输入
+    setInput('');
+    setImageAttachments([]);
+    setHistoryIndex(-1);
+    setOriginalInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+    // 异步发送消息（不阻塞输入框）
+    if (attachmentsToSend.length > 0) {
+      const contentParts: any[] = [{ type: 'text', text: messageToSend }];
+      attachmentsToSend.forEach(img => { contentParts.push({ type: 'image_url', image_url: { url: img.previewUrl } }); });
+      console.log('[ChatInputArea] 🔍 Calling sendMessage with multimodal content');
+      // 不等待，让消息在后台处理
+      sendMessage(contentParts, currentProviderId, currentModel).catch(err => {
+        console.error('[ChatInputArea] ❌ Error sending multimodal message:', err);
+      });
+    } else {
+      console.log('[ChatInputArea] 🔍 Calling sendMessage with text:', messageToSend);
+      // 不等待，让消息在后台处理
+      sendMessage(messageToSend, currentProviderId, currentModel).catch(err => {
+        console.error('[ChatInputArea] ❌ Error sending text message:', err);
+      });
+    }
+
+    console.log('[ChatInputArea] ✅ Message queued, input cleared, ready for next message');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -259,7 +279,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
         )}
       </AnimatePresence>
 
-      <div data-testid="chat-input-container" className={clsx("relative flex flex-col w-full transition-all duration-500 rounded-2xl border bg-[#1e1e1e]/90 backdrop-blur-3xl border-white/5 shadow-2xl group-focus-within:border-blue-500/40", isLoading && "opacity-80")}>
+      <div data-testid="chat-input-container" className={clsx("relative flex flex-col w-full transition-all duration-500 rounded-2xl border bg-[#1e1e1e]/90 backdrop-blur-3xl border-white/5 shadow-2xl group-focus-within:border-blue-500/40")}>
         {/* 1. 顶部预览流 (附件与图片) */}
         <AnimatePresence mode="popLayout">
           {(imageAttachments.length > 0 || activeReferences.length > 0) && (
@@ -282,7 +302,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
 
         {/* 2. 中部输入区 (Textarea 占满宽度) */}
         <div className="flex flex-col p-2">
-          <textarea ref={textareaRef} data-testid="chat-input" rows={1} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} disabled={isLoading} placeholder="问问 IfAI..." className="w-full max-h-48 min-h-[44px] py-2.5 px-3 bg-transparent outline-none text-gray-100 text-[13px] placeholder-gray-500 resize-none leading-relaxed font-semibold transition-all" />
+          <textarea ref={textareaRef} data-testid="chat-input" rows={1} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} placeholder="问问 IfAI..." className="w-full max-h-48 min-h-[44px] py-2.5 px-3 bg-transparent outline-none text-gray-100 text-[13px] placeholder-gray-500 resize-none leading-relaxed font-semibold transition-all" />
         </div>
 
         {/* 3. 底部集成状态栏 (Status Dashboard) */}
@@ -338,19 +358,19 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
             <div className="w-px h-4 bg-white/5 mx-1" />
 
             <div className="flex items-center">
-              <ImageInput attachments={imageAttachments} onAddAttachment={(a) => setImageAttachments(prev => [...prev, a])} onRemoveAttachment={(id) => setImageAttachments(prev => prev.filter(i => i.id !== id))} disabled={isLoading} />
+              <ImageInput attachments={imageAttachments} onAddAttachment={(a) => setImageAttachments(prev => [...prev, a])} onRemoveAttachment={(id) => setImageAttachments(prev => prev.filter(i => i.id !== id))} />
               <button onClick={() => setShowMention(!showMention)} className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all" title="引用文件"><AtSign size={16} /></button>
               <button onClick={() => setShowSymbol(!showSymbol)} className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all" title="引用符号"><Hash size={16} /></button>
             </div>
             <div className="w-px h-4 bg-white/5 mx-1.5" />
-            <button 
-              onClick={handleSend} 
-              data-testid="chat-send-button" 
-              disabled={(!input.trim() && imageAttachments.length === 0) || isLoading} 
+            <button
+              onClick={handleSend}
+              data-testid="chat-send-button"
+              disabled={(!input.trim() && imageAttachments.length === 0)}
               className={clsx(
                 "p-2 rounded-xl transition-all duration-300 relative overflow-hidden group/send",
-                (input.trim() || imageAttachments.length > 0) 
-                  ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] scale-105 active:scale-95" 
+                (input.trim() || imageAttachments.length > 0)
+                  ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] scale-105 active:scale-95"
                   : "bg-gray-800 text-gray-600"
               )}
             >

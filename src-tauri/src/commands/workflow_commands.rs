@@ -145,10 +145,17 @@ pub async fn execute_workflow(
         .with_progress_callback(move |event| {
             // 🔥 发送进度事件到前端
             use crate::agent_system::workflow::runner::ProgressEvent;
-            println!("[Workflow] 📤 Progress: {:?}", event);
+            println!("[Workflow] 📤 Sending progress event to frontend:");
+            println!("  - event_type: {}", event.event_type);
+            println!("  - workflow_id: {:?}", event.workflow_id);
+            println!("  - node_id: {:?}", event.node_id);
+            println!("  - message: {:?}", event.message);
+            println!("  - has_tool_details: {}", event.tool_details.is_some());
 
             if let Err(e) = window_clone.emit("workflow:progress", &event) {
                 println!("[Workflow] ⚠️ Failed to emit progress event: {}", e);
+            } else {
+                println!("[Workflow] ✅ Progress event sent successfully");
             }
         });
 

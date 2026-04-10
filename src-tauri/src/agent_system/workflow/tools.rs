@@ -21,6 +21,9 @@ pub struct ToolResult {
     pub name: String,
     pub output: String,
     pub is_error: bool,
+    /// 🔥 工具调用详细信息（用于传递到前端）
+    pub input: Option<String>,           // 工具输入
+    pub execution_time_ms: Option<i64>,  // 执行时间
 }
 
 /// 工具执行器 trait

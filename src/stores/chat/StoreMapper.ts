@@ -618,7 +618,18 @@ export const initStoreMapper = () => {
 
         // 追加到现有内容（或者创建初始进度消息）
         const existingMessage = state.messages[assistantIndex];
-        const newContent = existingMessage.content + progressContent;
+
+        // 🔥 FIX: 如果消息已有自定义内容（总结），不要追加进度信息
+        const hasCustomContent = existingMessage.content &&
+          (existingMessage.content.includes('总结') ||
+           existingMessage.content.includes('进行中') ||
+           existingMessage.content.includes('代码探索完成') ||
+           existingMessage.content.includes('项目结构') ||
+           existingMessage.content.length > 300);
+
+        const newContent = hasCustomContent
+          ? existingMessage.content  // 保留自定义内容，不追加
+          : existingMessage.content + progressContent;  // 否则追加进度
 
         const newMessages = [...state.messages];
         newMessages[assistantIndex] = {
@@ -728,12 +739,24 @@ export const initStoreMapper = () => {
 
         // 更新现有消息
         const newMessages = [...state.messages];
+        const existingMessage = newMessages[assistantIndex];
+
+        // 🔥 FIX: 如果消息已有自定义内容（来自 workflow:response），不覆盖它
+        // 检查消息内容是否包含非默认的内容（总结、进行中等）
+        const hasCustomContent = existingMessage.content &&
+          (existingMessage.content.includes('总结') ||
+           existingMessage.content.includes('进行中') ||
+           existingMessage.content.includes('代码探索完成') ||
+           existingMessage.content.includes('项目结构') ||
+           (existingMessage.content.length > 200 && !existingMessage.content.includes('## ✅ 工作流执行完成')));
+
         newMessages[assistantIndex] = {
-          ...newMessages[assistantIndex],
-          content: responseContent,
+          ...existingMessage,
+          // 🔥 CRITICAL: 保留已有的自定义内容，只更新状态和元数据
+          content: hasCustomContent ? existingMessage.content : responseContent,
           status: 'completed',
           timestamp: Date.now(),
-          segments: [{
+          segments: hasCustomContent ? existingMessage.segments : [{
             id: `seg-workflow-completed-${workflow_id}`,
             type: 'text' as const,
             phase: 'pre-tool' as const,
@@ -742,13 +765,16 @@ export const initStoreMapper = () => {
             timestamp: Date.now(),
           }],
           metadata: {
-            ...newMessages[assistantIndex].metadata,
+            ...existingMessage.metadata,
             completed: true,
             completedAt: completed_at,
           }
         };
 
-        console.log('[StoreMapper] ✅ Updated message with workflow completion results');
+        console.log('[StoreMapper] ✅ Updated message with workflow completion results', {
+          hasCustomContent,
+          contentPreview: existingMessage.content?.substring(0, 50)
+        });
 
         return {
           messages: newMessages,

@@ -39,6 +39,16 @@ pub(crate) fn default_provider_config() -> crate::core_traits::ai::AIProviderCon
     }
 }
 
+/// 🔥 工具调用进度回调包装器
+#[derive(Clone)]
+pub struct ToolProgressCallback(pub std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>);
+
+impl std::fmt::Debug for ToolProgressCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ToolProgressCallback").field(&"<callback>").finish()
+    }
+}
+
 /// 节点执行上下文
 #[derive(Debug, Clone)]
 pub struct NodeExecutionContext {
@@ -54,6 +64,8 @@ pub struct NodeExecutionContext {
     pub workflow_variables: HashMap<String, String>,
     /// AI 提供商配置
     pub provider_config: Option<crate::core_traits::ai::AIProviderConfig>,
+    /// 🔥 工具调用进度回调（可选）
+    pub tool_progress_callback: Option<ToolProgressCallback>,
 }
 
 impl NodeExecutionContext {
@@ -70,6 +82,7 @@ impl NodeExecutionContext {
             inputs: HashMap::new(),
             workflow_variables: HashMap::new(),
             provider_config: None,
+            tool_progress_callback: None,
         }
     }
 
@@ -88,6 +101,15 @@ impl NodeExecutionContext {
     /// 设置 AI 提供商配置
     pub fn with_provider_config(mut self, config: crate::core_traits::ai::AIProviderConfig) -> Self {
         self.provider_config = Some(config);
+        self
+    }
+
+    /// 🔥 设置工具调用进度回调
+    pub fn with_tool_progress_callback(
+        mut self,
+        callback: std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>,
+    ) -> Self {
+        self.tool_progress_callback = Some(ToolProgressCallback(callback));
         self
     }
 
@@ -218,7 +240,8 @@ impl NodeExecutor for AgentNodeExecutor {
         };
 
         // 🔥 执行真实的智能体调用
-        let output = Self::execute_agent_real(node, &agent_ctx).await?;
+        let tool_progress_callback = ctx.tool_progress_callback.clone().map(|cb| cb.0);
+        let output = Self::execute_agent_real(node, &agent_ctx, tool_progress_callback).await?;
 
         let end_time = chrono::Utc::now().timestamp_millis();
 
@@ -270,6 +293,7 @@ impl AgentNodeExecutor {
     async fn execute_agent_real(
         node: &WorkflowNode,
         ctx: &AgentContext,
+        tool_progress_callback: Option<std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>>,
     ) -> Result<String> {
         println!("[WorkflowExecutor] 🤖 Executing real agent: {:?}", node.agent_type);
         println!("[WorkflowExecutor] 📁 Project root: {}", ctx.project_root);
@@ -309,12 +333,16 @@ impl AgentNodeExecutor {
         let tool_executor = super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
         let tool_config = super::tool_loop::ToolLoopConfig::default();
 
+        // 🔥 准备工具调用进度回调
+        let tool_progress_callback_clone = tool_progress_callback.clone();
+
         let response_text = super::tool_loop::execute_with_tools(
             provider_config,
             system_prompt,
             user_message,
             &tool_executor,
             tool_config,
+            tool_progress_callback_clone,  // 🔥 传递工具进度回调
         ).await.map_err(|e| {
             let elapsed = start_time.elapsed();
             println!("[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}", elapsed, e);
