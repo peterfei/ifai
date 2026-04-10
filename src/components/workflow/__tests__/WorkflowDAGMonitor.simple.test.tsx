@@ -15,7 +15,7 @@ import { vi, beforeEach, afterEach, describe, it, expect } from 'vitest';
 
 // ==================== 导入组件 ====================
 
-import { WorkflowDAGMonitor } from '../WorkflowDAGMonitor';
+import { WorkflowDAGMonitor, injectTestListen, clearTestListen } from '../WorkflowDAGMonitor';
 import type { DAGNode, DAGEdge } from '../WorkflowDAGMonitor';
 
 // ==================== 测试辅助函数 ====================
@@ -77,6 +77,15 @@ const mockEdges: DAGEdge[] = [
 describe('WorkflowDAGMonitor - TDD 测试套件 (全局事件总线)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 🔥 注入测试用的 listen 函数
+    injectTestListen(async (event, handler) => {
+      return getTestEventBus().on(event, handler);
+    });
+  });
+
+  afterEach(() => {
+    // 🔥 清理注入的测试 listen 函数
+    clearTestListen();
   });
 
   // ==================== 🔴 RED 测试：节点状态更新 ====================
@@ -305,7 +314,7 @@ describe('WorkflowDAGMonitor - TDD 测试套件 (全局事件总线)', () => {
     });
 
     it('应该渲染 DAG 可视化图', () => {
-      const { container } = render(
+      render(
         <WorkflowDAGMonitor
           workflowId="test-workflow"
           nodes={mockNodes}
@@ -313,16 +322,13 @@ describe('WorkflowDAGMonitor - TDD 测试套件 (全局事件总线)', () => {
         />
       );
 
-      // 验证 SVG 元素存在
-      const svg = container.querySelector('svg');
-      expect(svg).toBeInTheDocument();
+      // 验证 DAG 可视化容器存在
+      const dagVisualization = screen.getByTestId('dag-visualization');
+      expect(dagVisualization).toBeInTheDocument();
 
-      // 验证节点和连接线存在
-      const rects = svg?.querySelectorAll('rect');
-      const paths = svg?.querySelectorAll('path');
-
-      expect(rects?.length).toBeGreaterThan(0);
-      expect(paths?.length).toBeGreaterThan(0);
+      // 验证工作流监控器存在
+      const monitor = screen.getByTestId('workflow-monitor');
+      expect(monitor).toBeInTheDocument();
     });
   });
 

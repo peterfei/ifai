@@ -7,7 +7,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
-import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play, Network } from 'lucide-react';
+import { WorkflowDAGMonitor, type DAGNode, type DAGEdge } from './WorkflowDAGMonitor';
 
 // ==================== 类型定义 ====================
 
@@ -42,6 +43,34 @@ interface WorkflowInfo {
 interface WorkflowInlineMonitorProps {
   workflowId: string;
   onComplete?: () => void;
+}
+
+// ==================== 辅助函数 ====================
+
+/** 将 WorkflowNode 转换为 DAGNode 格式 */
+function convertToDAGNode(workflowNode: WorkflowNode): DAGNode {
+  return {
+    id: workflowNode.id,
+    label: workflowNode.label,
+    agentType: workflowNode.type,
+    status: workflowNode.status,
+    startedAt: workflowNode.timestamp,
+    completedAt: workflowNode.timestamp ? workflowNode.timestamp + (workflowNode.duration || 0) : undefined,
+    output: workflowNode.details,
+    error: workflowNode.status === 'failed' ? workflowNode.details : undefined,
+  };
+}
+
+/** 从 WorkflowNode 数组生成 DAG 边 */
+function generateDAGEdges(nodes: WorkflowNode[]): DAGEdge[] {
+  const edges: DAGEdge[] = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    edges.push({
+      from: nodes[i].id,
+      to: nodes[i + 1].id,
+    });
+  }
+  return edges;
 }
 
 // ==================== 节点信息解析器 ====================
@@ -322,6 +351,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
     };
   });
   const [isExpanded, setIsExpanded] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'dag'>('list'); // 🔥 添加视图模式状态
 
   // 🔥 DEBUG: 监听 workflow 状态变化
   useEffect(() => {
@@ -677,6 +707,29 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
             )}
           </div>
           <div className="flex items-center gap-3">
+            {/* 🔥 视图模式切换按钮 */}
+            {workflow.nodes && workflow.nodes.length > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewMode(viewMode === 'list' ? 'dag' : 'list');
+                }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                title={viewMode === 'list' ? '切换到 DAG 视图' : '切换到列表视图'}
+              >
+                {viewMode === 'list' ? (
+                  <>
+                    <Network className="w-3 h-3" />
+                    DAG视图
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3 h-3" />
+                    列表视图
+                  </>
+                )}
+              </button>
+            )}
             <span className="text-xs text-muted-foreground">{displayDuration}s</span>
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
@@ -685,8 +738,25 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
         {/* 展开内容 */}
         {isExpanded && (
           <div className="px-4 pb-4">
-            {/* 节点列表 - Claude Code 风格 */}
-            {workflow.nodes && workflow.nodes.length > 0 ? (
+            {/* 🔥 视图模式切换 */}
+            {viewMode === 'dag' && workflow.nodes && workflow.nodes.length > 0 ? (
+              /* DAG 视图 */
+              <div className="py-2">
+                <WorkflowDAGMonitor
+                  workflowId={workflowId}
+                  nodes={workflow.nodes.map(convertToDAGNode)}
+                  edges={generateDAGEdges(workflow.nodes)}
+                  onComplete={() => {
+                    // DAG 视图完成时，切换回列表视图
+                    setViewMode('list');
+                    onComplete?.();
+                  }}
+                />
+              </div>
+            ) : (
+              /* 列表视图 - Claude Code 风格 */
+              <>
+                {workflow.nodes && workflow.nodes.length > 0 ? (
               <div className="relative">
                 {/* 背景连线 */}
                 <div className="absolute left-[19px] top-2 bottom-2 w-px bg-gray-700/30" />
@@ -800,6 +870,8 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 <XCircle className="w-3 h-3" />
                 <span>工作流执行失败</span>
               </div>
+            )}
+              </>
             )}
           </div>
         )}

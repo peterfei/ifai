@@ -120,6 +120,101 @@ interface WorkflowDAGMonitorProps {
 
 // ==================== 辅助函数 ====================
 
+/** 节点类型图标映射（Claude Code 风格） */
+const NODE_TYPE_ICONS: Record<string, string> = {
+  'Search': '🔍',
+  'Read': '📄',
+  'Write': '📝',
+  'Agent': '🤖',
+  'Command': '⚡',
+  'Explore': '🔍',
+  'Review': '👁️',
+  'Refactor': '🔧',
+  'Test': '🧪',
+  'Build': '🏗️',
+  'Deploy': '🚀',
+};
+
+/** 节点类型颜色映射（Claude Code 风格） */
+const NODE_TYPE_COLORS: Record<string, string> = {
+  'Search': '#3B82F6',    // 蓝色
+  'Read': '#10B981',      // 绿色
+  'Write': '#F59E0B',     // 橙色
+  'Agent': '#8B5CF6',     // 紫色
+  'Command': '#EC4899',   // 粉色
+  'Explore': '#3B82F6',   // 蓝色
+  'Review': '#06B6D4',    // 青色
+  'Refactor': '#F59E0B',  // 橙色
+  'Test': '#84CC16',      // 青绿色
+  'Build': '#F97316',     // 深橙色
+  'Deploy': '#14B8A6',    // 青绿色
+};
+
+/** 解析节点类型 */
+function parseNodeType(nodeId: string, label: string): string {
+  // 从标签中提取类型
+  const lowerLabel = label.toLowerCase();
+
+  if (lowerLabel.includes('search') || lowerLabel.includes('探索') || lowerLabel.includes('搜索')) {
+    return 'Search';
+  }
+  if (lowerLabel.includes('read') || lowerLabel.includes('读取')) {
+    return 'Read';
+  }
+  if (lowerLabel.includes('write') || lowerLabel.includes('写入') || lowerLabel.includes('生成')) {
+    return 'Write';
+  }
+  if (lowerLabel.includes('agent') || lowerLabel.includes('代理') || lowerLabel.includes('分析')) {
+    return 'Agent';
+  }
+  if (lowerLabel.includes('command') || lowerLabel.includes('命令')) {
+    return 'Command';
+  }
+  if (lowerLabel.includes('review') || lowerLabel.includes('审查')) {
+    return 'Review';
+  }
+  if (lowerLabel.includes('refactor') || lowerLabel.includes('重构')) {
+    return 'Refactor';
+  }
+  if (lowerLabel.includes('test') || lowerLabel.includes('测试')) {
+    return 'Test';
+  }
+  if (lowerLabel.includes('build') || lowerLabel.includes('构建')) {
+    return 'Build';
+  }
+  if (lowerLabel.includes('deploy') || lowerLabel.includes('部署')) {
+    return 'Deploy';
+  }
+
+  // 从节点 ID 中提取
+  if (nodeId.includes('Search') || nodeId.includes('explore')) {
+    return 'Search';
+  }
+  if (nodeId.includes('Read')) {
+    return 'Read';
+  }
+  if (nodeId.includes('Write')) {
+    return 'Write';
+  }
+  if (nodeId.includes('Agent')) {
+    return 'Agent';
+  }
+
+  return 'Command'; // 默认类型
+}
+
+/** 获取节点类型图标 */
+function getNodeTypeIcon(nodeId: string, label: string): string {
+  const nodeType = parseNodeType(nodeId, label);
+  return NODE_TYPE_ICONS[nodeType] || '⚡';
+}
+
+/** 获取节点类型颜色 */
+function getNodeTypeColor(nodeId: string, label: string): string {
+  const nodeType = parseNodeType(nodeId, label);
+  return NODE_TYPE_COLORS[nodeType] || '#64748B';
+}
+
 /** 获取节点状态图标 */
 function getNodeStatusIcon(status: NodeStatus, size: number = 20) {
   const iconClassName = `w-${size/4} h-${size/4}`;
@@ -505,9 +600,21 @@ export function WorkflowDAGMonitor({
 interface DAGVisualizationProps {
   nodes: DAGNode[];
   edges: DAGEdge[];
+  onNodeClick?: (node: DAGNode) => void;
 }
 
-function DAGVisualization({ nodes, edges }: DAGVisualizationProps) {
+function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) {
+  // 选中的节点
+  const [selectedNode, setSelectedNode] = React.useState<DAGNode | null>(null);
+
+  // 处理节点点击
+  const handleNodeClick = (node: DAGNode) => {
+    setSelectedNode(node);
+    if (onNodeClick) {
+      onNodeClick(node);
+    }
+  };
+
   // 简单的层次布局算法
   const levels = calculateNodeLevels(nodes, edges);
   const nodeWidth = 120;
@@ -587,52 +694,168 @@ function DAGVisualization({ nodes, edges }: DAGVisualizationProps) {
 
           const statusColor = getNodeStatusColor(node.status);
           const borderColor = getNodeStatusBorderColor(node.status);
+          const nodeTypeIcon = getNodeTypeIcon(node.id, node.label);
+          const nodeTypeColor = getNodeTypeColor(node.id, node.label);
+
+          const isSelected = selectedNode?.id === node.id;
 
           return (
             <g
               key={node.id}
               transform={`translate(${pos.x + 20}, ${pos.y})`}
               className="transition-all duration-300"
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleNodeClick(node)}
             >
-              {/* 节点背景 */}
+              {/* 节点背景（使用节点类型颜色） */}
               <rect
                 width={nodeWidth}
                 height={nodeHeight}
                 rx={8}
-                fill={statusColor}
-                fillOpacity="0.1"
-                stroke="currentColor"
-                strokeWidth="2"
-                className={borderColor}
+                fill={nodeTypeColor}
+                fillOpacity={isSelected ? "0.25" : "0.15"}
+                stroke={nodeTypeColor}
+                strokeWidth={isSelected ? "3" : "2"}
+                className={`transition-all duration-300 ${
+                  node.status === 'running' ? 'animate-pulse' : ''
+                }`}
               />
 
-              {/* 节点图标 */}
-              <foreignObject x={8} y={8} width={20} height={20}>
-                <div className="flex items-center justify-center w-full h-full">
-                  {getNodeStatusIcon(node.status, 16)}
+              {/* 节点类型图标 */}
+              <foreignObject x={8} y={8} width={24} height={24}>
+                <div className="flex items-center justify-center w-full h-full text-lg">
+                  {nodeTypeIcon}
                 </div>
               </foreignObject>
 
               {/* 节点标签 */}
-              <foreignObject x={32} y={8} width={nodeWidth - 40} height={20}>
-                <div className="text-xs font-semibold truncate">{node.label}</div>
+              <foreignObject x={36} y={8} width={nodeWidth - 44} height={20}>
+                <div className="text-xs font-semibold truncate" style={{ color: nodeTypeColor }}>
+                  {node.label}
+                </div>
               </foreignObject>
 
               {/* 节点状态 */}
-              <foreignObject x={8} y={32} width={nodeWidth - 16} height={20}>
-                <div className="text-xs text-muted-foreground">
-                  {node.status === 'running' && '运行中...'}
-                  {node.status === 'completed' &&
-                    `${calculateNodeDuration(node)}ms`}
-                  {node.status === 'pending' && '等待'}
-                  {node.status === 'failed' && '失败'}
-                  {node.status === 'skipped' && '跳过'}
+              <foreignObject x={8} y={34} width={nodeWidth - 16} height={20}>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  {node.status === 'running' && (
+                    <>
+                      <Clock className="w-3 h-3 animate-spin" />
+                      运行中...
+                    </>
+                  )}
+                  {node.status === 'completed' && (
+                    <>
+                      <CheckCircle className="w-3 h-3 text-green-500" />
+                      {calculateNodeDuration(node)}ms
+                    </>
+                  )}
+                  {node.status === 'pending' && '⏳ 等待'}
+                  {node.status === 'failed' && (
+                    <>
+                      <XCircle className="w-3 h-3 text-red-500" />
+                      失败
+                    </>
+                  )}
+                  {node.status === 'skipped' && '⊘ 跳过'}
                 </div>
               </foreignObject>
+
+              {/* 状态指示条 */}
+              <rect
+                x={0}
+                y={nodeHeight - 4}
+                width={nodeWidth}
+                height={4}
+                rx={0}
+                fill={statusColor}
+                className={`transition-all duration-300 ${
+                  node.status === 'running' ? 'animate-pulse' : ''
+                }`}
+                style={{ borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}
+              />
             </g>
           );
         })}
       </svg>
+
+      {/* 节点详情面板 */}
+      {selectedNode && (
+        <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold flex items-center gap-2">
+              <span className="text-xl">{getNodeTypeIcon(selectedNode.id, selectedNode.label)}</span>
+              {selectedNode.label}
+            </h4>
+            <button
+              onClick={() => setSelectedNode(null)}
+              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">节点 ID:</span>
+              <span className="font-mono text-xs">{selectedNode.id}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">状态:</span>
+              <span className={`font-medium ${
+                selectedNode.status === 'completed' ? 'text-green-600' :
+                selectedNode.status === 'running' ? 'text-blue-600' :
+                selectedNode.status === 'failed' ? 'text-red-600' :
+                'text-gray-600'
+              }`}>
+                {selectedNode.status === 'running' && '运行中'}
+                {selectedNode.status === 'completed' && '完成'}
+                {selectedNode.status === 'pending' && '等待'}
+                {selectedNode.status === 'failed' && '失败'}
+                {selectedNode.status === 'skipped' && '跳过'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">类型:</span>
+              <span>{parseNodeType(selectedNode.id, selectedNode.label)}</span>
+            </div>
+            {selectedNode.startedAt && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">开始时间:</span>
+                <span>{formatTimestamp(selectedNode.startedAt)}</span>
+              </div>
+            )}
+            {selectedNode.completedAt && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">完成时间:</span>
+                <span>{formatTimestamp(selectedNode.completedAt)}</span>
+              </div>
+            )}
+            {calculateNodeDuration(selectedNode) > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">执行时长:</span>
+                <span>{calculateNodeDuration(selectedNode)}ms</span>
+              </div>
+            )}
+            {selectedNode.output && (
+              <div className="mt-3">
+                <div className="text-muted-foreground mb-1">输出:</div>
+                <div className="bg-muted p-2 rounded text-xs max-h-32 overflow-y-auto">
+                  {selectedNode.output}
+                </div>
+              </div>
+            )}
+            {selectedNode.error && (
+              <div className="mt-3">
+                <div className="text-red-600 mb-1">错误:</div>
+                <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded text-xs text-red-700 dark:text-red-300">
+                  {selectedNode.error}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
