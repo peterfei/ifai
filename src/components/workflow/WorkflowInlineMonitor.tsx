@@ -202,7 +202,27 @@ const getNodeIcon = (type: WorkflowNode['type'], status: WorkflowNode['status'])
     return <Clock className={`${iconProps} text-blue-500 animate-spin`} />;
   }
 
-  // Pending 状态显示类型图标
+  // 🔥 Pending 状态显示灰色图标
+  if (status === 'pending') {
+    switch (type) {
+      case 'search':
+        return <Search className={`${iconProps} text-gray-300`} />;
+      case 'read':
+        return <FileText className={`${iconProps} text-gray-300`} />;
+      case 'write':
+        return <Edit className={`${iconProps} text-gray-300`} />;
+      case 'agent':
+        return <Code className={`${iconProps} text-gray-300`} />;
+      case 'tool':
+        return <Zap className={`${iconProps} text-gray-300`} />;
+      case 'command':
+        return <Play className={`${iconProps} text-gray-300`} />;
+      default:
+        return <Clock className={`${iconProps} text-gray-300`} />;
+    }
+  }
+
+  // 默认 Pending 状态显示类型图标
   switch (type) {
     case 'search':
       return <Search className={`${iconProps} text-gray-400`} />;
@@ -510,11 +530,39 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
     const unsubscribeStarted = chatEventBus.on('workflow:started' as any, (payload: any) => {
       if (payload.workflowId === workflowId || payload.workflow_id === workflowId) {
         console.log('[WorkflowInlineMonitor] 📋 workflow:started received for workflowId:', workflowId);
+
+        // 🔥 FIX: 提取计划节点信息，立即创建所有节点（pending 状态）
+        // 这样用户可以在工作流开始时就看到所有计划节点，而不是等待节点执行
+        const plannedNodes = payload.nodes || [];
+        console.log('[WorkflowInlineMonitor] 📋 Planned nodes:', plannedNodes);
+
+        // 将计划节点转换为 WorkflowNode 格式（pending 状态）
+        const initialNodes = plannedNodes.map((plannedNode: any) => {
+          // 解析节点类型
+          const parsedInfo: ParsedNodeInfo = {
+            operation: plannedNode.agent_type || plannedNode.label || plannedNode.id,
+            rawLabel: plannedNode.label || plannedNode.id
+          };
+          const nodeType = parseNodeType(plannedNode.id, parsedInfo);
+
+          return {
+            id: plannedNode.id,
+            type: nodeType,
+            label: plannedNode.label || plannedNode.id,
+            parsedInfo,
+            status: 'pending' as const,  // 🔥 关键：所有节点初始为 pending 状态
+            details: '等待执行...',
+            timestamp: undefined,
+          };
+        });
+
+        console.log('[WorkflowInlineMonitor] ✅ Created initial pending nodes:', initialNodes.length);
+
         updateGlobalWorkflowState(workflowId, {
           name: payload.workflowType || payload.workflow_type || '工作流执行中',
           status: 'running',
           startTime: Date.now(),
-          nodes: []
+          nodes: initialNodes,  // 🔥 包含所有计划节点（pending 状态）
         });
       }
     });
@@ -612,7 +660,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
         }
 
         // ========================================
-        // 2. node_started 事件：创建新的 running 节点，将之前的 running 节点标记为 completed
+        // 2. node_started 事件：将 pending 节点更新为 running，将之前的 running 节点标记为 completed
         // ========================================
         if (eventType === 'node_started') {
           console.log('[WorkflowInlineMonitor] 🔵 Processing node_started event for node:', nodeId);
@@ -624,14 +672,17 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
           const existingNodeIndex = updatedNodes.findIndex(n => n.id === nodeId);
 
           if (existingNodeIndex >= 0) {
-            console.log('[WorkflowInlineMonitor] ⚠️ Node already exists, marking as running:', nodeId);
+            console.log('[WorkflowInlineMonitor] ✅ Node exists, updating from pending/running:', nodeId);
             // 如果节点已存在，更新其状态为 running
             updatedNodes[existingNodeIndex] = {
               ...updatedNodes[existingNodeIndex],
               status: 'running' as const,
+              timestamp: Date.now(),  // 🔥 设置开始时间
+              details: message,
             };
           } else {
-            // 🔥 将之前的 running 节点标记为 completed
+            console.log('[WorkflowInlineMonitor] ⚠️ Node not found in planned nodes, creating new node:', nodeId);
+            // 🔥 如果节点不在计划列表中（兼容情况），将之前的 running 节点标记为 completed
             updatedNodes = updatedNodes.map(node => {
               if (node.status === 'running' && node.id !== nodeId) {
                 const duration = Date.now() - (node.timestamp || Date.now());
@@ -655,7 +706,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
               type: nodeType,
               label: formatNodeLabel(parsedInfo),
               parsedInfo,
-              status: 'running',  // 🔥 关键：新节点应该是 running 状态
+              status: 'running' as const,
               details: message,
               timestamp: Date.now(),
             };
@@ -1030,17 +1081,19 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                           ? 'bg-blue-100 dark:bg-blue-500/10 -mx-2 px-2'
                           : node.status === 'failed'
                           ? 'bg-red-100 dark:bg-red-500/10 -mx-2 px-2'
+                          : node.status === 'pending'
+                          ? 'bg-gray-50 dark:bg-gray-800/30 -mx-2 px-2 opacity-75'
                           : 'hover:bg-gray-100 dark:hover:bg-white/5 -mx-2 px-2'
                       }`}
                       style={{
                         // 🔥 添加渐进式淡入动画，让节点逐个显示
-                        animation: `fadeInUp 0.3s ease-out ${Math.min(index * 0.1, 1)}s both`,
+                        animation: `fadeInUp 0.3s ease-out ${Math.min(index * 0.15, 1.5)}s both`,
                         opacity: 0,
                         transform: 'translateY(8px)'
                       }}
                       // 🔥 动画完成后显示正常状态
                       onAnimationEnd={(e) => {
-                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.opacity = node.status === 'pending' ? '0.75' : '1';
                         e.currentTarget.style.transform = 'translateY(0)';
                       }}
                     >
@@ -1060,12 +1113,17 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                               ? 'text-green-400'
                               : node.status === 'failed'
                               ? 'text-red-400'
+                              : node.status === 'pending'
+                              ? 'text-gray-400'
                               : 'text-gray-400'
                           }`}>
                             {node.label}
                           </span>
 
                           {/* 状态标签 */}
+                          {node.status === 'pending' && (
+                            <span className="text-xs text-gray-400">等待中</span>
+                          )}
                           {node.status === 'running' && (
                             <span className="text-xs text-blue-500 animate-pulse">运行中</span>
                           )}
@@ -1149,14 +1207,14 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 </div>
               </div>
             ) : (
-              /* 🔥 空状态提示 */
+              /* 🔥 空状态提示 - 仅在没有计划节点时显示 */
               <div className="flex items-center justify-center py-8 text-center">
                 <div className="space-y-2">
                   <div className="w-8 h-8 mx-auto flex items-center justify-center">
                     <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {workflow.status === 'running' ? '正在执行工作流...' : '等待节点信息...'}
+                    {workflow.status === 'running' ? '正在准备工作流...' : '等待节点信息...'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     workflowId: {workflowId}

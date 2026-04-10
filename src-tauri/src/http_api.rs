@@ -72,6 +72,14 @@ pub struct ExecuteWorkflowResponse {
     pub status: String,
 }
 
+/// 节点计划信息（用于 workflow:started 事件）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlannedNode {
+    pub id: String,
+    pub label: String,
+    pub agent_type: String,
+}
+
 /// Progress 事件（与 Tauri 的 workflow:progress 事件格式一致）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowProgressEvent {
@@ -81,6 +89,8 @@ pub struct WorkflowProgressEvent {
     pub message: Option<String>,
     pub timestamp: i64,
     pub tool_details: Option<serde_json::Value>,
+    /// 🔥 新增：计划节点列表（仅在 workflow:started 事件中包含）
+    pub nodes: Option<Vec<PlannedNode>>,
 }
 
 /// HTTP API 服务器状态
@@ -149,6 +159,18 @@ pub async fn send_progress_event(
     node_id: Option<&str>,
     message: Option<&str>,
 ) {
+    send_progress_event_with_nodes(sender, event_type, workflow_id, node_id, message, None).await
+}
+
+/// 🔥 发送 progress 事件的辅助函数（带节点信息）
+pub async fn send_progress_event_with_nodes(
+    sender: &broadcast::Sender<WorkflowProgressEvent>,
+    event_type: &str,
+    workflow_id: Option<&str>,
+    node_id: Option<&str>,
+    message: Option<&str>,
+    nodes: Option<Vec<PlannedNode>>,
+) {
     let event = WorkflowProgressEvent {
         event_type: event_type.to_string(),
         workflow_id: workflow_id.map(|s| s.to_string()),
@@ -156,6 +178,7 @@ pub async fn send_progress_event(
         message: message.map(|s| s.to_string()),
         timestamp: chrono::Utc::now().timestamp_millis(),
         tool_details: None,
+        nodes,  // 🔥 包含计划节点信息
     };
 
     // 发送到所有订阅者（忽略错误，因为可能没有订阅者）
@@ -178,6 +201,34 @@ async fn execute_workflow_http(
 
     let workflow_id = workflow.id.clone();
     println!("[HttpAPI] 🚀 Starting workflow execution: {}", workflow_id);
+
+    // 🔥 FIX: 提取所有计划节点信息，用于 workflow:started 事件
+    // 这样前端可以在工作流开始时就显示所有节点，而不是等待节点执行
+    let planned_nodes: Vec<PlannedNode> = workflow.nodes.iter().map(|node| {
+        use crate::agent_system::workflow::types::AgentType;
+        // 将 AgentType 转换为字符串
+        let agent_type_str = match node.agent_type {
+            AgentType::Explore => "explore".to_string(),
+            AgentType::Review => "review".to_string(),
+            AgentType::Refactor => "refactor".to_string(),
+            AgentType::Test => "test".to_string(),
+            AgentType::Doc => "doc".to_string(),
+            AgentType::TaskBreakdown => "task_breakdown".to_string(),
+            AgentType::ProposalGenerator => "proposal_generator".to_string(),
+            AgentType::GeneralPurpose => "general_purpose".to_string(),
+        };
+
+        PlannedNode {
+            id: node.id.clone(),
+            label: node.label.clone().unwrap_or_else(|| node.id.clone()),
+            agent_type: agent_type_str,
+        }
+    }).collect();
+
+    println!("[HttpAPI] 📋 Extracted {} planned nodes for frontend", planned_nodes.len());
+    for (i, node) in planned_nodes.iter().enumerate() {
+        println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
+    }
 
     // 🔥 克隆 sender 用于 progress callback
     let sender_for_callback = state.progress_sender.clone();
@@ -204,6 +255,7 @@ async fn execute_workflow_http(
                 message: event.message,
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: event.tool_details.map(|d| serde_json::to_value(d).unwrap_or_else(|_| serde_json::json!(null))),
+                nodes: None,  // 🔥 添加 nodes 字段（progress callback 事件不包含计划节点）
             };
 
             let _ = sender_for_callback.send(sse_event);
@@ -226,16 +278,19 @@ async fn execute_workflow_http(
     // 在后台执行工作流
     let workflow_id_clone = workflow_id.clone();
     let sender_clone = state.progress_sender.clone();
+    let planned_nodes_clone = planned_nodes.clone();  // 🔥 克隆节点信息用于闭包
     tokio::spawn(async move {
         println!("[HttpAPI] 🔄 Starting background execution for {}", workflow_id_clone);
 
-        // 发送 workflow:started 事件
-        send_progress_event(
+        // 🔥 发送 workflow:started 事件，包含所有计划节点信息
+        // 这样前端可以在工作流开始时就显示所有节点，而不是等待节点执行
+        send_progress_event_with_nodes(
             &sender_clone,
             "workflow:started",
             Some(&workflow_id_clone),
             None,
             Some("工作流已启动"),
+            Some(planned_nodes_clone),  // 🔥 包含计划节点
         ).await;
 
         let manager = crate::commands::workflow_commands::get_workflow_manager();
