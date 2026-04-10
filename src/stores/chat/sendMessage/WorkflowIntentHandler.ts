@@ -604,6 +604,36 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
 
       console.log('[WorkflowIntentHandler] 📂 Project root:', projectRoot);
 
+      // 🔥 启动 SSE Progress 监听（E2E 测试环境）
+      const { startSSEProgressMonitoringIfNeeded, getSSEProgressMonitor } = await import('../../../utils/sseProgressMonitor');
+      const sseStarted = await startSSEProgressMonitoringIfNeeded();
+      console.log('[WorkflowIntentHandler] 🌐 SSE monitoring started:', sseStarted);
+
+      // 如果 SSE 监听启动成功，添加 progress 事件监听器
+      if (sseStarted) {
+        const sseMonitor = getSSEProgressMonitor();
+
+        // 监听所有 progress 事件并转发到 chatEventBus
+        sseMonitor.on('*', (progressEvent) => {
+          console.log('[WorkflowIntentHandler] 🌐 SSE Progress Event:', progressEvent);
+
+          // 转发 progress 事件到 chatEventBus
+          chatEventBus.emit('workflow:progress', progressEvent);
+        });
+
+        // 监听工作流完成事件
+        sseMonitor.on('workflow:completed', (event) => {
+          console.log('[WorkflowIntentHandler] 🌐 SSE workflow:completed:', event);
+
+          // 转发到 chatEventBus
+          chatEventBus.emit('workflow:completed', {
+            workflow_id: event.workflow_id,
+            status: 'completed',
+            timestamp: event.timestamp
+          });
+        });
+      }
+
       workflowId = await invoke<string>('execute_quick_workflow', {
         workflowType,
         targetPath,

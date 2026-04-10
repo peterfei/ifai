@@ -487,6 +487,11 @@ await page.waitForFunction(() => {
 
 ## 📖 延伸阅读
 
+### E2E 测试文档
+- **[SSE E2E 测试开发指南](./SSE-E2E-GUIDE.md)** ⭐ - SSE 实时事件流测试完整指南（**所有新 E2E 测试必须遵循此规范**）
+- **[SSE E2E 测试快速参考](./SSE-E2E-QUICK-REF.md)** - SSE E2E 测试快速查阅卡片
+
+### 项目文档
 - [Playwright官方文档](https://playwright.dev)
 - [测试最佳实践指南](../../openspec/changes/add-e2e-driven-development/design.md)
 - [TDD工作流指南](../../openspec/changes/add-e2e-driven-development/tasks.md)

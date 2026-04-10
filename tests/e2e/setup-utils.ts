@@ -457,16 +457,23 @@ export async function setupE2ETestEnvironment(
         console.log('[E2E Setup] ✅ IndexedDB mock initialized for E2E environment');
       }
 
-      const interceptor = (originalInvoke) => async (cmd, args) => {
-        if (cmd === 'find_references') {
-          const res = window.__E2E_SYMBOL_MOCK_DATA__.references[args.symbolName || args.name];
-          if (res) return res;
-        }
-        if (cmd === 'find_definitions') {
-          const res = window.__E2E_SYMBOL_MOCK_DATA__.definitions[args.symbolName || args.name];
-          if (res) return res;
-        }
-        return originalInvoke(cmd, args);
+      const interceptor = (originalInvoke) => {
+        const wrapped = async (cmd, args) => {
+          if (cmd === 'find_references') {
+            const res = window.__E2E_SYMBOL_MOCK_DATA__.references[args.symbolName || args.name];
+            if (res) return res;
+          }
+          if (cmd === 'find_definitions') {
+            const res = window.__E2E_SYMBOL_MOCK_DATA__.definitions[args.symbolName || args.name];
+            if (res) return res;
+          }
+          return originalInvoke(cmd, args);
+        };
+
+        // 🔥 FIX: 给 wrapped 函数添加标记，用于检测是否是 mock
+        wrapped.isE2EMock = true;
+
+        return wrapped;
       };
 
       if (window.__TAURI_INTERNALS__?.invoke) window.__TAURI_INTERNALS__.invoke = interceptor(window.__TAURI_INTERNALS__.invoke);
@@ -492,10 +499,11 @@ export async function setupE2ETestEnvironment(
 
   // 3.1 等待重构架构核心对象初始化完成（EventBus、ToolCallManager、APP_READY）
   // 🏆 修复：使用更灵活的等待条件，兼容新旧架构
+  // 🔥 FIX: 同时检查 __chatEventBus 和 __GLOBAL_CHAT_EVENT_BUS__
   await page.waitForFunction(() => {
     const w = window as any;
     // 新架构：要求 EventBus 和 ToolCallManager
-    const newArchitectureReady = w.__chatEventBus && w.__toolCallManager;
+    const newArchitectureReady = (w.__chatEventBus || w.__GLOBAL_CHAT_EVENT_BUS__) && w.__toolCallManager;
     // 旧架构/简化模式：只要求 APP_READY
     const simpleReady = w.__APP_READY__ === true;
     // 任一条件满足即可

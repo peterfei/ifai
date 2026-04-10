@@ -41,7 +41,7 @@ pub struct NodeResultInfo {
 /// 全局工作流管理器
 static WORKFLOW_MANAGER: std::sync::OnceLock<Arc<Mutex<WorkflowManager>>> = std::sync::OnceLock::new();
 
-fn get_workflow_manager() -> Arc<Mutex<WorkflowManager>> {
+pub fn get_workflow_manager() -> Arc<Mutex<WorkflowManager>> {
     WORKFLOW_MANAGER.get_or_init(|| {
         Arc::new(Mutex::new(WorkflowManager::new()))
     }).clone()
