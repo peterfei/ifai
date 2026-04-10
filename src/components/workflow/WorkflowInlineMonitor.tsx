@@ -4,11 +4,14 @@
  * 实时显示工作流节点执行过程，带连线和详细参数信息
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play, Network } from 'lucide-react';
 import { WorkflowDAGMonitor, type DAGNode, type DAGEdge, type ToolCallDetails } from './WorkflowDAGMonitor';
+// 🔥 CRITICAL FIX: 直接导入 chatEventBus，避免访问时机问题
+import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 
 // ==================== 类型定义 ====================
 
@@ -243,11 +246,14 @@ const getNodeIcon = (type: WorkflowNode['type'], status: WorkflowNode['status'])
 
 // ==================== 辅助函数 ====================
 
+/**
+ * 获取 ChatEventBus 实例
+ * 🔥 CRITICAL FIX: 直接返回导入的 chatEventBus，避免访问时机问题
+ */
 function getChatEventBus() {
-  if (typeof window !== 'undefined') {
-    return (window as any).__GLOBAL_CHAT_EVENT_BUS__;
-  }
-  return null;
+  // 直接返回导入的 chatEventBus，而不是从 window 获取
+  // 这样可以确保无论何时调用，都能获得正确的事件总线实例
+  return chatEventBus;
 }
 
 /**
@@ -285,6 +291,11 @@ const globalSetListeners = new Map<string, Set<{ unsubscribe: () => void }>>();
 // 🔥 FIX 3: 全局活跃工作流列表，防止组件卸载时丢失
 const globalActiveWorkflows = new Set<string>();
 const globalActiveWorkflowsListeners = new Set<() => void>();
+// 🔥 FIX 4: 全局标志，跟踪容器组件的监听器是否已设置（防止 StrictMode 重复设置）
+let globalContainerListenersSetUp = false;
+
+// 🔥 DEBUG: 模块初始化日志
+console.log('[WorkflowInlineMonitor] 📦 Module initialized, globalContainerListenersSetUp =', globalContainerListenersSetUp, 'at', Date.now());
 
 // 🔥 导出全局状态供其他组件使用
 export { globalActiveWorkflows, globalActiveWorkflowsListeners };
@@ -294,6 +305,17 @@ if (typeof window !== 'undefined') {
   (window as any).__GLOBAL_WORKFLOW_STATES__ = globalWorkflowStates;
   (window as any).__GLOBAL_ACTIVE_WORKFLOWS__ = globalActiveWorkflows;
   (window as any).__any_workflow_progress_received = false;  // 🔥 诊断标志：是否收到任何进度事件
+
+  // 🔥 CRITICAL: 暴露 globalSetListeners，允许测试清理监听器
+  (window as any).__GLOBAL_SET_LISTENERS__ = globalSetListeners;
+
+  // 🔥 暴露全局标志管理对象（使用 getter/setter 确保访问最新值）
+  const containerListenersFlag = {
+    get value() { return globalContainerListenersSetUp; },
+    set value(v: boolean) { globalContainerListenersSetUp = v; },
+    reset() { globalContainerListenersSetUp = false; }
+  };
+  (window as any).__GLOBAL_CONTAINER_LISTENERS_FLAG__ = containerListenersFlag;
 
   // 🔥 全局诊断监听器：捕获所有 workflow:progress 事件，无论 workflow_id 是什么
   console.log('[WorkflowInlineMonitor] 🔍 Setting up GLOBAL diagnostic listener for ALL workflow:progress events');
@@ -558,12 +580,16 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
 
         console.log('[WorkflowInlineMonitor] ✅ Created initial pending nodes:', initialNodes.length);
 
-        updateGlobalWorkflowState(workflowId, {
-          name: payload.workflowType || payload.workflow_type || '工作流执行中',
-          status: 'running',
-          startTime: Date.now(),
-          nodes: initialNodes,  // 🔥 包含所有计划节点（pending 状态）
+        // 🔥 使用 flushSync 强制立即渲染（避免 React 批处理延迟）
+        flushSync(() => {
+          updateGlobalWorkflowState(workflowId, {
+            name: payload.workflowType || payload.workflow_type || '工作流执行中',
+            status: 'running',
+            startTime: Date.now(),
+            nodes: initialNodes,  // 🔥 包含所有计划节点（pending 状态）
+          });
         });
+        console.log('[WorkflowInlineMonitor] ✅ State updated with flushSync (workflow:started)');
       }
     });
 
@@ -593,9 +619,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
         // 🔥 根据 event_type 区分处理逻辑（参考 claw-code 的实现）
         const eventType = payload.event_type;
 
-        // ========================================
-        // 1. tool_call 事件：只更新工具调用信息，不创建新节点
-        // ========================================
+        // 🔥 使用 flushSync 强制立即渲染（关键修复）
         if (eventType === 'tool_call') {
           if (payload.tool_details) {
             console.log('[WorkflowInlineMonitor] 🔧 Processing tool_call event');
@@ -631,17 +655,18 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 // 🔥 保持 running 状态，不改变节点状态
               };
 
-              globalWorkflowStates.set(workflowId, {
-                ...currentGlobalState!,
-                nodes: updatedNodes,
+              // 🔥 CRITICAL: 使用 flushSync 强制立即渲染
+              flushSync(() => {
+                globalWorkflowStates.set(workflowId, {
+                  ...currentGlobalState!,
+                  nodes: updatedNodes,
+                });
+                updateGlobalWorkflowState(workflowId, {
+                  nodes: updatedNodes,
+                });
               });
 
-              // 🔥 通知监听器更新
-              updateGlobalWorkflowState(workflowId, {
-                nodes: updatedNodes,
-              });
-
-              console.log('[WorkflowInlineMonitor] ✅ Added tool call to node:', {
+              console.log('[WorkflowInlineMonitor] ✅ Added tool call to node (flushSync):', {
                 nodeId,
                 toolCount: updatedNodes[existingNodeIndex].tool_calls?.length,
                 nodeStatus: updatedNodes[existingNodeIndex].status
@@ -722,11 +747,13 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
             });
           }
 
-          // 🔥 更新全局状态
-          updateGlobalWorkflowState(workflowId, {
-            currentNode: nodeId,
-            nodes: updatedNodes,
-            progress: Math.min(((updatedNodes.length) / 10) * 100, 95)
+          // 🔥 CRITICAL: 使用 flushSync 强制立即渲染
+          flushSync(() => {
+            updateGlobalWorkflowState(workflowId, {
+              currentNode: nodeId,
+              nodes: updatedNodes,
+              progress: Math.min(((updatedNodes.length) / 10) * 100, 95)
+            });
           });
 
           return; // 🔥 早期返回
@@ -760,9 +787,11 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
               totalNodes: updatedNodes.length
             });
 
-            // 🔥 更新全局状态
-            updateGlobalWorkflowState(workflowId, {
-              nodes: updatedNodes,
+            // 🔥 CRITICAL: 使用 flushSync 强制立即渲染
+            flushSync(() => {
+              updateGlobalWorkflowState(workflowId, {
+                nodes: updatedNodes,
+              });
             });
           } else {
             console.log('[WorkflowInlineMonitor] ⚠️ Node not found for node_completed:', nodeId);
@@ -849,22 +878,26 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
       if (payload.workflowId === workflowId || payload.workflow_id === workflowId) {
         console.log('[WorkflowInlineMonitor] 📋 Workflow completed event received:', { workflowId, payload, instanceId });
         const currentGlobalState = globalWorkflowStates.get(workflowId);
-        updateGlobalWorkflowState(workflowId, {
-          status: 'completed' as const,
-          progress: 100,
-          endTime: Date.now(),
-          name: '工作流已完成',  // 🔥 强制更新名称
-          nodes: (currentGlobalState?.nodes || []).map(n => {
-            // 如果还有 running 节点，标记为 completed
-            if (n.status === 'running') {
-              return {
-                ...n,
-                status: 'completed' as const,
-                duration: n.timestamp ? Date.now() - n.timestamp : undefined
-              };
-            }
-            return n;
-          })
+
+        // 🔥 CRITICAL: 使用 flushSync 强制立即渲染
+        flushSync(() => {
+          updateGlobalWorkflowState(workflowId, {
+            status: 'completed' as const,
+            progress: 100,
+            endTime: Date.now(),
+            name: '工作流已完成',  // 🔥 强制更新名称
+            nodes: (currentGlobalState?.nodes || []).map(n => {
+              // 如果还有 running 节点，标记为 completed
+              if (n.status === 'running') {
+                return {
+                  ...n,
+                  status: 'completed' as const,
+                  duration: n.timestamp ? Date.now() - n.timestamp : undefined
+                };
+              }
+              return n;
+            })
+          });
         });
 
         // 🔥 清理全局监听器（延迟5秒，防止组件还在使用）
@@ -998,7 +1031,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
           }
         }
       `}</style>
-      <div className="mx-auto max-w-2xl my-4 relative z-50" data-workflow-monitor={workflowId}>
+      <div className="mx-auto max-w-2xl my-4 relative z-50" data-workflow-monitor={workflowId} data-monitor="true">
         <Card className="border-2 border-blue-500 shadow-xl bg-gradient-to-br from-blue-100 via-blue-50 to-purple-100 dark:from-blue-900/50 dark:via-blue-950/40 dark:to-purple-900/50 dark:border-blue-400">
         {/* 标题栏 */}
         <div
@@ -1076,6 +1109,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                   {workflow.nodes.map((node, index) => (
                     <div
                       key={node.id}
+                      data-node-id={node.id}
                       className={`relative flex items-start gap-3 py-1.5 transition-all rounded ${
                         node.status === 'running'
                           ? 'bg-blue-100 dark:bg-blue-500/10 -mx-2 px-2'
@@ -1262,29 +1296,149 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
 
 // 🔥 CRITICAL FIX: 使用 React.memo 防止不必要的重新渲染
 const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContainer() {
+  // 🔥 DEBUG: 添加组件挂载日志
+  console.log('[WorkflowInlineMonitorContainer] 🔧 Component function called');
+
   const [activeWorkflows, setActiveWorkflows] = useState<string[]>(() => {
     // 🔥 CRITICAL FIX: 初始化时从全局状态获取
     return Array.from(globalActiveWorkflows);
   });
-  const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
-    setIsInitialized(true);
+  // 🔥 CRITICAL FIX: 立即设置 isInitialized 为 true，不依赖 useEffect
+  // 这样可以避免 useEffect 延迟执行的问题
+  const [isInitialized] = useState(true);
+
+  // 🔥 DEBUG: 添加状态日志
+  console.log('[WorkflowInlineMonitorContainer] 📊 State:', {
+    isInitialized,
+    activeWorkflowsCount: activeWorkflows.length,
+    activeWorkflows,
+    globalActiveWorkflows: Array.from(globalActiveWorkflows),
+    chatEventBusAvailable: !!getChatEventBus(),
+    globalContainerListenersSetUp,
+    timestamp: Date.now()
+  });
+
+  // 🔥 CRITICAL FIX: 使用全局标志来防止重复设置监听器
+  // 这个标志可以被测试重置，确保每次测试都能设置新的监听器
+  if (!globalContainerListenersSetUp) {
+    console.log('[WorkflowInlineMonitorContainer] 🔧 Setting up container listeners directly (no useEffect)');
 
     const chatEventBus = getChatEventBus();
-    if (!chatEventBus) {
-      console.error('[WorkflowInlineMonitorContainer] chatEventBus not available');
-      return;
-    }
+    console.log('[WorkflowInlineMonitorContainer] 🔍 chatEventBus:', !!chatEventBus);
 
-    console.log('[WorkflowInlineMonitorContainer] 🔧 Setting up event listeners');
+    if (chatEventBus) {
+      // 🔥 使用特殊的 'container' key 来存储容器监听器
+      const CONTAINER_LISTENERS_KEY = 'container';
 
-    // 🔥 FIX: 检查是否已经有活跃的工作流
-    const existingWorkflows = Array.from(globalActiveWorkflows);
-    if (existingWorkflows.length > 0) {
-      console.log('[WorkflowInlineMonitorContainer] 🔄 Found existing workflows:', existingWorkflows);
-      setActiveWorkflows(existingWorkflows);
+      // 🔥 初始化容器监听器集合
+      globalSetListeners.set(CONTAINER_LISTENERS_KEY, new Set());
+
+      // 监听工作流启动
+      const unsubscribeStarted = chatEventBus.on('workflow:started' as any, (payload: any) => {
+        const workflowId = payload.workflowId || payload.workflow_id;
+        console.log('[WorkflowInlineMonitorContainer] 📋 Workflow started:', workflowId);
+
+        // 初始化全局状态
+        updateGlobalWorkflowState(workflowId, {
+          name: payload.workflowType || payload.workflow_type || '工作流执行中',
+          status: 'running' as const,
+          startTime: Date.now(),
+          nodes: payload.nodes || []
+        });
+
+        // 添加活跃工作流
+        addActiveWorkflow(workflowId);
+      });
+
+      // 监听 workflow:progress 事件来自动检测新工作流
+      const unsubscribeProgress = chatEventBus.on('workflow:progress' as any, (payload: any) => {
+        const workflowId = payload.workflowId || payload.workflow_id;
+        console.log('[WorkflowInlineMonitorContainer] 📊 Workflow progress received:', {
+          workflowId,
+          eventType: payload.event_type,
+          nodeId: payload.node_id,
+          message: payload.message,
+          currentActiveWorkflows: Array.from(globalActiveWorkflows),
+          allPayload: payload
+        });
+
+        // 如果这是新工作流，自动添加到活跃工作流列表
+        if (workflowId && !globalActiveWorkflows.has(workflowId)) {
+          console.log('[WorkflowInlineMonitorContainer] 🆕 Detected new workflow from progress event:', workflowId);
+          addActiveWorkflow(workflowId);
+
+          // 初始化全局状态
+          updateGlobalWorkflowState(workflowId, {
+            name: '工作流执行中',
+            status: 'running' as const,
+            startTime: Date.now(),
+          });
+        }
+      });
+
+      // 监听工作流完成
+      const unsubscribeCompleted = chatEventBus.on('workflow:completed' as any, (payload: any) => {
+        const workflowId = payload.workflowId || payload.workflow_id;
+        console.log('[WorkflowInlineMonitorContainer] ✅ Workflow completed:', workflowId);
+
+        // 3秒后自动移除监控器
+        setTimeout(() => {
+          removeActiveWorkflow(workflowId);
+          console.log('[WorkflowInlineMonitorContainer] Auto-removed completed workflow monitor:', workflowId);
+        }, 3000);
+
+        // 更新全局状态
+        updateGlobalWorkflowState(workflowId, {
+          status: 'completed' as const,
+          progress: 100,
+          endTime: Date.now(),
+          name: '工作流已完成',
+        });
+
+        // 通知完成回调
+        // 注意：这里没有直接的回调，而是通过全局状态更新来通知
+      });
+
+      // 监听工作流错误
+      const unsubscribeError = chatEventBus.on('workflow:error' as any, (payload: any) => {
+        const workflowId = payload.workflowId || payload.workflow_id;
+        console.error('[WorkflowInlineMonitorContainer] Workflow error:', workflowId);
+
+        // 3秒后自动移除监控器
+        setTimeout(() => {
+          removeActiveWorkflow(workflowId);
+          console.log('[WorkflowInlineMonitorContainer] Auto-removed failed workflow monitor:', workflowId);
+        }, 3000);
+
+        // 更新全局状态
+        updateGlobalWorkflowState(workflowId, {
+          status: 'failed' as const,
+          endTime: Date.now(),
+          name: '工作流失败',
+        });
+      });
+
+      // 🔥 保存监听器到全局 Map
+      const listenerSet = globalSetListeners.get(CONTAINER_LISTENERS_KEY)!;
+      listenerSet.add({ unsubscribe: unsubscribeStarted });
+      listenerSet.add({ unsubscribe: unsubscribeProgress });
+      listenerSet.add({ unsubscribe: unsubscribeCompleted });
+      listenerSet.add({ unsubscribe: unsubscribeError });
+
+      // 🔥 设置全局标志，防止重复设置
+      globalContainerListenersSetUp = true;
+
+      console.log('[WorkflowInlineMonitorContainer] ✅ Container listeners set up successfully, total:', listenerSet.size);
+    } else {
+      console.error('[WorkflowInlineMonitorContainer] ❌ chatEventBus not available, cannot set up listeners');
     }
+  }
+
+  // 🔥 CRITICAL FIX: 使用 useLayoutEffect 监听全局 activeWorkflows 变化
+  // 注意：事件监听器已在上面直接设置（不依赖 useEffect）
+  useLayoutEffect(() => {
+    console.log('[WorkflowInlineMonitorContainer] 🚀 useLayoutEffect called (for global activeWorkflows sync)');
 
     // 🔥 CRITICAL: 监听全局 activeWorkflows 变化
     const updateFromGlobal = () => {
@@ -1299,91 +1453,9 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     // 添加监听器
     globalActiveWorkflowsListeners.add(updateFromGlobal);
 
-    // 监听工作流启动
-    const unsubscribeStarted = chatEventBus.on('workflow:started' as any, (payload: any) => {
-      const workflowId = payload.workflowId || payload.workflow_id;
-      console.log('[WorkflowInlineMonitorContainer] Workflow started:', workflowId);
-
-      // 🔥 CRITICAL FIX: 初始化全局状态，确保 WorkflowInlineMonitor 挂载时状态已存在
-      updateGlobalWorkflowState(workflowId, {
-        name: payload.workflowType || payload.workflow_type || '工作流执行中',
-        status: 'running',
-        startTime: Date.now(),
-        nodes: []
-      });
-
-      // 🔥 FIX: 使用全局函数添加活跃工作流
-      addActiveWorkflow(workflowId);
-    });
-
-    // 🔥 CRITICAL FIX: 监听 workflow:progress 事件来自动检测新工作流
-    // 因为真实后端可能不会发送 workflow:started 事件
-    const unsubscribeProgress = chatEventBus.on('workflow:progress' as any, (payload: any) => {
-      const workflowId = payload.workflowId || payload.workflow_id;
-      console.log('[WorkflowInlineMonitorContainer] 📊 Workflow progress received:', {
-        workflowId,
-        eventType: payload.event_type,
-        nodeId: payload.node_id,
-        message: payload.message,
-        currentActiveWorkflows: Array.from(globalActiveWorkflows),
-        allPayload: payload
-      });
-
-      // 🔥 如果这是新工作流，自动添加到活跃工作流列表
-      if (workflowId && !globalActiveWorkflows.has(workflowId)) {
-        console.log('[WorkflowInlineMonitorContainer] 🆕 Detected new workflow from progress event:', workflowId);
-        addActiveWorkflow(workflowId);
-
-        // 🔥 初始化全局状态
-        updateGlobalWorkflowState(workflowId, {
-          name: '工作流执行中',
-          status: 'running',
-          startTime: Date.now(),
-          nodes: []
-        });
-      }
-
-      // 🔥 DEBUG: 检查全局状态
-      const globalState = globalWorkflowStates.get(workflowId);
-      console.log('[WorkflowInlineMonitorContainer] 🔍 Global state for workflow:', {
-        workflowId,
-        hasState: !!globalState,
-        nodesCount: globalState?.nodes?.length || 0,
-        nodes: globalState?.nodes?.map(n => ({ id: n.id, label: n.label, status: n.status }))
-      });
-    });
-
-    // 监听工作流完成
-    const unsubscribeCompleted = chatEventBus.on('workflow:completed' as any, (payload: any) => {
-      const workflowId = payload.workflowId || payload.workflow_id;
-      console.log('[WorkflowInlineMonitorContainer] Workflow completed:', workflowId);
-
-      // 🔥 3秒后自动移除监控器
-      setTimeout(() => {
-        removeActiveWorkflow(workflowId);
-        console.log('[WorkflowInlineMonitorContainer] Auto-removed completed workflow monitor:', workflowId);
-      }, 3000);
-    });
-
-    // 监听工作流错误
-    const unsubscribeError = chatEventBus.on('workflow:error' as any, (payload: any) => {
-      const workflowId = payload.workflowId || payload.workflow_id;
-      console.error('[WorkflowInlineMonitorContainer] Workflow error:', workflowId);
-
-      // 🔥 3秒后自动移除监控器
-      setTimeout(() => {
-        removeActiveWorkflow(workflowId);
-        console.log('[WorkflowInlineMonitorContainer] Auto-removed failed workflow monitor:', workflowId);
-      }, 3000);
-    });
-
     return () => {
       console.log('[WorkflowInlineMonitorContainer] 🧹 Cleanup called');
       globalActiveWorkflowsListeners.delete(updateFromGlobal);
-      unsubscribeStarted();
-      unsubscribeProgress();
-      unsubscribeCompleted();
-      unsubscribeError();
     };
   }, []);
 

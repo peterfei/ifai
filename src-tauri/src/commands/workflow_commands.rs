@@ -177,24 +177,8 @@ pub async fn execute_workflow(
         let mgr = manager_for_nodes.lock().await;
         if let Some(runner_arc) = mgr.get_workflow(&workflow_id) {
             let runner = runner_arc.lock().await;
-            use crate::agent_system::workflow::types::AgentType;
-            runner.workflow.nodes.iter().map(|node| {
-                let agent_type_str = match node.agent_type {
-                    AgentType::Explore => "explore".to_string(),
-                    AgentType::Review => "review".to_string(),
-                    AgentType::Refactor => "refactor".to_string(),
-                    AgentType::Test => "test".to_string(),
-                    AgentType::Doc => "doc".to_string(),
-                    AgentType::TaskBreakdown => "task_breakdown".to_string(),
-                    AgentType::ProposalGenerator => "proposal_generator".to_string(),
-                    AgentType::GeneralPurpose => "general_purpose".to_string(),
-                };
-                crate::agent_system::workflow::runner::PlannedNode {
-                    id: node.id.clone(),
-                    label: node.label.clone().unwrap_or_else(|| node.id.clone()),
-                    agent_type: agent_type_str,
-                }
-            }).collect()
+            // 🔥 使用公共方法获取计划节点
+            runner.get_planned_nodes()
         } else {
             vec![]
         }

@@ -940,6 +940,28 @@ impl WorkflowRunner {
         self.node_results.read().await.clone()
     }
 
+    /// 获取当前工作流的计划节点信息（用于发送 workflow:started 事件）
+    pub fn get_planned_nodes(&self) -> Vec<PlannedNode> {
+        use crate::agent_system::workflow::types::AgentType;
+        self.workflow.nodes.iter().map(|node| {
+            let agent_type_str = match node.agent_type {
+                AgentType::Explore => "explore".to_string(),
+                AgentType::Review => "review".to_string(),
+                AgentType::Refactor => "refactor".to_string(),
+                AgentType::Test => "test".to_string(),
+                AgentType::Doc => "doc".to_string(),
+                AgentType::TaskBreakdown => "task_breakdown".to_string(),
+                AgentType::ProposalGenerator => "proposal_generator".to_string(),
+                AgentType::GeneralPurpose => "general_purpose".to_string(),
+            };
+            PlannedNode {
+                id: node.id.clone(),
+                label: node.label.clone().unwrap_or_else(|| node.id.clone()),
+                agent_type: agent_type_str,
+            }
+        }).collect()
+    }
+
     /// 取消执行
     pub async fn cancel(&self) -> Result<()> {
         let mut status = self.status.write().await;
