@@ -42,6 +42,25 @@ export class IntentHandler {
       workflowType: workflowIntent.workflowType,
     });
 
+    // 🔥 问题3修复：检测重复的探索命令
+    // 如果是 /explore 命令，检查最近是否执行过探索
+    if (workflowIntent.isWorkflow && workflowIntent.workflowType === 'exploration') {
+      const recentExplore = this.checkRecentExploreCommand();
+      if (recentExplore) {
+        console.log('[IntentHandler] 🔁 Detected repeated /explore command, using summary mode');
+
+        // 修改响应为总结模式
+        workflowIntent.response = `📊 **查看上次的探索结果**
+
+正在为您加载之前的探索分析...
+
+目标路径: \`${recentExplore.targetPath || '.'}\`
+上次探索时间: ${new Date(recentExplore.timestamp).toLocaleString()}
+
+工作流已开始，您可以在"执行监控"标签页查看详细进度。`;
+      }
+    }
+
     if (workflowIntent.isWorkflow && workflowIntent.confidence >= 0.6) {
       console.log('[IntentHandler] ✅ Workflow intent detected, executing...');
 
@@ -58,6 +77,11 @@ export class IntentHandler {
           );
 
           console.log('[IntentHandler] ✅ Workflow executed successfully:', workflowId);
+
+          // 🔥 记录探索命令（用于重复检测）
+          if (workflowIntent.workflowType === 'exploration') {
+            this.recordExploreCommand(workflowIntent.targetPath);
+          }
         } catch (error) {
           console.error('[IntentHandler] ❌ Workflow execution failed:', error);
 
@@ -146,6 +170,54 @@ export class IntentHandler {
     const defaultResult: IntentResult = { type: 'chat', confidence: 1.0 };
     this.emitIntent(defaultResult, payload);
     return defaultResult;
+  }
+
+  /**
+   * 🔥 检查最近的探索命令（用于问题3：重复探索显示总结）
+   * 检查过去 5 分钟内是否执行过 /explore 命令
+   */
+  private checkRecentExploreCommand(): { targetPath?: string; timestamp: number } | null {
+    const RECENT_EXPLORE_KEY = 'ifai_recent_explore';
+    const EXPLORE_TIMEOUT = 5 * 60 * 1000; // 5 分钟
+
+    try {
+      const stored = localStorage.getItem(RECENT_EXPLORE_KEY);
+      if (!stored) return null;
+
+      const recentExplore = JSON.parse(stored);
+      const now = Date.now();
+
+      // 检查是否在超时时间内
+      if (now - recentExplore.timestamp < EXPLORE_TIMEOUT) {
+        return recentExplore;
+      }
+
+      // 超时，清除记录
+      localStorage.removeItem(RECENT_EXPLORE_KEY);
+      return null;
+    } catch (e) {
+      console.warn('[IntentHandler] Failed to check recent explore command:', e);
+      return null;
+    }
+  }
+
+  /**
+   * 🔥 记录探索命令（在执行成功后调用）
+   */
+  private recordExploreCommand(targetPath?: string): void {
+    const RECENT_EXPLORE_KEY = 'ifai_recent_explore';
+
+    try {
+      const record = {
+        timestamp: Date.now(),
+        targetPath: targetPath || '.'
+      };
+
+      localStorage.setItem(RECENT_EXPLORE_KEY, JSON.stringify(record));
+      console.log('[IntentHandler] 📝 Recorded explore command:', record);
+    } catch (e) {
+      console.warn('[IntentHandler] Failed to record explore command:', e);
+    }
   }
 
   /**
