@@ -348,9 +348,10 @@ export const initStoreMapper = () => {
         isWorkflowMessage  // 🔥 检查是否是工作流消息
       });
 
-      // 🔥 FIX: 如果是工作流消息，不设置 isLoading: true，防止触发 AI 回复
+      // 🔥 FIX: 如果是工作流消息，只创建用户消息，不创建空的 assistant 消息
+      // 参考 claw-code 的做法：工作流执行期间只显示 Monitor，完成后才创建 assistant 消息
       if (isWorkflowMessage) {
-        console.log('[StoreMapper] 🔥 This is a workflow message, NOT setting isLoading=true');
+        console.log('[StoreMapper] 🔥 This is a workflow message, creating ONLY user message (no empty assistant message)');
         console.log('[StoreMapper] 🔥 Creating user message:', { messageId, content: content?.substring(0, 30), assistantId });
 
         // 🔥 DEBUG: 检查当前 store 状态
@@ -361,11 +362,12 @@ export const initStoreMapper = () => {
           isLoading: currentStateBefore.isLoading
         });
 
-        // 仍然创建消息，但不设置 isLoading
+        // 🔥 FIX: 只创建用户消息，不创建空的 assistant 消息
+        // assistant 消息将在工作流完成时（workflow:response 事件）创建
         const updater = (state: any) => {
           console.log('[StoreMapper] 🔍 updater function called, state.messages.length:', state?.messages?.length || 0);
 
-          const filtered = state.messages.filter((m: any) => m.id !== messageId && m.id !== assistantId);
+          const filtered = state.messages.filter((m: any) => m.id !== messageId);
           const now = Date.now();
           const newMessages = [
             ...filtered,
@@ -374,18 +376,12 @@ export const initStoreMapper = () => {
               role: 'user',
               content,
               timestamp: now,
-              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }]
-            },
-            {
-              id: assistantId,
-              role: 'assistant',
-              content: '',
-              status: 'streaming',
-              timestamp: now + 1,
-              segments: []
+              segments: [{ id: `seg-user-${messageId}`, type: 'text' as const, phase: 'pre-tool' as const, content, order: 1, timestamp: now }],
+              // 🔥 添加标记，表明这是工作流的用户消息
+              workflowRelated: true
             }
           ];
-          console.log('[StoreMapper] 🔥 New messages to set:', newMessages.map((m: any) => ({ id: m.id.substring(0, 15), role: m.role, content: m.content?.substring(0, 20) })));
+          console.log('[StoreMapper] 🔥 New messages to set (workflow - NO assistant message):', newMessages.map((m: any) => ({ id: m.id.substring(0, 15), role: m.role, content: m.content?.substring(0, 20) })));
 
           const result = {
             messages: newMessages,
@@ -539,6 +535,8 @@ export const initStoreMapper = () => {
     });
 
     // P4: 映射工作流响应
+    // 🔥 FIX: 工作流完成后才创建 assistant 消息
+    // 参考 claw-code：工作流执行期间不显示空白气泡，完成后一次性显示总结
     chatEventBus.on('workflow:response', (payload) => {
       const { correlationId, response, workflowId, workflowType } = payload as any;
 
@@ -550,15 +548,32 @@ export const initStoreMapper = () => {
       });
 
       const updater = (state: any) => {
-        // 🔥 FIX: 更新 chat:message:sent 创建的助手消息，而不是创建新的
-        // 找到 ID 为 correlationId 的助手消息（由 chat:message:sent 创建）
+        // 🔥 DEBUG: 检查 state 状态
+        console.log('[StoreMapper] 🔍 workflow:response updater called, state:', {
+          hasState: !!state,
+          hasMessages: !!state?.messages,
+          messagesCount: state?.messages?.length || 0,
+          correlationId,
+        });
+
+        // 🔥 FIX: 处理 state 为 null 的情况
+        if (!state || !state.messages) {
+          console.warn('[StoreMapper] ⚠️ State is null in workflow:response, initializing with default state');
+          state = { messages: [] };
+        }
+
+        // 🔥 FIX: 检查是否已存在 assistant 消息
+        // 注意：由于我们修改了 chat:message:sent 逻辑，工作流消息不会预先创建空的 assistant 消息
+        // 所以这里通常会找不到，需要创建新的
         const assistantIndex = state.messages.findIndex((m: any) =>
           m.id === correlationId && m.role === 'assistant'
         );
 
+        console.log('[StoreMapper] 🔍 assistantIndex:', assistantIndex);
+
         if (assistantIndex === -1) {
-          // 如果找不到助手消息（不应该发生），创建一个新的
-          console.warn('[StoreMapper] ⚠️ Assistant message not found, creating new one');
+          // 🔥 正常流程：创建 assistant 消息（工作流执行期间没有空白气泡）
+          console.log('[StoreMapper] ✅ Creating new assistant message for workflow response (no empty bubble during execution)');
           const assistantMessage = {
             id: correlationId,
             role: 'assistant',
@@ -586,7 +601,8 @@ export const initStoreMapper = () => {
           };
         }
 
-        // 更新现有的助手消息
+        // 🔥 备用流程：更新现有的 assistant 消息（如果已存在）
+        // 这种情况可能发生在某些边缘情况或未来逻辑变更时
         const newMessages = [...state.messages];
         const originalTimestamp = newMessages[assistantIndex].timestamp;
 
@@ -815,7 +831,9 @@ export const initStoreMapper = () => {
       node_results: any;
     }>();
 
-    // P4: 映射工作流执行完成（显示实际执行结果）
+    // P4: 映射工作流执行完成（显示详细执行结果）
+    // 🔥 FIX: 由于 chat:message:sent 不再创建空的 assistant 消息，这里可能会找不到消息
+    // 如果找不到消息，会将结果缓存起来，等待 workflow:response 或后续逻辑处理
     chatEventBus.on('workflow:completed', (payload) => {
       const { workflow_id, status, node_results, started_at, completed_at } = payload as any;
 
@@ -909,27 +927,40 @@ export const initStoreMapper = () => {
         );
 
         if (assistantIndex === -1) {
-          // 🔥 DEBUG: 打印所有消息来帮助调试
-          console.warn('[StoreMapper] ⚠️ Workflow message not found for completion:', workflow_id);
-          console.warn('[StoreMapper] 🔍 Current messages:', state.messages.map((m: any) => ({
-            id: m.id,
-            role: m.role,
-            hasWorkflowId: !!m.metadata?.workflowId,
-            workflowId: m.metadata?.workflowId,
-            contentPreview: m.content?.substring(0, 50)
-          })));
+          // 🔥 FIX: 找不到消息时，创建新的 assistant 消息
+          // 这发生在 workflow:response 没有触发的情况下
+          console.log('[StoreMapper] ✅ Creating new assistant message for workflow completion (no existing message found)');
 
-          // 🔥 CRITICAL FIX: 如果消息还未创建，将结果缓存起来
-          // 后续在 workflow:response 中会检查并应用这个缓存
-          console.log('[StoreMapper] 💾 Caching workflow completion result for later use:', workflow_id);
-          workflowCompletionCache.set(workflow_id, {
-            responseContent,
-            completed_at,
-            status,
-            node_results
-          });
+          // 查找最近的用户消息来获取 correlationId
+          const userMessage = state.messages.findLast((m: any) => m.role === 'user' && m.workflowRelated);
+          const correlationId = userMessage?.id || `assistant-${Date.now()}`;
 
-          return null; // 不更新状态，保持当前状态
+          const assistantMessage = {
+            id: correlationId,
+            role: 'assistant',
+            content: responseContent,
+            status: 'completed',
+            timestamp: Date.now(),
+            segments: [{
+              id: `seg-workflow-${workflow_id}`,
+              type: 'text' as const,
+              phase: 'pre-tool' as const,
+              content: responseContent,
+              order: 1,
+              timestamp: Date.now(),
+            }],
+            metadata: {
+              workflowId: workflow_id,
+              correlationId,
+              completed: true,
+              completedAt: completed_at,
+            }
+          };
+
+          return {
+            messages: [...state.messages, assistantMessage],
+            isLoading: false,
+          };
         }
 
         console.log('[StoreMapper] ✅ Found workflow message at index:', assistantIndex);

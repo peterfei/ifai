@@ -692,6 +692,35 @@ export function cleanupWorkflowListeners(workflowId: string) {
   }
 }
 
+// 🔥 完全清理工作流状态（包括全局状态、活跃工作流、监听器）
+// 用于工作流完成后自动清理，防止新标签页显示旧监控器
+export function cleanupWorkflowState(workflowId: string) {
+  console.log('[WorkflowInlineMonitor] 🧹 Starting complete cleanup for workflow:', workflowId);
+
+  // 1. 清理全局工作流状态（这是关键！）
+  const hadGlobalState = globalWorkflowStates.has(workflowId);
+  if (hadGlobalState) {
+    globalWorkflowStates.delete(workflowId);
+    console.log('[WorkflowInlineMonitor] ✅ Cleaned globalWorkflowStates for:', workflowId);
+  }
+
+  // 2. 清理活跃工作流
+  const hadActiveWorkflow = globalActiveWorkflows.has(workflowId);
+  if (hadActiveWorkflow) {
+    globalActiveWorkflows.delete(workflowId);
+    console.log('[WorkflowInlineMonitor] ✅ Cleaned globalActiveWorkflows for:', workflowId);
+  }
+
+  // 3. 清理监听器
+  cleanupWorkflowListeners(workflowId);
+  if (hadGlobalState || hadActiveWorkflow) {
+    console.log('[WorkflowInlineMonitor] 🎉 Complete cleanup finished for:', workflowId);
+    // 通知所有监听器
+    globalActiveWorkflowsListeners.forEach(listener => listener());
+    globalWorkflowListeners.forEach(listener => listener());
+  }
+}
+
 // ==================== 主组件 ====================
 
 export function WorkflowInlineMonitor({
@@ -1388,10 +1417,11 @@ export function WorkflowInlineMonitor({
           });
         });
 
-        // 🔥 清理全局监听器（延迟5秒，防止组件还在使用）
+        // 🔥 清理全局工作流状态（延迟5秒，防止组件还在使用）
+        // 这是关键修复：防止新标签页显示旧监控器
         setTimeout(() => {
-          console.log('[WorkflowInlineMonitor] 🧹 Delayed cleanup for workflowId:', workflowId);
-          cleanupWorkflowListeners(workflowId);
+          console.log('[WorkflowInlineMonitor] 🧹 Delayed cleanup for completed workflow:', workflowId);
+          cleanupWorkflowState(workflowId);
         }, 5000);
 
         console.log('[WorkflowInlineMonitor] ✅ Calling onComplete callback');
@@ -1412,6 +1442,12 @@ export function WorkflowInlineMonitor({
             status: n.status === 'running' ? 'failed' as const : n.status
           }))
         });
+
+        // 🔥 清理全局工作流状态（延迟5秒）
+        setTimeout(() => {
+          console.log('[WorkflowInlineMonitor] 🧹 Delayed cleanup for failed workflow:', workflowId);
+          cleanupWorkflowState(workflowId);
+        }, 5000);
       }
     });
 
@@ -1958,10 +1994,10 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
       const workflowId = payload.workflowId || payload.workflow_id;
       console.log('[WorkflowInlineMonitorContainer] ✅ Workflow completed:', workflowId);
 
-      // 3秒后自动移除监控器
+      // 3秒后自动移除监控器并清理全局状态
       setTimeout(() => {
-        removeActiveWorkflow(workflowId);
-        console.log('[WorkflowInlineMonitorContainer] Auto-removed completed workflow monitor:', workflowId);
+        console.log('[WorkflowInlineMonitorContainer] 🧹 Auto-cleaning completed workflow:', workflowId);
+        cleanupWorkflowState(workflowId);
       }, 3000);
 
       // 更新全局状态
@@ -1981,10 +2017,10 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
       const workflowId = payload.workflowId || payload.workflow_id;
       console.error('[WorkflowInlineMonitorContainer] Workflow error:', workflowId);
 
-      // 3秒后自动移除监控器
+      // 3秒后自动移除监控器并清理全局状态
       setTimeout(() => {
-        removeActiveWorkflow(workflowId);
-        console.log('[WorkflowInlineMonitorContainer] Auto-removed failed workflow monitor:', workflowId);
+        console.log('[WorkflowInlineMonitorContainer] 🧹 Auto-cleaning failed workflow:', workflowId);
+        cleanupWorkflowState(workflowId);
       }, 3000);
 
       // 更新全局状态
