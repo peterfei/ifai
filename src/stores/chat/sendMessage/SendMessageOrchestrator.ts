@@ -125,23 +125,18 @@ export class SendMessageOrchestrator {
           });
         }
 
-        // 然后发布工作流响应事件（更新助手消息的内容）
-        console.log('[SendMessageOrchestrator] 📤 Emitting workflow:response event after message creation');
-        console.log('[SendMessageOrchestrator] 📝 Response content:', intentResult.metadata?.response?.substring(0, 100));
-        chatEventBus.emit('workflow:response', {
-          ...basePayload,
-          workflowId: intentResult.metadata?.workflowId,
-          workflowType: intentResult.metadata?.workflowType,
-          response: intentResult.metadata?.response,
-          timestamp: Date.now(),
-        });
+        // 🔥 FIX: 不要立即发送 workflow:response 事件
+        // 只在工作流完成时才发送响应，避免显示"正在启动"消息
+        // 参考 claw-code 的做法：执行期间只显示 Monitor，完成后显示总结
+        console.log('[SendMessageOrchestrator] 🔥 Skipping immediate workflow:response (will send on completion)');
+        console.log('[SendMessageOrchestrator] 📝 Workflow will send response when completed');
 
         // 返回特殊结果，表示工作流已处理
         return {
           success: true,
           skipped: true,
           workflowId: intentResult.metadata?.workflowId,
-          response: intentResult.metadata?.response,
+          // 不包含 response，让工作流完成时再发送
         };
       }
 

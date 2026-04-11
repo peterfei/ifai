@@ -671,8 +671,19 @@ fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::Wor
         // 添加输出内容（如果有）
         if let Some(output) = &node_result.output {
             // 限制输出长度，避免过长
+            // 🔥 FIX: 使用安全的字符边界截取，避免 UTF-8 panic（中文字符占3字节）
             let preview = if output.len() > 500 {
-                format!("{}...\n\n_(输出过长，已截断，完整输出请查看日志)_", &output[..500])
+                // 找到安全的字符边界
+                let safe_end = output
+                    .char_indices()
+                    .map(|(idx, _)| idx)
+                    .find(|&idx| idx >= 500)
+                    .unwrap_or_else(|| output.len());
+
+                // 确保 safe_end 不超过字符串长度
+                let safe_end = std::cmp::min(safe_end, output.len());
+
+                format!("{}...\n\n_(输出过长，已截断，完整输出请查看日志)_", &output[..safe_end])
             } else {
                 output.clone()
             };
