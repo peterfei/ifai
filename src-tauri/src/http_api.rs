@@ -86,6 +86,10 @@ pub struct WorkflowProgressEvent {
     pub tool_details: Option<serde_json::Value>,
     /// 🔥 新增：计划节点列表（仅在 workflow:started 事件中包含）
     pub nodes: Option<Vec<PlannedNode>>,
+    /// 🔥 新增：流式内容增量（仅在 content_delta 事件中包含）
+    pub content_delta: Option<String>,
+    /// 🔥 新增：流式输出是否完成（仅在 content_delta 事件中包含）
+    pub content_finished: Option<bool>,
 }
 
 /// HTTP API 服务器状态
@@ -174,6 +178,32 @@ pub async fn send_progress_event_with_nodes(
         timestamp: chrono::Utc::now().timestamp_millis(),
         tool_details: None,
         nodes,  // 🔥 包含计划节点信息
+        content_delta: None,  // 默认为 None
+        content_finished: None,  // 默认为 None
+    };
+
+    // 发送到所有订阅者（忽略错误，因为可能没有订阅者）
+    let _ = sender.send(event);
+}
+
+/// 🔥 发送 content_delta 进度事件的辅助函数（用于流式输出）
+pub async fn send_content_delta_event(
+    sender: &broadcast::Sender<WorkflowProgressEvent>,
+    workflow_id: &str,
+    node_id: &str,
+    content_delta: &str,
+    content_finished: bool,
+) {
+    let event = WorkflowProgressEvent {
+        event_type: "content_delta".to_string(),
+        workflow_id: Some(workflow_id.to_string()),
+        node_id: Some(node_id.to_string()),
+        message: None,  // content_delta 事件不包含普通消息
+        timestamp: chrono::Utc::now().timestamp_millis(),
+        tool_details: None,
+        nodes: None,
+        content_delta: if content_delta.is_empty() { None } else { Some(content_delta.to_string()) },
+        content_finished: Some(content_finished),
     };
 
     // 发送到所有订阅者（忽略错误，因为可能没有订阅者）
@@ -251,6 +281,8 @@ async fn execute_workflow_http(
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: event.tool_details.map(|d| serde_json::to_value(d).unwrap_or_else(|_| serde_json::json!(null))),
                 nodes: event.nodes,  // 🔥 包含 nodes 字段（从 runner.rs 传递过来）
+                content_delta: event.content_delta,  // 🔥 包含 content_delta 字段
+                content_finished: event.content_finished,  // 🔥 包含 content_finished 字段
             };
 
             let _ = sender_for_callback.send(sse_event);
@@ -359,7 +391,38 @@ fn create_workflow_from_request(req: &ExecuteWorkflowRequest) -> Result<Workflow
             workflow.add_edge(WorkflowEdge::new("review", "refactor"));
         }
         "exploration" => {
-            workflow.add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("快速探索"));
+            // 🔥 更新为3节点版本：并行探索 + 总结（带流式输出）
+            use crate::agent_system::workflow::types::AgentConfig;
+
+            // 探索节点1：分析项目结构
+            workflow.add_node(WorkflowNode::new("explore_structure", AgentType::Explore)
+                .with_label("探索结构")
+                .with_config(AgentConfig {
+                    target: Some(req.target_path.clone()),
+                    task_description: Some("分析项目的目录结构和文件组织方式".to_string()),
+                    ..Default::default()
+                }));
+
+            // 探索节点2：分析依赖关系
+            workflow.add_node(WorkflowNode::new("explore_deps", AgentType::Explore)
+                .with_label("探索依赖")
+                .with_config(AgentConfig {
+                    target: Some(req.target_path.clone()),
+                    task_description: Some("分析项目的依赖关系和模块之间的连接".to_string()),
+                    ..Default::default()
+                }));
+
+            // 总结节点：综合两个探索节点的结果（使用流式输出）
+            workflow.add_node(WorkflowNode::new("summarize", AgentType::Doc)
+                .with_label("生成总结")
+                .with_config(AgentConfig {
+                    task_description: Some("综合前面的探索结果，生成一份完整的代码结构总结，包括：\n1. 项目整体架构\n2. 主要模块和功能\n3. 依赖关系图\n4. 关键发现和改进建议\n\n请用清晰的格式（如 Markdown）输出总结。".to_string()),
+                    ..Default::default()
+                }));
+
+            // 两个探索节点都完成后才执行总结
+            workflow.add_edge(WorkflowEdge::new("explore_structure", "summarize"));
+            workflow.add_edge(WorkflowEdge::new("explore_deps", "summarize"));
         }
         "quality_check" => {
             workflow.add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"));

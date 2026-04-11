@@ -153,6 +153,8 @@ pub async fn execute_workflow(
             println!("  - node_id: {:?}", event.node_id);
             println!("  - message: {:?}", event.message);
             println!("  - has_tool_details: {}", event.tool_details.is_some());
+            println!("  - content_delta length: {:?}", event.content_delta.as_ref().map(|d| d.len()));
+            println!("  - content_finished: {:?}", event.content_finished);
 
             if let Err(e) = window_for_progress.emit("workflow:progress", &event) {
                 println!("[Workflow] ⚠️ Failed to emit progress event: {}", e);
@@ -546,22 +548,38 @@ fn create_quick_code_review_workflow(target_path: &str) -> Workflow {
 
 fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
     let mut workflow = Workflow::new("quick-exploration", "快速探索")
-        .with_description("快速探索代码结构（优化版：单节点）");
+        .with_description("快速探索代码结构并生成总结（并行探索版本）");
 
-    // 🔥 优化：只保留一个节点，避免串行等待
-    // 如果需要完整的"探索+分析"功能，可以取消注释下面的代码，改成并行执行
-    workflow
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("快速探索"));
+    // 🏆 并行探索 + 顺序总结：两个探索节点并行执行，然后总结节点综合结果
+    use crate::agent_system::workflow::types::AgentConfig;
 
-    /*  // 并行版本（保留完整功能）
     workflow
-        .add_node(WorkflowNode::new("explore", AgentType::Explore)
-            .with_label("探索结构"))
-        .add_node(WorkflowNode::new("analyze", AgentType::Explore)
-            .with_label("分析依赖"));
-        // 注意：没有 add_edge，所以两个节点会并行执行
-    */
+        // 探索节点1：分析项目结构
+        .add_node(WorkflowNode::new("explore_structure", AgentType::Explore)
+            .with_label("探索结构")
+            .with_config(AgentConfig {
+                target: Some(target_path.to_string()),
+                task_description: Some("分析项目的目录结构和文件组织方式".to_string()),
+                ..Default::default()
+            }))
+        // 探索节点2：分析依赖关系
+        .add_node(WorkflowNode::new("explore_deps", AgentType::Explore)
+            .with_label("探索依赖")
+            .with_config(AgentConfig {
+                target: Some(target_path.to_string()),
+                task_description: Some("分析项目的依赖关系和模块之间的连接".to_string()),
+                ..Default::default()
+            }))
+        // 总结节点：综合两个探索节点的结果
+        .add_node(WorkflowNode::new("summarize", AgentType::Doc)
+            .with_label("生成总结")
+            .with_config(AgentConfig {
+                task_description: Some("综合前面的探索结果，生成一份完整的代码结构总结，包括：\n1. 项目整体架构\n2. 主要模块和功能\n3. 依赖关系图\n4. 关键发现和改进建议\n\n请用清晰的格式（如 Markdown）输出总结。".to_string()),
+                ..Default::default()
+            }))
+        // 两个探索节点都完成后才执行总结
+        .add_edge(WorkflowEdge::new("explore_structure", "summarize"))
+        .add_edge(WorkflowEdge::new("explore_deps", "summarize"));
 
     workflow.variables.insert("target_path".to_string(), target_path.to_string());
 
@@ -679,3 +697,87 @@ fn generate_workflow_summary(result: &crate::agent_system::workflow::runner::Wor
 }
 
 
+
+// ============================================================================
+// 工作流单元测试
+// ============================================================================
+
+#[cfg(test)]
+mod workflow_tests {
+    use super::*;
+
+    #[test]
+    fn test_exploration_workflow_structure() {
+        let workflow = create_quick_exploration_workflow(".");
+
+        println!("\n=== 探索工作流结构测试 ===");
+        println!("📊 工作流: {} ({})", workflow.name, workflow.id);
+        println!("📄 节点数量: {}", workflow.nodes.len());
+        println!("🔗 边数量: {}", workflow.edges.len());
+
+        // 打印所有节点
+        for (i, node) in workflow.nodes.iter().enumerate() {
+            println!("  节点 {}: {} ({:?})", i + 1, node.id, node.agent_type);
+            if let Some(ref label) = node.label {
+                println!("    📋 标签: {}", label);
+            }
+        }
+
+        // 打印所有边
+        for (i, edge) in workflow.edges.iter().enumerate() {
+            println!("  边 {}: {} -> {}", i + 1, edge.from, edge.to);
+        }
+
+        // ✅ 验证：应该有3个节点
+        assert_eq!(workflow.nodes.len(), 3, "探索工作流应该有3个节点");
+
+        // ✅ 验证：应该有2条边（并行探索 → 总结）
+        assert_eq!(workflow.edges.len(), 2, "探索工作流应该有2条边");
+
+        // ✅ 验证节点ID
+        let node_ids: Vec<_> = workflow.nodes.iter().map(|n| n.id.as_str()).collect();
+        assert!(node_ids.contains(&"explore_structure"), "应该有 explore_structure 节点");
+        assert!(node_ids.contains(&"explore_deps"), "应该有 explore_deps 节点");
+        assert!(node_ids.contains(&"summarize"), "应该有 summarize 节点");
+
+        // ✅ 验证边连接
+        let edges: Vec<_> = workflow.edges.iter()
+            .map(|e| (e.from.as_str(), e.to.as_str()))
+            .collect();
+        assert!(edges.contains(&("explore_structure", "summarize")), "explore_structure 应该指向 summarize");
+        assert!(edges.contains(&("explore_deps", "summarize")), "explore_deps 应该指向 summarize");
+
+        println!("\n✅ 探索工作流结构验证通过！");
+        println!("   - 3个节点：explore_structure, explore_deps, summarize");
+        println!("   - 并行执行：2个探索节点并行运行");
+        println!("   - 顺序总结：等待探索完成后生成总结");
+    }
+
+    #[test]
+    fn test_code_review_workflow_structure() {
+        let workflow = create_quick_code_review_workflow(".");
+
+        println!("\n=== 代码审查工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+        println!("🔗 边数量: {}", workflow.edges.len());
+
+        assert!(workflow.nodes.len() >= 1, "代码审查工作流应该至少有1个节点");
+        assert!(workflow.edges.len() >= 1, "代码审查工作流应该至少有1条边");
+
+        println!("✅ 代码审查工作流验证通过！");
+    }
+
+    #[test]
+    fn test_quality_check_workflow_structure() {
+        let workflow = create_quick_quality_check_workflow(".");
+
+        println!("\n=== 质量检查工作流结构测试 ===");
+        println!("📊 节点数量: {}", workflow.nodes.len());
+        println!("🔗 边数量: {}", workflow.edges.len());
+
+        assert!(workflow.nodes.len() >= 1, "质量检查工作流应该至少有1个节点");
+        assert!(workflow.edges.len() >= 1, "质量检查工作流应该至少有1条边");
+
+        println!("✅ 质量检查工作流验证通过！");
+    }
+}

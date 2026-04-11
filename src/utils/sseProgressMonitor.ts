@@ -14,6 +14,10 @@ interface WorkflowProgressEvent {
   message?: string;
   timestamp: number;
   tool_details?: any;
+  /** 🔥 流式内容增量（用于 Doc agent 的渐进式输出） */
+  content_delta?: string;
+  /** 🔥 流式输出是否完成 */
+  content_finished?: boolean;
 }
 
 type ProgressEventListener = (event: WorkflowProgressEvent) => void;
