@@ -964,6 +964,9 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
             timestamp: progress.timestamp,
             // 🔥 转发工具调用详情（关键修复）
             tool_details: progress.tool_details,
+            // 🔥 转发流式内容字段（用于 Doc agent 的渐进式输出）
+            content_delta: progress.content_delta,
+            content_finished: progress.content_finished,
           });
         } catch (error) {
           console.error('[WorkflowIntentHandler] ❌ Error in workflow:progress handler:', error);

@@ -4,7 +4,7 @@
  * 实时显示工作流节点执行过程，带连线和详细参数信息
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
@@ -740,6 +740,83 @@ export function WorkflowInlineMonitor({
   const [isExpanded, setIsExpanded] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'dag'>('list'); // 🔥 添加视图模式状态
 
+  // 🔥 辅助方法：流式内容智能去重（通用算法，防止卡顿导致的重复）
+  const deduplicateStreamingContent = useCallback((delta: string, existingContent: string): string => {
+    if (!delta) return delta;
+
+    let result = delta;
+
+    // ========================================
+    // 策略1：移除字符串内的即时重复（如"基于基于基于"）
+    // ========================================
+    result = result.replace(/(.{2,}?)\1{2,}/g, '$1'); // 移除3次以上的重复
+    result = result.replace(/(.{2,}?)\1{3,}/g, '$1'); // 移除4次以上的重复
+
+    // ========================================
+    // 策略2：智能重叠检测 - 检查新增内容是否与现有内容末尾重复
+    // ========================================
+    if (existingContent && existingContent.length > 20) {
+      const maxOverlap = Math.min(100, result.length); // 最大检查100字符重叠
+
+      // 从大到小检查重叠（优先移除大的重叠）
+      for (let overlapSize = maxOverlap; overlapSize >= 10; overlapSize--) {
+        if (result.length < overlapSize) continue;
+
+        const newContentStart = result.slice(0, overlapSize);
+        const existingContentEnd = existingContent.slice(-overlapSize);
+
+        if (newContentStart === existingContentEnd) {
+          console.log(`[WorkflowInlineMonitor] 🔄 检测到 ${overlapSize} 字符重叠，已移除`);
+          result = result.slice(overlapSize);
+          break; // 只移除一次最大的重叠
+        }
+      }
+    }
+
+    // ========================================
+    // 策略3：通用重复模式检测（使用滑动窗口）
+    // ========================================
+    const detectRepetitivePattern = (text: string, minLength: number = 8): number => {
+      // 检测是否有重复的子串模式
+      for (let len = minLength; len <= 50; len++) {
+        for (let start = 0; start + len * 2 <= text.length; start++) {
+          const pattern = text.slice(start, start + len);
+          const nextPart = text.slice(start + len, start + len * 2);
+
+          if (pattern === nextPart) {
+            return len; // 返回重复模式的长度
+          }
+        }
+      }
+      return 0;
+    };
+
+    // 检测并移除重复模式
+    const patternLen = detectRepetitivePattern(result);
+    if (patternLen > 0) {
+      const pattern = result.slice(0, patternLen);
+      // 使用正则表达式移除所有重复实例
+      const regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '{2,}', 'g');
+      result = result.replace(regex, pattern);
+      console.log(`[WorkflowInlineMonitor] 🔄 检测到重复模式（长度${patternLen}），已移除`);
+    }
+
+    // ========================================
+    // 策略4：清理连续的重复标点和分隔符
+    // ========================================
+    result = result.replace(/([。，！？；：])\1{2,}/g, '$1'); // 标点重复
+    result = result.replace(/(-{3,}|={3,}|_{3,}|\*{3,})/g, '$1$1'); // 分隔线重复
+    result = result.replace(/(\n\s*)\1{2,}/g, '$1'); // 空行重复
+
+    // ========================================
+    // 策略5：清理多余空白
+    // ========================================
+    result = result.replace(/[ \t]{2,}/g, ' '); // 多个空格/制表符
+    result = result.replace(/\n{3,}/g, '\n\n'); // 3个以上换行
+
+    return result;
+  }, []);
+
   // 🔥 DEBUG: 监听 workflow 状态变化
   useEffect(() => {
     console.log('[WorkflowInlineMonitor] 🔄 Workflow state changed:', {
@@ -929,8 +1006,12 @@ export function WorkflowInlineMonitor({
             const contentDelta = payload.content_delta || '';
             const isFinished = payload.content_finished === true;
 
+            // 🔥 流式内容智能去重（防止卡顿导致的重复）
+            const existingContent = existingNode.streaming_content || '';
+            const deduplicatedDelta = deduplicateStreamingContent(contentDelta, existingContent);
+
             // 累积流式内容
-            const newContent = (existingNode.streaming_content || '') + contentDelta;
+            const newContent = existingContent + deduplicatedDelta;
 
             updatedNodes[existingNodeIndex] = {
               ...existingNode,
