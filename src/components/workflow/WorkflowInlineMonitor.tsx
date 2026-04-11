@@ -26,9 +26,15 @@ import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 function parseToolOutputSummary(toolName: string, output: string): string {
   const parts: string[] = [];
 
+  // 🔥 调试：输出原始数据
+  console.log('[parseToolOutputSummary] toolName:', toolName);
+  console.log('[parseToolOutputSummary] output:', output);
+  console.log('[parseToolOutputSummary] output length:', output?.length);
+
   // 🔥 首先尝试解析 JSON 格式（agent_read_file 等工具返回 JSON）
   try {
     const jsonData = JSON.parse(output);
+    console.log('[parseToolOutputSummary] parsed JSON:', jsonData);
 
     // 提取 line_count
     if (jsonData.line_count !== undefined) {
@@ -100,7 +106,14 @@ function parseToolOutputSummary(toolName: string, output: string): string {
  * 将工具调用格式化为简洁的一行显示
  */
 function formatToolCallClawStyle(tool: ToolCallDetails): { title: string; summary: string; icon: string } {
-  const { tool_name, tool_input, tool_output, is_error, execution_time_ms } = tool;
+  const { tool_name, tool_input, tool_output, output_length, is_error, execution_time_ms } = tool;
+
+  // 🔥 调试：输出完整的 tool 对象
+  console.log('[formatToolCallClawStyle] tool_name:', tool_name);
+  console.log('[formatToolCallClawStyle] tool_output:', tool_output);
+  console.log('[formatToolCallClawStyle] output_length:', output_length);
+  console.log('[formatToolCallClawStyle] execution_time_ms:', execution_time_ms);
+  console.log('[formatToolCallClawStyle] is_error:', is_error);
 
   // 默认图标
   let icon = is_error ? '❌' : '✅';
@@ -221,25 +234,43 @@ function formatToolCallClawStyle(tool: ToolCallDetails): { title: string; summar
     title = tool_name;
   }
 
-  // 解析工具输出摘要
-  summary = parseToolOutputSummary(tool_name, tool_output);
+  // 🔥 生成摘要信息
+  const summaryParts: string[] = [];
 
-  // 添加执行时间
+  // 1. 首先尝试从 tool_output 解析详细信息（如 JSON 格式的 line_count）
+  const parsedSummary = parseToolOutputSummary(tool_name, tool_output);
+  if (parsedSummary) {
+    summaryParts.push(parsedSummary);
+  } else if (output_length !== undefined && output_length > 0) {
+    // 2. 如果没有解析到详细信息，使用 output_length
+    // 对于 read_file 工具，可以计算行数
+    if (tool_name === 'read_file' || tool_name === 'agent_read_file') {
+      const lineCount = tool_output.split('\n').length;
+      summaryParts.push(`${lineCount} lines`);
+    } else {
+      // 对于其他工具，显示字符数
+      summaryParts.push(`${output_length} chars`);
+    }
+  }
+
+  // 3. 添加执行时间
   if (execution_time_ms !== undefined && execution_time_ms > 0) {
     const timeStr = execution_time_ms < 1000
       ? `${execution_time_ms}ms`
       : `${(execution_time_ms / 1000).toFixed(1)}s`;
-    if (summary) {
-      summary += `, ${timeStr}`;
-    } else {
-      summary = timeStr;
-    }
+    summaryParts.push(timeStr);
   }
+
+  summary = summaryParts.join(', ');
 
   // 格式化标题：ToolName(param1, param2)
   const titleWithParams = params.length > 0
     ? `${title}(${params.join(', ')})`
     : title;
+
+  // 🔥 调试：输出最终结果
+  console.log('[formatToolCallClawStyle] FINAL summary:', summary);
+  console.log('[formatToolCallClawStyle] FINAL title:', titleWithParams);
 
   return { title: titleWithParams, summary, icon };
 }

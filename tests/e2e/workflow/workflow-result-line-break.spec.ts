@@ -105,6 +105,20 @@ test.describe('📐 分行显示验证', () => {
 
       if (!toolCall) return { error: '工具调用元素未找到' };
 
+      // 🔥 修复：flex-col 在祖先元素上，不在状态指示器本身
+      // 需要向上查找父元素链
+      let parent = toolCall.parentElement;
+      let hasFlexCol = false;
+      let depth = 0;
+      while (parent && depth < 5) {
+        if (parent.classList.contains('flex-col')) {
+          hasFlexCol = true;
+          break;
+        }
+        parent = parent.parentElement;
+        depth++;
+      }
+
       // 获取直接子元素
       const children = Array.from(toolCall.children);
 
@@ -113,10 +127,6 @@ test.describe('📐 分行显示验证', () => {
         className: child.className,
         textContent: child.textContent?.trim().substring(0, 50)
       }));
-
-      // 验证是否有 flex-col 布局
-      const hasFlexCol = toolCall.classList.contains('flex-col') ||
-                        toolCall.querySelector('.flex-col') !== null;
 
       // 检查文本行数（排除 details 部分）
       const mainText = toolCall.textContent?.replace(/详情.*$/s, '') || '';
@@ -274,11 +284,25 @@ test.describe('📐 分行显示验证', () => {
       // 查找所有工具调用
       const toolCalls = Array.from(monitor.querySelectorAll('.text-green-400'));
 
+      // 🔥 修复：向上查找祖先元素中的 flex-col
+      const checkFlexCol = (element: Element) => {
+        let parent = element.parentElement;
+        let depth = 0;
+        while (parent && depth < 5) {
+          if (parent.classList.contains('flex-col')) {
+            return true;
+          }
+          parent = parent.parentElement;
+          depth++;
+        }
+        return false;
+      };
+
       return {
         toolCallCount: toolCalls.length,
         details: toolCalls.map(tc => ({
           text: tc.textContent?.trim().substring(0, 100),
-          hasFlexCol: tc.querySelector('.flex-col') !== null
+          hasFlexCol: checkFlexCol(tc)
         }))
       };
     });
