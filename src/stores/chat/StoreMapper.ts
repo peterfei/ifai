@@ -486,6 +486,56 @@ export const initStoreMapper = () => {
         return result;
       };
       useChatStore.setState(updater as any);
+
+      // 🔥 CRITICAL FIX: 立即持久化所有消息到 IndexedDB
+      // 这确保所有消息（包括普通聊天消息）都会被保存，而不仅仅是工作流消息
+      setTimeout(() => {
+        const state = useChatStore.getState();
+        let currentThreadId = state.currentThreadId;
+
+        // 🔥 FIX: 获取 threadStore 中的 activeThreadId
+        // 因为 currentThreadId 可能不准确，应该使用 activeThreadId
+        import('../threadStore').then(({ useThreadStore }) => {
+          const threadState = useThreadStore.getState();
+          let activeThreadId = threadState.activeThreadId;
+
+          // 🔥 CRITICAL FIX: 如果 activeThreadId 不存在，使用 currentThreadId
+          // 并且更新 threadStore 的 activeThreadId
+          if (!activeThreadId && currentThreadId) {
+            console.warn('[StoreMapper] ⚠️ activeThreadId is null, setting it to currentThreadId:', currentThreadId);
+            threadState.setActiveThread(currentThreadId);
+            activeThreadId = currentThreadId;
+          }
+
+          // 如果 activeThreadId 存在且不是 currentThreadId，使用 activeThreadId
+          if (activeThreadId && activeThreadId !== currentThreadId) {
+            console.warn('[StoreMapper] ⚠️ currentThreadId != activeThreadId, using activeThreadId:', {
+              currentThreadId,
+              activeThreadId
+            });
+            currentThreadId = activeThreadId;
+
+            // 🔥 CRITICAL: 立即更新 currentThreadId
+            useChatStore.setState({ currentThreadId: activeThreadId } as any);
+          }
+
+          if (currentThreadId) {
+            const messages = state.messages;
+            console.log('[StoreMapper] 💾 Auto-persisting', messages.length, 'messages after chat:message:sent for thread:', currentThreadId);
+
+            // 持久化到 IndexedDB
+            import('../persistence/threadPersistence').then(({ threadPersistence }) => {
+              threadPersistence.saveThreadMessages(currentThreadId, messages as any).then(() => {
+                console.log('[StoreMapper] ✅ Messages auto-saved to IndexedDB after chat:message:sent');
+              }).catch(err => {
+                console.error('[StoreMapper] ❌ Failed to auto-save messages:', err);
+              });
+            });
+          } else {
+            console.warn('[StoreMapper] ⚠️ No threadId available, skipping persistence');
+          }
+        });
+      }, 100);
     });
 
     // P4: 映射工作流响应
@@ -561,6 +611,46 @@ export const initStoreMapper = () => {
           }
         };
 
+        // 🔥 CRITICAL FIX: 检查是否有已缓存的工作流完成结果
+        // 解决 workflow:completed 早于 workflow:response 的问题
+        const cachedCompletion = workflowCompletionCache.get(workflowId);
+        if (cachedCompletion) {
+          console.log('[StoreMapper] 📦 Found cached completion result, applying immediately:', workflowId);
+
+          // 应用缓存的完成结果
+          const existingContent = response || '';
+          const hasCompletionMarker = existingContent.includes('## ✅ 工作流执行完成');
+
+          if (!hasCompletionMarker) {
+            const finalContent = `${existingContent}\n\n${cachedCompletion.responseContent}`;
+
+            newMessages[assistantIndex] = {
+              ...newMessages[assistantIndex],
+              content: finalContent,
+              segments: [
+                ...(newMessages[assistantIndex].segments || []),
+                {
+                  id: `seg-workflow-completed-${workflowId}`,
+                  type: 'text' as const,
+                  phase: 'pre-tool' as const,
+                  content: cachedCompletion.responseContent,
+                  order: (newMessages[assistantIndex].segments?.length || 0) + 1,
+                  timestamp: Date.now(),
+                }
+              ],
+              metadata: {
+                ...newMessages[assistantIndex].metadata,
+                completed: true,
+                completedAt: cachedCompletion.completed_at,
+              }
+            };
+          }
+
+          // 清除缓存
+          workflowCompletionCache.delete(workflowId);
+          console.log('[StoreMapper] 🗑️ Cleared workflow completion cache for:', workflowId);
+        }
+
         console.log('[StoreMapper] ✅ Updated assistant message with workflow response');
 
         return {
@@ -570,6 +660,72 @@ export const initStoreMapper = () => {
       };
 
       useChatStore.setState(updater as any);
+
+      // 🔥 CRITICAL FIX: 立即触发持久化保存，确保 workflow:response 的内容不会因为用户快速刷新而丢失
+      // 问题：消息被保存到 IndexedDB，但是刷新后不会自动恢复到 useChatStore
+      // 解决：同时保存到两个地方
+      // 1. IndexedDB（通过 saveThreadMessages）- 用于跨线程持久化
+      // 2. 触发 zustand persist 的立即保存 - 用于刷新后恢复
+      import('../persistence/threadPersistence').then(({ threadPersistence }) => {
+        const state = useChatStore.getState();
+        let currentThreadId = state.currentThreadId;
+
+        // 🔥 FIX: 获取 threadStore 中的 activeThreadId
+        // 因为 currentThreadId 可能不准确，应该使用 activeThreadId
+        import('@/stores/threadStore').then(({ useThreadStore }) => {
+          const threadState = useThreadStore.getState();
+          const activeThreadId = threadState.activeThreadId;
+
+          // 如果 activeThreadId 存在且不是 currentThreadId，使用 activeThreadId
+          if (activeThreadId && activeThreadId !== currentThreadId) {
+            console.warn('[StoreMapper] ⚠️ currentThreadId != activeThreadId, using activeThreadId:', {
+              currentThreadId,
+              activeThreadId
+            });
+            currentThreadId = activeThreadId;
+
+            // 🔥 CRITICAL: 立即更新 currentThreadId，确保后续操作使用正确的 threadId
+            useChatStore.setState({ currentThreadId: activeThreadId } as any);
+          }
+
+          // 🔥 FIX: 如果 currentThreadId 是 undefined 或无效，使用 activeThreadId
+          if (!currentThreadId || currentThreadId === 'undefined' || currentThreadId === 'default-thread') {
+            if (activeThreadId) {
+              console.warn('[StoreMapper] ⚠️ currentThreadId is invalid, using activeThreadId:', activeThreadId);
+              currentThreadId = activeThreadId;
+
+              // 🔥 CRITICAL: 立即更新 currentThreadId
+              useChatStore.setState({ currentThreadId: activeThreadId } as any);
+            } else {
+              console.warn('[StoreMapper] ⚠️ No activeThreadId, will create new thread if needed');
+            }
+          }
+
+          const messages = state.messages;
+          console.log('[StoreMapper] 💾 Triggering IMMEDIATE persistence after workflow response for thread:', currentThreadId);
+
+          // 1. 保存到 IndexedDB
+          threadPersistence.saveThreadMessages(currentThreadId, messages as any).then(() => {
+            console.log('[StoreMapper] ✅ Messages saved to IndexedDB after workflow response');
+          }).catch(err => {
+            console.error('[StoreMapper] ❌ Failed to save messages to IndexedDB:', err);
+          });
+
+          // 2. 🔥 CRITICAL: 触发 zustand persist 的立即保存
+          // zustand 的 persist 中间件会监听 state 变化并自动保存，但保存是异步的
+          // 我们需要确保状态变化被 persist 捕获
+          // 通过再次 setState 一个新对象，确保 persist 触发保存
+          const currentState = useChatStore.getState();
+          useChatStore.setState({
+            ...currentState,
+            _persistTrigger: Date.now() // 添加一个变化字段，确保 persist 捕获到更新
+          } as any);
+
+          console.log('[StoreMapper] ✅ Triggered zustand persist update after workflow response');
+        });
+      }).catch(err => {
+        console.error('[StoreMapper] ❌ Failed to trigger persistence after workflow response:', err);
+      });
     });
 
     // P3.5: 映射工作流实时进度（流式显示进度）
@@ -651,6 +807,14 @@ export const initStoreMapper = () => {
       useChatStore.setState(updater as any);
     });
 
+    // 🔥 工作流完成结果缓存（解决 workflow:completed 早于消息创建的问题）
+    const workflowCompletionCache = new Map<string, {
+      responseContent: string;
+      completed_at: number;
+      status: string;
+      node_results: any;
+    }>();
+
     // P4: 映射工作流执行完成（显示实际执行结果）
     chatEventBus.on('workflow:completed', (payload) => {
       const { workflow_id, status, node_results, started_at, completed_at } = payload as any;
@@ -714,6 +878,16 @@ export const initStoreMapper = () => {
         }
       }
 
+      // 🔥 CRITICAL FIX: 在更新 state 之前，先将结果缓存起来
+      // 这样即使 state 为 null 或消息不存在，结果也不会丢失
+      console.log('[StoreMapper] 💾 Caching workflow completion result before state update:', workflow_id);
+      workflowCompletionCache.set(workflow_id, {
+        responseContent,
+        completed_at,
+        status,
+        node_results
+      });
+
       // 查找并更新对应的工作流消息
       // 我们需要通过 workflow_id 找到相关消息
       const updater = (state: any) => {
@@ -735,10 +909,30 @@ export const initStoreMapper = () => {
         );
 
         if (assistantIndex === -1) {
-          // 如果找不到消息，记录警告但不创建新消息（因为应该已经有 workflow:response 创建的消息）
+          // 🔥 DEBUG: 打印所有消息来帮助调试
           console.warn('[StoreMapper] ⚠️ Workflow message not found for completion:', workflow_id);
-          return null;
+          console.warn('[StoreMapper] 🔍 Current messages:', state.messages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            hasWorkflowId: !!m.metadata?.workflowId,
+            workflowId: m.metadata?.workflowId,
+            contentPreview: m.content?.substring(0, 50)
+          })));
+
+          // 🔥 CRITICAL FIX: 如果消息还未创建，将结果缓存起来
+          // 后续在 workflow:response 中会检查并应用这个缓存
+          console.log('[StoreMapper] 💾 Caching workflow completion result for later use:', workflow_id);
+          workflowCompletionCache.set(workflow_id, {
+            responseContent,
+            completed_at,
+            status,
+            node_results
+          });
+
+          return null; // 不更新状态，保持当前状态
         }
+
+        console.log('[StoreMapper] ✅ Found workflow message at index:', assistantIndex);
 
         // 更新现有消息
         const newMessages = [...state.messages];
@@ -782,7 +976,6 @@ export const initStoreMapper = () => {
         };
 
         console.log('[StoreMapper] ✅ Updated message with workflow completion results', {
-          hasCustomContent,
           contentPreview: existingMessage.content?.substring(0, 50)
         });
 
@@ -795,6 +988,72 @@ export const initStoreMapper = () => {
       const updateResult = useChatStore.setState(updater as any);
       if (updateResult === null) {
         console.warn('[StoreMapper] ⚠️ No update applied for workflow completion');
+      } else {
+        // 🔥 CRITICAL FIX: 立即触发持久化保存，确保工作流完成结果不会因为用户快速刷新而丢失
+        // 问题：消息被保存到 IndexedDB，但是刷新后不会自动恢复到 useChatStore
+        // 解决：同时保存到两个地方
+        // 1. IndexedDB（通过 saveThreadMessages）- 用于跨线程持久化
+        // 2. 触发 zustand persist 的立即保存 - 用于刷新后恢复
+        import('../persistence/threadPersistence').then(({ threadPersistence }) => {
+          const state = useChatStore.getState();
+          let currentThreadId = state.currentThreadId;
+
+          // 🔥 FIX: 获取 threadStore 中的 activeThreadId
+          // 因为 currentThreadId 可能不准确，应该使用 activeThreadId
+          import('@/stores/threadStore').then(({ useThreadStore }) => {
+            const threadState = useThreadStore.getState();
+            const activeThreadId = threadState.activeThreadId;
+
+            // 如果 activeThreadId 存在且不是 currentThreadId，使用 activeThreadId
+            if (activeThreadId && activeThreadId !== currentThreadId) {
+              console.warn('[StoreMapper] ⚠️ currentThreadId != activeThreadId, using activeThreadId:', {
+                currentThreadId,
+                activeThreadId
+              });
+              currentThreadId = activeThreadId;
+
+              // 🔥 CRITICAL: 立即更新 currentThreadId，确保后续操作使用正确的 threadId
+              useChatStore.setState({ currentThreadId: activeThreadId } as any);
+            }
+
+            // 🔥 FIX: 如果 currentThreadId 是 undefined 或无效，使用 activeThreadId
+            if (!currentThreadId || currentThreadId === 'undefined' || currentThreadId === 'default-thread') {
+              if (activeThreadId) {
+                console.warn('[StoreMapper] ⚠️ currentThreadId is invalid, using activeThreadId:', activeThreadId);
+                currentThreadId = activeThreadId;
+
+                // 🔥 CRITICAL: 立即更新 currentThreadId
+                useChatStore.setState({ currentThreadId: activeThreadId } as any);
+              } else {
+                console.warn('[StoreMapper] ⚠️ No activeThreadId, will create new thread if needed');
+              }
+            }
+
+            const messages = state.messages;
+            console.log('[StoreMapper] 💾 Triggering IMMEDIATE persistence after workflow completion for thread:', currentThreadId);
+
+            // 1. 保存到 IndexedDB
+            threadPersistence.saveThreadMessages(currentThreadId, messages as any).then(() => {
+              console.log('[StoreMapper] ✅ Messages saved to IndexedDB after workflow completion');
+            }).catch(err => {
+              console.error('[StoreMapper] ❌ Failed to save messages to IndexedDB:', err);
+            });
+
+            // 2. 🔥 CRITICAL: 触发 zustand persist 的立即保存
+            // zustand 的 persist 中间件会监听 state 变化并自动保存，但保存是异步的
+            // 我们需要确保状态变化被 persist 捕获
+            // 通过再次 setState 一个新对象，确保 persist 触发保存
+            const currentState = useChatStore.getState();
+            useChatStore.setState({
+              ...currentState,
+              _persistTrigger: Date.now() // 添加一个变化字段，确保 persist 捕获到更新
+            } as any);
+
+            console.log('[StoreMapper] ✅ Triggered zustand persist update after workflow completion');
+          });
+        }).catch(err => {
+          console.error('[StoreMapper] ❌ Failed to trigger persistence after workflow completion:', err);
+        });
       }
     });
 

@@ -485,6 +485,58 @@ export async function setupE2ETestEnvironment(
       localStorage.setItem('onboarding_done', 'true');
     }
 
+    // 🔥 FIX: 设置 AI Provider 配置到 localStorage
+    // 这样即使没有真实的 API key，聊天输入框也能正常显示
+    console.log('[E2E Setup] 🔍 Provider 配置检查:', {
+      useRealAI: params.useRealAI,
+      hasApiKey: !!params.realAIApiKey,
+      apiKeyPrefix: params.realAIApiKey?.substring(0, 10) + '...',
+      baseUrl: params.realAIBaseUrl,
+      model: params.realAIModel
+    });
+
+    if (params.useRealAI && params.realAIApiKey) {
+      console.log('[E2E Setup] 🔑 设置真实 AI Provider 配置');
+      localStorage.setItem('ai_providers', JSON.stringify([
+        {
+          id: 'real-ai-e2e',
+          name: 'Real AI E2E',
+          baseUrl: params.realAIBaseUrl || 'https://api.deepseek.com',
+          apiKey: params.realAIApiKey,
+          enabled: true,
+          isCustom: false,
+          models: [
+            { id: params.realAIModel || 'deepseek-chat', name: params.realAIModel || 'deepseek-chat' }
+          ]
+        }
+      ]));
+      localStorage.setItem('currentProviderId', 'real-ai-e2e');
+      localStorage.setItem('currentModel', params.realAIModel || 'deepseek-chat');
+      console.log('[E2E Setup] ✅ Provider 配置已设置到 localStorage');
+    } else if (params.useRealAI) {
+      // 🔥 FALLBACK: 如果启用了真实 AI 但没有 API key，使用 mock 配置
+      // 这样聊天输入框可以正常显示，但实际调用会失败
+      console.log('[E2E Setup] ⚠️ 真实 AI 模式但无 API key，使用 mock 配置');
+      localStorage.setItem('ai_providers', JSON.stringify([
+        {
+          id: 'mock-provider',
+          name: 'Mock Provider',
+          baseUrl: 'http://localhost:3333',
+          apiKey: 'mock-key-for-e2e',
+          enabled: true,
+          isCustom: true,
+          models: [
+            { id: 'mock-model', name: 'Mock Model' }
+          ]
+        }
+      ]));
+      localStorage.setItem('currentProviderId', 'mock-provider');
+      localStorage.setItem('currentModel', 'mock-model');
+      console.log('[E2E Setup] ✅ Mock Provider 配置已设置到 localStorage');
+    } else {
+      console.log('[E2E Setup] ℹ️ 非 Real AI 模式，跳过 Provider 配置');
+    }
+
     setupE2EHelpers();
     document.addEventListener('DOMContentLoaded', setupE2EHelpers);
   }, realAIConfigParam);
@@ -496,6 +548,61 @@ export async function setupE2ETestEnvironment(
   await page.waitForFunction(() => {
     return window.__chatStore && window.__settingsStore && window.__fileStore && window.__agentStore;
   }, { timeout: 30000 });
+
+  // 🔥 FIX: 如果使用真实 AI，直接在 settingsStore 中设置 provider 配置
+  // 这比修改 localStorage/IndexedDB 更可靠
+  if (useRealAI && realAIApiKey) {
+    console.log('[E2E] 🔑 设置真实 AI Provider 到 settingsStore');
+    await page.evaluate((params) => {
+      const settingsStore = (window as any).__settingsStore;
+      if (!settingsStore) {
+        console.error('[E2E] ❌ settingsStore 未初始化');
+        return;
+      }
+
+      // 添加或更新 provider 配置
+      const newProvider = {
+        id: 'real-ai-e2e',
+        name: 'Real AI E2E',
+        protocol: 'openai' as const,
+        baseUrl: params.realAIBaseUrl || 'https://api.deepseek.com',
+        apiKey: params.realAIApiKey,
+        models: [params.realAIModel || 'deepseek-chat'],
+        enabled: true,
+        isCustom: false,
+      };
+
+      // 获取当前 providers
+      const currentState = settingsStore.getState();
+      const existingProviders = currentState.providers || [];
+
+      // 查找是否已存在同名 provider
+      const existingIndex = existingProviders.findIndex((p: any) => p.id === 'real-ai-e2e');
+
+      let newProviders;
+      if (existingIndex >= 0) {
+        // 更新现有 provider
+        newProviders = [...existingProviders];
+        newProviders[existingIndex] = newProvider;
+      } else {
+        // 添加新 provider
+        newProviders = [...existingProviders, newProvider];
+      }
+
+      // 更新 settingsStore
+      settingsStore.setState({
+        providers: newProviders,
+        currentProviderId: 'real-ai-e2e',
+        currentModel: params.realAIModel || 'deepseek-chat',
+      });
+
+      console.log('[E2E] ✅ Provider 配置已设置到 settingsStore:', {
+        providerCount: newProviders.length,
+        currentProviderId: 'real-ai-e2e',
+        currentModel: params.realAIModel || 'deepseek-chat',
+      });
+    }, { realAIApiKey, realAIBaseUrl, realAIModel });
+  }
 
   // 3.1 等待重构架构核心对象初始化完成（EventBus、ToolCallManager、APP_READY）
   // 🏆 修复：使用更灵活的等待条件，兼容新旧架构

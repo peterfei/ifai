@@ -192,40 +192,98 @@ function App() {
       // Defer initialization to ensure DOM and Vite preamble are settled
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Initialize sync
-      const { initializeSync } = await import('./utils/sync');
-      cleanup = await initializeSync();
+      console.log('[App] 🚀 Initializing app...');
 
-      // Initialize thread persistence (restore from IndexedDB)
+      // 🔥 CRITICAL FIX: 优先恢复 thread，不管其他初始化是否成功
       try {
+        console.log('[App] 📦 About to initialize thread persistence...');
         const { initThreadPersistence } = await import('./stores/persistence/threadPersistence');
         await initThreadPersistence();
         console.log('[App] ✅ Thread persistence initialized');
 
-        // 🔥 Refactor Phase 2: Initialize the new Transactional Persistence Manager
+        // 🔥 CRITICAL FIX: 恢复上次活跃的 thread
+        // 修复刷新后消息丢失的问题
+        const threadState = useThreadStore.getState();
+        const activeThreadId = threadState.activeThreadId;
+
+        console.log('[App] 🔍 Checking activeThreadId:', activeThreadId);
+
+        if (activeThreadId) {
+          console.log('[App] 🔄 Restoring active thread:', activeThreadId);
+
+          // 调用 switchThread 来恢复消息
+          const { switchThread: loadThread } = await import('./stores/useChatStore');
+          await loadThread(activeThreadId);
+
+          console.log('[App] ✅ Thread restored with messages');
+        } else {
+          console.log('[App] ℹ️ No active thread found, will create new one on first message');
+
+          // 🔥 FIX: 确保 currentThreadId 有值
+          const chatStore = useChatStore.getState();
+          if (!chatStore.currentThreadId) {
+            // 如果没有活跃 thread，创建一个默认的
+            const { createThread } = threadState;
+            const newThreadId = createThread();
+            console.log('[App] ✅ Created default thread:', newThreadId);
+
+            // 设置为当前 thread
+            useChatStore.setState({ currentThreadId: newThreadId });
+          }
+        }
+      } catch (error) {
+        console.error('[App] ❌ Thread restoration failed:', error);
+      }
+
+      // Initialize sync
+      try {
+        const { initializeSync } = await import('./utils/sync');
+        cleanup = await initializeSync();
+      } catch (error) {
+        console.error('[App] ❌ Sync initialization failed:', error);
+      }
+
+      // 🔥 Refactor Phase 2: Initialize the new Transactional Persistence Manager
+      try {
         const { persistenceManager } = await import('./stores/chat/persistence/PersistenceManager');
         (window as any).__persistenceManager = persistenceManager; // 显式暴露用于调试
         console.log('[App] 🧠 Transactional Persistence Manager ready');
+      } catch (error) {
+        console.error('[App] ❌ Persistence Manager initialization failed:', error);
+      }
 
-        // 🔥 Refactor Phase 3: Expose Orchestrator for E2E validation
+      // 🔥 Refactor Phase 3: Expose Orchestrator for E2E validation
+      try {
         const { sendMessageOrchestrator } = await import('./stores/chat/sendMessage/SendMessageOrchestrator');
         (window as any).__sendMessageOrchestrator = sendMessageOrchestrator;
         const { chatEventBus } = await import('./stores/chat/eventBus/ChatEventBus');
         (window as any).__chatEventBus = chatEventBus;
+      } catch (error) {
+        console.error('[App] ❌ Orchestrator initialization failed:', error);
+      }
 
-        // 🔥 Refactor Phase 4: Expose Stream Controller for E2E validation
+      // 🔥 Refactor Phase 4: Expose Stream Controller for E2E validation
+      try {
         const { streamingResponseController } = await import('./stores/chat/generateResponse/StreamingResponseController');
         (window as any).__streamingResponseController = streamingResponseController;
+      } catch (error) {
+        console.error('[App] ❌ Stream Controller initialization failed:', error);
+      }
 
-        // 🏆 FIX: StoreMapper 已在 useChatStore.ts 中初始化，避免重复初始化
-        (window as any).__storeMapper = { init: true };
+      // 🏆 FIX: StoreMapper 已在 useChatStore.ts 中初始化，避免重复初始化
+      (window as any).__storeMapper = { init: true };
 
-        // 🔥 Refactor Phase 4.2: Initialize ToolCallManager
-        // 它监听 EventBus 上的工具信号并管理其全生命周期
+      // 🔥 Refactor Phase 4.2: Initialize ToolCallManager
+      // 它监听 EventBus 上的工具信号并管理其全生命周期
+      try {
         const { toolCallManager } = await import('./stores/chat/generateResponse/ToolCallManager');
-        (window as any).__toolCallManager = toolCallManager; 
-        
-        // 桥接 Tauri 信号，用于 TDD 仿真
+        (window as any).__toolCallManager = toolCallManager;
+      } catch (error) {
+        console.error('[App] ❌ ToolCallManager initialization failed:', error);
+      }
+
+      // 桥接 Tauri 信号，用于 TDD 仿真
+      try {
         if ((window as any).VITE_TEST_ENV === 'e2e') {
           // 🔥 FIX: 确保 Tauri bridge 已初始化
           await ensureTauriInitialized();
@@ -233,10 +291,10 @@ function App() {
           const { emit } = await import('@tauri-apps/api/event');
           (window as any).__TAURI_EMIT__ = emit;
         }
-        
+
         console.log('[App] 🚀 Orchestrator, EventBus & StreamController exposed');
       } catch (error) {
-        console.error('[App] ❌ Failed to initialize thread persistence:', error);
+        console.error('[App] ❌ Tauri bridge initialization failed:', error);
       }
 
       // Initialize project config language watcher

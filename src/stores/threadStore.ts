@@ -416,8 +416,8 @@ export const useThreadStore = create<ThreadStore>()(
       onRehydrateStorage: () => (state, error) => {
         if (error) console.error('[ThreadStore] ❌ Hydration error:', error);
         if (state) {
+          console.log('[ThreadStore] ✅ Hydration complete, activeThreadId:', state.activeThreadId);
           state.syncState({ isHydrating: false });
-          console.log('[ThreadStore] ✅ Hydration complete');
         } else {
           setTimeout(() => {
             useThreadStore.setState({ isHydrating: false });

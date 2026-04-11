@@ -400,4 +400,216 @@ ${i === 1 ? '建议优化模块 A' : i === 2 ? '建议重构模块 B' : '建议�
 
     console.log('✅ [Test] 多个工作流刷新后内容保留测试通过！');
   });
+
+  test('✅ 验证包含 workflow:completed 的完整场景刷新后保留', async ({ page }) => {
+    await setupE2ETestEnvironment(page, {
+      skipWelcome: true,
+      useRealAI: false
+    });
+
+    await page.goto('/');
+    await page.waitForTimeout(2000);
+
+    // 设置必要的 store
+    await page.evaluate(() => {
+      localStorage.setItem('tour_completed', 'true');
+      localStorage.setItem('onboarding_done', 'true');
+      (window as any).__E2E__ = true;
+    });
+
+    // 打开聊天面板
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      if (layoutStore) {
+        layoutStore.setState({ isChatOpen: true });
+      }
+    });
+
+    await page.waitForTimeout(2000);
+
+    // 🔥 测试场景：完整的工作流生命周期（包括 workflow:completed）
+    const workflowId = 'workflow-completed-test-' + Date.now();
+    const userMessageId = 'user-completed-' + Date.now();
+    const assistantMessageId = 'assistant-completed-' + Date.now();
+
+    console.log('📝 [Test] 步骤 1: 创建消息和发送 workflow:response');
+
+    // 1. 创建用户和助手消息
+    await page.evaluate(({ uid, aid, wid }) => {
+      const chatStore = (window as any).__chatStore;
+      if (!chatStore) {
+        console.error('[Test] ❌ chatStore not found');
+        return;
+      }
+
+      // 用户消息
+      chatStore.getState().addMessage({
+        id: uid,
+        role: 'user' as const,
+        content: '/explore',
+        timestamp: Date.now()
+      });
+
+      // 助手消息
+      chatStore.getState().addMessage({
+        id: aid,
+        role: 'assistant' as const,
+        content: '🚀 正在启动 **代码探索** 工作流',
+        timestamp: Date.now(),
+        status: 'streaming' as const,
+        metadata: {
+          workflowId: wid,
+          workflowType: 'explore'
+        }
+      });
+    }, { uid: userMessageId, aid: assistantMessageId, wid: workflowId });
+
+    await page.waitForTimeout(300);
+
+    // 2. 发送 workflow:response 事件
+    const llmSummary = `## 📊 代码探索总结
+
+### 🔍 关键发现
+- **主入口**: src/App.tsx
+- **状态管理**: Zustand stores
+- **工作流系统**: Multi-agent workflow
+
+### 💡 技术栈
+- React + TypeScript
+- Vite
+- Tauri`;
+
+    await page.evaluate(({ aid, wid, summary }) => {
+      const chatEventBus = (window as any).__chatEventBus;
+      if (chatEventBus) {
+        chatEventBus.emit('workflow:response', {
+          correlationId: aid,
+          workflowId: wid,
+          workflowType: 'explore',
+          response: summary,
+          timestamp: Date.now()
+        });
+        console.log('[Test] ✅ workflow:response 事件已发送');
+      }
+    }, { aid: assistantMessageId, wid: workflowId, summary: llmSummary });
+
+    await page.waitForTimeout(300);
+
+    console.log('📝 [Test] 步骤 2: 发送 workflow:completed 事件');
+
+    // 3. 发送 workflow:completed 事件（添加工作流执行完成信息）
+    const completionContent = `## ✅ 工作流执行完成
+
+工作流 ID: ${workflowId}
+状态: completed
+执行时长: 2.50 秒
+
+### 📊 节点执行结果
+- **Read**: src/App.tsx - 150 lines, 25ms
+- **Search**: "workflow" - 12 files found, 150ms
+- **Agent**: 代码探索代理 - 完成`;
+
+    await page.evaluate(({ wid, completion }) => {
+      const chatEventBus = (window as any).__chatEventBus;
+      if (chatEventBus) {
+        chatEventBus.emit('workflow:completed', {
+          workflow_id: wid,
+          status: 'completed',
+          response_content: completion,
+          completed_at: Date.now(),
+          node_results: [
+            { node_id: 'node-1', node_type: 'Read', result: '150 lines' },
+            { node_id: 'node-2', node_type: 'Search', result: '12 files' }
+          ],
+          timestamp: Date.now()
+        });
+        console.log('[Test] ✅ workflow:completed 事件已发送');
+      }
+    }, { wid: workflowId, completion: completionContent });
+
+    await page.waitForTimeout(500);
+
+    console.log('📝 [Test] 步骤 3: 验证刷新前的完整内容');
+
+    // 4. 验证刷新前的内容（应该包含 LLM 总结 + 工作流完成信息）
+    const contentBeforeRefresh = await page.evaluate(({ aid, wid }) => {
+      const chatStore = (window as any).__chatStore;
+      const messages = chatStore?.getState()?.messages || [];
+      const assistantMessage = messages.find((m: any) => m.id === aid);
+
+      return {
+        hasMessage: !!assistantMessage,
+        content: assistantMessage?.content || '',
+        contentLength: assistantMessage?.content?.length || 0,
+        hasLLMSummary: assistantMessage?.content?.includes('代码探索总结'),
+        hasWorkflowCompleted: assistantMessage?.content?.includes('## ✅ 工作流执行完成'),
+        hasWorkflowId: assistantMessage?.content?.includes(wid),
+        hasNodeResults: assistantMessage?.content?.includes('节点执行结果'),
+        hasReadNode: assistantMessage?.content?.includes('**Read**'),
+        metadata: assistantMessage?.metadata || {}
+      };
+    }, { aid: assistantMessageId, wid: workflowId });
+
+    console.log('📊 [Test] 刷新前内容分析:', contentBeforeRefresh);
+
+    // ✅ 断言：验证刷新前的完整内容
+    expect(contentBeforeRefresh.hasMessage).toBe(true);
+    expect(contentBeforeRefresh.hasLLMSummary).toBe(true, '应该包含 LLM 总结');
+    expect(contentBeforeRefresh.hasWorkflowCompleted).toBe(true, '应该包含工作流完成信息');
+    expect(contentBeforeRefresh.hasWorkflowId).toBe(true, '应该包含工作流 ID');
+    expect(contentBeforeRefresh.hasNodeResults).toBe(true, '应该包含节点执行结果');
+    // 注意：节点结果的格式可能不是 "**Read**"，而是 "#### ⏳ **0**" 这样的格式
+
+    console.log('📝 [Test] 步骤 4: 刷新页面');
+
+    // 5. 刷新页面
+    await page.reload();
+    await page.waitForTimeout(3000);
+
+    // 重新打开聊天面板
+    await page.evaluate(() => {
+      const layoutStore = (window as any).__layoutStore;
+      if (layoutStore) {
+        layoutStore.setState({ isChatOpen: true });
+      }
+    });
+
+    await page.waitForTimeout(2000);
+
+    console.log('📝 [Test] 步骤 5: 验证刷新后的完整内容');
+
+    // 6. 验证刷新后的内容
+    const contentAfterRefresh = await page.evaluate(({ aid, wid }) => {
+      const chatStore = (window as any).__chatStore;
+      const messages = chatStore?.getState()?.messages || [];
+      const assistantMessage = messages.find((m: any) => m.id === aid);
+
+      return {
+        hasMessage: !!assistantMessage,
+        content: assistantMessage?.content || '',
+        contentLength: assistantMessage?.content?.length || 0,
+        hasLLMSummary: assistantMessage?.content?.includes('代码探索总结'),
+        hasWorkflowCompleted: assistantMessage?.content?.includes('## ✅ 工作流执行完成'),
+        hasWorkflowId: assistantMessage?.content?.includes(wid),
+        hasNodeResults: assistantMessage?.content?.includes('节点执行结果'),
+        hasReadNode: assistantMessage?.content?.includes('**Read**'),
+        metadata: assistantMessage?.metadata || {}
+      };
+    }, { aid: assistantMessageId, wid: workflowId });
+
+    console.log('📊 [Test] 刷新后内容分析:', contentAfterRefresh);
+
+    // ✅ 断言：验证刷新后的完整内容
+    expect(contentAfterRefresh.hasMessage).toBe(true, '消息应该存在');
+    expect(contentAfterRefresh.hasLLMSummary).toBe(true, '应该包含 LLM 总结');
+    expect(contentAfterRefresh.hasWorkflowCompleted).toBe(true, '应该包含工作流完成信息');
+    expect(contentAfterRefresh.hasWorkflowId).toBe(true, '应该包含工作流 ID');
+    expect(contentAfterRefresh.hasNodeResults).toBe(true, '应该包含节点执行结果');
+    // 注意：节点结果的格式可能不是 "**Read**"，而是 "#### ⏳ **0**" 这样的格式
+
+    // ✅ 断言：验证刷新前后内容一致
+    expect(contentAfterRefresh.content).toBe(contentBeforeRefresh.content, '刷新前后内容应该一致');
+
+    console.log('✅ [Test] 包含 workflow:completed 的完整场景刷新后持久化测试通过！');
+  });
 });
