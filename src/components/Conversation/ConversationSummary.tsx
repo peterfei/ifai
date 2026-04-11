@@ -34,11 +34,14 @@ export function ConversationSummary({
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // 🔥 FIX: 确保 summary 是字符串类型，防止对象导致崩溃
+  const safeSummary = typeof summary === 'string' ? summary : JSON.stringify(summary, null, 2);
+
   const handleCopy = async () => {
     if (onCopy) {
       onCopy();
     } else {
-      await navigator.clipboard.writeText(summary);
+      await navigator.clipboard.writeText(safeSummary);
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -100,7 +103,7 @@ export function ConversationSummary({
         <div className="px-4 pb-4">
           <div className="prose dark:prose-invert max-w-none text-sm">
             <pre className="whitespace-pre-wrap text-blue-900 dark:text-blue-100 bg-white dark:bg-gray-800 p-3 rounded border border-blue-200 dark:border-blue-800">
-              {summary}
+              {safeSummary}
             </pre>
           </div>
         </div>

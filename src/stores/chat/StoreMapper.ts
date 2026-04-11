@@ -538,11 +538,14 @@ export const initStoreMapper = () => {
 
         // 更新现有的助手消息
         const newMessages = [...state.messages];
+        const originalTimestamp = newMessages[assistantIndex].timestamp;
+
         newMessages[assistantIndex] = {
           ...newMessages[assistantIndex],
           content: response,
           status: 'completed',
-          timestamp: Date.now(),
+          // 🔥 FIX: 保留原始时间戳，避免消息乱序
+          timestamp: originalTimestamp || Date.now(),
           segments: [{
             id: `seg-workflow-${workflowId}`,
             type: 'text' as const,
@@ -741,29 +744,36 @@ export const initStoreMapper = () => {
         const newMessages = [...state.messages];
         const existingMessage = newMessages[assistantIndex];
 
-        // 🔥 FIX: 如果消息已有自定义内容（来自 workflow:response），不覆盖它
-        // 检查消息内容是否包含非默认的内容（总结、进行中等）
-        const hasCustomContent = existingMessage.content &&
-          (existingMessage.content.includes('总结') ||
-           existingMessage.content.includes('进行中') ||
-           existingMessage.content.includes('代码探索完成') ||
-           existingMessage.content.includes('项目结构') ||
-           (existingMessage.content.length > 200 && !existingMessage.content.includes('## ✅ 工作流执行完成')));
+        // 🔥 FIX: 工作流完成后，将详细结果追加到消息内容中
+        // 这样即使监控器被移除，用户也能在历史消息中看到完整的工作流结果
+        const existingContent = existingMessage.content || '';
+
+        // 检查是否已有工作流完成标记（避免重复追加）
+        const hasCompletionMarker = existingContent.includes('## ✅ 工作流执行完成');
+
+        // 追加工作流完成结果到现有内容
+        const finalContent = hasCompletionMarker
+          ? existingContent  // 已有完成标记，不重复追加
+          : `${existingContent}\n\n${responseContent}`;  // 追加完成结果
 
         newMessages[assistantIndex] = {
           ...existingMessage,
-          // 🔥 CRITICAL: 保留已有的自定义内容，只更新状态和元数据
-          content: hasCustomContent ? existingMessage.content : responseContent,
+          // 🔥 CRITICAL: 追加工作流完成结果到现有内容
+          content: finalContent,
           status: 'completed',
-          timestamp: Date.now(),
-          segments: hasCustomContent ? existingMessage.segments : [{
-            id: `seg-workflow-completed-${workflow_id}`,
-            type: 'text' as const,
-            phase: 'pre-tool' as const,
-            content: responseContent,
-            order: 1,
-            timestamp: Date.now(),
-          }],
+          // 🔥 FIX: 保留原始时间戳，避免消息乱序
+          timestamp: existingMessage.timestamp || Date.now(),
+          segments: hasCompletionMarker ? existingMessage.segments : [
+            ...(existingMessage.segments || []),
+            {
+              id: `seg-workflow-completed-${workflow_id}`,
+              type: 'text' as const,
+              phase: 'pre-tool' as const,
+              content: responseContent,
+              order: (existingMessage.segments?.length || 0) + 1,
+              timestamp: Date.now(),
+            }
+          ],
           metadata: {
             ...existingMessage.metadata,
             completed: true,
