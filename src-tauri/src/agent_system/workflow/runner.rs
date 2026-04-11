@@ -247,7 +247,7 @@ pub struct PlannedNode {
 /// 🔥 进度事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressEvent {
-    pub event_type: String,  // "node_started", "node_progress", "node_completed", "tool_call", "workflow:started"
+    pub event_type: String,  // "node_started", "node_progress", "node_completed", "tool_call", "workflow:started", "content_delta"
     pub workflow_id: Option<String>,  // 🔥 添加 workflow_id 字段，前端用于匹配工作流
     pub node_id: Option<String>,
     pub message: Option<String>,
@@ -256,6 +256,11 @@ pub struct ProgressEvent {
     pub tool_details: Option<ToolCallDetails>,
     /// 🔥 计划节点列表（仅当 event_type 为 "workflow:started" 时存在）
     pub nodes: Option<Vec<PlannedNode>>,
+    /// 🆕 流式内容增量（仅当 event_type 为 "content_delta" 时存在）
+    /// 用于总结节点的渐进式输出
+    pub content_delta: Option<String>,
+    /// 🆕 流式输出是否完成（仅当 event_type 为 "content_delta" 时存在）
+    pub content_finished: Option<bool>,
 }
 
 impl WorkflowRunner {
@@ -305,6 +310,8 @@ impl WorkflowRunner {
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: None,
                 nodes: None,
+                content_delta: None,  // 通用进度事件不包含内容增量
+                content_finished: None,
             };
             callback(event);
         }
@@ -347,6 +354,8 @@ impl WorkflowRunner {
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: None,
                 nodes: Some(planned_nodes),  // 🔥 包含计划节点
+                content_delta: None,  // workflow:started 事件不包含内容增量
+                content_finished: None,
             };
             println!("[WorkflowRunner] 📤 Calling callback with workflow:started event (with {} nodes)", event.nodes.as_ref().map(|n| n.len()).unwrap_or(0));
             callback(event);
@@ -532,6 +541,8 @@ impl WorkflowRunner {
                 timestamp: chrono::Utc::now().timestamp_millis(),
                 tool_details: None,
                 nodes: None,  // node_started 事件不包含计划节点
+                content_delta: None,  // node_started 事件不包含内容增量
+                content_finished: None,
             };
             println!("[WorkflowRunner] 📤 Calling callback with event: {:?}", event);
             callback(event);
@@ -726,11 +737,44 @@ impl WorkflowRunner {
                         timestamp: chrono::Utc::now().timestamp_millis(),
                         tool_details: Some(tool_details),
                         nodes: None,  // tool_call 事件不包含计划节点
+                        content_delta: None,  // tool_call 事件不包含内容增量
+                        content_finished: None,
                     };
                     cb(event);
                 }
             });
         }));
+
+        // 🔥 添加流式内容增量回调（用于 Doc agent 的渐进式输出）
+        use crate::agent_system::workflow::types::AgentType;
+        if node.agent_type == AgentType::Doc {
+            let progress_callback_for_content = progress_callback.clone();
+            let node_id_for_content = node.id.clone();
+            let workflow_id_for_content = workflow.id.clone();  // 🔥 捕获 workflow_id
+            ctx = ctx.with_content_delta_callback(std::sync::Arc::new(move |delta: String, finished: bool| {
+                // 当收到内容增量时，发送进度事件
+                let callback = progress_callback_for_content.clone();
+                let node_id_clone = node_id_for_content.clone();
+                let workflow_id_clone = workflow_id_for_content.clone();  // 🔥 捕获 workflow_id
+                tokio::spawn(async move {
+                    if let Some(cb) = callback.read().await.as_ref() {
+                        let event = ProgressEvent {
+                            event_type: "content_delta".to_string(),
+                            workflow_id: Some(workflow_id_clone),  // 🔥 添加 workflow_id
+                            node_id: Some(node_id_clone),
+                            message: None,  // content_delta 事件不包含普通消息
+                            timestamp: chrono::Utc::now().timestamp_millis(),
+                            tool_details: None,  // content_delta 事件不包含工具详情
+                            nodes: None,  // content_delta 事件不包含计划节点
+                            content_delta: if delta.is_empty() { None } else { Some(delta) },
+                            content_finished: Some(finished),
+                        };
+                        cb(event);
+                    }
+                });
+            }));
+            println!("[WorkflowRunner] ✅ Content delta callback set up for Doc agent: {}", node.id);
+        }
 
         // 🔥 使用真实的执行器
         let executor = AgentNodeExecutor::new();

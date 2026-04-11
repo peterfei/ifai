@@ -28,7 +28,10 @@ impl Default for ToolLoopConfig {
 /// 🔥 工具调用进度回调类型
 pub type ToolProgressCallback = Arc<dyn Fn(ToolCallDetails) + Send + Sync>;
 
-/// 执行带工具调用的 AI 对话循环
+/// 🔥 流式内容回调类型（用于 Doc agent 的渐进式输出）
+pub type ContentDeltaCallback = Arc<dyn Fn(String, bool) + Send + Sync>;
+
+/// 执行带工具调用的 AI 对话循环（用于 Explore、Review 等需要工具的 agent）
 ///
 /// # 参数
 /// - `provider_config`: AI 提供商配置
@@ -651,5 +654,200 @@ async fn call_ai_with_tools_stream(
     {
         println!("[ToolLoop] ⚠️ [STREAM] Community 版本，回退到非流式 API");
         call_ai_with_tools_unified(provider_config, messages).await
+    }
+}
+
+/// 🔥 简化版流式 AI 调用（用于 Doc agent 等不需要工具的场景）
+///
+/// 与 `call_ai_with_tools_stream` 的区别：
+/// - 不支持工具调用
+/// - 专注于纯文本输出的流式传输
+/// - 通过回调实时传递每个内容增量
+///
+/// # 参数
+/// - `provider_config`: AI 提供商配置
+/// - `system_prompt`: 系统提示词
+/// - `user_message`: 用户消息
+/// - `content_callback`: 内容增量回调 (delta_text, is_finished)
+///
+/// # 返回
+/// 完整的响应文本
+pub async fn call_ai_streaming_simple(
+    provider_config: crate::core_traits::ai::AIProviderConfig,
+    system_prompt: String,
+    user_message: String,
+    content_callback: ContentDeltaCallback,
+) -> Result<String, String> {
+    println!("[ToolLoop] 📤 [SIMPLE_STREAM] 调用简化流式 AI API");
+    println!("[ToolLoop] 📊 系统提示词长度: {} 字符", system_prompt.len());
+    println!("[ToolLoop] 📊 用户消息长度: {} 字符", user_message.len());
+
+    #[cfg(feature = "commercial")]
+    {
+        use reqwest::Client;
+        use eventsource_stream::Eventsource;
+
+        // 🔥 准备请求
+        let api_key = &provider_config.api_key;
+        let base_url = &provider_config.base_url;
+        let model = provider_config.models.first()
+            .ok_or("缺少模型配置")?
+            .clone();
+
+        // 构建请求消息
+        let messages_for_api = vec![
+            serde_json::json!({
+                "role": "system",
+                "content": system_prompt
+            }),
+            serde_json::json!({
+                "role": "user",
+                "content": user_message
+            })
+        ];
+
+        let completions_url = base_url.clone();
+
+        let request = serde_json::json!({
+            "model": model,
+            "messages": messages_for_api,
+            "stream": true,
+        });
+
+        println!("[ToolLoop] 📤 [SIMPLE_STREAM] 发送流式请求到: {}", completions_url);
+
+        // 🔥 发送流式请求
+        let client = Client::new();
+        let response = client
+            .post(&completions_url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| format!("流式请求失败: {}", e))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(format!("API 错误: {}", error_text));
+        }
+
+        // 🔥 处理流式响应
+        let mut stream = response.bytes_stream().eventsource();
+
+        let mut final_content = String::new();
+        let mut chunk_count = 0;
+        let mut last_callback_time = std::time::Instant::now();
+        let mut accumulated_delta = String::new();
+
+        // 🔥 节流配置：每 50ms 或累积 10 个字符触发一次回调
+        const CALLBACK_INTERVAL_MS: u64 = 50;
+        const MIN_DELTA_LENGTH: usize = 10;
+
+        println!("[ToolLoop] 📥 [SIMPLE_STREAM] 开始接收流式响应...");
+
+        // 🔥 处理每个流式 chunk
+        while let Some(event_result) = stream.next().await {
+            match event_result {
+                Ok(event) => {
+                    if event.data == "[DONE]" {
+                        println!("[ToolLoop] 📤 [SIMPLE_STREAM] 收到 [DONE] 信号");
+                        break;
+                    }
+
+                    chunk_count += 1;
+
+                    // 解析 JSON
+                    if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                        if let Some(choice) = stream_response.choices.first() {
+                            // 处理内容
+                            if let Some(content) = &choice.delta.content {
+                                final_content.push_str(content);
+                                accumulated_delta.push_str(content);
+
+                                // 🔥 节流：检查是否应该触发回调
+                                let now = std::time::Instant::now();
+                                let should_callback = accumulated_delta.len() >= MIN_DELTA_LENGTH
+                                    || now.duration_since(last_callback_time).as_millis() >= CALLBACK_INTERVAL_MS as u128;
+
+                                if should_callback && !accumulated_delta.is_empty() {
+                                    // 发送内容增量
+                                    content_callback(accumulated_delta.clone(), false);
+                                    accumulated_delta.clear();
+                                    last_callback_time = now;
+                                }
+
+                                chunk_count += 1;
+                            }
+
+                            // 检查是否完成
+                            if choice.finish_reason.is_some() {
+                                println!("[ToolLoop] 📤 [SIMPLE_STREAM] 流结束，原因: {:?}",
+                                    choice.finish_reason);
+
+                                // 🔥 发送剩余的累积内容
+                                if !accumulated_delta.is_empty() {
+                                    content_callback(accumulated_delta.clone(), false);
+                                }
+
+                                // 🔥 发送完成信号
+                                content_callback(String::new(), true);
+
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("[ToolLoop] ⚠️ [SIMPLE_STREAM] 流处理错误: {}", e);
+
+                    // 🔥 出错时也要发送剩余的累积内容
+                    if !accumulated_delta.is_empty() {
+                        content_callback(accumulated_delta.clone(), false);
+                    }
+
+                    // 发送完成信号
+                    content_callback(String::new(), true);
+
+                    break;
+                }
+            }
+        }
+
+        println!("[ToolLoop] 📊 [SIMPLE_STREAM] 处理了 {} 个 chunks", chunk_count);
+        println!("[ToolLoop] ✅ [SIMPLE_STREAM] 返回完整内容，长度: {} 字符", final_content.len());
+
+        Ok(final_content)
+    }
+
+    // 🔥 Community 版本的降级处理
+    #[cfg(not(feature = "commercial"))]
+    {
+        println!("[ToolLoop] ⚠️ [SIMPLE_STREAM] Community 版本，回退到非流式 API");
+        // Community 版本使用非流式调用
+        let messages = vec![
+            crate::core_traits::ai::Message {
+                role: "system".to_string(),
+                content: crate::core_traits::ai::Content::Text(system_prompt),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            crate::core_traits::ai::Message {
+                role: "user".to_string(),
+                content: crate::core_traits::ai::Content::Text(user_message),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        // 使用 ai_utils::fetch_ai_completion_simple 进行非流式调用
+        crate::ai_utils::fetch_ai_completion_simple(
+            &provider_config.api_key,
+            &provider_config.base_url,
+            &provider_config.models.first().unwrap_or(&String::new()),
+            &messages,
+            None,  // 不使用 custom prompt
+            None,  // 不使用 temperature
+        ).await
     }
 }

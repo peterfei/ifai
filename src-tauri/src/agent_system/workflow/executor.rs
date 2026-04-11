@@ -49,6 +49,16 @@ impl std::fmt::Debug for ToolProgressCallback {
     }
 }
 
+/// 🔥 流式内容增量回调包装器（用于 Doc agent 的渐进式输出）
+#[derive(Clone)]
+pub struct ContentDeltaCallback(pub std::sync::Arc<dyn Fn(String, bool) + Send + Sync>);
+
+impl std::fmt::Debug for ContentDeltaCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ContentDeltaCallback").field(&"<callback>").finish()
+    }
+}
+
 /// 节点执行上下文
 #[derive(Debug, Clone)]
 pub struct NodeExecutionContext {
@@ -66,6 +76,8 @@ pub struct NodeExecutionContext {
     pub provider_config: Option<crate::core_traits::ai::AIProviderConfig>,
     /// 🔥 工具调用进度回调（可选）
     pub tool_progress_callback: Option<ToolProgressCallback>,
+    /// 🔥 流式内容增量回调（可选，用于 Doc agent 的渐进式输出）
+    pub content_delta_callback: Option<ContentDeltaCallback>,
 }
 
 impl NodeExecutionContext {
@@ -83,6 +95,7 @@ impl NodeExecutionContext {
             workflow_variables: HashMap::new(),
             provider_config: None,
             tool_progress_callback: None,
+            content_delta_callback: None,
         }
     }
 
@@ -110,6 +123,15 @@ impl NodeExecutionContext {
         callback: std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>,
     ) -> Self {
         self.tool_progress_callback = Some(ToolProgressCallback(callback));
+        self
+    }
+
+    /// 🔥 设置流式内容增量回调（用于 Doc agent 的渐进式输出）
+    pub fn with_content_delta_callback(
+        mut self,
+        callback: std::sync::Arc<dyn Fn(String, bool) + Send + Sync>,
+    ) -> Self {
+        self.content_delta_callback = Some(ContentDeltaCallback(callback));
         self
     }
 
@@ -241,7 +263,8 @@ impl NodeExecutor for AgentNodeExecutor {
 
         // 🔥 执行真实的智能体调用
         let tool_progress_callback = ctx.tool_progress_callback.clone().map(|cb| cb.0);
-        let output = Self::execute_agent_real(node, &agent_ctx, tool_progress_callback).await?;
+        let content_delta_callback = ctx.content_delta_callback.clone().map(|cb| cb.0);
+        let output = Self::execute_agent_real(node, &agent_ctx, tool_progress_callback, content_delta_callback).await?;
 
         let end_time = chrono::Utc::now().timestamp_millis();
 
@@ -289,11 +312,12 @@ impl AgentNodeExecutor {
         desc
     }
 
-    /// 🔥 真实的智能体执行实现（带工具调用循环）
+    /// 🔥 真实的智能体执行实现（带工具调用循环或流式输出）
     async fn execute_agent_real(
         node: &WorkflowNode,
         ctx: &AgentContext,
         tool_progress_callback: Option<std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>>,
+        content_delta_callback: Option<std::sync::Arc<dyn Fn(String, bool) + Send + Sync>>,
     ) -> Result<String> {
         println!("[WorkflowExecutor] 🤖 Executing real agent: {:?}", node.agent_type);
         println!("[WorkflowExecutor] 📁 Project root: {}", ctx.project_root);
@@ -307,7 +331,7 @@ impl AgentNodeExecutor {
         // 构建用户消息
         let user_message = ctx.task_description.clone();
 
-        println!("[WorkflowExecutor] 📡 Starting tool-enabled AI call...");
+        println!("[WorkflowExecutor] 📡 Starting AI call...");
         println!("[WorkflowExecutor] 📊 System prompt length: {} chars", system_prompt.len());
         println!("[WorkflowExecutor] 📊 User message length: {} chars", user_message.len());
 
@@ -329,28 +353,60 @@ impl AgentNodeExecutor {
                 provider_config.models.first());
         }
 
-        // 🔥 使用工具调用循环（参考 claw-code 的 ConversationRuntime）
-        let tool_executor = super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
-        let tool_config = super::tool_loop::ToolLoopConfig::default();
+        // 🔥 根据智能体类型选择不同的执行策略
+        let response_text = match node.agent_type {
+            // 🔥 Doc agent 使用流式输出（不使用工具）
+            AgentType::Doc => {
+                println!("[WorkflowExecutor] 📝 Using streaming output for Doc agent");
 
-        // 🔥 准备工具调用进度回调
-        let tool_progress_callback_clone = tool_progress_callback.clone();
+                // 🔥 使用 content_delta_callback 发送流式内容
+                let callback = content_delta_callback.unwrap_or_else(|| {
+                    std::sync::Arc::new(|_delta: String, _finished: bool| {
+                        // 默认空回调
+                    })
+                });
 
-        let response_text = super::tool_loop::execute_with_tools(
-            provider_config,
-            system_prompt,
-            user_message,
-            &tool_executor,
-            tool_config,
-            tool_progress_callback_clone,  // 🔥 传递工具进度回调
-        ).await.map_err(|e| {
-            let elapsed = start_time.elapsed();
-            println!("[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}", elapsed, e);
-            anyhow::anyhow!("AI call failed: {}", e)
-        })?;
+                let response_text = super::tool_loop::call_ai_streaming_simple(
+                    provider_config,
+                    system_prompt,
+                    user_message,
+                    callback,
+                ).await.map_err(|e| {
+                    let elapsed = start_time.elapsed();
+                    println!("[WorkflowExecutor] ❌ Streaming AI call failed after {:?}: {}", elapsed, e);
+                    anyhow::anyhow!("AI call failed: {}", e)
+                })?;
+
+                response_text
+            }
+            // 🔥 其他 agent 使用工具调用循环
+            _ => {
+                println!("[WorkflowExecutor] 🔧 Using tool-enabled execution for {:?}", node.agent_type);
+
+                // 🔥 使用工具调用循环（参考 claw-code 的 ConversationRuntime）
+                let tool_executor = super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
+                let tool_config = super::tool_loop::ToolLoopConfig::default();
+
+                // 🔥 准备工具调用进度回调
+                let tool_progress_callback_clone = tool_progress_callback.clone();
+
+                super::tool_loop::execute_with_tools(
+                    provider_config,
+                    system_prompt,
+                    user_message,
+                    &tool_executor,
+                    tool_config,
+                    tool_progress_callback_clone,  // 🔥 传递工具进度回调
+                ).await.map_err(|e| {
+                    let elapsed = start_time.elapsed();
+                    println!("[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}", elapsed, e);
+                    anyhow::anyhow!("AI call failed: {}", e)
+                })?
+            }
+        };
 
         let elapsed = start_time.elapsed();
-        println!("[WorkflowExecutor] ✅ Tool-enabled AI response received successfully (took {:?})", elapsed);
+        println!("[WorkflowExecutor] ✅ AI response received successfully (took {:?})", elapsed);
         println!("[WorkflowExecutor] ✅ Text response: {} chars", response_text.len());
         println!("[WorkflowExecutor] 📝 Response preview: {}...", response_text.chars().take(100).collect::<String>());
 

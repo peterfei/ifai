@@ -294,6 +294,10 @@ interface WorkflowNode {
   duration?: number;  // 执行时长（毫秒）
   /** 🔥 工具调用详细信息列表 */
   tool_calls?: ToolCallDetails[];
+  /** 🔥 流式输出内容（用于 Doc agent 的渐进式输出） */
+  streaming_content?: string;
+  /** 🔥 是否正在流式输出 */
+  is_streaming?: boolean;
 }
 
 interface WorkflowInfo {
@@ -906,6 +910,94 @@ export function WorkflowInlineMonitor({
 
         // 🔥 根据 event_type 区分处理逻辑（参考 claw-code 的实现）
         const eventType = payload.event_type;
+
+        // ========================================
+        // 0. content_delta 事件：处理流式内容增量（用于 Doc agent 的渐进式输出）
+        // ========================================
+        if (eventType === 'content_delta') {
+          console.log('[WorkflowInlineMonitor] 📝 Processing content_delta event for node:', nodeId);
+
+          const currentGlobalState = globalWorkflowStates.get(workflowId);
+          let updatedNodes = [...(currentGlobalState?.nodes || [])];
+
+          // 检查是否已存在相同 ID 的节点
+          const existingNodeIndex = updatedNodes.findIndex(n => n.id === nodeId);
+
+          if (existingNodeIndex >= 0) {
+            // 节点存在，更新流式内容
+            const existingNode = updatedNodes[existingNodeIndex];
+            const contentDelta = payload.content_delta || '';
+            const isFinished = payload.content_finished === true;
+
+            // 累积流式内容
+            const newContent = (existingNode.streaming_content || '') + contentDelta;
+
+            updatedNodes[existingNodeIndex] = {
+              ...existingNode,
+              streaming_content: newContent,
+              is_streaming: !isFinished,  // 完成后设置 is_streaming = false
+              // 如果流式输出完成，将节点标记为 completed
+              status: isFinished ? 'completed' : existingNode.status,
+              details: isFinished ? '流式输出完成' : (existingNode.details || '正在生成内容...'),
+              // 完成时计算 duration
+              duration: isFinished ? (Date.now() - (existingNode.timestamp || Date.now())) : existingNode.duration,
+            };
+
+            console.log('[WorkflowInlineMonitor] 📝 Updated streaming content:', {
+              nodeId,
+              contentDeltaLength: contentDelta.length,
+              totalContentLength: newContent.length,
+              isFinished,
+              nodeStatus: updatedNodes[existingNodeIndex].status
+            });
+
+            // 🔥 使用 flushSync 强制立即渲染
+            flushSync(() => {
+              updateGlobalWorkflowState(workflowId, {
+                nodes: updatedNodes,
+              });
+            });
+          } else {
+            // 节点不存在，创建新节点（可能 content_delta 事件比 node_started 先到达）
+            console.log('[WorkflowInlineMonitor] 🆕 Auto-creating node for content_delta:', nodeId);
+
+            const contentDelta = payload.content_delta || '';
+            const isFinished = payload.content_finished === true;
+
+            const newNode: WorkflowNode = {
+              id: nodeId,
+              type: 'agent',  // Doc agent 使用 agent 类型
+              label: '生成总结',
+              status: isFinished ? 'completed' : 'running',
+              streaming_content: contentDelta,
+              is_streaming: !isFinished,
+              timestamp: Date.now(),
+              duration: isFinished ? 0 : undefined,
+            };
+
+            updatedNodes.push(newNode);
+
+            console.log('[WorkflowInlineMonitor] 🆕 Created node with streaming content:', {
+              nodeId,
+              contentLength: contentDelta.length,
+              isFinished,
+              totalNodes: updatedNodes.length
+            });
+
+            // 🔥 使用 flushSync 强制立即渲染
+            flushSync(() => {
+              globalWorkflowStates.set(workflowId, {
+                ...currentGlobalState!,
+                nodes: updatedNodes,
+              });
+              updateGlobalWorkflowState(workflowId, {
+                nodes: updatedNodes,
+              });
+            });
+          }
+
+          return; // 🔥 早期返回
+        }
 
         // 🔥 使用 flushSync 强制立即渲染（关键修复）
         if (eventType === 'tool_call') {
@@ -1523,8 +1615,50 @@ export function WorkflowInlineMonitor({
                         ) : (
                           /* 无工具调用时的节点标签 - 白色文字 */
                           <>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {/* 节点标签 - 白色文字 */}
+                            {/* 🔥 流式内容显示（优先于其他内容） */}
+                            {node.streaming_content ? (
+                              <>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {/* 节点标签 - 白色文字 */}
+                                  <span className="text-xs font-mono font-semibold text-white">
+                                    {node.label}
+                                  </span>
+
+                                  {/* 流式输出状态指示器 */}
+                                  {node.is_streaming && (
+                                    <span className="text-xs text-blue-400 animate-pulse">正在生成...</span>
+                                  )}
+                                  {!node.is_streaming && node.status === 'completed' && (
+                                    <span className="text-xs text-green-400">✓ 完成</span>
+                                  )}
+
+                                  {/* 执行时长 */}
+                                  {node.duration && (
+                                    <span className="text-xs text-gray-400">
+                                      {(node.duration / 1000).toFixed(2)}s
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* 🔥 流式内容显示 - Markdown 格式 */}
+                                <div className="mt-2 p-3 bg-black rounded border border-gray-700 max-h-96 overflow-y-auto">
+                                  <pre className="text-xs text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">
+                                    {node.streaming_content}
+                                  </pre>
+                                </div>
+
+                                {/* 流式内容完成时的提示 */}
+                                {!node.is_streaming && (
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    内容长度: {node.streaming_content.length} 字符
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              /* 普通节点（无流式内容） */
+                              <>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {/* 节点标签 - 白色文字 */}
                               <span className="text-xs font-mono font-semibold text-white">
                                 {node.label}
                               </span>
@@ -1556,6 +1690,8 @@ export function WorkflowInlineMonitor({
                               <div className="text-xs text-gray-400 mt-0.5 truncate font-mono max-w-md">
                                 {node.details}
                               </div>
+                            )}
+                              </>
                             )}
                           </>
                         )}

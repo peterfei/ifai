@@ -156,8 +156,11 @@ export default defineConfig({
     //
     // 🔥 FIX v0.3.8.1: Agent 功能只在 commercial 版本中可用
     // 当使用 TAURI_DEV=true 时，强制使用 commercial 版本
+    //
+    // 🔥 CRITICAL FIX: 使用真实 Tauri 后端时，不设置 VITE_TEST_ENV=e2e
+    // 这样可以避免触发 Tauri mock，从而执行真实的后端命令
     command: process.env.TAURI_DEV === 'true'
-      ? 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run tauri:dev:commercial'
+      ? 'APP_EDITION=commercial npm run tauri:dev:commercial-local-llm'
       : (testConfig.edition === 'commercial'
           ? 'APP_EDITION=commercial VITE_TEST_ENV=e2e npm run dev'
           : 'APP_EDITION=community VITE_TEST_ENV=e2e npm run dev'),
