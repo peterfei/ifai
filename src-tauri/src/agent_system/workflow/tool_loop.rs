@@ -740,9 +740,9 @@ pub async fn call_ai_streaming_simple(
         let mut last_callback_time = std::time::Instant::now();
         let mut accumulated_delta = String::new();
 
-        // 🔥 节流配置：每 50ms 或累积 10 个字符触发一次回调
-        const CALLBACK_INTERVAL_MS: u64 = 50;
-        const MIN_DELTA_LENGTH: usize = 10;
+        // 🔥 节流配置：每 100ms 或累积 30 个字符触发一次回调（优化流式体验）
+        const CALLBACK_INTERVAL_MS: u64 = 100;
+        const MIN_DELTA_LENGTH: usize = 30;
 
         println!("[ToolLoop] 📥 [SIMPLE_STREAM] 开始接收流式响应...");
 
