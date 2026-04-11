@@ -13,6 +13,237 @@ import { WorkflowDAGMonitor, type DAGNode, type DAGEdge, type ToolCallDetails } 
 // 🔥 CRITICAL FIX: 直接导入 chatEventBus，避免访问时机问题
 import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
 
+// ==================== 工具函数 ====================
+
+/**
+ * 🔥 从工具输出中提取关键信息，生成简洁的摘要
+ * 类似 claw-code 的 "Read 980 lines" 格式
+ *
+ * 支持两种格式：
+ * 1. 纯文本格式："Line count: 980"
+ * 2. JSON 格式：{"line_count": 980, "content": "..."}
+ */
+function parseToolOutputSummary(toolName: string, output: string): string {
+  const parts: string[] = [];
+
+  // 🔥 首先尝试解析 JSON 格式（agent_read_file 等工具返回 JSON）
+  try {
+    const jsonData = JSON.parse(output);
+
+    // 提取 line_count
+    if (jsonData.line_count !== undefined) {
+      const lines = jsonData.line_count;
+      parts.push(`${lines} lines`);
+    }
+
+    // 提取 file_count（agent_list_dir 可能返回）
+    if (jsonData.file_count !== undefined) {
+      const files = jsonData.file_count;
+      parts.push(`${files} files`);
+    }
+
+    // 提取 char_count
+    if (jsonData.char_count !== undefined || jsonData.character_count !== undefined) {
+      const chars = jsonData.char_count || jsonData.character_count;
+      parts.push(`${chars} chars`);
+    }
+
+    // 如果从 JSON 中提取到了信息，直接返回
+    if (parts.length > 0) {
+      return parts.join(', ');
+    }
+  } catch (e) {
+    // 不是 JSON 格式，继续尝试纯文本解析
+  }
+
+  // 🔥 纯文本格式解析（read_file, write_file 等工具）
+  // 提取行数信息
+  const lineCountMatch = output.match(/Line count:\s*(\d+)/i);
+  if (lineCountMatch) {
+    const lines = parseInt(lineCountMatch[1], 10);
+    parts.push(`${lines} lines`);
+  }
+
+  // 提取字符数信息
+  const charCountMatch = output.match(/(\d+)\s+characters/i);
+  if (charCountMatch) {
+    const chars = parseInt(charCountMatch[1], 10);
+    parts.push(`${chars} chars`);
+  }
+
+  // 提取替换次数
+  const replaceMatch = output.match(/Replaced\s+(\d+)\s+occurrence/i);
+  if (replaceMatch) {
+    const replacements = parseInt(replaceMatch[1], 10);
+    parts.push(`${replacements} ${replacements === 1 ? 'replacement' : 'replacements'}`);
+  }
+
+  // 提取匹配数量（搜索工具）
+  const matchesMatch = output.match(/Found\s+(\d+)\s+match/i);
+  if (matchesMatch) {
+    const matches = parseInt(matchesMatch[1], 10);
+    parts.push(`${matches} ${matches === 1 ? 'match' : 'matches'}`);
+  }
+
+  // 提取文件数量（列表工具）
+  const filesMatch = output.match(/(\d+)\s+files?\s+found/i);
+  if (filesMatch) {
+    const files = parseInt(filesMatch[1], 10);
+    parts.push(`${files} files`);
+  }
+
+  return parts.length > 0 ? parts.join(', ') : '';
+}
+
+/**
+ * claw-code 风格：格式化工具调用标题
+ * 将工具调用格式化为简洁的一行显示
+ */
+function formatToolCallClawStyle(tool: ToolCallDetails): { title: string; summary: string; icon: string } {
+  const { tool_name, tool_input, tool_output, is_error, execution_time_ms } = tool;
+
+  // 默认图标
+  let icon = is_error ? '❌' : '✅';
+  let title = tool_name;
+  let summary = '';
+
+  // 解析工具输入参数
+  let params: string[] = [];
+  try {
+    const input = JSON.parse(tool_input);
+
+    // 🔥 错误状态时保留 ❌ 图标，不设置工具特定图标
+    if (!is_error) {
+      switch (tool_name) {
+        case 'read_file':
+        case 'agent_read_file':
+          icon = '📄';
+          const readPath = input.path || input.rel_path || input.file || '?';
+          title = `Read`;
+          params = [`"${readPath}"`];
+          break;
+
+      case 'write_file':
+      case 'agent_write_file':
+        icon = '✏️';
+        const writePath = input.path || input.rel_path || input.file || '?';
+        title = `Write`;
+        params = [`"${writePath}"`];
+        break;
+
+      case 'edit_file':
+      case 'agent_edit_file':
+        icon = '📝';
+        const editPath = input.path || input.rel_path || input.file || '?';
+        title = `Edit`;
+        params = [`"${editPath}"`];
+        break;
+
+      case 'glob_search':
+      case 'agent_glob_search':
+      case 'Glob':
+        icon = '🔎';
+        const pattern = input.pattern || '?';
+        title = `Glob`;
+        params = [`"${pattern}"`];
+        break;
+
+      case 'grep_search':
+      case 'agent_grep_search':
+      case 'Grep':
+        icon = '🔍';
+        const grepPattern = input.pattern || input.query || '?';
+        title = `Grep`;
+        params = [`"${grepPattern}"`];
+        break;
+
+      case 'list_dir':
+      case 'agent_list_dir':
+        icon = '📁';
+        const dirPath = input.path || input.rel_path || '.';
+        title = `List`;
+        params = [`"${dirPath}"`];
+        break;
+
+      case 'bash':
+      case 'Bash':
+        icon = '$';
+        const command = input.command || input.cmd || '?';
+        title = `Bash`;
+        params = [`"${command}"`];
+        break;
+
+      default:
+        // 通用格式
+        title = tool_name;
+        const entries = Object.entries(input).slice(0, 2);
+        params = entries.map(([key, value]) => {
+          const strValue = typeof value === 'string' ? `"${value}"` : String(value);
+          return `${key}=${strValue}`;
+        });
+      }
+    } else {
+      // 🔥 错误状态：仍然格式化标题和参数，但保留 ❌ 图标
+      switch (tool_name) {
+        case 'read_file':
+        case 'agent_read_file':
+          const readPath = input.path || input.rel_path || input.file || '?';
+          title = `Read`;
+          params = [`"${readPath}"`];
+          break;
+
+        case 'write_file':
+        case 'agent_write_file':
+          const writePath = input.path || input.rel_path || input.file || '?';
+          title = `Write`;
+          params = [`"${writePath}"`];
+          break;
+
+        case 'glob_search':
+        case 'agent_glob_search':
+        case 'Glob':
+          const pattern = input.pattern || '?';
+          title = `Glob`;
+          params = [`"${pattern}"`];
+          break;
+
+        default:
+          title = tool_name;
+          const entries = Object.entries(input).slice(0, 2);
+          params = entries.map(([key, value]) => {
+            const strValue = typeof value === 'string' ? `"${value}"` : String(value);
+            return `${key}=${strValue}`;
+          });
+      }
+    }
+  } catch (e) {
+    // JSON 解析失败，使用工具名称
+    title = tool_name;
+  }
+
+  // 解析工具输出摘要
+  summary = parseToolOutputSummary(tool_name, tool_output);
+
+  // 添加执行时间
+  if (execution_time_ms !== undefined && execution_time_ms > 0) {
+    const timeStr = execution_time_ms < 1000
+      ? `${execution_time_ms}ms`
+      : `${(execution_time_ms / 1000).toFixed(1)}s`;
+    if (summary) {
+      summary += `, ${timeStr}`;
+    } else {
+      summary = timeStr;
+    }
+  }
+
+  // 格式化标题：ToolName(param1, param2)
+  const titleWithParams = params.length > 0
+    ? `${title}(${params.join(', ')})`
+    : title;
+
+  return { title: titleWithParams, summary, icon };
+}
+
 // ==================== 类型定义 ====================
 
 interface ParsedNodeInfo {
@@ -625,37 +856,23 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
             console.log('[WorkflowInlineMonitor] 🔧 Processing tool_call event');
 
             const currentGlobalState = globalWorkflowStates.get(workflowId);
-            const existingNodeIndex = currentGlobalState?.nodes?.findIndex(n => n.id === nodeId) ?? -1;
+            let existingNodeIndex = currentGlobalState?.nodes?.findIndex(n => n.id === nodeId) ?? -1;
 
-            if (existingNodeIndex >= 0) {
-              // 更新现有节点的工具调用信息
-              let updatedNodes = [...(currentGlobalState?.nodes || [])];
-              const existingNode = updatedNodes[existingNodeIndex];
-              const existingToolCalls = existingNode.tool_calls || [];
+            // 🔥 CRITICAL FIX: 如果节点不存在，创建一个新节点
+            if (existingNodeIndex < 0) {
+              console.log('[WorkflowInlineMonitor] 🆕 Auto-creating node for tool_call:', nodeId);
 
-              // 🔥 防重复：使用工具名称、输入和时间戳生成唯一标识符
-              const toolKey = `${payload.tool_details.tool_name}_${payload.tool_details.tool_input}_${payload.timestamp || Date.now()}`;
-              const isDuplicate = existingToolCalls.some((existingTool: any) => {
-                const existingKey = `${existingTool.tool_name}_${existingTool.tool_input}_${payload.timestamp || Date.now()}`;
-                return existingKey === toolKey || (
-                  existingTool.tool_name === payload.tool_details.tool_name &&
-                  existingTool.tool_input === payload.tool_details.tool_input &&
-                  existingTool.tool_output === payload.tool_details.tool_output
-                );
-              });
-
-              if (isDuplicate) {
-                console.log('[WorkflowInlineMonitor] ⚠️ Duplicate tool call detected, skipping:', toolKey);
-                return;
-              }
-
-              updatedNodes[existingNodeIndex] = {
-                ...existingNode,
-                tool_calls: [...existingToolCalls, payload.tool_details],
-                // 🔥 保持 running 状态，不改变节点状态
+              const newNode: WorkflowNode = {
+                id: nodeId,
+                type: 'tool',
+                label: payload.tool_details.tool_name,
+                status: 'running',
+                tool_calls: [payload.tool_details],
+                timestamp: payload.timestamp || Date.now(),
               };
 
-              // 🔥 CRITICAL: 使用 flushSync 强制立即渲染
+              let updatedNodes = [...(currentGlobalState?.nodes || []), newNode];
+
               flushSync(() => {
                 globalWorkflowStates.set(workflowId, {
                   ...currentGlobalState!,
@@ -666,21 +883,62 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 });
               });
 
-              console.log('[WorkflowInlineMonitor] ✅ Added tool call to node (flushSync):', {
+              console.log('[WorkflowInlineMonitor] ✅ Auto-created node with tool call (flushSync):', {
                 nodeId,
-                toolCount: updatedNodes[existingNodeIndex].tool_calls?.length,
-                nodeStatus: updatedNodes[existingNodeIndex].status
+                toolName: payload.tool_details.tool_name,
+                totalNodes: updatedNodes.length
               });
-
-              return; // 🔥 早期返回，不创建新节点
-            } else {
-              console.log('[WorkflowInlineMonitor] ⚠️ No node found for tool_call, creating new node');
-              // 如果没有找到节点，创建一个临时节点（继续执行下面的逻辑）
+              return;
             }
+
+            // 更新现有节点的工具调用信息
+            let updatedNodes = [...(currentGlobalState?.nodes || [])];
+            const existingNode = updatedNodes[existingNodeIndex];
+            const existingToolCalls = existingNode.tool_calls || [];
+
+            // 🔥 防重复：使用工具名称、输入和时间戳生成唯一标识符
+            const toolKey = `${payload.tool_details.tool_name}_${payload.tool_details.tool_input}_${payload.timestamp || Date.now()}`;
+            const isDuplicate = existingToolCalls.some((existingTool: any) => {
+              const existingKey = `${existingTool.tool_name}_${existingTool.tool_input}_${payload.timestamp || Date.now()}`;
+              return existingKey === toolKey || (
+                existingTool.tool_name === payload.tool_details.tool_name &&
+                existingTool.tool_input === payload.tool_details.tool_input &&
+                existingTool.tool_output === payload.tool_details.tool_output
+              );
+            });
+
+            if (isDuplicate) {
+              console.log('[WorkflowInlineMonitor] ⚠️ Duplicate tool call detected, skipping:', toolKey);
+              return;
+            }
+
+            updatedNodes[existingNodeIndex] = {
+              ...existingNode,
+              tool_calls: [...existingToolCalls, payload.tool_details],
+              // 🔥 保持 running 状态，不改变节点状态
+            };
+
+            // 🔥 CRITICAL: 使用 flushSync 强制立即渲染
+            flushSync(() => {
+              globalWorkflowStates.set(workflowId, {
+                ...currentGlobalState!,
+                nodes: updatedNodes,
+              });
+              updateGlobalWorkflowState(workflowId, {
+                nodes: updatedNodes,
+              });
+            });
+
+            console.log('[WorkflowInlineMonitor] ✅ Added tool call to node (flushSync):', {
+              nodeId,
+              toolCount: updatedNodes[existingNodeIndex].tool_calls?.length,
+              nodeStatus: updatedNodes[existingNodeIndex].status
+            });
+
+            return; // 🔥 早期返回，不创建新节点
           } else {
             // 没有 tool_details 的 tool_call 事件，忽略
             console.log('[WorkflowInlineMonitor] ⚠️ tool_call event has no tool_details, ignoring');
-            return;
           }
         }
 
@@ -972,11 +1230,11 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
   const getStatusColor = () => {
     switch (workflow.status) {
       case 'completed':
-        return 'text-green-500';
+        return '!text-green-400 !border-green-600';
       case 'failed':
-        return 'text-red-500';
+        return '!text-red-400 !border-red-600';
       default:
-        return 'text-blue-500';
+        return '!text-gray-300 !border-gray-600';
     }
   };
 
@@ -1031,21 +1289,21 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
           }
         }
       `}</style>
-      <div className="mx-auto max-w-2xl my-4 relative z-50" data-workflow-monitor={workflowId} data-monitor="true">
-        <Card className="border-2 border-blue-500 shadow-xl bg-gradient-to-br from-blue-100 via-blue-50 to-purple-100 dark:from-blue-900/50 dark:via-blue-950/40 dark:to-purple-900/50 dark:border-blue-400">
-        {/* 标题栏 */}
+      <div className="mx-auto max-w-2xl my-4 relative z-50 bg-gray-900" data-workflow-monitor={workflowId} data-monitor="true">
+        <Card className="border border-gray-700 shadow-2xl !bg-gray-900 [&_*]:!bg-transparent">
+        {/* 标题栏 - 深色背景，白色文字 */}
         <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-white/5 transition-colors rounded-t-lg"
+          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-800 transition-colors border-b border-gray-700"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-blue-500" />
-            <span className="font-semibold text-sm">{displayName}</span>
+            <Zap className="w-4 h-4 text-white" />
+            <span className="font-semibold text-sm text-white">{displayName}</span>
             <Badge variant="outline" className={getStatusColor()}>
               {getStatusText()}
             </Badge>
             {workflow.nodes && workflow.nodes.length > 0 && (
-              <Badge variant="outline" className="text-gray-500">
+              <Badge variant="outline" className="!text-gray-300 border-gray-600 bg-gray-800">
                 {workflow.nodes.length} 步
               </Badge>
             )}
@@ -1058,7 +1316,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                   e.stopPropagation();
                   setViewMode(viewMode === 'list' ? 'dag' : 'list');
                 }}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                className="flex items-center gap-1 text-xs text-gray-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-800"
                 title={viewMode === 'list' ? '切换到 DAG 视图' : '切换到列表视图'}
               >
                 {viewMode === 'list' ? (
@@ -1074,8 +1332,8 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 )}
               </button>
             )}
-            <span className="text-xs text-muted-foreground">{displayDuration}s</span>
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <span className="text-xs text-gray-400">{displayDuration}s</span>
+            {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </div>
         </div>
 
@@ -1103,7 +1361,7 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                 {workflow.nodes && workflow.nodes.length > 0 ? (
               <div className="relative">
                 {/* 背景连线 */}
-                <div className="absolute left-[19px] top-2 bottom-2 w-px bg-gray-700/30" />
+                <div className="absolute left-[19px] top-2 bottom-2 w-px bg-gray-600/50" />
 
                 <div className="space-y-1">
                   {workflow.nodes.map((node, index) => (
@@ -1112,12 +1370,12 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
                       data-node-id={node.id}
                       className={`relative flex items-start gap-3 py-1.5 transition-all rounded ${
                         node.status === 'running'
-                          ? 'bg-blue-100 dark:bg-blue-500/10 -mx-2 px-2'
+                          ? 'bg-gray-800 -mx-2 px-2'
                           : node.status === 'failed'
-                          ? 'bg-red-100 dark:bg-red-500/10 -mx-2 px-2'
+                          ? 'bg-red-950/30 -mx-2 px-2'
                           : node.status === 'pending'
-                          ? 'bg-gray-50 dark:bg-gray-800/30 -mx-2 px-2 opacity-75'
-                          : 'hover:bg-gray-100 dark:hover:bg-white/5 -mx-2 px-2'
+                          ? 'bg-gray-800/50 -mx-2 px-2 opacity-75'
+                          : 'hover:bg-gray-800/50 -mx-2 px-2'
                       }`}
                       style={{
                         // 🔥 添加渐进式淡入动画，让节点逐个显示
@@ -1138,102 +1396,110 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
 
                       {/* 节点内容 */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Claude Code 风格的节点标签 */}
-                          <span className={`text-xs font-mono ${
-                            node.status === 'running'
-                              ? 'text-blue-400'
-                              : node.status === 'completed'
-                              ? 'text-green-400'
-                              : node.status === 'failed'
-                              ? 'text-red-400'
-                              : node.status === 'pending'
-                              ? 'text-gray-400'
-                              : 'text-gray-400'
-                          }`}>
-                            {node.label}
-                          </span>
-
-                          {/* 状态标签 */}
-                          {node.status === 'pending' && (
-                            <span className="text-xs text-gray-400">等待中</span>
-                          )}
-                          {node.status === 'running' && (
-                            <span className="text-xs text-blue-500 animate-pulse">运行中</span>
-                          )}
-
-                          {/* 执行时长 */}
-                          {node.duration && (
-                            <span className="text-xs text-gray-500">
-                              {(node.duration / 1000).toFixed(2)}s
-                            </span>
-                          )}
-
-                          {/* 🔥 工具调用数量指示器 */}
-                          {node.tool_calls && node.tool_calls.length > 0 && (
-                            <span className="text-xs text-purple-500 bg-purple-500/10 px-1.5 py-0.5 rounded">
-                              ⚡ {node.tool_calls.length} 个工具调用
-                            </span>
-                          )}
-                        </div>
-
-                        {/* 🔥 工具调用详细信息列表 */}
+                        {/* 🔥 claw-code 风格：如果有工具调用，直接显示工具信息 */}
                         {node.tool_calls && node.tool_calls.length > 0 ? (
-                          <div className="mt-1.5 space-y-1">
-                            {node.tool_calls.map((tool, idx) => (
-                              <div
-                                key={idx}
-                                className={`text-xs font-mono p-1.5 rounded ${
-                                  tool.is_error
-                                    ? 'bg-red-500/10 border border-red-500/20'
-                                    : 'bg-blue-500/10 border border-blue-500/20'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={tool.is_error ? 'text-red-400' : 'text-blue-400'}>
-                                    {tool.is_error ? '❌' : '✅'} {tool.tool_name}
-                                  </span>
-                                  {tool.execution_time_ms !== undefined && (
-                                    <span className="text-gray-500">
-                                      {tool.execution_time_ms}ms
-                                    </span>
-                                  )}
-                                  {tool.output_length > 0 && (
-                                    <span className="text-gray-500">
-                                      {tool.output_length} 字符
-                                    </span>
+                          <>
+                            {node.tool_calls.map((tool, idx) => {
+                              const { title, summary, icon } = formatToolCallClawStyle(tool);
+                              const isSuccess = !tool.is_error;
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`mb-1.5 last:mb-0`}
+                                >
+                                  {/* 工具标题行 - 深色背景，白色文字 */}
+                                  <div className="flex flex-col gap-0.5">
+                                    {/* 第一行：工具名称和参数 - 白色文字 */}
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-mono font-semibold text-white">
+                                        {icon} {title}
+                                      </span>
+                                      {/* 状态指示器 */}
+                                      {!isSuccess && (
+                                        <span className="text-xs text-red-400">✗</span>
+                                      )}
+                                      {isSuccess && (
+                                        <span className="text-xs text-green-400">✓</span>
+                                      )}
+                                    </div>
+
+                                    {/* 第二行：执行结果摘要 - 亮色文字 */}
+                                    {summary && (
+                                      <div className="text-xs text-gray-300 ml-1">
+                                        {summary}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* 可折叠的详细输出 */}
+                                  {(tool.tool_input || tool.tool_output) && (
+                                    <details className="mt-1 group" open={false}>
+                                      <summary className="cursor-pointer text-gray-400 hover:text-gray-200 text-xs">
+                                        详情
+                                      </summary>
+                                      <div className="mt-1 space-y-1">
+                                        {tool.tool_input && (
+                                          <div className="text-xs">
+                                            <span className="text-gray-400 font-medium">输入:</span>
+                                            <pre className="mt-0.5 text-xs text-gray-200 overflow-x-auto bg-black p-2 rounded border border-gray-700">
+                                              {tool.tool_input}
+                                            </pre>
+                                          </div>
+                                        )}
+                                        {tool.tool_output && (
+                                          <div className="text-xs">
+                                            <span className="text-gray-400 font-medium">输出:</span>
+                                            <pre className="mt-0.5 text-xs text-gray-200 overflow-x-auto bg-black p-2 rounded border border-gray-700 max-h-32 overflow-y-auto">
+                                              {tool.tool_output}
+                                            </pre>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </details>
                                   )}
                                 </div>
-                                {tool.tool_input && (
-                                  <details className="mt-1 group">
-                                    <summary className="cursor-pointer text-gray-500 hover:text-gray-300 text-xs">
-                                      输入参数
-                                    </summary>
-                                    <pre className="mt-1 text-xs text-gray-600 dark:text-gray-400 overflow-x-auto">
-                                      {tool.tool_input}
-                                    </pre>
-                                  </details>
-                                )}
-                                {tool.tool_output && (
-                                  <details className="mt-1 group">
-                                    <summary className="cursor-pointer text-gray-500 hover:text-gray-300 text-xs">
-                                      输出结果
-                                    </summary>
-                                    <pre className="mt-1 text-xs text-gray-600 dark:text-gray-400 max-h-20 overflow-y-auto">
-                                      {tool.tool_output}
-                                    </pre>
-                                  </details>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                              );
+                            })}
+                          </>
                         ) : (
-                          /* 详细信息（后备） */
-                          node.details && node.details !== node.label && (
-                            <div className="text-xs text-muted-foreground mt-0.5 truncate font-mono max-w-md">
-                              {node.details}
+                          /* 无工具调用时的节点标签 - 白色文字 */
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* 节点标签 - 白色文字 */}
+                              <span className="text-xs font-mono font-semibold text-white">
+                                {node.label}
+                              </span>
+
+                              {/* 状态标签 - 亮色文字 */}
+                              {node.status === 'pending' && (
+                                <span className="text-xs text-gray-400">等待中</span>
+                              )}
+                              {node.status === 'running' && (
+                                <span className="text-xs text-white animate-pulse">运行中</span>
+                              )}
+                              {node.status === 'completed' && (
+                                <span className="text-xs text-green-400">✓ 完成</span>
+                              )}
+                              {node.status === 'failed' && (
+                                <span className="text-xs text-red-400">✗ 失败</span>
+                              )}
+
+                              {/* 执行时长 */}
+                              {node.duration && (
+                                <span className="text-xs text-gray-400">
+                                  {(node.duration / 1000).toFixed(2)}s
+                                </span>
+                              )}
                             </div>
-                          )
+
+                            {/* 详细信息（后备） */}
+                            {node.details && node.details !== node.label && (
+                              <div className="text-xs text-gray-400 mt-0.5 truncate font-mono max-w-md">
+                                {node.details}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -1245,12 +1511,12 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
               <div className="flex items-center justify-center py-8 text-center">
                 <div className="space-y-2">
                   <div className="w-8 h-8 mx-auto flex items-center justify-center">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                    <div className="w-3 h-3 bg-gray-500 rounded-full animate-pulse" />
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-gray-400">
                     {workflow.status === 'running' ? '正在准备工作流...' : '等待节点信息...'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-gray-500">
                     workflowId: {workflowId}
                   </p>
                 </div>
@@ -1259,27 +1525,27 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
 
             {/* 当前节点（还没有在列表中的） */}
             {workflow.status === 'running' && workflow.currentNode && !workflow.nodes?.some(n => n.id === workflow.currentNode) && (
-              <div className="flex items-center gap-3 text-xs text-muted-foreground py-2">
+              <div className="flex items-center gap-3 text-xs text-gray-400 py-2">
                 <div className="w-4 h-4 flex items-center justify-center">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" />
                 </div>
                 <span>正在执行: {workflow.currentNode}</span>
               </div>
             )}
 
-            {/* 完成状态 */}
+            {/* 完成状态 - 绿色亮色 */}
             {workflow.status === 'completed' && (
-              <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 mt-2">
+              <div className="flex items-center gap-2 text-xs text-green-400 mt-2">
                 <CheckCircle className="w-3 h-3" />
-                <span>工作流执行完成</span>
+                <span className="text-green-400">工作流执行完成</span>
               </div>
             )}
 
-            {/* 失败状态 */}
+            {/* 失败状态 - 红色亮色 */}
             {workflow.status === 'failed' && (
-              <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 mt-2">
+              <div className="flex items-center gap-2 text-xs text-red-400 mt-2">
                 <XCircle className="w-3 h-3" />
-                <span>工作流执行失败</span>
+                <span className="text-red-400">工作流执行失败</span>
               </div>
             )}
               </>

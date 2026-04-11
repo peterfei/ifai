@@ -104,9 +104,8 @@ pub async fn execute_with_tools(
             break;
         }
 
-        if tool_calls.len() > config.max_tools_per_turn {
-            return Err(format!("单次工具调用数量超过限制: {}", tool_calls.len()));
-        }
+        // 🔥 移除单次工具调用数量限制，允许 AI 根据任务需求自由调用工具
+        // 参考 claw-code 设计，不限制单次工具调用数量
 
         println!("[ToolLoop] 🔧 检测到 {} 个工具调用", tool_calls.len());
 
@@ -583,27 +582,15 @@ async fn call_ai_with_tools_stream(
                                         println!("[ToolLoop] 🔥 [STREAM] 检测到新工具调用 #{}: {} ({})",
                                             index, tool_name, tool_id);
 
-                                        // 🔥 立即发送进度回调，让前端实时显示
-                                        if let Some(ref cb) = progress_callback {
-                                            // 解析参数（如果可能）
-                                            let input_json = if entry.2.is_empty() {
-                                                serde_json::json!({})
-                                            } else {
-                                                serde_json::from_str(&entry.2)
-                                                    .unwrap_or(serde_json::json!({}))
-                                            };
-
-                                            let details = ToolCallDetails {
-                                                tool_name: tool_name.clone(),
-                                                tool_input: serde_json::to_string_pretty(&input_json)
-                                                    .unwrap_or_default(),
-                                                tool_output: String::new(),  // 还未执行
-                                                output_length: 0,
-                                                execution_time_ms: None,   // 还未执行
-                                                is_error: false,
-                                            };
-                                            cb(details);
-                                        }
+                                        // 🔥 移除流式处理时的事件发送
+                                        // 问题：此时 tool_output 和 execution_time_ms 都是空的/未知的
+                                        // 这会导致前端收到不完整的数据，影响工具结果显示
+                                        // 解决：只在实际执行完成后发送完整事件（见 tool_loop.rs lines 141-149）
+                                        //
+                                        // claw-code 的做法：只发送 tool_match 事件（工具名称），不发送执行详情
+                                        // 详情在 AI 文本响应中显示
+                                        //
+                                        // 我们的方案：移除这里的空事件，只保留执行完成后的完整事件
                                     }
                                 }
                             }
