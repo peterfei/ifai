@@ -2590,15 +2590,6 @@ ${suggestion.fixContext.code_context}
           </div>
           <WorkflowInlineMonitorContainer key="global-workflow-monitor" />
 
-          {/* 🔥 DEBUG: 调试面板 - 显示工作流状态 */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="my-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-500 rounded text-xs">
-              <div className="font-bold">🔍 Workflow Debug:</div>
-              <div>hasActiveWorkflow: {String(hasActiveWorkflow)}</div>
-              <div>globalActiveWorkflows: {JSON.stringify(Array.from((window as any).globalActiveWorkflowsForDebug || []))}</div>
-            </div>
-          )}
-
           {/* v0.4.0: Token 统计显示 */}
           {tokenStats && rawMessages.length > 0 && (
             <div className="my-2 mx-2" data-testid="conversation-token-stats">

@@ -117,8 +117,10 @@ function messageToStored(message: Message, threadId: string): StoredMessage | nu
  * Convert StoredMessage back to Message
  */
 function storedToMessage(stored: StoredMessage): Message {
-  const { threadId, timestamp, ...message } = stored;
-  return message as Message;
+  const { threadId, ...message } = stored;
+  // 🔥 CRITICAL FIX: 确保 timestamp 被包含在返回的消息中
+  // 这是消息按时间顺序排序的关键字段
+  return { ...message, timestamp: stored.timestamp } as Message;
 }
 
 // ============================================================================

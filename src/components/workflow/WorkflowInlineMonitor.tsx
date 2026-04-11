@@ -308,7 +308,11 @@ interface WorkflowInfo {
 }
 
 interface WorkflowInlineMonitorProps {
-  workflowId: string;
+  workflowId?: string;
+  workflowType?: string;
+  correlationId?: string;
+  initialStatus?: 'running' | 'completed' | 'error';
+  embedded?: boolean; // 🔥 是否内嵌在消息中
   onComplete?: () => void;
 }
 
@@ -686,19 +690,41 @@ export function cleanupWorkflowListeners(workflowId: string) {
 
 // ==================== 主组件 ====================
 
-export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInlineMonitorProps) {
+export function WorkflowInlineMonitor({
+  workflowId,
+  workflowType,
+  correlationId,
+  initialStatus = 'running',
+  embedded = false,
+  onComplete
+}: WorkflowInlineMonitorProps) {
   // 🔥 DEBUG: 添加组件挂载日志
-  console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId);
+  console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId, 'embedded:', embedded);
+
+  // 🔥 内嵌模式：使用传入的参数，不从全局状态获取
+  const actualWorkflowId = embedded && correlationId ? correlationId : workflowId;
 
   const [workflow, setWorkflow] = useState<WorkflowInfo>(() => {
+    if (embedded) {
+      // 内嵌模式：创建初始状态，不从全局获取
+      return {
+        id: actualWorkflowId,
+        name: `${workflowType || '工作流'}执行中`,
+        status: initialStatus,
+        startTime: Date.now(),
+        progress: 0,
+        currentNode: '初始化...',
+        nodes: []
+      };
+    }
     // 🔥 尝试从全局状态获取，如果存在则使用全局状态
     // 🔥 CRITICAL FIX: 总是创建新对象，避免引用共享
-    const globalState = globalWorkflowStates.get(workflowId);
+    const globalState = globalWorkflowStates.get(actualWorkflowId);
     if (globalState) {
       return { ...globalState, nodes: globalState.nodes ? [...globalState.nodes] : [] };
     }
     return {
-      id: workflowId,
+      id: actualWorkflowId,
       name: '工作流执行中',
       status: 'running',
       startTime: Date.now(),
@@ -1247,8 +1273,9 @@ export function WorkflowInlineMonitor({ workflowId, onComplete }: WorkflowInline
   }, [workflow.status]);
 
   // 自动收起已完成的工作流（延长到 10 秒，让用户有时间查看结果）
+  // 🔥 内嵌模式下不自动收起，保持展开状态
   useEffect(() => {
-    if (workflow.status === 'completed' || workflow.status === 'failed') {
+    if (!embedded && (workflow.status === 'completed' || workflow.status === 'failed')) {
       const timer = setTimeout(() => {
         console.log('[WorkflowInlineMonitor] 📁 Auto-collapsing completed workflow');
         setIsExpanded(false);

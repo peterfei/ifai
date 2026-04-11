@@ -534,7 +534,10 @@ export const useChatStore = create<ChatStore>()(
     {
       name: 'ifai-chat-storage-v4',
       partialize: (state) => {
-          const { isLoading, ...rest } = state;
+          // 🔥 CRITICAL FIX: 将 messages 从 localStorage 排除
+          // localStorage 有大小限制（通常5-10MB），消息可能很大
+          // 所有消息都存储在 IndexedDB 中，通过 switchThread 加载
+          const { isLoading, messages, ...rest } = state;
           return rest;
       }
     }
@@ -621,6 +624,60 @@ if (typeof window !== 'undefined') {
   (window as any).__USE_CHAT_STORE_LOADED__ = true;
   (window as any).__USE_CHAT_STORE_LOAD_TIME__ = Date.now();
   console.log('[useChatStore] 🔧 Module loaded, setting __USE_CHAT_STORE_LOADED__ = true');
+
+  // 🔥 CRITICAL FIX: 监听消息变化并自动持久化到 IndexedDB
+  // 这确保所有消息（包括普通聊天消息）都会被保存，而不仅仅是工作流消息
+  let lastPersistedMessages = '{}';
+
+  useChatStore.subscribe((state) => {
+    const messages = state.messages;
+
+    // 将消息序列化为字符串进行比较，避免频繁持久化
+    const messagesJson = JSON.stringify(messages.map((m: any) => ({ id: m.id, role: m.role, timestamp: m.timestamp })));
+
+    // 只有当消息真正变化时才持久化
+    if (messagesJson !== lastPersistedMessages && messages.length > 0) {
+      lastPersistedMessages = messagesJson;
+
+      // 获取当前 threadId
+      let threadId = state.currentThreadId;
+      if (!threadId) {
+        // 尝试从 threadStore 获取
+        import('./threadStore').then(({ useThreadStore }) => {
+          const threadState = useThreadStore.getState();
+          threadId = threadState.activeThreadId || state.currentThreadId;
+
+          if (threadId) {
+            console.log('[useChatStore] 💾 Auto-persisting', messages.length, 'messages to thread:', threadId);
+
+            // 持久化到 IndexedDB
+            import('./persistence/threadPersistence').then(({ threadPersistence }) => {
+              threadPersistence.saveThreadMessages(threadId, messages as any).then(() => {
+                console.log('[useChatStore] ✅ Messages auto-saved to IndexedDB');
+              }).catch(err => {
+                console.error('[useChatStore] ❌ Failed to auto-save messages:', err);
+              });
+            });
+          } else {
+            console.warn('[useChatStore] ⚠️ No threadId available, skipping persistence');
+          }
+        });
+      } else {
+        console.log('[useChatStore] 💾 Auto-persisting', messages.length, 'messages to thread:', threadId);
+
+        // 持久化到 IndexedDB
+        import('./persistence/threadPersistence').then(({ threadPersistence }) => {
+          threadPersistence.saveThreadMessages(threadId, messages as any).then(() => {
+            console.log('[useChatStore] ✅ Messages auto-saved to IndexedDB');
+          }).catch(err => {
+            console.error('[useChatStore] ❌ Failed to auto-save messages:', err);
+          });
+        });
+      }
+    }
+  });
+
+  console.log('[useChatStore] ✅ Message persistence subscriber initialized');
 }
 
 console.log('[useChatStore] 🔧 Module loaded, calling initStoreMapper...');
