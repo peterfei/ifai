@@ -2585,9 +2585,17 @@ ${suggestion.fixContext.code_context}
               - hasActiveWorkflow 决定组件是否渲染
            */}
           {/* 🔥 DEBUG: 添加一个简单的 div 来确认代码是否被执行 */}
-          <div data-testid="workflow-monitor-placeholder" style={{ display: 'none' }}>
-            Workflow Monitor Placeholder - viewMode: {viewMode}
-          </div>
+          {/* 🔥 标签页隔离：只显示占位符当有活跃工作流且属于当前 thread 时 */}
+          {Array.from(globalActiveWorkflows).some(workflowId => {
+            const workflowState = (window as any).__GLOBAL_WORKFLOW_STATES__?.get(workflowId);
+            const workflowSessionId = workflowState?.sessionId;
+            const belongsToCurrentThread = !activeThreadId || !workflowSessionId || workflowSessionId === activeThreadId;
+            return belongsToCurrentThread;
+          }) && (
+            <div data-testid="workflow-monitor-placeholder" style={{ display: 'none' }}>
+              Workflow Monitor Placeholder - viewMode: {viewMode}
+            </div>
+          )}
           <WorkflowInlineMonitorContainer key="global-workflow-monitor" />
 
           {/* v0.4.0: Token 统计显示 */}

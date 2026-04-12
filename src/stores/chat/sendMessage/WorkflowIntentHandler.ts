@@ -744,6 +744,7 @@ ${mockNodes.map(n => `- ${n.message}`).join('\n')}
         providerConfig: currentProvider,  // 🔥 传递 provider 配置
         currentModel,  // 🔥 传递用户当前选择的模型
         correlationId: payload?.correlationId,  // 🔥 传递 correlationId 用于关联消息
+        sessionId: payload?.sessionId,  // 🔥 传递 sessionId 用于标签页隔离
       });
 
       console.log('[WorkflowIntentHandler] ✅ Workflow ID received:', workflowId);

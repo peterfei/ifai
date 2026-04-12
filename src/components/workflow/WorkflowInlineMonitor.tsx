@@ -12,6 +12,8 @@ import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileT
 import { WorkflowDAGMonitor, type DAGNode, type DAGEdge, type ToolCallDetails } from './WorkflowDAGMonitor';
 // 🔥 CRITICAL FIX: 直接导入 chatEventBus，避免访问时机问题
 import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
+// 🔥 导入 useThreadStore 用于标签页隔离
+import { useThreadStore } from '../../stores/threadStore';
 
 // ==================== 工具函数 ====================
 
@@ -309,13 +311,15 @@ interface WorkflowInfo {
   progress?: number;
   currentNode?: string;
   nodes?: WorkflowNode[];
+  /** 🔥 所属的 session/thread ID，用于标签页隔离 */
+  sessionId?: string;
 }
 
 interface WorkflowInlineMonitorProps {
   workflowId?: string;
   workflowType?: string;
   correlationId?: string;
-  initialStatus?: 'running' | 'completed' | 'error';
+  initialStatus?: 'running' | 'completed' | 'failed';  // 🔥 修复：使用 'failed' 而不是 'error' 以匹配 WorkflowInfo
   embedded?: boolean; // 🔥 是否内嵌在消息中
   onComplete?: () => void;
 }
@@ -717,7 +721,10 @@ export function cleanupWorkflowState(workflowId: string) {
     console.log('[WorkflowInlineMonitor] 🎉 Complete cleanup finished for:', workflowId);
     // 通知所有监听器
     globalActiveWorkflowsListeners.forEach(listener => listener());
-    globalWorkflowListeners.forEach(listener => listener());
+    // 🔥 FIX: 正确遍历 Map<string, Set<() => void>>
+    globalWorkflowListeners.forEach(listenerSet => {
+      listenerSet.forEach(listener => listener());
+    });
   }
 }
 
@@ -767,7 +774,7 @@ export function WorkflowInlineMonitor({
     };
   });
   const [isExpanded, setIsExpanded] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'dag'>('list'); // 🔥 添加视图模式状态
+  const [viewMode, setViewMode] = useState<'list' | 'dag'>('list'); // 🔥 默认使用列表视图
 
   // 🔥 辅助方法：流式内容智能去重（通用算法，防止卡顿导致的重复）
   const deduplicateStreamingContent = useCallback((delta: string, existingContent: string): string => {
@@ -978,6 +985,9 @@ export function WorkflowInlineMonitor({
 
         console.log('[WorkflowInlineMonitor] ✅ Created initial pending nodes:', initialNodes.length);
 
+        // 🔥 提取 sessionId（用于标签页隔离）
+        const sessionId = payload.sessionId || payload.session_id;
+
         // 🔥 使用 flushSync 强制立即渲染（避免 React 批处理延迟）
         flushSync(() => {
           updateGlobalWorkflowState(workflowId, {
@@ -985,9 +995,10 @@ export function WorkflowInlineMonitor({
             status: 'running',
             startTime: Date.now(),
             nodes: initialNodes,  // 🔥 包含所有计划节点（pending 状态）
+            sessionId,  // 🔥 保存 sessionId，用于标签页隔离
           });
         });
-        console.log('[WorkflowInlineMonitor] ✅ State updated with flushSync (workflow:started)');
+        console.log('[WorkflowInlineMonitor] ✅ State updated with flushSync (workflow:started)', { sessionId });
       }
     });
 
@@ -1684,10 +1695,10 @@ export function WorkflowInlineMonitor({
                                       </span>
                                       {/* 状态指示器 */}
                                       {!isSuccess && (
-                                        <span className="text-xs text-red-400">✗</span>
+                                        <span className="text-xs text-red-400">X</span>
                                       )}
                                       {isSuccess && (
-                                        <span className="text-xs text-green-400">✓</span>
+                                        <span className="text-xs text-green-400">OK</span>
                                       )}
                                     </div>
 
@@ -1746,7 +1757,7 @@ export function WorkflowInlineMonitor({
                                     <span className="text-xs text-blue-400 animate-pulse">正在生成...</span>
                                   )}
                                   {!node.is_streaming && node.status === 'completed' && (
-                                    <span className="text-xs text-green-400">✓ 完成</span>
+                                    <span className="text-xs text-green-400">完成</span>
                                   )}
 
                                   {/* 执行时长 */}
@@ -1788,7 +1799,7 @@ export function WorkflowInlineMonitor({
                                 <span className="text-xs text-white animate-pulse">运行中</span>
                               )}
                               {node.status === 'completed' && (
-                                <span className="text-xs text-green-400">✓ 完成</span>
+                                <span className="text-xs text-green-400">完成</span>
                               )}
                               {node.status === 'failed' && (
                                 <span className="text-xs text-red-400">✗ 失败</span>
@@ -1951,12 +1962,17 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
       const workflowId = payload.workflowId || payload.workflow_id;
       console.log('[WorkflowInlineMonitorContainer] 📋 Workflow started:', workflowId);
 
+      // 🔥 提取 sessionId（用于标签页隔离）
+      const sessionId = payload.sessionId || payload.session_id;
+      console.log('[WorkflowInlineMonitorContainer] 🏷️ Workflow sessionId:', sessionId);
+
       // 初始化全局状态
       updateGlobalWorkflowState(workflowId, {
         name: payload.workflowType || payload.workflow_type || '工作流执行中',
         status: 'running' as const,
         startTime: Date.now(),
-        nodes: payload.nodes || []
+        nodes: payload.nodes || [],
+        sessionId,  // 🔥 保存 sessionId，用于标签页隔离
       });
 
       // 添加活跃工作流
@@ -2089,6 +2105,9 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     };
   }, []);
 
+  // 🔥 标签页隔离：获取当前活跃的 threadId
+  const activeThreadId = useThreadStore(state => state.activeThreadId);
+
   // 🔥 未初始化时不显示任何内容
   if (!isInitialized) {
     return null;
@@ -2098,7 +2117,9 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
   console.log('[WorkflowInlineMonitorContainer] 🎨 Rendering:', {
     activeWorkflows,
     activeWorkflowsCount: activeWorkflows.length,
-    globalActiveWorkflows: Array.from(globalActiveWorkflows)
+    globalActiveWorkflows: Array.from(globalActiveWorkflows),
+    activeThreadId,
+    threadIsolationEnabled: !!activeThreadId
   });
 
   // 🔥 FIX: 如果没有活跃的工作流，返回 null
@@ -2107,10 +2128,37 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     return null;
   }
 
+  // 🔥 标签页隔离：过滤工作流，只显示属于当前 thread 的监控器
+  const filteredWorkflows = activeWorkflows.filter(workflowId => {
+    const workflowState = globalWorkflowStates.get(workflowId);
+    const belongsToCurrentThread = !activeThreadId || !workflowState?.sessionId || workflowState.sessionId === activeThreadId;
+
+    console.log('[WorkflowInlineMonitorContainer] 🏷️ Filtering workflow:', {
+      workflowId,
+      workflowSessionId: workflowState?.sessionId,
+      activeThreadId,
+      belongsToCurrentThread
+    });
+
+    return belongsToCurrentThread;
+  });
+
+  console.log('[WorkflowInlineMonitorContainer] 📊 Filtered workflows:', {
+    total: activeWorkflows.length,
+    filtered: filteredWorkflows.length,
+    filteredIds: filteredWorkflows
+  });
+
+  // 🔥 FIX: 如果过滤后没有活跃的工作流，返回 null
+  if (filteredWorkflows.length === 0) {
+    console.log('[WorkflowInlineMonitorContainer] ⚠️ No workflows for current thread, returning null');
+    return null;
+  }
+
   return (
     <>
-      {/* 🔥 真实工作流监控器 */}
-      {activeWorkflows.map(workflowId => (
+      {/* 🔥 真实工作流监控器（已过滤，仅显示当前 thread 的） */}
+      {filteredWorkflows.map(workflowId => (
         <WorkflowInlineMonitor
           key={workflowId}
           workflowId={workflowId}
