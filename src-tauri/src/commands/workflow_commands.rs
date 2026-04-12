@@ -125,6 +125,7 @@ pub async fn execute_workflow(
     workflow: Workflow,
     window: tauri::Window,
     correlation_id: Option<String>,  // 🔥 添加 correlation_id 参数
+    session_id: Option<String>,  // 🔥 添加 session_id 参数用于标签页隔离
 ) -> Result<String, String> {
     let workflow_id = workflow.id.clone();
 
@@ -190,6 +191,7 @@ pub async fn execute_workflow(
     let workflow_id_clone = workflow_id.clone();
     let window_for_start = window.clone();
     let planned_nodes_clone = planned_nodes.clone();  // 克隆用于闭包
+    let session_id_clone = session_id.clone();  // 🔥 克隆 session_id 用于闭包（标签页隔离）
     tokio::spawn(async move {
         println!("[Workflow] 🔄 Starting background execution for {}", workflow_id_clone);
 
@@ -201,13 +203,19 @@ pub async fn execute_workflow(
             println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
         }
 
-        let started_event = serde_json::json!({
+        let mut started_event = serde_json::json!({
             "workflowId": workflow_id_clone,
             "workflowType": "custom",
             "targetPath": ".",
             "timestamp": chrono::Utc::now().timestamp_millis(),
             "nodes": planned_nodes_clone  // 🔥 包含计划节点
         });
+
+        // 🔥 添加 session_id 到 workflow:started 事件（标签页隔离）
+        if let Some(sid) = &session_id_clone {
+            started_event["sessionId"] = serde_json::json!(sid);
+            println!("[Workflow] 🏷️ Added sessionId to workflow:started event: {}", sid);
+        }
 
         if let Err(e) = window_for_start.emit("workflow:started", &started_event) {
             println!("[Workflow] ⚠️ Failed to emit workflow:started event: {}", e);
@@ -422,6 +430,7 @@ pub async fn execute_quick_workflow(
     provider_config: Option<serde_json::Value>,  // 🔥 添加 provider_config 参数
     current_model: Option<String>,  // 🔥 添加 current_model 参数
     correlation_id: Option<String>,  // 🔥 添加 correlation_id 参数用于关联前端消息
+    session_id: Option<String>,  // 🔥 添加 session_id 参数用于标签页隔离
     window: tauri::Window,
 ) -> Result<String, String> {
     println!("[Workflow] 🚀 execute_quick_workflow called");
@@ -431,6 +440,7 @@ pub async fn execute_quick_workflow(
     println!("[Workflow] ⚙️ Provider config: {:?}", provider_config.is_some());
     println!("[Workflow] 🤖 Current model: {:?}", current_model);
     println!("[Workflow] 🔗 Correlation ID: {:?}", correlation_id);
+    println!("[Workflow] 🏷️ Session ID: {:?}", session_id);  // 🔥 日志 session_id
 
     let workflow = match workflow_type.as_str() {
         "code_review" => {
@@ -465,6 +475,12 @@ pub async fn execute_quick_workflow(
         workflow.variables.insert("correlation_id".to_string(), correlation_id.clone());
     }
 
+    // 🔥 存储 session_id（用于标签页隔离）
+    if let Some(session_id) = &session_id {
+        println!("[Workflow] ✅ Stored session_id in workflow variables: {}", session_id);
+        workflow.variables.insert("session_id".to_string(), session_id.clone());
+    }
+
     // 存储 project_root
     if let Some(root) = project_root {
         println!("[Workflow] ✅ Stored project_root in workflow variables: {}", root);
@@ -487,7 +503,7 @@ pub async fn execute_quick_workflow(
         workflow.variables.insert("current_model".to_string(), model);
     }
 
-    let result = execute_workflow(workflow, window, correlation_id).await?;
+    let result = execute_workflow(workflow, window, correlation_id, session_id).await?;
 
     println!("[Workflow] ✅ Workflow started successfully: {}", result);
     Ok(result)

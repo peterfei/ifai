@@ -25,7 +25,9 @@ import {
   ChevronDown,
   ChevronRight,
   Zap,
+  Settings2,
 } from 'lucide-react';
+import { WorkflowDAGVisualizer } from './WorkflowDAGVisualizer';
 
 // 动态导入 Tauri API
 // 🔥 测试适配层：允许外部注入 listen 函数用于测试
@@ -138,17 +140,17 @@ interface WorkflowDAGMonitorProps {
 
 /** 节点类型图标映射（Claude Code 风格） */
 const NODE_TYPE_ICONS: Record<string, string> = {
-  'Search': '🔍',
-  'Read': '📄',
-  'Write': '📝',
-  'Agent': '🤖',
-  'Command': '⚡',
-  'Explore': '🔍',
-  'Review': '👁️',
-  'Refactor': '🔧',
-  'Test': '🧪',
-  'Build': '🏗️',
-  'Deploy': '🚀',
+  'Search': 'S',
+  'Read': 'R',
+  'Write': 'W',
+  'Agent': 'A',
+  'Command': 'C',
+  'Explore': 'E',
+  'Review': 'V',
+  'Refactor': 'F',
+  'Test': 'T',
+  'Build': 'B',
+  'Deploy': 'D',
 };
 
 /** 节点类型颜色映射（Claude Code 风格） */
@@ -320,6 +322,7 @@ export function WorkflowDAGMonitor({
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [showTimeline, setShowTimeline] = useState(true);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'svg' | 'reactflow'>('svg'); // 🔥 默认使用 SVG 模式
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // ==================== 计算属性 ====================
@@ -533,10 +536,42 @@ export function WorkflowDAGMonitor({
       {/* DAG 可视化 */}
       <Card data-testid="dag-visualization">
         <CardHeader>
-          <CardTitle>工作流可视化</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>工作流可视化</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode(viewMode === 'svg' ? 'reactflow' : 'svg')}
+              className="flex items-center gap-2"
+              data-testid="view-mode-toggle"
+            >
+              <Settings2 className="w-4 h-4" />
+              {viewMode === 'svg' ? '切换到 React Flow' : '切换到 SVG'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <DAGVisualization nodes={nodes} edges={edges} />
+          {viewMode === 'reactflow' ? (
+            <div className="h-[500px]" data-testid="dag-reactflow-view">
+              <WorkflowDAGVisualizer
+                nodes={nodes}
+                edges={edges}
+                workflowId={workflowId}
+                onNodeClick={(node) => {
+                  // 点击节点时展开详情
+                  setExpandedLogs((prev) => {
+                    const newSet = new Set(prev);
+                    if (!newSet.has(node.id)) {
+                      newSet.add(node.id);
+                    }
+                    return newSet;
+                  });
+                }}
+              />
+            </div>
+          ) : (
+            <DAGVisualization nodes={nodes} edges={edges} />
+          )}
         </CardContent>
       </Card>
 
@@ -773,7 +808,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
                       失败
                     </>
                   )}
-                  {node.status === 'skipped' && '⊘ 跳过'}
+                  {node.status === 'skipped' && '跳过'}
                 </div>
               </foreignObject>
 
@@ -858,7 +893,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             {selectedNode.tool_calls && selectedNode.tool_calls.length > 0 && (
               <div className="mt-3 border-t pt-3">
                 <div className="text-muted-foreground mb-2 font-medium">
-                  ⚡ 工具调用 ({selectedNode.tool_calls.length})
+                  工具调用 ({selectedNode.tool_calls.length})
                 </div>
                 <div className="space-y-2">
                   {selectedNode.tool_calls.map((tool, idx) => (
@@ -1036,11 +1071,11 @@ function TimelineLogItem({ log }: TimelineLogItemProps) {
       case 'node_started':
         return '▶ 开始';
       case 'node_completed':
-        return '✓ 完成';
+        return '完成';
       case 'node_progress':
-        return '⟳ 进度';
+        return '进度';
       case 'tool_call':
-        return '⚡ 工具调用';
+        return '工具调用';
       default:
         return type;
     }

@@ -305,11 +305,11 @@ function WorkflowStatusBadge({ status }: WorkflowStatusBadgeProps) {
   const getStatusIcon = () => {
     switch (status) {
       case 'running':
-        return '⟳';
+        return 'R';
       case 'completed':
-        return '✓';
+        return 'C';
       case 'failed':
-        return '✗';
+        return 'F';
     }
   };
 
