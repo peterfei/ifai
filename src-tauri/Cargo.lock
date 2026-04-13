@@ -2932,6 +2932,7 @@ dependencies = [
  "ignore",
  "md5",
  "notify",
+ "once_cell",
  "rand 0.8.5",
  "regex",
  "reqwest",

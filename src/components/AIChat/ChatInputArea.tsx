@@ -187,16 +187,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
     // 这实现了"连续发送"功能：用户可以连续发送多条消息，它们会被排队处理
     if (!input.trim() && imageAttachments.length === 0) return;
 
-    // 🔥 FIX: 检查 sendMessage 是否可用
-    if (!sendMessage) {
-      console.error('[ChatInputArea] ⚠️ sendMessage not available');
-      return;
-    }
-
-    // 🔥 DEBUG: 追踪 sendMessage 调用
-    console.log('[ChatInputArea] 🔍 About to call sendMessage');
-    console.log('[ChatInputArea] 🔍 sendMessage function:', sendMessage?.name || 'anonymous');
-    console.log('[ChatInputArea] 🔍 sendMessage toString:', sendMessage?.toString().substring(0, 200));
+    // 🔥 CRITICAL FIX: 绕过 store，直接调用 SendMessageOrchestrator
+    // 这样即使 store 状态被破坏，消息发送仍然能工作
+    console.log('[ChatInputArea] 🔍 Using direct orchestrator call (bypassing store)');
 
     // 保存当前输入内容，用于清空
     const messageToSend = input;
@@ -209,22 +202,49 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
     setOriginalInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // 异步发送消息（不阻塞输入框）
-    if (attachmentsToSend.length > 0) {
-      const contentParts: any[] = [{ type: 'text', text: messageToSend }];
-      attachmentsToSend.forEach(img => { contentParts.push({ type: 'image_url', image_url: { url: img.previewUrl } }); });
-      console.log('[ChatInputArea] 🔍 Calling sendMessage with multimodal content');
-      // 不等待，让消息在后台处理
-      sendMessage(contentParts, currentProviderId, currentModel).catch(err => {
-        console.error('[ChatInputArea] ❌ Error sending multimodal message:', err);
-      });
-    } else {
-      console.log('[ChatInputArea] 🔍 Calling sendMessage with text:', messageToSend);
-      // 不等待，让消息在后台处理
-      sendMessage(messageToSend, currentProviderId, currentModel).catch(err => {
-        console.error('[ChatInputArea] ❌ Error sending text message:', err);
-      });
-    }
+    // 🔥 异步发送消息（不阻塞输入框）
+    const sendAsync = async () => {
+      try {
+        // 🔥 直接导入 orchestrator，绕过 store
+        const { sendMessageOrchestrator } = await import('../../stores/chat/sendMessage/SendMessageOrchestrator');
+
+        // 发送消息
+        const result = attachmentsToSend.length > 0
+          ? await sendMessageOrchestrator.send(
+              [{ type: 'text', text: messageToSend }, ...attachmentsToSend.map(img => ({
+                type: 'image_url',
+                image_url: { url: img.previewUrl }
+              }))],
+              currentProviderId,
+              currentModel
+            )
+          : await sendMessageOrchestrator.send(messageToSend, currentProviderId, currentModel);
+
+        // 🔥 检查是否是工作流消息
+        if (result && (result as any).skipped) {
+          console.log('[ChatInputArea] ⚡ Workflow handled message');
+          return;
+        }
+
+        // 🔥 对于普通聊天，需要调用 generateResponse
+        const store = useChatStore.getState();
+        if (typeof store.generateResponse === 'function') {
+          await store.generateResponse(
+            result.context || [],
+            currentProviderId,
+            currentModel,
+            result.correlationId
+          );
+        } else {
+          console.error('[ChatInputArea] ❌ generateResponse not available');
+        }
+      } catch (err) {
+        console.error('[ChatInputArea] ❌ Error:', err);
+      }
+    };
+
+    // 不等待，让消息在后台处理
+    sendAsync();
 
     console.log('[ChatInputArea] ✅ Message queued, input cleared, ready for next message');
   };

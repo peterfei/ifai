@@ -2643,7 +2643,7 @@ ${suggestion.fixContext.code_context}
 
       <TokenUsageIndicator />
 
-      <div className="p-4 bg-[#1e1e1e]/30">
+      <div className="p-4 bg-[#1e1e1e]/30 relative z-[100]">
         <ChatInputArea isLoading={isLoading} />
       </div>
 
