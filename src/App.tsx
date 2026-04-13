@@ -195,6 +195,25 @@ function App() {
 
       console.log('[App] 🚀 Initializing app...');
 
+      // 🔥 CRITICAL FIX: 等待 useChatStore persist hydrate 完成
+      // 避免 IndexedDB 恢复的消息被 persist 的空 localStorage 数据覆盖
+      const { useChatStore } = await import('./stores/useChatStore');
+      if (!useChatStore.persist.hasHydrated()) {
+        console.log('[App] ⏳ Waiting for useChatStore persist to hydrate...');
+        await new Promise<void>((resolve) => {
+          const unsub = useChatStore.persist.onFinishHydration(() => {
+            unsub();
+            resolve();
+          });
+          // Safety timeout: 如果 persist 始终不 hydrate（如 SSR），最多等 3 秒
+          setTimeout(() => {
+            unsub();
+            resolve();
+          }, 3000);
+        });
+        console.log('[App] ✅ useChatStore persist hydrated');
+      }
+
       // 🔥 CRITICAL FIX: 优先恢复 thread，不管其他初始化是否成功
       try {
         console.log('[App] 📦 About to initialize thread persistence...');
@@ -202,36 +221,7 @@ function App() {
         await initThreadPersistence();
         console.log('[App] ✅ Thread persistence initialized');
 
-        // 🔥 CRITICAL FIX: 恢复上次活跃的 thread
-        // 修复刷新后消息丢失的问题
-        const threadState = useThreadStore.getState();
-        const activeThreadId = threadState.activeThreadId;
-
-        console.log('[App] 🔍 Checking activeThreadId:', activeThreadId);
-
-        if (activeThreadId) {
-          console.log('[App] 🔄 Restoring active thread:', activeThreadId);
-
-          // 调用 switchThread 来恢复消息
-          const { switchThread: loadThread } = await import('./stores/useChatStore');
-          await loadThread(activeThreadId);
-
-          console.log('[App] ✅ Thread restored with messages');
-        } else {
-          console.log('[App] ℹ️ No active thread found, will create new one on first message');
-
-          // 🔥 FIX: 确保 currentThreadId 有值
-          const chatStore = useChatStore.getState();
-          if (!chatStore.currentThreadId) {
-            // 如果没有活跃 thread，创建一个默认的
-            const { createThread } = threadState;
-            const newThreadId = createThread();
-            console.log('[App] ✅ Created default thread:', newThreadId);
-
-            // 设置为当前 thread
-            useChatStore.setState({ currentThreadId: newThreadId });
-          }
-        }
+        // restoreFromStorage() 已内部调用 switchThread() 恢复消息，无需重复调用
       } catch (error) {
         console.error('[App] ❌ Thread restoration failed:', error);
       }
