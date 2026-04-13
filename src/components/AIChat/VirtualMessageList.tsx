@@ -61,18 +61,49 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  // 自动滚动到底部（流式输出时）
+  // 🔥 性能优化：使用 RAF 节流自动滚动（避免流式输出时频繁 DOM 更新阻塞主线程）
   useEffect(() => {
-    if ((isLoading || hasPendingToolCalls) && scrollElementRef.current) {
-      scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
+    if (!(isLoading || hasPendingToolCalls) || !scrollElementRef.current) {
+      return;
     }
-  }, [visibleMessages, isLoading, hasPendingToolCalls]);
 
-  // 条件渲染：短对话、正在加载、或有待处理工具调用时使用普通列表
+    let rafId: number | null = null;
+    let lastScrollTime = 0;
+    const SCROLL_THROTTLE_MS = 100; // 降低到 100ms，提升响应性
+
+    const scrollToBottom = () => {
+      const now = Date.now();
+      if (now - lastScrollTime >= SCROLL_THROTTLE_MS) {
+        lastScrollTime = now;
+        if (scrollElementRef.current) {
+          scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
+        }
+      }
+      rafId = requestAnimationFrame(scrollToBottom);
+    };
+
+    rafId = requestAnimationFrame(scrollToBottom);
+
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+    };
+  }, [isLoading, hasPendingToolCalls]);
+
+  // 🔥 性能优化：流式输出时只渲染最后 20 条消息，避免 DOM 节点过多阻塞主线程
+  const STREAMING_RENDER_LIMIT = 20;
+
+  // 条件渲染：短对话、正在加载、或有待处理工具调用时使用限制渲染的列表
   if (visibleMessages.length < 15 || isLoading || hasPendingToolCalls) {
+    // 🔥 关键优化：流式输出时只渲染最后 20 条消息
+    const messagesToRender = (isLoading || hasPendingToolCalls)
+      ? visibleMessages.slice(-STREAMING_RENDER_LIMIT)
+      : visibleMessages;
+
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {visibleMessages.map((message, index) => (
+        {messagesToRender.map((message, index) => (
           <React.Fragment key={message.id}>
             <MessageItem
               message={message as any}

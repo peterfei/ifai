@@ -140,10 +140,10 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const currentPromptMeta = useTransparencyStore(state => state.currentPromptMeta);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
 
-  // Scroll throttling to prevent "flickering" during streaming
+  // 🔥 性能优化：降低滚动节流时间，提升滚动响应性
   const lastScrollTime = useRef(0);
   const rafScrollId = useRef<number>(0);
-  const SCROLL_THROTTLE_MS = 200;  // Scroll throttle: 200ms
+  const SCROLL_THROTTLE_MS = 100;  // 从 200ms 降低到 100ms，提升响应性
 
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
   const openFile = useFileStore(state => state.openFile);
@@ -2565,6 +2565,15 @@ ${suggestion.fixContext.code_context}
           style={{
             // v0.2.6 性能优化：单一滚动容器，虚拟滚动使用此容器
             flex: '1 1 0%', // 明确设置 flex 属性，确保正确计算高度
+
+            // 🔥 性能优化：确保滚动在独立合成层（GPU 加速）
+            willChange: 'scroll-position',
+            // 使用 CSS containment 优化滚动性能
+            contain: 'strict', // 等同于 'layout style paint'
+            // 防止滚动链到父元素
+            overscrollBehavior: 'contain',
+            // 启用自动滚动锚定，提升自动滚动的平滑度
+            overflowAnchor: 'auto',
           }}
         >
           {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
