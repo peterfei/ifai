@@ -556,10 +556,11 @@ export const initStoreMapper = () => {
           correlationId,
         });
 
-        // 🔥 FIX: 处理 state 为 null 的情况
+        // 🔥 FIX: 异常 state 时返回当前 state，保持不变
+        // 注意：zustand v5 中 return null 会导致整个 state 被替换为 null！
         if (!state || !state.messages) {
-          console.warn('[StoreMapper] ⚠️ State is null in workflow:response, initializing with default state');
-          state = { messages: [] };
+          console.warn('[StoreMapper] ⚠️ State is null in workflow:response, preserving current state');
+          return state;
         }
 
         // 🔥 FIX: 检查是否已存在 assistant 消息
@@ -757,15 +758,11 @@ export const initStoreMapper = () => {
 
       // 更新工作流消息，显示实时进度
       const updater = (state: any) => {
-        // 🔥 FIX: 检查 state 是否为 null 或未定义，提供默认状态
-        if (!state) {
-          console.warn('[StoreMapper] ⚠️ State is null in workflow:progress handler, using default state');
-          return { messages: [] }; // 提供默认状态
-        }
-
-        if (!state.messages) {
-          console.warn('[StoreMapper] ⚠️ State.messages is missing in workflow:progress handler, using default messages');
-          return { ...state, messages: [] }; // 提供默认 messages
+        // 🔥 FIX: 异常 state 时返回当前 state，保持不变
+        // 注意：zustand v5 中 return null 会导致整个 state 被替换为 null！
+        if (!state || !state.messages) {
+          console.warn('[StoreMapper] ⚠️ State is invalid in workflow:progress handler, preserving current state');
+          return state;
         }
 
         // 查找包含此 workflowId 的助手消息
@@ -776,7 +773,7 @@ export const initStoreMapper = () => {
 
         if (assistantIndex === -1) {
           console.warn('[StoreMapper] ⚠️ Workflow message not found for progress:', workflowId);
-          return null; // 保持当前状态不变
+          return state; // 🔥 FIX: zustand v5 中 return null 会把 state 设为 null，必须 return state
         }
 
         // 🔥 构建进度显示
@@ -909,15 +906,11 @@ export const initStoreMapper = () => {
       // 查找并更新对应的工作流消息
       // 我们需要通过 workflow_id 找到相关消息
       const updater = (state: any) => {
-        // 🔥 FIX: 检查 state 是否为 null 或未定义，提供默认状态
-        if (!state) {
-          console.warn('[StoreMapper] ⚠️ State is null in workflow:completed handler, using default state');
-          return { messages: [] }; // 提供默认状态
-        }
-
-        if (!state.messages) {
-          console.warn('[StoreMapper] ⚠️ State.messages is missing in workflow:completed handler, using default messages');
-          return { ...state, messages: [] }; // 提供默认 messages
+        // 🔥 FIX: 异常 state 时返回当前 state，保持不变
+        // 注意：zustand v5 中 return null 会导致整个 state 被替换为 null！
+        if (!state || !state.messages) {
+          console.warn('[StoreMapper] ⚠️ State is invalid in workflow:completed handler, preserving current state');
+          return state;
         }
 
         // 查找包含此 workflowId 的助手消息

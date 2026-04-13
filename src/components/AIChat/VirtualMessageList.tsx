@@ -55,8 +55,8 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150, // 估算每条消息高度
     overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
-    // 流式输出 或 有待处理工具调用时禁用虚拟滚动
-    enabled: visibleMessages.length >= 15 && !isLoading && !hasPendingToolCalls,
+    // 🔥 FIX: 仅 AI 流式输出时禁用虚拟滚动，工作流 pending toolCalls 不影响
+    enabled: visibleMessages.length >= 15 && !isLoading,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -94,10 +94,11 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   // 🔥 性能优化：流式输出时只渲染最后 20 条消息，避免 DOM 节点过多阻塞主线程
   const STREAMING_RENDER_LIMIT = 20;
 
-  // 条件渲染：短对话、正在加载、或有待处理工具调用时使用限制渲染的列表
-  if (visibleMessages.length < 15 || isLoading || hasPendingToolCalls) {
-    // 🔥 关键优化：流式输出时只渲染最后 20 条消息
-    const messagesToRender = (isLoading || hasPendingToolCalls)
+  // 条件渲染：短对话、正在加载时使用限制渲染的列表
+  // 🔥 FIX: 移除 hasPendingToolCalls 的截断触发，工作流执行期间不截断历史消息
+  if (visibleMessages.length < 15 || isLoading) {
+    // 🔥 关键优化：仅 AI 流式输出时只渲染最后 20 条消息
+    const messagesToRender = isLoading
       ? visibleMessages.slice(-STREAMING_RENDER_LIMIT)
       : visibleMessages;
 

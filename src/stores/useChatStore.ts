@@ -530,7 +530,18 @@ export const useChatStore = create<ChatStore>()(
               clearTimeout(safetyTimer);
           }
       }
-    })
+    }),
+    {
+      name: 'ifai-chat-store',
+      // 🔥 FIX: 只持久化 input 和 currentThreadId，不持久化 messages
+      // messages 由 threadPersistence 通过 IndexedDB 单独管理
+      // 如果不配置 partialize，persist 默认会持久化整个 state（包括 messages），
+      // 在 rehydrate 时可能用空的 messages 覆盖运行时状态
+      partialize: (state) => ({
+        input: state.input,
+        currentThreadId: state.currentThreadId,
+      }),
+    }
   )
 );
 
