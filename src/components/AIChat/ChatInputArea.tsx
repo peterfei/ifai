@@ -187,13 +187,16 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
     // 这实现了"连续发送"功能：用户可以连续发送多条消息，它们会被排队处理
     if (!input.trim() && imageAttachments.length === 0) return;
 
-    // 🔥 CRITICAL FIX: 绕过 store，直接调用 SendMessageOrchestrator
-    // 这样即使 store 状态被破坏，消息发送仍然能工作
-    console.log('[ChatInputArea] 🔍 Using direct orchestrator call (bypassing store)');
+    // 🔥 Phase 2: 使用消息队列发送消息
+    console.log('[ChatInputArea] 🚀 Using MessageQueue to send message');
 
     // 保存当前输入内容，用于清空
     const messageToSend = input;
     const attachmentsToSend = [...imageAttachments];
+
+    // 🔥 判断是否是工作流消息（以 / 开头）
+    const isWorkflowCommand = messageToSend.trim().startsWith('/');
+    const priority = isWorkflowCommand ? 'high' : 'normal';
 
     // 立即清空输入框和附件，允许用户继续输入
     setInput('');
@@ -202,44 +205,65 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
     setOriginalInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // 🔥 异步发送消息（不阻塞输入框）
+    // 🔥 使用消息队列发送
     const sendAsync = async () => {
       try {
-        // 🔥 直接导入 orchestrator，绕过 store
-        const { sendMessageOrchestrator } = await import('../../stores/chat/sendMessage/SendMessageOrchestrator');
+        // 动态导入 messageQueue
+        const { messageQueue } = await import('../../stores/chat/MessageQueue');
 
-        // 发送消息
-        const result = attachmentsToSend.length > 0
-          ? await sendMessageOrchestrator.send(
-              [{ type: 'text', text: messageToSend }, ...attachmentsToSend.map(img => ({
-                type: 'image_url',
-                image_url: { url: img.previewUrl }
-              }))],
-              currentProviderId,
-              currentModel
-            )
-          : await sendMessageOrchestrator.send(messageToSend, currentProviderId, currentModel);
+        // 构建消息内容
+        const content = attachmentsToSend.length > 0
+          ? [{ type: 'text', text: messageToSend }, ...attachmentsToSend.map(img => ({
+              type: 'image_url',
+              image_url: { url: img.previewUrl }
+            }))]
+          : messageToSend;
 
-        // 🔥 检查是否是工作流消息
-        if (result && (result as any).skipped) {
-          console.log('[ChatInputArea] ⚡ Workflow handled message');
-          return;
-        }
+        // 入队消息
+        const messageId = await messageQueue.enqueue({
+          content,
+          providerId: currentProviderId,
+          model: currentModel,
+          priority,
+        });
 
-        // 🔥 对于普通聊天，需要调用 generateResponse
-        const store = useChatStore.getState();
-        if (typeof store.generateResponse === 'function') {
-          await store.generateResponse(
-            result.context || [],
-            currentProviderId,
-            currentModel,
-            result.correlationId
-          );
-        } else {
-          console.error('[ChatInputArea] ❌ generateResponse not available');
-        }
+        console.log('[ChatInputArea] ✅ Message enqueued:', messageId, 'priority:', priority);
       } catch (err) {
         console.error('[ChatInputArea] ❌ Error:', err);
+
+        // 🔥 降级方案：如果队列失败，使用原有的直接调用方式
+        console.log('[ChatInputArea] ⚠️ Fallback to direct orchestrator call');
+        try {
+          const { sendMessageOrchestrator } = await import('../../stores/chat/sendMessage/SendMessageOrchestrator');
+
+          const result = attachmentsToSend.length > 0
+            ? await sendMessageOrchestrator.send(
+                [{ type: 'text', text: messageToSend }, ...attachmentsToSend.map(img => ({
+                  type: 'image_url',
+                  image_url: { url: img.previewUrl }
+                }))],
+                currentProviderId,
+                currentModel
+              )
+            : await sendMessageOrchestrator.send(messageToSend, currentProviderId, currentModel);
+
+          if (result && (result as any).skipped) {
+            console.log('[ChatInputArea] ⚡ Workflow handled message');
+            return;
+          }
+
+          const store = useChatStore.getState();
+          if (typeof store.generateResponse === 'function') {
+            await store.generateResponse(
+              result.context || [],
+              currentProviderId,
+              currentModel,
+              result.correlationId
+            );
+          }
+        } catch (fallbackErr) {
+          console.error('[ChatInputArea] ❌ Fallback also failed:', fallbackErr);
+        }
       }
     };
 

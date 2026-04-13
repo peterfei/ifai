@@ -8,7 +8,7 @@
  * @proposal P4 Multi-Agent Collaboration - Phase 1
  */
 
-import { chatEventBus } from './eventBus/ChatEventBus';
+import { chatEventBus, type ChatEvents } from './eventBus/ChatEventBus';
 
 /**
  * 队列中的消息结构
@@ -175,6 +175,36 @@ export class MessageQueue {
         { signal: nextMessage.abortController?.signal }  // 传递 AbortSignal
       );
 
+      // 🔥 检查是否需要调用 generateResponse
+      // 如果 result.skipped 为真，说明是工作流消息，工作流会自己处理响应
+      // 如果为假，说明是普通消息，需要调用 generateResponse 生成 AI 回复
+      if (result && !(result as any).skipped) {
+        console.log(`[MessageQueue] 🤖 Triggering generateResponse for: ${nextMessage.id}`);
+
+        try {
+          // 动态导入 useChatStore
+          const { useChatStore } = await import('../useChatStore');
+          const store = useChatStore.getState();
+
+          if (typeof store.generateResponse === 'function') {
+            await store.generateResponse(
+              result.context || [],
+              nextMessage.providerId,
+              nextMessage.model,
+              result.correlationId
+            );
+            console.log(`[MessageQueue] ✅ generateResponse completed for: ${nextMessage.id}`);
+          } else {
+            console.warn(`[MessageQueue] ⚠️ generateResponse not available in store`);
+          }
+        } catch (genErr) {
+          console.error(`[MessageQueue] ❌ generateResponse failed for: ${nextMessage.id}`, genErr);
+          // generateResponse 失败不算消息失败，消息已经成功发送
+        }
+      } else if (result && (result as any).skipped) {
+        console.log(`[MessageQueue] ⚡ Workflow message skipped generateResponse: ${nextMessage.id}`);
+      }
+
       nextMessage.status = 'completed';
       console.log(`[MessageQueue] ✅ Message completed: ${nextMessage.id}`);
 
@@ -203,6 +233,11 @@ export class MessageQueue {
       }
 
       this.isProcessing = false;
+
+      // 🔥 FIX: 发送队列状态变更事件，确保 UI 能正确更新
+      // 因为 completed/aborted/failed 事件发出时 isProcessing 仍为 true
+      // 需要在 finally 中额外发送一次状态变更
+      this.emitStatusChanged();
 
       // 继续处理下一条消息
       const hasPending = this.workflowQueue.some(m => m.status === 'pending') ||
@@ -309,13 +344,51 @@ export class MessageQueue {
    */
   private emitEvent(eventType: string, data: any) {
     try {
-      chatEventBus.emit(eventType, {
-        ...data,
-        queueStatus: this.getStatus(),
+      // 映射事件名称到 ChatEventBus 规范
+      const eventMap: Record<string, keyof ChatEvents> = {
+        'message:processing': 'chat:queue:processing',
+        'message:completed': 'chat:queue:completed',
+        'message:aborted': 'chat:queue:aborted',
+        'message:failed': 'chat:queue:failed',
+      };
+
+      const busEventType = eventMap[eventType];
+      if (!busEventType) {
+        console.warn(`[MessageQueue] ⚠️ Unknown event type: ${eventType}`);
+        return;
+      }
+
+      // 构建符合 BasePayload 的数据结构
+      const queueStatus = this.getStatus();
+
+      chatEventBus.emit(busEventType, {
+        correlationId: data.correlationId || chatEventBus.createCorrelationId(),
+        sessionId: data.sessionId || 'default',
         timestamp: Date.now(),
-      });
+        messageId: data.id,
+        priority: data.priority,
+        queueStatus,
+        ...(data.error && { error: data.error }),
+      } as any);
     } catch (error) {
       console.error(`[MessageQueue] ❌ Failed to emit event: ${eventType}`, error);
+    }
+  }
+
+  /**
+   * 发送队列状态变更事件
+   * 用于在 finally 块中通知 UI 队列已空闲
+   */
+  private emitStatusChanged() {
+    try {
+      chatEventBus.emit('chat:queue:status-changed', {
+        correlationId: chatEventBus.createCorrelationId(),
+        sessionId: 'default',
+        timestamp: Date.now(),
+        queueStatus: this.getStatus(),
+      } as any);
+    } catch (error) {
+      console.error('[MessageQueue] ❌ Failed to emit status-changed event', error);
     }
   }
 }

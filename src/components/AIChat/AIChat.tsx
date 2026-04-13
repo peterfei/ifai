@@ -42,6 +42,7 @@ import { ThreadTabs, useThreadKeyboardShortcuts } from './ThreadTabs';
 import { ThreadSearchBar } from './ThreadSearchBar';
 import { ModelCapsulePanel } from './ModelCapsulePanel';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
+import { QueueIndicator } from './QueueIndicator';
 import { SystemPromptCard } from './SystemPromptCard';
 import { VirtualMessageList } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
@@ -2642,6 +2643,11 @@ ${suggestion.fixContext.code_context}
       )}
 
       <TokenUsageIndicator />
+
+      {/* Phase 2: 消息队列状态指示器 */}
+      <div className="px-4 pb-2">
+        <QueueIndicator />
+      </div>
 
       <div className="p-4 bg-[#1e1e1e]/30 relative z-[100]">
         <ChatInputArea isLoading={isLoading} />

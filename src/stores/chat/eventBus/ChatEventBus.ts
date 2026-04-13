@@ -64,6 +64,40 @@ export interface ChatEvents {
     previousPhase: StreamPhase | null;
   };
 
+  // 🏆 新增：消息队列域 (Phase 1 - Message Queue)
+  'chat:queue:processing': BasePayload & {
+    messageId: string;
+    priority: 'normal' | 'high';
+    queueStatus: {
+      normal: { pending: number; processing: number };
+      workflow: { pending: number; processing: number };
+      isProcessing: boolean;
+    };
+  };
+  'chat:queue:completed': BasePayload & {
+    messageId: string;
+    priority: 'normal' | 'high';
+    queueStatus: any;
+  };
+  'chat:queue:aborted': BasePayload & {
+    messageId: string;
+    priority: 'normal' | 'high';
+    queueStatus: any;
+  };
+  'chat:queue:failed': BasePayload & {
+    messageId: string;
+    priority: 'normal' | 'high';
+    error: Error;
+    queueStatus: any;
+  };
+  'chat:queue:status-changed': BasePayload & {
+    queueStatus: {
+      normal: { pending: number; processing: number };
+      workflow: { pending: number; processing: number };
+      isProcessing: boolean;
+    };
+  };
+
   // 系统与错误域
   'chat:error': BasePayload & { code: string; message: string; stack?: string; moduleId: string };
   'chat:session:sync': BasePayload & { state: any }; // 用于触发持久化
