@@ -533,53 +533,33 @@ export const useChatStore = create<ChatStore>()(
     }),
     {
       name: 'ifai-chat-store',
-      // 🔥 FIX: 只持久化 input 和 currentThreadId，不持久化 messages
-      // messages 由 threadPersistence 通过 IndexedDB 单独管理
-      // 如果不配置 partialize，persist 默认会持久化整个 state（包括 messages），
-      // 在 rehydrate 时可能用空的 messages 覆盖运行时状态
+      // 只持久化核心字段，避免 isLoading 等瞬态状态污染
       partialize: (state) => ({
-        input: state.input,
+        messages: state.messages,
         currentThreadId: state.currentThreadId,
       }),
+      // 🔥 FIX: persist hydrate 时保护已有 messages 不被空数据覆盖
+      // 场景：localStorage 中 messages 为空（首次或上次未正确保存），
+      // 但内存中已有消息（来自 IndexedDB restore），此时应保留内存消息
+      merge: (persistedState: any, currentState: any) => {
+        const merged = { ...currentState, ...persistedState };
+        // 如果 persistedState 有 messages 字段且为空数组，但 currentState 有消息，保留 currentState 的
+        if (
+          Array.isArray(persistedState.messages) &&
+          persistedState.messages.length === 0 &&
+          Array.isArray(currentState.messages) &&
+          currentState.messages.length > 0
+        ) {
+          merged.messages = currentState.messages;
+          console.log(
+            `[ChatStore] 🛡️ Persist merge: 保留 ${currentState.messages.length} 条内存消息，忽略 localStorage 空数据`
+          );
+        }
+        return merged;
+      },
     }
   )
 );
-
-// 🔥 CRITICAL FIX: 手动管理持久化，防止 persist 中间件破坏运行时状态
-if (typeof window !== 'undefined') {
-  // 页面卸载时保存状态
-  window.addEventListener('beforeunload', () => {
-    const state = useChatStore.getState();
-    const dataToSave = {
-      input: state.input,
-      currentThreadId: state.currentThreadId
-    };
-    localStorage.setItem('ifai-chat-storage-v7', JSON.stringify({
-      state: dataToSave,
-      version: 7
-    }));
-  });
-
-  // 🔥 页面加载时延迟恢复状态，确保 store 完全初始化
-  setTimeout(() => {
-    const savedState = localStorage.getItem('ifai-chat-storage-v7');
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        if (parsed.version === 7 && parsed.state) {
-          const currentState = useChatStore.getState();
-          // 🔥 关键：只更新 input 字段，保留其他所有字段（包括方法）
-          if (parsed.state.input !== undefined && currentState.input !== parsed.state.input) {
-            useChatStore.setState({ input: parsed.state.input });
-            console.log('[useChatStore] ✅ Restored input from localStorage');
-          }
-        }
-      } catch (e) {
-        console.error('[useChatStore] ❌ Failed to restore state:', e);
-      }
-    }
-  }, 100);
-}
 
 // -------------------------------------------------------------------
 // 3. 辅助导出与挂载
@@ -588,14 +568,45 @@ if (typeof window !== 'undefined') {
 export const switchThread = async (threadId: string) => {
     console.log(`[ChatStore] 🔄 切换到 thread: ${threadId.substring(0, 20)}`);
 
-    // 🏆 关键修复：先清空全局消息，避免旧 Tab 的消息污染新 Tab
-    useChatStore.setState({ currentThreadId: threadId, isLoading: false, messages: [] });
+    const previousThreadId = useChatStore.getState().currentThreadId;
+    const previousMessages = useChatStore.getState().messages;
+    const isSameThread = previousThreadId === threadId;
+
+    // 更新 currentThreadId
+    useChatStore.setState({ currentThreadId: threadId, isLoading: false });
+
+    // 🔥 FIX: 同步更新 CoreStoreProxy 版本的 store（React 组件订阅的是这个实例）
+    // Vite 开发模式下 dynamic import 和 static import 可能解析为不同模块实例
+    if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
+        (window as any).__chatStore.setState({ currentThreadId: threadId, isLoading: false });
+        console.log('[ChatStore] 🔀 Synced currentThreadId to CoreStoreProxy instance');
+    }
 
     const { threadPersistence } = await import('./persistence/threadPersistence');
+    // 确保 threadPersistence 已初始化，否则 loadThreadMessages 会静默返回空数组
+    if (!(threadPersistence as any).initialized) {
+        console.log('[ChatStore] ⏳ threadPersistence not initialized, initializing...');
+        await threadPersistence.init();
+    }
     try {
         const messages = await threadPersistence.loadThreadMessages(threadId);
 
         console.log(`[ChatStore] 📥 加载了 ${messages.length} 条消息，准备排序`);
+
+        if (messages.length === 0) {
+            if (isSameThread) {
+                // 同一线程，保留内存中的 messages
+                console.log(`[ChatStore] ⏭️ 同线程无 IndexedDB 数据，保留 ${previousMessages.length} 条内存消息`);
+                return;
+            }
+            // 不同线程且 IndexedDB 无数据 → 清空消息（新线程/空线程）
+            console.log(`[ChatStore] 🧹 切换到新线程，清空 ${previousMessages.length} 条旧消息`);
+            useChatStore.setState({ messages: [] });
+            if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
+                (window as any).__chatStore.setState({ messages: [] });
+            }
+            return;
+        }
 
         // 🏆 FIX: 确保从持久化加载的消息有 segments 字段（向后兼容）
         // 🔥 v0.5.0: 强制重置 isStreaming 状态，避免历史消息触发打字机效果
@@ -639,8 +650,12 @@ export const switchThread = async (threadId: string) => {
         console.log(`[ChatStore] ✅ 设置 ${sortedMessages.length} 条排序后的消息: [${messagePreview}]`);
 
         useChatStore.setState({ messages: sortedMessages });
+        if (typeof window !== 'undefined' && (window as any).__chatStore && (window as any).__chatStore !== useChatStore) {
+            (window as any).__chatStore.setState({ messages: sortedMessages });
+        }
     } catch (e) {
         console.error('[ChatStore] SwitchThread failed:', e);
+        // 加载失败时保留当前 messages，不做任何修改
     }
 };
 

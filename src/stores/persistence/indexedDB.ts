@@ -8,7 +8,8 @@
  */
 
 const DB_NAME = 'ifai-threads';
-const DB_VERSION = 1;
+// 🔥 FIX: 不硬编码版本号，避免与已存在的更高版本冲突
+// indexedDB.open 不指定版本时，自动使用已有数据库的版本
 const THREADS_STORE = 'threads';
 const MESSAGES_STORE = 'messages';
 const SETTINGS_STORE = 'settings';
@@ -60,7 +61,8 @@ class IndexedDBHelper {
     }
 
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      // 🔥 FIX: 不指定版本号，自动使用已有数据库版本，避免 VersionError
+      const request = indexedDB.open(DB_NAME);
 
       request.onerror = () => {
         reject(new Error(`Failed to open IndexedDB: ${request.error}`));
@@ -68,6 +70,23 @@ class IndexedDBHelper {
 
       request.onsuccess = () => {
         this.db = request.result;
+        // 验证所需的 object store 是否存在
+        const missingStores = [THREADS_STORE, MESSAGES_STORE, SETTINGS_STORE]
+          .filter(name => !this.db!.objectStoreNames.contains(name));
+        if (missingStores.length > 0) {
+          console.warn(
+            `[IndexedDB] ⚠️ Missing stores: ${missingStores.join(', ')}. ` +
+            `Attempting version upgrade...`
+          );
+          // 需要升级版本以创建缺失的 store
+          this.db.close();
+          this.db = null;
+          const currentVersion = request.result.version;
+          this.upgradeAndReopen(currentVersion + 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
         resolve(this.db);
       };
 
@@ -90,6 +109,45 @@ class IndexedDBHelper {
         }
 
         // Create settings store
+        if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
+          db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
+        }
+      };
+    });
+  }
+
+  /**
+   * 🔥 FIX: 以更高版本重新打开数据库以触发 onupgradeneeded
+   */
+  private upgradeAndReopen(version: number): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, version);
+
+      request.onerror = () => {
+        reject(new Error(`Failed to upgrade IndexedDB: ${request.error}`));
+      };
+
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+
+        if (!db.objectStoreNames.contains(THREADS_STORE)) {
+          const threadStore = db.createObjectStore(THREADS_STORE, { keyPath: 'id' });
+          threadStore.createIndex('status', 'status', { unique: false });
+          threadStore.createIndex('lastActiveAt', 'lastActiveAt', { unique: false });
+          threadStore.createIndex('pinned', 'pinned', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains(MESSAGES_STORE)) {
+          const messageStore = db.createObjectStore(MESSAGES_STORE, { keyPath: 'id' });
+          messageStore.createIndex('threadId', 'threadId', { unique: false });
+          messageStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+
         if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
           db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
         }

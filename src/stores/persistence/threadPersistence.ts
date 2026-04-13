@@ -404,6 +404,18 @@ class ThreadPersistenceService {
       }
 
       if (threads.length === 0 && hasExistingThreads) {
+        // 🔥 FIX: threadStore 有线程但 IndexedDB 没有（可能之前 VersionError 导致未保存）
+        // 将 threadStore 的线程同步到 IndexedDB，然后恢复当前活跃线程
+        console.log('[ThreadPersistence] 🔄 Syncing threadStore threads to IndexedDB...');
+        const existingThreads = Object.values(currentStore.threads).filter(t => t.status !== 'deleted');
+        await this.saveThreads(existingThreads);
+
+        const targetId = currentStore.activeThreadId;
+        if (targetId && currentStore.threads[targetId]) {
+          const { switchThread } = await import('../useChatStore');
+          switchThread(targetId);
+        }
+        console.log(`[ThreadPersistence] ✅ Synced ${existingThreads.length} threads from threadStore to IndexedDB`);
         return;
       }
 
@@ -453,7 +465,6 @@ class ThreadPersistenceService {
 
         if (targetThreadId) {
           const { switchThread } = await import('../useChatStore');
-          // 🏆 FIX: 为选中的线程调用 switchThread，它会加载该线程的消息
           switchThread(targetThreadId);
         }
       }

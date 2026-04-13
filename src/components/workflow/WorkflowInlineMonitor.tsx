@@ -595,10 +595,10 @@ if (typeof window !== 'undefined') {
   console.log('[WorkflowInlineMonitor] 🔍 Setting up GLOBAL diagnostic listener for ALL workflow:progress events');
   const setupGlobalDiagnosticListener = () => {
     // 延迟设置，确保 chatEventBus 已初始化
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
-        const { getChatEventBus } = require('@/stores/chat/eventBus/ChatEventBus');
-        const chatEventBus = getChatEventBus();
+        const chatEventBusModule = await import('@/stores/chat/eventBus/ChatEventBus');
+        const chatEventBus = chatEventBusModule.chatEventBus;
         if (chatEventBus) {
           chatEventBus.on('workflow:progress' as any, (payload: any) => {
             // 标记：收到了至少一个进度事件
