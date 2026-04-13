@@ -54,6 +54,8 @@ export interface QueueStatus {
   };
   /** 是否正在处理 */
   isProcessing: boolean;
+  /** 排队中消息的内容摘要 */
+  pendingPreviews: string[];
 }
 
 /**
@@ -119,6 +121,9 @@ export class MessageQueue {
       console.log(`[MessageQueue] 📨 Enqueued normal message: ${id}`);
     }
 
+    // 🔥 FIX: 发送排队状态变更事件，让 UI 能立即显示新入队的消息
+    this.emitStatusChanged();
+
     // 触发队列处理
     this.process();
 
@@ -167,6 +172,8 @@ export class MessageQueue {
       // 动态导入 SendMessageOrchestrator
       const { sendMessageOrchestrator } = await import('./sendMessage/SendMessageOrchestrator');
 
+      console.log(`[MessageQueue] 📤 Calling sendMessageOrchestrator.send() for: ${nextMessage.id}`);
+
       // 调用 sendMessageOrchestrator.send()
       const result = await sendMessageOrchestrator.send(
         nextMessage.content,
@@ -174,6 +181,13 @@ export class MessageQueue {
         nextMessage.model,
         { signal: nextMessage.abortController?.signal }  // 传递 AbortSignal
       );
+
+      console.log(`[MessageQueue] 📥 sendMessageOrchestrator.send() returned for: ${nextMessage.id}`, {
+        hasResult: !!result,
+        skipped: (result as any)?.skipped,
+        hasContext: !!(result as any)?.context,
+        hasCorrelationId: !!(result as any)?.correlationId,
+      });
 
       // 🔥 检查是否需要调用 generateResponse
       // 如果 result.skipped 为真，说明是工作流消息，工作流会自己处理响应
@@ -187,11 +201,15 @@ export class MessageQueue {
           const store = useChatStore.getState();
 
           if (typeof store.generateResponse === 'function') {
+            // 🔥 FIX: 添加防御性检查，确保 result 有必要的属性
+            const context = (result as any).context || [];
+            const correlationId = (result as any).correlationId || nextMessage.id;
+
             await store.generateResponse(
-              result.context || [],
+              context,
               nextMessage.providerId,
               nextMessage.model,
-              result.correlationId
+              correlationId
             );
             console.log(`[MessageQueue] ✅ generateResponse completed for: ${nextMessage.id}`);
           } else {
@@ -203,6 +221,9 @@ export class MessageQueue {
         }
       } else if (result && (result as any).skipped) {
         console.log(`[MessageQueue] ⚡ Workflow message skipped generateResponse: ${nextMessage.id}`);
+      } else {
+        // result 为 null/undefined 的情况
+        console.warn(`[MessageQueue] ⚠️ No result returned from sendMessageOrchestrator for: ${nextMessage.id}`, result);
       }
 
       nextMessage.status = 'completed';
@@ -221,6 +242,8 @@ export class MessageQueue {
       } else {
         nextMessage.status = 'failed';
         console.error(`[MessageQueue] ❌ Message failed: ${nextMessage.id}`, error);
+        console.error(`[MessageQueue] ❌ Error name: ${error.name}, message: ${error.message}`);
+        console.error(`[MessageQueue] ❌ Error stack:`, error.stack);
 
         // 发送失败事件
         this.emitEvent('message:failed', { ...nextMessage, error });
@@ -256,7 +279,24 @@ export class MessageQueue {
    * 获取队列状态
    */
   getStatus(): QueueStatus {
-    return {
+    const extractPreview = (content: string | any[]): string => {
+      if (typeof content === 'string') {
+        return content.length > 20 ? content.slice(0, 20) + '...' : content;
+      }
+      const textPart = content.find((c: any) => c.type === 'text');
+      if (textPart) {
+        const t = (textPart as any).text || '';
+        return t.length > 20 ? t.slice(0, 20) + '...' : t;
+      }
+      return '[多媒体]';
+    };
+
+    const pendingMessages = [
+      ...this.normalQueue.filter(m => m.status === 'pending'),
+      ...this.workflowQueue.filter(m => m.status === 'pending'),
+    ];
+
+    const status = {
       normal: {
         pending: this.normalQueue.filter(m => m.status === 'pending').length,
         processing: this.normalQueue.filter(m => m.status === 'processing').length,
@@ -266,7 +306,19 @@ export class MessageQueue {
         processing: this.workflowQueue.filter(m => m.status === 'processing').length,
       },
       isProcessing: this.isProcessing,
+      pendingPreviews: pendingMessages.map(m => extractPreview(m.content)),
     };
+
+    // 🔥 DEBUG: 打印 pending 消息信息
+    if (pendingMessages.length > 0) {
+      console.log('[MessageQueue] 📋 getStatus: pendingMessages =', pendingMessages.map(m => ({
+        id: m.id.substring(0, 8),
+        status: m.status,
+        preview: extractPreview(m.content),
+      })));
+    }
+
+    return status;
   }
 
   /**
@@ -360,6 +412,11 @@ export class MessageQueue {
 
       // 构建符合 BasePayload 的数据结构
       const queueStatus = this.getStatus();
+
+      // 🔥 DEBUG: 打印 pendingPreviews 以确认是否正确生成
+      if (queueStatus.pendingPreviews && queueStatus.pendingPreviews.length > 0) {
+        console.log(`[MessageQueue] 📋 pendingPreviews:`, queueStatus.pendingPreviews);
+      }
 
       chatEventBus.emit(busEventType, {
         correlationId: data.correlationId || chatEventBus.createCorrelationId(),

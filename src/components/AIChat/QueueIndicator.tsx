@@ -20,6 +20,7 @@ interface QueueStatus {
   normal: { pending: number; processing: number };
   workflow: { pending: number; processing: number };
   isProcessing: boolean;
+  pendingPreviews: string[];
 }
 
 interface QueueIndicatorProps {
@@ -36,6 +37,7 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
     normal: { pending: 0, processing: 0 },
     workflow: { pending: 0, processing: 0 },
     isProcessing: false,
+    pendingPreviews: [],
   });
 
   const [isVisible, setIsVisible] = useState(false);
@@ -69,6 +71,7 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
     unsubscribes.push(
       chatEventBus.on('chat:queue:processing', (payload) => {
         console.log('[QueueIndicator] 🔄 Message processing:', payload.messageId);
+        console.log('[QueueIndicator] 📋 pendingPreviews:', payload.queueStatus.pendingPreviews);
         setQueueStatus(payload.queueStatus);
       })
     );
@@ -77,6 +80,7 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
     unsubscribes.push(
       chatEventBus.on('chat:queue:completed', (payload) => {
         console.log('[QueueIndicator] ✅ Message completed:', payload.messageId);
+        console.log('[QueueIndicator] 📋 pendingPreviews:', payload.queueStatus.pendingPreviews);
         setQueueStatus(payload.queueStatus);
       })
     );
@@ -85,6 +89,7 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
     unsubscribes.push(
       chatEventBus.on('chat:queue:aborted', (payload) => {
         console.log('[QueueIndicator] ⏹️ Message aborted:', payload.messageId);
+        console.log('[QueueIndicator] 📋 pendingPreviews:', payload.queueStatus.pendingPreviews);
         setQueueStatus(payload.queueStatus);
       })
     );
@@ -93,6 +98,7 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
     unsubscribes.push(
       chatEventBus.on('chat:queue:failed', (payload) => {
         console.log('[QueueIndicator] ❌ Message failed:', payload.messageId);
+        console.log('[QueueIndicator] 📋 pendingPreviews:', payload.queueStatus.pendingPreviews);
         setQueueStatus(payload.queueStatus);
       })
     );
@@ -100,6 +106,8 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
     // 🔥 FIX: 监听状态变更事件（在 finally 块中触发，确保 isProcessing=false 被正确传递）
     unsubscribes.push(
       chatEventBus.on('chat:queue:status-changed', (payload) => {
+        console.log('[QueueIndicator] 🔄 Status changed');
+        console.log('[QueueIndicator] 📋 pendingPreviews:', payload.queueStatus.pendingPreviews);
         setQueueStatus(payload.queueStatus);
       })
     );
@@ -150,14 +158,22 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
         </div>
       )}
 
-      {/* 等待中图标 */}
+      {/* 等待中图标 + 消息摘要 */}
       {totalPending > 0 && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {queueStatus.isProcessing && <span className="text-white/30">|</span>}
           <Clock size={14} className={clsx(totalPending > 0 && 'animate-pulse')} />
-          <span>
-            {totalPending} 条等待
-            {hasWorkflow && ' (含工作流)'}
+          <span>{totalPending} 条等待</span>
+          {/* 消息摘要 */}
+          <span className="flex gap-1 ml-1">
+            {queueStatus.pendingPreviews.map((preview, i) => (
+              <span
+                key={i}
+                className="inline-block bg-white/10 rounded px-1.5 py-0.5 text-[10px] text-white/70 max-w-[120px] truncate"
+              >
+                {preview}
+              </span>
+            ))}
           </span>
         </div>
       )}
