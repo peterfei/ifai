@@ -1567,7 +1567,7 @@ export function WorkflowInlineMonitor({
           }
         }
       `}</style>
-      <div className="mx-auto max-w-2xl my-4 relative z-50 bg-gray-900" data-workflow-monitor={workflowId} data-monitor="true">
+      <div className="mx-auto max-w-2xl my-4 relative z-0 bg-gray-900" data-workflow-monitor={workflowId} data-monitor="true">
         <Card className="border border-gray-700 shadow-2xl !bg-gray-900 [&_*]:!bg-transparent">
         {/* 标题栏 - 深色背景，白色文字 */}
         <div
@@ -1899,6 +1899,8 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
   // 🔥 CRITICAL FIX: 使用 ref 来跟踪监听器设置状态，确保在重置后能重新设置
   const listenersSetUpRef = useRef(false);
   const chatEventBusRef = useRef<any>(null);
+  // 🔥 CRITICAL FIX: 使用 ref 跟踪 activeWorkflows 是否已初始化，防止无限循环
+  const activeWorkflowsInitRef = useRef(false);
 
   // 🔥 DEBUG: 添加状态日志
   console.log('[WorkflowInlineMonitorContainer] 📊 State:', {
@@ -2083,6 +2085,7 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
   }, []); // 🔥 CRITICAL: 空依赖数组，只在组件首次挂载时执行
 
   // 🔥 CRITICAL FIX: 使用 useLayoutEffect 监听全局 activeWorkflows 变化
+  // 🔥 关键修复：只在首次渲染时同步，后续通过监听器更新，防止无限循环
   useLayoutEffect(() => {
     console.log('[WorkflowInlineMonitorContainer] 🚀 useLayoutEffect called (for global activeWorkflows sync)');
 
@@ -2090,18 +2093,39 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     const updateFromGlobal = () => {
       const current = Array.from(globalActiveWorkflows);
       console.log('[WorkflowInlineMonitorContainer] 🔄 Updating from global activeWorkflows:', current);
-      setActiveWorkflows(current);
+
+      // 🔥 关键修复：只在值真正变化时才更新状态
+      setActiveWorkflows(prev => {
+        const prevStr = JSON.stringify(prev);
+        const currStr = JSON.stringify(current);
+        if (prevStr !== currStr) {
+          console.log('[WorkflowInlineMonitorContainer] 🔄 ActiveWorkflows changed, updating state');
+          return current;
+        } else {
+          console.log('[WorkflowInlineMonitorContainer] ⏭️ ActiveWorkflows unchanged, skipping update');
+          return prev;
+        }
+      });
     };
 
-    // 立即同步一次
-    updateFromGlobal();
+    // 🔥 关键修复：只在首次初始化时立即同步，避免每次都触发 setState
+    if (!activeWorkflowsInitRef.current) {
+      console.log('[WorkflowInlineMonitorContainer] 🎯 First time initialization, syncing activeWorkflows');
+      const current = Array.from(globalActiveWorkflows);
+      setActiveWorkflows(current);
+      activeWorkflowsInitRef.current = true;
+    } else {
+      console.log('[WorkflowInlineMonitorContainer] ⏭️ Already initialized, skipping initial sync');
+    }
 
-    // 添加监听器
+    // 添加监听器（监听后续变化）
     globalActiveWorkflowsListeners.add(updateFromGlobal);
 
     return () => {
       console.log('[WorkflowInlineMonitorContainer] 🧹 Cleanup called (for activeWorkflows sync)');
       globalActiveWorkflowsListeners.delete(updateFromGlobal);
+      // 🔥 关键修复：重置初始化标志，允许重新挂载时重新初始化
+      activeWorkflowsInitRef.current = false;
     };
   }, []);
 

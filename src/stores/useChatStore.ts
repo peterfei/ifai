@@ -530,19 +530,45 @@ export const useChatStore = create<ChatStore>()(
               clearTimeout(safetyTimer);
           }
       }
-    }),
-    {
-      name: 'ifai-chat-storage-v4',
-      partialize: (state) => {
-          // 🔥 CRITICAL FIX: 将 messages 从 localStorage 排除
-          // localStorage 有大小限制（通常5-10MB），消息可能很大
-          // 所有消息都存储在 IndexedDB 中，通过 switchThread 加载
-          const { isLoading, messages, ...rest } = state;
-          return rest;
-      }
-    }
+    })
   )
 );
+
+// 🔥 CRITICAL FIX: 手动管理持久化，防止 persist 中间件破坏运行时状态
+if (typeof window !== 'undefined') {
+  // 页面卸载时保存状态
+  window.addEventListener('beforeunload', () => {
+    const state = useChatStore.getState();
+    const dataToSave = {
+      input: state.input,
+      currentThreadId: state.currentThreadId
+    };
+    localStorage.setItem('ifai-chat-storage-v7', JSON.stringify({
+      state: dataToSave,
+      version: 7
+    }));
+  });
+
+  // 🔥 页面加载时延迟恢复状态，确保 store 完全初始化
+  setTimeout(() => {
+    const savedState = localStorage.getItem('ifai-chat-storage-v7');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed.version === 7 && parsed.state) {
+          const currentState = useChatStore.getState();
+          // 🔥 关键：只更新 input 字段，保留其他所有字段（包括方法）
+          if (parsed.state.input !== undefined && currentState.input !== parsed.state.input) {
+            useChatStore.setState({ input: parsed.state.input });
+            console.log('[useChatStore] ✅ Restored input from localStorage');
+          }
+        }
+      } catch (e) {
+        console.error('[useChatStore] ❌ Failed to restore state:', e);
+      }
+    }
+  }, 100);
+}
 
 // -------------------------------------------------------------------
 // 3. 辅助导出与挂载
