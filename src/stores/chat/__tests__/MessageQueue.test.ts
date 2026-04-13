@@ -31,6 +31,15 @@ vi.mock('../sendMessage/SendMessageOrchestrator', () => ({
   },
 }));
 
+// 🔥 FIX: Mock useChatStore 防止 process() 中动态导入破坏 mock 隔离
+vi.mock('../../useChatStore', () => ({
+  useChatStore: {
+    getState: vi.fn(() => ({
+      generateResponse: vi.fn(async () => {}),
+    })),
+  },
+}));
+
 // 获取 mock 实例的类型
 type MockSendMessageOrchestrator = {
   send: ReturnType<typeof vi.fn>;
