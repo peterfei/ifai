@@ -6,6 +6,7 @@
 
 import React, { useMemo, useCallback } from 'react';
 import ReactFlow, {
+  BackgroundVariant,
   Node,
   Edge,
   Background,
@@ -524,7 +525,7 @@ export function WorkflowDAGVisualizer({
           color="#4B5563" // gray-600
           gap={20}
           size={1}
-          variant="dots"
+          variant={BackgroundVariant.Dots}
           style={{ opacity: 0.3 }}
         />
         <Controls
