@@ -5,6 +5,7 @@
  */
 
 import { chatEventBus, BasePayload } from '../eventBus/ChatEventBus';
+import { toolApprovalRegistry } from '../../../core/approval/ToolApprovalRegistry';
 
 export interface ToolCallState {
   id: string;
@@ -230,16 +231,12 @@ private init() {
   }
 
   private checkAutoApprove(toolName: string): boolean {
-    // 🔧 FIX: 添加 agent_read_file 到自动批准列表（与 readFile 行为一致）
-    // 🆕 P3: 添加新工具到自动批准列表
-    const safeTools = [
-      'agent_scan_project', 'agent_list_dir', 'readFile', 'agent_read_file', 'listFiles', 'getSymbol', 'bash',
-      // P3 工具系统
-      'read_file', 'write_file', 'edit_file',      // 文件工具
-      'glob_search', 'grep_search',                 // 搜索工具
-      'PowerShell',                                  // Shell 工具（bash 已存在）
-    ];
-    return safeTools.includes(toolName);
+    // 委托给 ToolApprovalRegistry：只有 category='safe' 的只读工具才自动执行
+    // dangerous（写文件）和 destructive（删除/bash）工具必须走审批流程
+    const category = toolApprovalRegistry.categorizeTool(toolName);
+    const isSafe = category === 'safe';
+    console.log(`[ToolCallManager] checkAutoApprove(${toolName}): category=${category}, autoApprove=${isSafe}`);
+    return isSafe;
   }
 }
 

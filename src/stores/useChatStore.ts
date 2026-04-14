@@ -246,6 +246,26 @@ export const useChatStore = create<ChatStore>()(
 
         // 调用后端审批工具（传递工具信息和项目根目录）
         try {
+          // 🔐 首先尝试 resolve 后端 pending approval（后端 tool_approval_required 机制）
+          // 如果后端有 pending approval，由后端自行执行工具，前端不需要调用 approve_tool_call
+          let backendResolved = false;
+          try {
+            backendResolved = await invoke('resolve_tool_approval', {
+              toolCallId: toolCallId,
+              approved: true,
+              result: null  // 后端会自行执行并返回结果
+            });
+          } catch {
+            // resolve_tool_approval 可能不存在（旧版本后端），忽略
+          }
+
+          if (backendResolved) {
+            console.log('[ChatStore] 🔐 Backend approval resolved, tool will be executed by backend loop');
+            // 后端会自行执行工具、发送 tool_done 事件、并继续 continuation loop
+            // 前端不需要发出 tool:completed 事件
+            return;
+          }
+
           const result = await invoke('approve_tool_call', {
             messageId: messageId,
             toolCallId: toolCallId,
@@ -311,6 +331,22 @@ export const useChatStore = create<ChatStore>()(
           })
         }));
 
+        // 🔐 通知后端 approval 被拒绝（如果后端有 pending approval）
+        try {
+          await ensureTauriInitialized();
+          const { invoke } = await import('@tauri-apps/api/core');
+          await invoke('resolve_tool_approval', {
+            toolCallId: toolCallId,
+            approved: false,
+            result: null
+          });
+          console.log('[ChatStore] 🔐 Backend approval rejected, backend loop will continue with error');
+          // 后端收到拒绝后会继续 loop（将错误信息反馈给 AI），不需要前端续播
+          return;
+        } catch {
+          // resolve_tool_approval 不存在，走原有逻辑
+        }
+
         // 通过事件总线通知工具被拒绝
         chatEventBus.emit('chat:error', {
           correlationId: messageId,
@@ -322,15 +358,12 @@ export const useChatStore = create<ChatStore>()(
         } as any);
 
         // 拒绝后也需要续播，让 AI 继续生成
-        // 注意：这个续播会创建新的 correlationId，与之前的流独立
-        // 🔥 与工具执行完成的续播不同：后端 loop 在工具被拒绝时已结束，需要前端触发续播
         const { useSettingsStore } = await import('./settingsStore');
         const settings = useSettingsStore.getState();
         await get().generateResponse(
           get().messages,
           settings.currentProviderId || 'openai',
           settings.currentModel || 'gpt-4o'
-          // 注意：不传递 existingCorrelationId，会创建新的 ID
         );
       },
 

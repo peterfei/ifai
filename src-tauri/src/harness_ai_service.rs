@@ -15,6 +15,9 @@ use std::sync::OnceLock;
 use serde_json::json;
 use futures_util::StreamExt;
 use std::collections::HashMap;
+use dashmap::DashMap;
+use tokio::sync::oneshot;
+use std::time::Duration;
 
 /// 全局 ToolRegistry (P1)
 static GLOBAL_TOOL_REGISTRY: OnceLock<ToolRegistry> = OnceLock::new();
@@ -28,6 +31,54 @@ static GLOBAL_TOOL_ROUTER: OnceLock<ToolRouter> = OnceLock::new();
 
 fn get_global_tool_router() -> &'static ToolRouter {
     GLOBAL_TOOL_ROUTER.get_or_init(|| ToolRouter::new())
+}
+
+/// 待审批工具调用：tool_call_id → oneshot::Sender
+/// 前端审批后通过 resolve_tool_approval 发送结果到对应的 sender
+static PENDING_APPROVALS: OnceLock<DashMap<String, oneshot::Sender<ApprovalResult>>> = OnceLock::new();
+
+fn get_pending_approvals() -> &'static DashMap<String, oneshot::Sender<ApprovalResult>> {
+    PENDING_APPROVALS.get_or_init(DashMap::new)
+}
+
+/// 审批结果
+#[derive(Debug, Clone)]
+pub struct ApprovalResult {
+    pub approved: bool,
+    pub result: Option<String>,  // 执行结果（approved=true 时有值）
+}
+
+/// 判断工具是否安全（只读，可自动执行）
+/// 与前端 toolApprovalConfig.ts 的 category: 'safe' 对齐
+fn is_safe_tool(tool_name: &str) -> bool {
+    let name = tool_name.to_lowercase();
+    // agent_ 前缀剥离后的基础名
+    let base = name.replace("agent_", "");
+
+    matches!(base.as_str(),
+        "read_file"
+        | "list_dir"
+        | "scan_project"
+        | "search"
+        | "glob_search"
+        | "grep_search"
+        | "get_file_symbols"
+        | "todowrite"
+        | "init_rag_index"
+    )
+}
+
+/// 供 Tauri command 调用：前端审批完成后，将结果发送给等待中的 stream_chat loop
+pub fn resolve_tool_approval(tool_call_id: &str, approved: bool, result: Option<String>) -> bool {
+    let map = get_pending_approvals();
+    if let Some((_, sender)) = map.remove(tool_call_id) {
+        let _ = sender.send(ApprovalResult { approved, result });
+        println!("[AI] ✅ Tool approval resolved: {} -> approved={}", tool_call_id, approved);
+        true
+    } else {
+        println!("[AI] ⚠️ No pending approval found for tool_call_id: {}", tool_call_id);
+        false
+    }
 }
 
 /// 单次流式轮次中收集的工具调用信息
@@ -493,18 +544,85 @@ impl AIService for HarnessAIService {
                                         }
                                     }
 
-                                    // 🔥 CRITICAL FIX: 工具执行错误时返回 JSON 格式，让 AI 知道失败
-                                    // 参考 claw-code/conversation.rs line 222-225: 将错误转为输出
-                                    let exec_result = match router.execute(&tool_name, &args) {
-                                        Ok(res) => res,
-                                        Err(e) => {
-                                            // 返回明确的 JSON 错误格式，包含 error=true 标志
-                                            serde_json::json!({
-                                                "error": true,
-                                                "success": false,
-                                                "message": format!("{}", e),
-                                                "tool_name": tool_name
-                                            }).to_string()
+                                    // 🔥 审批门控：非 safe 工具需要前端审批后才能执行
+                                    let exec_result = if is_safe_tool(&tool_name) {
+                                        // safe 工具直接执行
+                                        match router.execute(&tool_name, &args) {
+                                            Ok(res) => res,
+                                            Err(e) => {
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": format!("{}", e),
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
+                                        }
+                                    } else {
+                                        // dangerous/destructive 工具：发送审批请求给前端，等待用户审批
+                                        println!("[AI] 🔐 Tool {} requires approval, waiting for user...", tool_name);
+
+                                        // 发送 tool_approval_required 事件给前端
+                                        let approval_event = json!({
+                                            "type": "tool_approval_required",
+                                            "tool_call_id": tool_id,
+                                            "tool_name": tool_name,
+                                            "arguments": result_str,
+                                            "correlation_id": correlation_id
+                                        });
+                                        callback(approval_event.to_string());
+
+                                        // 创建 oneshot channel 等待前端审批
+                                        let (tx, rx) = oneshot::channel();
+                                        get_pending_approvals().insert(tool_id.clone(), tx);
+
+                                        // 等待前端审批结果（带超时 5 分钟）
+                                        match tokio::time::timeout(Duration::from_secs(300), rx).await {
+                                            Ok(Ok(approval)) if approval.approved => {
+                                                // 用户批准：执行工具
+                                                println!("[AI] ✅ Tool {} approved by user, executing...", tool_name);
+                                                match router.execute(&tool_name, &args) {
+                                                    Ok(res) => res,
+                                                    Err(e) => {
+                                                        serde_json::json!({
+                                                            "error": true,
+                                                            "success": false,
+                                                            "message": format!("{}", e),
+                                                            "tool_name": tool_name
+                                                        }).to_string()
+                                                    }
+                                                }
+                                            }
+                                            Ok(Ok(_)) => {
+                                                // 用户拒绝
+                                                println!("[AI] ❌ Tool {} rejected by user", tool_name);
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": "User rejected this tool call",
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
+                                            Ok(Err(_)) => {
+                                                // channel 被关闭（前端异常）
+                                                println!("[AI] ⚠️ Tool {} approval channel closed unexpectedly", tool_name);
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": "Approval process was interrupted",
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
+                                            Err(_) => {
+                                                // 超时
+                                                println!("[AI] ⏰ Tool {} approval timed out (5min)", tool_name);
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": "Approval timed out after 5 minutes",
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
                                         }
                                     };
 
@@ -607,18 +725,56 @@ impl AIService for HarnessAIService {
                                             }
                                         }
 
-                                        // 🔥 CRITICAL FIX: fallback 执行失败时也返回 JSON 格式
-                                        let exec = match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
-                                            Ok(res) => res,
-                                            Err(e) => {
-                                                // 返回明确的 JSON 错误格式
-                                                serde_json::json!({
-                                                    "error": true,
-                                                    "success": false,
-                                                    "message": format!("参数解析失败: {}", e),
-                                                    "tool_name": tool_name_from_map,
-                                                    "raw_input": result_str.chars().take(200).collect::<String>()  // 只保留前 200 字符
-                                                }).to_string()
+                                        // 🔥 fallback 路径审批门控
+                                        let exec = if is_safe_tool(&tool_name_from_map) {
+                                            match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
+                                                Ok(res) => res,
+                                                Err(e) => {
+                                                    serde_json::json!({
+                                                        "error": true,
+                                                        "success": false,
+                                                        "message": format!("参数解析失败: {}", e),
+                                                        "tool_name": tool_name_from_map,
+                                                        "raw_input": result_str.chars().take(200).collect::<String>()
+                                                    }).to_string()
+                                                }
+                                            }
+                                        } else {
+                                            // 非安全工具：发送审批请求
+                                            println!("[AI] 🔐 Tool {} (fallback) requires approval, waiting for user...", tool_name_from_map);
+
+                                            let approval_event = json!({
+                                                "type": "tool_approval_required",
+                                                "tool_call_id": &tool_id,
+                                                "tool_name": &tool_name_from_map,
+                                                "arguments": &result_str,
+                                                "correlation_id": &correlation_id
+                                            });
+                                            callback(approval_event.to_string());
+
+                                            let (tx, rx) = oneshot::channel();
+                                            get_pending_approvals().insert(tool_id.clone(), tx);
+
+                                            match tokio::time::timeout(Duration::from_secs(300), rx).await {
+                                                Ok(Ok(approval)) if approval.approved => {
+                                                    println!("[AI] ✅ Tool {} (fallback) approved, executing...", tool_name_from_map);
+                                                    match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
+                                                        Ok(res) => res,
+                                                        Err(e) => serde_json::json!({
+                                                            "error": true, "success": false,
+                                                            "message": format!("{}", e),
+                                                            "tool_name": tool_name_from_map
+                                                        }).to_string()
+                                                    }
+                                                }
+                                                _ => {
+                                                    println!("[AI] ❌ Tool {} (fallback) rejected or timed out", tool_name_from_map);
+                                                    serde_json::json!({
+                                                        "error": true, "success": false,
+                                                        "message": "User rejected or approval timed out",
+                                                        "tool_name": tool_name_from_map
+                                                    }).to_string()
+                                                }
                                             }
                                         };
 

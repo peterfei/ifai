@@ -65,6 +65,7 @@ tempfile = "3.17"
 git2 = { version = "0.20.3", features = ["vendored-openssl"] }
 bytes = "1.11.0"
 tokio = { version = "1.48.0", features = ["full"] }
+dashmap = "6"
 tokio-stream = "0.1"
 axum = "0.8"
 tower = "0.5"
