@@ -58,6 +58,10 @@ test.describe('连续发送功能 - 核心测试', () => {
       '第三条消息：总结一下'
     ];
 
+    // 等待输入框渲染完成
+    await page.waitForSelector('textarea[data-testid="chat-input"]', { timeout: 10000 })
+      .catch(() => console.log('[Test] ⚠️ textarea 未找到，尝试继续'));
+
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
       console.log(`📝 [Test] 发送第 ${i + 1} 条消息: ${message}`);

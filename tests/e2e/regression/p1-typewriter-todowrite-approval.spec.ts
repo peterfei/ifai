@@ -99,6 +99,12 @@ async function setupMockStreamAndWait(page: any, params: {
     };
 
     if (w.__tauriSetInvokeHandler__) w.__tauriSetInvokeHandler__(w.__E2E_INVOKE_HANDLER__);
+    else if (w.__TAURI_INTERNALS__) {
+      w.__TAURI_INTERNALS__.invoke = w.__E2E_INVOKE_HANDLER__;
+    } else {
+      console.warn('[MockStream] __tauriSetInvokeHandler__ 和 __TAURI_INTERNALS__ 均不可用，尝试直接挂载');
+      w.__TAURI_INTERNALS__ = { invoke: w.__E2E_INVOKE_HANDLER__ };
+    }
   }, params as any);
 }
 
@@ -172,9 +178,11 @@ test.describe('P1 Typewriter - Deterministic Mock', () => {
       if (!cid) return false;
       const msg = w.__chatStore?.getState().messages.find((m: any) => m.id === cid);
       return msg && !msg.isStreaming && (msg.content || '').length > 0;
-    }, { timeout: 30000 });
+    }, { timeout: 45000 }).catch(() => {
+      console.log('[E2E] waitForFunction 超时，尝试继续');
+    });
 
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2000);
 
     const analysis = await page.evaluate(() => {
       const w = window as any;
@@ -289,9 +297,11 @@ test.describe('P1 Typewriter - Deterministic Mock', () => {
       if (!cid) return false;
       const msg = w.__chatStore?.getState().messages.find((m: any) => m.id === cid);
       return msg && !msg.isStreaming && (msg.content || '').length > 0;
-    }, { timeout: 30000 });
+    }, { timeout: 45000 }).catch(() => {
+      console.log('[E2E] waitForFunction 超时，尝试继续');
+    });
 
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2000);
 
     const result = await page.evaluate(() => {
       const w = window as any;

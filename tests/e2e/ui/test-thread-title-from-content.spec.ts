@@ -28,16 +28,18 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
 
     await page.waitForFunction(() => (window as any).__threadStore !== undefined, { timeout: 15000 });
 
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const threadStore = (window as any).__threadStore;
       const chatStore = (window as any).__chatStore;
 
       // 清空并创建新线程
       threadStore.getState().reset();
+      await new Promise(resolve => setTimeout(resolve, 100));
       const threadId = threadStore.getState().createThread();
 
       // 获取创建时的默认标题
-      const initialTitle = threadStore.getState().threads[threadId].title;
+      const threadData = threadStore.getState().threads[threadId];
+      const initialTitle = threadData?.title;
 
       // 模拟发送第一条用户消息
       const userMessage = '帮我实现一个二分查找算法';
@@ -52,7 +54,7 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
       threadStore.getState().updateThreadTitleFromMessage(threadId, userMessage);
 
       // 获取更新后的标题
-      const updatedTitle = threadStore.getState().threads[threadId].title;
+      const updatedTitle = threadStore.getState().threads[threadId]?.title;
 
       return {
         success: true,
@@ -81,12 +83,13 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
 
     await page.waitForFunction(() => (window as any).__threadStore !== undefined, { timeout: 15000 });
 
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const threadStore = (window as any).__threadStore;
       const chatStore = (window as any).__chatStore;
 
       // 清空并创建多个线程
       threadStore.getState().reset();
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // 创建第一个线程
       const thread1Id = threadStore.getState().createThread();
@@ -154,12 +157,13 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
 
     await page.waitForFunction(() => (window as any).__threadStore !== undefined, { timeout: 15000 });
 
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const threadStore = (window as any).__threadStore;
       const chatStore = (window as any).__chatStore;
 
       // 清空并创建线程
       threadStore.getState().reset();
+      await new Promise(resolve => setTimeout(resolve, 100));
       const threadId = threadStore.getState().createThread();
 
       // 用户自定义标题
@@ -179,7 +183,7 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
       threadStore.getState().updateThreadTitleFromMessage(threadId, userMessage);
 
       // 验证标题没有被改变
-      const finalTitle = threadStore.getState().threads[threadId].title;
+      const finalTitle = threadStore.getState().threads[threadId]?.title;
 
       return {
         success: true,
@@ -204,12 +208,13 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
 
     await page.waitForFunction(() => (window as any).__threadStore !== undefined, { timeout: 15000 });
 
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const threadStore = (window as any).__threadStore;
       const chatStore = (window as any).__chatStore;
 
       // 清空并创建线程
       threadStore.getState().reset();
+      await new Promise(resolve => setTimeout(resolve, 100));
       const threadId = threadStore.getState().createThread();
 
       // 发送超长消息（超过30字符）
@@ -223,7 +228,7 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
 
       threadStore.getState().updateThreadTitleFromMessage(threadId, longMessage);
 
-      const finalTitle = threadStore.getState().threads[threadId].title;
+      const finalTitle = threadStore.getState().threads[threadId]?.title;
 
       return {
         success: true,
@@ -252,21 +257,22 @@ test.describe('Thread: Title Auto-Generation from Message Content', () => {
 
     await page.waitForFunction(() => (window as any).__threadStore !== undefined, { timeout: 15000 });
 
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const threadStore = (window as any).__threadStore;
 
       // 清空
       threadStore.getState().reset();
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // 创建多个线程但不发送消息（测试默认标题）
       const thread1Id = threadStore.getState().createThread();
-      const title1 = threadStore.getState().threads[thread1Id].title;
+      const title1 = threadStore.getState().threads[thread1Id]?.title;
 
       const thread2Id = threadStore.getState().createThread();
-      const title2 = threadStore.getState().threads[thread2Id].title;
+      const title2 = threadStore.getState().threads[thread2Id]?.title;
 
       const thread3Id = threadStore.getState().createThread();
-      const title3 = threadStore.getState().threads[thread3Id].title;
+      const title3 = threadStore.getState().threads[thread3Id]?.title;
 
       // 获取当前时间段
       const hour = new Date().getHours();

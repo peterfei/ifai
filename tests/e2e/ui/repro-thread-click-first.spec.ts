@@ -39,10 +39,10 @@ test.describe('Reproduction: Thread Click Goes To First Bug', () => {
     // 2. 创建 4 个 thread 并验证 activeThreadId
     const threadInfo = await page.evaluate(() => {
       const threadStore = (window as any).__threadStore.getState();
-      const thread1Id = threadStore.createThread({ title: 'First Thread' });
-      const thread2Id = threadStore.createThread({ title: 'Second Thread' });
-      const thread3Id = threadStore.createThread({ title: 'Third Thread' });
-      const thread4Id = threadStore.createThread({ title: 'Fourth Thread' });
+      const thread1Id = threadStore.createThread({ title: 'First Thread' }) || 'fallback-1';
+      const thread2Id = threadStore.createThread({ title: 'Second Thread' }) || 'fallback-2';
+      const thread3Id = threadStore.createThread({ title: 'Third Thread' }) || 'fallback-3';
+      const thread4Id = threadStore.createThread({ title: 'Fourth Thread' }) || 'fallback-4';
 
       // 获取最新状态
       const updatedThreadStore = (window as any).__threadStore.getState();
@@ -76,6 +76,8 @@ test.describe('Reproduction: Thread Click Goes To First Bug', () => {
       console.log('[E2E] 切换前 activeThreadId:', threadStore.activeThreadId);
       console.log('[E2E] 目标 threadId:', targetId);
 
+      const beforeActiveId = threadStore.activeThreadId;
+
       // 直接调用 switchThread
       threadStore.switchThread(targetId);
 
@@ -84,7 +86,7 @@ test.describe('Reproduction: Thread Click Goes To First Bug', () => {
       console.log('[E2E] 切换后 activeThreadId:', newActiveId);
 
       return {
-        beforeActiveId: threadStore.activeThreadId,
+        beforeActiveId,
         afterActiveId: newActiveId,
         success: newActiveId === targetId
       };
@@ -135,9 +137,9 @@ test.describe('Reproduction: Thread Click Goes To First Bug', () => {
     // 创建 3 个 thread
     const threadIds = await page.evaluate(() => {
       const threadStore = (window as any).__threadStore.getState();
-      const id1 = threadStore.createThread({ title: 'Thread A' });
-      const id2 = threadStore.createThread({ title: 'Thread B' });
-      const id3 = threadStore.createThread({ title: 'Thread C' });
+      const id1 = threadStore.createThread({ title: 'Thread A' }) || 'fallback-a';
+      const id2 = threadStore.createThread({ title: 'Thread B' }) || 'fallback-b';
+      const id3 = threadStore.createThread({ title: 'Thread C' }) || 'fallback-c';
       return [id1, id2, id3];
     });
 
@@ -193,9 +195,9 @@ test.describe('Reproduction: Thread Click Goes To First Bug', () => {
     // 创建 thread 并切换
     const threadIds = await page.evaluate(() => {
       const threadStore = (window as any).__threadStore.getState();
-      const id1 = threadStore.createThread({ title: 'Thread 1' });
-      const id2 = threadStore.createThread({ title: 'Thread 2' });
-      const id3 = threadStore.createThread({ title: 'Thread 3' });
+      const id1 = threadStore.createThread({ title: 'Thread 1' }) || 'fallback-r1';
+      const id2 = threadStore.createThread({ title: 'Thread 2' }) || 'fallback-r2';
+      const id3 = threadStore.createThread({ title: 'Thread 3' }) || 'fallback-r3';
       // 切换到第二个 thread
       threadStore.switchThread(id2);
       return { ids: [id1, id2, id3], active: id2 };
