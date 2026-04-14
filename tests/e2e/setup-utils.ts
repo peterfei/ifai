@@ -347,6 +347,21 @@ export async function setupE2ETestEnvironment(
               return Promise.resolve(compressed);
             }
 
+            // 🎯 Mock: plugin:event|listen (Tauri event plugin)
+            if (cmd === 'plugin:event|listen') {
+              const eventName = args?.event || args?.[0];
+              console.log(`[E2E Mock] plugin:event|listen: ${eventName}`);
+              // 返回一个 mock 的 listener ID
+              const listenerId = `e2e-listener-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+              return Promise.resolve(listenerId);
+            }
+
+            // 🎯 Mock: plugin:event|unlisten
+            if (cmd === 'plugin:event|unlisten') {
+              console.log('[E2E Mock] plugin:event|unlisten');
+              return Promise.resolve();
+            }
+
             // 🎯 Mock: ai_chat (返回模拟响应)
             if (cmd === 'ai_chat') {
               console.log(`[E2E Mock] ai_chat called - returning mock response`);
@@ -376,6 +391,33 @@ export async function setupE2ETestEnvironment(
         }
         if (!w.__TAURI__.core.invoke) {
           w.__TAURI__.core.invoke = w.__TAURI_INTERNALS__.invoke;
+        }
+
+        // Mock __TAURI__.event.listen (plugin:event|listen)
+        // StreamingResponseController 等组件通过 window.__TAURI__.event.listen 注册事件监听
+        if (!w.__TAURI__.event) {
+          w.__TAURI__.event = {};
+        }
+        if (!w.__TAURI__.event.listen) {
+          w.__TAURI__.event.listen = async (event: string, handler: any) => {
+            console.log(`[E2E Tauri Mock] event.listen: ${event}`);
+            const listeners = w.__TAURI_EVENT_LISTENERS__ || {};
+            if (!listeners[event]) {
+              listeners[event] = [];
+            }
+            listeners[event].push(handler);
+            w.__TAURI_EVENT_LISTENERS__ = listeners;
+            return () => {
+              const idx = listeners[event]?.indexOf(handler);
+              if (idx > -1) listeners[event]?.splice(idx, 1);
+            };
+          };
+        }
+        if (!w.__TAURI__.event.emit) {
+          w.__TAURI__.event.emit = async (event: string, payload?: any) => {
+            const listeners = w.__TAURI_EVENT_LISTENERS__?.[event] || [];
+            listeners.forEach((fn: Function) => fn({ payload }));
+          };
         }
 
         console.log('[E2E Setup] ✅ Tauri bridge mock initialized for E2E environment');

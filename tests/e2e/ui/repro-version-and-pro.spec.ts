@@ -13,8 +13,8 @@ test.describe('Reproduction: Version Display and Pro Badge', () => {
 
   test('should display dynamic system version and correct Pro badge', async ({ page }) => {
     // 1. 验证版本号是否显示
-    // 使用更灵活的版本匹配（支持 0.2.x 和 0.3.x）
-    const versionElement = page.locator('text=/V?0\\.[23]\\./').or(page.locator('text=/v0\\.[23]\\./'));
+    // 使用更灵活的版本匹配（支持 0.2.x、0.3.x 和 0.4.x）
+    const versionElement = page.locator('text=/V?0\\.[2-9]\\./').or(page.locator('text=/v0\\.[2-9]\\./'));
 
     // 等待版本元素可见
     await expect(versionElement.first()).toBeVisible({ timeout: 5000 });
@@ -24,7 +24,7 @@ test.describe('Reproduction: Version Display and Pro Badge', () => {
     console.log('[E2E] 当前显示的版本:', versionText);
 
     // 验证版本包含合理的版本号格式
-    expect(versionText).toMatch(/0\.[23]\.\d/);
+    expect(versionText).toMatch(/0\.\d+\.\d/);
 
     // 2. 验证 PRO 标识是否显示
     // 使用更灵活的匹配（支持不同版本号）
