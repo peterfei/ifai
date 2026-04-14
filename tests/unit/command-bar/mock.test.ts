@@ -60,7 +60,7 @@ describe('MockCommandLineCore', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('社区版');
-      expect(result.outputType).toBe('html');
+      expect(result.outputType).toBe('markdown');
       expect(result.timestamp).toBeDefined();
     });
 

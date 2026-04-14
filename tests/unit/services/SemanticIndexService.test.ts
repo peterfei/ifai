@@ -3,7 +3,7 @@ import { SemanticIndexService } from '../../../src/services/analyzer/SemanticInd
 import { SymbolExtractor } from '../../../src/utils/symbol-extractor';
 import { PersistenceManager } from '../../../src/services/storage/PersistenceManager';
 
-// 🏆 核心：定义稳定的 Mock 实例
+// Mock instance
 const mockManager = {
     getItem: vi.fn(),
     setItem: vi.fn(),
@@ -26,10 +26,10 @@ describe('SemanticIndexService (TDD)', () => {
         const service = SemanticIndexService.getInstance();
         const mockMeta = { size: 100, mtime: 1, fingerprint: '100_1' };
         const mockSymbols = [{ name: 'Test', kind: 'class', line: 1, context: '' }];
-        
+
         vi.mocked(SymbolExtractor.getMetadata).mockResolvedValue(mockMeta);
         vi.mocked(SymbolExtractor.probeFile).mockResolvedValue(mockSymbols);
-        
+
         mockManager.getItem.mockResolvedValue(null); // 模拟缓存不命中
 
         const result = await service.getFileSymbols('src/test.ts');
@@ -43,14 +43,17 @@ describe('SemanticIndexService (TDD)', () => {
         const service = SemanticIndexService.getInstance();
         const mockMeta = { size: 100, mtime: 1, fingerprint: '100_1' };
         const mockSymbols = [{ name: 'Cached', kind: 'class', line: 1, context: '' }];
-        
+
         vi.mocked(SymbolExtractor.getMetadata).mockResolvedValue(mockMeta);
-        
+
         // 模拟缓存命中且指纹匹配
-        mockManager.getItem.mockResolvedValue({
+        // PersistenceManager.getItem returns raw strings, SemanticIndexService parses them
+        const cachedData = JSON.stringify({
             fingerprint: '100_1',
-            symbols: mockSymbols
+            symbols: mockSymbols,
+            timestamp: Date.now()
         });
+        mockManager.getItem.mockResolvedValue(cachedData);
 
         const result = await service.getFileSymbols('src/test.ts');
 

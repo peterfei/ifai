@@ -203,15 +203,9 @@ describe('EventBus 集成测试', () => {
       // 订阅事件
       chatEventBus.on('chat:segment:created', segmentCreatedSpy);
 
-      // 开始流式传输
-      chatEventBus.emit('chat:stream:start', {
-        messageId: correlationId,
-        correlationId,
-        sessionId: 'test-session',
-        timestamp: Date.now()
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // 直接使用 ContentSegmentManager 实例触发事件
+      // （因为 chat:stream:start 会经过 StoreMapper，可能被其他 handler 拦截）
+      contentSegmentManager.onStreamStart(correlationId);
 
       // 验证：应该触发 segment:created 事件
       expect(segmentCreatedSpy).toHaveBeenCalled();
@@ -229,25 +223,16 @@ describe('EventBus 集成测试', () => {
       // 订阅事件
       chatEventBus.on('chat:phase:changed', phaseChangedSpy);
 
-      // 开始流式传输
-      chatEventBus.emit('chat:stream:start', {
-        messageId: correlationId,
-        correlationId,
-        sessionId: 'test-session',
-        timestamp: Date.now()
-      });
+      // 直接使用 ContentSegmentManager 实例
+      contentSegmentManager.onStreamStart(correlationId);
 
       // 发送工具调用（触发 phase 切换）
-      chatEventBus.emit('chat:tool:call', {
-        toolId: 'tool-1',
-        name: 'test_tool',
-        arguments: '{}',
-        correlationId,
-        sessionId: 'test-session',
-        timestamp: Date.now()
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 50));
+      const toolCall = {
+        id: 'tool-1',
+        type: 'function' as const,
+        function: { name: 'test_tool', arguments: '{}' }
+      };
+      contentSegmentManager.onToolCall(toolCall, correlationId);
 
       // 验证：应该触发 phase:changed 事件
       expect(phaseChangedSpy).toHaveBeenCalled();

@@ -26,7 +26,8 @@ describe('ChatStore 工具调用集成', () => {
   });
 
   it('应该通过 toolRegistry 执行 agent_write_file', async () => {
-    (invoke as any).mockResolvedValue(undefined);
+    // ToolService.writeFile calls invoke('agent_write_file', ...) and returns the string result
+    (invoke as any).mockResolvedValue('File written: /test.txt');
 
     const result = await toolRegistry.execute(
       'agent_write_file',
