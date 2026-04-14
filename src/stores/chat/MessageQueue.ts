@@ -455,7 +455,3 @@ export class MessageQueue {
  */
 export const messageQueue = MessageQueue.getInstance();
 
-/**
- * 导出类型
- */
-export type { QueueStatus };
