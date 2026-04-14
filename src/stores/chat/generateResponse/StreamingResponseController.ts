@@ -722,8 +722,25 @@ export class StreamingResponseController {
         // 它只是表示这一轮结束，需要继续下一轮 continuation
         // 只有 "stop" 或 "length" 才是真正的流结束
         if (finishReason === 'tool_calls' || finishReason === 'tool') {
-          console.log(`[SC] Continuation signal detected: finish_reason=${finishReason}, NOT ending stream`);
-          // 不调用 emitFinished，继续监听下一轮
+          console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer and ending stream`);
+
+          // Flush 任何仍在缓冲中的工具调用
+          for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
+            if (buffered.hasName && buffered.arguments.length > 0) {
+              chatEventBus.emit('chat:tool:call', {
+                ...payload,
+                toolId: buffered.toolId,
+                name: buffered.name,
+                arguments: buffered.arguments,
+              });
+            }
+          }
+          this.toolCallBuffer.clear();
+          this.indexToBufferKey.clear();
+
+          // 后端 continuation 已禁用，tool_calls finish 必须结束流
+          // 否则 isLoading 会永远保持 true
+          this.emitFinished(payload, data.usage?.total_tokens);
           return;
         }
 
@@ -1030,7 +1047,6 @@ export class StreamingResponseController {
             editorMode: (window as any).__IFAI_EDITOR_MODE__ || "standard",
             isSessionTrusted: false,
             toolName: toolName,
-            isSandbox: true,
             userMessageHasAutoApprove: (msg as any).autoApproveTools || false
           },
           () => {
