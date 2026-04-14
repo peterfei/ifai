@@ -75,30 +75,29 @@ test.describe('Chat History - Reload Persistence', () => {
     test.setTimeout(30000);
 
     const result = await page.evaluate(async () => {
-      const store = (window as any).__chatStore;
-      store.setState({ messages: [], currentThreadId: 'thread-a' });
+      // 使用和 switchThread 同一个 store 实例
+      const { useChatStore, switchThread } = await import('../../src/stores/useChatStore');
+      useChatStore.setState({ messages: [], currentThreadId: 'thread-a' });
 
       // 注入消息
-      store.getState().addMessage({ id: 'msg-1', role: 'user', content: '消息 1', timestamp: Date.now() });
-      store.getState().addMessage({ id: 'msg-2', role: 'assistant', content: '回复 1', timestamp: Date.now() + 1 });
+      useChatStore.getState().addMessage({ id: 'msg-1', role: 'user', content: '消息 1', timestamp: Date.now() });
+      useChatStore.getState().addMessage({ id: 'msg-2', role: 'assistant', content: '回复 1', timestamp: Date.now() + 1 });
 
-      const beforeSwitch = store.getState().messages.length;
+      const beforeSwitch = useChatStore.getState().messages.length;
 
-      // 核心测试：switchThread 到一个不存在的线程，不应清空 messages
-      const { switchThread } = await import('../../src/stores/useChatStore');
+      // switchThread 到一个不存在的线程
+      // 新行为：不同线程 + IndexedDB 无数据 → 清空消息（消息隔离）
       await switchThread('nonexistent-thread-id');
 
-      const afterSwitch = store.getState().messages.length;
+      const afterSwitch = useChatStore.getState().messages.length;
 
       return { beforeSwitch, afterSwitch };
     });
 
     console.log('[E2E] switchThread empty target:', result);
     expect(result.beforeSwitch).toBe(2);
-    // 核心断言：switchThread 不应清空 messages
-    expect(result.afterSwitch).toBeGreaterThanOrEqual(0);
-    // IndexedDB 对 nonexistent-thread-id 返回 0 条，应保留当前 messages
-    expect(result.afterSwitch).toBe(2);
+    // 新行为：切换到不存在的线程时，消息应被清空（消息隔离）
+    expect(result.afterSwitch).toBe(0);
   });
 
   // =========================================================================
@@ -108,35 +107,51 @@ test.describe('Chat History - Reload Persistence', () => {
     test.setTimeout(30000);
 
     const result = await page.evaluate(async () => {
-      const store = (window as any).__chatStore;
-      store.setState({ messages: [], currentThreadId: 'persist-thread-123' });
+      const { useChatStore, switchThread } = await import('../../src/stores/useChatStore');
+      const { indexedDBHelper } = await import('../../src/stores/persistence/indexedDB');
+      const { threadPersistence } = await import('../../src/stores/persistence/threadPersistence');
+      await indexedDBHelper.init();
+      if (!(threadPersistence as any).initialized) {
+        await threadPersistence.init();
+      }
 
-      // 模拟 persist rehydrate
-      store.setState({
-        messages: [
-          { id: 'reh-1', role: 'user', content: 'persist 恢复的消息', timestamp: Date.now() },
-          { id: 'reh-2', role: 'assistant', content: 'persist 恢复的回复', timestamp: Date.now() + 1 },
-        ],
-      });
+      useChatStore.setState({ messages: [], currentThreadId: 'persist-thread-123' });
 
-      const beforeSwitch = store.getState().messages.length;
+      // 模拟 persist rehydrate：同时写入 store 和 IndexedDB
+      const messages = [
+        { id: 'reh-1', role: 'user', content: 'persist 恢复的消息', timestamp: Date.now() },
+        { id: 'reh-2', role: 'assistant', content: 'persist 恢复的回复', timestamp: Date.now() + 1 },
+      ];
+      useChatStore.setState({ messages });
 
-      // 模拟 restoreFromStorage 用不同 threadId 调用 switchThread
-      const { switchThread } = await import('../../src/stores/useChatStore');
+      // 将消息持久化到 IndexedDB
+      await threadPersistence.saveThreadMessages('persist-thread-123', messages as any);
+
+      const beforeSwitch = useChatStore.getState().messages.length;
+
+      // 切换到不同线程（消息隔离：清空消息）
       await switchThread('different-thread-id');
+      const afterSwitch = useChatStore.getState().messages.length;
 
-      const afterSwitch = store.getState().messages.length;
+      // 切换回原线程（IndexedDB 有数据 → 从 IndexedDB 恢复）
+      await switchThread('persist-thread-123');
+      const afterReturn = useChatStore.getState().messages.length;
 
       return {
         beforeSwitch,
         afterSwitch,
-        messagesPreserved: afterSwitch > 0,
+        afterReturn,
+        messagesClearedOnDifferentThread: afterSwitch === 0,
+        messagesRestoredFromIndexedDB: afterReturn === 2,
       };
     });
 
     console.log('[E2E] switchThread preserve test:', result);
-    expect(result.messagesPreserved).toBe(true);
-    expect(result.afterSwitch).toBeGreaterThanOrEqual(result.beforeSwitch);
+    expect(result.beforeSwitch).toBe(2);
+    // 切换到不同线程清空消息
+    expect(result.messagesClearedOnDifferentThread).toBe(true);
+    // 切换回原线程从 IndexedDB 恢复消息
+    expect(result.messagesRestoredFromIndexedDB).toBe(true);
   });
 
   // =========================================================================
@@ -146,23 +161,22 @@ test.describe('Chat History - Reload Persistence', () => {
     test.setTimeout(30000);
 
     const result = await page.evaluate(async () => {
-      const store = (window as any).__chatStore;
-      store.setState({ messages: [], currentThreadId: 'same-thread-test' });
+      const { useChatStore, switchThread } = await import('../../src/stores/useChatStore');
+      useChatStore.setState({ messages: [], currentThreadId: 'same-thread-test' });
 
       // 模拟 persist rehydrate
-      store.setState({
+      useChatStore.setState({
         messages: [
           { id: 's-1', role: 'user', content: '同线程消息', timestamp: Date.now() },
         ],
       });
 
-      const before = store.getState().messages.length;
+      const before = useChatStore.getState().messages.length;
 
-      // switchThread 到同一线程
-      const { switchThread } = await import('../../src/stores/useChatStore');
+      // switchThread 到同一线程（应保留内存消息）
       await switchThread('same-thread-test');
 
-      const after = store.getState().messages.length;
+      const after = useChatStore.getState().messages.length;
 
       return { before, after };
     });
@@ -179,19 +193,17 @@ test.describe('Chat History - Reload Persistence', () => {
     test.setTimeout(30000);
 
     const result = await page.evaluate(async () => {
-      const store = (window as any).__chatStore;
-      store.setState({ messages: [], currentThreadId: 'strict-mode-thread' });
+      const { useChatStore, switchThread } = await import('../../src/stores/useChatStore');
+      useChatStore.setState({ messages: [], currentThreadId: 'strict-mode-thread' });
 
-      store.getState().addMessage({ id: 'sm-1', role: 'user', content: 'StrictMode 消息', timestamp: Date.now() });
+      useChatStore.getState().addMessage({ id: 'sm-1', role: 'user', content: 'StrictMode 消息', timestamp: Date.now() });
 
-      const { switchThread } = await import('../../src/stores/useChatStore');
-
-      // 模拟 StrictMode: 连续调用两次
+      // 模拟 StrictMode: 连续调用两次（同线程，应保留消息）
       await switchThread('strict-mode-thread');
-      const afterFirst = store.getState().messages.length;
+      const afterFirst = useChatStore.getState().messages.length;
 
       await switchThread('strict-mode-thread');
-      const afterSecond = store.getState().messages.length;
+      const afterSecond = useChatStore.getState().messages.length;
 
       return { afterFirst, afterSecond };
     });
