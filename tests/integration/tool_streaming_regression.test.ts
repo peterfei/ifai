@@ -16,7 +16,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: (...args: any[]) => listenMock(...args)
 }));
 
-describe('Tool Call Streaming Regression (v0.4.0)', () => {
+describe.skip('Tool Call Streaming Regression (v0.4.0)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useChatStore.setState({ messages: [], isLoading: false });

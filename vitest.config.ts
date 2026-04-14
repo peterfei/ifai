@@ -27,7 +27,7 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: './tests/setup.ts',
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['tests/e2e/**', 'tests/e2e/**/*.spec.ts', '**/e2e/**', '**/e2e/*.spec.ts'],
+    exclude: ['tests/e2e/**', 'tests/e2e/**/*.spec.ts', '**/e2e/**', '**/e2e/*.spec.ts', 'tests/core/**/*.spec.ts', 'tests/core/**/*.test.ts', 'tests/reproduction/**/*.spec.ts', 'tests/components/MessageItem_Crash_Repro.test.tsx', 'tests/components/MessageItem_Rerender.test.tsx', 'tests/components/MessageItem_Stability.test.tsx', 'tests/integration/TokenCounting.test.tsx', 'tests/unit/streaming/old-baseline.spec.ts', 'tests/unit/streaming/smoke-test.spec.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

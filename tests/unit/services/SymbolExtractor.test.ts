@@ -22,7 +22,7 @@ describe('SymbolExtractor (TDD)', () => {
 
         const result = await SymbolExtractor.probeFile('src/App.tsx');
 
-        expect(mockInvoke).toHaveBeenCalledWith('probe_symbols', { path: 'src/App.tsx' });
+        expect(mockInvoke).toHaveBeenCalledWith('probe_symbols', { path: 'src/App.tsx', project_root: null });
         expect(result).toHaveLength(2);
         expect(result[0].name).toBe('App');
     });

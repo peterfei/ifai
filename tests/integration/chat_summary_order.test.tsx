@@ -3,6 +3,11 @@ import { render } from '@testing-library/react';
 import { MessageItem } from '../../src/components/AIChat/MessageItem';
 import React from 'react';
 
+// Mock ToolApproval to prevent MonacoDiffView/monaco-editor import chain
+vi.mock('../../src/components/AIChat/ToolApproval', () => ({
+  ToolApproval: () => null
+}));
+
 // Mock dependencies
 vi.mock('../../src/stores/settingsStore', () => ({
   useSettingsStore: Object.assign(() => ({

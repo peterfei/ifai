@@ -4,6 +4,8 @@
  * 验证 Claude Code 风格的节点信息解析
  */
 
+import { describe, test, expect } from 'vitest';
+
 /**
  * 解析节点标签，提取操作和参数
  */
@@ -105,9 +107,7 @@ function formatNodeLabel(parsedInfo: any): string {
 
 // ==================== 测试用例 ====================
 
-function testNodeParser() {
-  console.log('🧪 开始测试节点解析器...\n');
-
+describe('节点解析器', () => {
   const testCases = [
     {
       input: 'Read(package.json)',
@@ -135,49 +135,16 @@ function testNodeParser() {
     },
   ];
 
-  let passed = 0;
-  let failed = 0;
-
   for (const testCase of testCases) {
-    console.log(`📝 测试: ${testCase.description}`);
-    console.log(`   输入: ${testCase.input}`);
+    test(testCase.description, () => {
+      const result = parseNodeInfo(testCase.input, '');
+      const formatted = formatNodeLabel(result);
 
-    const result = parseNodeInfo(testCase.input, '');
-    const formatted = formatNodeLabel(result);
+      // 验证操作名称
+      expect(result.operation).toBe(testCase.expectedOp);
 
-    console.log(`   解析结果:`);
-    console.log(`     - 操作: ${result.operation}`);
-    console.log(`     - 参数:`, result.parameters);
-    console.log(`   格式化: ${formatted}`);
-
-    // 验证操作名称
-    if (result.operation !== testCase.expectedOp) {
-      console.log(`   ❌ 失败: 操作应该是 ${testCase.expectedOp}, 实际是 ${result.operation}\n`);
-      failed++;
-      continue;
-    }
-
-    // 验证参数
-    const paramsMatch = JSON.stringify(result.parameters) === JSON.stringify(testCase.expectedParams);
-    if (!paramsMatch) {
-      console.log(`   ❌ 失败: 参数不匹配`);
-      console.log(`      期望:`, testCase.expectedParams);
-      console.log(`      实际:`, result.parameters);
-      console.log();
-      failed++;
-      continue;
-    }
-
-    console.log(`   ✅ 通过\n`);
-    passed++;
+      // 验证参数
+      expect(result.parameters).toEqual(testCase.expectedParams);
+    });
   }
-
-  console.log('═══════════════════════════════════════');
-  console.log(`📊 测试结果: ${passed} 通过, ${failed} 失败`);
-  console.log('═══════════════════════════════════════');
-
-  return { passed, failed };
-}
-
-// 运行测试
-testNodeParser();
+});

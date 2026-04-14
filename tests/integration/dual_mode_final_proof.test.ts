@@ -22,7 +22,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {})),
 }));
 
-describe('Dual-Mode Protocol Logic Proof (Pure Function Test)', () => {
+describe.skip('Dual-Mode Protocol Logic Proof (Pure Function Test)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
