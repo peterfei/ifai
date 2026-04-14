@@ -10,6 +10,7 @@ import { chatEventBus } from './eventBus/ChatEventBus';
 import { useChatStore } from '../useChatStore';
 import { useSettingsStore } from '../settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolicy';
+import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 import { toast } from 'sonner';
 
@@ -1202,25 +1203,10 @@ export const initStoreMapper = () => {
         // 私有库使用: { function: { name, arguments } }  arguments 是字符串
         if (existingToolIndex === -1) {
             // 🏆 NEW: 分配 batchId 以支持工具折叠显示
-            const aggregatableTools = [
-                'agent_scan_project', 
-                'agent_list_dir', 
-                'agent_read_file', 
-                'agent_write_file', 
-                'agent_create_file',
-                'agent_delete_file', 
-                'agent_rename_file',
-                'agent_move_file',
-                'agent_replace_content',
-                'agent_replace_text',
-                'agent_search', 
-                'list_dir', 
-                'read_file'
-            ];
             const lowerToolName = name.toLowerCase();
             let batchId: string | undefined = undefined;
 
-            if (aggregatableTools.some(t => lowerToolName.includes(t))) {
+            if (toolApprovalRegistry.isAggregatable(name)) {
                 const lastToolCall = targetMsg.toolCalls.length > 0 ? targetMsg.toolCalls[targetMsg.toolCalls.length - 1] : null;
 
                 // 🏆 FIX: 简化batchId复用逻辑
@@ -1312,7 +1298,6 @@ export const initStoreMapper = () => {
             editorMode: editorMode as any,
             isSessionTrusted: false,  // TODO: 实现会话信任逻辑
             toolName: name,
-            isSandbox: true,
             userMessageHasAutoApprove: false
           });
 

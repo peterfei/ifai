@@ -417,6 +417,31 @@ export const SettingsModal = () => {
                       className="ml-4 h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+
+                  {/* Sandbox Mode */}
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-300">
+                        沙箱模式
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">
+                        控制破坏性操作（如 bash、删除文件）的自动审批策略
+                      </p>
+                    </div>
+                    <select
+                      value={(settings as any).sandboxMode || 'auto'}
+                      onChange={(e) => settings.updateSettings({
+                        sandboxMode: e.target.value as any
+                      })}
+                      data-testid="sandbox-mode-select"
+                      className="ml-4 bg-[#3c3c3c] border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="auto">自动检测</option>
+                      <option value="tauri-only">仅桌面应用</option>
+                      <option value="always-on">始终启用</option>
+                      <option value="always-off">始终禁用</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             )}

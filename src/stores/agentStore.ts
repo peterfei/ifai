@@ -463,8 +463,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                             editorMode: editorMode as any,
                             isSessionTrusted,
                             toolName: liveToolCall.tool,
-                            isSandbox: true, 
-                            userMessageHasAutoApprove: agent?.autoApproveTools === true 
+                            userMessageHasAutoApprove: agent?.autoApproveTools === true
                         });
 
                         console.log(`[AgentStore] Auto-approval decision for ${liveToolCall.tool}: ${shouldAutoApprove}`);

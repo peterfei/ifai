@@ -21,9 +21,7 @@ import { BashConsoleOutput } from './BashConsoleOutput';
 import { StreamingBashOutput } from './StreamingBashOutput';
 import { ProbeSymbolView } from './ProbeSymbolView';
 import { toast } from 'sonner';
-import { RiskPolicy, RiskLevel } from '../../core/approval/policies/RiskPolicy';
-
-const riskPolicy = new RiskPolicy();
+import { toolApprovalRegistry, RiskLevel } from '../../core/approval/ToolApprovalRegistry';
 
 /**
  * 🏆 将 agent_scan_project 的结构转换为 PivoProjectTree 所需的嵌套结构
@@ -548,11 +546,11 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             }
         }
 
-        return riskPolicy.calculateRisk({
-            toolName: toolCall.tool || '',
-            args: argsObj,
-            editorMode: editorMode as any || 'standard'
-        });
+        return toolApprovalRegistry.calculateRisk(
+            toolCall.tool || '',
+            argsObj,
+            editorMode as any || 'standard'
+        );
     }, [toolCall.tool, toolCall.args, editorMode]);
 
     // 🔥 PERFORMANCE FIX: 缓存 agent_scan_project 的解析结果，避免每次工具状态变化都重新解析

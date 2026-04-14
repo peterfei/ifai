@@ -84,6 +84,9 @@ export interface SettingsState {
   agentApprovalMode: 'always' | 'session-once' | 'session-never' | 'per-tool';
   trustedSessions: Record<string, { approvedAt: number; expiresAt: number }>;
 
+  // 沙箱模式
+  sandboxMode: 'auto' | 'tauri-only' | 'always-on' | 'always-off';
+
   // Agent (保留兼容性)
   agentAutoApprove: boolean;
   enableNewApprovalEngine: boolean; // 🔥 PIVO 2.0 新引擎开关
@@ -203,6 +206,8 @@ export const useSettingsStore = create<SettingsState>()(
       // 🔥 v0.3.4: Agent 审批模式默认值
       agentApprovalMode: 'session-once',  // 默认：会话首次批准
       trustedSessions: {},
+
+      sandboxMode: 'auto',  // 默认：根据环境自动检测
 
       agentAutoApprove: false,
       enableNewApprovalEngine: true, // 🔥 PIVO 2.0 现已成为默认标准
@@ -333,7 +338,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 6, // v0.5.0: Typewriter Effect
+      version: 7, // v0.5.1: Sandbox mode
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -374,13 +379,22 @@ export const useSettingsStore = create<SettingsState>()(
         // 🔥 v0.3.4: 持久化审批模式设置
         agentApprovalMode: state.agentApprovalMode,
         trustedSessions: state.trustedSessions,
+        sandboxMode: state.sandboxMode,
         // v0.4.0: AI 透明度设置
         transparencyLevel: state.transparencyLevel,
         // v0.5.0: 打字机效果
         enableTypewriterEffect: state.enableTypewriterEffect,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 6`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 7`);
+
+        // v0.5.1: 版本 6 -> 7：添加沙箱模式
+        if (version < 7) {
+          if (!persistedState.sandboxMode) {
+            persistedState.sandboxMode = 'auto';
+            console.log('[SettingsStore] Set default sandboxMode=auto (v6->7)');
+          }
+        }
 
         // v0.5.0: 版本 5 -> 6：添加打字机效果开关
         if (version < 6) {
