@@ -704,6 +704,22 @@ export class StreamingResponseController {
         } as any);
       }
 
+      // 🔐 后端工具审批请求：非 safe 工具需要用户审批后后端才执行
+      else if (data.type === 'tool_approval_required') {
+        const toolCallId = data.tool_call_id || data.toolCallId;
+        const toolName = data.tool_name || data.toolName || '';
+        console.log(`[SC] 🔐 Tool approval required: ${toolName} (${toolCallId})`);
+
+        // 发送事件通知 UI 层显示审批状态
+        chatEventBus.emit('chat:tool:approval-required', {
+          ...payload,
+          toolId: toolCallId,
+          toolName,
+          arguments: data.arguments,
+          correlationId: data.correlation_id || payload.correlationId,
+        } as any);
+      }
+
       // 情况 C: 结束标志 (高度兼容模式：finish, finish_reason, done, OpenAI 格式)
       else if (
         data.type === 'finish' ||

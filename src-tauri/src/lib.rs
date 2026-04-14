@@ -1046,15 +1046,12 @@ async fn ai_chat(
         if m == "vibe" {
             final_tools.retain(|t| {
                 let name = t["function"]["name"].as_str().unwrap_or("");
-                // 🆕 P3: 添加新工具到 Vibe Mode 白名单
+                // Vibe Mode 白名单：只允许只读工具
                 name == "agent_scan_project"
                     || name == "agent_read_file"
                     || name == "agent_list_dir"
-                    || name == "bash"
                     || name == "TodoWrite"
                     || name == "read_file"
-                    || name == "write_file"
-                    || name == "edit_file"
                     || name == "glob_search"
                     || name == "grep_search"
             });
@@ -1474,6 +1471,16 @@ async fn approve_tool_call(
     Ok(result)
 }
 
+/// 前端审批完成后回调：将审批结果发送给等待中的 stream_chat loop
+#[tauri::command]
+fn resolve_tool_approval(
+    tool_call_id: String,
+    approved: bool,
+    result: Option<String>,
+) -> Result<bool, String> {
+    Ok(crate::harness_ai_service::resolve_tool_approval(&tool_call_id, approved, result))
+}
+
 #[tauri::command]
 async fn ai_completion(
     state: tauri::State<'_, AppState>,
@@ -1810,6 +1817,8 @@ pub fn run() {
             ai::pivo::commands::pivo_init_assets,
             // 🏆 新增：Agent 工具审批
             approve_tool_call,
+            // 🔐 后端工具审批回调
+            resolve_tool_approval,
             // P2: TodoWrite 任务存储
             commands::task_store_commands::get_tasks,
             commands::task_store_commands::update_task,
