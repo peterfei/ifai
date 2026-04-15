@@ -529,7 +529,7 @@ export const useChatStore = create<ChatStore>()(
                   // 🔥 FIX: 优先使用多工作区模式的 getActiveRoot()，否则回退到 rootPath
                   projectRoot: useFileStore.getState().getActiveRoot()?.path || useFileStore.getState().rootPath,
                   enableTools: true,
-                  mode: (window as any).__IFAI_EDITOR_MODE__ || "vibe"
+                  mode: (window as any).__IFAI_EDITOR_MODE__ || "standard"
               });
 
               const invokeElapsed = Date.now() - invokeStart;

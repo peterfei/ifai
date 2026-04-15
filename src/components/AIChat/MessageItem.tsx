@@ -1097,6 +1097,42 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     }
                                     return null;
                                 })}
+
+                                {/* 🔥 FIX: 补偿渲染 — 当 segments 中缺少 tool segment 但 message.toolCalls 有 pending 工具时
+                                    *  场景：AI 先输出文本（创建 text segment），然后调用工具，但 tool segment 未及时创建或被过滤
+                                    *  此时 mergedSegments 非空（有 text），不会走 fallback 路径，ToolApproval 不渲染
+                                    *  刷新后 segments 可能被重建，所以能显示 — 这解释了"刷新后才出现"的现象
+                                    */}
+                                {(() => {
+                                    if (!message.toolCalls || message.toolCalls.length === 0) return null;
+
+                                    // 收集 segments 中已有的 toolCallId
+                                    const renderedToolIds = new Set(
+                                        mergedSegments
+                                            .filter((s: any) => s.type === 'tool' && s.toolCallId)
+                                            .map((s: any) => s.toolCallId)
+                                    );
+
+                                    // 找出 segments 中没有对应 tool segment 的 pending toolCalls
+                                    const orphanedPendingCalls = message.toolCalls.filter((tc: any) =>
+                                        tc.status === 'pending' && !renderedToolIds.has(tc.id) && !tc.isPartial
+                                    );
+
+                                    if (orphanedPendingCalls.length === 0) return null;
+
+                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`);
+
+                                    return orphanedPendingCalls.map((toolCall: any) => (
+                                        <ToolApproval
+                                            key={`orphan-${toolCall.id}`}
+                                            toolCall={toolCall}
+                                            onApprove={() => onApprove(message.id, toolCall.id)}
+                                            onReject={() => onReject(message.id, toolCall.id)}
+                                            isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                            message={message}
+                                        />
+                                    ));
+                                })()}
                             </div>
                         ) : (
                             /* 🔥 FIX: Fallback 渲染也必须遵循 Action-First 逻辑并支持聚合 */

@@ -252,8 +252,8 @@ export default defineConfig({
     // 服务器启动超时
     timeout: 120 * 1000, // 120秒
     // 日志输出
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdout: process.env.TAURI_DEV === 'true' ? 'inherit' : 'pipe',
+    stderr: process.env.TAURI_DEV === 'true' ? 'inherit' : 'pipe',
   },
 
   // 测试元数据

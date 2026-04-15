@@ -12,6 +12,7 @@ import { useSettingsStore } from '../settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolicy';
 import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
+import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { toast } from 'sonner';
 
 export const initStoreMapper = () => {
@@ -1128,7 +1129,9 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:tool:call', (payload) => {
       const { correlationId, toolId, name, arguments: args } = payload;
 
-      console.log('[StoreMapper] 🔧 Tool call event received:', { correlationId, toolId, name });
+      // 🔥 DIAG: 检查 TOOL_PERMISSIONS 门控
+      const toolPerm = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
+      const skipAutoApprove = toolPerm !== undefined && toolPerm !== 'ReadOnly';
 
       // 🏆 NEW: 物理合并 - 通知 ContentSegmentManager
       contentSegmentManager.onToolCall({
@@ -1220,7 +1223,9 @@ export const initStoreMapper = () => {
                 }
             }
 
-            targetMsg.toolCalls.push({
+            // 🔥 FIX: 使用扩展运算符创建新数组，确保 React.memo 能检测到 toolCalls 变化
+            // 不能用 push()，因为 push 修改原数组引用，React.memo 的引用比较无法检测到变化
+            const newToolCall = {
                 id: toolId,
                 type: 'function',
                 // 🔥 UI 组件兼容字段（args 必须是对象）
@@ -1232,39 +1237,46 @@ export const initStoreMapper = () => {
                 status: 'pending',
                 // 🏆 NEW: 添加 batchId 支持工具折叠
                 batchId
-            });
+            };
+            targetMsg.toolCalls = [...targetMsg.toolCalls, newToolCall];
             console.log('[StoreMapper] 🔧 Added new tool call:', name, 'batchId:', batchId);
         } else {
+            // 🔥 FIX: 创建新的 toolCalls 数组，确保 React.memo 能检测到变化
+            const updatedToolCalls = [...targetMsg.toolCalls];
+            const existingTC = { ...updatedToolCalls[existingToolIndex] };
+
             if (name !== 'Unknown Tool') {
-                targetMsg.toolCalls[existingToolIndex].tool = name;
-                targetMsg.toolCalls[existingToolIndex].function.name = name;
+                existingTC.tool = name;
+                existingTC.function.name = name;
             }
             // 🔥 合并参数对象而不是字符串拼接
-            const existingArgs = targetMsg.toolCalls[existingToolIndex].args || {};
+            const existingArgs = existingTC.args || {};
             if ((parsedArgs as any)._raw) {
               // 如果是新参数是原始字符串，更新 function.arguments
-              targetMsg.toolCalls[existingToolIndex].function.arguments = args || ''; // args 已经是累积的
-              
+              existingTC.function.arguments = args || ''; // args 已经是累积的
+
               // 尝试重新解析完整的 arguments
               try {
-                const fullArgsStr = targetMsg.toolCalls[existingToolIndex].function.arguments;
+                const fullArgsStr = existingTC.function.arguments;
                 try {
-                  targetMsg.toolCalls[existingToolIndex].args = JSON.parse(fullArgsStr);
+                  existingTC.args = JSON.parse(fullArgsStr);
                 } catch (e) {
                   // 🏆 FIX: 使用部分提取逻辑，恢复流式渲染
-                  targetMsg.toolCalls[existingToolIndex].args = extractPartialJSON(fullArgsStr);
+                  existingTC.args = extractPartialJSON(fullArgsStr);
                 }
               } catch (e) {
                 // 极端错误处理
-                targetMsg.toolCalls[existingToolIndex].args = { _raw: targetMsg.toolCalls[existingToolIndex].function.arguments };
+                existingTC.args = { _raw: existingTC.function.arguments };
               }
             } else {
               // 如果是新参数是对象，合并到现有参数
-              targetMsg.toolCalls[existingToolIndex].args = {
+              existingTC.args = {
                 ...existingArgs,
                 ...parsedArgs
               };
             }
+            updatedToolCalls[existingToolIndex] = existingTC;
+            targetMsg.toolCalls = updatedToolCalls;
             console.log('[StoreMapper] 🔧 Updated existing tool call:', name);
         }
 
@@ -1286,20 +1298,30 @@ export const initStoreMapper = () => {
       // 🏆 FIX: 自动审批逻辑（仅在工具首次创建时触发，避免重复批准）
       // 只有当是新创建的工具时才执行自动批准
       if (existingToolIndex === -1) {
-        // 延迟执行以确保 UI 先渲染
-        setTimeout(async () => {
-        try {
-          const settings = useSettingsStore.getState();
-          const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
+        // 🔥 Schema-Driven 门控：非 ReadOnly 工具由后端审批
+        // 后端 requires_approval(ReadOnly, tool) 会判断是否需要用户审批
+        // 前端自动审批只应对 ReadOnly（后端 autoApprove=true）的工具生效
+        // 否则前端 100ms 自动审批会与后端 tool_approval_required 竞态
+        const toolPermission = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
+        const needsBackendApproval = toolPermission !== undefined && toolPermission !== 'ReadOnly';
 
-          // 检查是否应该自动审批
-          const shouldAutoApprove = checkAutoApprove({
-            settings,
-            editorMode: editorMode as any,
-            isSessionTrusted: false,  // TODO: 实现会话信任逻辑
-            toolName: name,
-            userMessageHasAutoApprove: false
-          });
+        if (needsBackendApproval) {
+          console.log(`[StoreMapper] 🔐 Tool "${name}" requires backend approval (permission=${toolPermission}), skipping auto-approve`);
+        } else {
+          // 延迟执行以确保 UI 先渲染
+          setTimeout(async () => {
+          try {
+            const settings = useSettingsStore.getState();
+            const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
+
+            // 检查是否应该自动审批
+            const shouldAutoApprove = checkAutoApprove({
+              settings,
+              editorMode: editorMode as any,
+              isSessionTrusted: false,  // TODO: 实现会话信任逻辑
+              toolName: name,
+              userMessageHasAutoApprove: false
+            });
 
           console.log('[StoreMapper] 🤖 Auto-approve check:', {
             toolName: name,
@@ -1329,7 +1351,34 @@ export const initStoreMapper = () => {
           console.error('[StoreMapper] ❌ Auto-approve failed:', error);
         }
         }, 100);
+        } // end else: non-backend-approval tools
       }
+    });
+
+    // 3.5 🔐 后端审批请求处理：确保 toolCall 状态为 pending
+    // 当后端发送 tool_approval_required 时，确保对应 toolCall 状态正确
+    // （防止前端自动审批已将状态改为 approved 的竞态条件）
+    chatEventBus.on('chat:tool:approval-required' as any, (payload: any) => {
+      const { toolId, toolName } = payload;
+
+      // 确保 toolCall 状态为 pending（覆盖前端自动审批的竞态）
+      const updater = (state: any) => {
+        const updatedMessages = state.messages.map((msg: any) => {
+          if (msg.toolCalls && msg.toolCalls.length > 0) {
+            const updatedToolCalls = msg.toolCalls.map((tc: any) => {
+              if (tc.id === toolId && tc.status !== 'pending') {
+                console.log(`[StoreMapper] 🔧 Resetting toolCall status: ${tc.status} → pending (tool=${toolName})`);
+                return { ...tc, status: 'pending', isPartial: undefined };
+              }
+              return tc;
+            });
+            return { ...msg, toolCalls: updatedToolCalls };
+          }
+          return msg;
+        });
+        return { messages: updatedMessages };
+      };
+      useChatStore.setState(updater as any);
     });
 
     // 4. 映射工具执行结果
