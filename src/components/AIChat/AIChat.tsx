@@ -47,6 +47,7 @@ import { SystemPromptCard } from './SystemPromptCard';
 import { VirtualMessageList } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
+import { useChatScrollController } from '../../hooks/useChatScrollController';
 // v0.3.1: 时间线视图
 import { MessageTimeline } from './MessageTimeline';
 import { SessionNotesPanel, TokenStatsDisplay, ConversationSummary, CompactIndicator } from '../Conversation';
@@ -87,15 +88,15 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   // Thread keyboard shortcuts
   useThreadKeyboardShortcuts();
 
-  // Use specific selectors to avoid subscribing to the entire store
-  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
-  // 🔥 FIX 2: 先获取整个 store，再解构，避免选择器中的 null 问题
-  const chatStoreState = useChatStore();
-  const rawMessages = chatStoreState?.messages ?? [];
-  const isLoading = chatStoreState?.isLoading ?? false;
-  const sendMessage = chatStoreState?.sendMessage ?? (() => Promise.resolve());
-  const approveToolCall = chatStoreState?.approveToolCall ?? (() => Promise.resolve());
-  const rejectToolCall = chatStoreState?.rejectToolCall ?? (() => Promise.resolve());
+  // 🔥 FIX v1.0.0: 使用 selector 订阅，避免订阅整个 store
+  // 只订阅 messages 和 isLoading，避免其他状态变化触发重渲染
+  const rawMessages = useChatStore((state) => state?.messages ?? []);
+  const isLoading = useChatStore((state) => state?.isLoading ?? false);
+
+  // 函数使用 getState() 获取，不订阅变化（引用稳定）
+  const sendMessage = useChatStore((state) => state?.sendMessage ?? (() => Promise.resolve()));
+  const approveToolCall = useChatStore((state) => state?.approveToolCall ?? (() => Promise.resolve()));
+  const rejectToolCall = useChatStore((state) => state?.rejectToolCall ?? (() => Promise.resolve()));
 
   // 🔥 CRITICAL FIX: 直接使用全局状态，避免频繁计算导致卸载
   // 监听全局 activeWorkflows 变化
@@ -140,11 +141,6 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const currentPromptMeta = useTransparencyStore(state => state.currentPromptMeta);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
 
-  // 🔥 性能优化：降低滚动节流时间，提升滚动响应性
-  const lastScrollTime = useRef(0);
-  const rafScrollId = useRef<number>(0);
-  const SCROLL_THROTTLE_MS = 100;  // 从 200ms 降低到 100ms，提升响应性
-
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
   const openFile = useFileStore(state => state.openFile);
   const [input, setInput] = useState('');
@@ -153,7 +149,6 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [viewMode, setViewMode] = useState<'normal' | 'timeline'>('normal');
   // 🔥 动态版本号：优先使用 Tauri API，回退到构建时注入的版本号
   const [appVersion, setAppVersion] = useState<string>(import.meta.env.VITE_APP_VERSION || '0.0.0');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
@@ -334,57 +329,35 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isModelPanelOpen]);
 
-  // Track user manual scrolling to disable auto-scroll
-  const isUserScrolling = useRef(false);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  // 🔥 FIX v1.0.0: 使用统一滚动控制器替代分散的滚动逻辑
+  // 滚动规则表集中管理所有滚动行为，解决 VirtualMessageList 和 AIChat 的滚动冲突
+  // 详见: /Users/mac/project/aieditor/openspec/changes/fix-scroll-focus-and-ui-freeze
 
-  const scrollToBottom = (instant = false) => {
-    // Skip auto-scroll if user is manually scrolling
-    if (isUserScrolling.current) {
-      return;
-    }
-    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'instant' : 'smooth' });
-  };
+  // 检测是否有待处理的工具调用（用于滚动控制器）
+  const hasPendingToolCalls = rawMessages.some(m =>
+    m.toolCalls?.some(tc => tc.status === 'pending' || tc.status === 'executing' || tc.status === 'running' || tc.isPartial)
+  );
 
-  // Detect user manual scroll
+  // 使用统一滚动控制器
+  const scrollController = useChatScrollController({
+    containerRef: scrollContainerRef,
+    messageCount: rawMessages.length,
+    isStreaming: isLoading,
+    hasPendingToolCalls,
+    followZonePx: 120, // 跟随底部区域阈值
+    enabled: true, // 可通过 feature flag 控制
+  });
+
+  // 用户手动滚动处理
   const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-
-    const container = scrollContainerRef.current;
-    const THRESHOLD = 50; // 更加严格的底部判定阈值
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < THRESHOLD;
-
-    if (!isNearBottom) {
-      // 用户离开底部：标记为正在手动滚动
-      // 🔥 FIX v0.4.0: 如果当前正在加载且之前不在滚动状态，则记录起始锁定位置
-      if (!isUserScrolling.current) {
-        console.log('[AIChat] 🔒 Scroll Locked: User moved away from bottom during streaming');
-      }
-      isUserScrolling.current = true;
-
-      if (scrollTimeoutRef.current) {
-        window.clearTimeout(scrollTimeoutRef.current);
-      }
-
-      // 延长锁定期限到 3 秒，确保用户有足够时间阅读
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        // 只有当用户真的停留在底部附近时才解除锁定
-        if (container.scrollHeight - container.scrollTop - container.clientHeight < THRESHOLD) {
-          isUserScrolling.current = false;
-          console.log('[AIChat] 🔓 Scroll Unlocked: User returned to bottom');
-        }
-      }, 3000);
-    } else {
-      // 用户主动滑到底部：立即解除锁定
-      if (isUserScrolling.current) {
-        console.log('[AIChat] 🔓 Scroll Unlocked: User manually returned to bottom');
-      }
-      isUserScrolling.current = false;
-      if (scrollTimeoutRef.current) {
-        window.clearTimeout(scrollTimeoutRef.current);
-      }
-    }
+    scrollController.onUserScroll();
   };
+
+  // 自动滚动到底部（消息更新时触发）
+  useEffect(() => {
+    // 新消息追加或流式更新时，尝试跟随底部
+    scrollController.followBottom(isLoading);
+  }, [rawMessages, isLoading, scrollController]);
 
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
   useEffect(() => {
@@ -404,43 +377,6 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
     fetchVersion();
   }, []);
-
-  // Auto-scroll to bottom when messages update, with throttling during streaming
-  useEffect(() => {
-    const isStreaming = isLoading && rawMessages.length > 0 &&
-                        rawMessages[rawMessages.length - 1].role === 'assistant';
-
-    if (isStreaming) {
-      // Streaming state: throttle + RAF sync
-      const now = Date.now();
-      const timeSinceLastScroll = now - lastScrollTime.current;
-
-      if (timeSinceLastScroll >= SCROLL_THROTTLE_MS) {
-        // Cancel any pending RAF scroll
-        if (rafScrollId.current) {
-          cancelAnimationFrame(rafScrollId.current);
-        }
-        // Schedule new scroll in next animation frame
-        rafScrollId.current = requestAnimationFrame(() => {
-          scrollToBottom(true);
-          lastScrollTime.current = Date.now();
-        });
-      }
-    } else {
-      // Non-streaming state: immediate scroll
-      if (rafScrollId.current) {
-        cancelAnimationFrame(rafScrollId.current);
-      }
-      scrollToBottom(false);
-    }
-
-    // Cleanup: cancel pending RAF on unmount or dependency change
-    return () => {
-      if (rafScrollId.current) {
-        cancelAnimationFrame(rafScrollId.current);
-      }
-    };
-  }, [rawMessages, isLoading]);
 
   const currentProvider = providers.find(p => p.id === currentProviderId);
   // 自定义提供商（本地端点）可能不需要 API Key
@@ -2639,8 +2575,6 @@ ${suggestion.fixContext.code_context}
               />
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
       )}
 

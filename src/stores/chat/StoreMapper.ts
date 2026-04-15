@@ -142,15 +142,25 @@ export const initStoreMapper = () => {
                 console.warn(`[StoreMapper] ⚠️ Out-of-order delta detected: expected ${lastIdx + 1}, got ${deltaIndex}`);
             }
         }
-        
+
         // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
         if (!contentSegmentManager.isStreamActive(correlationId)) {
             console.warn(`[StoreMapper] 🛡️ Stream ${correlationId} not active in Manager, triggering auto-start`);
             contentSegmentManager.onStreamStart(correlationId);
         }
 
-        // 🏆 FIX: 即使使用了 SegmentManager，也必须实时同步顶层 content
-        // 这是最基础的打字机效果保障，防止分段渲染逻辑失效导致空白
+        // 🔥 FIX v1.0.0: 优化性能 - 通知 ContentSegmentManager（不触发 chat:segment:updated 事件）
+        // ContentSegmentManager.onContentChunk 会触发 chat:segment:updated 事件，导致第二次 setState
+        // 我们直接调用内部的 _onContentChunk（如果存在），避免事件触发
+        // 如果不存在，则使用原方法并接受性能损失
+        if ((contentSegmentManager as any)._onContentChunkWithoutEmit) {
+            (contentSegmentManager as any)._onContentChunkWithoutEmit(delta, correlationId);
+        } else {
+            contentSegmentManager.onContentChunk(delta, correlationId);
+        }
+
+        // 🏆 FIX v1.0.0: 合并两次 setState 为一次 - 同时更新 content 和 segments
+        // 这避免了每个 delta 触发两次 setState（一次 content，一次 segments）
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
@@ -162,16 +172,23 @@ export const initStoreMapper = () => {
 
             const newMessages = [...state.messages];
             const targetMsg = { ...newMessages[messageIndex], isStreaming: true };
+
+            // 更新 content
             const oldContent = targetMsg.content || '';
             targetMsg.content = oldContent + delta;
-            newMessages[messageIndex] = targetMsg;
 
+            // 🔥 FIX v1.0.0: 同时更新 segments（从 ContentSegmentManager 获取最新状态）
+            // 这样避免了 chat:segment:updated 事件触发第二次 setState
+            const csmSegments = contentSegmentManager.getSegments(correlationId);
+            if (csmSegments && csmSegments.length > 0) {
+                // 深拷贝 segments 以确保 React 检测到变化
+                targetMsg.segments = csmSegments.map((s: any) => ({ ...s }));
+            }
+
+            newMessages[messageIndex] = targetMsg;
 
             return { messages: newMessages, isLoading: true };
         });
-
-        // 通知 ContentSegmentManager
-        contentSegmentManager.onContentChunk(delta, correlationId);
     });
 
     // 5. 映射流式结束 → 完成、清理、同步
