@@ -48,6 +48,7 @@ import { VirtualMessageList } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
 import { useChatScrollController } from '../../hooks/useChatScrollController';
+import { featureFlags } from '../../config/features';
 // v0.3.1: 时间线视图
 import { MessageTimeline } from './MessageTimeline';
 import { SessionNotesPanel, TokenStatsDisplay, ConversationSummary, CompactIndicator } from '../Conversation';
@@ -345,7 +346,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     isStreaming: isLoading,
     hasPendingToolCalls,
     followZonePx: 120, // 跟随底部区域阈值
-    enabled: true, // 可通过 feature flag 控制
+    // 🔥 FIX v1.0.0: 移除硬编码，使用 feature flags 控制
+    // enabled 由 useChatScrollController 内部从 featureFlags.newScrollController 读取
   });
 
   // 用户手动滚动处理

@@ -10,6 +10,7 @@
  */
 
 import { useRef, useCallback, useEffect, useMemo } from 'react';
+import { featureFlags } from '../config/features';
 
 // ============================================
 // 类型定义
@@ -183,7 +184,7 @@ export function useChatScrollController(
     isStreaming,
     hasPendingToolCalls = false,
     followZonePx = 120,
-    enabled = true,
+    enabled = featureFlags.newScrollController, // 🔥 FIX v1.0.0: 从 feature flags 读取默认值
   } = options;
 
   // 状态 refs
