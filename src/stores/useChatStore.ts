@@ -275,21 +275,20 @@ export const useChatStore = create<ChatStore>()(
           });
 
           // 发布工具完成事件
-          // 🏆 注意：续播由 ToolCallManager 统一处理，避免双重续播
+          // 🔥 FIX: shouldContinue=false — 后端 continuation loop 处理续播，前端不应触发
           chatEventBus.emit('chat:tool:completed', {
             correlationId: messageId,
             sessionId: get().currentThreadId,
             timestamp: Date.now(),
             toolId: toolCallId,
             result: result,
-            // 🏆 添加标记，表示这是自动审批流程，需要触发续播
-            shouldContinue: true
+            shouldContinue: false
           });
         } catch (error) {
           console.error('[ChatStore] Tool approval failed:', error);
           const errorMsg = error instanceof Error ? error.message : String(error);
           const errorResult = JSON.stringify({ status: 'error', message: `Error executing tool: ${errorMsg}` });
-          
+
           // 🏆 FIX: 审批失败时更新状态为 error
           set((state) => ({
             messages: state.messages.map(msg => {
@@ -310,7 +309,7 @@ export const useChatStore = create<ChatStore>()(
             timestamp: Date.now(),
             toolId: toolCallId,
             result: errorResult,
-            shouldContinue: true
+            shouldContinue: false
           });
         }
       },

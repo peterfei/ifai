@@ -309,7 +309,7 @@ export class ToolApprovalRegistry {
         const modes = Array.isArray(when.editorMode) ? when.editorMode : [when.editorMode];
         if (!modes.includes(editorMode)) continue;
       }
-      if (when?.requireSandbox && !this._isSandbox) continue;
+      if (when?.requireSandbox && this._isSandbox) continue;
 
       // 规则命中
       console.log(`${logPrefix} ✅ Rule "${rule.name}": ${rule.then.reason}`);

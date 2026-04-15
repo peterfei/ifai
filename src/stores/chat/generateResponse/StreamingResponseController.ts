@@ -20,6 +20,7 @@ import {
   evaluateStreamEvent,
   STREAM_RULES,
   PHASE_LOADING,
+  PHASE_TRANSITIONS,
   type StreamPhase,
 } from '@/core/stream-schema-generated';
 
@@ -719,8 +720,23 @@ export class StreamingResponseController {
         const newPhase = data.phase as StreamPhase;
         if (session) {
           const oldPhase = session.currentPhase;
+
+          // 🔥 Schema-Driven: 验证 phase 转换合法性
+          const allowedTransitions = PHASE_TRANSITIONS[oldPhase] || [];
+          if (!allowedTransitions.includes(newPhase)) {
+            console.warn(`[SC] ⛔ Invalid phase transition: ${oldPhase} → ${newPhase} (allowed: ${allowedTransitions.join(', ')}), ignoring`);
+            return;
+          }
+
           session.currentPhase = newPhase;
           console.log(`[SC] 🔄 Stream phase transition: ${oldPhase} → ${newPhase}, correlationId=${payload.correlationId}`);
+
+          // 🔥 Schema-Driven: 根据 PHASE_LOADING 更新 isLoading 状态
+          const shouldLoad = PHASE_LOADING[newPhase];
+          const chatStore = useChatStore.getState();
+          if (chatStore.isLoading !== shouldLoad) {
+            chatStore.setLoading(shouldLoad);
+          }
 
           // 转发 phase 事件给 EventBus，UI 层可用于显示状态
           chatEventBus.emit('chat:stream:phase', {
