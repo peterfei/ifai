@@ -48,26 +48,6 @@ pub struct ApprovalResult {
     pub result: Option<String>,  // 执行结果（approved=true 时有值）
 }
 
-/// 判断工具是否安全（只读，可自动执行）
-/// 与前端 toolApprovalConfig.ts 的 category: 'safe' 对齐
-fn is_safe_tool(tool_name: &str) -> bool {
-    let name = tool_name.to_lowercase();
-    // agent_ 前缀剥离后的基础名
-    let base = name.replace("agent_", "");
-
-    matches!(base.as_str(),
-        "read_file"
-        | "list_dir"
-        | "scan_project"
-        | "search"
-        | "glob_search"
-        | "grep_search"
-        | "get_file_symbols"
-        | "todowrite"
-        | "init_rag_index"
-    )
-}
-
 /// 供 Tauri command 调用：前端审批完成后，将结果发送给等待中的 stream_chat loop
 pub fn resolve_tool_approval(tool_call_id: &str, approved: bool, result: Option<String>) -> bool {
     let map = get_pending_approvals();
@@ -544,8 +524,11 @@ impl AIService for HarnessAIService {
                                         }
                                     }
 
-                                    // 🔥 审批门控：非 safe 工具需要前端审批后才能执行
-                                    let exec_result = if is_safe_tool(&tool_name) {
+                                    // 🔥 审批门控：Schema-Driven 权限检查
+                                    let exec_result = if !crate::stream_schema_generated::requires_approval(
+                                        crate::stream_schema_generated::PermissionMode::ReadOnly,
+                                        &tool_name,
+                                    ) {
                                         // safe 工具直接执行
                                         match router.execute(&tool_name, &args) {
                                             Ok(res) => res,
@@ -572,6 +555,14 @@ impl AIService for HarnessAIService {
                                         });
                                         callback(approval_event.to_string());
 
+                                        // 🆕 Schema-Driven: 发射 stream_phase 事件通知前端进入审批状态
+                                        callback(json!({
+                                            "type": "stream_phase",
+                                            "phase": "AWAITING_APPROVAL",
+                                            "tool_call_id": tool_id,
+                                            "correlation_id": correlation_id
+                                        }).to_string());
+
                                         // 创建 oneshot channel 等待前端审批
                                         let (tx, rx) = oneshot::channel();
                                         get_pending_approvals().insert(tool_id.clone(), tx);
@@ -581,6 +572,13 @@ impl AIService for HarnessAIService {
                                             Ok(Ok(approval)) if approval.approved => {
                                                 // 用户批准：执行工具
                                                 println!("[AI] ✅ Tool {} approved by user, executing...", tool_name);
+
+                                                // 🆕 Schema-Driven: 发射 stream_phase 事件通知前端恢复继续
+                                                callback(json!({
+                                                    "type": "stream_phase",
+                                                    "phase": "CONTINUING",
+                                                    "correlation_id": correlation_id
+                                                }).to_string());
                                                 match router.execute(&tool_name, &args) {
                                                     Ok(res) => res,
                                                     Err(e) => {
@@ -725,8 +723,11 @@ impl AIService for HarnessAIService {
                                             }
                                         }
 
-                                        // 🔥 fallback 路径审批门控
-                                        let exec = if is_safe_tool(&tool_name_from_map) {
+                                        // 🔥 fallback 路径审批门控（Schema-Driven）
+                                        let exec = if !crate::stream_schema_generated::requires_approval(
+                                            crate::stream_schema_generated::PermissionMode::ReadOnly,
+                                            &tool_name_from_map,
+                                        ) {
                                             match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
                                                 Ok(res) => res,
                                                 Err(e) => {
@@ -752,12 +753,27 @@ impl AIService for HarnessAIService {
                                             });
                                             callback(approval_event.to_string());
 
+                                            // 🆕 Schema-Driven: 发射 stream_phase 事件（fallback 路径）
+                                            callback(json!({
+                                                "type": "stream_phase",
+                                                "phase": "AWAITING_APPROVAL",
+                                                "tool_call_id": &tool_id,
+                                                "correlation_id": &correlation_id
+                                            }).to_string());
+
                                             let (tx, rx) = oneshot::channel();
                                             get_pending_approvals().insert(tool_id.clone(), tx);
 
                                             match tokio::time::timeout(Duration::from_secs(300), rx).await {
                                                 Ok(Ok(approval)) if approval.approved => {
                                                     println!("[AI] ✅ Tool {} (fallback) approved, executing...", tool_name_from_map);
+
+                                                    // 🆕 Schema-Driven: 发射 stream_phase 事件恢复继续
+                                                    callback(json!({
+                                                        "type": "stream_phase",
+                                                        "phase": "CONTINUING",
+                                                        "correlation_id": &correlation_id
+                                                    }).to_string());
                                                     match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
                                                         Ok(res) => res,
                                                         Err(e) => serde_json::json!({

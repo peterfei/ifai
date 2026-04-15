@@ -841,13 +841,25 @@ pub async fn call_ai_streaming_simple(
         ];
 
         // 使用 ai_utils::fetch_ai_completion_simple 进行非流式调用
-        crate::ai_utils::fetch_ai_completion_simple(
-            &provider_config.api_key,
-            &provider_config.base_url,
-            &provider_config.models.first().unwrap_or(&String::new()),
-            &messages,
-            None,  // 不使用 custom prompt
-            None,  // 不使用 temperature
-        ).await
+        let result_msg = crate::ai_utils::fetch_ai_completion_simple(
+            &provider_config,
+            messages,
+        ).await?;
+
+        // 从 Message 提取文本内容
+        let content_str = match &result_msg.content {
+            crate::core_traits::ai::Content::Text(s) => s.clone(),
+            crate::core_traits::ai::Content::Parts(parts) => {
+                parts.iter()
+                    .filter_map(|p| match p {
+                        crate::core_traits::ai::ContentPart::Text { text, .. } => Some(text.clone()),
+                        crate::core_traits::ai::ContentPart::ImageUrl { .. } => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("")
+            }
+        };
+
+        Ok(content_str)
     }
 }

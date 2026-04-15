@@ -23,6 +23,7 @@ pub mod core_traits; // 公开 core_traits 供 CLI 使用
 mod project_config;
 mod community;
 mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
+mod stream_schema_generated; // 🆕 Schema-Driven 代码生成：StreamPhase、PermissionMode、ToolPermissions
 mod local_model;
 mod intelligence_router;
 mod token_counter; // v0.2.6 新增：Token 计数模块
