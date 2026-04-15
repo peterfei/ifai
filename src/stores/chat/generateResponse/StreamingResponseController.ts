@@ -410,6 +410,7 @@ export class StreamingResponseController {
                   clearTimeout(eventTimeoutCheck);
                 }
                 session.lastHeartbeat = Date.now();
+
                 this.handleBackendEvent(event.payload, payload);
             });
         } catch (e) {
@@ -735,7 +736,6 @@ export class StreamingResponseController {
       else if (data.type === 'tool_approval_required') {
         const toolCallId = data.tool_call_id || data.toolCallId;
         const toolName = data.tool_name || data.toolName || '';
-        console.log(`[SC] 🔐 Tool approval required: ${toolName} (${toolCallId})`);
 
         // 发送事件通知 UI 层显示审批状态
         chatEventBus.emit('chat:tool:approval-required', {
