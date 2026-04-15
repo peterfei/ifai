@@ -31,12 +31,14 @@ impl OpenAIClient {
             "https://api.openai.com/v1/chat/completions".to_string()
         };
 
-        // 🔥 FIX: 增加 HTTP 客户端超时时间，支持长 continuation 流
+        // 🔥 FIX: 超时配置优化（同 DeepSeek）
+        // - 不设总 timeout：长 continuation 多轮审批可能持续 10+ 分钟
+        // - read_timeout 600s：仅限制两次数据读取之间的空闲间隔
+        // - connect_timeout 30s：连接建立超时
         use std::time::Duration;
         let http = HttpClient::builder()
-            .timeout(Duration::from_secs(300))
             .connect_timeout(Duration::from_secs(30))
-            .read_timeout(Duration::from_secs(300))
+            .read_timeout(Duration::from_secs(600))
             .build()
             .expect("Failed to create HTTP client");
 
