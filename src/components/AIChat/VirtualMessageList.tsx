@@ -54,57 +54,26 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
     count: visibleMessages.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150, // 估算每条消息高度
-    overscan: 3, // 额外渲染上下各 3 条消息（减少白屏）
-    // 🔥 FIX: 仅 AI 流式输出时禁用虚拟滚动，工作流 pending toolCalls 不影响
-    enabled: visibleMessages.length >= 15 && !isLoading,
+    overscan: 5, // 🔥 FIX v1.0.0: 增加 overscan 到 5，确保流式时有足够的预渲染消息
+    // 🔥 FIX v1.0.0: 流式期间也保持虚拟滚动启用，避免 DOM 节点过多阻塞主线程
+    enabled: visibleMessages.length >= 15,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
 
-  // 🔥 性能优化：使用 RAF 节流自动滚动（避免流式输出时频繁 DOM 更新阻塞主线程）
-  useEffect(() => {
-    if (!(isLoading || hasPendingToolCalls) || !scrollElementRef.current) {
-      return;
-    }
+  // 🔥 FIX v1.0.0: 移除独立的 RAF 滚动循环
+  // 滚动逻辑现在由 AIChat 组件中的 useChatScrollController 统一管理
+  // 这样避免了多个组件同时控制滚动导致的冲突和用户滚动被覆盖的问题
+  // 详见: /Users/mac/project/aieditor/openspec/changes/fix-scroll-focus-and-ui-freeze
 
-    let rafId: number | null = null;
-    let lastScrollTime = 0;
-    const SCROLL_THROTTLE_MS = 100; // 降低到 100ms，提升响应性
-
-    const scrollToBottom = () => {
-      const now = Date.now();
-      if (now - lastScrollTime >= SCROLL_THROTTLE_MS) {
-        lastScrollTime = now;
-        if (scrollElementRef.current) {
-          scrollElementRef.current.scrollTop = scrollElementRef.current.scrollHeight;
-        }
-      }
-      rafId = requestAnimationFrame(scrollToBottom);
-    };
-
-    rafId = requestAnimationFrame(scrollToBottom);
-
-    return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
-    };
-  }, [isLoading, hasPendingToolCalls]);
-
-  // 🔥 性能优化：流式输出时只渲染最后 20 条消息，避免 DOM 节点过多阻塞主线程
-  const STREAMING_RENDER_LIMIT = 20;
-
-  // 条件渲染：短对话、正在加载时使用限制渲染的列表
-  // 🔥 FIX: 移除 hasPendingToolCalls 的截断触发，工作流执行期间不截断历史消息
-  if (visibleMessages.length < 15 || isLoading) {
-    // 🔥 关键优化：仅 AI 流式输出时只渲染最后 20 条消息
-    const messagesToRender = isLoading
-      ? visibleMessages.slice(-STREAMING_RENDER_LIMIT)
-      : visibleMessages;
-
+  // 🔥 FIX v1.0.0: 移除流式期间禁用虚拟滚动的逻辑
+  // 现在虚拟滚动始终启用（当消息数 >= 15 时），无论是否在流式输出
+  // 这确保了长对话在流式期间也能保持良好的性能
+  if (visibleMessages.length < 15) {
+    // 短对话直接渲染
     return (
       <div className="space-y-4" style={{ contain: 'layout style paint' }}>
-        {messagesToRender.map((message, index) => (
+        {visibleMessages.map((message, index) => (
           <React.Fragment key={message.id}>
             <MessageItem
               message={message as any}

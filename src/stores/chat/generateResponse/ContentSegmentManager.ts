@@ -185,6 +185,36 @@ export class ContentSegmentManager {
   }
 
   /**
+   * 🔥 FIX v1.0.0: 处理内容块（不触发事件版本）
+   * 用于 StoreMapper 优化性能，避免每个 delta 触发两次 setState
+   * 此方法只更新内部状态，不触发 chat:segment:updated 事件
+   */
+  _onContentChunkWithoutEmit(delta: string, correlationId: string): void {
+    const state = this.streams.get(correlationId);
+    if (!state) {
+      console.warn('[ContentSegmentManager] ⚠️ Stream not found:', correlationId);
+      return;
+    }
+
+    if (state.isFinished) {
+      console.warn('[ContentSegmentManager] ⚠️ Stream already finished, ignoring chunk:', correlationId);
+      return;
+    }
+
+    // 追加到当前 text segment
+    if (state.currentTextSegment) {
+      state.currentTextSegment.content += delta;
+    } else {
+      // 🏆 物理自愈：如果没有 currentTextSegment，则尝试找到最后一个 text segment
+      const lastTextSegment = [...state.segments].reverse().find(s => s.type === 'text');
+      if (lastTextSegment) {
+          state.currentTextSegment = lastTextSegment;
+          this._onContentChunkWithoutEmit(delta, correlationId); // 递归重试
+      }
+    }
+  }
+
+  /**
    * 处理工具调用
    */
   onToolCall(toolCall: ToolCall, correlationId: string): void {
