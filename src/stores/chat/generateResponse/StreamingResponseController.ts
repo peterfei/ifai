@@ -16,6 +16,12 @@ import { useThreadStore } from '../../threadStore';
 // import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { ApprovalPipeline } from '../../../utils/approvalPipeline';
 import { useChatStore } from '../../useChatStore';
+import {
+  evaluateStreamEvent,
+  STREAM_RULES,
+  PHASE_LOADING,
+  type StreamPhase,
+} from '@/core/stream-schema-generated';
 
 // 🔥 FIX: 动态获取 listen 函数，支持 E2E 测试环境和真实 Tauri 环境
 async function getTauriListen() {
@@ -44,6 +50,8 @@ interface StreamSession {
   hasReceivedChunk: boolean;
   isFinished: boolean;
   messageId?: string;
+  /** Schema-Driven: 当前流阶段，默认 STREAMING */
+  currentPhase: StreamPhase;
 }
 
 export class StreamingResponseController {
@@ -344,6 +352,7 @@ export class StreamingResponseController {
       startTime: Date.now(),
       hasReceivedChunk: false,
       isFinished: false,
+      currentPhase: 'STREAMING',
       messageId
     };
     this.activeSessions.set(payload.correlationId, session);
@@ -704,6 +713,24 @@ export class StreamingResponseController {
         } as any);
       }
 
+      // 🆕 Schema-Driven: stream_phase 事件处理（后端 continuation loop 发射）
+      else if (data.type === 'stream_phase' && data.phase) {
+        const newPhase = data.phase as StreamPhase;
+        if (session) {
+          const oldPhase = session.currentPhase;
+          session.currentPhase = newPhase;
+          console.log(`[SC] 🔄 Stream phase transition: ${oldPhase} → ${newPhase}, correlationId=${payload.correlationId}`);
+
+          // 转发 phase 事件给 EventBus，UI 层可用于显示状态
+          chatEventBus.emit('chat:stream:phase', {
+            ...payload,
+            phase: newPhase,
+            previousPhase: oldPhase,
+            toolCallId: data.tool_call_id || null,
+          } as any);
+        }
+      }
+
       // 🔐 后端工具审批请求：非 safe 工具需要用户审批后后端才执行
       else if (data.type === 'tool_approval_required') {
         const toolCallId = data.tool_call_id || data.toolCallId;
@@ -732,13 +759,36 @@ export class StreamingResponseController {
         const finishReason = data.finish || data.finish_reason || (data.choices && data.choices[0] && data.choices[0].finish_reason);
 
         // 🔥 DIAGNOSTIC: 打印 finish 事件详情
-        console.log(`[SC] 🏁 Finish event received: finishReason=${finishReason}, correlationId=${payload.correlationId}`);
+        const currentPhase = session?.currentPhase || 'STREAMING';
+        console.log(`[SC] 🏁 Finish event received: finishReason=${finishReason}, phase=${currentPhase}, correlationId=${payload.correlationId}`);
 
-        // 🔥 CRITICAL FIX: 在 continuation 场景下，finish_reason: "tool_calls" 不是流结束
-        // 它只是表示这一轮结束，需要继续下一轮 continuation
-        // 只有 "stop" 或 "length" 才是真正的流结束
+        // 🔥 Schema-Driven: 使用 evaluateStreamEvent 决定是否处理 finish 事件
+        // 当 phase 为 AWAITING_APPROVAL 或 CONTINUING 时，emitFinished 被 suppress
+        if (!evaluateStreamEvent(currentPhase, 'emitFinished')) {
+          console.log(`[SC] ⛔ emitFinished suppressed by STREAM_RULES (phase=${currentPhase}), continuation in progress`);
+
+          // 仍然 flush tool buffer（工具调用数据需要传递给 UI）
+          if (finishReason === 'tool_calls' || finishReason === 'tool') {
+            for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
+              if (buffered.hasName && buffered.arguments.length > 0) {
+                chatEventBus.emit('chat:tool:call', {
+                  ...payload,
+                  toolId: buffered.toolId,
+                  name: buffered.name,
+                  arguments: buffered.arguments,
+                });
+              }
+            }
+            this.toolCallBuffer.clear();
+            this.indexToBufferKey.clear();
+          }
+          return;
+        }
+
+        // finish_reason: "tool_calls" 在 STREAMING phase 下的处理
+        //（正常流程：后端 continuation loop 还会继续发送事件）
         if (finishReason === 'tool_calls' || finishReason === 'tool') {
-          console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer and ending stream`);
+          console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer (phase=${currentPhase})`);
 
           // Flush 任何仍在缓冲中的工具调用
           for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
@@ -754,9 +804,11 @@ export class StreamingResponseController {
           this.toolCallBuffer.clear();
           this.indexToBufferKey.clear();
 
-          // 后端 continuation 已禁用，tool_calls finish 必须结束流
-          // 否则 isLoading 会永远保持 true
-          this.emitFinished(payload, data.usage?.total_tokens);
+          // 如果 phase 仍是 STREAMING，说明后端没有 continuation loop（无工具调用）
+          // 这种情况下需要结束流
+          if (currentPhase === 'STREAMING') {
+            this.emitFinished(payload, data.usage?.total_tokens);
+          }
           return;
         }
 
