@@ -8,6 +8,7 @@ import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
+import { calculateDistanceToBottom, ScrollConstants } from '../../hooks/useChatScrollController';
 
 export interface VirtualMessageListHandle {
   scrollToBottom: () => void;
@@ -61,46 +62,32 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
   // 暴露滚动到底部的方法
   useImperativeHandle(ref, () => ({
     scrollToBottom: () => {
-      console.log('[VirtualMessageList] scrollToBottom called, visibleMessages:', visibleMessages.length);
       if (visibleMessages.length > 0) {
         const lastIndex = visibleMessages.length - 1;
-        console.log('[VirtualMessageList] Scrolling to index:', lastIndex, 'align: end');
-        console.log('[VirtualMessageList] scrollElementRef.current:', scrollElementRef.current);
-        console.log('[VirtualMessageList] virtualizer instance:', virtualizer);
+        // 直接使用 virtualizer.scrollToIndex，移除三重 RAF 延迟
+        try {
+          virtualizer.scrollToIndex(lastIndex, { align: 'end' });
 
-        // 🔥 FIX: 添加更多延迟确保虚拟滚动已完全初始化
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              console.log('[VirtualMessageList] Executing scrollToIndex');
-              try {
-                virtualizer.scrollToIndex(lastIndex, { align: 'end' });
-                console.log('[VirtualMessageList] scrollToIndex completed');
-
-                // 🔥 FIX: 验证滚动是否成功，添加重试机制
-                setTimeout(() => {
-                  const container = scrollElementRef.current;
-                  if (container) {
-                    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-                    console.log('[VirtualMessageList] After scrollToIndex, distance to bottom:', distance);
-                    if (distance > 100) {
-                      console.warn('[VirtualMessageList] ⚠️ scrollToIndex failed, distance:', distance);
-                      // 强制滚动到底部
-                      container.scrollTop = container.scrollHeight;
-                    }
-                  }
-                }, 150);
-              } catch (error) {
-                console.error('[VirtualMessageList] ❌ scrollToIndex error:', error);
+          // 后备验证：使用统一常量
+          setTimeout(() => {
+            const container = scrollElementRef.current;
+            if (container) {
+              const distance = calculateDistanceToBottom(container);
+              if (distance > ScrollConstants.FOLLOW_ZONE_PX) {
+                container.scrollTop = container.scrollHeight;
               }
-            });
-          });
-        });
-      } else {
-        console.warn('[VirtualMessageList] No messages to scroll');
+            }
+          }, ScrollConstants.RETRY_DELAY_MS);
+        } catch (error) {
+          // virtualizer 未就绪，直接设置 scrollTop
+          const container = scrollElementRef.current;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+        }
       }
     },
-  }), [virtualizer, visibleMessages.length]);
+  }), [virtualizer, visibleMessages.length, scrollElementRef]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const topOffset = virtualizer.getVirtualItems()[0]?.start ?? 0;

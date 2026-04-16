@@ -354,184 +354,26 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
   // 用户手动滚动处理
   const handleScroll = () => {
-    // 🔥 FIX v2.2.1: 记录用户手动滚动时间
-    lastUserScrollTimeRef.current = Date.now();
     scrollController.onUserScroll();
   };
 
-  // 🔥 FIX: 统一的滚动到底部方法，兼容虚拟滚动
-  const scrollToBottom = () => {
-    console.log('[AIChat] scrollToBottom called, messages:', rawMessages.length);
+  // 🔥 滚动状态管理已统一到 useChatScrollController
+  // 以下 refs 已移除：prevMessageCountRef, lastMessageIdRef, lastAddedTimeRef,
+  // isScrollingRef, scrollTimeoutRef, lastUserScrollTimeRef, USER_SCROLL_COOLDOWN
+  // 现在由 scrollController.onMessagesChanged() 统一处理
 
-    // 🔥 FIX: 等待更长时间，确保消息已添加到 store 和 DOM
-    // 使用三重 RAF + setTimeout 确保消息完全渲染
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            const container = scrollContainerRef.current;
-            if (!container) {
-              console.warn('[AIChat] scrollContainerRef is null');
-              return;
-            }
-
-            console.log('[AIChat] Container scrollHeight:', container.scrollHeight, 'scrollTop:', container.scrollTop, 'clientHeight:', container.clientHeight);
-            console.log('[AIChat] Current message count:', rawMessages.length);
-            console.log('[AIChat] Distance to bottom:', container.scrollHeight - container.scrollTop - container.clientHeight);
-
-            // 🔥 FIX: 强制解锁滚动状态，确保可以滚动
-            // 不管用户之前是否手动滚动过，发送消息后都应该滚动到底部
-            const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-            const wasLocked = distanceToBottom > 120; // 120px 是 followZonePx 的默认值
-            if (wasLocked) {
-              console.log('[AIChat] 🔓 Unlocking scroll (was at distance:', distanceToBottom, ')');
-            }
-
-            // 如果消息数 >= 15，虚拟滚动已启用
-            if (rawMessages.length >= 15) {
-              console.log('[AIChat] Using virtual scrolling, calling scrollToBottom');
-              virtualMessageListRef.current?.scrollToBottom();
-
-              // 🔥 FIX: 虚拟滚动可能需要额外时间，添加重试机制
-              setTimeout(() => {
-                const retryContainer = scrollContainerRef.current;
-                if (retryContainer) {
-                  const retryDistance = retryContainer.scrollHeight - retryContainer.scrollTop - retryContainer.clientHeight;
-                  console.log('[AIChat] Virtual scroll retry, distance to bottom:', retryDistance);
-                  if (retryDistance > 100) {
-                    console.log('[AIChat] ⚠️ Virtual scroll failed, force scrollTop');
-                    retryContainer.scrollTop = retryContainer.scrollHeight;
-                  }
-                }
-              }, 200);
-            } else {
-              console.log('[AIChat] Using regular scroll, setting scrollTop to scrollHeight');
-              // 直接设置 scrollTop
-              container.scrollTop = container.scrollHeight;
-            }
-          }, 100); // 增加延迟到 100ms
-        });
-      });
-    });
-  };
-
-  // 🔥 FIX v2.2.0: 事件驱动的元编程滚动系统（修复版）
-  // 使用真实的系统时间差来判断是否是用户发送消息
-  // 而不是依赖消息的 timestamp 字段（测试场景可能设置为历史时间）
-  // ============================================
-
-  // 🔥 消息变化检测器
-  const prevMessageCountRef = useRef(0);
-  const lastMessageIdRef = useRef<string>();
-  const lastAddedTimeRef = useRef<number>(Date.now()); // 记录真实的添加时间
-  const isScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // 🔥 FIX v2.2.1: 防止自动滚动覆盖用户手动滚动
-  // 记录用户最后一次手动滚动的时间，用于在 followBottom 中判断是否应该阻止自动滚动
-  const lastUserScrollTimeRef = useRef<number>(0);
-  const USER_SCROLL_COOLDOWN = 1000; // 用户滚动后 1 秒内不自动滚动
-
-  useEffect(() => {
-    const currentCount = rawMessages.length;
-    const lastMessage = rawMessages[currentCount - 1];
-    const lastMessageId = lastMessage?.id;
-    const now = Date.now();
-
-    // 🔥 检测条件1：消息数量增加 且 最后一条消息ID变化
-    const isNewMessage = currentCount > prevMessageCountRef.current && lastMessageId !== lastMessageIdRef.current;
-
-    // 🔥 检测条件2：使用真实的系统时间差
-    // - 批量消息（如测试创建历史消息）：间隔 < 500ms
-    // - 用户发送消息：间隔 > 500ms（或第一条消息）
-    const timeSinceLastAdded = now - lastAddedTimeRef.current;
-    const isUserSentMessage = timeSinceLastAdded > 500 || currentCount === 1;
-
-    if (isNewMessage && isUserSentMessage && !isScrollingRef.current) {
-      console.log('[ScrollStrategy] 🆚 User message detected:', {
-        prevCount: prevMessageCountRef.current,
-        currentCount,
-        lastMessageId,
-        timeSinceLastAdded,
-        isUserSentMessage
-      });
-
-      // 🔥 防抖：清除之前的滚动任务
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = null;
-      }
-
-      // 🔥 设置滚动标志，防止重复触发
-      isScrollingRef.current = true;
-
-      // 🔥 等待 DOM 更新（三次 RAF）
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(async () => {
-            const container = scrollContainerRef.current;
-            if (!container) {
-              isScrollingRef.current = false;
-              return;
-            }
-
-            console.log('[ScrollStrategy] 🎯 Triggering auto-scroll for user message');
-
-            // 解锁滚动状态
-            scrollController.forceScrollToBottom?.();
-
-            // 🔥 执行强制滚动（复用现有的 scrollToBottom 逻辑）
-            scrollToBottom();
-
-            // 🔥 滚动完成后重置标志
-            scrollTimeoutRef.current = setTimeout(() => {
-              isScrollingRef.current = false;
-              console.log('[ScrollStrategy] ✅ Scroll completed, flag reset');
-            }, 500);
-          });
-        });
-      });
-    } else if (isNewMessage && !isUserSentMessage) {
-      console.log('[ScrollStrategy] 🔄 Batch message detected, skipping auto-scroll:', {
-        currentCount,
-        timeSinceLastAdded
-      });
-    }
-
-    // 更新 refs（使用真实的系统时间）
-    prevMessageCountRef.current = currentCount;
-    lastMessageIdRef.current = lastMessageId;
-    lastAddedTimeRef.current = now;
-  }, [rawMessages]);
-
-  // 🔥 清理：组件卸载时清除定时器
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // 自动滚动到底部（消息更新时触发）
-  // 🔥 FIX v2.2.2: 移除 scrollController 依赖，避免无限循环
-  // scrollController 对象每次渲染都会创建新引用，导致 effect 无限触发
+  // 统一的消息变化处理（替代之前的两个独立 useEffect）
   const prevScrollControllerRef = useRef(scrollController);
   prevScrollControllerRef.current = scrollController;
 
   useEffect(() => {
-    // 🔥 FIX v2.2.1: 如果用户刚刚手动滚动（1秒内），不自动滚动
-    // 这防止了测试中的手动滚动被流式跟随逻辑覆盖
-    const timeSinceUserScroll = Date.now() - lastUserScrollTimeRef.current;
-    if (timeSinceUserScroll < USER_SCROLL_COOLDOWN) {
-      console.log('[AIChat] User scrolled recently, skipping auto-scroll');
-      return;
-    }
-
-    // 新消息追加或流式更新时，尝试跟随底部
-    console.log('[AIChat] rawMessages changed, count:', rawMessages.length, 'isLoading:', isLoading);
-    prevScrollControllerRef.current.followBottom(isLoading);
-  }, [rawMessages, isLoading]); // 🔥 移除 scrollController 依赖
+    const lastMessage = rawMessages[rawMessages.length - 1];
+    prevScrollControllerRef.current.onMessagesChanged(
+      rawMessages.length,
+      lastMessage?.id ?? '',
+      isLoading,
+    );
+  }, [rawMessages, isLoading]);
 
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
   useEffect(() => {
