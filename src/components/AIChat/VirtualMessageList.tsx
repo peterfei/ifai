@@ -4,11 +4,12 @@
  * 仅渲染可见区域的消息，大幅提升长对话性能
  */
 
-import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useRef, useEffect, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
 import { calculateDistanceToBottom, ScrollConstants } from '../../hooks/useChatScrollController';
+import { StreamingMessageSkeleton } from './skeleton';
 
 export interface VirtualMessageListHandle {
   scrollToBottom: () => void;
@@ -49,10 +50,16 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
     m.toolCalls?.some(tc => tc.status === 'pending' || tc.isPartial)
   );
 
+  // 🔥 计算虚拟化项数量：如果有加载状态且有消息，则添加一个骨架屏项
+  const virtualItemCount = useMemo(() => {
+    const shouldShowSkeleton = isLoading && visibleMessages.length > 0;
+    return visibleMessages.length + (shouldShowSkeleton ? 1 : 0);
+  }, [visibleMessages.length, isLoading]);
+
   // ⚠️ 重要：始终调用 hooks，不能在条件返回之前
   // 使用 @tanstack/react-virtual 创建虚拟化列表
   const virtualizer = useVirtualizer({
-    count: visibleMessages.length,
+    count: virtualItemCount,
     getScrollElement: () => scrollElementRef.current,
     estimateSize: () => 150,
     overscan: 5,
@@ -118,6 +125,8 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
             />
           </React.Fragment>
         ))}
+        {/* 🔥 流式加载骨架屏：在有消息且正在加载时显示 */}
+        {isLoading && visibleMessages.length > 0 && <StreamingMessageSkeleton />}
       </div>
     );
   }
@@ -142,6 +151,31 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
         }}
       >
         {virtualItems.map((virtualRow) => {
+          const isSkeletonItem = virtualRow.index >= visibleMessages.length;
+
+          // 🔥 如果是骨架屏项，渲染骨架屏
+          if (isSkeletonItem) {
+            return (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                data-skeleton-item="true"
+                ref={virtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                  willChange: 'transform',
+                  contain: 'layout style paint',
+                }}
+              >
+                <StreamingMessageSkeleton />
+              </div>
+            );
+          }
+
           const message = visibleMessages[virtualRow.index];
           return (
             <div

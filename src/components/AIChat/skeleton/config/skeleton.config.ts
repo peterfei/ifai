@@ -193,83 +193,14 @@ export const AI_CHAT_DETECTORS: DetectorConfig[] = [
 ];
 
 /**
- * 单消息气泡骨架屏设计
- *
- * 用于流式加载场景（有消息时LLM响应）
- * 只显示一个消息气泡，不覆盖整个界面
- */
-export const AI_CHAT_STREAMING_SKELETON_DESIGN: SkeletonDesign = {
-  container: {
-    position: 'inline', // 🔥 关键：使用 inline 模式而非 overlay
-    animation: 'fade',
-    duration: 200,
-  },
-  structure: [
-    {
-      type: 'flex',
-      direction: 'column',
-      gap: 8,
-      children: [
-        {
-          type: 'flex',
-          direction: 'row',
-          gap: 8,
-          children: [
-            {
-              type: 'block',
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-            },
-            {
-              type: 'flex',
-              direction: 'column',
-              gap: 4,
-              children: [
-                {
-                  type: 'block',
-                  width: '80-120px',
-                  height: '16px',
-                  borderRadius: 4,
-                },
-                {
-                  type: 'block',
-                  width: '100%',
-                  height: '12px',
-                  borderRadius: 4,
-                },
-                {
-                  type: 'block',
-                  width: '90%',
-                  height: '12px',
-                  borderRadius: 4,
-                },
-                {
-                  type: 'block',
-                  width: '60-80%',
-                  height: '12px',
-                  borderRadius: 4,
-                  shimmer: true,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-};
-
-/**
  * AIChat 完整骨架屏配置
  *
- * 根据场景自动选择骨架屏设计：
- * - initial/loading 阶段 → 全屏骨架屏
- * - streaming 阶段 → 单消息气泡骨架屏
+ * 骨架屏场景说明：
+ * - initial/loading 阶段 → 全屏骨架屏（使用 DSLRenderer）
+ * - streaming 阶段 → 单消息气泡骨架屏（在 VirtualMessageList 中使用 StreamingMessageSkeleton 组件）
  */
 export const AI_CHAT_SKELETON_CONFIG = {
   stateMachine: AI_CHAT_STATE_MACHINE,
   structure: AI_CHAT_SKELETON_DESIGN, // 全屏骨架屏设计
-  streamingStructure: AI_CHAT_STREAMING_SKELETON_DESIGN, // 单消息气泡骨架屏设计
   detectors: AI_CHAT_DETECTORS,
 };

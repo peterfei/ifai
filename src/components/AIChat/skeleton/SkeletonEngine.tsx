@@ -23,8 +23,6 @@ export interface SkeletonConfig {
   stateMachine: StateMachineConfig;
   /** 骨架屏结构定义（全屏） */
   structure: SkeletonDesign;
-  /** 骨架屏结构定义（单消息气泡，用于流式加载） */
-  streamingStructure?: SkeletonDesign;
   /** 检测器配置 */
   detectors: DetectorConfig[];
 }
@@ -135,12 +133,8 @@ export class SkeletonEngine {
    * 获取当前骨架屏设计
    */
   getDesign(): SkeletonDesign {
-    const phase = this.stateMachine.getCurrentPhase();
-    // 🔥 关键：根据阶段选择正确的设计
-    // streaming 阶段使用单消息气泡设计，其他阶段使用全屏设计
-    if (phase === 'streaming' && this.config.streamingStructure) {
-      return this.config.streamingStructure;
-    }
+    // 🔥 streaming 阶段不使用 overlay（由 AIChat 直接渲染单消息气泡骨架屏）
+    // 所以这里总是返回全屏骨架屏设计
     return this.config.structure;
   }
 
@@ -150,8 +144,17 @@ export class SkeletonEngine {
    */
   private getVisibility(): boolean {
     const phase = this.stateMachine.getCurrentPhase();
-    // 🔥 关键：streaming 阶段也应该显示骨架屏（单消息气泡）
-    return phase === 'initial' || phase === 'loading' || phase === 'streaming';
+    // 🔥 关键：streaming 阶段不显示 overlay（由 AIChat 直接渲染单消息气泡骨架屏）
+    return phase === 'initial' || phase === 'loading';
+  }
+
+  /**
+   * 获取是否在流式加载阶段
+   *
+   * 用于 AIChat 判断是否显示单消息气泡骨架屏
+   */
+  isStreamingPhase(): boolean {
+    return this.stateMachine.getCurrentPhase() === 'streaming';
   }
 
   /**
@@ -210,8 +213,8 @@ export function useSkeletonEngine(config: SkeletonConfig, options?: SkeletonEngi
   // 🔥 优化：立即更新可见性状态
   const updateVisibility = useCallback(() => {
     const phase = engine.getCurrentPhase();
-    // 🔥 关键：streaming 阶段也应该显示骨架屏
-    const visible = phase === 'initial' || phase === 'loading' || phase === 'streaming';
+    // 🔥 关键：streaming 阶段不显示 overlay（由 AIChat 直接渲染单消息气泡骨架屏）
+    const visible = phase === 'initial' || phase === 'loading';
     if (visible !== isVisibleRef.current) {
       isVisibleRef.current = visible;
       setIsVisible(visible);
@@ -242,7 +245,7 @@ export function useSkeletonEngine(config: SkeletonConfig, options?: SkeletonEngi
   }, [updateVisibility]);
 
   // 获取渲染器组件
-  // 🔥 关键：每次渲染时动态获取正确的设计（streaming vs 全屏）
+  // 🔥 关键：每次渲染时动态获取正确的设计
   const Renderer = useCallback(() => {
     const design = engine.getDesign();
     return <DSLRenderer design={design} visible={isVisible} />;
@@ -252,6 +255,7 @@ export function useSkeletonEngine(config: SkeletonConfig, options?: SkeletonEngi
     Renderer,
     engine,
     isVisible,
+    isStreamingPhase: () => engine.isStreamingPhase(),
   };
 }
 

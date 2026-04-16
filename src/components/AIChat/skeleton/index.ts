@@ -16,5 +16,8 @@ export { DetectorRunner, createDetectorRunner } from './DetectorRunner';
 export { DSLRenderer } from './DSLRenderer';
 export { SkeletonEngine, useSkeletonEngine, SkeletonProvider } from './SkeletonEngine';
 
+// 组件
+export { StreamingMessageSkeleton } from './StreamingMessageSkeleton';
+
 // 配置
 export * from './config/skeleton.config';
