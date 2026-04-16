@@ -487,4 +487,169 @@ test.describe('Streaming Message Skeleton', () => {
 
     console.log('[E2E] ✅ 高保真测试通过：文件打开流程正确');
   });
+
+  test('高保真测试：TabBar 切换文件时的骨架屏显示', async ({ page }) => {
+    console.log('[E2E] ========== 高保真测试：TabBar 切换文件 ==========');
+
+    // 步骤 1: 准备测试环境 - 打开两个文件
+    await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+      const layoutStore = (window as any).__layoutStore;
+
+      const panes = layoutStore.getState().panes;
+      const firstPaneId = panes[0]?.id;
+
+      if (!firstPaneId) {
+        throw new Error('No pane found');
+      }
+
+      // 打开第一个文件（有内容）
+      const fileId1 = fileStore.getState().openFile({
+        id: 'file-1-with-content',
+        path: '/tmp/file1.js',
+        name: 'file1.js',
+        content: '// File 1 content\nconsole.log("File 1");',
+        isDirty: false,
+        language: 'javascript'
+      });
+
+      // 打开第二个文件（内容为空，模拟加载中）
+      const fileId2 = fileStore.getState().openFile({
+        id: 'file-2-empty',
+        path: '/tmp/file2.js',
+        name: 'file2.js',
+        content: '', // 空内容
+        isDirty: false,
+        language: 'javascript'
+      });
+
+      // 激活第一个文件
+      fileStore.getState().setActiveFile(fileId1);
+      layoutStore.getState().assignFileToPane(firstPaneId, fileId1);
+
+      console.log('[E2E] 两个文件已打开，当前激活 file1.js');
+    });
+
+    await page.waitForTimeout(500);
+
+    // 步骤 2: 验证初始状态 - file1.js 应该正常显示 Monaco Editor
+    const initialState = await page.evaluate(() => {
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+
+      return {
+        monacoVisible: monacoContainer ? window.getComputedStyle(monacoContainer).display !== 'none' : false,
+        skeletonVisible: skeleton ? window.getComputedStyle(skeleton).display !== 'none' : false,
+        activeFileId: (window as any).__fileStore?.getState()?.activeFileId,
+      };
+    });
+
+    console.log('[E2E] 初始状态:', JSON.stringify(initialState, null, 2));
+    expect(initialState.monacoVisible, '初始状态：Monaco Editor 应该可见').toBe(true);
+    expect(initialState.skeletonVisible, '初始状态：骨架屏不应该可见').toBe(false);
+
+    // 步骤 3: 切换到第二个文件（内容为空）
+    await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+      const layoutStore = (window as any).__layoutStore;
+
+      const panes = layoutStore.getState().panes;
+      const firstPaneId = panes[0]?.id;
+
+      // 切换到第二个文件（内容为空）
+      fileStore.getState().setActiveFile('file-2-empty');
+      layoutStore.getState().assignFileToPane(firstPaneId, 'file-2-empty');
+
+      console.log('[E2E] 切换到 file2.js（内容为空）');
+    });
+
+    await page.waitForTimeout(500);
+
+    // 步骤 4: 🔥 关键验证：切换到空文件时，应该显示骨架屏
+    const afterSwitchState = await page.evaluate(() => {
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+
+      // 检查是否有任何 "Loading..." 文本
+      const bodyText = document.body.innerText;
+      const hasLoadingText = bodyText.includes('Loading') || bodyText.includes('loading');
+
+      // 检查控制台日志中的 MonacoEditor 状态
+      const activeFileId = (window as any).__fileStore?.getState()?.activeFileId;
+      const openedFiles = (window as any).__fileStore?.getState()?.openedFiles || [];
+      const activeFile = openedFiles.find((f: any) => f.id === activeFileId);
+
+      return {
+        skeleton: {
+          exists: !!skeleton,
+          visible: skeleton ? window.getComputedStyle(skeleton).display !== 'none' : false,
+        },
+        monaco: {
+          exists: !!monacoContainer,
+          visible: monacoContainer ? window.getComputedStyle(monacoContainer).display !== 'none' : false,
+        },
+        hasLoadingText,
+        activeFile: {
+          id: activeFile?.id,
+          name: activeFile?.name,
+          hasContent: !!activeFile?.content,
+          contentLength: activeFile?.content?.length || 0,
+        }
+      };
+    });
+
+    console.log('[E2E] 切换后状态:', JSON.stringify(afterSwitchState, null, 2));
+
+    // 🔥 验证 1: 应该显示骨架屏
+    expect(afterSwitchState.skeleton.exists, '切换到空文件后，骨架屏元素应该存在').toBe(true);
+    expect(afterSwitchState.skeleton.visible, '切换到空文件后，骨架屏应该可见').toBe(true);
+
+    // 🔥 验证 2: Monaco Editor 不应该可见
+    expect(afterSwitchState.monaco.visible, '切换到空文件后，Monaco Editor 不应该可见').toBe(false);
+
+    // 🔥 验证 3: 激活的文件应该是空文件
+    expect(afterSwitchState.activeFile.contentLength, '激活的文件内容长度应该为 0').toBe(0);
+
+    // 步骤 5: 模拟文件内容加载完成
+    await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+
+      // 直接修改文件内容（模拟异步加载完成）
+      const openedFiles = fileStore.getState().openedFiles;
+      const targetFile = openedFiles.find((f: any) => f.id === 'file-2-empty');
+
+      if (targetFile) {
+        targetFile.content = '// File 2 loaded content\nconsole.log("File 2");';
+
+        // 触发状态更新
+        fileStore.setState({
+          openedFiles: [...openedFiles]
+        });
+
+        console.log('[E2E] file2.js 内容加载完成');
+      }
+    });
+
+    await page.waitForTimeout(300);
+
+    // 步骤 6: 验证内容加载后的状态
+    const finalState = await page.evaluate(() => {
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+
+      return {
+        skeletonExists: !!skeleton,
+        monacoVisible: monacoContainer ? window.getComputedStyle(monacoContainer).display !== 'none' : false,
+        activeFileContent: (window as any).__fileStore?.getState()?.openedFiles?.find((f: any) => f.id === 'file-2-empty')?.content || '',
+      };
+    });
+
+    console.log('[E2E] 最终状态:', JSON.stringify(finalState, null, 2));
+
+    expect(finalState.monacoVisible, '内容加载后，Monaco Editor 应该可见').toBe(true);
+    expect(finalState.skeletonExists, '内容加载后，骨架屏不应该存在').toBe(false);
+    expect(finalState.activeFileContent.length).toBeGreaterThan(0);
+
+    console.log('[E2E] ✅ TabBar 切换测试通过');
+  });
 });
