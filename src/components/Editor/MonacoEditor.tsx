@@ -150,7 +150,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
   // 🔥 文件大小缓存 refs - 必须在组件顶层声明
   const fileSizeRef = useRef(0);
-  const lastFilePath = useRef(file?.path);
+  const lastFilePath = useRef<string | undefined>(undefined);
 
   // 🔥 Token count ref - 必须在组件顶层声明
   const updateTokenCountRef = useRef<((text: string) => void) | null>(null);
@@ -197,6 +197,12 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   }, [file?.id, file?.content]); // 🔥 只依赖 file 值，不依赖函数
 
   const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
+    console.log('[MonacoEditor] ✅ Monaco Editor 已挂载', {
+      paneId,
+      fileId: fileRef.current?.id,
+      fileName: fileRef.current?.name,
+    });
+
     // 存储编辑器实例
     setEditorInstance(paneId, editor);
     editorRef.current = editor; // 🔥 同时存储到 ref
@@ -1029,6 +1035,7 @@ ${textBefore}[CURSOR]${textAfter}
         onChange={handleChange}
         onMount={handleEditorDidMount}
         options={getOptimizedOptions()}
+        loading={<div></div>} // 🔥 禁用默认的 loading 状态
       />
 
       {/* 🧪 Agent 2.0 Inline Assistant Portal */}
