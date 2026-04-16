@@ -10,14 +10,25 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { setupE2ETestEnvironment } from '../setup-utils';
 
 test.describe('Streaming Message Skeleton', () => {
   test.beforeEach(async ({ page }) => {
-    // 导航到应用
+    // 🔥 设置 E2E 测试环境
+    await setupE2ETestEnvironment(page);
     await page.goto('/');
 
-    // 等待应用加载完成
-    await page.waitForSelector('[data-testid="chat-scroll-container"]', { timeout: 10000 });
+    // 等待聊天面板加载
+    await page.waitForSelector('[data-testid="chat-panel"]', {
+      state: 'visible',
+      timeout: 15000,
+    });
+
+    // 等待输入框可见
+    await page.waitForSelector('textarea[placeholder*="问问"], [data-testid="chat-input"]', {
+      state: 'visible',
+      timeout: 10000,
+    });
 
     // 清空现有对话（如果有）
     const newThreadButton = page.locator('button:has-text("New Thread")');
@@ -31,7 +42,7 @@ test.describe('Streaming Message Skeleton', () => {
     console.log('[E2E] Step 1: 发送测试消息');
 
     // 找到输入框
-    const inputBox = page.locator('textarea[placeholder*="输入"], textarea[placeholder*="message"]');
+    const inputBox = page.locator('textarea[placeholder*="问问"], [data-testid="chat-input"]');
     await expect(inputBox, '输入框应该存在').toBeVisible();
 
     // 输入测试消息
@@ -214,7 +225,7 @@ test.describe('Streaming Message Skeleton', () => {
     console.log('[E2E] 测试流式内容出现时骨架屏消失');
 
     // 发送消息
-    const inputBox = page.locator('textarea[placeholder*="输入"], textarea[placeholder*="message"]');
+    const inputBox = page.locator('textarea[placeholder*="问问"], [data-testid="chat-input"]');
     await inputBox.fill('Hello');
 
     const sendButton = page.locator('button[aria-label*="发送"], button:has-text("发送")');
