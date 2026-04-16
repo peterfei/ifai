@@ -23,6 +23,7 @@ export type ScrollTrigger =
   | 'message-appended'      // 新消息追加
   | 'stream-updated'        // 流式内容更新
   | 'command-completed'     // 命令完成（如 /explore）
+  | 'message-sent'          // 用户发送消息
   | 'user-scrolled'         // 用户手动滚动
   | 'user-returned-bottom'; // 用户回到底部
 
@@ -95,6 +96,10 @@ export interface UseChatScrollControllerReturn {
   followBottom: (instant?: boolean) => void;
   /** 恢复到底部（用于命令完成后） */
   restoreBottom: () => void;
+  /** 发送消息后恢复底部 */
+  messageSent: () => void;
+  /** 强制滚动到底部（绕过所有规则） */
+  forceScrollToBottom?: () => void;
   /** 处理用户滚动事件 */
   onUserScroll: () => void;
   /** 是否自动滚动已锁定 */
@@ -134,6 +139,12 @@ const DEFAULT_SCROLL_RULES: ScrollRule[] = [
     trigger: 'command-completed',
     priority: 70,
     when: (ctx) => !ctx.isUserScrolling,
+    effect: 'restore-bottom',
+  },
+  {
+    trigger: 'message-sent',
+    priority: 65,
+    when: () => true,
     effect: 'restore-bottom',
   },
   {
@@ -262,11 +273,15 @@ export function useChatScrollController(
           break;
 
         case 'restore-bottom':
-          // 恢复到底部（平滑滚动）
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: 'smooth',
-          });
+          // 恢复到底部
+          // 🔥 FIX: 使用直接赋值而非 scrollTo，确保虚拟滚动中也能正确工作
+          isUserScrollingRef.current = false;
+          if (scrollTimeoutRef.current) {
+            clearTimeout(scrollTimeoutRef.current);
+            scrollTimeoutRef.current = null;
+          }
+          // 直接设置 scrollTop 到 scrollHeight，兼容虚拟滚动
+          container.scrollTop = container.scrollHeight;
           break;
 
         case 'lock':
@@ -288,6 +303,8 @@ export function useChatScrollController(
     },
     [containerRef]
   );
+
+  type RuleTrigger = ScrollTrigger;
 
   // 跟随到底部
   const followBottom = useCallback(
@@ -312,6 +329,41 @@ export function useChatScrollController(
     }
   }, [enabled, applyRules, executeEffect]);
 
+  const messageSent = useCallback(() => {
+    if (!enabled) return;
+
+    const effect = applyRules('message-sent');
+    if (effect === 'restore-bottom') {
+      executeEffect(effect);
+    }
+  }, [enabled, applyRules, executeEffect]);
+
+  // 🔥 FIX v2.0.0: 强制滚动到底部，绕过所有规则
+  // 用于用户发送消息时，确保一定能滚动到底部看到新消息
+  const forceScrollToBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) {
+      console.warn('[useChatScrollController] forceScrollToBottom: container is null');
+      return;
+    }
+
+    console.log('[useChatScrollController] 🚀 forceScrollToBottom called');
+
+    // 强制解锁滚动状态
+    isUserScrollingRef.current = false;
+
+    // 清除所有超时
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+
+    // 直接设置 scrollTop，强制滚动到底部
+    container.scrollTop = container.scrollHeight;
+
+    console.log('[useChatScrollController] 🚀 forceScrollToBottom completed');
+  }, [containerRef]);
+
   // 处理用户滚动
   const onUserScroll = useCallback(() => {
     if (!enabled) return;
@@ -335,7 +387,7 @@ export function useChatScrollController(
         executeEffect(effect);
       }
     }
-  }, [enabled, containerRef, followZonePx, applyRules, executeEffect]);
+  }, [enabled, followZonePx, applyRules, executeEffect]);
 
   // 清理 RAF
   useEffect(() => {
@@ -359,6 +411,8 @@ export function useChatScrollController(
   return {
     followBottom,
     restoreBottom,
+    messageSent,
+    forceScrollToBottom,
     onUserScroll,
     isAutoScrollLocked: isUserScrollingRef.current,
     isInFollowZone: isInFollowZoneCurrent,

@@ -299,8 +299,76 @@ describe('useChatScrollController', () => {
   });
 
   describe('命令完成场景', () => {
-    it('命令完成时应该恢复到底部（如果未锁定）', () => {
-      const container = createMockContainer(50);
+  it('命令完成时应该恢复到底部（如果未锁定）', () => {
+    const container = createMockContainer(50);
+    const containerRef = { current: container as any };
+
+    const { result } = renderHook(() =>
+      useChatScrollController({
+        containerRef,
+        messageCount: 10,
+        isStreaming: false,
+        hasPendingToolCalls: false,
+        followZonePx: 120,
+        enabled: true,
+      })
+    );
+
+    act(() => {
+      result.current.restoreBottom();
+    });
+
+    // 🔥 FIX: restore-bottom 现在使用直接赋值而非 scrollTo
+    // 验证 scrollTop 被设置为 scrollHeight
+    expect(container.scrollTop).toBe(container.scrollHeight);
+  });
+});
+
+describe('发送消息场景', () => {
+  it('用户发送后即使在锁定状态也应恢复到底部', () => {
+    const threshold = 120;
+    const container = createMockContainer(threshold + 50); // 距离底部超出阈值
+    const containerRef = { current: container as any };
+
+    const { result, rerender } = renderHook(
+      ({ messageCount }) =>
+        useChatScrollController({
+          containerRef,
+          messageCount,
+          isStreaming: false,
+          hasPendingToolCalls: false,
+          followZonePx: threshold,
+          enabled: true,
+        }),
+      { initialProps: { messageCount: 5 } }
+    );
+
+    // 模拟用户手动滚动离开跟随区
+    act(() => {
+      result.current.onUserScroll();
+    });
+    // rerender 触发返回值更新
+    act(() => {
+      rerender({ messageCount: 6 });
+    });
+    expect(result.current.isAutoScrollLocked).toBe(true);
+
+    // 模拟发送消息触发恢复
+    act(() => {
+      result.current.messageSent();
+    });
+    // rerender 触发返回值更新
+    act(() => {
+      rerender({ messageCount: 7 });
+    });
+
+    // 验证恢复到底部
+    expect(container.scrollTop).toBe(container.scrollHeight);
+    expect(result.current.isAutoScrollLocked).toBe(false);
+  });
+
+    it('命令完成时如果用户锁定则不恢复', () => {
+      const container = createMockContainer(200);
       const containerRef = { current: container as any };
 
       const { result } = renderHook(() =>
@@ -314,15 +382,112 @@ describe('useChatScrollController', () => {
         })
       );
 
+      // 先锁定
+      act(() => {
+        result.current.onUserScroll();
+      });
+
+      const initialScrollTop = container.scrollTop;
+      container.scrollTo.mockClear();
+
+      // 命令完成时尝试恢复
       act(() => {
         result.current.restoreBottom();
       });
 
-      // 验证平滑滚动被执行
-      expect(container.scrollTo).toHaveBeenCalledWith({
-        top: container.scrollHeight,
-        behavior: 'smooth',
+      // 由于用户已锁定（isUserScrolling=true），command-completed 规则 when 条件不满足
+      // 不应该执行 scrollTo
+      expect(container.scrollTo).not.toHaveBeenCalled();
+      expect(container.scrollTop).toBe(initialScrollTop);
+    });
+  });
+
+  describe('规则触发器直接断言', () => {
+    it('message-appended 触发器在 followZone 内应该匹配 follow-bottom 规则', () => {
+      const container = createMockContainer(50);
+      const containerRef = { current: container as any };
+
+      const { result } = renderHook(() =>
+        useChatScrollController({
+          containerRef,
+          messageCount: 10,
+          isStreaming: false, // 非流式 → followBottom 使用 message-appended 触发器
+          hasPendingToolCalls: false,
+          followZonePx: 120,
+          enabled: true,
+        })
+      );
+
+      const initialScrollTop = container.scrollTop;
+      act(() => {
+        result.current.followBottom(true);
       });
+
+      // message-appended → follow-bottom → scrollTop 被设置为 scrollHeight
+      expect(container.scrollTop).toBe(container.scrollHeight);
+    });
+
+    it('stream-updated 触发器在锁定状态下不匹配任何规则', () => {
+      const container = createMockContainer(200);
+      const containerRef = { current: container as any };
+
+      const { result } = renderHook(() =>
+        useChatScrollController({
+          containerRef,
+          messageCount: 10,
+          isStreaming: true,
+          hasPendingToolCalls: false,
+          followZonePx: 120,
+          enabled: true,
+        })
+      );
+
+      // 锁定
+      act(() => {
+        result.current.onUserScroll();
+      });
+
+      const lockedScrollTop = container.scrollTop;
+
+      // 流式更新
+      act(() => {
+        result.current.followBottom(true);
+      });
+
+      // 锁定状态下 stream-updated 不应触发滚动
+      expect(container.scrollTop).toBe(lockedScrollTop);
+    });
+
+    it('followZonePx 边界值应该精确生效', () => {
+      // distanceToBottom = 119 < 120 → 在 followZone 内
+      const containerInside = createMockContainer(119);
+      const refInside = { current: containerInside as any };
+
+      const { result: resultInside } = renderHook(() =>
+        useChatScrollController({
+          containerRef: refInside,
+          messageCount: 10,
+          isStreaming: false,
+          followZonePx: 120,
+          enabled: true,
+        })
+      );
+      expect(resultInside.current.isInFollowZone).toBe(true);
+
+      // distanceToBottom = 120 ≥ 120 → 在 followZone 外
+      const containerOutside = createMockContainer(120);
+      const refOutside = { current: containerOutside as any };
+
+      const { result: resultOutside } = renderHook(() =>
+        useChatScrollController({
+          containerRef: refOutside,
+          messageCount: 10,
+          isStreaming: false,
+          followZonePx: 120,
+          enabled: true,
+        })
+      );
+      expect(resultOutside.current.isInFollowZone).toBe(false);
     });
   });
 });

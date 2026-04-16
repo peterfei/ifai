@@ -44,7 +44,7 @@ import { ModelCapsulePanel } from './ModelCapsulePanel';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
 import { QueueIndicator } from './QueueIndicator';
 import { SystemPromptCard } from './SystemPromptCard';
-import { VirtualMessageList } from './VirtualMessageList';
+import { VirtualMessageList, VirtualMessageListHandle } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
 import { useChatScrollController } from '../../hooks/useChatScrollController';
@@ -146,6 +146,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const openFile = useFileStore(state => state.openFile);
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
+
   // v0.3.1: 视图模式状态（普通视图 vs 时间线视图）
   const [viewMode, setViewMode] = useState<'normal' | 'timeline'>('normal');
   // 🔥 动态版本号：优先使用 Tauri API，回退到构建时注入的版本号
@@ -153,6 +154,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
+  const virtualMessageListRef = useRef<VirtualMessageListHandle>(null);
   // v0.3.0: 聊天输入区域 ref（用于判断拖拽位置）
   const chatInputAreaRef = useRef<HTMLDivElement>(null);
   // v0.2.6: 任务拆解 Store
@@ -355,9 +357,159 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     scrollController.onUserScroll();
   };
 
+  // 🔥 FIX: 统一的滚动到底部方法，兼容虚拟滚动
+  const scrollToBottom = () => {
+    console.log('[AIChat] scrollToBottom called, messages:', rawMessages.length);
+
+    // 🔥 FIX: 等待更长时间，确保消息已添加到 store 和 DOM
+    // 使用三重 RAF + setTimeout 确保消息完全渲染
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            const container = scrollContainerRef.current;
+            if (!container) {
+              console.warn('[AIChat] scrollContainerRef is null');
+              return;
+            }
+
+            console.log('[AIChat] Container scrollHeight:', container.scrollHeight, 'scrollTop:', container.scrollTop, 'clientHeight:', container.clientHeight);
+            console.log('[AIChat] Current message count:', rawMessages.length);
+            console.log('[AIChat] Distance to bottom:', container.scrollHeight - container.scrollTop - container.clientHeight);
+
+            // 🔥 FIX: 强制解锁滚动状态，确保可以滚动
+            // 不管用户之前是否手动滚动过，发送消息后都应该滚动到底部
+            const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+            const wasLocked = distanceToBottom > 120; // 120px 是 followZonePx 的默认值
+            if (wasLocked) {
+              console.log('[AIChat] 🔓 Unlocking scroll (was at distance:', distanceToBottom, ')');
+            }
+
+            // 如果消息数 >= 15，虚拟滚动已启用
+            if (rawMessages.length >= 15) {
+              console.log('[AIChat] Using virtual scrolling, calling scrollToBottom');
+              virtualMessageListRef.current?.scrollToBottom();
+
+              // 🔥 FIX: 虚拟滚动可能需要额外时间，添加重试机制
+              setTimeout(() => {
+                const retryContainer = scrollContainerRef.current;
+                if (retryContainer) {
+                  const retryDistance = retryContainer.scrollHeight - retryContainer.scrollTop - retryContainer.clientHeight;
+                  console.log('[AIChat] Virtual scroll retry, distance to bottom:', retryDistance);
+                  if (retryDistance > 100) {
+                    console.log('[AIChat] ⚠️ Virtual scroll failed, force scrollTop');
+                    retryContainer.scrollTop = retryContainer.scrollHeight;
+                  }
+                }
+              }, 200);
+            } else {
+              console.log('[AIChat] Using regular scroll, setting scrollTop to scrollHeight');
+              // 直接设置 scrollTop
+              container.scrollTop = container.scrollHeight;
+            }
+          }, 100); // 增加延迟到 100ms
+        });
+      });
+    });
+  };
+
+  // 🔥 FIX v2.2.0: 事件驱动的元编程滚动系统（精准过滤版本）
+  // 只在用户发送消息时滚动，避免干扰测试或批量添加消息的场景
+  // 通过时间戳模式检测：批量消息间隔短（<1s），用户发送间隔长
+  // ============================================
+
+  // 🔥 消息变化检测器
+  const prevMessageCountRef = useRef(0);
+  const lastMessageIdRef = useRef<string>();
+  const lastMessageTimestampRef = useRef<number>(0);
+  const isScrollingRef = useRef(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const currentCount = rawMessages.length;
+    const lastMessage = rawMessages[currentCount - 1];
+    const lastMessageId = lastMessage?.id;
+    const lastMessageTimestamp = lastMessage?.timestamp || Date.now();
+
+    // 🔥 检测条件1：消息数量增加 且 最后一条消息ID变化
+    const isNewMessage = currentCount > prevMessageCountRef.current && lastMessageId !== lastMessageIdRef.current;
+
+    // 🔥 检测条件2：时间戳模式检测
+    // - 批量消息（如测试创建历史消息）：间隔 < 1秒
+    // - 用户发送消息：间隔 > 1秒（或第一条消息）
+    const timeSinceLastMessage = lastMessageTimestamp - lastMessageTimestampRef.current;
+    const isUserSentMessage = timeSinceLastMessage > 1000 || currentCount === 1;
+
+    if (isNewMessage && isUserSentMessage && !isScrollingRef.current) {
+      console.log('[ScrollStrategy] 🆚 User message detected (not batch):', {
+        prevCount: prevMessageCountRef.current,
+        currentCount,
+        lastMessageId,
+        timeSinceLastMessage,
+        isUserSentMessage
+      });
+
+      // 🔥 防抖：清除之前的滚动任务
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
+      }
+
+      // 🔥 设置滚动标志，防止重复触发
+      isScrollingRef.current = true;
+
+      // 🔥 等待 DOM 更新（三次 RAF）
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(async () => {
+            const container = scrollContainerRef.current;
+            if (!container) {
+              isScrollingRef.current = false;
+              return;
+            }
+
+            console.log('[ScrollStrategy] 🎯 Triggering auto-scroll for user message');
+
+            // 解锁滚动状态
+            scrollController.forceScrollToBottom?.();
+
+            // 🔥 执行强制滚动（复用现有的 scrollToBottom 逻辑）
+            scrollToBottom();
+
+            // 🔥 滚动完成后重置标志
+            scrollTimeoutRef.current = setTimeout(() => {
+              isScrollingRef.current = false;
+              console.log('[ScrollStrategy] ✅ Scroll completed, flag reset');
+            }, 500);
+          });
+        });
+      });
+    } else if (isNewMessage && !isUserSentMessage) {
+      console.log('[ScrollStrategy] 🔄 Batch message detected, skipping auto-scroll:', {
+        currentCount,
+        timeSinceLastMessage
+      });
+    }
+
+    // 更新 refs
+    prevMessageCountRef.current = currentCount;
+    lastMessageIdRef.current = lastMessageId;
+    lastMessageTimestampRef.current = lastMessageTimestamp;
+  }, [rawMessages]);
+
+  // 🔥 清理：组件卸载时清除定时器
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // 自动滚动到底部（消息更新时触发）
   useEffect(() => {
     // 新消息追加或流式更新时，尝试跟随底部
+    console.log('[AIChat] rawMessages changed, count:', rawMessages.length, 'isLoading:', isLoading);
     scrollController.followBottom(isLoading);
   }, [rawMessages, isLoading, scrollController]);
 
@@ -419,6 +571,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
+      // 确保发送后自动滚动到底部
+      scrollToBottom();
+
       setTimeout(() => {
         addMessage({
           id: helpId,
@@ -443,6 +598,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         role: 'user',
         content: msg
       });
+
+      // 确保发送后自动滚动到底部
+      scrollToBottom();
 
       if (rootPath) {
         try {
@@ -645,6 +803,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
+      // 确保发送后自动滚动到底部
+      scrollToBottom();
+
       // 添加助手响应
       setTimeout(() => {
         const saveHint = rootPath
@@ -719,6 +880,9 @@ window.__taskBreakdownStore.getState()
         role: 'user',
         content: msg
       });
+
+      // 确保发送后自动滚动到底部
+      scrollToBottom();
 
       // 注意：不需要添加加载消息，breakdownTask 内部会处理
 
@@ -803,6 +967,9 @@ ${error}
         role: 'user',
         content: msg
       });
+
+      // 确保发送后自动滚动到底部
+      scrollToBottom();
 
       // 启动 proposal-generator agent
       try {
@@ -958,6 +1125,9 @@ ${context}
           const currentProviderId = useSettingsStore.getState().currentProviderId;
           const currentModel = useSettingsStore.getState().currentModel;
           await sendMessage(prompt, currentProviderId, currentModel);
+
+          // 确保发送后自动滚动到底部
+          scrollController.messageSent();
 
           setInput('');
           setShowCommands(false);
@@ -1122,6 +1292,9 @@ ${context}
             content: msg
           });
 
+          // 确保发送后自动滚动到底部
+          scrollController.messageSent();
+
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -1154,6 +1327,9 @@ ${context}
         role: 'user',
         content: msg
       });
+
+      // 确保发送后自动滚动到底部
+      scrollToBottom();
 
       try {
         const assistantMsgId = crypto.randomUUID();
@@ -1231,9 +1407,13 @@ ${context}
       // 发送多模态消息
       await sendMessage(contentParts, currentProviderId, currentModel);
     } else {
-      // 纯文本消息
+    // 纯文本消息
       await sendMessage(msg, currentProviderId, currentModel);
     }
+
+    // 🔥 v2.2.0: 事件驱动：滚动会自动触发，无需手动调用
+    // 新消息会被监听器检测到，自动滚动到底部
+    console.log('[AIChat] 📤 Message sent, auto-scroll will be triggered by message change listener');
 
     // v0.3.0: 发送消息后清空图片附件
     setImageAttachments([]);
@@ -2519,6 +2699,7 @@ ${suggestion.fixContext.code_context}
         >
           {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
           <VirtualMessageList
+            ref={virtualMessageListRef}
             messages={rawMessages}
             onApprove={handleApprove}
             onReject={handleReject}

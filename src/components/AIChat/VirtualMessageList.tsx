@@ -4,21 +4,23 @@
  * 仅渲染可见区域的消息，大幅提升长对话性能
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
-// 🔥 工作流内嵌监控器已移至 AIChat 组件中，避免频繁卸载
-// import { WorkflowInlineMonitorContainer } from '../workflow/WorkflowInlineMonitor';
+
+export interface VirtualMessageListHandle {
+  scrollToBottom: () => void;
+}
 
 interface VirtualMessageListProps {
   messages: ReturnType<typeof useChatStore.getState>['messages'];
   onApprove: (messageId: string, toolCallId: string) => void;
   onReject: (messageId: string, toolCallId: string) => void;
   onOpenFile: (path: string) => Promise<void>;
-  onOpenComposer?: (messageId: string) => void; // v0.2.8: 打开 Composer 面板
+  onOpenComposer?: (messageId: string) => void;
   isLoading: boolean;
-  parentRef?: React.RefObject<HTMLDivElement>; // 外部滚动容器引用
+  parentRef?: React.RefObject<HTMLDivElement>;
 }
 
 /**
@@ -26,7 +28,7 @@ interface VirtualMessageListProps {
  * 使用 @tanstack/react-virtual 实现动态高度虚拟滚动
  * 支持外部滚动容器（避免嵌套滚动问题）
  */
-export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
+export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMessageListProps>(({
   messages,
   onApprove,
   onReject,
@@ -34,13 +36,11 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   onOpenComposer,
   isLoading,
   parentRef,
-}) => {
+}, ref) => {
   const localRef = useRef<HTMLDivElement>(null);
   const scrollElementRef = parentRef || localRef;
 
   // 🔥 FIX: 过滤掉 role === 'tool' 的消息，因为工具结果已经通过 ToolApproval 组件在 assistant 消息中显示
-  // 这避免了重复输出（一次格式化显示，一次原始 JSON 字符串显示）
-  // 注意：不过滤只有 toolCalls 的空 assistant 消息，因为它们需要在 MessageItem 中渲染 ToolApproval
   const visibleMessages = messages.filter(m => m.role !== 'tool');
 
   // 检测是否有待处理的工具调用
@@ -53,13 +53,57 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
   const virtualizer = useVirtualizer({
     count: visibleMessages.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: () => 150, // 估算每条消息高度
-    overscan: 5, // 🔥 FIX v1.0.0: 增加 overscan 到 5，确保流式时有足够的预渲染消息
-    // 🔥 FIX v1.0.0: 流式期间也保持虚拟滚动启用，避免 DOM 节点过多阻塞主线程
+    estimateSize: () => 150,
+    overscan: 5,
     enabled: visibleMessages.length >= 15,
   });
 
+  // 暴露滚动到底部的方法
+  useImperativeHandle(ref, () => ({
+    scrollToBottom: () => {
+      console.log('[VirtualMessageList] scrollToBottom called, visibleMessages:', visibleMessages.length);
+      if (visibleMessages.length > 0) {
+        const lastIndex = visibleMessages.length - 1;
+        console.log('[VirtualMessageList] Scrolling to index:', lastIndex, 'align: end');
+        console.log('[VirtualMessageList] scrollElementRef.current:', scrollElementRef.current);
+        console.log('[VirtualMessageList] virtualizer instance:', virtualizer);
+
+        // 🔥 FIX: 添加更多延迟确保虚拟滚动已完全初始化
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              console.log('[VirtualMessageList] Executing scrollToIndex');
+              try {
+                virtualizer.scrollToIndex(lastIndex, { align: 'end' });
+                console.log('[VirtualMessageList] scrollToIndex completed');
+
+                // 🔥 FIX: 验证滚动是否成功，添加重试机制
+                setTimeout(() => {
+                  const container = scrollElementRef.current;
+                  if (container) {
+                    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+                    console.log('[VirtualMessageList] After scrollToIndex, distance to bottom:', distance);
+                    if (distance > 100) {
+                      console.warn('[VirtualMessageList] ⚠️ scrollToIndex failed, distance:', distance);
+                      // 强制滚动到底部
+                      container.scrollTop = container.scrollHeight;
+                    }
+                  }
+                }, 150);
+              } catch (error) {
+                console.error('[VirtualMessageList] ❌ scrollToIndex error:', error);
+              }
+            });
+          });
+        });
+      } else {
+        console.warn('[VirtualMessageList] No messages to scroll');
+      }
+    },
+  }), [virtualizer, visibleMessages.length]);
+
   const virtualItems = virtualizer.getVirtualItems();
+  const topOffset = virtualizer.getVirtualItems()[0]?.start ?? 0;
 
   // 🔥 FIX v1.0.0: 移除独立的 RAF 滚动循环
   // 滚动逻辑现在由 AIChat 组件中的 useChatScrollController 统一管理
@@ -141,6 +185,8 @@ export const VirtualMessageList: React.FC<VirtualMessageListProps> = ({
       </div>
     </div>
   );
-};
+});
+
+VirtualMessageList.displayName = 'VirtualMessageList';
 
 export default VirtualMessageList;

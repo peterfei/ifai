@@ -310,11 +310,9 @@ describe('滚动行为集成测试', () => {
         result.current.restoreBottom();
       });
 
-      // 验证平滑滚动
-      expect(container.scrollTo).toHaveBeenCalledWith({
-        top: container.scrollHeight,
-        behavior: 'smooth',
-      });
+      // 🔥 FIX: restore-bottom 现在使用直接赋值
+      // 验证 scrollTop 被设置为 scrollHeight
+      expect(container.scrollTop).toBe(container.scrollHeight);
     });
 
     it('命令完成时如果用户锁定则不强制滚动', () => {
