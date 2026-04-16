@@ -60,12 +60,45 @@ test.describe('发送消息后滚动到底部 - 长历史消息场景', () => {
 
     // 3. 用户手动滚动到中间位置
     console.log('[E2E] 步骤2: 用户手动滚动到中间');
+
+    // 先检查容器状态
+    const beforeScroll = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="chat-scroll-container"]');
+      if (!container) return { error: 'container not found' };
+      return {
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        computedOverflow: window.getComputedStyle(container).overflow,
+        computedOverflowY: window.getComputedStyle(container).overflowY,
+        scrollable: container.scrollHeight > container.clientHeight,
+      };
+    });
+    console.log('[E2E] 手动滚动前的容器状态:', beforeScroll);
+
     await page.evaluate(() => {
       const container = document.querySelector('[data-testid="chat-scroll-container"]');
       if (container) {
-        container.scrollTop = container.scrollHeight / 2;
+        const targetScrollTop = container.scrollHeight / 2;
+        console.log('[E2E] Setting scrollTop to:', targetScrollTop, '(scrollHeight:', container.scrollHeight, ')');
+        container.scrollTop = targetScrollTop;
+        console.log('[E2E] After setting, scrollTop is:', container.scrollTop);
+        // 🔥 FIX: 手动触发 scroll 事件，确保 handleScroll 被调用
+        container.dispatchEvent(new Event('scroll', { bubbles: true }));
       }
     });
+
+    // 立即检查
+    const immediatelyAfter = await page.evaluate(() => {
+      const container = document.querySelector('[data-testid="chat-scroll-container"]');
+      if (!container) return { error: 'container not found' };
+      return {
+        scrollTop: container.scrollTop,
+        expectedScrollTop: container.scrollHeight / 2,
+      };
+    });
+    console.log('[E2E] 手动滚动后立即检查:', immediatelyAfter);
+
     await page.waitForTimeout(300);
 
     const scrolledState = await page.evaluate(() => {

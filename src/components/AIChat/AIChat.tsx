@@ -354,6 +354,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
   // 用户手动滚动处理
   const handleScroll = () => {
+    // 🔥 FIX v2.2.1: 记录用户手动滚动时间
+    lastUserScrollTimeRef.current = Date.now();
     scrollController.onUserScroll();
   };
 
@@ -413,39 +415,44 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     });
   };
 
-  // 🔥 FIX v2.2.0: 事件驱动的元编程滚动系统（精准过滤版本）
-  // 只在用户发送消息时滚动，避免干扰测试或批量添加消息的场景
-  // 通过时间戳模式检测：批量消息间隔短（<1s），用户发送间隔长
+  // 🔥 FIX v2.2.0: 事件驱动的元编程滚动系统（修复版）
+  // 使用真实的系统时间差来判断是否是用户发送消息
+  // 而不是依赖消息的 timestamp 字段（测试场景可能设置为历史时间）
   // ============================================
 
   // 🔥 消息变化检测器
   const prevMessageCountRef = useRef(0);
   const lastMessageIdRef = useRef<string>();
-  const lastMessageTimestampRef = useRef<number>(0);
+  const lastAddedTimeRef = useRef<number>(Date.now()); // 记录真实的添加时间
   const isScrollingRef = useRef(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🔥 FIX v2.2.1: 防止自动滚动覆盖用户手动滚动
+  // 记录用户最后一次手动滚动的时间，用于在 followBottom 中判断是否应该阻止自动滚动
+  const lastUserScrollTimeRef = useRef<number>(0);
+  const USER_SCROLL_COOLDOWN = 1000; // 用户滚动后 1 秒内不自动滚动
 
   useEffect(() => {
     const currentCount = rawMessages.length;
     const lastMessage = rawMessages[currentCount - 1];
     const lastMessageId = lastMessage?.id;
-    const lastMessageTimestamp = lastMessage?.timestamp || Date.now();
+    const now = Date.now();
 
     // 🔥 检测条件1：消息数量增加 且 最后一条消息ID变化
     const isNewMessage = currentCount > prevMessageCountRef.current && lastMessageId !== lastMessageIdRef.current;
 
-    // 🔥 检测条件2：时间戳模式检测
-    // - 批量消息（如测试创建历史消息）：间隔 < 1秒
-    // - 用户发送消息：间隔 > 1秒（或第一条消息）
-    const timeSinceLastMessage = lastMessageTimestamp - lastMessageTimestampRef.current;
-    const isUserSentMessage = timeSinceLastMessage > 1000 || currentCount === 1;
+    // 🔥 检测条件2：使用真实的系统时间差
+    // - 批量消息（如测试创建历史消息）：间隔 < 500ms
+    // - 用户发送消息：间隔 > 500ms（或第一条消息）
+    const timeSinceLastAdded = now - lastAddedTimeRef.current;
+    const isUserSentMessage = timeSinceLastAdded > 500 || currentCount === 1;
 
     if (isNewMessage && isUserSentMessage && !isScrollingRef.current) {
-      console.log('[ScrollStrategy] 🆚 User message detected (not batch):', {
+      console.log('[ScrollStrategy] 🆚 User message detected:', {
         prevCount: prevMessageCountRef.current,
         currentCount,
         lastMessageId,
-        timeSinceLastMessage,
+        timeSinceLastAdded,
         isUserSentMessage
       });
 
@@ -487,14 +494,14 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     } else if (isNewMessage && !isUserSentMessage) {
       console.log('[ScrollStrategy] 🔄 Batch message detected, skipping auto-scroll:', {
         currentCount,
-        timeSinceLastMessage
+        timeSinceLastAdded
       });
     }
 
-    // 更新 refs
+    // 更新 refs（使用真实的系统时间）
     prevMessageCountRef.current = currentCount;
     lastMessageIdRef.current = lastMessageId;
-    lastMessageTimestampRef.current = lastMessageTimestamp;
+    lastAddedTimeRef.current = now;
   }, [rawMessages]);
 
   // 🔥 清理：组件卸载时清除定时器
@@ -507,11 +514,24 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   }, []);
 
   // 自动滚动到底部（消息更新时触发）
+  // 🔥 FIX v2.2.2: 移除 scrollController 依赖，避免无限循环
+  // scrollController 对象每次渲染都会创建新引用，导致 effect 无限触发
+  const prevScrollControllerRef = useRef(scrollController);
+  prevScrollControllerRef.current = scrollController;
+
   useEffect(() => {
+    // 🔥 FIX v2.2.1: 如果用户刚刚手动滚动（1秒内），不自动滚动
+    // 这防止了测试中的手动滚动被流式跟随逻辑覆盖
+    const timeSinceUserScroll = Date.now() - lastUserScrollTimeRef.current;
+    if (timeSinceUserScroll < USER_SCROLL_COOLDOWN) {
+      console.log('[AIChat] User scrolled recently, skipping auto-scroll');
+      return;
+    }
+
     // 新消息追加或流式更新时，尝试跟随底部
     console.log('[AIChat] rawMessages changed, count:', rawMessages.length, 'isLoading:', isLoading);
-    scrollController.followBottom(isLoading);
-  }, [rawMessages, isLoading, scrollController]);
+    prevScrollControllerRef.current.followBottom(isLoading);
+  }, [rawMessages, isLoading]); // 🔥 移除 scrollController 依赖
 
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
   useEffect(() => {
@@ -571,8 +591,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
-      // 确保发送后自动滚动到底部
-      scrollToBottom();
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       setTimeout(() => {
         addMessage({
@@ -599,8 +618,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
-      // 确保发送后自动滚动到底部
-      scrollToBottom();
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       if (rootPath) {
         try {
@@ -803,8 +821,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
-      // 确保发送后自动滚动到底部
-      scrollToBottom();
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       // 添加助手响应
       setTimeout(() => {
@@ -881,8 +898,7 @@ window.__taskBreakdownStore.getState()
         content: msg
       });
 
-      // 确保发送后自动滚动到底部
-      scrollToBottom();
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       // 注意：不需要添加加载消息，breakdownTask 内部会处理
 
@@ -968,8 +984,7 @@ ${error}
         content: msg
       });
 
-      // 确保发送后自动滚动到底部
-      scrollToBottom();
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       // 启动 proposal-generator agent
       try {
@@ -1126,8 +1141,8 @@ ${context}
           const currentModel = useSettingsStore.getState().currentModel;
           await sendMessage(prompt, currentProviderId, currentModel);
 
-          // 确保发送后自动滚动到底部
-          scrollController.messageSent();
+          // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
+          // 旧的 messageSent() 已被新系统覆盖
 
           setInput('');
           setShowCommands(false);
@@ -1292,8 +1307,7 @@ ${context}
             content: msg
           });
 
-          // 确保发送后自动滚动到底部
-          scrollController.messageSent();
+          // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
           addMessage({
             id: crypto.randomUUID(),
@@ -1328,8 +1342,7 @@ ${context}
         content: msg
       });
 
-      // 确保发送后自动滚动到底部
-      scrollToBottom();
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       try {
         const assistantMsgId = crypto.randomUUID();
