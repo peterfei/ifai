@@ -50,11 +50,20 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
     m.toolCalls?.some(tc => tc.status === 'pending' || tc.isPartial)
   );
 
-  // 🔥 计算虚拟化项数量：如果有加载状态且有消息，则添加一个骨架屏项
+  // 🔥 检测是否有流式内容的 assistant 消息（最后一条消息）
+  // 如果有实际流式内容，就不显示骨架屏
+  const lastMessage = visibleMessages[visibleMessages.length - 1];
+  const hasStreamingContent = lastMessage?.role === 'assistant' && (
+    lastMessage.isStreaming === true ||
+    (lastMessage.content && lastMessage.content.length > 0)
+  );
+
+  // 🔥 计算虚拟化项数量：只有在加载中但没有实际内容时才显示骨架屏
   const virtualItemCount = useMemo(() => {
-    const shouldShowSkeleton = isLoading && visibleMessages.length > 0;
+    // 🔥 关键修复：有流式内容时不显示骨架屏
+    const shouldShowSkeleton = isLoading && visibleMessages.length > 0 && !hasStreamingContent;
     return visibleMessages.length + (shouldShowSkeleton ? 1 : 0);
-  }, [visibleMessages.length, isLoading]);
+  }, [visibleMessages.length, isLoading, hasStreamingContent]);
 
   // ⚠️ 重要：始终调用 hooks，不能在条件返回之前
   // 使用 @tanstack/react-virtual 创建虚拟化列表
@@ -125,8 +134,8 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
             />
           </React.Fragment>
         ))}
-        {/* 🔥 流式加载骨架屏：在有消息且正在加载时显示 */}
-        {isLoading && visibleMessages.length > 0 && <StreamingMessageSkeleton />}
+        {/* 🔥 流式加载骨架屏：只有在加载中但没有实际内容时才显示 */}
+        {isLoading && visibleMessages.length > 0 && !hasStreamingContent && <StreamingMessageSkeleton />}
       </div>
     );
   }
