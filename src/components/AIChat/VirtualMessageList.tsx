@@ -58,50 +58,41 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
     enabled: visibleMessages.length >= 15,
   });
 
-  // 暴露滚动到底部的方法（v3.0.1 优化版）
-  // 保留三重 RAF，确保虚拟滚动正确初始化
+  // 暴露滚动到底部的方法
   useImperativeHandle(ref, () => ({
     scrollToBottom: () => {
       console.log('[VirtualMessageList] scrollToBottom called, visibleMessages:', visibleMessages.length);
       if (visibleMessages.length > 0) {
         const lastIndex = visibleMessages.length - 1;
         console.log('[VirtualMessageList] Scrolling to index:', lastIndex, 'align: end');
+        console.log('[VirtualMessageList] scrollElementRef.current:', scrollElementRef.current);
+        console.log('[VirtualMessageList] virtualizer instance:', virtualizer);
 
-        // 🔥 v3.0.1: 根据消息数量动态调整初始化延迟
-        // 短列表（<20条）：快速滚动，长列表（>=20条）：给更多时间初始化
-        const isLongList = visibleMessages.length >= 20;
-
-        // 🔥 v3.0.0: 保留三重 RAF（虚拟滚动必需）
+        // 🔥 FIX: 添加更多延迟确保虚拟滚动已完全初始化
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               console.log('[VirtualMessageList] Executing scrollToIndex');
+              try {
+                virtualizer.scrollToIndex(lastIndex, { align: 'end' });
+                console.log('[VirtualMessageList] scrollToIndex completed');
 
-              // 🔥 v3.0.1: 长列表额外延迟，确保虚拟滚动完全初始化
-              const additionalDelay = isLongList ? 100 : 0;
-
-              setTimeout(() => {
-                try {
-                  virtualizer.scrollToIndex(lastIndex, { align: 'end' });
-                  console.log('[VirtualMessageList] scrollToIndex completed');
-
-                  // 🔥 验证滚动是否成功，添加重试机制
-                  setTimeout(() => {
-                    const container = scrollElementRef.current;
-                    if (container) {
-                      const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
-                      console.log('[VirtualMessageList] After scrollToIndex, distance to bottom:', distance);
-                      if (distance > 100) {
-                        console.warn('[VirtualMessageList] ⚠️ scrollToIndex failed, distance:', distance);
-                        // 强制滚动到底部
-                        container.scrollTop = container.scrollHeight;
-                      }
+                // 🔥 FIX: 验证滚动是否成功，添加重试机制
+                setTimeout(() => {
+                  const container = scrollElementRef.current;
+                  if (container) {
+                    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+                    console.log('[VirtualMessageList] After scrollToIndex, distance to bottom:', distance);
+                    if (distance > 100) {
+                      console.warn('[VirtualMessageList] ⚠️ scrollToIndex failed, distance:', distance);
+                      // 强制滚动到底部
+                      container.scrollTop = container.scrollHeight;
                     }
-                  }, 150);
-                } catch (error) {
-                  console.error('[VirtualMessageList] ❌ scrollToIndex error:', error);
-                }
-              }, additionalDelay);
+                  }
+                }, 150);
+              } catch (error) {
+                console.error('[VirtualMessageList] ❌ scrollToIndex error:', error);
+              }
             });
           });
         });
