@@ -1002,6 +1002,19 @@ ${textBefore}[CURSOR]${textAfter}
     return <EditorSkeleton />;
   }
 
+  // 🔥 双重保险：确保只有在有真实内容时才渲染 Monaco Editor
+  // 防止 Monaco Editor 在 content 为空时显示 "Loading..." 占位符
+  const hasValidContent = file && file.content && file.content.length > 0;
+
+  if (!hasValidContent) {
+    console.log('[MonacoEditor] ⚠️ 没有有效内容，显示骨架屏（安全网）', {
+      fileId: file?.id,
+      hasContent: !!file?.content,
+      contentLength: file?.content?.length || 0,
+    });
+    return <EditorSkeleton />;
+  }
+
   return (
     <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-[#1e1e1e]" data-testid="monaco-editor-container">
       <Editor

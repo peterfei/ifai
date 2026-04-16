@@ -363,4 +363,128 @@ test.describe('Streaming Message Skeleton', () => {
 
     console.log('[E2E] ✅ 调试信息收集完成');
   });
+
+  test('高保真测试：模拟文件树打开文件时的编辑器骨架屏', async ({ page }) => {
+    console.log('[E2E] ========== 高保真测试：文件打开流程 ==========');
+
+    // 步骤 1: 模拟从文件树双击打开文件
+    await page.evaluate(async () => {
+      const fileStore = (window as any).__fileStore;
+      const layoutStore = (window as any).__layoutStore;
+
+      // 获取第一个 pane
+      const panes = layoutStore.getState().panes;
+      const firstPaneId = panes[0]?.id;
+
+      if (!firstPaneId) {
+        throw new Error('No pane found');
+      }
+
+      console.log('[E2E] Step 1: 模拟文件树双击打开文件');
+
+      // 🔥 模拟真实场景：先打开文件但 content 为空（异步加载中）
+      // 这模拟了 readFileContent 尚未完成的瞬间
+      const fileId = fileStore.getState().openFile({
+        id: 'file-loading-test',
+        path: '/tmp/test-loading.js',
+        name: 'test-loading.js',
+        content: '', // 🔥 空内容，模拟异步加载中
+        isDirty: false,
+        language: 'javascript'
+      });
+
+      // 激活文件并关联到 pane
+      fileStore.getState().setActiveFile(fileId);
+      layoutStore.getState().assignFileToPane(firstPaneId, fileId);
+
+      console.log('[E2E] 文件已打开，等待渲染...');
+    });
+
+    await page.waitForTimeout(500);
+
+    // 步骤 2: 🔥 关键验证：检查编辑器骨架屏
+    const editorState = await page.evaluate(() => {
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+      const welcomeScreen = document.querySelector('[data-testid="welcome-screen"]');
+
+      return {
+        skeleton: {
+          exists: !!skeleton,
+          visible: skeleton ? window.getComputedStyle(skeleton).display !== 'none' : false,
+          innerHTML: skeleton?.innerHTML.substring(0, 200), // 查看骨架屏内容
+        },
+        monaco: {
+          exists: !!monacoContainer,
+          visible: monacoContainer ? window.getComputedStyle(monacoContainer).display !== 'none' : false,
+        },
+        welcome: {
+          exists: !!welcomeScreen,
+        },
+        fileStore: {
+          openedFiles: (window as any).__fileStore?.getState()?.openedFiles || [],
+          activeFileId: (window as any).__fileStore?.getState()?.activeFileId,
+        }
+      };
+    });
+
+    console.log('[E2E] 编辑器状态:', JSON.stringify(editorState, null, 2));
+
+    // 🔥 验证 1: 应该显示编辑器骨架屏
+    expect(editorState.skeleton.exists, '编辑器骨架屏元素应该存在').toBe(true);
+    expect(editorState.skeleton.visible, '编辑器骨架屏应该可见').toBe(true);
+
+    // 🔥 验证 2: Monaco 编辑器不应该可见
+    expect(editorState.monaco.visible, 'Monaco 编辑器不应该可见').toBe(false);
+
+    // 🔥 验证 3: 文件对象应该存在
+    expect(editorState.fileStore.openedFiles.length).toBeGreaterThan(0);
+
+    // 步骤 3: 🔥 模拟文件内容加载完成
+    await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+      const fileId = fileStore.getState().activeFileId;
+
+      if (fileId) {
+        // 更新文件内容（模拟异步加载完成）
+        fileStore.getState().openedFiles.forEach((f: any) => {
+          if (f.id === fileId) {
+            f.content = '// File content loaded\nconsole.log("Hello, World!");';
+          }
+        });
+
+        // 触发状态更新
+        fileStore.setState({
+          openedFiles: [...fileStore.getState().openedFiles]
+        });
+
+        console.log('[E2E] 文件内容加载完成');
+      }
+    });
+
+    await page.waitForTimeout(300);
+
+    // 步骤 4: 🔥 验证：内容加载后，骨架屏应该消失，Monaco 编辑器应该显示
+    const finalState = await page.evaluate(() => {
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+
+      return {
+        skeleton: {
+          exists: !!skeleton,
+        },
+        monaco: {
+          exists: !!monacoContainer,
+          visible: monacoContainer ? window.getComputedStyle(monacoContainer).display !== 'none' : false,
+        }
+      };
+    });
+
+    console.log('[E2E] 最终状态:', JSON.stringify(finalState, null, 2));
+
+    expect(finalState.monaco.visible, '内容加载后 Monaco 编辑器应该可见').toBe(true);
+    expect(finalState.skeleton.exists, '内容加载后骨架屏不应该存在').toBe(false);
+
+    console.log('[E2E] ✅ 高保真测试通过：文件打开流程正确');
+  });
 });
