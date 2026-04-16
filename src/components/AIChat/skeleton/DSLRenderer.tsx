@@ -280,14 +280,18 @@ export const DSLRenderer: React.FC<DSLRendererProps> = memo(({
     return null;
   }
 
+  // 🔥 根据 position 模式决定容器样式
+  const isOverlay = design.container.position === 'overlay';
   const containerStyle: React.CSSProperties = {
-    position: design.container.position === 'overlay' ? 'absolute' : 'relative',
-    inset: 0,
+    position: isOverlay ? 'absolute' : 'relative',
+    ...(isOverlay ? { inset: 0 } : {}),
     // 🔥 关键：骨架屏激活时需要响应事件（因为实际内容已被隐藏）
-    pointerEvents: design.container.position === 'overlay' ? 'auto' : 'auto',
-    // 🔥 关键：添加背景色确保遮挡底层内容
-    backgroundColor: '#111827', // 与 AIChat 背景色一致
-    zIndex: 100, // 🔥 确保在所有内容之上
+    pointerEvents: 'auto',
+    // 🔥 只有 overlay 模式才需要背景色和 z-index
+    ...(isOverlay ? {
+      backgroundColor: '#111827', // 与 AIChat 背景色一致
+      zIndex: 100, // 确保在所有内容之上
+    } : {}),
     opacity: 0,
     animation: design.container.animation !== 'none'
       ? `skeleton-fade-in ${design.container.duration}ms ease-in-out forwards`
@@ -297,7 +301,7 @@ export const DSLRenderer: React.FC<DSLRendererProps> = memo(({
 
   const containerClassName = [
     'skeleton-container',
-    'skeleton-overlay',
+    isOverlay ? 'skeleton-overlay' : 'skeleton-inline',
     className,
   ]
     .filter(Boolean)

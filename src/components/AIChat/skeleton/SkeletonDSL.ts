@@ -135,7 +135,7 @@ export interface SkeletonTextNode {
  */
 export interface SkeletonContainerConfig {
   /** 定位方式 */
-  position: 'overlay';
+  position: 'overlay' | 'inline';
   /** 动画类型 */
   animation: 'fade' | 'slide' | 'scale' | 'none';
   /** 动画时长（毫秒） */

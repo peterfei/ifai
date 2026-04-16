@@ -21,8 +21,10 @@ import { SkeletonDesign } from './SkeletonDSL';
 export interface SkeletonConfig {
   /** 状态机配置 */
   stateMachine: StateMachineConfig;
-  /** 骨架屏结构定义 */
+  /** 骨架屏结构定义（全屏） */
   structure: SkeletonDesign;
+  /** 骨架屏结构定义（单消息气泡，用于流式加载） */
+  streamingStructure?: SkeletonDesign;
   /** 检测器配置 */
   detectors: DetectorConfig[];
 }
@@ -59,11 +61,13 @@ export interface SkeletonEngineOptions {
 export class SkeletonEngine {
   private stateMachine: StateMachine;
   private detectorRunner: DetectorRunner;
+  private config: SkeletonConfig;
   private options: Required<SkeletonEngineOptions>;
 
   private [Symbol.toStringTag] = 'SkeletonEngine';
 
   constructor(config: SkeletonConfig, options: SkeletonEngineOptions = {}) {
+    this.config = config;
     this.options = {
       debug: options.debug ?? false,
       enabled: options.enabled ?? true,
@@ -129,19 +133,15 @@ export class SkeletonEngine {
 
   /**
    * 获取当前骨架屏设计
-   * @internal
    */
-  private getDesign(): SkeletonDesign {
-    // TODO: 从配置中获取
-    // 这里暂时返回一个默认设计
-    return {
-      container: {
-        position: 'overlay',
-        animation: 'fade',
-        duration: 300,
-      },
-      structure: [],
-    };
+  getDesign(): SkeletonDesign {
+    const phase = this.stateMachine.getCurrentPhase();
+    // 🔥 关键：根据阶段选择正确的设计
+    // streaming 阶段使用单消息气泡设计，其他阶段使用全屏设计
+    if (phase === 'streaming' && this.config.streamingStructure) {
+      return this.config.streamingStructure;
+    }
+    return this.config.structure;
   }
 
   /**
@@ -150,7 +150,8 @@ export class SkeletonEngine {
    */
   private getVisibility(): boolean {
     const phase = this.stateMachine.getCurrentPhase();
-    return phase === 'initial' || phase === 'loading';
+    // 🔥 关键：streaming 阶段也应该显示骨架屏（单消息气泡）
+    return phase === 'initial' || phase === 'loading' || phase === 'streaming';
   }
 
   /**
@@ -209,7 +210,8 @@ export function useSkeletonEngine(config: SkeletonConfig, options?: SkeletonEngi
   // 🔥 优化：立即更新可见性状态
   const updateVisibility = useCallback(() => {
     const phase = engine.getCurrentPhase();
-    const visible = phase === 'initial' || phase === 'loading';
+    // 🔥 关键：streaming 阶段也应该显示骨架屏
+    const visible = phase === 'initial' || phase === 'loading' || phase === 'streaming';
     if (visible !== isVisibleRef.current) {
       isVisibleRef.current = visible;
       setIsVisible(visible);
@@ -240,10 +242,11 @@ export function useSkeletonEngine(config: SkeletonConfig, options?: SkeletonEngi
   }, [updateVisibility]);
 
   // 获取渲染器组件
+  // 🔥 关键：每次渲染时动态获取正确的设计（streaming vs 全屏）
   const Renderer = useCallback(() => {
-    const design = config.structure;
+    const design = engine.getDesign();
     return <DSLRenderer design={design} visible={isVisible} />;
-  }, [config.structure, isVisible]);
+  }, [engine, isVisible]);
 
   return {
     Renderer,

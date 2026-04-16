@@ -21,6 +21,15 @@
   gap: 1rem;
 }
 
+/* 🔥 关键：inline 模式样式（单消息气泡骨架屏） */
+.skeleton-inline {
+  position: relative;
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+}
+
 /* 基础块样式 */
 .skeleton-block {
   background-color: #374151;
@@ -93,7 +102,7 @@
 }
 
 /* 🔥 关键：根据骨架屏状态控制内容显示 */
-/* 当骨架屏激活时（initial 或 loading），隐藏实际内容 */
+/* 当骨架屏激活时（initial 或 loading），隐藏实际内容（全屏覆盖） */
 [data-skeleton-phase="initial"] [data-testid="chat-scroll-container"],
 [data-skeleton-phase="loading"] [data-testid="chat-scroll-container"] {
   visibility: hidden;
@@ -107,6 +116,14 @@
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
+}
+
+/* 🔥 关键：streaming 阶段不隐藏现有内容，只显示单消息气泡骨架屏 */
+[data-skeleton-phase="streaming"] [data-testid="chat-scroll-container"],
+[data-skeleton-phase="streaming"] [data-testid="chat-input-container"] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* 当骨架屏完成或出错时，确保内容可见 */

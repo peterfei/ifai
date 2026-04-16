@@ -7,8 +7,14 @@
 
 /**
  * 加载阶段枚举
+ *
+ * - initial: 初始状态
+ * - loading: 初次加载（无消息，全屏骨架屏）
+ * - streaming: 流式加载（有消息+isLoading，单消息气泡骨架屏）
+ * - ready: 就绪状态
+ * - error: 超时错误
  */
-export type LoadingPhase = 'initial' | 'loading' | 'ready' | 'error';
+export type LoadingPhase = 'initial' | 'loading' | 'streaming' | 'ready' | 'error';
 
 /**
  * 加载事件枚举
@@ -17,6 +23,7 @@ export type LoadingEvent =
   | 'store:ready'
   | 'messages:loaded'
   | 'input:ready'
+  | 'streaming:complete'
   | 'timeout'
   | 'error'
   | 'user:cancel';

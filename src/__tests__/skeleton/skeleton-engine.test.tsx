@@ -16,6 +16,7 @@ import { AI_CHAT_SKELETON_CONFIG } from '@/components/AIChat/skeleton/config/ske
 const mockStore = {
   messages: [],
   initialized: true,
+  isLoading: false,
 };
 
 vi.mock('@/stores/chat/CoreStoreProxy', () => ({
@@ -32,6 +33,7 @@ describe('骨架屏引擎 - 元编程架构', () => {
     // Reset mock store
     mockStore.messages = [];
     mockStore.initialized = true;
+    mockStore.isLoading = false;
   });
 
   afterEach(() => {
