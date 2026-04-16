@@ -45,7 +45,10 @@ export const AI_CHAT_STATE_MACHINE: LoadingPhaseConfig[] = [
     },
     detect: () => {
       const store = useChatStore.getState();
-      return store && store.messages.length === 0;
+      // 🔥 关键修复：检测两种加载状态
+      // 1. 初次加载：没有消息
+      // 2. LLM 响应中：isLoading 为 true
+      return store && (store.messages.length === 0 || store.isLoading === true);
     },
   },
   {
@@ -57,7 +60,8 @@ export const AI_CHAT_STATE_MACHINE: LoadingPhaseConfig[] = [
     transitions: {},
     detect: () => {
       const store = useChatStore.getState();
-      return store && store.messages.length > 0;
+      // 🔥 关键修复：只有在有消息且不在加载时才显示 ready
+      return store && store.messages.length > 0 && store.isLoading === false;
     },
   },
   {
