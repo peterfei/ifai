@@ -236,4 +236,131 @@ test.describe('Streaming Message Skeleton', () => {
 
     console.log('[E2E] ✅ 调试信息收集完成');
   });
+
+  test('编辑器骨架屏：文件加载时应该显示', async ({ page }) => {
+    console.log('[E2E] ========== 测试：编辑器骨架屏 ==========');
+
+    // 步骤 1: 创建一个没有内容的文件对象（模拟加载状态）
+    await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore;
+      const layoutStore = (window as any).__layoutStore;
+
+      // 获取当前 pane
+      const panes = layoutStore.getState().panes;
+      const firstPaneId = panes[0]?.id;
+
+      if (!firstPaneId) {
+        throw new Error('No pane found');
+      }
+
+      // 打开一个文件，但 content 为空（模拟加载中）
+      const fileId = fileStore.getState().openFile({
+        id: 'test-loading-file',
+        name: 'loading-test.ts',
+        path: '/tmp/loading-test.ts',
+        content: '', // 空内容，模拟加载中
+        isDirty: false,
+        language: 'typescript'
+      });
+
+      // 激活这个文件
+      fileStore.getState().setActiveFile(fileId);
+
+      // 将文件关联到 pane
+      layoutStore.getState().panes[0].fileId = fileId;
+    });
+
+    await page.waitForTimeout(500);
+
+    // 步骤 2: 🔥 关键验证：检查编辑器骨架屏是否出现
+    const editorSkeletonState = await page.evaluate(() => {
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+
+      return {
+        editorSkeleton: {
+          exists: !!skeleton,
+          visible: skeleton ? window.getComputedStyle(skeleton).display !== 'none' : false,
+        },
+        monacoEditor: {
+          exists: !!monacoContainer,
+          visible: monacoContainer ? window.getComputedStyle(monacoContainer).display !== 'none' : false,
+        },
+        fileStore: {
+          openedFiles: (window as any).__fileStore?.getState()?.openedFiles || [],
+          activeFileId: (window as any).__fileStore?.getState()?.activeFileId,
+        }
+      };
+    });
+
+    console.log('[E2E] 编辑器骨架屏状态:', JSON.stringify(editorSkeletonState, null, 2));
+
+    // 🔥 验证：应该显示编辑器骨架屏
+    expect(editorSkeletonState.editorSkeleton.exists, '编辑器骨架屏元素应该存在').toBe(true);
+
+    // 🔥 验证：Monaco 编辑器不应该可见
+    expect(editorSkeletonState.monacoEditor.visible, 'Monaco 编辑器在加载时不应该可见').toBe(false);
+
+    console.log('[E2E] ✅ 测试通过：编辑器骨架屏正确显示');
+  });
+
+  test('编辑器骨架屏调试：收集完整状态信息', async ({ page }) => {
+    console.log('[E2E] ========== 编辑器骨架屏调试信息 ==========');
+
+    const debugInfo = await page.evaluate(() => {
+      const fileStore = (window as any).__fileStore?.getState();
+      const layoutStore = (window as any).__layoutStore?.getState();
+
+      const skeleton = document.querySelector('[data-testid="editor-skeleton"]');
+      const monacoContainer = document.querySelector('[data-testid="monaco-editor-container"]');
+      const welcomeScreen = document.querySelector('[data-testid="welcome-screen"]');
+
+      // 获取第一个 pane 的文件
+      const panes = layoutStore?.panes || [];
+      const firstPane = panes[0];
+      const associatedFileId = firstPane?.fileId;
+      const associatedFile = associatedFileId
+        ? fileStore?.openedFiles.find((f: any) => f.id === associatedFileId)
+        : null;
+
+      return {
+        layout: {
+          panesCount: panes.length,
+          firstPaneId: firstPane?.id,
+          associatedFileId,
+          associatedFile: associatedFile ? {
+            id: associatedFile.id,
+            name: associatedFile.name,
+            hasContent: !!associatedFile.content,
+            contentLength: associatedFile.content?.length || 0,
+            isDirty: associatedFile.isDirty,
+          } : null,
+        },
+        fileStore: {
+          openedFilesCount: fileStore?.openedFiles?.length || 0,
+          activeFileId: fileStore?.activeFileId,
+        },
+        dom: {
+          editorSkeleton: {
+            exists: !!skeleton,
+            className: skeleton?.className,
+          },
+          monacoContainer: {
+            exists: !!monacoContainer,
+          },
+          welcomeScreen: {
+            exists: !!welcomeScreen,
+          }
+        }
+      };
+    });
+
+    console.log('[E2E] 编辑器状态:', JSON.stringify(debugInfo, null, 2));
+
+    // 基本断言
+    expect(debugInfo.layout.panesCount).toBeGreaterThan(0);
+    expect(debugInfo.dom).toBeDefined();
+
+    console.log('[E2E] ✅ 调试信息收集完成');
+  });
 });

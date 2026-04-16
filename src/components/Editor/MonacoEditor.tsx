@@ -27,6 +27,7 @@ import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
 import { debounce } from 'lodash-es';
 import { Skeleton } from '../UI/Skeleton';
+import { EditorSkeleton } from './EditorSkeleton';
 import { AgentDecorationProvider } from './AgentDecorationProvider';
 import { InlineDiffZone } from './InlineDiffZone';
 import { InlineAIWidget } from '../InlineEdit/InlineAIWidget';
@@ -974,21 +975,7 @@ ${textBefore}[CURSOR]${textAfter}
 
   // 🔥 工业级加载反馈：当文件已选中但内容尚未加载完成时，展示骨架屏
   if (!file.content && !file.isDirty) {
-    return (
-      <div className="flex flex-col h-full p-6 space-y-4 bg-[#1e1e1e]" data-testid="editor-skeleton">
-        <Skeleton className="h-6 w-1/3 bg-gray-800/50" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-full bg-gray-800/30" />
-          <Skeleton className="h-4 w-5/6 bg-gray-800/30" />
-          <Skeleton className="h-4 w-4/5 bg-gray-800/30" />
-          <Skeleton className="h-4 w-full bg-gray-800/30" />
-        </div>
-        <div className="pt-4 space-y-2">
-          <Skeleton className="h-4 w-3/4 bg-gray-800/30" />
-          <Skeleton className="h-4 w-2/3 bg-gray-800/30" />
-        </div>
-      </div>
-    );
+    return <EditorSkeleton />;
   }
 
   return (
