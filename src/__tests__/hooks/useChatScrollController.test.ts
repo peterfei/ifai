@@ -9,6 +9,7 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
+import { vi } from 'vitest';
 import { useChatScrollController, DEFAULT_SCROLL_RULES } from '../../hooks/useChatScrollController';
 
 // ============================================
@@ -20,7 +21,7 @@ const createMockContainer = (distanceToBottom: number = 0) => {
     scrollHeight: 1000,
     scrollTop: 0,
     clientHeight: 500,
-    scrollTo: jest.fn(),
+    scrollTo: vi.fn(),
   };
 
   // 根据 distanceToBottom 计算 scrollTop
@@ -35,12 +36,12 @@ const createMockContainer = (distanceToBottom: number = 0) => {
 
 describe('useChatScrollController', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   describe('规则匹配和优先级', () => {
@@ -179,19 +180,26 @@ describe('useChatScrollController', () => {
       const container = createMockContainer(200); // 在跟随区域外
       const containerRef = { current: container as any };
 
-      const { result } = renderHook(() =>
-        useChatScrollController({
-          containerRef,
-          messageCount: 10,
-          isStreaming: true,
-          hasPendingToolCalls: false,
-          followZonePx: 120,
-          enabled: true,
-        })
+      const { result, rerender } = renderHook(
+        ({ messageCount }) =>
+          useChatScrollController({
+            containerRef,
+            messageCount,
+            isStreaming: true,
+            hasPendingToolCalls: false,
+            followZonePx: 120,
+            enabled: true,
+          }),
+        { initialProps: { messageCount: 10 } }
       );
 
       act(() => {
         result.current.onUserScroll();
+      });
+
+      // rerender 触发返回值重新计算（isAutoScrollLocked 基于 ref，需要重渲染）
+      act(() => {
+        rerender({ messageCount: 11 });
       });
 
       // 验证锁定状态
@@ -199,22 +207,38 @@ describe('useChatScrollController', () => {
     });
 
     it('用户回到底部时应该解锁自动滚动', () => {
-      const container = createMockContainer(50); // 在跟随区域内
+      // 先在跟随区域外锁定
+      const container = createMockContainer(200);
       const containerRef = { current: container as any };
 
-      const { result } = renderHook(() =>
-        useChatScrollController({
-          containerRef,
-          messageCount: 10,
-          isStreaming: true,
-          hasPendingToolCalls: false,
-          followZonePx: 120,
-          enabled: true,
-        })
+      const { result, rerender } = renderHook(
+        ({ messageCount }) =>
+          useChatScrollController({
+            containerRef,
+            messageCount,
+            isStreaming: true,
+            hasPendingToolCalls: false,
+            followZonePx: 120,
+            enabled: true,
+          }),
+        { initialProps: { messageCount: 10 } }
       );
+
+      // 先锁定
+      act(() => {
+        result.current.onUserScroll();
+      });
+
+      // 用户回到底部
+      container.scrollTop = container.scrollHeight - container.clientHeight - 50;
 
       act(() => {
         result.current.onUserScroll();
+      });
+
+      // rerender 触发返回值重新计算
+      act(() => {
+        rerender({ messageCount: 12 });
       });
 
       // 验证解锁状态

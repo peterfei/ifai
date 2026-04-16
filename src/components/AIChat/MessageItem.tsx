@@ -217,6 +217,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // FIXED: Use state instead of ref to ensure re-render when streaming state changes
     // v0.2.6: 优化流式检测逻辑，结合外部 props 和内部内容增长
     const [isActivelyStreaming, setIsActivelyStreaming] = useState(false);
+    // 🔥 FIX: 使用 ref 跟踪 isActivelyStreaming，避免依赖循环导致无限渲染
+    const isActivelyStreamingRef = useRef(isActivelyStreaming);
+    isActivelyStreamingRef.current = isActivelyStreaming;
     // v0.2.9: Track ignored actions for E2E testing
     const [ignoredActions, setIgnoredActions] = useState<Set<number>>(new Set());
     // 强制使用外部传进来的 isStreaming 作为主要判定依据
@@ -344,7 +347,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         const hasCompletedToolCallsOnly = message.toolCalls && message.toolCalls.length > 0 &&
             message.toolCalls.every(tc => tc.status === 'completed' || tc.status === 'failed');
         // 如果所有工具调用都完成了，立即停止流式状态
-        if (hasCompletedToolCallsOnly && isActivelyStreaming) {
+        if (hasCompletedToolCallsOnly && isActivelyStreamingRef.current) {
             setIsActivelyStreaming(false);
             if (streamingTimeoutRef.current) {
                 clearTimeout(streamingTimeoutRef.current);
@@ -382,11 +385,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             console.log('[MessageItem] Rendering message with toolCalls:', message.id, message.toolCalls.length);
         }
     }, [message.toolCalls, message.id]);
+
     // Debug: Log when isStreaming changes
     React.useEffect(() => {
         // 🔥 FIX: When streaming stops, immediately clear activelyStreaming state
         // This prevents the "生成中..." indicator from staying forever
-        if (!isStreaming && isActivelyStreaming) {
+        if (!isStreaming && isActivelyStreamingRef.current) {
             console.log('[MessageItem] 🏁 Streaming stopped, clearing activelyStreaming state');
             setIsActivelyStreaming(false);
             if (streamingTimeoutRef.current) {
@@ -394,7 +398,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 streamingTimeoutRef.current = undefined;
             }
         }
-    }, [isStreaming, message.id, isActivelyStreaming]);
+    }, [isStreaming, message.id]);
     // Count pending tool calls for batch actions
     const pendingCount = React.useMemo(() => {
         if (!message.toolCalls) return 0;
