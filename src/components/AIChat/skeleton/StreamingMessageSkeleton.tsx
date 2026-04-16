@@ -6,9 +6,17 @@
  * 将在 VirtualMessageList 中作为消息列表的最后一项渲染
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 export const StreamingMessageSkeleton: React.FC = () => {
+  // 🔥 DEBUG: 组件渲染时打印日志
+  useEffect(() => {
+    console.log('[StreamingSkeleton] 组件已渲染！', {
+      timestamp: new Date().toISOString(),
+      containerClass: 'flex flex-col gap-2 p-3',
+    });
+  }, []);
+
   return (
     <div
       className="flex flex-col gap-2 p-3"

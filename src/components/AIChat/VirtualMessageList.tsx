@@ -58,6 +58,20 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
     (lastMessage.content && lastMessage.content.length > 0)
   );
 
+  // 🔥 DEBUG: 打印骨架屏显示逻辑
+  if (isLoading && visibleMessages.length > 0) {
+    console.log('[StreamingSkeleton] 调试信息:', {
+      isLoading,
+      messageCount: visibleMessages.length,
+      lastMessageId: lastMessage?.id,
+      lastMessageRole: lastMessage?.role,
+      lastMessageIsStreaming: lastMessage?.isStreaming,
+      lastMessageContentLength: lastMessage?.content?.length || 0,
+      hasStreamingContent,
+      shouldShowSkeleton: isLoading && visibleMessages.length > 0 && !hasStreamingContent,
+    });
+  }
+
   // 🔥 计算虚拟化项数量：只有在加载中但没有实际内容时才显示骨架屏
   const virtualItemCount = useMemo(() => {
     // 🔥 关键修复：有流式内容时不显示骨架屏
