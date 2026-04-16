@@ -342,6 +342,13 @@ test.describe('发送消息后滚动到底部 - 长历史消息场景', () => {
     });
     await page.waitForTimeout(200);
 
+    // 🔥 添加控制台日志监听
+    page.on('console', msg => {
+      if (msg.text().includes('UnifiedScrollEngine') || msg.text().includes('VirtualMessageList')) {
+        console.log('[Browser Console]', msg.text());
+      }
+    });
+
     await page.evaluate(async () => {
       const chatStore = (window as any).__chatStore;
       const settingsStore = (window as any).__settingsStore;
