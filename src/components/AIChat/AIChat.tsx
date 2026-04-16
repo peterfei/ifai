@@ -77,6 +77,10 @@ import type { ImageAttachment } from '../../types/multimodal';
 import { ToolClassificationIndicator } from '../ToolClassification';
 import { MessageSkeleton } from '../UI/Skeleton';
 import clsx from 'clsx';
+// 🔥 元编程架构：骨架屏引擎
+import { useSkeletonEngine } from './skeleton';
+import { AI_CHAT_SKELETON_CONFIG } from './skeleton/config/skeleton.config';
+import './skeleton/styles.css';
 
 interface AIChatProps {
   width?: number;
@@ -85,6 +89,12 @@ interface AIChatProps {
 
 export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { t } = useTranslation();
+
+  // 🔥 元编程架构：骨架屏引擎（仅需 3 行代码）
+  const { Renderer: SkeletonRenderer } = useSkeletonEngine(
+    AI_CHAT_SKELETON_CONFIG,
+    { debug: false, enabled: (window as any).__ENABLE_SKELETON_ENGINE__ ?? true }
+  );
 
   // Thread keyboard shortcuts
   useThreadKeyboardShortcuts();
@@ -2663,6 +2673,9 @@ ${suggestion.fixContext.code_context}
         </AnimatePresence>,
         document.body
       )}
-      </div>
-      );
-      };
+
+      {/* 🔥 元编程架构：骨架屏覆盖层（仅需 1 行代码） */}
+      <SkeletonRenderer />
+    </div>
+  );
+};
