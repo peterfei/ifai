@@ -128,9 +128,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     };
   }, []);
 
-  // New Chat UI Store for history
-  const inputHistory = useChatUIStore(state => state.inputHistory);
-  const historyIndex = useChatUIStore(state => state.historyIndex);
+  // 🔥 FIX 2.3: 将 inputHistory/historyIndex 改为按需获取
+  // 流式期间输入历史不会变化，不需要订阅这些高频状态
+  // 只订阅函数引用（稳定）和通过 getState() 按需读取值
   const addToHistory = useChatUIStore(state => state.addToHistory);
   const setHistoryIndex = useChatUIStore(state => state.setHistoryIndex);
   const resetHistoryIndex = useChatUIStore(state => state.resetHistoryIndex);
@@ -1497,10 +1497,11 @@ ${context}
     const val = e.target.value;
     setInput(val);
     
-    // Only reset history if the change came from user typing/pasting, 
+    // Only reset history if the change came from user typing/pasting,
     // not from our setInput call during history navigation.
     const isUserTyping = (e.nativeEvent as any).inputType !== undefined;
-    if (isUserTyping && historyIndex !== -1) {
+    const currentHistoryIndex = useChatUIStore.getState().historyIndex;
+    if (isUserTyping && currentHistoryIndex !== -1) {
       resetHistoryIndex();
     }
     
@@ -1528,22 +1529,24 @@ ${context}
         setShowCommands(false);
     } else if (e.key === 'ArrowUp' && !showCommands) {
         // Navigation through history
-        if (inputHistory.length > 0) {
-          const nextIndex = Math.min(historyIndex + 1, inputHistory.length - 1);
-          // Always allow Up to update if there's history, even if index doesn't change 
-          // (it might have been cleared or we want to re-fill current input)
+        const { inputHistory: hist, historyIndex: idx } = useChatUIStore.getState();
+        if (hist.length > 0) {
+          const nextIndex = Math.min(idx + 1, hist.length - 1);
           e.preventDefault();
           setHistoryIndex(nextIndex);
-          setInput(inputHistory[nextIndex]);
+          setInput(hist[nextIndex]);
         }
-    } else if (e.key === 'ArrowDown' && !showCommands && historyIndex !== -1) {
-        e.preventDefault();
-        const nextIndex = historyIndex - 1;
-        setHistoryIndex(nextIndex);
-        if (nextIndex === -1) {
-          setInput('');
-        } else {
-          setInput(inputHistory[nextIndex]);
+    } else if (e.key === 'ArrowDown' && !showCommands) {
+        const { inputHistory: hist, historyIndex: idx } = useChatUIStore.getState();
+        if (idx !== -1) {
+          e.preventDefault();
+          const nextIndex = idx - 1;
+          setHistoryIndex(nextIndex);
+          if (nextIndex === -1) {
+            setInput('');
+          } else {
+            setInput(hist[nextIndex]);
+          }
         }
     }
   };

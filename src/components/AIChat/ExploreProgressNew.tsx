@@ -5,13 +5,14 @@
  * preserving the explore-specific features like file stream.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, File, CheckCircle2, Loader2 } from 'lucide-react';
 import { useTaskStore } from '../../stores/taskStore';
 import { TaskCard } from '../TaskMonitor/TaskCard';
 import { TaskProgressBar } from '../TaskMonitor/TaskProgressBar';
 import { exploreToTaskMetadata } from './exploreTaskAdapter';
 import type { ExploreProgressData } from './ExploreProgress';
+import { useThrottleValue } from '../../hooks/useThrottleValue';
 
 interface ExploreProgressProps {
   progress: ExploreProgressData;
@@ -150,9 +151,17 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
   const { tasks } = useTaskStore();
   const [taskId] = useState<string>(() => `explore-${Date.now()}`);
 
+  // 🔥 FIX 2.2: 节流 progress 数据，避免扫描期间高频重渲染
+  // 完成时（phase=completed）不禁用节流，让最终数据立即呈现
+  const throttledProgress = useThrottleValue(progress, {
+    interval: 150,
+    enabled: progress.phase !== 'completed',
+  });
+  const effectiveProgress = progress.phase === 'completed' ? progress : throttledProgress;
+
   // Convert explore data to task metadata
   const existingTask = tasks.find(t => t.id === taskId);
-  const taskMetadata = exploreToTaskMetadata(progress, existingTask);
+  const taskMetadata = exploreToTaskMetadata(effectiveProgress, existingTask);
 
   // Update task in store
   useEffect(() => {
@@ -162,7 +171,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
     }
   }, [taskMetadata]);
 
-  const { phase, progress: data, scannedFiles } = progress;
+  const { phase, progress: data, scannedFiles } = effectiveProgress;
   const percentage = data.total > 0 ? Math.min(100, Math.round((data.scanned / data.total) * 100)) : 0;
   const isComplete = data.scanned >= data.total && data.total > 0;
 
@@ -244,7 +253,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
               </span>
             </div>
             <ScannedFileStream
-              currentFile={isComplete ? undefined : progress.currentFile}
+              currentFile={isComplete ? undefined : effectiveProgress.currentFile}
               isComplete={isComplete}
               compact={true}
               scannedCount={data.scanned}
@@ -276,7 +285,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
 
       {/* Scanned files stream */}
       <ScannedFileStream
-        currentFile={isComplete ? undefined : progress.currentFile}
+        currentFile={isComplete ? undefined : effectiveProgress.currentFile}
         isComplete={isComplete}
         scannedCount={data.scanned}
         totalCount={data.total}

@@ -94,27 +94,24 @@ describe('流式交互集成测试', () => {
 
     it('节流模式下更新频率应该降低', () => {
       const longContent = 'B'.repeat(1000);
-      let updateCount = 0;
 
       const { result } = renderHook(() =>
         useTypewriter({
           content: longContent,
           enabled: true,
-          throttleMode: false, // 正常模式
+          // 不传 throttleMs → 无节流（每帧更新）
         })
       );
 
       // 收集正常模式的更新次数
-      const normalUpdates = [];
       const originalDisplayText = result.current.displayText;
 
-      // 节流模式
+      // 节流模式：throttleMs=50ms
       const { result: throttledResult } = renderHook(() =>
         useTypewriter({
           content: longContent,
           enabled: true,
-          throttleMode: true, // 节流模式
-          throttleInterval: 50,
+          throttleMs: 50, // 节流 50ms
         })
       );
 
@@ -367,26 +364,24 @@ describe('流式交互集成测试', () => {
         useTypewriter({
           content: longContent,
           enabled: true,
-          throttleMode: true,
-          throttleInterval: 50,
+          throttleMs: 50, // 节流 50ms
         })
       );
 
       // 由于使用了节流，更新次数应该明显减少
       // 这个测试主要是验证节流逻辑的存在和正确性
-      // 实际的更新间隔由 setTimeout 控制
       expect(featureFlags.typewriterEffect).toBe(true);
     });
 
     it('正常模式和节流模式应该有明显差异', () => {
       const content = 'Y'.repeat(200);
 
-      // 正常模式
+      // 正常模式（无节流）
       const { result: normalResult } = renderHook(() =>
         useTypewriter({
           content,
           enabled: true,
-          throttleMode: false,
+          // throttleMs 不传 → 每帧更新
         })
       );
 
@@ -395,8 +390,7 @@ describe('流式交互集成测试', () => {
         useTypewriter({
           content,
           enabled: true,
-          throttleMode: true,
-          throttleInterval: 50,
+          throttleMs: 50,
         })
       );
 
@@ -405,7 +399,6 @@ describe('流式交互集成测试', () => {
       expect(throttledResult.current).toBeDefined();
 
       // 节流模式应该有不同的内部逻辑
-      // (这个主要是验证模式切换的有效性)
       expect(normalResult.current.isTyping).toBeDefined();
       expect(throttledResult.current.isTyping).toBeDefined();
     });
