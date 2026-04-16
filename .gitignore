@@ -132,3 +132,6 @@ test-workflow-e2e.sh
 WORKFLOW_PROGRESS_DEBUG.md
 blog-v0.4.1-release.md
 blog-v0.4.1.md
+fix-scroll-focus-and-ui-freeze-final.md
+fix-scroll-focus-and-ui-freeze-update.md
+integration-tests-report.md
