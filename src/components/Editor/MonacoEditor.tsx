@@ -974,11 +974,10 @@ ${textBefore}[CURSOR]${textAfter}
   }
 
   // 🔥 工业级加载反馈：当文件已选中但内容尚未加载完成时，展示骨架屏
-  // 条件：文件存在 + (内容为空或未定义) + 不是用户手动创建的 dirty 文件
-  // 🔥 注意：空字符串 '' 也算作未加载，需要显示骨架屏
+  // 条件：文件存在 + 内容为空或未定义
+  // 🔥 注意：移除 !file.isDirty 条件，因为 dirty 文件也可能内容为空
   const shouldShowSkeleton = file &&
-    (!file.content || file.content === '' || file.content === undefined || file.content === null) &&
-    !file.isDirty;
+    (!file.content || file.content === '' || file.content === undefined || file.content === null);
 
   // 🔥 调试：总是打印文件状态
   if (file) {
@@ -998,6 +997,7 @@ ${textBefore}[CURSOR]${textAfter}
       fileId: file.id,
       fileName: file.name,
       reason: '文件内容为空',
+      isDirty: file.isDirty,
     });
     return <EditorSkeleton />;
   }
@@ -1011,6 +1011,7 @@ ${textBefore}[CURSOR]${textAfter}
       fileId: file?.id,
       hasContent: !!file?.content,
       contentLength: file?.content?.length || 0,
+      isDirty: file?.isDirty,
     });
     return <EditorSkeleton />;
   }
