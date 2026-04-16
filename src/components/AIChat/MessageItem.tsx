@@ -21,6 +21,7 @@ const TypewriterText: React.FC<{
         baseCPS: 40,
         fastCPS: 120,
         threshold: 300,
+        throttleMs: 50, // 🔥 FIX 2.1: 节流 50ms，将 React 状态更新从 ~60fps 降到 ~20fps
     });
     // useTypewriter 在 enabled=false 时自动跳到末尾，displayText === content
     return <>{children(displayText)}</>;
