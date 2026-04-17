@@ -210,13 +210,41 @@ pub async fn get_token_stats(
  * @param messages - 消息数组
  * @param summary - 总结文本
  * @returns 归档文件路径
+ *
+ * @deprecated 此命令已被前端多格式归档引擎替代
+ *
+ * ⚠️ 废弃说明 (Deprecated since v0.3.8)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 此命令已被前端多格式归档引擎完全替代。
+ *
+ * 新方案优势：
+ * • 支持多种格式（JSON + Markdown）
+ * • 异步非阻塞，不影响性能
+ * • Markdown 格式对 Git 和 LLM 更友好
+ * • 前端实现，无需后端支持
+ *
+ * 迁移方式：
+ * 使用 src/core/archive/ConversationArchiveService 代替
+ *
+ * 相关代码：
+ * - 前端实现：src/core/archive/ConversationArchiveService.ts
+ * - 提案文档：openspec/changes/fix-conversation-archive-persistence/proposal.md
+ * - Git 提交：f357f2f
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 #[tauri::command]
+#[deprecated(note = "使用前端多格式归档引擎替代 (src/core/archive/ConversationArchiveService)")]
 pub async fn save_conversation_archive(
     project_root: String,
     messages: Vec<Message>,
     summary: String,
 ) -> Result<String, String> {
+    // 记录废弃警告
+    eprintln!(
+        "⚠️  [DEPRECATED] save_conversation_archive 已废弃，请使用前端多格式归档引擎 \
+         (src/core/archive/ConversationArchiveService)\n\
+         此命令将在未来版本中移除。\n"
+    );
     // 创建归档目录
     let archive_dir = PathBuf::from(&project_root)
         .join(".ifai")

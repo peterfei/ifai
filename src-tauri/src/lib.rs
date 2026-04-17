@@ -1837,6 +1837,8 @@ pub fn run() {
             commands::conversation_commands::compact_conversation,
             commands::conversation_commands::get_conversation_archives,
             commands::conversation_commands::get_token_stats,
+            // ⚠️  [DEPRECATED] 已废弃：使用前端多格式归档引擎替代 (f357f2f)
+            // 此命令将在未来版本中移除
             commands::conversation_commands::save_conversation_archive,
             // P5: 会话笔记系统
             commands::session_notes_commands::create_session_notes,
