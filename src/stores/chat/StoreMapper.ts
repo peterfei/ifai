@@ -14,6 +14,10 @@ import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
 import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { toast } from 'sonner';
+import { createLogger } from '../../utils/logger';
+
+// 🔥 Logger instance for StoreMapper
+const logger = createLogger('StoreMapper');
 
 export const initStoreMapper = () => {
     // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
@@ -115,11 +119,11 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
         const { delta, correlationId, deltaIndex } = payload;
 
-        // 🔥 DEBUG: 只在异常情况或每 50 个 delta 打印一次
+        // 🔥 DEBUG: 只在异常情况或每 50 个 delta 打印一次 - 使用 logger
         const shouldLog = deltaIndex === undefined || deltaIndex < 0 || deltaIndex % 50 === 0;
 
         if (shouldLog) {
-            console.log('[StoreMapper] 📨 chat:stream:chunk received:', {
+            logger.debug('chat:stream:chunk received:', {
                 correlationId,
                 deltaIndex,
                 deltaLength: delta?.length || 0,
@@ -127,9 +131,9 @@ export const initStoreMapper = () => {
             });
         }
 
-        // 🔥 DEBUG: 检查 delta 是否包含路径混乱的迹象
+        // 🔥 DEBUG: 检查 delta 是否包含路径混乱的迹象 - 使用 logger
         if (delta && delta.includes('/') && delta.length > 50) {
-            console.log('[StoreMapper] 🔍 Chunk with path detected:', delta);
+            logger.debug('Chunk with path detected:', delta);
         }
 
         // 🔥 序号校验：如果有序号，记录并检查顺序
@@ -137,15 +141,15 @@ export const initStoreMapper = () => {
             const lastIdx = streamIndexTracker.get(correlationId) ?? -1;
             streamIndexTracker.set(correlationId, deltaIndex);
 
-            // 检测乱序 - 只在乱序时打印警告
+            // 检测乱序 - 只在乱序时打印警告 - 使用 logger
             if (deltaIndex !== lastIdx + 1) {
-                console.warn(`[StoreMapper] ⚠️ Out-of-order delta detected: expected ${lastIdx + 1}, got ${deltaIndex}`);
+                logger.warn(`Out-of-order delta detected: expected ${lastIdx + 1}, got ${deltaIndex}`);
             }
         }
 
         // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
         if (!contentSegmentManager.isStreamActive(correlationId)) {
-            console.warn(`[StoreMapper] 🛡️ Stream ${correlationId} not active in Manager, triggering auto-start`);
+            logger.warn(`Stream ${correlationId} not active in Manager, triggering auto-start`);
             contentSegmentManager.onStreamStart(correlationId);
         }
 

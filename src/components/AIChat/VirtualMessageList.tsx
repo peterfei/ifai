@@ -10,6 +10,10 @@ import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
 import { calculateDistanceToBottom, ScrollConstants } from '../../hooks/useChatScrollController';
 import { StreamingMessageSkeleton } from './skeleton';
+import { createLogger } from '../../utils/logger';
+
+// 🔥 Logger instance for VirtualMessageList
+const logger = createLogger('Other'); // Use 'Other' category for UI components
 
 export interface VirtualMessageListHandle {
   scrollToBottom: () => void;
@@ -58,9 +62,9 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
     (lastMessage.content && lastMessage.content.length > 0)
   );
 
-  // 🔥 DEBUG: 打印骨架屏显示逻辑
+  // 🔥 DEBUG: 打印骨架屏显示逻辑 - 使用 logger（生产环境禁用）
   if (isLoading && visibleMessages.length > 0) {
-    console.log('[StreamingSkeleton] 调试信息:', {
+    logger.debug('[StreamingSkeleton] 调试信息:', {
       isLoading,
       messageCount: visibleMessages.length,
       lastMessageId: lastMessage?.id,
