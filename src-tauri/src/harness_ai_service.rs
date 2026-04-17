@@ -8,6 +8,7 @@
 use crate::core_traits::ai::{AIService, AIProviderConfig, Message};
 use crate::harness::api::{ApiClientFactory, AiProvider, StreamRequest, Message as HarnessMessage, MessageRole};
 use crate::harness::api::types::{ApiError, ToolCall as HarnessToolCall, ToolCallFunction as HarnessToolCallFunction};
+use crate::harness::api::{StreamToEventStream, EventStream, BatchEventStream};  // 🔥 方案 1: 使用 EventStream + BatchEventStream
 use crate::harness::tool::ToolRegistry;
 use crate::harness::tool::ToolRouter;
 use tauri::{AppHandle, Emitter};
@@ -363,21 +364,32 @@ impl AIService for HarnessAIService {
 
             // 🔥 DEBUG: 添加 stream 处理开始日志（仅一次）
             if loop_count == 1 {
-                println!("[AI] 🔊 Starting stream processing...");
+                println!("[AI] 🔊 Starting stream processing (batch_size=50)...");
             }
 
-            // 处理流式响应
-            while let Some(result) = stream.next().await {
-                event_count += 1;
-                match result {
-                    Ok(event) => {
-                        // 🔥 FIX: 移除过度日志（每个事件都打印会导致内存爆炸）
-                        // 只在每 100 个事件时打印一次
-                        if event_count % 100 == 0 {
-                            println!("[AI] 📨 Processed {} events so far...", event_count);
+            // 🔥 方案 A: 使用 BatchEventStream 批量处理（批量大小 50），大幅减少函数调用次数
+            let event_stream = StreamToEventStream::new(stream);
+            let mut batch_stream = BatchEventStream::new(Box::new(event_stream), 50);
+
+            loop {
+                match batch_stream.next_batch().await {
+                    Ok(events) => {
+                        if events.is_empty() {
+                            // 流结束
+                            break;
                         }
 
-                        match event {
+                        // 批量处理事件
+                        for event in events {
+                            event_count += 1;
+
+                            // 🔥 FIX: 移除过度日志（每个事件都打印会导致内存爆炸）
+                            // 只在每 100 个事件时打印一次
+                            if event_count % 100 == 0 {
+                                println!("[AI] 📨 Processed {} events so far...", event_count);
+                            }
+
+                            match event {
                             crate::harness::api::StreamEvent::MessageStart { .. } => {}
                             crate::harness::api::StreamEvent::TextDelta { text } => {
                                 loop_text.push_str(&text);
@@ -860,9 +872,10 @@ impl AIService for HarnessAIService {
                                 has_error = true;
                             }
                         }
-                    }
+                    }  // match event
+                    }  // for event in events
                     Err(e) => {
-                        println!("[AI] ❌ Stream error: {:?}", e);
+                        println!("[AI] ❌ Batch stream error: {:?}", e);
                         has_error = true;
 
                         if !batch_buffer.is_empty() {
@@ -873,8 +886,8 @@ impl AIService for HarnessAIService {
 
                         break;
                     }
-                }
-            }
+                }  // match batch_stream.next_batch()
+            }  // loop
 
             println!("[AI] 🔚 While loop ended, event_count={}", event_count);
 
