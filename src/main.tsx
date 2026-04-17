@@ -259,16 +259,18 @@ const exposeDebugStores = () => {
         import('./stores/skillStore'),
         import('./stores/fileStore'),
         import('./stores/useChatStore'),
+        import('./stores/conversationStore'), // 🔥 添加 conversationStore
         import('./stores/settingsStore'),
         import('./stores/layoutStore'),
         import('./stores/editorStore'),
         import('./utils/tokenCounter'),
         import('./stores/pivoStore')
-      ]).then(([skill, file, chat, settings, layout, editor, tokens, pivo]) => {
+      ]).then(([skill, file, chat, conversation, settings, layout, editor, tokens, pivo]) => {
         const stores = {
           skillStore: skill.useSkillStore,
           fileStore: file.useFileStore,
           chatStore: chat.useChatStore,
+          conversationStore: conversation.useConversationStore, // 🔥 添加 conversationStore
           settingsStore: settings.useSettingsStore,
           layoutStore: layout.useLayoutStore,
           editorStore: editor.useEditorStore,
@@ -283,6 +285,7 @@ const exposeDebugStores = () => {
         // 🔥 为 E2E 测试直接暴露
         if ((window as any).__E2E__ || (window as any).process?.env?.NODE_ENV === 'test') {
           (window as any).__chatStore = chat.useChatStore;
+          (window as any).__conversationStore = conversation.useConversationStore; // 🔥 暴露 conversationStore
           (window as any).__pivoStore = pivo.usePivoStore;
           (window as any).__layoutStore = layout.useLayoutStore;
           (window as any).__fileStore = file.useFileStore; // 🔥 暴露 fileStore 用于 E2E 测试

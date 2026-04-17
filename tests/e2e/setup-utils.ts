@@ -327,24 +327,12 @@ export async function setupE2ETestEnvironment(
 
               console.log(`[E2E Mock] compact_conversation: ${messages.length} messages -> keep last ${keepLastN}`);
 
-              // 实现压缩逻辑
-              const systemMessages = messages.filter((m: any) => m.role === 'system');
-              const lastMessages = messages.slice(-keepLastN);
+              // 🔥 简化压缩逻辑：直接只保留最后 N 条消息
+              const compacted = messages.slice(-keepLastN);
 
-              // 创建总结消息
-              const summaryMsg = {
-                id: `summary-${Date.now()}`,
-                role: 'system',
-                content: `CONVERSATION SUMMARY:\n\n${summary}`,
-                timestamp: Date.now()
-              };
+              console.log(`[E2E Mock] compressed: ${messages.length} -> ${compacted.length} messages`);
 
-              // 组合：系统消息 + 总结 + 最后N条消息
-              const compressed = [...systemMessages, summaryMsg, ...lastMessages];
-
-              console.log(`[E2E Mock] compressed: ${messages.length} -> ${compressed.length} messages`);
-
-              return Promise.resolve(compressed);
+              return Promise.resolve(compacted);
             }
 
             // 🎯 Mock: plugin:event|listen (Tauri event plugin)

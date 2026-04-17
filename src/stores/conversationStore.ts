@@ -519,16 +519,43 @@ export const useConversationStore = create<ConversationStore>()(
     },
 
     /**
-     * 压缩对话
+     * 压缩对话（集成多格式归档）
+     *
+     * 🔥 元编程：自动归档原始对话到多种格式
+     * - JSON: 机器可读，用于 API 查询
+     * - Markdown: 人类可读，用于 Git 和 LLM 输入
      */
     compactConversation: async (messages: Message[], summary: string, keepLastN = 10) => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
+
+        // 🔥 1. 先压缩对话
         const compacted = await invoke<Message[]>('compact_conversation', {
           messages,
           summary,
-          keepLastN
+          keep_last_n: keepLastN
         });
+
+        // 🔥 2. 异步归档原始对话（不阻塞压缩流程）
+        try {
+          const projectRoot = await invoke<string>('get_project_root', {});
+          const { conversationArchiveService } = await import('../core/archive/ConversationArchiveService');
+
+          conversationArchiveService.archiveConversation(messages, summary, projectRoot, {
+            formats: ['json', 'markdown'],
+            pretty: true,
+            metadata: {
+              version: '1.0.0',
+              originalMessageCount: messages.length
+            }
+          }).catch(err => {
+            console.error('[ArchiveService] Archive failed:', err);
+          });
+        } catch (archiveError) {
+          // 归档失败不影响压缩结果
+          console.warn('[ConversationStore] Archive service error (non-blocking):', archiveError);
+        }
+
         return {
           original_count: messages.length,
           compressed_count: compacted.length,
