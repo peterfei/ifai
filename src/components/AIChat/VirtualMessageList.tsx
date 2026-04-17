@@ -63,8 +63,13 @@ function useStableMessages(messages: any[]) {
 
   // 🔥 只在 messages 真正变化时重新计算
   const stableData = useMemo(() => {
-    if (!messagesChanged && visibleMessagesRef.current.length > 0) {
-      // 没有变化，返回缓存的结果
+    // 🐛 FIX: 如果最后一条消息正在流式更新，总是重新计算
+    // 这确保了流式更新时 UI 能够正确更新
+    const lastMsg = messages[messages.length - 1];
+    const isLastMessageStreaming = lastMsg?.isStreaming === true || lastMsg?.status === 'streaming';
+
+    if (!messagesChanged && visibleMessagesRef.current.length > 0 && !isLastMessageStreaming) {
+      // 没有变化且不在流式更新，返回缓存的结果
       logger.debug('[useStableMessages] ✅ 缓存命中，跳过过滤', {
         messageCount: messages.length,
         visibleCount: visibleMessagesRef.current.length,
@@ -75,7 +80,7 @@ function useStableMessages(messages: any[]) {
       };
     }
 
-    // 🔥 重新计算（只在必要时执行）
+    // 🔥 重新计算（在必要时执行）
     const startTime = performance.now();
     const filtered = messages.filter(m => m.role !== 'tool');
     const hasPending = messages.some(m =>
@@ -84,13 +89,16 @@ function useStableMessages(messages: any[]) {
     const endTime = performance.now();
 
     // 🔥 性能日志
-    logger.info('[useStableMessages] 🔄 重新计算过滤结果', {
-      messageCount: messages.length,
-      visibleCount: filtered.length,
-      filteredOut: messages.length - filtered.length,
-      hasPendingToolCalls: hasPending,
-      duration: `${(endTime - startTime).toFixed(2)}ms`,
-    });
+    if (messagesChanged || isLastMessageStreaming) {
+      logger.info('[useStableMessages] 🔄 重新计算过滤结果', {
+        messageCount: messages.length,
+        visibleCount: filtered.length,
+        filteredOut: messages.length - filtered.length,
+        hasPendingToolCalls: hasPending,
+        reason: messagesChanged ? 'messagesChanged' : 'isLastMessageStreaming',
+        duration: `${(endTime - startTime).toFixed(2)}ms`,
+      });
+    }
 
     // 更新缓存
     prevMessagesRef.current = messages;
