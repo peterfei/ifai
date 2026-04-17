@@ -398,10 +398,10 @@ export class StreamingResponseController {
         let eventReceived = false;
 
         // 🔥 FIX v0.3.14: 根据场景使用不同的超时时间
-        // - 首次请求: 15秒超时（DeepSeek/OpenAI 正常响应时间）
+        // - 首次请求: 60秒超时（支持长历史消息处理）
         // - 续播请求: 30秒超时（工具调用后 LLM 需要更长时间）
         // 这是一个诊断超时，不会中断实际的流处理
-        const timeoutMs = isContinuation ? 30000 : 15000;
+        const timeoutMs = isContinuation ? 30000 : 60000;
         const eventTimeoutCheck = setTimeout(() => {
           if (!eventReceived) {
             console.warn(`[SC] Event timeout (${timeoutMs}ms) for ${eventId}${isContinuation ? ' (continuation)' : ''}`);

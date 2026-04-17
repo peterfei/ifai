@@ -41,6 +41,13 @@ export class PersistenceManager {
    * 持久化自愈：处理因崩溃导致的断链状态
    */
   private async recoverSessions() {
+    // 🔥 FIX: 在 E2E 测试环境中禁用自动恢复
+    // E2E 测试会主动创建和管理消息状态，不需要自动修复
+    if (typeof window !== 'undefined' && (window as any).__E2E__) {
+      logger.info('[E2E] Skipping persistence self-healing in test environment');
+      return;
+    }
+
     logger.info('Running persistence self-healing check...');
     try {
       const { useThreadStore } = await import('../../threadStore');
