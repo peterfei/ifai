@@ -134,7 +134,7 @@ export const CustomProviderSettings = () => {
               {provider.displayName || provider.name}
             </span>
             {isCurrent && (
-              <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+              <span className="theme-badge-accent ml-2 rounded px-2 py-0.5 text-xs">当前</span>
             )}
             {provider.presetTemplate && (
               <span className="theme-input-surface theme-text-subtle ml-2 rounded px-2 py-0.5 text-xs">
@@ -171,7 +171,7 @@ export const CustomProviderSettings = () => {
               onClick={() => setShowParamsEditor(showParamsEditor === provider.id ? null : provider.id)}
               className={clsx(
                 'rounded p-1 transition-colors',
-                showParamsEditor === provider.id ? 'theme-button-primary text-white' : 'theme-button-ghost'
+                showParamsEditor === provider.id ? 'theme-button-primary' : 'theme-button-ghost'
               )}
               title={t('customProviderSettings.modelParams')}
             >

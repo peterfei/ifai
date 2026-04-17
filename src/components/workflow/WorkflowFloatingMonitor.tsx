@@ -169,15 +169,15 @@ export function WorkflowFloatingMonitor({
     >
       {/* 顶部标题栏（可拖拽） */}
       <div
-        className="theme-panel-muted theme-border flex cursor-move items-center justify-between border-b bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent px-4 py-2"
+        className="theme-panel-muted theme-border flex cursor-move items-center justify-between border-b px-4 py-2"
         data-no-drag
       >
         <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 animate-pulse text-blue-500" />
+          <Zap className="theme-text-accent h-4 w-4 animate-pulse" />
           <span className="theme-text text-sm font-semibold">
             工作流监控器
             {runningCount > 0 && (
-              <Badge className="ml-2 bg-yellow-400 text-yellow-900">
+              <Badge className="theme-badge-warning ml-2">
                 {runningCount} 运行中
               </Badge>
             )}
@@ -197,7 +197,7 @@ export function WorkflowFloatingMonitor({
             <Button
               variant="ghost"
               size="sm"
-              className="theme-button-ghost h-6 w-6 p-0 theme-text-subtle hover:bg-red-500/10 hover:text-red-500"
+              className="theme-button-ghost h-6 w-6 p-0 theme-text-subtle hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
               onClick={onClose}
               title="关闭"
             >
@@ -240,7 +240,7 @@ export function WorkflowFloatingMonitor({
                   key={workflow.id}
                   className={`px-3 py-1 rounded text-sm font-medium whitespace-nowrap transition-colors ${
                     selectedWorkflowId === workflow.id
-                      ? 'bg-blue-500 text-white'
+                      ? 'theme-button-primary'
                       : 'theme-panel theme-border theme-text-muted hover:bg-[var(--hover-bg)]'
                   }`}
                   onClick={() => setSelectedWorkflowId(workflow.id)}
@@ -292,11 +292,11 @@ function WorkflowStatusBadge({ status }: WorkflowStatusBadgeProps) {
   const getStatusColor = () => {
     switch (status) {
       case 'running':
-        return 'bg-blue-500';
+        return 'bg-[var(--accent-color)]';
       case 'completed':
-        return 'bg-green-500';
+        return 'bg-[var(--success-color)]';
       case 'failed':
-        return 'bg-red-500';
+        return 'bg-[var(--danger-color)]';
     }
   };
 

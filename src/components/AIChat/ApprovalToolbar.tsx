@@ -60,9 +60,9 @@ export const ApprovalToolbar: React.FC = () => {
 
   const getRiskColor = () => {
     switch (riskLevel) {
-      case 'high': return 'bg-red-500/20 border-red-500/50 text-red-400';
-      case 'low': return 'bg-green-500/20 border-green-500/50 text-green-400';
-      default: return 'bg-amber-500/20 border-amber-500/50 text-amber-400';
+      case 'high': return 'bg-[var(--danger-soft-bg)] border-[var(--danger-soft-border)] text-[var(--danger-color)]';
+      case 'low': return 'bg-[var(--success-soft-bg)] border-[var(--success-soft-border)] text-[var(--success-color)]';
+      default: return 'bg-[var(--warning-soft-bg)] border-[var(--warning-soft-border)] text-[var(--warning-color)]';
     }
   };
 
@@ -90,13 +90,13 @@ export const ApprovalToolbar: React.FC = () => {
       <div className="flex items-center gap-2">
         <button
           onClick={handleReject}
-          className="theme-button-secondary flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold transition-all border border-red-500/20 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/40"
+          className="theme-button-secondary flex items-center gap-1.5 rounded border border-[var(--danger-soft-border)] px-3 py-1 text-xs font-bold transition-all hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
         >
           <X size={14} /> 拒绝
         </button>
         <button
           onClick={handleApprove}
-          className="flex items-center gap-1.5 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg transition-all"
+          className="theme-button-primary theme-glow-accent flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold transition-all"
         >
           <Check size={14} /> 接受修改
         </button>

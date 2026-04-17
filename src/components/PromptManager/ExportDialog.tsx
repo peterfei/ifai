@@ -242,8 +242,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                     >
                       <div className="flex-shrink-0 mt-1">
                         {selectedPaths.has(prompt.path) ? (
-                          <div className="w-5 h-5 rounded bg-blue-500 flex items-center justify-center">
-                            <Check size={14} className="text-white" />
+                          <div className="theme-badge-accent flex h-5 w-5 items-center justify-center rounded">
+                            <Check size={14} className="theme-text-accent" />
                           </div>
                         ) : (
                           <div className="theme-border h-5 w-5 rounded border-2" />

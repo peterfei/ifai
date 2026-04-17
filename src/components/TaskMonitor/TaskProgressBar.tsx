@@ -276,7 +276,7 @@ export const SegmentedProgress: React.FC<SegmentedProgressProps> = ({
             segment.label && (
               <div
                 key={index}
-                className="text-[10px] text-[#858585]"
+                className="theme-text-subtle text-[10px]"
                 style={{ flex: segment.value }}
               >
                 {segment.label}

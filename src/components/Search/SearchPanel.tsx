@@ -356,8 +356,8 @@ export const SearchPanel = () => {
                     <CaseSensitive size={14} />
                     Case sensitive
                   </span>
-                  <div className={clsx('theme-input-surface theme-border flex h-4 w-4 items-center justify-center rounded border', options.caseSensitive && 'border-blue-600 bg-blue-600')}>
-                    {options.caseSensitive && <span className="text-white text-xs">✓</span>}
+                  <div className={clsx('theme-input-surface theme-border flex h-4 w-4 items-center justify-center rounded border', options.caseSensitive && 'theme-badge-accent')}>
+                    {options.caseSensitive && <span className="theme-text-accent text-xs">✓</span>}
                   </div>
                 </button>
               </div>
@@ -370,8 +370,8 @@ export const SearchPanel = () => {
                     <Regex size={14} />
                     Regular expression
                   </span>
-                  <div className={clsx('theme-input-surface theme-border flex h-4 w-4 items-center justify-center rounded border', options.useRegex && 'border-blue-600 bg-blue-600')}>
-                    {options.useRegex && <span className="text-white text-xs">✓</span>}
+                  <div className={clsx('theme-input-surface theme-border flex h-4 w-4 items-center justify-center rounded border', options.useRegex && 'theme-badge-accent')}>
+                    {options.useRegex && <span className="theme-text-accent text-xs">✓</span>}
                   </div>
                 </button>
               </div>

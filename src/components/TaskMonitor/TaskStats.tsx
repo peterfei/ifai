@@ -66,12 +66,12 @@ function calculateStats(tasks: TaskMetadata[]) {
   };
 
   const STATUS_COLORS: Record<TaskStatus, string> = {
-    pending: '#858585',
-    running: '#569cd6',
-    paused: '#dcdcaa',
-    success: '#4ec9b0',
-    failed: '#f14c4c',
-    cancelled: '#858585',
+    pending: 'var(--text-subtle)',
+    running: 'var(--info-color)',
+    paused: 'var(--warning-color)',
+    success: 'var(--success-color)',
+    failed: 'var(--danger-color)',
+    cancelled: 'var(--text-subtle)',
   };
 
   tasks.forEach(task => {
@@ -237,7 +237,7 @@ const SummaryCards: React.FC<{
       {/* Total tasks */}
       <div className="theme-panel-muted theme-border rounded p-2">
         <div className="flex items-center gap-1.5 mb-1">
-          <Activity size={12} className="text-[#569cd6]" />
+          <Activity size={12} className="theme-text-info" />
           <span className="theme-text-subtle text-[10px]">总任务</span>
         </div>
         <div className="theme-text text-[16px] font-bold">{total}</div>
@@ -247,10 +247,10 @@ const SummaryCards: React.FC<{
       {total > 0 && (
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
-            <TrendingUp size={12} className="text-[#4ec9b0]" />
+            <TrendingUp size={12} className="theme-text-success" />
             <span className="theme-text-subtle text-[10px]">成功率</span>
           </div>
-          <div className="text-[16px] font-bold text-[#4ec9b0]">
+          <div className="theme-text-success text-[16px] font-bold">
             {Math.round(successRate)}%
           </div>
         </div>
@@ -260,10 +260,10 @@ const SummaryCards: React.FC<{
       {successCount > 0 && (
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
-            <CheckCircle2 size={12} className="text-[#4ec9b0]" />
+            <CheckCircle2 size={12} className="theme-text-success" />
             <span className="theme-text-subtle text-[10px]">已完成</span>
           </div>
-          <div className="text-[16px] font-bold text-[#4ec9b0]">{successCount}</div>
+          <div className="theme-text-success text-[16px] font-bold">{successCount}</div>
         </div>
       )}
 
@@ -271,10 +271,10 @@ const SummaryCards: React.FC<{
       {failedCount > 0 && (
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
-            <XCircle size={12} className="text-[#f14c4c]" />
+            <XCircle size={12} className="theme-text-danger" />
             <span className="theme-text-subtle text-[10px]">失败</span>
           </div>
-          <div className="text-[16px] font-bold text-[#f14c4c]">{failedCount}</div>
+          <div className="theme-text-danger text-[16px] font-bold">{failedCount}</div>
         </div>
       )}
 
@@ -282,10 +282,10 @@ const SummaryCards: React.FC<{
       {runningCount > 0 && (
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
-            <Clock size={12} className="text-[#569cd6]" />
+            <Clock size={12} className="theme-text-info" />
             <span className="theme-text-subtle text-[10px]">运行中</span>
           </div>
-          <div className="text-[16px] font-bold text-[#569cd6]">{runningCount}</div>
+          <div className="theme-text-info text-[16px] font-bold">{runningCount}</div>
         </div>
       )}
 
@@ -293,10 +293,10 @@ const SummaryCards: React.FC<{
       {avgDuration > 0 && (
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
-            <Zap size={12} className="text-[#dcdcaa]" />
+            <Zap size={12} className="theme-text-warning" />
             <span className="theme-text-subtle text-[10px]">平均耗时</span>
           </div>
-          <div className="text-[14px] font-bold text-[#dcdcaa]">
+          <div className="theme-text-warning text-[14px] font-bold">
             {formatDuration(avgDuration)}
           </div>
         </div>
@@ -312,22 +312,22 @@ const CategoryTable: React.FC<{ breakdown: CategoryBreakdown[] }> = ({ breakdown
   if (breakdown.length === 0) return null;
 
   const CATEGORY_COLORS: Record<TaskCategory, string> = {
-    scan: '#569cd6',
-    build: '#dcdcaa',
-    generation: '#4ec9b0',
-    transfer: '#f14c4c',
+    scan: 'var(--info-color)',
+    build: 'var(--warning-color)',
+    generation: 'var(--success-color)',
+    transfer: 'var(--danger-color)',
     analysis: '#ce9178',
     test: '#c586c0',
-    deploy: '#dcdcaa',
-    install: '#4ec9b0',
-    git: '#f14c4c',
-    format: '#569cd6',
+    deploy: 'var(--warning-color)',
+    install: 'var(--success-color)',
+    git: 'var(--danger-color)',
+    format: 'var(--info-color)',
     refactor: '#ce9178',
-    document: '#808080',
-    backup: '#4ec9b0',
-    cleanup: '#dcdcaa',
+    document: 'var(--text-subtle)',
+    backup: 'var(--success-color)',
+    cleanup: 'var(--warning-color)',
     optimize: '#ff6b6b',
-    security: '#f14c4c',
+    security: 'var(--danger-color)',
   };
 
   return (

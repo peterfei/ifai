@@ -15,6 +15,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { isDarkTheme } from '../../utils/theme';
 
@@ -252,23 +253,28 @@ export const LocalModelSettings: React.FC = () => {
       </div>
 
       {/* 模型状态卡片 */}
-      <div className={`rounded-lg border p-4 ${
-        modelInfo ? (dark ? 'border-green-800 bg-green-900/20' : 'border-green-200 bg-green-50') :
-        downloadState.status === 'Downloading' ? (dark ? 'border-blue-800 bg-blue-900/20' : 'border-blue-200 bg-blue-50') :
-        (dark ? 'border-yellow-800 bg-yellow-900/20' : 'border-yellow-200 bg-yellow-50')
-      }`}>
+      <div
+        className={clsx(
+          'rounded-lg p-4',
+          modelInfo
+            ? 'theme-surface-success'
+            : downloadState.status === 'Downloading'
+              ? 'theme-surface-info'
+              : 'theme-surface-warning'
+        )}
+      >
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <h3 className="theme-text font-semibold">{t('localModelSettings.modelStatus')}</h3>
               {modelInfo && (
-                <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">{t('localModelSettings.downloaded')}</span>
+                <span className="theme-badge-success rounded-full px-2 py-0.5 text-xs">{t('localModelSettings.downloaded')}</span>
               )}
               {downloadState.status === 'Downloading' && (
-                <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full animate-pulse">{t('localModelSettings.downloading')}</span>
+                <span className="theme-badge-info animate-pulse rounded-full px-2 py-0.5 text-xs">{t('localModelSettings.downloading')}</span>
               )}
               {!modelInfo && downloadState.status !== 'Downloading' && (
-                <span className="px-2 py-0.5 text-xs bg-yellow-600 text-white rounded-full">{t('localModelSettings.notDownloaded')}</span>
+                <span className="theme-badge-warning rounded-full px-2 py-0.5 text-xs">{t('localModelSettings.notDownloaded')}</span>
               )}
             </div>
 
@@ -295,7 +301,7 @@ export const LocalModelSettings: React.FC = () => {
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-sm mb-1">
                   <span className="theme-text font-medium">{t('localModelSettings.downloadProgress')}</span>
-                  <span className="text-blue-600 font-semibold">{downloadState.progress}%</span>
+                  <span className="theme-text-info font-semibold">{downloadState.progress}%</span>
                 </div>
                 <div className="theme-border h-2 overflow-hidden rounded-full border bg-[var(--bg-tertiary)]">
                   <div
@@ -310,7 +316,7 @@ export const LocalModelSettings: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <p className={dark ? 'mt-2 text-sm text-yellow-300' : 'mt-2 text-sm text-yellow-700'}>
+              <p className="theme-text-warning mt-2 text-sm">
                 {t('localModelSettings.modelNotFound')}
               </p>
             )}
@@ -372,7 +378,7 @@ export const LocalModelSettings: React.FC = () => {
               data-active={config.enabled}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`theme-panel inline-block h-4 w-4 transform rounded-full shadow-sm transition-transform ${
                   config.enabled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -404,8 +410,8 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 错误信息 */}
       {error && (
-        <div className={dark ? 'rounded-lg border border-red-800 bg-red-900/20 p-4' : 'rounded-lg border border-red-200 bg-red-50 p-4'}>
-          <p className={dark ? 'text-sm text-red-300' : 'text-sm text-red-700'}>{error}</p>
+        <div className="theme-surface-danger rounded-lg p-4">
+          <p className="theme-text-danger text-sm">{error}</p>
         </div>
       )}
 

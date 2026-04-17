@@ -40,8 +40,8 @@ const categoryColors: Record<string, string> = {
   Search: 'bg-purple-500',
   Command: 'bg-orange-500',
   Network: 'bg-green-500',
-  System: 'bg-gray-500',
-  Other: 'bg-slate-500',
+  System: 'bg-zinc-500',
+  Other: 'bg-neutral-500',
 };
 
 /**

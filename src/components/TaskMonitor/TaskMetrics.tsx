@@ -110,7 +110,7 @@ export const SpeedIndicator: React.FC<{
   if (speed === undefined || speed <= 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 text-[11px] text-[#4ec9b0]">
+    <div className="theme-text-success flex items-center gap-1.5 text-[11px]">
       <Zap size={10} className="flex-shrink-0" />
       <span className="font-mono">{formatSpeed(speed, unit)}</span>
     </div>

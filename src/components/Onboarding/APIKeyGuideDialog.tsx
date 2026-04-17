@@ -168,19 +168,19 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
                 {/* 步骤列表 */}
                 <div className="space-y-2 mb-4">
                   <div className="theme-text-muted flex items-start gap-2 text-sm">
-                    <span className="flex-shrink-0 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">1</span>
+                    <span className="theme-badge-accent flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold">1</span>
                     <span>{t('apiKeyGuide.zhipuSection.step1')}</span>
                   </div>
                   <div className="theme-text-muted flex items-start gap-2 text-sm">
-                    <span className="flex-shrink-0 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">2</span>
+                    <span className="theme-badge-accent flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold">2</span>
                     <span>{t('apiKeyGuide.zhipuSection.step2')}</span>
                   </div>
                   <div className="theme-text-muted flex items-start gap-2 text-sm">
-                    <span className="flex-shrink-0 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">3</span>
+                    <span className="theme-badge-accent flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold">3</span>
                     <span>{t('apiKeyGuide.zhipuSection.step3')}</span>
                   </div>
                   <div className="theme-text-muted flex items-start gap-2 text-sm">
-                    <span className="flex-shrink-0 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">4</span>
+                    <span className="theme-badge-accent flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold">4</span>
                     <span>{t('apiKeyGuide.zhipuSection.step4')}</span>
                   </div>
                 </div>

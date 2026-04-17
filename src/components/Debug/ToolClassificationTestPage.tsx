@@ -162,19 +162,19 @@ export const ToolClassificationTestPage: React.FC = () => {
     testResults.length > 0 ? Math.max(...testResults.map((r) => r.latency)) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="theme-backdrop-strong fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="theme-surface-info flex h-10 w-10 items-center justify-center rounded-lg">
+              <Zap className="theme-text-info h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              <h2 className="theme-text text-xl font-semibold">
                 工具分类系统测试
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="theme-text-subtle text-sm">
                 三层分类架构测试 (Layer 1/2/3)
               </p>
             </div>
@@ -184,20 +184,20 @@ export const ToolClassificationTestPage: React.FC = () => {
           {testResults.length > 0 && (
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1.5">
-                <Target className="w-4 h-4 text-green-500" />
-                <span className="text-gray-600 dark:text-gray-400">
-                  通过: <span className="font-semibold text-green-600">{passCount}</span>
+                <Target className="theme-text-success h-4 w-4" />
+                <span className="theme-text-subtle">
+                  通过: <span className="theme-text-success font-semibold">{passCount}</span>
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-full bg-red-500" />
-                <span className="text-gray-600 dark:text-gray-400">
-                  失败: <span className="font-semibold text-red-600">{failCount}</span>
+                <div className="theme-surface-danger h-4 w-4 rounded-full" />
+                <span className="theme-text-subtle">
+                  失败: <span className="theme-text-danger font-semibold">{failCount}</span>
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-blue-500" />
-                <span className="text-gray-600 dark:text-gray-400">
+                <Clock className="theme-text-info h-4 w-4" />
+                <span className="theme-text-subtle">
                   平均: <span className="font-mono">{avgLatency.toFixed(1)}ms</span>
                 </span>
               </div>
@@ -206,9 +206,9 @@ export const ToolClassificationTestPage: React.FC = () => {
 
           <button
             onClick={closeToolClassificationTest}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            className="theme-button-ghost rounded-lg p-2"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="theme-text-subtle h-5 w-5" />
           </button>
         </div>
 
@@ -217,20 +217,20 @@ export const ToolClassificationTestPage: React.FC = () => {
           {testResults.length === 0 ? (
             /* 空状态 */
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-                <Zap className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <div className="theme-surface-info mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+                <Zap className="theme-text-info h-8 w-8" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              <h3 className="theme-text mb-2 text-lg font-semibold">
                 工具分类系统测试
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
+              <p className="theme-text-subtle mb-6 max-w-md">
                 运行预定义测试用例验证三层分类架构的正确性和性能
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={runQuickTest}
                   disabled={isRunning}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="theme-button-primary flex items-center gap-2 rounded-lg px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="w-4 h-4" />
                   快速测试 (10个)
@@ -238,14 +238,14 @@ export const ToolClassificationTestPage: React.FC = () => {
                 <button
                   onClick={runAllTests}
                   disabled={isRunning}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="theme-button-success flex items-center gap-2 rounded-lg px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="w-4 h-4" />
                   完整测试 ({testCases.length}个)
                 </button>
               </div>
               {isRunning && (
-                <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+                <div className="theme-text-subtle mt-4 flex items-center gap-2 text-sm">
                   <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <span>测试运行中...</span>
                 </div>
@@ -259,7 +259,7 @@ export const ToolClassificationTestPage: React.FC = () => {
                 <button
                   onClick={runQuickTest}
                   disabled={isRunning}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="theme-button-primary flex items-center gap-2 rounded-lg px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="w-4 h-4" />
                   快速测试
@@ -267,7 +267,7 @@ export const ToolClassificationTestPage: React.FC = () => {
                 <button
                   onClick={runAllTests}
                   disabled={isRunning}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="theme-button-success flex items-center gap-2 rounded-lg px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="w-4 h-4" />
                   完整测试
@@ -275,7 +275,7 @@ export const ToolClassificationTestPage: React.FC = () => {
                 <button
                   onClick={() => setTestResults([])}
                   disabled={isRunning}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  className="theme-button-secondary flex items-center gap-2 rounded-lg px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <RotateCcw className="w-4 h-4" />
                   清空结果
@@ -283,52 +283,52 @@ export const ToolClassificationTestPage: React.FC = () => {
               </div>
 
               {/* 结果表格 */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="theme-border overflow-hidden rounded-lg border">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+                  <thead className="theme-panel-muted">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                      <th className="theme-text-muted px-4 py-3 text-left font-medium">
                         输入
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                      <th className="theme-text-muted px-4 py-3 text-left font-medium">
                         层级
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                      <th className="theme-text-muted px-4 py-3 text-left font-medium">
                         类别
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                      <th className="theme-text-muted px-4 py-3 text-left font-medium">
                         置信度
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                      <th className="theme-text-muted px-4 py-3 text-left font-medium">
                         延迟
                       </th>
-                      <th className="px-4 py-3 text-left font-medium text-gray-700 dark:text-gray-300">
+                      <th className="theme-text-muted px-4 py-3 text-left font-medium">
                         状态
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="divide-y divide-[var(--border-color)]">
                     {testResults.map((result, index) => (
                       <tr
                         key={index}
-                        className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer ${
-                          selectedIndex === index ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        className={`theme-hoverable cursor-pointer ${
+                          selectedIndex === index ? 'bg-blue-500/10' : ''
                         }`}
                         onClick={() => setSelectedIndex(index)}
                       >
                         <td className="px-4 py-3">
-                          <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                          <code className="theme-code-inline rounded px-2 py-1 text-xs">
                             {result.input}
                           </code>
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                            className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium ${
                               result.result.layer === 'layer1'
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                ? 'theme-badge-success'
                                 : result.result.layer === 'layer2'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                ? 'theme-badge-info'
+                                : 'border-purple-500/20 bg-purple-500/10 text-purple-500'
                             }`}
                           >
                             {result.result.layer === 'layer1'
@@ -339,12 +339,12 @@ export const ToolClassificationTestPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                          <span className="theme-text-subtle text-xs">
                             {result.result.category}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs font-mono">
+                          <span className="theme-text text-xs font-mono">
                             {(result.result.confidence * 100).toFixed(0)}%
                           </span>
                         </td>
@@ -352,10 +352,10 @@ export const ToolClassificationTestPage: React.FC = () => {
                           <span
                             className={`text-xs font-mono ${
                               result.latency > 100
-                                ? 'text-red-600'
+                                ? 'theme-text-danger'
                                 : result.latency > 20
-                                ? 'text-yellow-600'
-                                : 'text-green-600'
+                                  ? 'theme-text-warning'
+                                  : 'theme-text-success'
                             }`}
                           >
                             {result.latency.toFixed(1)}ms
@@ -363,13 +363,13 @@ export const ToolClassificationTestPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-3">
                           {result.success ? (
-                            <span className="inline-flex items-center gap-1 text-green-600">
-                              <div className="w-2 h-2 rounded-full bg-green-500" />
+                            <span className="theme-text-success inline-flex items-center gap-1">
+                              <div className="h-2 w-2 rounded-full bg-green-500" />
                               通过
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-red-600">
-                              <div className="w-2 h-2 rounded-full bg-red-500" />
+                            <span className="theme-text-danger inline-flex items-center gap-1">
+                              <div className="h-2 w-2 rounded-full bg-red-500" />
                               失败
                             </span>
                           )}
@@ -382,11 +382,11 @@ export const ToolClassificationTestPage: React.FC = () => {
 
               {/* 详细信息 */}
               {selectedIndex >= 0 && testResults[selectedIndex] && (
-                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <div className="theme-panel-muted theme-border rounded-lg border p-4">
+                  <h4 className="theme-text-muted mb-2 text-sm font-medium">
                     详细信息
                   </h4>
-                  <pre className="text-xs bg-gray-100 dark:bg-gray-900 p-3 rounded overflow-auto">
+                  <pre className="theme-code-surface theme-border overflow-auto rounded border p-3 text-xs">
                     {JSON.stringify(testResults[selectedIndex], null, 2)}
                   </pre>
                 </div>

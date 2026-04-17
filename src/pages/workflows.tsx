@@ -335,10 +335,10 @@ export function WorkflowsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-1 rounded text-xs ${
+                      className={`rounded px-2 py-1 text-xs ${
                         workflow.status === 'completed'
-                          ? 'bg-green-500 text-white'
-                          : 'bg-red-500 text-white'
+                          ? 'theme-badge-success'
+                          : 'theme-badge-danger'
                       }`}
                     >
                       {workflow.status === 'completed' ? '成功' : '失败'}

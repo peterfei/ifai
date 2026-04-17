@@ -48,19 +48,19 @@ export function ConversationSummary({
   };
 
   return (
-    <div className="my-4 rounded-lg border border-blue-500/20 bg-blue-500/10">
+    <div className="theme-surface-accent my-4 rounded-lg">
       {/* 头部 */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-blue-500/10"
+        className="theme-soft-hover-accent flex w-full items-center justify-between px-4 py-3"
       >
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-blue-500" />
+          <FileText className="theme-text-accent h-4 w-4" />
           <span className="theme-text font-medium">
             {t('conversation.summary.title')}
           </span>
           {timestamp && (
-            <span className="text-xs text-blue-500">
+            <span className="theme-text-accent text-xs">
               {new Date(timestamp * 1000).toLocaleString()}
             </span>
           )}
@@ -72,7 +72,7 @@ export function ConversationSummary({
               e.stopPropagation();
               handleCopy();
             }}
-            className="rounded p-1 text-blue-500 transition-colors hover:bg-blue-500/10 hover:text-blue-600"
+            className="theme-soft-hover-accent theme-text-accent rounded p-1 transition-colors"
             title={copied ? t('conversation.summary.copied') : t('conversation.summary.copy')}
           >
             <Copy className="h-4 w-4" />
@@ -83,7 +83,7 @@ export function ConversationSummary({
                 e.stopPropagation();
                 onExport();
               }}
-              className="rounded p-1 text-blue-500 transition-colors hover:bg-blue-500/10 hover:text-blue-600"
+              className="theme-soft-hover-accent theme-text-accent rounded p-1 transition-colors"
               title={t('conversation.summary.export')}
             >
               <Download className="h-4 w-4" />
@@ -91,9 +91,9 @@ export function ConversationSummary({
           )}
           {/* 展开/折叠按钮 */}
           {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-blue-500" />
+            <ChevronUp className="theme-text-accent h-4 w-4" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-blue-500" />
+            <ChevronDown className="theme-text-accent h-4 w-4" />
           )}
         </div>
       </button>

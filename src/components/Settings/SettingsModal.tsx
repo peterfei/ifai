@@ -218,8 +218,8 @@ export const SettingsModal = () => {
             {activeTab === 'ai' && (
               <div className="space-y-6">
                 {/* 当前激活的供应商提示 */}
-                <div className={dark ? 'flex items-center rounded border border-blue-700/50 bg-blue-900/20 px-3 py-2' : 'flex items-center rounded border border-blue-200 bg-blue-50 px-3 py-2'}>
-                    <span className={dark ? 'text-xs text-blue-300' : 'text-xs text-blue-700'}>
+                <div className="theme-surface-info flex items-center rounded px-3 py-2">
+                    <span className="theme-text-info text-xs">
                         {t('settings.currentActive')}：<strong>{getProviderName(settings.currentProviderId, settings.providers.find(p => p.id === settings.currentProviderId)?.name || t('settings.notSelected'))}</strong>
                         ({t('settings.modelLabel')}：{settings.currentModel})
                     </span>
@@ -244,10 +244,10 @@ export const SettingsModal = () => {
                                   <div className="flex items-center">
                                       <span className="theme-text font-semibold">{getProviderName(provider.id, provider.name)}</span>
                                       {isCurrent && (
-                                          <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">{t('settings.current')}</span>
+                                          <span className="theme-badge-accent ml-2 rounded px-2 py-0.5 text-xs">{t('settings.current')}</span>
                                       )}
                                       {hasApiKey && !isCurrent && (
-                                          <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
+                                          <span className="theme-badge-success ml-2 rounded px-2 py-0.5 text-xs">已配置</span>
                                       )}
                                   </div>
                                   <div className="flex items-center">
@@ -276,7 +276,7 @@ export const SettingsModal = () => {
                                               placeholder={t('settings.apiKeyFor', { providerName: getProviderName(provider.id, provider.name) })}
                                           />
                                           {hasApiKey && (
-                                              <div className="mt-1 text-xs text-green-400">
+                                              <div className="theme-text-success mt-1 text-xs">
                                                   ✓ {t('settings.apiKeyConfigured')} - {isCurrent ? t('settings.currentlyActiveLabel') : t('settings.clickToSetDefault')}
                                               </div>
                                           )}
@@ -339,11 +339,11 @@ export const SettingsModal = () => {
                                           {provider.displayName || provider.name}
                                         </span>
                                         {isCurrent && (
-                                            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+                                            <span className="theme-badge-accent ml-2 rounded px-2 py-0.5 text-xs">当前</span>
                                         )}
                                         <span className="ml-2 px-2 py-0.5 text-xs bg-purple-600/50 text-purple-300 rounded">{t('settings.custom')}</span>
                                         {hasApiKey && !isCurrent && (
-                                            <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
+                                            <span className="theme-badge-success ml-2 rounded px-2 py-0.5 text-xs">已配置</span>
                                         )}
                                     </div>
                                     <div className="flex items-center">

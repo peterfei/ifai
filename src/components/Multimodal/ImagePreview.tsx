@@ -34,18 +34,18 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
     switch (status) {
       case 'pending':
       case 'uploading':
-        return <Loader2 size={16} className="animate-spin text-blue-400" />;
+        return <Loader2 size={16} className="theme-text-accent animate-spin" />;
       case 'ready':
         return null;
       case 'error':
-        return <AlertCircle size={16} className="text-red-400" />;
+        return <AlertCircle size={16} className="theme-text-danger" />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="theme-panel-muted theme-border group relative inline-flex flex-col items-start gap-2 rounded-lg border p-2 transition-colors hover:border-blue-500/50">
+    <div className="theme-panel-muted theme-border group relative inline-flex flex-col items-start gap-2 rounded-lg border p-2 transition-colors hover:border-[var(--accent-soft-border)]">
       {/* 图片预览 */}
       <div className="relative">
         <img
@@ -56,13 +56,13 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
         {/* 状态遮罩 */}
         {(status === 'pending' || status === 'uploading') && (
           <div className="absolute inset-0 bg-black/50 rounded flex items-center justify-center">
-            <Loader2 size={24} className="animate-spin text-blue-400" />
+            <Loader2 size={24} className="theme-text-accent animate-spin" />
           </div>
         )}
         {/* 错误遮罩 */}
         {status === 'error' && (
           <div className="absolute inset-0 bg-black/50 rounded flex items-center justify-center">
-            <AlertCircle size={24} className="text-red-400" />
+            <AlertCircle size={24} className="theme-text-danger" />
           </div>
         )}
       </div>
@@ -79,7 +79,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
 
       {/* 错误信息 */}
       {error && (
-        <div className="text-xs text-red-400 truncate max-w-[200px]" title={error}>
+        <div className="theme-text-danger max-w-[200px] truncate text-xs" title={error}>
           {error}
         </div>
       )}
@@ -87,7 +87,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
       {/* 删除按钮 */}
       <button
         onClick={() => onRemove(id)}
-        className="absolute -top-2 -right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        className="theme-button-danger absolute -top-2 -right-2 rounded-full p-1 opacity-0 transition-opacity group-hover:opacity-100"
         title="删除图片"
       >
         <X size={14} />

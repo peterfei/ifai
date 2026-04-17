@@ -94,7 +94,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className={`p-1 rounded-md ${stage === 'idle' ? 'bg-blue-500/20 text-blue-400' : 'theme-panel-muted theme-text-muted'}`}>
+            <div className={`p-1 rounded-md ${stage === 'idle' ? 'theme-badge-accent' : 'theme-panel-muted theme-text-muted'}`}>
               <Sparkles size={14} className={isLoading ? "animate-pulse" : ""} />
             </div>
             <span className="theme-text-subtle text-[11px] font-bold uppercase tracking-widest">
@@ -105,7 +105,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
             {currentFilePath && (
               <div className="theme-panel-muted theme-border flex items-center gap-1 ml-2 rounded border px-1.5 py-0.5">
                 <span className="theme-text-subtle text-[9px]">Target:</span>
-                <span className="text-[9px] text-blue-400/60 font-mono truncate max-w-[120px]">
+                <span className="theme-text-accent max-w-[120px] truncate text-[9px] font-mono">
                   {currentFilePath.split('/').pop()}
                 </span>
               </div>
@@ -141,7 +141,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
             onChange={(e) => setInputValue(e.target.value)}
             disabled={isLoading}
             data-testid="inline-ai-input"
-            className="theme-input-surface theme-border theme-text w-full resize-none overflow-hidden rounded-lg border px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10"
+            className="theme-input-surface theme-border theme-focus-accent theme-text w-full resize-none overflow-hidden rounded-lg border px-3 py-2.5 text-sm transition-all"
             placeholder="Optimize this, add comments, or ask questions..."
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -175,14 +175,14 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
               exit={{ height: 0, opacity: 0 }}
               className="theme-border mt-3 flex items-center justify-between border-t pt-3"
             >
-              <div className="flex items-center gap-2 text-[10px] text-emerald-400/80 font-medium">
+              <div className="theme-text-success flex items-center gap-2 text-[10px] font-medium">
                 <CheckCircle2 size={12} />
                 Changes applied successfully
               </div>
               <div className="flex items-center gap-2">
                 <button 
                   onClick={onClose}
-                  className="px-3 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition-all border border-emerald-500/20 flex items-center gap-1.5"
+                  className="theme-button-success flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-bold transition-all"
                 >
                   <Zap size={12} />
                   Accept & Close
@@ -206,7 +206,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
             >
               {isLoading ? (
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-blue-500/10 text-[10px] font-bold text-blue-400">
+                  <div className="theme-badge-accent flex items-center gap-2 rounded-full px-2 py-1 text-[10px] font-bold">
                     <Loader2 size={10} className="animate-spin" />
                     Processing
                   </div>
@@ -214,7 +214,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
                     <motion.div 
                       animate={{ x: ['-100%', '100%'] }}
                       transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                      className="h-full w-1/3 bg-blue-500/40 rounded-full"
+                      className="h-full w-1/3 rounded-full bg-[var(--accent-soft-border)]"
                     />
                   </div>
                 </div>
@@ -227,13 +227,13 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={onClose}
-                      className="theme-button-secondary rounded-lg border border-red-500/10 px-3 py-1.5 text-xs font-bold transition-all hover:bg-red-500/10 hover:text-red-400"
+                      className="theme-button-secondary rounded-lg border border-[var(--danger-soft-border)] px-3 py-1.5 text-xs font-bold transition-all hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
                     >
                       Discard
                     </button>
                     <button 
                       onClick={() => onSubmit('__ACCEPT_ALL__')}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-1.5"
+                      className="theme-button-primary theme-glow-accent flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
                     >
                       <CheckCircle2 size={12} />
                       Accept <span className="opacity-50 text-[10px]">⌘↵</span>

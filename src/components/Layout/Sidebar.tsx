@@ -195,8 +195,8 @@ export const Sidebar = () => {
             <div className="relative z-10">
               <Cpu size={20} />
               {!IS_COMMERCIAL && (
-                <div className={clsx('absolute -top-1 -right-1 rounded-full border bg-amber-500 p-0.5', dark ? 'border-black/40' : 'border-white/70')}>
-                  <Lock size={6} className="text-white" />
+                <div className="theme-border absolute -top-1 -right-1 rounded-full border bg-amber-500 p-0.5 shadow-sm">
+                  <Lock size={6} className="text-[var(--bg-primary)]" />
                 </div>
               )}
             </div>

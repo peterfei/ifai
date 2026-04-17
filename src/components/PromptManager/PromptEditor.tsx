@@ -156,10 +156,10 @@ export const PromptEditor: React.FC = () => {
   // Double check structure
   if (!selectedPrompt.metadata) {
       return (
-          <div className="flex flex-1 flex-col items-center justify-center bg-red-500/10 p-4 text-red-500">
+          <div className="theme-surface-danger flex flex-1 flex-col items-center justify-center p-4">
               <AlertTriangle size={32} className="mb-4" />
-              <p className="font-bold">Invalid Prompt Data</p>
-              <p className="text-xs mt-2 opacity-70">Metadata field is missing in the backend response.</p>
+              <p className="theme-text-danger font-bold">Invalid Prompt Data</p>
+              <p className="theme-text-danger mt-2 text-xs opacity-80">Metadata field is missing in the backend response.</p>
           </div>
       );
   }
@@ -170,22 +170,22 @@ export const PromptEditor: React.FC = () => {
   return (
     <div className="theme-panel flex-1 flex flex-col h-full shadow-inner">
       {!canEdit && (
-          <div className="flex items-center justify-between border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-600">
+          <div className="theme-surface-warning flex items-center justify-between border-b px-4 py-2 text-xs">
               <div className="flex items-center gap-2">
                   <Lock size={12} />
                   <span>提示词编辑功能仅在<b>商业版</b>中可用</span>
               </div>
               <button 
                 onClick={() => window.open('https://ifai.dev/pricing')}
-                className="bg-amber-600 hover:bg-amber-700 text-white px-2 py-0.5 rounded text-[10px] font-bold transition-colors"
+                className="theme-button-secondary rounded px-2 py-0.5 text-[10px] font-bold text-amber-500 hover:text-amber-600"
               >
                 了解更多
               </button>
           </div>
       )}
       {canEdit && isBuiltin && (
-          <div className="flex items-center gap-2 border-b border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-[10px] text-blue-500">
-              <span className="bg-blue-500 text-white px-1 rounded-sm font-bold">INFO</span>
+          <div className="theme-surface-info flex items-center gap-2 border-b px-4 py-1.5 text-[10px]">
+              <span className="theme-badge-info rounded-sm px-1 font-bold">INFO</span>
               This is a built-in system prompt. Saving will create a project-specific override.
           </div>
       )}
@@ -206,7 +206,7 @@ export const PromptEditor: React.FC = () => {
         </div>
         <div className="flex items-center space-x-2">
             {isReadOnly && (
-                <span className="rounded bg-yellow-500/10 px-2 py-1 font-mono text-[10px] text-yellow-600">
+                <span className="theme-badge-warning rounded px-2 py-1 font-mono text-[10px]">
                     READ-ONLY
                 </span>
             )}

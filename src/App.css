@@ -43,6 +43,16 @@ html, body, #root {
   --warning-color: #facc15;
   --danger-color: #f87171;
   --danger-hover: #ef4444;
+  --accent-soft-bg: rgba(37, 99, 235, 0.16);
+  --accent-soft-border: rgba(37, 99, 235, 0.32);
+  --info-soft-bg: rgba(96, 165, 250, 0.16);
+  --info-soft-border: rgba(96, 165, 250, 0.32);
+  --success-soft-bg: rgba(52, 211, 153, 0.16);
+  --success-soft-border: rgba(52, 211, 153, 0.32);
+  --warning-soft-bg: rgba(250, 204, 21, 0.16);
+  --warning-soft-border: rgba(250, 204, 21, 0.32);
+  --danger-soft-bg: rgba(248, 113, 113, 0.16);
+  --danger-soft-border: rgba(248, 113, 113, 0.32);
   --app-shadow: 0 18px 48px rgba(15, 23, 42, 0.32);
 }
 
@@ -81,6 +91,16 @@ html[data-theme='light'] {
   --warning-color: #ca8a04;
   --danger-color: #dc2626;
   --danger-hover: #b91c1c;
+  --accent-soft-bg: rgba(37, 99, 235, 0.08);
+  --accent-soft-border: rgba(37, 99, 235, 0.18);
+  --info-soft-bg: rgba(37, 99, 235, 0.08);
+  --info-soft-border: rgba(37, 99, 235, 0.18);
+  --success-soft-bg: rgba(5, 150, 105, 0.09);
+  --success-soft-border: rgba(5, 150, 105, 0.18);
+  --warning-soft-bg: rgba(202, 138, 4, 0.1);
+  --warning-soft-border: rgba(202, 138, 4, 0.2);
+  --danger-soft-bg: rgba(220, 38, 38, 0.08);
+  --danger-soft-border: rgba(220, 38, 38, 0.18);
   --app-shadow: 0 18px 48px rgba(148, 163, 184, 0.28);
 }
 
@@ -154,6 +174,26 @@ html[data-theme='light'] {
   color: var(--text-subtle);
 }
 
+.theme-text-accent {
+  color: var(--accent-color);
+}
+
+.theme-text-info {
+  color: var(--info-color);
+}
+
+.theme-text-success {
+  color: var(--success-color);
+}
+
+.theme-text-warning {
+  color: var(--warning-color);
+}
+
+.theme-text-danger {
+  color: var(--danger-color);
+}
+
 .theme-hoverable {
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
@@ -225,6 +265,38 @@ html[data-theme='light'] {
   color: var(--text-primary);
 }
 
+.theme-selection-accent {
+  background: var(--selected-bg);
+  border-color: var(--accent-soft-border);
+  color: var(--accent-color);
+}
+
+.theme-soft-hover-accent {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-soft-hover-accent:hover {
+  background: var(--accent-soft-bg);
+  color: var(--accent-color);
+}
+
+.theme-dropzone-accent {
+  background: var(--accent-soft-bg);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.theme-focus-accent:focus,
+.theme-focus-accent:focus-visible {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px var(--accent-soft-bg);
+}
+
+.theme-glow-accent {
+  box-shadow: 0 0 20px var(--accent-soft-border);
+}
+
 .theme-code-surface {
   background: var(--code-bg);
   color: var(--text-secondary);
@@ -234,6 +306,54 @@ html[data-theme='light'] {
 .theme-code-inline {
   background: var(--code-inline-bg);
   color: var(--text-primary);
+}
+
+.theme-surface-accent,
+.theme-surface-info,
+.theme-surface-success,
+.theme-surface-warning,
+.theme-surface-danger,
+.theme-badge-accent,
+.theme-badge-info,
+.theme-badge-success,
+.theme-badge-warning,
+.theme-badge-danger {
+  border: 1px solid transparent;
+}
+
+.theme-surface-accent,
+.theme-badge-accent {
+  background: var(--accent-soft-bg);
+  border-color: var(--accent-soft-border);
+  color: var(--accent-color);
+}
+
+.theme-surface-info,
+.theme-badge-info {
+  background: var(--info-soft-bg);
+  border-color: var(--info-soft-border);
+  color: var(--info-color);
+}
+
+.theme-surface-success,
+.theme-badge-success {
+  background: var(--success-soft-bg);
+  border-color: var(--success-soft-border);
+  color: var(--success-color);
+}
+
+.theme-surface-warning,
+.theme-badge-warning {
+  background: var(--warning-soft-bg);
+  border-color: var(--warning-soft-border);
+  color: var(--warning-color);
+}
+
+.theme-surface-danger,
+.theme-badge-danger {
+  background: var(--danger-soft-bg);
+  border-color: var(--danger-soft-border);
+  color: var(--danger-color);
 }
 
 .theme-checkbox-input {
@@ -250,6 +370,13 @@ html[data-theme='light'] {
 
 .theme-toggle-track[data-active='true'] {
   background: var(--accent-color);
+}
+
+.theme-toggle-thumb {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.24);
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .theme-shadow {

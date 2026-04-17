@@ -43,7 +43,7 @@ export const SkillsSettings: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-2">
-                    <Puzzle size={20} className="text-blue-400" />
+                    <Puzzle size={20} className="theme-text-accent" />
                     <h3 className="theme-text text-lg font-medium">技能中心 (Skills Center)</h3>
                 </div>
                 <button 
@@ -93,13 +93,13 @@ export const SkillsSettings: React.FC = () => {
                             className={clsx(
                                 "flex items-start gap-4 p-4 rounded-lg border transition-all",
                                 isActive 
-                                    ? "theme-panel-elevated border-blue-500/50 shadow-lg shadow-blue-500/5" 
+                                    ? "theme-panel-elevated border-[var(--accent-soft-border)] shadow-[0_12px_24px_var(--accent-soft-bg)]" 
                                     : "theme-panel-muted theme-border hover:border-[var(--border-strong)]"
                             )}
                         >
                             <div className={clsx(
                                 "p-2 rounded-md",
-                                isActive ? "bg-blue-500/20 text-blue-400" : "theme-input-surface theme-text-subtle"
+                                isActive ? "theme-badge-accent" : "theme-input-surface theme-text-subtle"
                             )}>
                                 <Puzzle size={24} />
                             </div>
@@ -125,7 +125,7 @@ export const SkillsSettings: React.FC = () => {
                                 >
                                     <span
                                         className={clsx(
-                                            "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                                            "theme-toggle-thumb inline-block h-3 w-3 transform rounded-full",
                                             isActive ? "translate-x-6" : "translate-x-1"
                                         )}
                                     />

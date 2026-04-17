@@ -94,7 +94,7 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
         disabled={disabled || feedbackGiven === 'positive'}
         className={`p-1 rounded transition-colors ${
           feedbackGiven === 'positive'
-            ? 'bg-green-600 text-white'
+            ? 'theme-badge-success'
             : 'theme-text-subtle hover:text-green-400 hover:bg-[var(--hover-bg)]'
         }`}
         title="分类正确"
@@ -107,7 +107,7 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
         disabled={disabled || feedbackGiven === 'negative'}
         className={`p-1 rounded transition-colors ${
           feedbackGiven === 'negative'
-            ? 'bg-red-600 text-white'
+            ? 'theme-badge-danger'
             : 'theme-text-subtle hover:text-red-400 hover:bg-[var(--hover-bg)]'
         }`}
         title="分类错误"

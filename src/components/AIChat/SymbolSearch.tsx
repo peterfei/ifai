@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Code, Box, Search, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Code, Box, Loader2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '../../stores/fileStore';
 import clsx from 'clsx';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
 
 interface SymbolInfo {
   name: string;
@@ -26,8 +24,6 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
   const [results, setResults] = useState<SymbolInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   
   const activeFileId = useFileStore(s => s.activeFileId);
   const openedFiles = useFileStore(s => s.openedFiles);
@@ -90,14 +86,14 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
   return (
     <div 
       data-testid="symbol-mention-panel"
-      className="absolute bottom-full left-0 mb-2 w-80 theme-panel-elevated backdrop-blur-xl border border-blue-500/20 rounded-xl theme-shadow overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50"
+      className="theme-panel-elevated theme-border theme-shadow absolute bottom-full left-0 mb-2 z-50 w-80 overflow-hidden rounded-xl border backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2"
     >
-      <div className="p-2 border-b theme-border bg-blue-500/10 flex items-center justify-between">
+      <div className="theme-panel-muted theme-border flex items-center justify-between border-b p-2">
         <div className="flex items-center gap-2">
-          <Code size={12} className="text-blue-400" />
-          <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">引用符号 (#)</span>
+          <Code size={12} className="theme-text-accent" />
+          <span className="theme-text-accent text-[10px] font-bold uppercase tracking-wider">引用符号 (#)</span>
         </div>
-        {loading && <Loader2 size={10} className="text-blue-400 animate-spin" />}
+        {loading && <Loader2 size={10} className="theme-text-accent animate-spin" />}
       </div>
       <div className="max-h-60 overflow-y-auto py-1">
         {results.length === 0 && !loading ? (
@@ -113,15 +109,15 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
               className={clsx(
                 "px-3 py-2 flex items-center gap-3 cursor-pointer transition-all duration-200",
                 index === selectedIndex
-                  ? 'bg-blue-500/10 border-l-2 border-blue-500'
+                  ? 'theme-selection-accent border-l-2'
                   : 'theme-soft-hover border-l-2 border-transparent'
               )}
             >
               <div className={clsx(
-                "p-1.5 rounded-lg",
+                "p-1.5 rounded-lg border",
                 index === selectedIndex
-                  ? 'bg-blue-500 text-white'
-                  : 'theme-panel-muted theme-text-subtle'
+                  ? 'theme-button-primary border-transparent'
+                  : 'theme-panel-muted theme-border theme-text-subtle'
               )}>
                 {symbol.kind === 'Class' || symbol.kind === 'Structure' ? <Box size={14} /> : <Code size={14} />}
               </div>

@@ -361,7 +361,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 1: Main TaskMonitor */}
       <DemoSection
         title="TaskMonitor - 主监控视图"
-        icon={<Layers size={16} className="text-[#569cd6]" />}
+        icon={<Layers size={16} className="theme-text-info" />}
         description="完整的任务监控界面，包含筛选、过滤和汇总"
       >
         <TaskMonitor
@@ -375,7 +375,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 2: TaskStats */}
       <DemoSection
         title="TaskStats - 统计图表"
-        icon={<BarChart3 size={16} className="text-[#4ec9b0]" />}
+        icon={<BarChart3 size={16} className="theme-text-success" />}
         description="任务执行统计和性能指标"
       >
         <TaskStats
@@ -389,7 +389,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 3: TaskTimeline */}
       <DemoSection
         title="TaskTimeline - 执行时间线"
-        icon={<Clock size={16} className="text-[#dcdcaa]" />}
+        icon={<Clock size={16} className="theme-text-warning" />}
         description="任务执行历史和时间线视图"
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -419,7 +419,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 4: TaskCard Variants */}
       <DemoSection
         title="TaskCard - 卡片变体"
-        icon={<FileText size={16} className="text-[#ce9178]" />}
+        icon={<FileText size={16} className="text-orange-400" />}
         description="不同显示模式的任务卡片"
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -456,7 +456,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 5: Progress Bars */}
       <DemoSection
         title="ProgressBar - 进度条"
-        icon={<Settings size={16} className="text-[#569cd6]" />}
+        icon={<Settings size={16} className="theme-text-info" />}
         description="各种进度条样式和动画"
       >
         <div className="space-y-6">
@@ -526,7 +526,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 6: Status Badges */}
       <DemoSection
         title="TaskStatusBadge - 状态徽章"
-        icon={<Settings size={16} className="text-[#4ec9b0]" />}
+        icon={<Settings size={16} className="theme-text-success" />}
         description="所有状态和尺寸的徽章"
       >
         <div className="space-y-4">
@@ -587,7 +587,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 7: Log Components */}
       <DemoSection
         title="日志组件"
-        icon={<FileText size={16} className="text-[#dcdcaa]" />}
+        icon={<FileText size={16} className="theme-text-warning" />}
         description="TaskLogStream 和 TaskLogCompact"
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

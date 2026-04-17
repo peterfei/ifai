@@ -89,13 +89,13 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
             onClick={() => onSelect(file)}
             className={clsx(
               "px-3 py-2 flex items-center gap-3 cursor-pointer transition-all duration-200",
-              index === selectedIndex ? "bg-blue-600/15 border-l-2 border-blue-500" : "theme-soft-hover border-l-2 border-transparent"
+              index === selectedIndex ? "theme-selection-accent border-l-2" : "theme-soft-hover border-l-2 border-transparent"
             )}
           >
             <div className={clsx(
               "p-1.5 rounded-lg border",
               index === selectedIndex
-                ? "bg-blue-500 border-blue-500 text-white"
+                ? "theme-button-primary border-transparent"
                 : "theme-panel-muted theme-border theme-text-subtle"
             )}>
               <File size={14} />
@@ -104,7 +104,7 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
               <span className={clsx(
                 "text-sm truncate",
                 index === selectedIndex
-                  ? "text-blue-500 font-medium"
+                  ? "theme-text-accent font-medium"
                   : "theme-text"
               )}>
                 {file.split('/').pop()}
