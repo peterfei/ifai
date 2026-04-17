@@ -8,6 +8,7 @@ pub mod validator;
 pub mod scheduler;
 pub mod runner;
 pub mod executor;
+pub mod prompt_loader;  // 🔥 添加提示词加载器模块
 pub mod tools;  // 🔥 添加工具模块
 pub mod tool_loop;  // 🔥 添加工具调用循环模块
 
