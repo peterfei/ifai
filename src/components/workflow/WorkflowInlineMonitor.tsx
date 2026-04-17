@@ -2164,16 +2164,17 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     //   workflowSessionId: workflowState?.sessionId,
     //   activeThreadId,
     //   belongsToCurrentThread
-    });
+    // });
 
     return belongsToCurrentThread;
   });
 
-  console.log('[WorkflowInlineMonitorContainer] 📊 Filtered workflows:', {
-    total: activeWorkflows.length,
-    filtered: filteredWorkflows.length,
-    filteredIds: filteredWorkflows
-  });
+  // 🔥 FIX: 移除高频过滤结果日志
+  // console.log('[WorkflowInlineMonitorContainer] 📊 Filtered workflows:', {
+  //   total: activeWorkflows.length,
+  //   filtered: filteredWorkflows.length,
+  //   filteredIds: filteredWorkflows
+  // });
 
   // 🔥 FIX: 如果过滤后没有活跃的工作流，返回 null
   if (filteredWorkflows.length === 0) {
