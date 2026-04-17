@@ -738,8 +738,8 @@ export function WorkflowInlineMonitor({
   embedded = false,
   onComplete
 }: WorkflowInlineMonitorProps) {
-  // 🔥 DEBUG: 添加组件挂载日志
-  console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId, 'embedded:', embedded);
+  // 🔥 FIX: 移除高频组件调用日志
+  // console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId, 'embedded:', embedded);
 
   // 🔥 内嵌模式：使用传入的参数，不从全局状态获取
   const actualWorkflowId = embedded && correlationId ? correlationId : workflowId;
@@ -1884,8 +1884,8 @@ export function WorkflowInlineMonitor({
 
 // 🔥 CRITICAL FIX: 使用 React.memo 防止不必要的重新渲染
 const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContainer() {
-  // 🔥 DEBUG: 添加组件挂载日志
-  console.log('[WorkflowInlineMonitorContainer] 🔧 Component function called');
+  // 🔥 FIX: 移除高频组件调用日志
+  // console.log('[WorkflowInlineMonitorContainer] 🔧 Component function called');
 
   const [activeWorkflows, setActiveWorkflows] = useState<string[]>(() => {
     // 🔥 CRITICAL FIX: 初始化时从全局状态获取
@@ -2148,8 +2148,8 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
 
   // 🔥 FIX: 如果没有活跃的工作流，返回 null
   if (activeWorkflows.length === 0) {
-    // 🔥 FIX: 保留警告日志，有助于调试
-    console.log('[WorkflowInlineMonitorContainer] ⚠️ No active workflows, returning null');
+    // 🔥 FIX: 移除高频警告日志，避免控制台刷屏
+    // console.log('[WorkflowInlineMonitorContainer] ⚠️ No active workflows, returning null');
     return null;
   }
 
@@ -2178,7 +2178,8 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
 
   // 🔥 FIX: 如果过滤后没有活跃的工作流，返回 null
   if (filteredWorkflows.length === 0) {
-    console.log('[WorkflowInlineMonitorContainer] ⚠️ No workflows for current thread, returning null');
+    // 🔥 FIX: 移除高频警告日志，避免控制台刷屏
+    // console.log('[WorkflowInlineMonitorContainer] ⚠️ No workflows for current thread, returning null');
     return null;
   }
 
