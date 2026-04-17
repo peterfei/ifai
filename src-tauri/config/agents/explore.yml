@@ -1,0 +1,65 @@
+# Explore Scanner 配置
+# SmartScanner 极简元编程框架
+
+scanner:
+  # 并行扫描
+  parallel: true
+
+  # 最大深度
+  max_depth: 3
+
+  # 最大文件数
+  max_files: 10000
+
+progress:
+  # 进度更新间隔
+  interval: 100ms
+
+  # 节流策略 (throttle | debounce | none)
+  strategy: throttle
+
+cache:
+  # 是否启用缓存
+  enabled: true
+
+  # 缓存策略 (lru | fifo | none)
+  strategy: lru
+
+  # 缓存容量
+  capacity: 100
+
+  # 缓存 TTL（秒）
+  ttl: 3600
+
+filters:
+  # 忽略的目录
+  ignore:
+    - node_modules
+    - target
+    - dist
+    - build
+    - .git
+    - vendor
+    - env
+    - venv
+    - __pycache__
+    - .next
+    - .nuxt
+    - coverage
+
+  # 包含的文件模式
+  include:
+    - "*.rs"
+    - "*.ts"
+    - "*.tsx"
+    - "*.js"
+    - "*.jsx"
+    - "*.md"
+    - "*.toml"
+    - "*.yaml"
+    - "*.yml"
+    - "*.go"
+    - "*.py"
+    - "package.json"
+    - "Cargo.toml"
+    - "go.mod"

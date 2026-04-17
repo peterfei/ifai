@@ -32,6 +32,8 @@ mod multimodal; // v0.3.0 新增：多模态功能
 pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
 mod tool_classification; // v0.3.3 新增：工具分类系统
 mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实后端访问）
+mod meta; // v0.5.0 新增：极简元编程框架 (SmartScanner)
+mod scanners; // v0.5.0 新增：扫描器实现
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
