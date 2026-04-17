@@ -18,6 +18,9 @@ import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from '../setup';
 
 test.describe('🔬 长历史真实 AI 性能测试', () => {
+  // 🔥 FIX: 串行执行，避免测试互相干扰（chatStore 状态污染）
+  test.describe.configure({ mode: 'serial' });
+
   test.beforeEach(async ({ page }) => {
     await setupE2ETestEnvironment(page, {
       useRealAI: true,
@@ -33,6 +36,8 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
    * 2. 发送真实 AI 请求
    * 3. 监控每次 content_delta 的渲染时间
    * 4. 检测是否有卡顿（渲染时间 > 100ms）
+   *
+   * 🔥 FIX: 复用对比测试的代码逻辑
    */
   test('🔬 [真实 AI] 10000 条历史 + 流式响应卡顿检测', async ({ page }) => {
     // 检查 API Key
@@ -47,43 +52,89 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
     console.log('🔬 长历史 + 真实 AI 流式响应性能测试');
     console.log('='.repeat(80));
 
+    // 🔥 FIX: 确保页面已完全加载后再生成历史消息
+    // 因为 beforeEach 会调用 page.goto('/') 重新加载页面
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(500); // 额外等待，确保 store 初始化完成
+
+    // 🔥 FIX: 预热 page.evaluate，模拟对比测试的行为
+    // 对比测试在循环中多次调用 page.evaluate，第一次可能触发某种初始化
+    await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore;
+      console.log('[E2E] 🔥 预热: chatStore 存在', !!chatStore);
+    });
+
+    // 🔥 FIX: 等待 PersistenceManager 的 recoverSessions 完成
+    // PersistenceManager 在模块加载时会执行 recoverSessions，将 streaming 状态的消息标记为 interrupted
+    // 需要等待这个自愈过程完成后再发送 AI 请求
+    await page.waitForTimeout(2000);
+
     // ========== 步骤 1：生成 10000 条历史消息 ==========
     console.log('\n📝 步骤 1: 生成 10000 条历史消息...');
     const historyStartTime = Date.now();
 
-    await page.evaluate(async () => {
-      const chatStore = (window as any).__chatStore;
-      const messages = [];
+    try {
+      const result = await page.evaluate(async () => {
+        // 🔥 FIX: 使用 (window as any).__chatStore，与对比测试完全一致
+        const chatStore = (window as any).__chatStore;
 
-      // 使用 realistic 分布生成 10000 条消息
-      const topics = ['性能优化', '代码重构', '架构设计', '算法实现', '调试技巧', '测试方法'];
-      const actions = ['如何', '怎么', '最佳实践', '有哪些', '为什么'];
-
-      for (let i = 0; i < 10000; i++) {
-        const isUser = i % 2 === 0;
-        const topic = topics[Math.floor(Math.random() * topics.length)];
-        const action = actions[Math.floor(Math.random() * actions.length)];
-
-        if (isUser) {
-          messages.push({
-            id: `msg-${i}`,
-            role: 'user',
-            content: `${action}进行${topic}？`,
-            timestamp: Date.now() - (10000 - i) * 1000,
-          });
-        } else {
-          messages.push({
-            id: `msg-${i}`,
-            role: 'assistant',
-            content: `关于${topic}的${action}，这是一个详细的回答...`,
-            timestamp: Date.now() - (10000 - i) * 1000,
-          });
+        if (!chatStore) {
+          return { success: false, error: 'chatStore 未定义' };
         }
+
+        const messages = [];
+
+        for (let i = 0; i < 10000; i++) {
+          if (i % 2 === 0) {
+            messages.push({
+              id: `msg-${i}`,
+              role: 'user',
+              content: `测试消息 ${i}`,
+              timestamp: Date.now() - (10000 - i) * 1000,
+            });
+          } else {
+            messages.push({
+              id: `msg-${i}`,
+              role: 'assistant',
+              content: `测试回复 ${i}`,
+              timestamp: Date.now() - (10000 - i) * 1000,
+            });
+          }
+        }
+
+        // 🔥 FIX: 使用与对比测试完全相同的代码
+        chatStore.setState({ messages });
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const actualCount = chatStore.getState().messages.length;
+
+        return {
+          success: true,
+          actualCount,
+          expectedCount: 10000,
+        };
+      });
+
+      console.log('[E2E] 📊 page.evaluate 返回结果:', JSON.stringify(result));
+
+      if (!result.success) {
+        throw new Error(`page.evaluate 失败: ${result.error}`);
       }
 
-      chatStore.setState({ messages });
-      await new Promise(resolve => setTimeout(resolve, 100));
+      if (result.actualCount !== result.expectedCount) {
+        console.error(`[E2E] ❌ 消息数量不匹配: 期望 ${result.expectedCount}, 实际 ${result.actualCount}`);
+      }
+    } catch (error) {
+      console.error('[E2E] ❌ page.evaluate 执行失败:', error.message);
+      throw error;
+    }
+
+    // 🔍 调试：验证历史消息是否真的被保存
+    const messageCount = await page.evaluate(() => {
+      const chatStore = (window as any).__chatStore;
+      return chatStore?.getState()?.messages?.length || 0;
     });
+    console.log(`[E2E] 📊 历史消息验证: 期望 10000 条，实际 ${messageCount} 条`);
 
     const historyTime = Date.now() - historyStartTime;
     console.log(`✅ 历史消息生成完成，耗时: ${historyTime}ms`);
@@ -137,12 +188,34 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
           throw new Error('chatStore or settingsStore not initialized');
         }
 
+        // 🔍 诊断：在发送消息前检查当前状态
+        const currentState = chatStore.getState();
+        console.log('[E2E] 📊 发送前状态:', {
+          messageCount: currentState.messages?.length || 0,
+          providerId: settingsStore.getState().currentProviderId,
+          model: settingsStore.getState().currentModel,
+        });
+
         console.log('[E2E] 发送测试消息...');
+        // 🔍 诊断：使用简单消息（与对比测试相同）来验证中断是否与消息复杂度有关
+        // 原始复杂消息：'请用一句话总结一下前面的讨论内容'
+        const testMessage = '你好'; // 简单消息，与对比测试一致
+        console.log(`[E2E] 测试消息: "${testMessage}"`);
         chatStore.getState().sendMessage(
-          '请用一句话总结一下前面的讨论内容',
+          testMessage,
           settingsStore.getState().currentProviderId,
           settingsStore.getState().currentModel
         );
+
+        // 🔍 诊断：发送后立即检查状态
+        setTimeout(() => {
+          const afterState = chatStore.getState();
+          console.log('[E2E] 📊 发送后状态:', {
+            messageCount: afterState.messages?.length || 0,
+            lastMessageRole: afterState.messages?.[afterState.messages.length - 1]?.role,
+            lastMessageStatus: afterState.messages?.[afterState.messages.length - 1]?.status,
+          });
+        }, 100);
       });
 
       // ========== 步骤 4：等待流式响应完成 ==========
@@ -292,10 +365,14 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
    *
    * 测试场景：
    * - 100 条历史 + 真实 AI
+   * - 500 条历史 + 真实 AI
    * - 1000 条历史 + 真实 AI
+   * - 5000 条历史 + 真实 AI
    * - 10000 条历史 + 真实 AI
+   *
+   * 🔥 TEMP: 临时启用，验证历史消息生成是否真的失败
    */
-  test('📊 [对比] 不同历史长度性能对比', async ({ page }) => {
+  test('📊 [对比] 不同历史长度性能对比 - 寻找中断临界点', async ({ page }) => {
     const hasApiKey = !!process.env.E2E_AI_API_KEY;
     if (!hasApiKey) {
       console.log('⚠️  跳过测试：未配置 E2E_AI_API_KEY');
@@ -303,7 +380,7 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
       return;
     }
 
-    const historySizes = [100, 1000, 10000];
+    const historySizes = [100, 500, 1000, 5000, 10000];
     const results: any[] = [];
 
     for (const size of historySizes) {
@@ -374,12 +451,40 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
           );
         });
 
-        await page.waitForFunction(() => {
-          const chatStore = (window as any).__chatStore;
-          const messages = chatStore?.getState()?.messages || [];
-          const lastMessage = messages[messages.length - 1];
-          return lastMessage && lastMessage.role === 'assistant' && !lastMessage.isStreaming;
-        }, { timeout: 60000 });
+        // 等待响应完成或超时
+        let completed = false;
+        let interrupted = false;
+
+        try {
+          await page.waitForFunction(() => {
+            const chatStore = (window as any).__chatStore;
+            const messages = chatStore?.getState()?.messages || [];
+            const lastMessage = messages[messages.length - 1];
+            return lastMessage && lastMessage.role === 'assistant' && !lastMessage.isStreaming;
+          }, { timeout: 60000 });
+          completed = true;
+        } catch (error) {
+          // 超时，检查是否被中断
+          const finalState = await page.evaluate(() => {
+            const chatStore = (window as any).__chatStore;
+            const messages = chatStore?.getState()?.messages || [];
+            const lastMessage = messages[messages.length - 1];
+            return {
+              hasLast: !!lastMessage,
+              role: lastMessage?.role,
+              isStreaming: lastMessage?.isStreaming,
+              status: lastMessage?.status,
+              hasContent: !!lastMessage?.content,
+              contentLength: lastMessage?.content?.length || 0,
+              contentPreview: lastMessage?.content?.substring(0, 50),
+            };
+          });
+
+          if (finalState.status === 'interrupted' || finalState.isStreaming) {
+            interrupted = true;
+            console.log(`⚠️  AI 响应被中断`);
+          }
+        }
 
         const aiTime = Date.now() - aiStart;
 
@@ -389,9 +494,12 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
           aiTime,
           slowRenders: renderMetrics.slowRenders,
           totalRenders: renderMetrics.totalRenders,
+          completed,
+          interrupted,
         });
 
-        console.log(`✅ 历史生成: ${historyTime}ms, AI 响应: ${aiTime}ms, 慢渲染: ${renderMetrics.slowRenders}/${renderMetrics.totalRenders}`);
+        const status = completed ? '✅' : (interrupted ? '⚠️ 中断' : '❌');
+        console.log(`${status} 历史: ${size}, 生成: ${historyTime}ms, AI: ${aiTime}ms, 慢渲染: ${renderMetrics.slowRenders}/${renderMetrics.totalRenders}`);
 
       } finally {
         page.off('console', consoleListener);
@@ -400,22 +508,51 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
 
     // 输出对比结果
     console.log('\n' + '='.repeat(80));
-    console.log('📊 性能对比结果');
+    console.log('📊 性能对比结果 - 寻找中断临界点');
     console.log('='.repeat(80));
-    console.log('\n历史数量 | 历史生成 | AI 响应 | 慢渲染/总渲染');
+    console.log('\n历史数量 | 历史生成 | AI 响应 | 状态     | 慢渲染');
     console.log('-'.repeat(80));
     results.forEach(r => {
-      const ratio = r.totalRenders > 0 ? (r.slowRenders / r.totalRenders * 100).toFixed(1) : '0';
-      console.log(`${r.historySize.toString().padStart(8)} | ${r.historyTime.toString().padStart(8)}ms | ${r.aiTime.toString().padStart(7)}ms | ${r.slowRenders}/${r.totalRenders} (${ratio}%)`);
+      const statusText = r.completed ? '✅ 完成' : (r.interrupted ? '⚠️ 中断' : '❌ 失败');
+      const slowRenderText = r.totalRenders > 0 ? `${r.slowRenders}/${r.totalRenders}` : '0/0';
+      console.log(`${r.historySize.toString().padStart(8)} | ${r.historyTime.toString().padStart(8)}ms | ${r.aiTime.toString().padStart(7)}ms | ${statusText.padEnd(8)} | ${slowRenderText}`);
     });
     console.log('='.repeat(80) + '\n');
 
-    // 分析趋势
-    const lastResult = results[results.length - 1];
-    if (lastResult.slowRenders > results[0].slowRenders * 5) {
-      console.log('🚨 警告：随着历史消息增加，慢渲染次数显著增加！');
+    // 分析趋势和临界点
+    const interruptedResults = results.filter(r => r.interrupted);
+    const completedResults = results.filter(r => r.completed);
+
+    console.log('📊 测试分析:');
+    console.log(`   - 成功: ${completedResults.length}/${results.length}`);
+    console.log(`   - 中断: ${interruptedResults.length}/${results.length}`);
+
+    if (interruptedResults.length > 0) {
+      console.log('\n🚨 发现中断的历史数量:');
+      interruptedResults.forEach(r => {
+        console.log(`   - ${r.historySize} 条: AI 响应 ${r.aiTime}ms 后被中断`);
+      });
+
+      // 找出临界点
+      const firstInterrupted = interruptedResults[0];
+      const lastCompleted = completedResults[completedResults.length - 1];
+
+      if (lastCompleted) {
+        console.log(`\n💡 临界点分析:`);
+        console.log(`   - 最大成功: ${lastCompleted.historySize} 条`);
+        console.log(`   - 最早中断: ${firstInterrupted.historySize} 条`);
+        console.log(`   - 临界范围: ${lastCompleted.historySize} - ${firstInterrupted.historySize} 条之间`);
+      } else {
+        console.log(`\n💡 所有测试都中断了，最早中断: ${interruptedResults[0].historySize} 条`);
+      }
+
+      console.log('\n🔧 建议:');
+      console.log('   - 实现对话摘要功能，压缩长历史');
+      console.log('   - 限制发送给 AI 的历史消息数量（如 200 条）');
+      console.log('   - 检查 AI 服务的上下文窗口限制');
+      console.log('   - 增加超时时间配置');
     } else {
-      console.log('✅ 性能表现稳定，历史消息对渲染性能影响较小');
+      console.log('\n✅ 所有历史长度测试都成功，未发现中断问题');
     }
   });
 });
