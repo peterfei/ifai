@@ -160,13 +160,10 @@ impl ApiClient for DeepSeekClient {
                             let frame = String::from_utf8_lossy(&frame_bytes);
                             frame_count += 1;
 
-                            // 🔥 DIAGNOSTIC: 打印原始帧内容（前5帧和每10帧）
-                            if frame_count <= 5 || frame_count % 10 == 0 {
-                                println!("[DeepSeek] 📨 Frame {}: {} bytes, preview=\"{}\"",
-                                    frame_count,
-                                    frame_bytes.len(),
-                                    frame.chars().take(80).collect::<String>()
-                                );
+                            // 🔥 FIX: 移除高频日志，避免流式输出卡顿
+                            // 仅保留前 3 帧用于连接诊断
+                            if frame_count <= 3 {
+                                println!("[DeepSeek] 📨 Frame {}: {} bytes", frame_count, frame_bytes.len());
                             }
 
                             if let Ok(Some(data)) = parse_openai_frame(&frame) {
@@ -176,14 +173,14 @@ impl ApiClient for DeepSeekClient {
                                         for tc in tool_calls {
                                             let index = tc.index;
 
-                                            // 🔥 DIAGNOSTIC: 打印工具调用详情
-                                            println!("[DeepSeek] 🔧 Tool call delta: index={}, id={:?}, name={:?}, args={:?}",
-                                                index,
-                                                tc.id,
-                                                tc.function.as_ref().and_then(|f| f.name.as_ref()),
-                                                tc.function.as_ref().and_then(|f| f.arguments.as_ref())
-                                                    .map(|a| a.chars().take(50).collect::<String>())
-                                            );
+                                            // 🔥 FIX: 移除高频日志
+                                            // println!("[DeepSeek] 🔧 Tool call delta: index={}, id={:?}, name={:?}, args={:?}",
+                                            //     index,
+                                            //     tc.id,
+                                            //     tc.function.as_ref().and_then(|f| f.name.as_ref()),
+                                            //     tc.function.as_ref().and_then(|f| f.arguments.as_ref())
+                                            //         .map(|a| a.chars().take(50).collect::<String>())
+                                            // );
 
                                             // 发送 ToolStart 事件（仅一次）
                                             if !tool_started.get(&index).unwrap_or(&false) {
@@ -195,7 +192,8 @@ impl ApiClient for DeepSeekClient {
                                                     });
                                                     tool_started.insert(index, true);
                                                     tool_args_buffer.insert(index, (id.clone(), String::new()));
-                                                    println!("[DeepSeek] ✅ ToolStart sent: index={}, id={}, name={}", index, id, name);
+                                                    // 🔥 FIX: 移除高频日志
+                                                    // println!("[DeepSeek] ✅ ToolStart sent: index={}, id={}, name={}", index, id, name);
                                                 }
                                             }
 
@@ -203,11 +201,10 @@ impl ApiClient for DeepSeekClient {
                                             if let Some(func) = &tc.function {
                                                 if let Some(args) = &func.arguments {
                                                     if let Some((tool_id, current)) = tool_args_buffer.get_mut(&index) {
-                                                        let before_len = current.len();
                                                         current.push_str(args);
-                                                        let after_len = current.len();
-                                                        println!("[DeepSeek] 📝 Args accumulated: index={}, tool_id={}, added={}, total={}",
-                                                            index, tool_id, after_len - before_len, after_len);
+                                                        // 🔥 FIX: 移除高频日志
+                                                        // println!("[DeepSeek] 📝 Args accumulated: index={}, tool_id={}, added={}, total={}",
+                                                        //     index, tool_id, after_len - before_len, after_len);
                                                     }
                                                 }
                                             }
@@ -221,12 +218,12 @@ impl ApiClient for DeepSeekClient {
                                     if let Some(reason) = &choice.finish_reason {
                                         last_finish_reason = Some(reason.clone());
 
-                                        // 🔥 DIAGNOSTIC: 打印 finish_reason 和工具状态
-                                        println!("[DeepSeek] 🏁 Finish reason: {}, pending_tools={}, tool_args_buffer_keys={:?}",
-                                            reason,
-                                            tool_started.len(),
-                                            tool_args_buffer.keys().collect::<Vec<_>>()
-                                        );
+                                        // 🔥 FIX: 移除高频日志
+                                        // println!("[DeepSeek] 🏁 Finish reason: {}, pending_tools={}, tool_args_buffer_keys={:?}",
+                                        //     reason,
+                                        //     tool_started.len(),
+                                        //     tool_args_buffer.keys().collect::<Vec<_>>()
+                                        // );
 
                                         // 发送所有累积的工具参数
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {

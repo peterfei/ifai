@@ -382,13 +382,8 @@ impl AIService for HarnessAIService {
                             crate::harness::api::StreamEvent::TextDelta { text } => {
                                 loop_text.push_str(&text);
 
-                                // 🔥 FIX: 移除过度日志（减少内存占用）
-                                // 只在每 500 个 delta 时打印一次
-                                if global_delta_index % 500 == 0 {
-                                    println!("[AI] 📝 TextDelta: loop={}, idx={}, len={}",
-                                        loop_count, global_delta_index, text.len()
-                                    );
-                                }
+                                // 🔥 FIX: 完全移除 TextDelta 日志，避免流式输出卡顿
+                                // 参考 claw-code 的零日志策略
 
                                 // 🔥 FIX: 使用全局 delta_index，确保跨整个 continuation 流单调递增
                                 let chunk = json!({
