@@ -72,18 +72,18 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
       case 'rejected':
         return {
           icon: <XCircle size={14} />,
-          color: 'text-gray-400',
-          bgColor: 'bg-gray-500/10',
-          borderColor: 'border-gray-500/20',
+          color: 'theme-text-subtle',
+          bgColor: 'theme-panel-muted',
+          borderColor: 'theme-border',
           label: '已拒绝',
           pulse: false,
         };
       default:
         return {
           icon: <AlertCircle size={14} />,
-          color: 'text-gray-400',
-          bgColor: 'bg-gray-500/10',
-          borderColor: 'border-gray-500/20',
+          color: 'theme-text-subtle',
+          bgColor: 'theme-panel-muted',
+          borderColor: 'theme-border',
           label: '未知',
           pulse: false,
         };
@@ -100,7 +100,7 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
           {config.label}
         </span>
         {progress !== undefined && (
-          <span className="text-[10px] text-gray-500 ml-auto">
+          <span className="text-[10px] theme-text-subtle ml-auto">
             {progress}%
           </span>
         )}
@@ -118,7 +118,7 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
             {config.label}
           </div>
           {message && (
-            <div className="text-[10px] text-gray-500 mt-0.5">
+            <div className="text-[10px] theme-text-subtle mt-0.5">
               {message}
             </div>
           )}
@@ -142,10 +142,10 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
       {progress !== undefined && status === 'running' && (
         <div className="px-4">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-500">执行进度</span>
+            <span className="text-[10px] theme-text-subtle">执行进度</span>
             <span className="text-[10px] font-mono text-blue-400">{progress}%</span>
           </div>
-          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-1.5 theme-panel-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
@@ -162,9 +162,9 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
               <div className={`w-3 h-3 rounded-full border ${
                 idx < Math.floor(progress / 33)
                   ? 'bg-blue-400 border-blue-400'
-                  : 'border-gray-600 bg-transparent'
+                  : 'theme-border bg-transparent'
               }`} />
-              <span className={idx < Math.floor(progress / 33) ? 'text-gray-400' : 'text-gray-600'}>
+              <span className={idx < Math.floor(progress / 33) ? 'theme-text-muted' : 'theme-text-subtle'}>
                 {step}
               </span>
             </div>
@@ -183,11 +183,11 @@ export const StreamingContentLoader: React.FC<{ fileName?: string }> = ({ fileNa
     <div className="flex items-center gap-3 px-4 py-3 bg-blue-500/5 rounded-xl border border-blue-500/20 animate-pulse">
       <Loader2 size={16} className="text-blue-400 animate-spin" />
       <div className="flex-1">
-        <div className="text-[11px] font-medium text-blue-300">
+        <div className="text-[11px] font-medium text-blue-500">
           正在生成内容...
         </div>
         {fileName && (
-          <div className="text-[10px] text-gray-500 mt-0.5 font-mono">
+          <div className="text-[10px] theme-text-subtle mt-0.5 font-mono">
             {fileName}
           </div>
         )}

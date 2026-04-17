@@ -31,13 +31,13 @@ interface ToolClassificationIndicatorProps {
 function getLayerIcon(layer: ClassificationLayer): string {
   switch (layer) {
     case 'layer1':
-      return '🎯'; // 精确匹配
+      return 'L1';
     case 'layer2':
-      return '🤔'; // 规则分类
+      return 'L2';
     case 'layer3':
-      return '🧠'; // LLM 分类
+      return 'L3';
     default:
-      return '❓';
+      return '?';
   }
 }
 
@@ -87,7 +87,7 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
   };
 
   return (
-    <div className="flex items-center gap-1 ml-2 border-l border-gray-700 pl-2">
+    <div className="theme-border ml-2 flex items-center gap-1 border-l pl-2">
       <button
         onClick={handlePositive}
         data-testid="feedback-correct"
@@ -95,7 +95,7 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
         className={`p-1 rounded transition-colors ${
           feedbackGiven === 'positive'
             ? 'bg-green-600 text-white'
-            : 'text-gray-500 hover:text-green-400 hover:bg-gray-800'
+            : 'theme-text-subtle hover:text-green-400 hover:bg-[var(--hover-bg)]'
         }`}
         title="分类正确"
       >
@@ -108,7 +108,7 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
         className={`p-1 rounded transition-colors ${
           feedbackGiven === 'negative'
             ? 'bg-red-600 text-white'
-            : 'text-gray-500 hover:text-red-400 hover:bg-gray-800'
+            : 'theme-text-subtle hover:text-red-400 hover:bg-[var(--hover-bg)]'
         }`}
         title="分类错误"
       >
@@ -203,7 +203,7 @@ export const ToolClassificationIndicator: React.FC<ToolClassificationIndicatorPr
     >
       {/* 加载状态 */}
       {isLoading && (
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-500 italic">
+        <div className="theme-text-subtle flex items-center gap-1.5 text-[10px] italic">
           <Loader2 className="w-2.5 h-2.5 animate-spin" />
           <span>Thinking...</span>
         </div>
@@ -229,10 +229,10 @@ export const ToolClassificationIndicator: React.FC<ToolClassificationIndicatorPr
           <ClassificationBadge result={result} compact showConfidence={false} />
 
           {/* 性能指标：合并显示 */}
-          <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500/80">
+          <div className="theme-text-subtle flex items-center gap-2 text-[10px] font-bold">
             <span>{(result.confidence * 100).toFixed(0)}%</span>
             {latency > 0 && (
-              <span className={latency > 100 ? 'text-red-500/60' : 'text-gray-500/60'}>
+              <span className={latency > 100 ? 'text-red-500/70' : 'theme-text-subtle'}>
                 {latency.toFixed(0)}ms
               </span>
             )}

@@ -19,15 +19,15 @@ export const ModeSwitch: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center bg-[#1e1e1e]/80 backdrop-blur-md p-1 rounded-full border border-gray-700/50 shadow-inner">
+    <div className="theme-glass theme-border theme-shadow flex items-center rounded-full border p-1 backdrop-blur-md">
       <button
         onClick={() => handleModeChange('vibe')}
         data-testid="mode-toggle-vibe"
         className={clsx(
-          "relative flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-500 overflow-hidden",
+          'theme-soft-hover relative flex items-center gap-2 overflow-hidden rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-500',
           editorMode === 'vibe' 
-            ? "text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]" 
-            : "text-gray-500 hover:text-gray-300"
+            ? 'text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+            : 'theme-text-subtle hover:text-[var(--text-primary)]'
         )}
       >
         {editorMode === 'vibe' && (
@@ -41,10 +41,10 @@ export const ModeSwitch: React.FC = () => {
         onClick={() => handleModeChange('spec')}
         data-testid="mode-toggle-spec"
         className={clsx(
-          "relative flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-500 overflow-hidden",
+          'theme-soft-hover relative flex items-center gap-2 overflow-hidden rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-500',
           editorMode === 'spec' 
-            ? "text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]" 
-            : "text-gray-500 hover:text-gray-300"
+            ? 'text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]'
+            : 'theme-text-subtle hover:text-[var(--text-primary)]'
         )}
       >
         {editorMode === 'spec' && (

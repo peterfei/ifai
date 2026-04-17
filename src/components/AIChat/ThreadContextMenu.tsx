@@ -27,6 +27,7 @@ import {
 import { useThreadStore } from '../../stores/threadStore';
 import type { Thread } from '../../stores/threadStore';
 import { toast } from 'sonner';
+import clsx from 'clsx';
 
 interface ThreadContextMenuProps {
   x: number;
@@ -58,15 +59,12 @@ const ThreadDetailsDialog: React.FC<ThreadDetailsDialogProps> = ({ thread, onClo
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200"
+      className="theme-backdrop-strong fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="bg-[#252526] border border-gray-600/50 rounded-xl shadow-2xl p-6 min-w-[400px] max-w-[500px] animate-in zoom-in-95 duration-200"
+        className="theme-panel-elevated theme-border theme-shadow min-w-[400px] max-w-[500px] rounded-xl border p-6 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3)',
-        }}
       >
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
@@ -74,12 +72,12 @@ const ThreadDetailsDialog: React.FC<ThreadDetailsDialogProps> = ({ thread, onClo
             <MessageSquare size={20} className="text-blue-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white truncate">{thread.title}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">会话详情</p>
+            <h3 className="theme-text truncate text-lg font-semibold">{thread.title}</h3>
+            <p className="theme-text-subtle mt-0.5 text-xs">会话详情</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+            className="theme-button-ghost rounded-lg p-1.5"
             aria-label="关闭"
           >
             <X size={18} />
@@ -88,43 +86,43 @@ const ThreadDetailsDialog: React.FC<ThreadDetailsDialogProps> = ({ thread, onClo
 
         {/* Details */}
         <div className="space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
-            <Hash size={16} className="text-gray-500" />
+          <div className="theme-panel-muted flex items-center gap-3 rounded-lg p-3">
+            <Hash size={16} className="theme-text-subtle" />
             <div className="flex-1">
-              <div className="text-xs text-gray-500">会话 ID</div>
-              <div className="text-sm text-gray-300 font-mono">{thread.id.slice(0, 8)}...</div>
+              <div className="theme-text-subtle text-xs">会话 ID</div>
+              <div className="theme-text font-mono text-sm">{thread.id.slice(0, 8)}...</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
-            <MessageSquare size={16} className="text-gray-500" />
+          <div className="theme-panel-muted flex items-center gap-3 rounded-lg p-3">
+            <MessageSquare size={16} className="theme-text-subtle" />
             <div className="flex-1">
-              <div className="text-xs text-gray-500">消息数量</div>
-              <div className="text-sm text-gray-300">{thread.messageCount} 条</div>
+              <div className="theme-text-subtle text-xs">消息数量</div>
+              <div className="theme-text text-sm">{thread.messageCount} 条</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
-            <Clock size={16} className="text-gray-500" />
+          <div className="theme-panel-muted flex items-center gap-3 rounded-lg p-3">
+            <Clock size={16} className="theme-text-subtle" />
             <div className="flex-1">
-              <div className="text-xs text-gray-500">创建时间</div>
-              <div className="text-sm text-gray-300">{formatTimestamp(thread.createdAt)}</div>
+              <div className="theme-text-subtle text-xs">创建时间</div>
+              <div className="theme-text text-sm">{formatTimestamp(thread.createdAt)}</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
-            <Clock size={16} className="text-gray-500" />
+          <div className="theme-panel-muted flex items-center gap-3 rounded-lg p-3">
+            <Clock size={16} className="theme-text-subtle" />
             <div className="flex-1">
-              <div className="text-xs text-gray-500">最后活跃</div>
-              <div className="text-sm text-gray-300">{formatTimestamp(thread.lastActiveAt)}</div>
+              <div className="theme-text-subtle text-xs">最后活跃</div>
+              <div className="theme-text text-sm">{formatTimestamp(thread.lastActiveAt)}</div>
             </div>
           </div>
 
           {thread.tags && thread.tags.length > 0 && (
-            <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
-              <Tag size={16} className="text-gray-500" />
+            <div className="theme-panel-muted flex items-center gap-3 rounded-lg p-3">
+              <Tag size={16} className="theme-text-subtle" />
               <div className="flex-1">
-                <div className="text-xs text-gray-500">标签</div>
+                <div className="theme-text-subtle text-xs">标签</div>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {thread.tags.map((tag, index) => (
                     <span
@@ -140,9 +138,9 @@ const ThreadDetailsDialog: React.FC<ThreadDetailsDialogProps> = ({ thread, onClo
           )}
 
           {thread.description && (
-            <div className="p-3 bg-gray-900/50 rounded-lg">
-              <div className="text-xs text-gray-500 mb-1">描述</div>
-              <div className="text-sm text-gray-300">{thread.description}</div>
+            <div className="theme-panel-muted rounded-lg p-3">
+              <div className="theme-text-subtle mb-1 text-xs">描述</div>
+              <div className="theme-text text-sm">{thread.description}</div>
             </div>
           )}
         </div>
@@ -151,7 +149,7 @@ const ThreadDetailsDialog: React.FC<ThreadDetailsDialogProps> = ({ thread, onClo
         <div className="flex justify-end mt-5">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all duration-150"
+            className="theme-button-primary rounded-lg px-5 py-2.5 text-sm font-medium"
           >
             关闭
           </button>
@@ -275,7 +273,7 @@ export const ThreadContextMenu: React.FC<ThreadContextMenuProps> = ({
       {showDetails && <ThreadDetailsDialog thread={thread} onClose={() => setShowDetails(false)} />}
       <div
         ref={menuRef}
-        className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-48"
+        className="theme-panel-elevated theme-border theme-shadow fixed z-50 min-w-48 rounded-lg border py-1"
         style={{ left: pos.left, top: pos.top }}
       >
         {/* Rename */}
@@ -286,7 +284,7 @@ export const ThreadContextMenu: React.FC<ThreadContextMenuProps> = ({
           onClick={handleRename}
         />
 
-        <div className="my-1 border-t border-gray-700" />
+        <div className="theme-border my-1 border-t" />
 
         {/* Toggle Pin */}
         <MenuItem
@@ -302,7 +300,7 @@ export const ThreadContextMenu: React.FC<ThreadContextMenuProps> = ({
           onClick={handleAddTag}
         />
 
-        <div className="my-1 border-t border-gray-700" />
+        <div className="theme-border my-1 border-t" />
 
         {/* Copy Title */}
         <MenuItem
@@ -318,7 +316,7 @@ export const ThreadContextMenu: React.FC<ThreadContextMenuProps> = ({
           onClick={handleShowDetails}
         />
 
-        <div className="my-1 border-t border-gray-700" />
+        <div className="theme-border my-1 border-t" />
 
         {/* Delete */}
         <MenuItem
@@ -344,14 +342,14 @@ interface MenuItemProps {
 const MenuItem: React.FC<MenuItemProps> = ({ icon, label, onClick, className = '', shortcut }) => {
   return (
     <div
-      className={`px-3 py-2 text-sm flex items-center justify-between cursor-pointer text-gray-300 hover:bg-gray-700 hover:text-white ${className}`}
+      className={clsx('theme-hoverable theme-text-muted flex cursor-pointer items-center justify-between px-3 py-2 text-sm', className)}
       onClick={onClick}
     >
       <div className="flex items-center gap-2">
-        {icon && <span className="text-gray-400">{icon}</span>}
+        {icon && <span className="theme-text-subtle">{icon}</span>}
         <span>{label}</span>
       </div>
-      {shortcut && <span className="text-xs text-gray-500">{shortcut}</span>}
+      {shortcut && <span className="theme-text-subtle text-xs">{shortcut}</span>}
     </div>
   );
 };

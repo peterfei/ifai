@@ -12,12 +12,16 @@ import { TaskMonitor } from '../TaskMonitor/TaskMonitor';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { IS_COMMERCIAL } from '../../config/edition';
 import { FileNode } from '../../stores/types';
+import { isDarkTheme } from '../../utils/theme';
 
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { setFileTree, rootPath, fileTree, setExpandedNodes } = useFileStore();
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   const {
     sidebarActiveTab,
     setSidebarActiveTab,
@@ -101,12 +105,16 @@ export const Sidebar = () => {
   };
 
   return (
-    <div className="flex h-full border-r border-gray-700 bg-gray-900 flex-shrink-0 relative">
+    <div className={clsx(
+      'theme-panel-muted theme-border relative flex h-full flex-shrink-0 border-r transition-colors'
+    )}>
       {/* Activity Bar - Industrial Floating Capsule Design */}
       <div className="w-[64px] flex flex-col items-center py-4 bg-transparent relative z-20">
         <div 
           data-testid="activity-bar-capsule"
-          className="absolute inset-y-4 left-2 right-2 rounded-full bg-[#1e1e1e]/60 backdrop-blur-xl border border-white/5 shadow-2xl flex flex-col items-center py-4 gap-4"
+          className={clsx(
+            'theme-glass theme-border theme-shadow absolute inset-y-4 left-2 right-2 flex flex-col items-center gap-4 rounded-full border py-4 backdrop-blur-xl'
+          )}
         >
           {[
             { id: 'explorer', icon: Files, title: t('sidebar.explorer') },
@@ -121,7 +129,9 @@ export const Sidebar = () => {
                 key={tab.id}
                 className={clsx(
                   "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
-                  isActive ? "text-white" : "text-gray-500 hover:text-gray-300"
+                  isActive
+                    ? 'text-[var(--accent-color)]'
+                    : 'theme-text-subtle hover:text-[var(--text-primary)]'
                 )}
                 onClick={() => {
                   setSidebarActiveTab(tab.id as any);
@@ -134,7 +144,7 @@ export const Sidebar = () => {
                   <motion.div
                     layoutId="activity-active-pill"
                     data-testid="activity-active-pill"
-                    className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                    className="absolute inset-0 rounded-full border border-blue-500/25 bg-[var(--selected-bg)] shadow-[0_0_15px_rgba(37,99,235,0.18)]"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                   />
                 )}
@@ -149,7 +159,9 @@ export const Sidebar = () => {
             data-testid="tool-explorer-button"
             className={clsx(
               "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
-              isToolExplorerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
+              isToolExplorerOpen
+                ? 'text-[var(--accent-color)]'
+                : 'theme-text-subtle hover:text-[var(--text-primary)]'
             )}
             onClick={() => toggleToolExplorer()}
             title={String(t('sidebar.tools') || 'Tools')}
@@ -159,7 +171,7 @@ export const Sidebar = () => {
               <motion.div
                 layoutId="activity-active-pill"
                 data-testid="activity-active-pill"
-                className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                className="absolute inset-0 rounded-full border border-blue-500/25 bg-[var(--selected-bg)] shadow-[0_0_15px_rgba(37,99,235,0.18)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -170,7 +182,9 @@ export const Sidebar = () => {
             data-testid="prompt-manager-button"
             className={clsx(
               "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
-              isPromptManagerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
+              isPromptManagerOpen
+                ? 'text-[var(--accent-color)]'
+                : 'theme-text-subtle hover:text-[var(--text-primary)]'
             )}
             onClick={() => {
               togglePromptManager();
@@ -181,7 +195,7 @@ export const Sidebar = () => {
             <div className="relative z-10">
               <Cpu size={20} />
               {!IS_COMMERCIAL && (
-                <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5 border border-[#1e1e1e]">
+                <div className={clsx('absolute -top-1 -right-1 rounded-full border bg-amber-500 p-0.5', dark ? 'border-black/40' : 'border-white/70')}>
                   <Lock size={6} className="text-white" />
                 </div>
               )}
@@ -190,7 +204,7 @@ export const Sidebar = () => {
               <motion.div
                 layoutId="activity-active-pill"
                 data-testid="activity-active-pill"
-                className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                className="absolute inset-0 rounded-full border border-blue-500/25 bg-[var(--selected-bg)] shadow-[0_0_15px_rgba(37,99,235,0.18)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -200,14 +214,24 @@ export const Sidebar = () => {
 
       {/* Side Panel Content */}
       {!isPromptManagerOpen && (
-        <div className="flex flex-col h-full bg-gray-900 border-l border-white/5" style={{ width: `${sidebarWidth}px` }}>
+        <div
+          className={clsx(
+            'theme-panel theme-border flex h-full flex-col border-l transition-colors'
+          )}
+          style={{ width: `${sidebarWidth}px` }}
+        >
           {sidebarActiveTab === 'explorer' ? (
             <React.Fragment>
-              <div className="flex items-center justify-between px-4 h-9 border-b border-white/5 bg-gray-900/40 backdrop-blur-md" data-testid="sidebar-panel-header">
-                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.1em]">{String(t('sidebar.explorer'))}</span>
+              <div
+                className={clsx(
+                  'theme-glass theme-border flex h-9 items-center justify-between border-b px-4 backdrop-blur-md'
+                )}
+                data-testid="sidebar-panel-header"
+              >
+                <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-[0.1em]">{String(t('sidebar.explorer'))}</span>
                 <button
                   onClick={handleOpenFolder}
-                  className="p-1 text-gray-500 hover:text-white hover:bg-gray-800 rounded-md transition-colors"
+                  className="theme-hoverable theme-text-subtle rounded-md p-1 transition-colors"
                   title={String(t('editor.openFolder'))}
                 >
                   <FolderOpen size={14} />

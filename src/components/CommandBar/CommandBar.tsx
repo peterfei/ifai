@@ -10,6 +10,7 @@ import { X } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { getCommandLineCore } from '../../core/commandBar/bridge';
 import type { CommandResult, CommandSuggestion, CommandContext } from '../../core/commandBar/types';
 import { writeFileContent, readFileContent } from '../../utils/fileSystem';
@@ -22,6 +23,7 @@ export const CommandBar = () => {
   const { isCommandBarOpen, setCommandBarOpen, setSidebarActiveTab } = useLayoutStore();
   const { activeFileId, openedFiles, setFileDirty, rootPath } = useFileStore();
   const { getActiveEditor } = useEditorStore();
+  const theme = useSettingsStore(state => state.theme);
   const [input, setInput] = useState('');
   const [result, setResult] = useState<CommandResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -440,6 +442,7 @@ export const CommandBar = () => {
       className={`command-bar-overlay ${!isCommandBarOpen ? 'command-bar-hidden' : ''}`}
       onClick={handleClose}
       data-test-id="quick-command-bar"
+      data-theme={theme}
       style={{
         visibility: isCommandBarOpen ? 'visible' : 'hidden',
         opacity: isCommandBarOpen ? 1 : 0,

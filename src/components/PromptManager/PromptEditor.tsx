@@ -146,8 +146,8 @@ export const PromptEditor: React.FC = () => {
 
   if (!selectedPrompt) {
     return (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-800/20">
-            <div className="text-4xl mb-4 opacity-10">Select a prompt</div>
+        <div className="theme-panel theme-text-subtle flex flex-1 flex-col items-center justify-center">
+            <div className="mb-4 text-4xl opacity-10">Select a prompt</div>
             <p className="text-sm">Click a prompt on the left to start editing</p>
         </div>
     );
@@ -156,7 +156,7 @@ export const PromptEditor: React.FC = () => {
   // Double check structure
   if (!selectedPrompt.metadata) {
       return (
-          <div className="flex-1 flex flex-col items-center justify-center text-red-500 bg-red-50 dark:bg-red-900/10 p-4">
+          <div className="flex flex-1 flex-col items-center justify-center bg-red-500/10 p-4 text-red-500">
               <AlertTriangle size={32} className="mb-4" />
               <p className="font-bold">Invalid Prompt Data</p>
               <p className="text-xs mt-2 opacity-70">Metadata field is missing in the backend response.</p>
@@ -168,9 +168,9 @@ export const PromptEditor: React.FC = () => {
   const isReadOnly = !canEdit || (selectedPrompt.metadata.access_tier !== 'public' && !isBuiltin);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-800 shadow-inner">
+    <div className="theme-panel flex-1 flex flex-col h-full shadow-inner">
       {!canEdit && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-xs text-amber-700 dark:text-amber-300 border-b border-amber-100 dark:border-amber-900/50 flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-600">
               <div className="flex items-center gap-2">
                   <Lock size={12} />
                   <span>提示词编辑功能仅在<b>商业版</b>中可用</span>
@@ -184,21 +184,21 @@ export const PromptEditor: React.FC = () => {
           </div>
       )}
       {canEdit && isBuiltin && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-1.5 text-[10px] text-blue-700 dark:text-blue-300 border-b border-blue-100 dark:border-blue-900/50 flex items-center gap-2">
+          <div className="flex items-center gap-2 border-b border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-[10px] text-blue-500">
               <span className="bg-blue-500 text-white px-1 rounded-sm font-bold">INFO</span>
               This is a built-in system prompt. Saving will create a project-specific override.
           </div>
       )}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20">
+      <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-4 py-2">
         <div className="flex space-x-1">
             <button 
-                className={`px-4 py-1.5 text-xs font-semibold rounded-t-md transition-all ${activeTab === 'edit' ? 'bg-white dark:bg-gray-800 text-blue-600 border-x border-t border-gray-200 dark:border-gray-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`rounded-t-md px-4 py-1.5 text-xs font-semibold transition-all ${activeTab === 'edit' ? 'theme-panel theme-border border-x border-t text-blue-500 shadow-sm' : 'theme-text-subtle hover:text-[var(--text-primary)]'}`}
                 onClick={() => setActiveTab('edit')}
             >
                 Editor
             </button>
             <button 
-                className={`px-4 py-1.5 text-xs font-semibold rounded-t-md transition-all ${activeTab === 'preview' ? 'bg-white dark:bg-gray-800 text-blue-600 border-x border-t border-gray-200 dark:border-gray-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`rounded-t-md px-4 py-1.5 text-xs font-semibold transition-all ${activeTab === 'preview' ? 'theme-panel theme-border border-x border-t text-blue-500 shadow-sm' : 'theme-text-subtle hover:text-[var(--text-primary)]'}`}
                 onClick={() => setActiveTab('preview')}
             >
                 Preview
@@ -206,13 +206,13 @@ export const PromptEditor: React.FC = () => {
         </div>
         <div className="flex items-center space-x-2">
             {isReadOnly && (
-                <span className="text-[10px] text-yellow-600 dark:text-yellow-500 font-mono bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">
+                <span className="rounded bg-yellow-500/10 px-2 py-1 font-mono text-[10px] text-yellow-600">
                     READ-ONLY
                 </span>
             )}
             <button
                 onClick={() => setShowVersionHistory(true)}
-                className="p-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition-shadow shadow-sm active:shadow-none"
+                className="theme-button-secondary rounded p-1.5 transition-shadow shadow-sm active:shadow-none hover:text-blue-500"
                 title="版本历史"
                 data-testid="version-history-button"
             >
@@ -220,10 +220,10 @@ export const PromptEditor: React.FC = () => {
             </button>
             <button
                 onClick={() => setShowValidationPanel(!showValidationPanel)}
-                className={`p-1.5 rounded transition-shadow shadow-sm active:shadow-none ${
+                className={`rounded p-1.5 transition-shadow shadow-sm active:shadow-none ${
                   showValidationPanel
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    ? 'theme-button-success'
+                    : 'theme-button-secondary'
                 }`}
                 title="验证提示词"
                 data-testid="validation-toggle-button"
@@ -232,7 +232,7 @@ export const PromptEditor: React.FC = () => {
             </button>
             <button 
                 onClick={handleRun}
-                className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-shadow shadow-sm active:shadow-none"
+                className="theme-button-success rounded p-1.5 transition-shadow shadow-sm active:shadow-none"
                 title="Launch Agent"
             >
                 <Play size={14} fill="currentColor" />
@@ -240,7 +240,7 @@ export const PromptEditor: React.FC = () => {
             {!isReadOnly && (
                 <button 
                     onClick={handleSave}
-                    className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-all flex items-center gap-1.5 shadow-sm active:shadow-none"
+                    className="theme-button-primary flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-bold shadow-sm transition-all active:shadow-none"
                 >
                     <Save size={14} />
                     {isBuiltin ? '创建覆盖' : '保存'}
@@ -249,7 +249,7 @@ export const PromptEditor: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden relative flex flex-col bg-gray-50 dark:bg-gray-900/40">
+      <div className="theme-panel-muted relative flex flex-1 flex-col overflow-hidden">
           {activeTab === 'edit' ? (
               <div className="h-full">
                   <PromptMonacoEditor
@@ -261,22 +261,22 @@ export const PromptEditor: React.FC = () => {
                   />
               </div>
           ) : (
-              <div className="flex flex-col h-full bg-white dark:bg-[#1e1e1e]">
-                  <div className="p-3 bg-gray-100/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex gap-4 overflow-x-auto custom-scrollbar items-center">
-                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2">Variables</div>
+              <div className="theme-panel flex h-full flex-col">
+                  <div className="theme-panel-muted theme-border flex items-center gap-4 overflow-x-auto border-b p-3 custom-scrollbar">
+                      <div className="theme-text-subtle mr-2 text-[10px] font-bold uppercase tracking-widest">Variables</div>
                       {Object.entries(testVariables).map(([key, val]) => (
-                          <div key={key} className="flex items-center gap-2 bg-white dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 shadow-sm min-w-[120px]">
+                          <div key={key} className="theme-panel theme-border flex min-w-[120px] items-center gap-2 rounded border px-2 py-1 shadow-sm">
                               <label className="text-[10px] font-mono text-blue-500 whitespace-nowrap">{key}</label>
                               <input 
-                                className="bg-transparent border-none p-0 text-[10px] dark:text-white outline-none w-full"
+                                className="theme-text w-full bg-transparent border-none p-0 text-[10px] outline-none"
                                 value={val}
                                 onChange={e => setTestVariables({...testVariables, [key]: e.target.value})}
                               />
                           </div>
                       ))}
                   </div>
-                  <pre className="flex-1 p-8 overflow-auto whitespace-pre-wrap font-mono text-sm text-gray-800 dark:text-gray-300 leading-relaxed selection:bg-blue-100 dark:selection:bg-blue-900/40">
-                      {preview || <span className="text-gray-400 italic">No preview available. Try typing something above.</span>}
+                  <pre className="theme-code-surface flex-1 overflow-auto whitespace-pre-wrap p-8 font-mono text-sm leading-relaxed selection:bg-blue-500/20">
+                      {preview || <span className="theme-text-subtle italic">No preview available. Try typing something above.</span>}
                   </pre>
               </div>
           )}
@@ -284,7 +284,7 @@ export const PromptEditor: React.FC = () => {
 
       {/* 版本历史 */}
       {showVersionHistory && selectedPrompt?.path && (
-        <div className="absolute inset-0 bg-white dark:bg-gray-800 z-10">
+        <div className="theme-panel absolute inset-0 z-10">
           <VersionHistory
             promptPath={selectedPrompt.path}
             onCompare={handleVersionCompare}

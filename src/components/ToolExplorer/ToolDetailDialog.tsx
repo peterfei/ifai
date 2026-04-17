@@ -65,45 +65,45 @@ export const ToolDetailDialog: React.FC = () => {
   return (
     <div
       data-testid="tool-detail-dialog"
-      className="tool-detail-dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="tool-detail-dialog-overlay theme-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={() => selectTool(null)}
     >
       <div
-        className="tool-detail-dialog bg-background rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="tool-detail-dialog theme-panel-elevated theme-border theme-shadow flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-start justify-between p-6 border-b border-border">
+        <div className="theme-border flex items-start justify-between border-b p-6">
           <div className="flex-1">
             {/* 工具名称和复制按钮 */}
             <div className="flex items-center gap-2 mb-2">
               <h2 className="text-2xl font-bold font-mono">{tool.name}</h2>
               <button
                 onClick={handleCopy}
-                className="p-1 hover:bg-muted rounded transition-colors"
+                className="theme-button-ghost rounded p-1 transition-colors"
                 title="复制工具名称"
               >
                 {copied ? (
                   <Check size={16} className="text-green-500" />
                 ) : (
-                  <Copy size={16} className="text-muted-foreground" />
+                  <Copy size={16} className="theme-text-subtle" />
                 )}
               </button>
             </div>
 
             {/* 分类和权限 */}
             <div className="flex items-center gap-2 text-sm">
-              <span className="px-2 py-0.5 bg-muted rounded">
+              <span className="theme-panel-muted theme-border rounded px-2 py-0.5 border">
                 {tool.category}
               </span>
-              <span className="text-muted-foreground">•</span>
+              <span className="theme-text-subtle">•</span>
               <span
                 className={`
-                  px-2 py-0.5 rounded
+                  rounded px-2 py-0.5
                   ${
                     tool.is_dangerous
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-blue-100 text-blue-800'
+                      ? 'bg-red-500/12 text-red-500'
+                      : 'bg-blue-500/12 text-blue-500'
                   }
                 `}
               >
@@ -111,8 +111,8 @@ export const ToolDetailDialog: React.FC = () => {
               </span>
               {tool.is_dangerous && (
                 <>
-                  <span className="text-muted-foreground">•</span>
-                  <span className="flex items-center gap-1 text-red-600">
+                  <span className="theme-text-subtle">•</span>
+                  <span className="flex items-center gap-1 text-red-500">
                     <AlertTriangle size={14} />
                     危险操作
                   </span>
@@ -125,7 +125,7 @@ export const ToolDetailDialog: React.FC = () => {
           <button
             data-testid="tool-detail-close"
             onClick={() => selectTool(null)}
-            className="p-1 hover:bg-muted rounded transition-colors"
+            className="theme-button-ghost rounded p-1 transition-colors"
           >
             <X size={24} />
           </button>
@@ -136,7 +136,7 @@ export const ToolDetailDialog: React.FC = () => {
           {/* 描述 */}
           <div>
             <h3 className="text-sm font-semibold mb-2">描述</h3>
-            <p className="text-sm text-muted-foreground">{tool.description}</p>
+            <p className="theme-text-subtle text-sm">{tool.description}</p>
           </div>
 
           {/* 参数说明 */}
@@ -148,12 +148,12 @@ export const ToolDetailDialog: React.FC = () => {
                   ([param, description]) => (
                     <div
                       key={param}
-                      className="flex items-start gap-2 text-sm p-2 bg-muted/50 rounded"
+                      className="theme-panel-muted theme-border flex items-start gap-2 rounded border p-2 text-sm"
                     >
                       <dt className="font-mono font-semibold text-primary shrink-0">
                         {param}
                       </dt>
-                      <dd className="text-muted-foreground">{description}</dd>
+                      <dd className="theme-text-subtle">{description}</dd>
                     </div>
                   )
                 )}
@@ -164,7 +164,7 @@ export const ToolDetailDialog: React.FC = () => {
           {/* 输入 Schema */}
           <div data-testid="tool-input-schema">
             <h3 className="text-sm font-semibold mb-2">输入参数 JSON Schema</h3>
-            <pre className="p-3 bg-muted rounded text-xs overflow-x-auto">
+            <pre className="theme-code-surface theme-border overflow-x-auto rounded border p-3 text-xs">
               <code>{JSON.stringify(tool.input_schema, null, 2)}</code>
             </pre>
           </div>
@@ -177,7 +177,7 @@ export const ToolDetailDialog: React.FC = () => {
                 {tool.examples.map((example, index) => (
                   <li
                     key={index}
-                    className="text-sm text-muted-foreground flex items-start gap-2"
+                    className="theme-text-subtle flex items-start gap-2 text-sm"
                   >
                     <span className="text-primary">•</span>
                     <span>{example}</span>
@@ -189,10 +189,10 @@ export const ToolDetailDialog: React.FC = () => {
         </div>
 
         {/* 底部 */}
-        <div className="p-4 border-t border-border bg-muted/30">
+        <div className="theme-panel-muted theme-border border-t p-4">
           <button
             onClick={() => selectTool(null)}
-            className="w-full py-2 px-4 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+            className="theme-button-primary w-full rounded px-4 py-2"
           >
             关闭
           </button>

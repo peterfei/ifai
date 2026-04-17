@@ -3,6 +3,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Check, ChevronRight, Eye, EyeOff, Bug } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { isDarkTheme } from '../../utils/theme';
 
 type TransparencyLevel = 'minimal' | 'standard' | 'verbose' | 'debug';
 
@@ -12,6 +13,8 @@ interface ModelCapsulePanelProps {
 }
 
 export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, setSettingsOpen }) => {
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   const providers = useSettingsStore(state => state.providers);
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
@@ -41,18 +44,18 @@ export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, s
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-      className="w-full bg-gray-900 border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[100] overflow-hidden backdrop-blur-2xl"
+      className="theme-panel-elevated theme-border theme-shadow w-full rounded-xl border z-[100] overflow-hidden backdrop-blur-2xl"
     >
-      <div className="p-2 border-b border-white/5 bg-white/5">
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2">选择模型</span>
+      <div className="theme-panel-muted theme-border p-2 border-b">
+        <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-widest px-2">选择模型</span>
       </div>
       
       <div className="max-h-[300px] overflow-y-auto p-1.5 space-y-1">
         {providers.filter(p => p.enabled).map(provider => (
           <div key={provider.id} className="space-y-1">
-            <div className="px-2 py-1 text-[11px] font-bold text-blue-400/70 flex items-center gap-2">
+            <div className="px-2 py-1 text-[11px] font-bold text-blue-500 flex items-center gap-2">
               <span>{provider.name}</span>
-              <div className="h-px flex-1 bg-blue-400/10" />
+              <div className="h-px flex-1 bg-blue-500/15" />
             </div>
             {provider.models.map(model => {
               const isActive = provider.id === currentProviderId && model === currentModel;
@@ -65,8 +68,8 @@ export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, s
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
                     isActive 
-                      ? 'bg-blue-600/20 text-blue-400' 
-                      : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                      ? 'bg-blue-500/10 text-blue-500'
+                      : 'theme-text-subtle theme-soft-hover hover:text-[var(--text-primary)]'
                   }`}
                 >
                   <span className="truncate">{model}</span>
@@ -78,16 +81,16 @@ export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, s
         ))}
       </div>
 
-      <div className="p-1.5 border-t border-white/5 bg-gray-950/50 space-y-1">
+      <div className="theme-panel-muted theme-border p-1.5 border-t space-y-1">
         {/* AI Transparency 切换 */}
         <button
           onClick={cycleTransparency}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] theme-text-subtle theme-soft-hover hover:text-[var(--text-primary)] transition-all"
           title={`AI 透明度: ${transparencyLabels[transparencyLevel].label}`}
         >
           {transparencyLabels[transparencyLevel].icon}
           <span>AI 透明度: {transparencyLabels[transparencyLevel].label}</span>
-          <span className="ml-auto text-[9px] text-gray-600 font-mono">
+          <span className="ml-auto text-[9px] theme-text-subtle font-mono">
             {transparencyLevel.toUpperCase()}
           </span>
         </button>
@@ -97,7 +100,7 @@ export const ModelCapsulePanel: React.FC<ModelCapsulePanelProps> = ({ onClose, s
             setSettingsOpen(true);
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] theme-text-subtle theme-soft-hover hover:text-[var(--text-primary)] transition-all"
         >
           <Settings size={12} />
           <span>进阶模型设置</span>

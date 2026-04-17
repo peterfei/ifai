@@ -72,10 +72,10 @@ export interface LogFilter {
  */
 const LogLevelBadge: React.FC<{ level: LogLevel }> = ({ level }) => {
   const config = {
-    [LogLevel.DEBUG]: { label: 'DEBUG', color: 'text-[#858585]', bg: 'bg-[#85858520]' },
-    [LogLevel.INFO]: { label: 'INFO', color: 'text-[#569cd6]', bg: 'bg-[#569cd620]' },
-    [LogLevel.WARN]: { label: 'WARN', color: 'text-[#dcdcaa]', bg: 'bg-[#dcdcaa20]' },
-    [LogLevel.ERROR]: { label: 'ERROR', color: 'text-[#f14c4c]', bg: 'bg-[#f14c4c20]' },
+    [LogLevel.DEBUG]: { label: 'DEBUG', color: 'theme-text-subtle', bg: 'bg-[var(--hover-soft)]' },
+    [LogLevel.INFO]: { label: 'INFO', color: 'text-blue-400', bg: 'bg-blue-500/15' },
+    [LogLevel.WARN]: { label: 'WARN', color: 'text-amber-400', bg: 'bg-amber-500/15' },
+    [LogLevel.ERROR]: { label: 'ERROR', color: 'text-red-400', bg: 'bg-red-500/15' },
   };
 
   const { label, color, bg } = config[level];
@@ -116,23 +116,23 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 bg-[#1e1e1e] border-b border-[#3c3c3c]">
+    <div className="theme-panel theme-border flex items-center gap-2 border-b px-2 py-1">
       {/* Search input */}
       <div className="flex items-center gap-1 flex-1 min-w-0">
-        <Search size={12} className="text-[#858585] flex-shrink-0" />
+        <Search size={12} className="theme-text-subtle flex-shrink-0" />
         <input
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="搜索日志..."
-          className="flex-1 bg-transparent text-[11px] text-[#cccccc] placeholder-[#858585] outline-none min-w-0"
+          className="theme-text flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-[var(--text-subtle)]"
         />
         {search && (
           <button
             onClick={() => onSearchChange('')}
-            className="p-0.5 hover:bg-[#2a2d2e] rounded flex-shrink-0"
+            className="theme-soft-hover rounded p-0.5 flex-shrink-0"
           >
-            <X size={10} className="text-[#858585]" />
+            <X size={10} className="theme-text-subtle" />
           </button>
         )}
       </div>
@@ -140,22 +140,22 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
       {/* Filter toggle */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`p-1 hover:bg-[#2a2d2e] rounded flex-shrink-0 transition-colors ${
-          expanded ? 'bg-[#2a2d2e]' : ''
+        className={`theme-soft-hover rounded p-1 flex-shrink-0 transition-colors ${
+          expanded ? 'theme-panel-muted' : ''
         }`}
         title="筛选"
       >
-        <Filter size={12} className="text-[#858585]" />
+        <Filter size={12} className="theme-text-subtle" />
       </button>
 
       {/* Export */}
       {onExport && (
         <button
           onClick={onExport}
-          className="p-1 hover:bg-[#2a2d2e] rounded flex-shrink-0"
+          className="theme-soft-hover rounded p-1 flex-shrink-0"
           title="导出日志"
         >
-          <Download size={12} className="text-[#858585]" />
+          <Download size={12} className="theme-text-subtle" />
         </button>
       )}
 
@@ -163,20 +163,20 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
       {onClear && logCount > 0 && (
         <button
           onClick={onClear}
-          className="p-1 hover:bg-[#2a2d2e] rounded flex-shrink-0"
+          className="theme-soft-hover rounded p-1 flex-shrink-0"
           title="清除日志"
         >
-          <Trash2 size={12} className="text-[#858585]" />
+          <Trash2 size={12} className="theme-text-subtle" />
         </button>
       )}
 
       {/* Expanded filters */}
       {expanded && (
-        <div className="flex items-center gap-2 ml-2 pl-2 border-l border-[#3c3c3c]">
+        <div className="theme-border ml-2 flex items-center gap-2 border-l pl-2">
           <select
             value={levelFilter}
             onChange={(e) => onLevelChange(e.target.value as LogLevel | 'all')}
-            className="bg-[#252526] border border-[#3c3c3c] rounded px-2 py-0.5 text-[10px] text-[#cccccc]"
+            className="theme-panel-muted theme-border theme-text rounded border px-2 py-0.5 text-[10px]"
           >
             <option value="all">全部</option>
             <option value={LogLevel.DEBUG}>DEBUG</option>
@@ -184,7 +184,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
             <option value={LogLevel.WARN}>WARN</option>
             <option value={LogLevel.ERROR}>ERROR</option>
           </select>
-          <span className="text-[10px] text-[#858585]">
+          <span className="theme-text-subtle text-[10px]">
             {filteredCount}/{logCount}
           </span>
         </div>
@@ -292,13 +292,13 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
   }[fontSize];
 
   return (
-    <div className={`task-log-stream bg-[#1e1e1e] border border-[#3c3c3c] rounded ${className}`}>
+    <div className={`task-log-stream theme-panel theme-border rounded border ${className}`}>
       {/* Header with search and actions */}
       {(showSearch || showFilters || showExport) && (
-        <div className="flex items-center justify-between px-2 py-1 bg-[#252526] border-b border-[#3c3c3c]">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-2 py-1">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-[11px] text-[#cccccc] hover:text-white transition-colors"
+            className="theme-text flex items-center gap-1 text-[11px] transition-colors hover:text-[var(--accent-color)]"
           >
             {expanded ? (
               <ChevronDown size={12} />
@@ -333,7 +333,7 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
           style={{ maxHeight: '300px' }}
         >
           {filteredLogs.length === 0 ? (
-            <div className="px-3 py-8 text-center text-[#858585] italic">
+            <div className="theme-text-subtle px-3 py-8 text-center italic">
               {logs.length === 0 ? '暂无日志' : '没有匹配的日志'}
             </div>
           ) : (
@@ -346,18 +346,18 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
                 return (
                   <div
                     key={`${log.timestamp}-${index}`}
-                    className="flex gap-2 hover:bg-[#2a2d2e] rounded px-1 py-0.5 group"
+                    className="theme-soft-hover group flex gap-2 rounded px-1 py-0.5"
                   >
                     {/* Line number */}
                     {showLineNumbers && (
-                      <span className="text-[#858585] select-none text-right min-w-[40px]">
+                      <span className="theme-text-subtle min-w-[40px] select-none text-right">
                         {lineNumber}
                       </span>
                     )}
 
                     {/* Timestamp */}
                     {showTimestamps && (
-                      <span className="text-[#858585] select-none min-w-[80px]">
+                      <span className="theme-text-subtle min-w-[80px] select-none">
                         {timestamp}
                       </span>
                     )}
@@ -373,7 +373,7 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
                           dangerouslySetInnerHTML={{ __html: html }}
                         />
                       ) : (
-                        <span className="break-words text-[#cccccc]">{log.message}</span>
+                        <span className="theme-text break-words">{log.message}</span>
                       )}
                     </div>
                   </div>
@@ -387,13 +387,13 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
 
       {/* Auto-scroll toggle */}
       {expanded && filteredLogs.length > 10 && (
-        <div className="flex items-center justify-between px-2 py-1 bg-[#252526] border-t border-[#3c3c3c]">
-          <label className="flex items-center gap-1.5 text-[10px] text-[#858585] cursor-pointer">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-t px-2 py-1">
+          <label className="theme-text-subtle flex cursor-pointer items-center gap-1.5 text-[10px]">
             <input
               type="checkbox"
               checked={autoScrollEnabled}
               onChange={(e) => setAutoScrollEnabled(e.target.checked)}
-              className="w-3 h-3"
+              className="theme-checkbox-input h-3 w-3"
             />
             <span>自动滚动</span>
           </label>
@@ -454,7 +454,7 @@ export const TaskLogCompact: React.FC<TaskLogCompactProps> = ({
 
   return (
     <div
-      className={`task-log-compact ${clickable ? 'cursor-pointer hover:bg-[#2a2d2e]' : ''} ${className}`}
+      className={`task-log-compact ${clickable ? 'cursor-pointer theme-soft-hover' : ''} ${className}`}
       onClick={() => {
         if (clickable && onClick) {
           onClick();
@@ -471,7 +471,7 @@ export const TaskLogCompact: React.FC<TaskLogCompactProps> = ({
           <div
             key={`${log.timestamp}-${index}`}
             className="text-[10px] font-mono truncate flex items-center gap-1.5"
-            style={{ color: '#858585' }}
+            style={{ color: 'var(--text-subtle)' }}
           >
             {/* Timestamp */}
             {showTimestamp && (
@@ -501,12 +501,12 @@ export const TaskLogCompact: React.FC<TaskLogCompactProps> = ({
 
       {/* Show more/less indicator */}
       {hasMore && (
-        <div className="text-[10px] text-[#569cd6] font-mono mt-0.5 opacity-70">
+        <div className="mt-0.5 text-[10px] font-mono text-[var(--info-color)] opacity-70">
           {logs.length - maxLines} more...
         </div>
       )}
       {expanded && logs.length > maxLines && (
-        <div className="text-[10px] text-[#569cd6] font-mono mt-0.5 opacity-70">
+        <div className="mt-0.5 text-[10px] font-mono text-[var(--info-color)] opacity-70">
           Show less
         </div>
       )}

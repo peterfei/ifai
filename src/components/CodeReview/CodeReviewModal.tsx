@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle, Shield, Zap, FileCode, CheckCircle, XCircle, Eye, Download } from 'lucide-react';
+import { X, AlertTriangle, Shield, Zap, FileCode, CheckCircle, XCircle, Eye, Lightbulb } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ============================================================================
@@ -124,7 +124,7 @@ function getIssueIcon(type: ReviewIssueType) {
     case 'custom':
       return <AlertTriangle className="text-orange-500" size={18} />;
     default:
-      return <AlertTriangle className="text-gray-500" size={18} />;
+      return <AlertTriangle className="theme-text-subtle" size={18} />;
   }
 }
 
@@ -134,15 +134,15 @@ function getIssueIcon(type: ReviewIssueType) {
 function getSeverityClass(severity: ReviewSeverity): string {
   switch (severity) {
     case 'critical':
-      return 'bg-red-600 text-white';
+      return 'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/30';
     case 'error':
-      return 'bg-red-500 text-white';
+      return 'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25';
     case 'warning':
-      return 'bg-yellow-500 text-white';
+      return 'bg-amber-500/15 text-amber-500 ring-1 ring-inset ring-amber-500/25';
     case 'info':
-      return 'bg-blue-500 text-white';
+      return 'bg-blue-500/15 text-blue-400 ring-1 ring-inset ring-blue-500/25';
     default:
-      return 'bg-gray-500 text-white';
+      return 'theme-panel-elevated theme-text-subtle ring-1 ring-inset ring-[var(--border-color)]';
   }
 }
 
@@ -354,28 +354,28 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
     <>
       {/* 主审查模态框 */}
       <div
-        className="fixed inset-0 z-[220] flex items-center justify-center bg-black bg-opacity-60"
+        className="theme-backdrop-strong fixed inset-0 z-[220] flex items-center justify-center"
         data-testid="review-modal"
       >
-        <div className="w-[90vw] max-w-4xl max-h-[80vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+        <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-[90vw] max-w-4xl flex-col rounded-lg border">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="theme-border flex items-center justify-between border-b p-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="text-yellow-500" size={20} />
-              <h2 className="text-lg font-semibold text-white">代码审查结果</h2>
-              <span className="text-sm text-gray-400">({reviewResult.issues.length} 个问题)</span>
+              <AlertTriangle className="text-amber-500" size={20} />
+              <h2 className="theme-text text-lg font-semibold">代码审查结果</h2>
+              <span className="theme-text-subtle text-sm">({reviewResult.issues.length} 个问题)</span>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="theme-button-ghost rounded p-1"
             >
               <X size={20} />
             </button>
           </div>
 
           {/* Summary */}
-          <div className="p-4 bg-[#1e1e1e] border-b border-gray-700">
-            <p className="text-sm text-gray-300">{reviewResult.summary}</p>
+          <div className="theme-panel-muted theme-border border-b p-4">
+            <p className="theme-text-muted text-sm">{reviewResult.summary}</p>
           </div>
 
           {/* Issues List */}
@@ -383,10 +383,10 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
             {Array.from(groupedIssues.entries()).map(([type, issues]) => (
               <div key={type} className="space-y-2">
                 {/* Type Header */}
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+                <div className="theme-text-muted flex items-center gap-2 text-sm font-semibold">
                   {getIssueIcon(type)}
                   <span>{getTypeName(type)}</span>
-                  <span className="text-gray-500">({issues.length})</span>
+                  <span className="theme-text-subtle">({issues.length})</span>
                 </div>
 
                 {/* Issues */}
@@ -396,53 +396,56 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
                     return (
                       <div
                         key={issue.id}
-                        className="bg-[#1e1e1e] border border-gray-700 rounded-lg p-3 hover:border-gray-600 transition-colors"
+                        className="theme-panel-muted theme-border rounded-lg border p-3 transition-colors hover:border-[var(--border-strong)]"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xs px-2 py-0.5 rounded ${getSeverityClass(issue.severity)}`}>
+                              <span className={`rounded px-2 py-0.5 text-xs font-medium ${getSeverityClass(issue.severity)}`}>
                                 {issue.severity}
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className="theme-text-subtle text-xs">
                                 {issue.file}:{issue.line}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-200">{issue.message}</p>
+                            <p className="theme-text text-sm">{issue.message}</p>
                             {issue.suggestion && (
-                              <p className="text-xs text-gray-400 mt-1">💡 {issue.suggestion}</p>
+                              <div className="theme-text-muted mt-2 flex items-start gap-2 text-xs">
+                                <Lightbulb className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+                                <p>{issue.suggestion}</p>
+                              </div>
                             )}
                             {/* Show code snippet for E2E testing (REV-E2E-06) */}
                             {codeSnippet && (
-                              <pre className="mt-2 text-xs bg-[#0d0d0d] p-2 rounded overflow-x-auto text-gray-300 font-mono">
+                              <pre className="theme-code-surface theme-border mt-2 overflow-x-auto rounded border p-2 text-xs font-mono">
                                 {codeSnippet}
                               </pre>
                             )}
                           </div>
 
-                        <div className="flex items-center gap-1">
-                          {issue.hasFix && (
-                            <>
-                              <button
-                                onClick={() => handleViewFix(issue)}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-blue-400 hover:bg-white/5 rounded transition-colors"
-                                data-testid="view-fix-button"
-                              >
-                                <Eye size={14} />
-                                <span>View Fix</span>
-                              </button>
-                              <button
-                                onClick={() => handleApplyFix(issue)}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-green-400 hover:bg-white/5 rounded transition-colors"
-                              >
-                                <CheckCircle size={14} />
-                                <span>Apply</span>
-                              </button>
-                            </>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {issue.hasFix && (
+                              <>
+                                <button
+                                  onClick={() => handleViewFix(issue)}
+                                  className="theme-button-ghost flex items-center gap-1 rounded px-2 py-1 text-xs hover:text-blue-400"
+                                  data-testid="view-fix-button"
+                                >
+                                  <Eye size={14} />
+                                  <span>View Fix</span>
+                                </button>
+                                <button
+                                  onClick={() => handleApplyFix(issue)}
+                                  className="theme-button-ghost flex items-center gap-1 rounded px-2 py-1 text-xs hover:text-green-400"
+                                >
+                                  <CheckCircle size={14} />
+                                  <span>Apply</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -451,19 +454,19 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg flex justify-between items-center">
+          <div className="theme-panel-muted theme-border flex items-center justify-between gap-2 rounded-b-lg border-t p-4">
             {showCommitConfirmation ? (
               <>
                 <button
                   onClick={handleCancelForceCommit}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+                  className="theme-button-secondary rounded px-4 py-2 text-sm"
                 >
                   取消
                 </button>
                 <div className="flex gap-2">
                   <button
                     onClick={handleConfirmForceCommit}
-                    className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                    className="theme-button-danger rounded px-4 py-2 text-sm"
                     data-testid="commit-anyway-button"
                   >
                     Commit Anyway
@@ -475,7 +478,7 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
               <>
                 <button
                   onClick={handleIgnoreAndCommit}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+                  className="theme-button-ghost rounded px-4 py-2 text-sm"
                   data-testid="ignore-issues-button"
                 >
                   Ignore Issues
@@ -485,14 +488,14 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
                 <div className="flex gap-2">
                   <button
                     onClick={onClose}
-                    className="px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
+                    className="theme-button-secondary rounded px-4 py-2 text-sm"
                   >
                     取消
                   </button>
                   {hasFixableIssues && onApplyAllFixes && (
                     <button
                       onClick={handleApplyAllFixes}
-                      className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                      className="theme-button-primary rounded px-4 py-2 text-sm"
                     >
                       应用所有修复
                     </button>
@@ -507,16 +510,16 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
       {/* 修复预览模态框 */}
       {showFixModal && selectedIssue && (
         <div
-          className="fixed inset-0 z-[230] flex items-center justify-center bg-black bg-opacity-60"
+          className="theme-backdrop-strong fixed inset-0 z-[230] flex items-center justify-center"
           data-testid="fix-suggestion-modal"
         >
-          <div className="w-[90vw] max-w-3xl max-h-[80vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+          <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-[90vw] max-w-3xl flex-col rounded-lg border">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Fix Suggestion (修复建议)</h3>
+            <div className="theme-border flex items-center justify-between border-b p-4">
+              <h3 className="theme-text text-lg font-semibold">Fix Suggestion (修复建议)</h3>
               <button
                 onClick={() => setShowFixModal(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="theme-button-ghost rounded p-1"
               >
                 <X size={20} />
               </button>
@@ -526,16 +529,16 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
             <div className="flex-1 overflow-auto p-4 space-y-4">
               {/* Current Code */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">Current (当前代码)</h4>
-                <pre className="bg-[#1e1e1e] p-3 rounded text-sm text-gray-300 overflow-x-auto">
+                <h4 className="theme-text-muted mb-2 text-sm font-semibold">Current (当前代码)</h4>
+                <pre className="theme-code-surface theme-border theme-text overflow-x-auto rounded border p-3 text-sm">
                   <code>{selectedIssue.originalCode || '// Original code will be shown here'}</code>
                 </pre>
               </div>
 
               {/* Suggested Fix */}
               <div>
-                <h4 className="text-sm font-semibold text-green-300 mb-2">Suggested (建议修复)</h4>
-                <pre className="bg-[#1e1e1e] p-3 rounded text-sm text-green-300 overflow-x-auto">
+                <h4 className="mb-2 text-sm font-semibold text-green-500">Suggested (建议修复)</h4>
+                <pre className="theme-code-surface theme-border overflow-x-auto rounded border p-3 text-sm text-green-500">
                   <code>{selectedIssue.fixCode || '// Fixed code will be shown here'}</code>
                 </pre>
               </div>
@@ -543,17 +546,17 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
               {/* Description */}
               {selectedIssue.suggestion && (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-300 mb-2">Description (说明)</h4>
-                  <p className="text-sm text-gray-300">{selectedIssue.suggestion}</p>
+                  <h4 className="theme-text-muted mb-2 text-sm font-semibold">Description (说明)</h4>
+                  <p className="theme-text-muted text-sm">{selectedIssue.suggestion}</p>
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg flex justify-end gap-2">
+            <div className="theme-panel-muted theme-border flex justify-end gap-2 rounded-b-lg border-t p-4">
               <button
                 onClick={() => setShowFixModal(false)}
-                className="px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
+                className="theme-button-secondary rounded px-4 py-2 text-sm"
               >
                 Cancel (取消)
               </button>
@@ -643,7 +646,7 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
                   }
                   setShowFixModal(false);
                 }}
-                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                className="theme-button-primary rounded px-4 py-2 text-sm"
                 data-testid="apply-fix-button"
               >
                 Apply Fix (应用修复)

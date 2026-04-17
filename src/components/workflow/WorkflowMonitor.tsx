@@ -150,7 +150,7 @@ export function WorkflowMonitor({
       case 'Running':
         return <Clock className="w-5 h-5 text-blue-500 animate-spin" />;
       default:
-        return <AlertCircle className="w-5 h-5 text-gray-400" />;
+        return <AlertCircle className="theme-text-subtle w-5 h-5" />;
     }
   };
 
@@ -187,7 +187,7 @@ export function WorkflowMonitor({
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">运行时间</div>
+              <div className="theme-text-subtle text-sm">运行时间</div>
               <div className="text-lg font-semibold">{duration}s</div>
             </div>
             {onClose && (
@@ -228,7 +228,7 @@ export function WorkflowMonitor({
         {nodeResults.length > 0 && (
           <div>
             <Progress value={progress} className="h-2" />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <div className="theme-text-subtle mt-1 flex justify-between text-xs">
               <span>进度</span>
               <span>{Math.round(progress)}%</span>
             </div>
@@ -243,7 +243,7 @@ export function WorkflowMonitor({
               {nodeResults.map((node, index) => (
                 <div
                   key={node.node_id}
-                  className="flex items-start gap-3 p-3 border rounded-lg"
+                  className="theme-panel-muted theme-border flex items-start gap-3 rounded-lg border p-3"
                 >
                   <div className="mt-0.5">{getNodeStatusIcon(node.status)}</div>
                   <div className="flex-1 min-w-0">
@@ -252,9 +252,9 @@ export function WorkflowMonitor({
                       {getNodeStatusBadge(node.status)}
                     </div>
                     {node.output && (
-                      <div className="text-sm text-muted-foreground">
+                      <div className="theme-text-subtle text-sm">
                         <div className="font-medium mb-1">输出:</div>
-                        <div className="bg-muted p-2 rounded text-xs overflow-x-auto">
+                        <div className="theme-code-surface theme-border overflow-x-auto rounded border p-2 text-xs">
                           {node.output.length > 200
                             ? `${node.output.slice(0, 200)}...`
                             : node.output}
@@ -264,7 +264,7 @@ export function WorkflowMonitor({
                     {node.error && (
                       <div className="text-sm text-red-500">
                         <div className="font-medium mb-1">错误:</div>
-                        <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded text-xs">
+                        <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs">
                           {node.error}
                         </div>
                       </div>
@@ -275,7 +275,7 @@ export function WorkflowMonitor({
             </div>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
+          <div className="theme-text-subtle py-8 text-center">
             <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>等待节点执行结果...</p>
           </div>
@@ -283,14 +283,14 @@ export function WorkflowMonitor({
 
         {/* 错误信息 */}
         {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
             <div className="flex items-start gap-2">
               <XCircle className="w-5 h-5 text-red-500 mt-0.5" />
               <div className="flex-1">
-                <div className="font-semibold text-red-900 dark:text-red-100">
+                <div className="font-semibold text-red-500">
                   执行失败
                 </div>
-                <div className="text-sm text-red-700 dark:text-red-300 mt-1">
+                <div className="mt-1 text-sm text-red-400">
                   {error}
                 </div>
               </div>

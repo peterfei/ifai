@@ -23,6 +23,7 @@ import { ThreadContextMenu } from './ThreadContextMenu';
 import { TagManager } from './TagManager';
 import type { Thread } from '../../stores/threadStore';
 import clsx from 'clsx';
+import { Pin, Bug, Sparkles, Wrench, FlaskConical, MessageSquare } from 'lucide-react';
 
 // ============================================================================
 // Types
@@ -141,13 +142,13 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
   };
 
   // 💎 Phase 3: 根据标题初步判断意图图标
-  const getIntentIcon = (title: string) => {
+  const getIntentIcon = (title: string): React.ReactNode => {
     const t = title.toLowerCase();
-    if (t.includes('bug') || t.includes('fix') || t.includes('修复') || t.includes('报错')) return '🐛';
-    if (t.includes('feature') || t.includes('实现') || t.includes('功能') || t.includes('add')) return '✨';
-    if (t.includes('refactor') || t.includes('重构') || t.includes('clean')) return '🛠️';
-    if (t.includes('test') || t.includes('测试')) return '🧪';
-    return '💬'; // 默认
+    if (t.includes('bug') || t.includes('fix') || t.includes('修复') || t.includes('报错')) return <Bug size={isSidekick ? 16 : 12} className="text-red-400" />;
+    if (t.includes('feature') || t.includes('实现') || t.includes('功能') || t.includes('add')) return <Sparkles size={isSidekick ? 16 : 12} className="text-blue-400" />;
+    if (t.includes('refactor') || t.includes('重构') || t.includes('clean')) return <Wrench size={isSidekick ? 16 : 12} className="text-amber-400" />;
+    if (t.includes('test') || t.includes('测试')) return <FlaskConical size={isSidekick ? 16 : 12} className="text-emerald-400" />;
+    return <MessageSquare size={isSidekick ? 16 : 12} className="text-blue-400" />;
   };
 
   return (
@@ -159,7 +160,7 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
         ${isSidekick ? 'p-2 justify-center min-w-[36px]' : 'px-3 py-1.5'}
         ${isActive
           ? 'bg-blue-600/10 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]'
-          : 'bg-transparent text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'
+          : 'bg-transparent theme-text-subtle hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] border border-transparent'
         }
       `}
       title={isSidekick ? thread.title : undefined}
@@ -174,7 +175,7 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
     >
       {/* 意图图标与 Pin 状态 */}
       <span className={clsx("flex-shrink-0", isSidekick ? "text-[16px]" : "text-[12px]")}>
-        {thread.pinned ? '📌' : getIntentIcon(thread.title)}
+        {thread.pinned ? <Pin size={isSidekick ? 16 : 12} className="text-amber-400 fill-amber-400/20" /> : getIntentIcon(thread.title)}
       </span>
 
       {/* 标题 */}
@@ -187,7 +188,10 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
-            className="w-[80px] text-[11px] font-bold bg-gray-700 text-white px-1.5 py-0.5 rounded-full outline-none focus:ring-1 focus:ring-blue-500"
+            className={clsx(
+              'w-[80px] text-[11px] font-bold px-1.5 py-0.5 rounded-full outline-none focus:ring-1 focus:ring-blue-500',
+              'theme-panel theme-text border theme-border'
+            )}
             autoFocus
           />
         ) : (
@@ -431,11 +435,11 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
   if (filteredThreads.length === 0) {
     return (
       <>
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-          <span className="text-sm text-gray-500">{t('threads.noThreads', '暂无对话')}</span>
+        <div className="flex items-center justify-between px-4 py-2 theme-panel-muted border-b theme-border">
+          <span className="text-sm theme-text-subtle">{t('threads.noThreads', '暂无对话')}</span>
           <button
             onClick={handleNewThread}
-            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            className="px-3 py-1 text-sm theme-button-primary rounded transition-colors"
             title={t('threads.newThread', '新建对话')}
           >
             + {t('threads.new', '新对话')}
@@ -447,7 +451,7 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
 
   return (
     <>
-      <div className={clsx("flex flex-col bg-[#1e1e1e]/40 backdrop-blur-md", isSidekick && "items-center")}>
+      <div className={clsx('flex flex-col theme-glass backdrop-blur-md', isSidekick && 'items-center')}>
         <div className={clsx("flex px-3 py-2 gap-2 overflow-hidden", isSidekick ? "flex-col items-center px-1" : "items-center")}>
           {/* Scrollable tab list */}
           <div
@@ -478,7 +482,7 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
           <button
             onClick={handleNewThread}
             className={clsx(
-              "rounded-full bg-gray-800/50 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 transition-all flex items-center justify-center flex-shrink-0 border border-white/5",
+              'rounded-full theme-panel theme-border theme-text-subtle hover:bg-[var(--hover-bg)] hover:text-blue-500 transition-all flex items-center justify-center flex-shrink-0 border shadow-sm',
               isSidekick ? "w-10 h-10 mb-2" : "w-8 h-8"
             )}
             title={t('threads.newThread', '新建对话') + ' (Ctrl+T)'}
@@ -488,7 +492,7 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
             </svg>
           </button>
         </div>
-        <div className="h-px bg-white/5 w-full" />
+        <div className="theme-divider h-px w-full" />
       </div>
 
       {/* Thread Context Menu */}

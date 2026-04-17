@@ -596,30 +596,30 @@ export function FormattedToolResult({ result }: { result: any }) {
   const markdown = formatToolResultToMarkdown(result);
 
   return (
-    <div className="formatted-tool-result">
+    <div className="formatted-tool-result theme-text">
       <ReactMarkdown
         components={{
-          h1: ({node, ...props}) => <h1 {...props} className="text-lg font-bold text-gray-200 mb-2" />,
-          h2: ({node, ...props}) => <h2 {...props} className="text-base font-bold text-gray-300 mb-2" />,
-          h3: ({node, ...props}) => <h3 {...props} className="text-sm font-bold text-gray-400 mb-1" />,
-          p: ({node, ...props}) => <p {...props} className="text-sm text-gray-300 mb-2" />,
-          ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300" />,
-          ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300" />,
-          li: ({node, ...props}) => <li {...props} className="ml-4 text-gray-300" />,
-          strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
+          h1: ({node, ...props}) => <h1 {...props} className="theme-text mb-2 text-lg font-bold" />,
+          h2: ({node, ...props}) => <h2 {...props} className="theme-text mb-2 text-base font-bold" />,
+          h3: ({node, ...props}) => <h3 {...props} className="theme-text-muted mb-1 text-sm font-bold" />,
+          p: ({node, ...props}) => <p {...props} className="theme-text-muted mb-2 text-sm" />,
+          ul: ({node, ...props}) => <ul {...props} className="theme-text-muted mb-2 list-inside list-disc" />,
+          ol: ({node, ...props}) => <ol {...props} className="theme-text-muted mb-2 list-inside list-decimal" />,
+          li: ({node, ...props}) => <li {...props} className="theme-text-muted ml-4" />,
+          strong: ({node, ...props}) => <strong {...props} className="theme-text font-bold" />,
           code({ node, inline, ...rest }: any) {
             if (inline) {
               return (
-                <code {...rest} className="px-1 py-0.5 bg-gray-800 text-green-400 rounded text-xs font-mono" />
+                <code {...rest} className="theme-code-inline rounded px-1 py-0.5 text-xs font-mono" />
               );
             }
             return (
-              <code {...rest} className="block bg-gray-900 p-2 rounded text-xs text-gray-300 font-mono overflow-x-auto" />
+              <code {...rest} className="theme-text-muted block overflow-x-auto text-xs font-mono" />
             );
           },
           pre({node, ...props}) {
             return (
-              <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />
+              <pre {...props} className="theme-code-surface theme-border mb-2 overflow-x-auto rounded-lg border p-3" />
             );
           },
         }}

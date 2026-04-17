@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Database, X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { QuotaSentinel } from '../../services/storage/QuotaSentinel';
 
 /**
@@ -32,18 +32,24 @@ export const StorageQuotaBanner: React.FC = () => {
     if (!isVisible || !usage) return null;
 
     return (
-        <div className="bg-amber-600 text-white px-4 py-2 flex items-center justify-between text-xs font-medium animate-in slide-in-from-top duration-300 z-50">
-            <div className="flex items-center gap-2">
-                <AlertTriangle size={14} className="animate-pulse" />
-                <span>
-                    物理存储空间即将占满 (已用 {usage.percentage.toFixed(1)}%)。
-                    请及时迁移历史记录或清理缓存，以防数据丢失。
-                </span>
+        <div className="theme-panel-elevated theme-border theme-shadow animate-in slide-in-from-top z-50 flex items-center justify-between border px-4 py-2 text-xs duration-300">
+            <div className="flex items-center gap-3">
+                <div className="rounded-full bg-amber-500/12 p-1.5">
+                    <AlertTriangle size={14} className="animate-pulse text-amber-500" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                    <span className="theme-text font-medium">
+                        物理存储空间即将占满 (已用 {usage.percentage.toFixed(1)}%)。
+                    </span>
+                    <span className="theme-text-subtle">
+                        请及时迁移历史记录或清理缓存，以防数据丢失。
+                    </span>
+                </div>
             </div>
             <div className="flex items-center gap-3">
                 <button 
                     onClick={() => setIsDismissed(true)}
-                    className="p-1 hover:bg-white/10 rounded-md transition-colors"
+                    className="theme-button-ghost rounded-md p-1.5 hover:text-amber-600"
                 >
                     <X size={14} />
                 </button>

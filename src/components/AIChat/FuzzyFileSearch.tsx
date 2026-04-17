@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { File, Hash, Search } from 'lucide-react';
+import { File, Search } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import clsx from 'clsx';
 
@@ -63,7 +63,7 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
 
   if (results.length === 0 && filter.length > 1) {
     return (
-      <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1e1e1e] border border-gray-700 rounded-lg shadow-2xl p-3 text-xs text-gray-500 italic animate-in fade-in slide-in-from-bottom-2">
+      <div className="theme-panel-elevated theme-border theme-shadow absolute bottom-full left-0 mb-2 w-64 rounded-lg border p-3 text-xs italic animate-in fade-in slide-in-from-bottom-2">
         未找到匹配文件...
       </div>
     );
@@ -75,11 +75,11 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
     <div 
       ref={containerRef}
       data-testid="file-mention-panel"
-      className="absolute bottom-full left-0 mb-2 w-80 bg-[#1e1e1e]/95 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50"
+      className="theme-panel-elevated theme-border theme-shadow absolute bottom-full left-0 mb-2 w-80 overflow-hidden rounded-xl border backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 z-50"
     >
-      <div className="p-2 border-b border-gray-800 bg-gray-900/50 flex items-center gap-2">
-        <Search size={12} className="text-blue-400" />
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">引用文件 (@)</span>
+      <div className="theme-panel-muted theme-border flex items-center gap-2 border-b p-2">
+        <Search size={12} className="text-[var(--info-color)]" />
+        <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-wider">引用文件 (@)</span>
       </div>
       <div className="max-h-60 overflow-y-auto py-1">
         {results.map((file, index) => (
@@ -89,23 +89,27 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
             onClick={() => onSelect(file)}
             className={clsx(
               "px-3 py-2 flex items-center gap-3 cursor-pointer transition-all duration-200",
-              index === selectedIndex ? "bg-blue-600/20 border-l-2 border-blue-500" : "hover:bg-white/5 border-l-2 border-transparent"
+              index === selectedIndex ? "bg-blue-600/15 border-l-2 border-blue-500" : "theme-soft-hover border-l-2 border-transparent"
             )}
           >
             <div className={clsx(
-              "p-1.5 rounded-lg",
-              index === selectedIndex ? "bg-blue-500 text-white" : "bg-gray-800 text-gray-400"
+              "p-1.5 rounded-lg border",
+              index === selectedIndex
+                ? "bg-blue-500 border-blue-500 text-white"
+                : "theme-panel-muted theme-border theme-text-subtle"
             )}>
               <File size={14} />
             </div>
             <div className="flex flex-col min-w-0">
               <span className={clsx(
                 "text-sm truncate",
-                index === selectedIndex ? "text-blue-100 font-medium" : "text-gray-300"
+                index === selectedIndex
+                  ? "text-blue-500 font-medium"
+                  : "theme-text"
               )}>
                 {file.split('/').pop()}
               </span>
-              <span className="text-[10px] text-gray-500 truncate">{file}</span>
+              <span className="theme-text-subtle text-[10px] truncate">{file}</span>
             </div>
           </div>
         ))}

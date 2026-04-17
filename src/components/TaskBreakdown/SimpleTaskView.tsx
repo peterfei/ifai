@@ -17,7 +17,7 @@ interface SimpleTaskViewProps {
 const getStatusStyle = (status: TaskNode['status']) => {
   switch (status) {
     case 'pending':
-      return { color: 'text-gray-400', bg: 'bg-gray-500', icon: '○' };
+      return { color: 'theme-text-subtle', bg: 'bg-[var(--border-strong)]', icon: '○' };
     case 'in_progress':
       return { color: 'text-blue-400', bg: 'bg-blue-500', icon: '◐' };
     case 'completed':
@@ -25,7 +25,7 @@ const getStatusStyle = (status: TaskNode['status']) => {
     case 'failed':
       return { color: 'text-red-400', bg: 'bg-red-500', icon: '✕' };
     default:
-      return { color: 'text-gray-400', bg: 'bg-gray-500', icon: '○' };
+      return { color: 'theme-text-subtle', bg: 'bg-[var(--border-strong)]', icon: '○' };
   }
 };
 
@@ -56,7 +56,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
     <div className="mb-1">
       {/* 任务节点 */}
       <div
-        className="flex items-center gap-2 py-1 px-2 rounded hover:bg-[#2d2d2d] transition-colors"
+        className="theme-hoverable flex items-center gap-2 rounded px-2 py-1 transition-colors"
         style={{ marginLeft: `${indent}px` }}
       >
         {/* 状态图标 */}
@@ -65,18 +65,18 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
         </span>
 
         {/* 任务标题 */}
-        <span className="text-sm text-gray-200 flex-1">{node.title}</span>
+        <span className="theme-text flex-1 text-sm">{node.title}</span>
 
         {/* 工时估算 */}
         {node.estimatedHours && (
-          <span className="text-xs text-gray-500">
+          <span className="theme-text-subtle text-xs">
             {node.estimatedHours}h
           </span>
         )}
 
         {/* 类别标签 */}
         {categoryLabel && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#3c3c3c] text-gray-400">
+          <span className="theme-panel-elevated theme-border theme-text-subtle rounded border px-1.5 py-0.5 text-[10px]">
             {categoryLabel}
           </span>
         )}
@@ -88,7 +88,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
               ? 'bg-red-900/50 text-red-300'
               : node.priority === 'medium'
               ? 'bg-yellow-900/50 text-yellow-300'
-              : 'bg-gray-700 text-gray-400'
+              : 'theme-panel-elevated theme-text-subtle'
           }`}>
             {node.priority === 'high' ? '高' :
              node.priority === 'medium' ? '中' :
@@ -101,7 +101,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
       {/* 任务描述（如果有） */}
       {node.description && (
         <div
-          className="text-xs text-gray-500 ml-6 mb-1"
+          className="theme-text-subtle mb-1 ml-6 text-xs"
           style={{ marginLeft: `${indent + 20}px` }}
         >
           {node.description}
@@ -115,8 +115,8 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
           style={{ marginLeft: `${indent + 20}px` }}
         >
           {node.acceptanceCriteria.map((criteria, index) => (
-            <div key={index} className="text-xs text-gray-600 flex items-start gap-1">
-              <span>✓</span>
+            <div key={index} className="theme-text-subtle flex items-start gap-1 text-xs">
+              <span className="text-green-500">✓</span>
               <span>{criteria}</span>
             </div>
           ))}
@@ -126,7 +126,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
       {/* 依赖关系（如果有） */}
       {node.dependencies && node.dependencies.length > 0 && (
         <div
-          className="text-xs text-gray-600 ml-6 mb-1"
+          className="theme-text-subtle mb-1 ml-6 text-xs"
           style={{ marginLeft: `${indent + 20}px` }}
         >
           依赖: {node.dependencies.join(', ')}

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Sun, Moon, MessageSquare, Terminal, Settings, Sidebar, Shield } from 'lucide-react';
+import clsx from 'clsx';
 import { useFileStore } from '../../stores/fileStore';
-import { useEditorStore } from '../../stores/editorStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { useCodeSmellStore } from '../../stores/codeSmellStore';
 import { v4 as uuidv4 } from 'uuid';
 import { openDirectory, readFileContent, writeFileContent, saveFileAs } from '../../utils/fileSystem';
@@ -14,9 +15,10 @@ import { detectLanguageFromPath } from '../../utils/languageDetection';
 import { LayoutSwitcher } from './LayoutSwitcher';
 import { HelpMenu } from '../Help/HelpMenu';
 import { ModeSwitch } from './ModeSwitch';
+import { isDarkTheme } from '../../utils/theme';
 
 // v0.3.0: 工作区菜单分隔线组件
-const MenuSeparator = () => <div className="border-t border-gray-600 my-1" />;
+const MenuSeparator = () => <div className="theme-divider my-1 h-px" />;
 
 interface TitlebarProps {
   onToggleChat?: () => void;
@@ -30,10 +32,15 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { openFile, activeFileId, openedFiles, updateFileContent, setFileDirty, fetchGitStatuses, addWorkspaceRoot, saveWorkspaceConfig, loadWorkspaceConfig } = useFileStore();
-  const { theme, setTheme } = useEditorStore();
   const { toggleSettings, isSidebarOpen, toggleSidebar } = useLayoutStore();
+  const theme = useSettingsStore(state => state.theme);
+  const setTheme = useSettingsStore(state => state.setTheme);
   // v0.3.0: Code Smell Store
   const { isPanelOpen: isCodeAnalysisOpen, setPanelOpen: setCodeAnalysisOpen } = useCodeSmellStore();
+  const dark = isDarkTheme(theme);
+  const menuButtonClass = 'theme-button-ghost flex items-center rounded px-2 py-1 text-sm';
+  const menuItemClass = 'theme-hoverable theme-text-muted cursor-pointer px-3 py-1.5 text-sm';
+  const iconButtonBaseClass = 'theme-button-ghost rounded p-1';
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -212,67 +219,44 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   };
 
   return (
-    <div className="h-8 bg-gray-800 flex items-center px-4 border-b border-gray-700 select-none justify-between">
+    <div
+      className="theme-panel-muted theme-border flex h-8 items-center justify-between border-b px-4 text-[color:var(--text-primary)] select-none transition-colors"
+    >
       <div className="flex items-center">
-        <div className="text-gray-300 text-sm font-medium mr-4">IfAI Editor</div>
+        <div className="theme-text-muted mr-4 text-sm font-medium">IfAI Editor</div>
 
         <div className="relative" ref={menuRef}>
-          <button
-            className="flex items-center text-gray-400 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700"
-            onClick={handleMenuToggle}
-          >
+          <button className={menuButtonClass} onClick={handleMenuToggle}>
             {t('menu.file')} <ChevronDown size={14} className="ml-1" />
           </button>
           {isMenuOpen && (
-            <div className="absolute top-full left-0 mt-1 bg-gray-700 rounded shadow-lg z-50 py-1 w-56">
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
-                onClick={handleNewFile}
-              >
+            <div
+              className="theme-panel-elevated theme-border theme-shadow absolute top-full left-0 z-50 mt-1 w-56 rounded border py-1"
+            >
+              <div className={menuItemClass} onClick={handleNewFile}>
                 {t('menu.newFile')}
               </div>
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
-                onClick={handleNewWindow}
-              >
+              <div className={menuItemClass} onClick={handleNewWindow}>
                 {t('menu.newWindow')}
               </div>
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
-                onClick={handleOpenFile}
-              >
+              <div className={menuItemClass} onClick={handleOpenFile}>
                 {t('menu.openFile')}
               </div>
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
-                onClick={handleSaveFile}
-              >
+              <div className={menuItemClass} onClick={handleSaveFile}>
                 {t('menu.save')}
               </div>
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer"
-                onClick={handleSaveFileAs}
-              >
+              <div className={menuItemClass} onClick={handleSaveFileAs}>
                 {t('menu.saveAs')}
               </div>
               <MenuSeparator />
               {/* v0.3.0: 工作区管理菜单 */}
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer whitespace-nowrap"
-                onClick={handleAddFolderToWorkspace}
-              >
+              <div className={clsx(menuItemClass, 'whitespace-nowrap')} onClick={handleAddFolderToWorkspace}>
                 {t('menu.addFolderToWorkspace')}
               </div>
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer whitespace-nowrap"
-                onClick={handleSaveWorkspace}
-              >
+              <div className={clsx(menuItemClass, 'whitespace-nowrap')} onClick={handleSaveWorkspace}>
                 {t('menu.saveWorkspaceAs')}
               </div>
-              <div
-                className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer whitespace-nowrap"
-                onClick={handleOpenWorkspace}
-              >
+              <div className={clsx(menuItemClass, 'whitespace-nowrap')} onClick={handleOpenWorkspace}>
                 {t('menu.openWorkspace')}
               </div>
             </div>
@@ -291,7 +275,12 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
       <div className="flex items-center space-x-2">
         <LayoutSwitcher />
         <button
-          className={`p-1 rounded ${isSidebarOpen ? 'text-purple-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          className={clsx(
+            'rounded p-1 transition-colors',
+            isSidebarOpen
+              ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]'
+              : iconButtonBaseClass
+          )}
           onClick={toggleSidebar}
           title={t('titlebar.toggleSidebar') + ' (Cmd+B)'}
         >
@@ -299,38 +288,45 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
         </button>
         {/* v0.3.0: 代码分析面板按钮 */}
         <button
-          className={`p-1 rounded ${isCodeAnalysisOpen ? 'text-amber-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          className={clsx(
+            'rounded p-1 transition-colors',
+            isCodeAnalysisOpen
+              ? 'bg-amber-500/15 text-amber-400'
+              : iconButtonBaseClass
+          )}
           onClick={() => setCodeAnalysisOpen(!isCodeAnalysisOpen)}
           title={t('titlebar.codeAnalysis')}
         >
           <Shield size={16} />
         </button>
-        <button
-          className={`p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700`}
-          onClick={toggleSettings}
-          title={t('chat.settings')}
-        >
+        <button className={iconButtonBaseClass} onClick={toggleSettings} title={t('chat.settings')}>
           <Settings size={16} />
         </button>
         <button
-          className={`p-1 rounded ${isTerminalOpen ? 'text-green-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          className={clsx(
+            'rounded p-1 transition-colors',
+            isTerminalOpen
+              ? 'bg-green-500/15 text-green-400'
+              : iconButtonBaseClass
+          )}
           onClick={onToggleTerminal}
           title={t('terminal.title') + " (Cmd+J)"}
         >
           <Terminal size={16} />
         </button>
         <button
-          className={`p-1 rounded ${isChatOpen ? 'text-blue-400 bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+          className={clsx(
+            'rounded p-1 transition-colors',
+            isChatOpen
+              ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]'
+              : iconButtonBaseClass
+          )}
           onClick={onToggleChat}
           title={t('chat.title') + " (Cmd+L)"}
         >
           <MessageSquare size={16} />
         </button>
-        <button
-          className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded"
-          onClick={handleThemeToggle}
-          title={t('titlebar.toggleTheme')}
-        >
+        <button className={iconButtonBaseClass} onClick={handleThemeToggle} title={t('titlebar.toggleTheme')}>
           {theme === 'vs-dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>

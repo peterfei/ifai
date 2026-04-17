@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Eye, FileText, Loader2, Zap } from 'lucide-r
 import { useTransparencyStore, type SystemPromptMeta, type PromptSectionMeta } from '../../stores/transparencyStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import clsx from 'clsx';
+import { isDarkTheme } from '../../utils/theme';
 
 type TransparencyLevel = 'minimal' | 'standard' | 'verbose' | 'debug';
 
@@ -12,6 +13,8 @@ interface SystemPromptCardProps {
 
 export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
   const transparencyLevel = useSettingsStore(s => s.transparencyLevel);
+  const theme = useSettingsStore(s => s.theme);
+  const dark = isDarkTheme(theme);
   const { promptDetailCache, loadingSection, fetchPromptDetail } = useTransparencyStore();
 
   const [expanded, setExpanded] = useState(transparencyLevel === 'debug');
@@ -58,28 +61,28 @@ export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
   const totalTokens = meta.total_tokens_estimate;
 
   return (
-    <div className="mx-2 my-1.5 rounded-lg border border-white/5 bg-white/[0.03] overflow-hidden">
+    <div className="theme-panel-muted theme-border mx-2 my-1.5 overflow-hidden rounded-lg border shadow-sm">
       {/* Header - always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white/70 hover:bg-white/[0.03] transition-colors"
+        className="theme-hoverable theme-text-subtle flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors"
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <Eye size={12} className="text-blue-400/60" />
         <span className="font-medium">System Prompt</span>
-        <span className="text-white/30">|</span>
+        <span className="theme-text-subtle opacity-60">|</span>
         <span>{presentSections.length} sections</span>
-        <span className="text-white/30">|</span>
+        <span className="theme-text-subtle opacity-60">|</span>
         <span>~{totalTokens.toLocaleString()} tokens</span>
         {meta.mode && (
           <>
-            <span className="text-white/30">|</span>
+            <span className="theme-text-subtle opacity-60">|</span>
             <span className="text-purple-400/60">{meta.mode}</span>
           </>
         )}
         {meta.skills.length > 0 && (
           <>
-            <span className="text-white/30">|</span>
+            <span className="theme-text-subtle opacity-60">|</span>
             <span className="text-amber-400/60">
               <Zap size={10} className="inline mr-0.5" />
               {meta.skills.length} skills
@@ -90,7 +93,7 @@ export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-white/5 px-3 py-2 space-y-1">
+        <div className="theme-border space-y-1 border-t px-3 py-2">
           {presentSections.map(section => (
             <SectionItem
               key={section.name}
@@ -99,6 +102,7 @@ export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
               isLoading={loadingSection === section.name}
               content={promptDetailCache[section.name]}
               showDetails={transparencyLevel === 'verbose' || transparencyLevel === 'debug'}
+              dark={dark}
               onToggle={() => {
                 toggleSection(section.name);
                 if (!expandedSections.has(section.name)) {
@@ -121,6 +125,7 @@ interface SectionItemProps {
   isLoading: boolean;
   content?: string;
   showDetails: boolean;
+  dark: boolean;
   onToggle: () => void;
 }
 
@@ -130,18 +135,19 @@ const SectionItem: React.FC<SectionItemProps> = ({
   isLoading,
   content,
   showDetails,
+  dark,
   onToggle,
 }) => {
   return (
     <div>
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-white/[0.04] transition-colors"
+        className="theme-hoverable flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs transition-colors"
       >
         {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-        <FileText size={11} className="text-white/30" />
-        <span className="text-white/60">{section.label}</span>
-        <span className="text-white/25 ml-auto">
+        <FileText size={11} className="theme-text-subtle opacity-70" />
+        <span className="theme-text">{section.label}</span>
+        <span className="theme-text-subtle ml-auto">
           {section.char_count > 0 && (
             <>
               {section.char_count.toLocaleString()} chars
@@ -151,7 +157,7 @@ const SectionItem: React.FC<SectionItemProps> = ({
             </>
           )}
           {section.present === false && section.char_count === 0 && (
-            <span className="text-white/20 italic">inactive</span>
+            <span className="theme-text-subtle italic opacity-70">inactive</span>
           )}
         </span>
         {isLoading && <Loader2 size={10} className="animate-spin text-blue-400/60" />}
@@ -159,15 +165,15 @@ const SectionItem: React.FC<SectionItemProps> = ({
 
       {/* Expanded section content */}
       {isExpanded && content && (
-        <div className="ml-6 mt-1 mb-2 p-2 rounded bg-black/30 border border-white/5 max-h-60 overflow-y-auto">
-          <pre className="text-[11px] text-white/40 whitespace-pre-wrap font-mono leading-relaxed">
+        <div className="theme-input-surface theme-border ml-6 mt-1 mb-2 max-h-60 overflow-y-auto rounded border p-2">
+          <pre className="theme-text-subtle whitespace-pre-wrap font-mono text-[11px] leading-relaxed">
             {content.length > 3000 ? content.slice(0, 3000) + '\n\n... (truncated)' : content}
           </pre>
         </div>
       )}
 
       {isExpanded && !content && !isLoading && section.char_count > 0 && (
-        <div className="ml-6 mt-1 text-[11px] text-white/20 italic">
+        <div className="theme-text-subtle ml-6 mt-1 text-[11px] italic opacity-80">
           Click to load content
         </div>
       )}

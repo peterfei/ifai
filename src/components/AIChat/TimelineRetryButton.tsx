@@ -33,18 +33,7 @@ export const TimelineRetryButton: React.FC<TimelineRetryButtonProps> = ({
       {/* 重试按钮 */}
       <button
         onClick={onRetry}
-        className="
-          px-4
-          py-2
-          bg-blue-600
-          hover:bg-blue-700
-          text-white
-          text-sm
-          rounded-lg
-          transition-colors
-          duration-150
-          shadow-md
-        "
+        className="px-4 py-2 theme-button-primary text-sm rounded-lg transition-colors duration-150 theme-shadow"
       >
         重试
       </button>

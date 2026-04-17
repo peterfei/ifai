@@ -60,7 +60,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
       case 'implement': return 'bg-purple-500';
       case 'verify': return 'bg-emerald-500';
       case 'optimize': return 'bg-amber-500';
-      default: return 'bg-gray-600';
+      default: return 'bg-[var(--border-strong)]';
     }
   };
 
@@ -79,10 +79,9 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
       initial={{ opacity: 0, y: -10, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -10, scale: 0.98 }}
-      className="inline-ai-widget relative overflow-hidden min-w-[480px] max-w-[600px] rounded-xl border border-white/10 bg-[#1e1e1e]/80 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-white/5"
+      className="inline-ai-widget theme-panel-elevated theme-border theme-shadow relative min-w-[480px] max-w-[600px] overflow-hidden rounded-xl border backdrop-blur-xl ring-1 ring-black/5"
     >
-      {/* PIVO 进度线 */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden bg-white/5">
+      <div className="theme-panel-muted absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
         <motion.div 
           initial={{ x: '-100%' }}
           animate={{ x: (stage === 'idle' && !isLoading) ? '-100%' : '0%' }}
@@ -95,17 +94,17 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className={`p-1 rounded-md ${stage === 'idle' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/70'}`}>
+            <div className={`p-1 rounded-md ${stage === 'idle' ? 'bg-blue-500/20 text-blue-400' : 'theme-panel-muted theme-text-muted'}`}>
               <Sparkles size={14} className={isLoading ? "animate-pulse" : ""} />
             </div>
-            <span className="text-[11px] font-bold text-white/40 uppercase tracking-widest">
+            <span className="theme-text-subtle text-[11px] font-bold uppercase tracking-widest">
               {stage !== 'idle' ? getStageLabel(stage) : 'Inline Assistant'}
             </span>
             
             {/* 🔥 显示当前操作文件 */}
             {currentFilePath && (
-              <div className="flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded bg-white/5 border border-white/5">
-                <span className="text-[9px] text-white/30">Target:</span>
+              <div className="theme-panel-muted theme-border flex items-center gap-1 ml-2 rounded border px-1.5 py-0.5">
+                <span className="theme-text-subtle text-[9px]">Target:</span>
                 <span className="text-[9px] text-blue-400/60 font-mono truncate max-w-[120px]">
                   {currentFilePath.split('/').pop()}
                 </span>
@@ -114,7 +113,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="text-white/30 hover:text-white/80 hover:bg-white/5 p-1 rounded-md transition-all"
+            className="theme-button-ghost rounded-md p-1 transition-all"
           >
             <X size={14} />
           </button>
@@ -122,12 +121,12 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
 
         {/* 选中的代码预览 (仅在空闲且有选中时显示) */}
         {selectedText && stage === 'idle' && (
-          <div className="mb-3 p-2 rounded-lg bg-black/40 border border-white/5 overflow-hidden">
-            <div className="flex items-center gap-1.5 mb-1 text-[9px] text-white/20 font-bold uppercase tracking-tighter">
+          <div className="theme-code-surface theme-border mb-3 overflow-hidden rounded-lg border p-2">
+            <div className="theme-text-subtle mb-1 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-tighter">
               <Search size={10} />
               Current Context
             </div>
-            <pre className="text-[10px] text-white/50 font-mono leading-relaxed truncate whitespace-pre">
+            <pre className="theme-text-muted truncate whitespace-pre text-[10px] font-mono leading-relaxed">
               {selectedText.length > 200 ? selectedText.substring(0, 200) + '...' : selectedText}
             </pre>
           </div>
@@ -142,7 +141,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
             onChange={(e) => setInputValue(e.target.value)}
             disabled={isLoading}
             data-testid="inline-ai-input"
-            className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2.5 text-sm text-white/90 placeholder:text-white/20 outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none overflow-hidden"
+            className="theme-input-surface theme-border theme-text w-full resize-none overflow-hidden rounded-lg border px-3 py-2.5 text-sm outline-none transition-all focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10"
             placeholder="Optimize this, add comments, or ask questions..."
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -155,10 +154,10 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
           />
           
           <div className="absolute right-2 bottom-2 flex items-center gap-2">
-            <span className="text-[10px] text-white/20 font-medium hidden group-focus-within:block animate-in fade-in duration-300">
+            <span className="theme-text-subtle hidden text-[10px] font-medium animate-in fade-in duration-300 group-focus-within:block">
               Shift + Enter for new line
             </span>
-            <div className="p-1.5 rounded-md bg-white/5 text-white/20 border border-white/5">
+            <div className="theme-panel-muted theme-border theme-text-subtle rounded-md border p-1.5">
               <CornerDownLeft size={12} />
             </div>
           </div>
@@ -174,7 +173,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between"
+              className="theme-border mt-3 flex items-center justify-between border-t pt-3"
             >
               <div className="flex items-center gap-2 text-[10px] text-emerald-400/80 font-medium">
                 <CheckCircle2 size={12} />
@@ -203,7 +202,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-3"
+              className="theme-border mt-3 flex items-center justify-between gap-3 border-t pt-3"
             >
               {isLoading ? (
                 <div className="flex items-center gap-3 flex-1">
@@ -211,7 +210,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
                     <Loader2 size={10} className="animate-spin" />
                     Processing
                   </div>
-                  <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden">
+                  <div className="theme-panel-muted h-1 flex-1 overflow-hidden rounded-full">
                     <motion.div 
                       animate={{ x: ['-100%', '100%'] }}
                       transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
@@ -221,14 +220,14 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 text-[10px] text-white/30 font-medium">
+                  <div className="theme-text-subtle flex items-center gap-2 text-[10px] font-medium">
                     <Zap size={10} />
                     Changes ready to apply
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={onClose}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-red-500/10 text-white/50 hover:text-red-400 text-xs font-bold transition-all border border-white/5"
+                      className="theme-button-secondary rounded-lg border border-red-500/10 px-3 py-1.5 text-xs font-bold transition-all hover:bg-red-500/10 hover:text-red-400"
                     >
                       Discard
                     </button>

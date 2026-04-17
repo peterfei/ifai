@@ -48,7 +48,7 @@ function getArgColor(key: string): string {
   if (lowerKey.includes('url') || lowerKey.includes('link')) {
     return 'text-purple-400';
   }
-  return 'text-gray-400';
+  return 'theme-text-subtle';
 }
 
 /**
@@ -84,7 +84,7 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
 
   if (entries.length === 0 && !isStreaming) {
     return (
-      <div className="text-center py-4 text-gray-600">
+      <div className="text-center py-4 theme-text-subtle">
         <Settings size={16} className="mx-auto mb-1 opacity-50" />
         <span className="text-xs">无参数</span>
       </div>
@@ -103,7 +103,7 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
         return (
           <div
             key={key}
-            className="flex items-start gap-2 text-xs py-1 hover:bg-gray-800/30 rounded px-2 transition-colors"
+            className="flex items-start gap-2 text-xs py-1 theme-soft-hover rounded px-2 transition-colors"
           >
             {/* Checkbox */}
             <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
@@ -115,7 +115,7 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
                 <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
                   hasValue
                     ? 'bg-green-500/20 border-green-500/50'
-                    : 'border-gray-600'
+                    : 'theme-border'
                 }`}>
                   {hasValue && <Check size={12} className="text-green-400" />}
                 </div>
@@ -123,19 +123,19 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
             </div>
 
             {/* 参数名 */}
-            <span className="text-gray-500 font-medium min-w-[70px] flex-shrink-0">{key}:</span>
+            <span className="theme-text-subtle font-medium min-w-[70px] flex-shrink-0">{key}:</span>
 
             {/* 参数值 */}
             <div className="flex-1 flex items-center gap-1.5 min-w-0">
               <span className={color}>{icon}</span>
               {hasValue ? (
-                <span className="text-gray-300 font-mono truncate" title={String(value)}>
+                <span className="theme-text-muted font-mono truncate" title={String(value)}>
                   {displayValue}
                 </span>
               ) : isKeyStreaming ? (
-                <span className="text-gray-500 italic animate-pulse">生成中...</span>
+                <span className="theme-text-subtle italic animate-pulse">生成中...</span>
               ) : (
-                <span className="text-gray-600 italic">空</span>
+                <span className="theme-text-subtle italic">空</span>
               )}
             </div>
           </div>
@@ -144,7 +144,7 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
 
       {/* 流式传输中提示 */}
       {isStreaming && entries.length === 0 && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 px-2 py-2">
+        <div className="flex items-center gap-2 text-xs theme-text-subtle px-2 py-2">
           <Loader2 size={14} className="animate-spin text-blue-400" />
           <span className="italic">正在生成参数...</span>
         </div>

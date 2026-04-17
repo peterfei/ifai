@@ -216,8 +216,8 @@ export const StatusProgress: React.FC<StatusProgressProps> = ({
     <div className={`inline-flex items-center gap-2 ${className}`}>
       <TaskStatusBadge status={status} size="sm" />
       <div
-        className="h-1.5 rounded-full overflow-hidden bg-[#3c3c3c]"
-        style={{ width: '60px' }}
+        className="h-1.5 rounded-full overflow-hidden"
+        style={{ width: '60px', backgroundColor: 'var(--bg-tertiary)' }}
       >
         <div
           className="h-full transition-all duration-300"
@@ -228,7 +228,7 @@ export const StatusProgress: React.FC<StatusProgressProps> = ({
         />
       </div>
       {showPercentage && (
-        <span className="text-[11px] text-[#858585] font-mono min-w-[32px]">
+        <span className="theme-text-subtle min-w-[32px] text-[11px] font-mono">
           {Math.round(progress)}%
         </span>
       )}

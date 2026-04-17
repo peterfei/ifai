@@ -483,38 +483,38 @@ const getNodeIcon = (type: WorkflowNode['type'], status: WorkflowNode['status'])
   if (status === 'pending') {
     switch (type) {
       case 'search':
-        return <Search className={`${iconProps} text-gray-300`} />;
+        return <Search className={`${iconProps} theme-text-muted`} />;
       case 'read':
-        return <FileText className={`${iconProps} text-gray-300`} />;
+        return <FileText className={`${iconProps} theme-text-muted`} />;
       case 'write':
-        return <Edit className={`${iconProps} text-gray-300`} />;
+        return <Edit className={`${iconProps} theme-text-muted`} />;
       case 'agent':
-        return <Code className={`${iconProps} text-gray-300`} />;
+        return <Code className={`${iconProps} theme-text-muted`} />;
       case 'tool':
-        return <Zap className={`${iconProps} text-gray-300`} />;
+        return <Zap className={`${iconProps} theme-text-muted`} />;
       case 'command':
-        return <Play className={`${iconProps} text-gray-300`} />;
+        return <Play className={`${iconProps} theme-text-muted`} />;
       default:
-        return <Clock className={`${iconProps} text-gray-300`} />;
+        return <Clock className={`${iconProps} theme-text-muted`} />;
     }
   }
 
   // 默认 Pending 状态显示类型图标
   switch (type) {
     case 'search':
-      return <Search className={`${iconProps} text-gray-400`} />;
+      return <Search className={`${iconProps} theme-text-subtle`} />;
     case 'read':
-      return <FileText className={`${iconProps} text-gray-400`} />;
+      return <FileText className={`${iconProps} theme-text-subtle`} />;
     case 'write':
-      return <Edit className={`${iconProps} text-gray-400`} />;
+      return <Edit className={`${iconProps} theme-text-subtle`} />;
     case 'agent':
-      return <Code className={`${iconProps} text-gray-400`} />;
+      return <Code className={`${iconProps} theme-text-subtle`} />;
     case 'tool':
-      return <Zap className={`${iconProps} text-gray-400`} />;
+      return <Zap className={`${iconProps} theme-text-subtle`} />;
     case 'command':
-      return <Play className={`${iconProps} text-gray-400`} />;
+      return <Play className={`${iconProps} theme-text-subtle`} />;
     default:
-      return <Clock className={`${iconProps} text-gray-400`} />;
+      return <Clock className={`${iconProps} theme-text-subtle`} />;
   }
 };
 
@@ -1512,7 +1512,7 @@ export function WorkflowInlineMonitor({
       case 'failed':
         return '!text-red-400 !border-red-600';
       default:
-        return '!text-gray-300 !border-gray-600';
+        return 'theme-text-muted theme-border';
     }
   };
 
@@ -1567,21 +1567,20 @@ export function WorkflowInlineMonitor({
           }
         }
       `}</style>
-      <div className="mx-auto max-w-2xl my-4 relative z-0 bg-gray-900" data-workflow-monitor={workflowId} data-monitor="true">
-        <Card className="border border-gray-700 shadow-2xl !bg-gray-900 [&_*]:!bg-transparent">
-        {/* 标题栏 - 深色背景，白色文字 */}
+      <div className="relative z-0 mx-auto my-4 max-w-2xl" data-workflow-monitor={workflowId} data-monitor="true">
+        <Card className="theme-panel theme-border theme-shadow border">
         <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-800 transition-colors border-b border-gray-700"
+          className="theme-hoverable theme-border flex cursor-pointer items-center justify-between border-b px-4 py-3 transition-colors"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-white" />
-            <span className="font-semibold text-sm text-white">{displayName}</span>
+            <Zap className="h-4 w-4 text-blue-500" />
+            <span className="theme-text text-sm font-semibold">{displayName}</span>
             <Badge variant="outline" className={getStatusColor()}>
               {getStatusText()}
             </Badge>
             {workflow.nodes && workflow.nodes.length > 0 && (
-              <Badge variant="outline" className="!text-gray-300 border-gray-600 bg-gray-800">
+              <Badge variant="outline" className="theme-panel-muted">
                 {workflow.nodes.length} 步
               </Badge>
             )}
@@ -1594,7 +1593,7 @@ export function WorkflowInlineMonitor({
                   e.stopPropagation();
                   setViewMode(viewMode === 'list' ? 'dag' : 'list');
                 }}
-                className="flex items-center gap-1 text-xs text-gray-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-800"
+                className="theme-text-muted theme-soft-hover flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
                 title={viewMode === 'list' ? '切换到 DAG 视图' : '切换到列表视图'}
               >
                 {viewMode === 'list' ? (
@@ -1610,8 +1609,8 @@ export function WorkflowInlineMonitor({
                 )}
               </button>
             )}
-            <span className="text-xs text-gray-400">{displayDuration}s</span>
-            {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            <span className="theme-text-subtle text-xs">{displayDuration}s</span>
+            {isExpanded ? <ChevronUp className="theme-text-subtle h-4 w-4" /> : <ChevronDown className="theme-text-subtle h-4 w-4" />}
           </div>
         </div>
 
@@ -1639,7 +1638,7 @@ export function WorkflowInlineMonitor({
                 {workflow.nodes && workflow.nodes.length > 0 ? (
               <div className="relative">
                 {/* 背景连线 */}
-                <div className="absolute left-[19px] top-2 bottom-2 w-px bg-gray-600/50" />
+                <div className="theme-divider absolute bottom-2 left-[19px] top-2 w-px opacity-60" />
 
                 <div className="space-y-1">
                   {workflow.nodes.map((node, index) => (
@@ -1648,12 +1647,12 @@ export function WorkflowInlineMonitor({
                       data-node-id={node.id}
                       className={`relative flex items-start gap-3 py-1.5 transition-all rounded ${
                         node.status === 'running'
-                          ? 'bg-gray-800 -mx-2 px-2'
+                          ? 'bg-blue-500/10 -mx-2 px-2'
                           : node.status === 'failed'
                           ? 'bg-red-950/30 -mx-2 px-2'
                           : node.status === 'pending'
-                          ? 'bg-gray-800/50 -mx-2 px-2 opacity-75'
-                          : 'hover:bg-gray-800/50 -mx-2 px-2'
+                          ? 'theme-panel-muted -mx-2 px-2 opacity-75'
+                          : 'theme-soft-hover -mx-2 px-2'
                       }`}
                       style={{
                         // 🔥 添加渐进式淡入动画，让节点逐个显示
@@ -1690,7 +1689,7 @@ export function WorkflowInlineMonitor({
                                   <div className="flex flex-col gap-0.5">
                                     {/* 第一行：工具名称和参数 - 白色文字 */}
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs font-mono font-semibold text-white">
+                                      <span className="theme-text text-xs font-mono font-semibold">
                                         {icon} {title}
                                       </span>
                                       {/* 状态指示器 */}
@@ -1704,7 +1703,7 @@ export function WorkflowInlineMonitor({
 
                                     {/* 第二行：执行结果摘要 - 亮色文字 */}
                                     {summary && (
-                                      <div className="text-xs text-gray-300 ml-1">
+                                      <div className="theme-text-muted ml-1 text-xs">
                                         {summary}
                                       </div>
                                     )}
@@ -1713,22 +1712,22 @@ export function WorkflowInlineMonitor({
                                   {/* 可折叠的详细输出 */}
                                   {(tool.tool_input || tool.tool_output) && (
                                     <details className="mt-1 group" open={false}>
-                                      <summary className="cursor-pointer text-gray-400 hover:text-gray-200 text-xs">
+                                      <summary className="theme-text-subtle cursor-pointer text-xs hover:text-[var(--text-primary)]">
                                         详情
                                       </summary>
                                       <div className="mt-1 space-y-1">
                                         {tool.tool_input && (
                                           <div className="text-xs">
-                                            <span className="text-gray-400 font-medium">输入:</span>
-                                            <pre className="mt-0.5 text-xs text-gray-200 overflow-x-auto bg-black p-2 rounded border border-gray-700">
+                                            <span className="theme-text-subtle font-medium">输入:</span>
+                                            <pre className="theme-code-surface theme-border mt-0.5 overflow-x-auto rounded border p-2 text-xs">
                                               {tool.tool_input}
                                             </pre>
                                           </div>
                                         )}
                                         {tool.tool_output && (
                                           <div className="text-xs">
-                                            <span className="text-gray-400 font-medium">输出:</span>
-                                            <pre className="mt-0.5 text-xs text-gray-200 overflow-x-auto bg-black p-2 rounded border border-gray-700 max-h-32 overflow-y-auto">
+                                            <span className="theme-text-subtle font-medium">输出:</span>
+                                            <pre className="theme-code-surface theme-border mt-0.5 max-h-32 overflow-x-auto overflow-y-auto rounded border p-2 text-xs">
                                               {tool.tool_output}
                                             </pre>
                                           </div>
@@ -1748,7 +1747,7 @@ export function WorkflowInlineMonitor({
                               <>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {/* 节点标签 - 白色文字 */}
-                                  <span className="text-xs font-mono font-semibold text-white">
+                                  <span className="theme-text text-xs font-mono font-semibold">
                                     {node.label}
                                   </span>
 
@@ -1762,22 +1761,22 @@ export function WorkflowInlineMonitor({
 
                                   {/* 执行时长 */}
                                   {node.duration && (
-                                    <span className="text-xs text-gray-400">
+                                    <span className="theme-text-subtle text-xs">
                                       {(node.duration / 1000).toFixed(2)}s
                                     </span>
                                   )}
                                 </div>
 
                                 {/* 🔥 流式内容显示 - Markdown 格式 */}
-                                <div className="mt-2 p-3 bg-black rounded border border-gray-700 max-h-96 overflow-y-auto">
-                                  <pre className="text-xs text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">
+                                <div className="theme-code-surface theme-border mt-2 max-h-96 overflow-y-auto rounded border p-3">
+                                  <pre className="theme-text-muted whitespace-pre-wrap text-xs font-mono leading-relaxed">
                                     {node.streaming_content}
                                   </pre>
                                 </div>
 
                                 {/* 流式内容完成时的提示 */}
                                 {!node.is_streaming && (
-                                  <div className="text-xs text-gray-400 mt-1">
+                                  <div className="theme-text-subtle mt-1 text-xs">
                                     内容长度: {node.streaming_content.length} 字符
                                   </div>
                                 )}
@@ -1787,16 +1786,16 @@ export function WorkflowInlineMonitor({
                               <>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {/* 节点标签 - 白色文字 */}
-                              <span className="text-xs font-mono font-semibold text-white">
+                              <span className="theme-text text-xs font-mono font-semibold">
                                 {node.label}
                               </span>
 
                               {/* 状态标签 - 亮色文字 */}
                               {node.status === 'pending' && (
-                                <span className="text-xs text-gray-400">等待中</span>
+                                <span className="theme-text-subtle text-xs">等待中</span>
                               )}
                               {node.status === 'running' && (
-                                <span className="text-xs text-white animate-pulse">运行中</span>
+                                <span className="text-xs text-blue-400 animate-pulse">运行中</span>
                               )}
                               {node.status === 'completed' && (
                                 <span className="text-xs text-green-400">完成</span>
@@ -1807,7 +1806,7 @@ export function WorkflowInlineMonitor({
 
                               {/* 执行时长 */}
                               {node.duration && (
-                                <span className="text-xs text-gray-400">
+                                <span className="theme-text-subtle text-xs">
                                   {(node.duration / 1000).toFixed(2)}s
                                 </span>
                               )}
@@ -1815,7 +1814,7 @@ export function WorkflowInlineMonitor({
 
                             {/* 详细信息（后备） */}
                             {node.details && node.details !== node.label && (
-                              <div className="text-xs text-gray-400 mt-0.5 truncate font-mono max-w-md">
+                              <div className="theme-text-subtle mt-0.5 max-w-md truncate text-xs font-mono">
                                 {node.details}
                               </div>
                             )}
@@ -1833,12 +1832,12 @@ export function WorkflowInlineMonitor({
               <div className="flex items-center justify-center py-8 text-center">
                 <div className="space-y-2">
                   <div className="w-8 h-8 mx-auto flex items-center justify-center">
-                    <div className="w-3 h-3 bg-gray-500 rounded-full animate-pulse" />
+                    <div className="theme-text-subtle h-3 w-3 rounded-full animate-pulse bg-current" />
                   </div>
-                  <p className="text-sm text-gray-400">
+                  <p className="theme-text-subtle text-sm">
                     {workflow.status === 'running' ? '正在准备工作流...' : '等待节点信息...'}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="theme-text-subtle text-xs">
                     workflowId: {workflowId}
                   </p>
                 </div>
@@ -1847,9 +1846,9 @@ export function WorkflowInlineMonitor({
 
             {/* 当前节点（还没有在列表中的） */}
             {workflow.status === 'running' && workflow.currentNode && !workflow.nodes?.some(n => n.id === workflow.currentNode) && (
-              <div className="flex items-center gap-3 text-xs text-gray-400 py-2">
+              <div className="theme-text-subtle flex items-center gap-3 py-2 text-xs">
                 <div className="w-4 h-4 flex items-center justify-center">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" />
+                  <div className="theme-text-subtle h-2 w-2 rounded-full animate-pulse bg-current" />
                 </div>
                 <span>正在执行: {workflow.currentNode}</span>
               </div>

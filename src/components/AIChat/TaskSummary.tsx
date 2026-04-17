@@ -139,12 +139,12 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
   }
 
   return (
-    <div className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-gradient-to-r from-blue-500/5 to-purple-500/5">
+    <div className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <CheckCircle className="w-4 h-4 text-green-400" />
-        <span className="text-sm font-bold text-gray-200">生成完成</span>
-        <span className="text-xs text-gray-500 ml-2">
+        <span className="text-sm font-bold theme-text">生成完成</span>
+        <span className="text-xs theme-text-subtle ml-2">
           {summary.completedToolCalls}/{summary.totalToolCalls} 操作已完成
         </span>
       </div>
@@ -156,7 +156,7 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <FileText className="w-3.5 h-3.5 text-green-400" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <span className="text-xs font-semibold theme-text-subtle uppercase tracking-wider">
                 生成的文件 ({summary.filesCreated.length})
               </span>
             </div>
@@ -164,10 +164,10 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
               {summary.filesCreated.map((filePath, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-2 px-2 py-1.5 bg-gray-900/50 rounded border border-gray-700/30 hover:border-green-500/30 transition-colors group"
+                  className="flex items-center gap-2 px-2 py-1.5 theme-panel rounded border theme-border hover:border-green-500/30 transition-colors group"
                 >
                   <FileCheck className="w-3 h-3 text-green-400 shrink-0" />
-                  <code className="text-xs text-gray-300 font-mono truncate flex-1 group-hover:text-green-300 transition-colors">
+                  <code className="text-xs theme-text-muted font-mono truncate flex-1 group-hover:text-green-400 transition-colors">
                     {filePath}
                   </code>
                 </div>
@@ -181,7 +181,7 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <FileText className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <span className="text-xs font-semibold theme-text-subtle uppercase tracking-wider">
                 读取的文件 ({summary.filesRead.length})
               </span>
             </div>
@@ -189,10 +189,10 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
               {summary.filesRead.map((filePath, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-2 px-2 py-1.5 bg-gray-900/50 rounded border border-gray-700/30"
+                  className="flex items-center gap-2 px-2 py-1.5 theme-panel rounded border theme-border"
                 >
                   <FileText className="w-3 h-3 text-blue-400 shrink-0" />
-                  <code className="text-xs text-gray-400 font-mono truncate">
+                  <code className="text-xs theme-text-subtle font-mono truncate">
                     {filePath}
                   </code>
                 </div>
@@ -203,7 +203,7 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
 
         {/* 执行的命令 */}
         {summary.commandsExecuted > 0 && (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs theme-text-subtle">
             <Clock className="w-3.5 h-3.5 text-amber-400" />
             <span>执行了 {summary.commandsExecuted} 个命令</span>
           </div>

@@ -11,6 +11,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DiffEditor as MonacoDiffEditor } from '@monaco-editor/react';
 import './ComposerDiffView.css';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { getMonacoTheme } from '../../utils/theme';
 
 // ============================================================================
 // 类型定义
@@ -65,6 +67,7 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
   onRejectFile,
   onClose,
 }) => {
+  const theme = useSettingsStore(state => state.theme);
   const [selectedPath, setSelectedPath] = useState<string>(changes[0]?.path || '');
   const [appliedFiles, setAppliedFiles] = useState<Set<string>>(new Set());
 
@@ -274,6 +277,7 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
               language={getLanguage(selectedChange.path)}
               path={selectedChange.path}
               readOnly={true}
+              theme={theme}
             />
           ) : (
             <div className="diff-empty">
@@ -306,6 +310,7 @@ interface DiffEditorProps {
   language: string;
   path: string;
   readOnly?: boolean;
+  theme: 'vs-dark' | 'light';
 }
 
 const DiffEditor: React.FC<DiffEditorProps> = ({
@@ -314,6 +319,7 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
   language,
   path,
   readOnly = true,
+  theme,
 }) => {
   const [isMonacoLoaded, setIsMonacoLoaded] = useState(false);
   const editorRef = useRef<any>(null);
@@ -368,7 +374,7 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
         original={original || ''}
         modified={modified || ''}
         onMount={handleEditorMount}
-        theme="vs-dark"
+        theme={getMonacoTheme(theme)}
         options={{
           readOnly: readOnly,
           minimap: { enabled: false },

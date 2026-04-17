@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
+import { getMonacoTheme } from '../../utils/theme';
 
 interface MonacoDiffViewProps {
   oldValue: string;
@@ -31,7 +32,7 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
         readOnly: true,
         renderSideBySide: true,
         automaticLayout: true,
-        theme: theme,
+        theme: getMonacoTheme(theme as 'vs-dark' | 'light'),
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         lineNumbers: 'on',
@@ -96,7 +97,7 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
   return (
     <div 
       ref={containerRef} 
-      style={{ height, width: '100%', borderRadius: '4px', overflow: 'hidden', border: '1px solid #333' }} 
+      style={{ height, width: '100%', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }} 
     />
   );
 };

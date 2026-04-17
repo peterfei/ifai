@@ -66,16 +66,16 @@ export const CacheStatsPanel: React.FC<CacheStatsPanelProps> = ({ onClose }) => 
   const hitRateColor = stats.hitRate >= 80 ? 'text-green-500' : stats.hitRate >= 50 ? 'text-yellow-500' : 'text-red-500';
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 bg-[#1e1e1e] border border-gray-700 rounded-lg shadow-2xl z-50">
+    <div className="theme-panel-elevated theme-border theme-shadow fixed bottom-4 right-4 z-50 w-96 rounded-lg border">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+      <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <BarChart3 size={18} className="text-blue-400" />
-          <h3 className="text-sm font-semibold text-white">性能监控</h3>
+          <h3 className="theme-text text-sm font-semibold">性能监控</h3>
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+          className="theme-button-ghost rounded p-1"
         >
           <X size={16} />
         </button>
@@ -85,31 +85,31 @@ export const CacheStatsPanel: React.FC<CacheStatsPanelProps> = ({ onClose }) => 
       <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
         {/* Cache Statistics */}
         <div>
-          <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-2">
+          <h4 className="theme-text-subtle mb-2 flex items-center gap-2 text-xs font-medium">
             <Activity size={14} />
             缓存统计
           </h4>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="bg-[#252526] p-2 rounded">
-              <div className="text-gray-500 text-xs">命中率</div>
+            <div className="theme-panel-muted rounded p-2">
+              <div className="theme-text-subtle text-xs">命中率</div>
               <div className={`text-lg font-semibold ${hitRateColor}`}>
                 {stats.hitRate.toFixed(1)}%
               </div>
             </div>
-            <div className="bg-[#252526] p-2 rounded">
-              <div className="text-gray-500 text-xs">缓存大小</div>
+            <div className="theme-panel-muted rounded p-2">
+              <div className="theme-text-subtle text-xs">缓存大小</div>
               <div className="text-lg font-semibold text-blue-400">
                 {stats.size}
               </div>
             </div>
-            <div className="bg-[#252526] p-2 rounded">
-              <div className="text-gray-500 text-xs">命中次数</div>
+            <div className="theme-panel-muted rounded p-2">
+              <div className="theme-text-subtle text-xs">命中次数</div>
               <div className="text-lg font-semibold text-green-400">
                 {stats.hits}
               </div>
             </div>
-            <div className="bg-[#252526] p-2 rounded">
-              <div className="text-gray-500 text-xs">未命中</div>
+            <div className="theme-panel-muted rounded p-2">
+              <div className="theme-text-subtle text-xs">未命中</div>
               <div className="text-lg font-semibold text-red-400">
                 {stats.misses}
               </div>
@@ -120,23 +120,23 @@ export const CacheStatsPanel: React.FC<CacheStatsPanelProps> = ({ onClose }) => 
         {/* Performance Metrics */}
         {Object.keys(perfStats).length > 0 && (
           <div>
-            <h4 className="text-xs font-medium text-gray-400 mb-2">性能指标</h4>
+            <h4 className="theme-text-subtle mb-2 text-xs font-medium">性能指标</h4>
             <div className="space-y-2">
               {Object.entries(perfStats).map(([op, data]) => (
-                <div key={op} className="bg-[#252526] p-2 rounded text-xs">
+                <div key={op} className="theme-panel-muted rounded p-2 text-xs">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-gray-300">{op}</span>
-                    <span className="text-gray-500">{data.count} 次</span>
+                    <span className="theme-text">{op}</span>
+                    <span className="theme-text-subtle">{data.count} 次</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-gray-400">
+                  <div className="theme-text-muted grid grid-cols-3 gap-2">
                     <div>
-                      <span className="text-gray-600">平均:</span> {data.avg.toFixed(1)}ms
+                      <span className="theme-text-subtle">平均:</span> {data.avg.toFixed(1)}ms
                     </div>
                     <div>
-                      <span className="text-gray-600">最小:</span> {data.min.toFixed(1)}ms
+                      <span className="theme-text-subtle">最小:</span> {data.min.toFixed(1)}ms
                     </div>
                     <div>
-                      <span className="text-gray-600">最大:</span> {data.max.toFixed(1)}ms
+                      <span className="theme-text-subtle">最大:</span> {data.max.toFixed(1)}ms
                     </div>
                   </div>
                 </div>

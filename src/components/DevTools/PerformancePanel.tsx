@@ -16,7 +16,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
   if (minimized) {
     return (
       <div 
-        className="fixed bottom-4 right-4 bg-gray-800 p-2 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 border border-gray-700 z-50"
+        className="theme-panel-elevated theme-border theme-shadow theme-hoverable fixed bottom-4 right-4 z-50 cursor-pointer rounded-lg border p-2"
         onClick={() => setMinimized(false)}
         role="button"
         aria-label="Expand Performance Panel"
@@ -27,23 +27,23 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 bg-[#1e1e1e] border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden font-sans text-xs">
+    <div className="theme-panel-elevated theme-border theme-shadow fixed bottom-4 right-4 z-50 w-80 overflow-hidden rounded-lg border font-sans text-xs">
       {/* Header */}
-      <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center gap-2 font-semibold text-gray-200">
+      <div className="theme-panel-muted theme-border flex items-center justify-between border-b p-2">
+        <div className="theme-text flex items-center gap-2 font-semibold">
           <Activity className="w-4 h-4" />
           <span>Performance Monitor</span>
         </div>
         <div className="flex items-center gap-1">
           <button 
             onClick={() => setMinimized(true)}
-            className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+            className="theme-button-ghost rounded p-1"
           >
             _
           </button>
           <button 
             onClick={onClose}
-            className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+            className="theme-button-ghost rounded p-1"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -52,7 +52,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-3 gap-2 p-3 bg-[#1e1e1e]">
+      <div className="grid grid-cols-3 gap-2 p-3">
         <MetricCard 
           label="FPS" 
           value={currentMetrics.fps} 
@@ -74,7 +74,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
       </div>
 
       {/* Chart */}
-      <div className="h-32 w-full p-2 bg-[#1e1e1e]">
+      <div className="h-32 w-full p-2">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={metrics}>
             <defs>
@@ -86,8 +86,8 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
             <XAxis dataKey="timestamp" hide />
             <YAxis domain={[0, 70]} hide />
             <Tooltip 
-              contentStyle={{ backgroundColor: '#2d2d2d', border: 'none', borderRadius: '4px', fontSize: '10px' }}
-              itemStyle={{ color: '#ccc' }}
+              contentStyle={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '10px', color: 'var(--text-primary)' }}
+              itemStyle={{ color: 'var(--text-primary)' }}
               labelStyle={{ display: 'none' }}
             />
             <Area 
@@ -109,10 +109,10 @@ const MetricCard: React.FC<{ label: string; value: number; unit: string; status:
   const colorClass = status === 'good' ? 'text-green-400' : status === 'warning' ? 'text-yellow-400' : 'text-red-400';
   
   return (
-    <div className="flex flex-col items-center p-2 bg-gray-800 rounded">
-      <span className="text-gray-500 mb-1">{label}</span>
+    <div className="theme-panel-muted flex flex-col items-center rounded p-2">
+      <span className="theme-text-subtle mb-1">{label}</span>
       <span className={`text-lg font-bold ${colorClass}`}>
-        {value}<span className="text-xs text-gray-500 ml-0.5">{unit}</span>
+        {value}<span className="theme-text-subtle ml-0.5 text-xs">{unit}</span>
       </span>
     </div>
   );

@@ -199,29 +199,29 @@ export const GlobalAgentMonitor: React.FC = () => {
     >
         {/* Main Floating Action Button / Status Indicator */}
         <div 
-            className="flex items-center gap-3 bg-[#1e1e1e] border border-[#333] shadow-2xl rounded-lg p-2 pr-4 cursor-move hover:border-[#444] transition-all group select-none"
+            className="flex items-center gap-3 theme-panel-elevated border theme-border theme-shadow rounded-lg p-2 pr-4 cursor-move hover:border-[var(--border-strong)] transition-all group select-none"
             onMouseDown={handleMouseDown}
         >
             <div className={`p-2 rounded-md transition-colors ${activeCount > 0 ? 'bg-blue-600' : 'bg-green-600'}`}>
                 {activeCount > 0 ? <Loader2 size={18} className="text-white animate-spin" /> : <Terminal size={18} className="text-white" />}
             </div>
             <div className="flex flex-col">
-                <span className="text-xs font-bold text-gray-200">
+                <span className="text-xs font-bold theme-text">
                     {activeCount > 0 
                         ? t('agent_monitor_activeTasks', { count: activeCount }) 
                         : t('agent_monitor_allTasksCompleted')}
                 </span>
-                <span className="text-[10px] text-gray-500">
+                <span className="text-[10px] theme-text-subtle">
                     {t('agent_monitor_totalTasks', { count: runningAgents.length })}
                 </span>
             </div>
-            {isMinimized ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+            {isMinimized ? <ChevronUp size={16} className="theme-text-subtle" /> : <ChevronDown size={16} className="theme-text-subtle" />}
         </div>
 
         {/* Task List Panel */}
         {!isMinimized && (
             <div 
-                className={`w-96 bg-[#1e1e1e] border border-[#333] rounded-xl shadow-2xl overflow-hidden animate-in duration-200 flex flex-col max-h-[600px] ${
+                className={`w-96 theme-panel-elevated border theme-border rounded-xl theme-shadow overflow-hidden animate-in duration-200 flex flex-col max-h-[600px] ${
                     isAtBottom ? 'slide-in-from-bottom-2 mb-2' : 'slide-in-from-top-2 mt-2'
                 }`}
                 style={{ 
@@ -229,12 +229,12 @@ export const GlobalAgentMonitor: React.FC = () => {
                 }}
             >
                 {/* Header */}
-                <div className="flex justify-between items-center p-3 border-b border-[#333] bg-[#252526] select-none">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('agent_monitor_title')}</span>
+                <div className="flex justify-between items-center p-3 border-b theme-border theme-panel-muted select-none">
+                    <span className="text-xs font-bold theme-text-subtle uppercase tracking-wider">{t('agent_monitor_title')}</span>
                     {runningAgents.some(a => a.status === 'completed' || a.status === 'failed') && (
                         <button 
                             onClick={(e) => { e.stopPropagation(); clearCompletedAgents(); }}
-                            className="text-[10px] flex items-center gap-1 text-gray-400 hover:text-white transition-colors bg-[#333] hover:bg-[#444] px-2 py-1 rounded"
+                            className="text-[10px] flex items-center gap-1 theme-button-secondary theme-text-subtle hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded"
                         >
                             <Trash2 size={12} /> {t('agent_monitor_clearDone')}
                         </button>
@@ -246,13 +246,13 @@ export const GlobalAgentMonitor: React.FC = () => {
                     {runningAgents.map(agent => (
                         <div
                             key={agent.id}
-                            className="flex flex-col gap-0 bg-[#2d2d2d] rounded-lg border border-[#333] overflow-hidden transition-all hover:border-[#555]"
+                            className="flex flex-col gap-0 theme-panel-muted rounded-lg border theme-border overflow-hidden transition-all hover:border-[var(--border-strong)]"
                             onMouseEnter={() => setHoveredAgentId(agent.id)}
                             onMouseLeave={() => setHoveredAgentId(null)}
                         >
                             {/* Agent Header */}
                             <div
-                                className="flex justify-between items-center p-3 cursor-pointer hover:bg-[#333] transition-colors"
+                                className="flex justify-between items-center p-3 cursor-pointer theme-soft-hover transition-colors"
                                 onClick={() => setExpandedId(expandedId === agent.id ? null : agent.id)}
                             >
                                 <div className="flex items-center gap-3 overflow-hidden">
@@ -261,7 +261,7 @@ export const GlobalAgentMonitor: React.FC = () => {
                                     </div>
                                     <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-gray-200 truncate">{agent.type}</span>
+                                            <span className="text-xs font-bold theme-text truncate">{agent.type}</span>
                                             {agent.threadId && getThreadTitle(agent.threadId) && (
                                                 <button
                                                     onClick={(e) => handleThreadClick(agent.threadId!, e)}
@@ -276,19 +276,19 @@ export const GlobalAgentMonitor: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-gray-500 truncate capitalize font-mono">
+                                            <span className="text-[10px] theme-text-subtle truncate capitalize font-mono">
                                                 {t(`agent_status_${agent.status}`, { defaultValue: agent.status })}
                                             </span>
                                             {agent.expiresAt && (agent.status === 'completed' || agent.status === 'failed') ? (
-                                                <span className={`text-[9px] border-l border-gray-600 pl-2 ${
+                                                <span className={`text-[9px] border-l theme-border pl-2 ${
                                                     Math.ceil((agent.expiresAt - Date.now()) / 1000) <= 3
                                                         ? 'text-red-400 animate-pulse'
-                                                        : 'text-gray-400'
+                                                        : 'theme-text-subtle'
                                                 }`}>
                                                     {Math.ceil((agent.expiresAt - Date.now()) / 1000)}s后关闭
                                                 </span>
                                             ) : agent.startTime && (
-                                                <span className="text-[9px] text-gray-600 border-l border-gray-600 pl-2">
+                                                <span className="text-[9px] theme-text-subtle border-l theme-border pl-2">
                                                     {Math.round((Date.now() - agent.startTime) / 1000)}s
                                                 </span>
                                             )}
@@ -297,7 +297,7 @@ export const GlobalAgentMonitor: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {agent.status === 'running' && (
-                                        <div className="w-12 h-1 bg-gray-700 rounded-full overflow-hidden">
+                                        <div className="w-12 h-1 theme-panel rounded-full overflow-hidden">
                                             <div 
                                                 className="h-full bg-blue-500 transition-all duration-300" 
                                                 style={{ width: `${(agent.progress || 0) * 100}%` }} 
@@ -306,7 +306,7 @@ export const GlobalAgentMonitor: React.FC = () => {
                                     )}
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); removeAgent(agent.id); }}
-                                        className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded-md text-gray-500 transition-colors"
+                                        className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded-md theme-text-subtle transition-colors"
                                         title={t('agent_monitor_stopRemove')}
                                     >
                                         <X size={14} />
@@ -316,10 +316,10 @@ export const GlobalAgentMonitor: React.FC = () => {
 
                             {/* Expanded Logs */}
                             {expandedId === agent.id && (
-                                <div className="bg-[#1e1e1e]">
+                                <div className="theme-panel">
                                     {/* Explore Agent Progress - Use TaskCard with detailed mode */}
                                     {agent.exploreProgress && (
-                                        <div className="p-3 border-b border-[#333]">
+                                        <div className="p-3 border-b theme-border">
                                             <TaskCard
                                                 task={exploreToTaskMetadata(agent.exploreProgress)}
                                                 mode="detailed"
@@ -328,13 +328,13 @@ export const GlobalAgentMonitor: React.FC = () => {
                                     )}
 
                                     {/* Regular Logs */}
-                                    <div className="p-3 max-h-[300px] overflow-y-auto font-mono text-[10px] text-gray-400 shadow-inner">
+                                    <div className="p-3 max-h-[300px] overflow-y-auto font-mono text-[10px] theme-text-subtle shadow-inner">
                                         {agent.logs.length === 0 ? (
                                             <span className="opacity-30 italic">{t('agent_monitor_initializing')}</span>
                                         ) : (
                                             agent.logs.map((log, i) => (
                                                 <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-blue-500/50 pl-2">
-                                                    <pre className="text-gray-300 whitespace-pre-wrap">{log}</pre>
+                                                    <pre className="theme-text-muted whitespace-pre-wrap">{log}</pre>
                                                 </div>
                                             ))
                                         )}
@@ -348,10 +348,10 @@ export const GlobalAgentMonitor: React.FC = () => {
                                 <div className="px-3 pb-2">
                                     {/* Explore Progress Preview */}
                                     {agent.exploreProgress && (
-                                        <div className="mb-2 flex items-center gap-2 text-[10px] text-gray-400">
-                                            <span className="text-blue-500">🔍</span>
+                                        <div className="mb-2 flex items-center gap-2 text-[10px] theme-text-muted">
+                                            <span className="text-blue-500">∙</span>
                                             <span className="capitalize">{agent.exploreProgress.phase}</span>
-                                            <span className="text-gray-600">
+                                            <span className="theme-text-subtle">
                                                 {agent.exploreProgress.progress.scanned}/{agent.exploreProgress.progress.total}
                                             </span>
                                         </div>
@@ -359,8 +359,8 @@ export const GlobalAgentMonitor: React.FC = () => {
 
                                     {/* Regular Log Preview */}
                                     {!agent.exploreProgress && agent.logs.length > 0 && (
-                                        <div className="text-[10px] text-gray-500 truncate font-mono opacity-70">
-                                            <span className="text-blue-500 mr-1">❯</span>
+                                        <div className="text-[10px] theme-text-subtle truncate font-mono opacity-70">
+                                            <span className="text-blue-500 mr-1">›</span>
                                             {agent.logs[agent.logs.length - 1]}
                                         </div>
                                     )}

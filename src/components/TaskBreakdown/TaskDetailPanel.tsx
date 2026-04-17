@@ -30,7 +30,7 @@ interface TaskDetailPanelProps {
  * 状态选项
  */
 const STATUS_OPTIONS: { value: TaskStatus; label: string; icon: any; color: string; bgColor: string }[] = [
-  { value: 'pending', label: '待办', icon: Circle, color: 'text-gray-400', bgColor: 'bg-gray-500/10' },
+  { value: 'pending', label: '待办', icon: Circle, color: 'theme-text-subtle', bgColor: 'theme-panel-elevated' },
   { value: 'in_progress', label: '进行中', icon: Loader2, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
   { value: 'completed', label: '已完成', icon: CheckCircle2, color: 'text-green-400', bgColor: 'bg-green-500/10' },
   { value: 'failed', label: '失败', icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10' },
@@ -102,7 +102,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     <>
       <motion.div
         className={`
-          bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0
+          theme-panel-muted theme-border border-l flex-shrink-0
           ${position === 'right' ? 'w-96' : 'h-64'}
         `}
         initial={{ opacity: 0, x: 20 }}
@@ -111,17 +111,17 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         transition={{ duration: 0.2, ease: 'easeInOut' }}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+        <div className="theme-panel theme-border flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
             <StatusIcon className={`w-5 h-5 ${currentStatus.color} ${node.status === 'in_progress' ? 'animate-spin' : ''}`} />
-            <h3 className="text-sm font-medium text-gray-200 truncate flex-1">
+            <h3 className="theme-text flex-1 truncate text-sm font-medium">
               {node.title}
             </h3>
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
+              className="theme-button-ghost rounded-md p-1"
             >
               <X className="w-4 h-4" />
             </button>
@@ -132,7 +132,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         <div className="p-4 space-y-4 overflow-auto max-h-[calc(100vh-120px)]">
           {/* 状态切换 */}
           <div>
-            <label className="text-xs text-gray-500 mb-2 block">任务状态</label>
+            <label className="theme-text-subtle mb-2 block text-xs">任务状态</label>
             <div className="grid grid-cols-2 gap-2">
               {STATUS_OPTIONS.map((option) => {
                 const Icon = option.icon;
@@ -145,7 +145,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                       flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all
                       ${isActive
                         ? `${option.bgColor} ${option.color} border-current`
-                        : 'bg-[#2a2a2a] border-gray-700 text-gray-400 hover:border-gray-600'
+                        : 'theme-input-surface theme-border theme-text-subtle hover:border-[var(--border-strong)]'
                       }
                     `}
                   >
@@ -162,21 +162,21 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 描述 */}
             {node.description && (
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">描述</label>
-                <p className="text-sm text-gray-300 leading-relaxed">{node.description}</p>
+                <label className="theme-text-subtle mb-1 block text-xs">描述</label>
+                <p className="theme-text-muted text-sm leading-relaxed">{node.description}</p>
               </div>
             )}
 
             {/* 任务 ID */}
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">任务 ID</label>
+              <label className="theme-text-subtle mb-1 block text-xs">任务 ID</label>
               <div className="flex items-center gap-2">
-                <code className="text-xs text-gray-400 bg-[#2a2a2a] px-2 py-1 rounded flex-1 truncate">
+                <code className="theme-input-surface theme-border theme-text-subtle flex-1 truncate rounded border px-2 py-1 text-xs">
                   {node.id}
                 </code>
                 <button
                   onClick={handleCopyId}
-                  className="p-1 rounded hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
+                  className="theme-button-ghost rounded p-1"
                   title="复制 ID"
                 >
                   <Copy className="w-4 h-4" />
@@ -192,13 +192,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               {/* 优先级 */}
               {node.priority && (
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">优先级</label>
+                  <label className="theme-text-subtle mb-1 block text-xs">优先级</label>
                   <span className={`
                     text-xs px-2 py-1 rounded inline-block
                     ${node.priority === 'urgent' ? 'bg-red-500/20 text-red-300' :
                       node.priority === 'high' ? 'bg-orange-500/20 text-orange-300' :
                       node.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                      'bg-gray-500/20 text-gray-400'}
+                      'theme-panel-elevated theme-text-subtle'}
                   `}>
                     {node.priority === 'urgent' ? '紧急' :
                      node.priority === 'high' ? '高' :
@@ -211,8 +211,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               {/* 类别 */}
               {node.category && (
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">类别</label>
-                  <span className="text-xs px-2 py-1 rounded bg-gray-700/50 text-gray-300 inline-block">
+                  <label className="theme-text-subtle mb-1 block text-xs">类别</label>
+                  <span className="theme-panel-elevated theme-border theme-text-muted inline-block rounded border px-2 py-1 text-xs">
                     {getCategoryLabel(node.category)}
                   </span>
                 </div>
@@ -221,8 +221,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               {/* 工时估算 */}
               {node.estimatedHours && (
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">预估工时</label>
-                  <span className="text-xs text-gray-300 flex items-center gap-1">
+                  <label className="theme-text-subtle mb-1 block text-xs">预估工时</label>
+                  <span className="theme-text-muted flex items-center gap-1 text-xs">
                     <Clock className="w-3.5 h-3.5" />
                     {node.estimatedHours} 小时
                   </span>
@@ -233,7 +233,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 依赖关系 */}
             {node.dependencies && node.dependencies.length > 0 && (
               <div>
-                <label className="text-xs text-gray-500 mb-2 block flex items-center gap-1">
+                <label className="theme-text-subtle mb-2 flex items-center gap-1 text-xs">
                   <GitBranch className="w-3.5 h-3.5" />
                   依赖关系 ({node.dependencies.length})
                 </label>
@@ -253,12 +253,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 验收标准 */}
             {node.acceptanceCriteria && node.acceptanceCriteria.length > 0 && (
               <div>
-                <label className="text-xs text-gray-500 mb-2 block">验收标准</label>
+                <label className="theme-text-subtle mb-2 block text-xs">验收标准</label>
                 <ul className="space-y-1.5">
                   {node.acceptanceCriteria.map((criteria, index) => (
                     <li
                       key={index}
-                      className="text-xs text-gray-300 flex items-start gap-2"
+                      className="theme-text-muted flex items-start gap-2 text-xs"
                     >
                       <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
                       <span>{criteria}</span>
@@ -271,7 +271,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 子任务统计 */}
             {node.children && node.children.length > 0 && (
               <div>
-                <label className="text-xs text-gray-500 mb-2 block">子任务</label>
+                <label className="theme-text-subtle mb-2 block text-xs">子任务</label>
                 <div className="space-y-1">
                   {node.children.map((child) => {
                     const childStatus = STATUS_OPTIONS.find(s => s.value === child.status);
@@ -279,12 +279,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                     return (
                       <div
                         key={child.id}
-                        className="text-xs text-gray-400 flex items-center gap-2 p-2 rounded hover:bg-[#2a2a2a] transition-colors"
+                        className="theme-hoverable theme-text-muted flex items-center gap-2 rounded p-2 text-xs transition-colors"
                       >
                         <ChildIcon className={`w-3.5 h-3.5 ${childStatus?.color} ${child.status === 'in_progress' ? 'animate-spin' : ''}`} />
                         <span className="flex-1 truncate">{child.title}</span>
                         {child.estimatedHours && (
-                          <span className="text-[10px] text-gray-500">{child.estimatedHours}h</span>
+                          <span className="theme-text-subtle text-[10px]">{child.estimatedHours}h</span>
                         )}
                       </div>
                     );

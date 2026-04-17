@@ -729,7 +729,7 @@ ${textBefore}[CURSOR]${textAfter}
     }
   };
 
-  const theme = useEditorStore(state => state.theme);
+  const theme = useSettingsStore(state => state.theme);
   // Select only specific settings to avoid unnecessary re-renders
   const showMinimap = useSettingsStore(state => state.showMinimap);
   const fontSize = useSettingsStore(state => state.fontSize);
@@ -975,24 +975,24 @@ ${textBefore}[CURSOR]${textAfter}
   // 🔥 工业级加载反馈：当文件已选中但内容尚未加载完成时，展示骨架屏
   if (!file.content && !file.isDirty) {
     return (
-      <div className="flex flex-col h-full p-6 space-y-4 bg-[#1e1e1e]" data-testid="editor-skeleton">
-        <Skeleton className="h-6 w-1/3 bg-gray-800/50" />
+      <div className="theme-panel flex flex-col h-full p-6 space-y-4" data-testid="editor-skeleton">
+        <Skeleton className="h-6 w-1/3" />
         <div className="space-y-2">
-          <Skeleton className="h-4 w-full bg-gray-800/30" />
-          <Skeleton className="h-4 w-5/6 bg-gray-800/30" />
-          <Skeleton className="h-4 w-4/5 bg-gray-800/30" />
-          <Skeleton className="h-4 w-full bg-gray-800/30" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/5" />
+          <Skeleton className="h-4 w-full" />
         </div>
         <div className="pt-4 space-y-2">
-          <Skeleton className="h-4 w-3/4 bg-gray-800/30" />
-          <Skeleton className="h-4 w-2/3 bg-gray-800/30" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-2/3" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-[#1e1e1e]" data-testid="monaco-editor-container">
+    <div className="theme-panel flex-1 flex flex-col h-full w-full relative overflow-hidden" data-testid="monaco-editor-container">
       <Editor
         height="100%"
         path={file?.path || `untitled-${paneId}-${file?.id}`} // Guarantee uniqueness

@@ -155,15 +155,13 @@ export function WorkflowFloatingMonitor({
   return (
     <div
       ref={dragRef}
-      className="fixed z-50 shadow-2xl rounded-lg overflow-hidden"
+      className="theme-panel-elevated theme-border theme-shadow fixed z-50 overflow-hidden rounded-lg border"
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
         width: isMinimized ? 'auto' : '500px',
         maxHeight: isMinimized ? 'auto' : '80vh',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(0, 0, 0, 0.1)',
         transition: isDragging ? 'none' : 'all 0.2s ease',
       }}
       onMouseDown={handleMouseDown}
@@ -171,12 +169,12 @@ export function WorkflowFloatingMonitor({
     >
       {/* 顶部标题栏（可拖拽） */}
       <div
-        className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white cursor-move"
+        className="theme-panel-muted theme-border flex cursor-move items-center justify-between border-b bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent px-4 py-2"
         data-no-drag
       >
         <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 animate-pulse" />
-          <span className="font-semibold text-sm">
+          <Zap className="h-4 w-4 animate-pulse text-blue-500" />
+          <span className="theme-text text-sm font-semibold">
             工作流监控器
             {runningCount > 0 && (
               <Badge className="ml-2 bg-yellow-400 text-yellow-900">
@@ -189,7 +187,7 @@ export function WorkflowFloatingMonitor({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 text-white hover:bg-white/20"
+            className="theme-button-ghost h-6 w-6 p-0 theme-text-subtle hover:text-[var(--text-primary)]"
             onClick={() => setIsMinimized(!isMinimized)}
             title={isMinimized ? '展开' : '最小化'}
           >
@@ -199,7 +197,7 @@ export function WorkflowFloatingMonitor({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 text-white hover:bg-red-500"
+              className="theme-button-ghost h-6 w-6 p-0 theme-text-subtle hover:bg-red-500/10 hover:text-red-500"
               onClick={onClose}
               title="关闭"
             >
@@ -212,7 +210,7 @@ export function WorkflowFloatingMonitor({
       {/* 最小化状态 */}
       {isMinimized ? (
         <div
-          className="px-4 py-2 bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+          className="theme-panel theme-hoverable cursor-pointer px-4 py-2"
           onClick={() => setIsMinimized(false)}
           data-no-drag
         >
@@ -221,7 +219,7 @@ export function WorkflowFloatingMonitor({
               <div className="text-sm font-medium truncate">
                 {selectedWorkflow?.name || '工作流执行中'}
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="theme-text-subtle text-xs">
                 {selectedWorkflow?.nodes.filter(n => n.status === 'completed').length || 0} / {selectedWorkflow?.nodes.length || 0} 节点完成
               </div>
             </div>
@@ -236,14 +234,14 @@ export function WorkflowFloatingMonitor({
         <>
           {/* 工作流切换标签 */}
           {workflows.length > 1 && (
-            <div className="flex gap-1 p-2 bg-gray-50 dark:bg-gray-800 overflow-x-auto" data-no-drag>
+            <div className="theme-panel-muted flex gap-1 overflow-x-auto p-2" data-no-drag>
               {workflows.map((workflow) => (
                 <button
                   key={workflow.id}
                   className={`px-3 py-1 rounded text-sm font-medium whitespace-nowrap transition-colors ${
                     selectedWorkflowId === workflow.id
                       ? 'bg-blue-500 text-white'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      : 'theme-panel theme-border theme-text-muted hover:bg-[var(--hover-bg)]'
                   }`}
                   onClick={() => setSelectedWorkflowId(workflow.id)}
                 >
@@ -255,9 +253,9 @@ export function WorkflowFloatingMonitor({
           )}
 
           {/* 折叠按钮 */}
-          <div className="px-4 py-2 bg-white dark:bg-gray-800 border-b" data-no-drag>
+          <div className="theme-panel theme-border border-b px-4 py-2" data-no-drag>
             <button
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="theme-text-subtle flex items-center gap-2 text-sm transition-colors hover:text-[var(--text-primary)]"
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
               {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -333,7 +331,7 @@ function MiniWorkflowProgress({ workflow }: MiniWorkflowProgressProps) {
   return (
     <div className="space-y-1">
       <Progress value={progress} className="h-2" />
-      <div className="text-xs text-center text-muted-foreground">
+      <div className="theme-text-subtle text-center text-xs">
         {Math.round(progress)}%
       </div>
     </div>

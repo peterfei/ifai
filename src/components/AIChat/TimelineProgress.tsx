@@ -24,16 +24,16 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
 
   return (
     <div
-      className="px-4 py-2 bg-[#252526] border-b border-gray-700/50 flex items-center justify-between"
+      className="px-4 py-2 theme-panel-muted border-b theme-border flex items-center justify-between"
       data-testid={dataTestId}
     >
       {/* 进度文字 */}
-      <span className="text-xs text-gray-400">
-        ✅ 已加载 <span className="text-white font-medium">{loaded}</span>/{total} 条消息
+      <span className="text-xs theme-text-subtle">
+        已加载 <span className="theme-text font-medium">{loaded}</span>/{total} 条消息
       </span>
 
       {/* 进度百分比 */}
-      <span className="text-xs text-gray-500">
+      <span className="text-xs theme-text-subtle">
         {percentage}%
       </span>
     </div>

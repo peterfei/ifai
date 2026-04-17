@@ -38,8 +38,8 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
       {!compact && (
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <Sliders size={16} className="mr-2 text-gray-400" />
-            <h4 className="text-sm font-medium text-gray-300">模型参数配置</h4>
+            <Sliders size={16} className="theme-text-subtle mr-2" />
+            <h4 className="theme-text-muted text-sm font-medium">模型参数配置</h4>
           </div>
           <button
             onClick={() => setAdvancedMode(!advancedMode)}
@@ -53,7 +53,7 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
       {/* 预设选择器 */}
       {showPresets && !advancedMode && (
         <div>
-          <label className="block text-xs text-gray-400 mb-2">快速预设</label>
+          <label className="theme-text-subtle mb-2 block text-xs">快速预设</label>
           <div className="grid grid-cols-3 gap-2">
             {presets.map((preset) => (
               <button
@@ -64,7 +64,7 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
                   "hover:border-blue-500 hover:bg-blue-900/20",
                   config === MODEL_PARAM_PRESETS[preset.name]
                     ? "border-blue-500 bg-blue-900/30 text-blue-300"
-                    : "border-gray-600 text-gray-400"
+                    : "theme-border theme-text-subtle"
                 )}
                 title={preset.desc}
               >
@@ -78,7 +78,7 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
       {/* Temperature */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400 flex items-center">
+          <label className="theme-text-subtle flex items-center text-xs">
             <Zap size={12} className="mr-1" />
             Temperature (温度)
           </label>
@@ -91,9 +91,9 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
           step="0.1"
           value={config.temperature}
           onChange={(e) => handleSliderChange('temperature', parseFloat(e.target.value))}
-          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          className="theme-input-surface h-2 w-full cursor-pointer appearance-none rounded-lg accent-blue-500"
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="theme-text-subtle mt-1 flex justify-between text-xs">
           <span>精确 (0)</span>
           <span>创造 (2)</span>
         </div>
@@ -102,7 +102,7 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
       {/* Top-P */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400 flex items-center">
+          <label className="theme-text-subtle flex items-center text-xs">
             <Target size={12} className="mr-1" />
             Top-P (核采样)
           </label>
@@ -115,9 +115,9 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
           step="0.05"
           value={config.top_p}
           onChange={(e) => handleSliderChange('top_p', parseFloat(e.target.value))}
-          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          className="theme-input-surface h-2 w-full cursor-pointer appearance-none rounded-lg accent-blue-500"
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="theme-text-subtle mt-1 flex justify-between text-xs">
           <span>专注 (0)</span>
           <span>多样 (1)</span>
         </div>
@@ -126,7 +126,7 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
       {/* Max Tokens */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400 flex items-center">
+          <label className="theme-text-subtle flex items-center text-xs">
             <Layers size={12} className="mr-1" />
             Max Tokens (最大生成长度)
           </label>
@@ -139,9 +139,9 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
           step="256"
           value={config.max_tokens}
           onChange={(e) => handleSliderChange('max_tokens', parseInt(e.target.value))}
-          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          className="theme-input-surface h-2 w-full cursor-pointer appearance-none rounded-lg accent-blue-500"
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="theme-text-subtle mt-1 flex justify-between text-xs">
           <span>256</span>
           <span>32K</span>
         </div>
@@ -149,9 +149,9 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
 
       {/* 高级模式：手动输入 */}
       {advancedMode && (
-        <div className="grid grid-cols-3 gap-2 p-3 bg-[#1e1e1e] rounded border border-gray-700">
+        <div className="theme-panel theme-border grid grid-cols-3 gap-2 rounded border p-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Temperature</label>
+            <label className="theme-text-subtle mb-1 block text-xs">Temperature</label>
             <input
               type="number"
               min="0"
@@ -159,11 +159,11 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
               step="0.1"
               value={config.temperature}
               onChange={(e) => handleSliderChange('temperature', parseFloat(e.target.value))}
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+              className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Top-P</label>
+            <label className="theme-text-subtle mb-1 block text-xs">Top-P</label>
             <input
               type="number"
               min="0"
@@ -171,11 +171,11 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
               step="0.05"
               value={config.top_p}
               onChange={(e) => handleSliderChange('top_p', parseFloat(e.target.value))}
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+              className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Max Tokens</label>
+            <label className="theme-text-subtle mb-1 block text-xs">Max Tokens</label>
             <input
               type="number"
               min="256"
@@ -183,7 +183,7 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
               step="256"
               value={config.max_tokens}
               onChange={(e) => handleSliderChange('max_tokens', parseInt(e.target.value))}
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+              className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
             />
           </div>
         </div>
@@ -195,14 +195,14 @@ export const ModelParamsConfigComponent: React.FC<ModelParamsConfigProps> = ({
 // 紧凑版本（用于卡片内显示）
 export const ModelParamsBadge: React.FC<{ config: ModelParamsConfig }> = ({ config }) => {
   return (
-    <div className="flex items-center space-x-2 text-xs text-gray-400">
-      <span className="px-2 py-0.5 bg-gray-700 rounded">
+    <div className="theme-text-subtle flex items-center space-x-2 text-xs">
+      <span className="theme-input-surface rounded px-2 py-0.5">
         T: {config.temperature}
       </span>
-      <span className="px-2 py-0.5 bg-gray-700 rounded">
+      <span className="theme-input-surface rounded px-2 py-0.5">
         P: {config.top_p}
       </span>
-      <span className="px-2 py-0.5 bg-gray-700 rounded">
+      <span className="theme-input-surface rounded px-2 py-0.5">
         Max: {config.max_tokens >= 1024 ? `${config.max_tokens / 1024}K` : config.max_tokens}
       </span>
     </div>

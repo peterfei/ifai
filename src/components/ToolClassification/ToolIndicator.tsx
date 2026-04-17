@@ -96,15 +96,15 @@ export const ToolIndicator: React.FC<ToolIndicatorProps> = ({
 
       {/* 加载状态 */}
       {isDebouncing && !localResult && (
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+        <div className="theme-text-subtle flex items-center gap-2 text-xs">
+          <div className="theme-border h-3 w-3 animate-spin rounded-full border border-t-transparent" />
           <span>分析中...</span>
         </div>
       )}
 
       {/* 延迟显示 */}
       {localResult && (
-        <span className="text-xs text-gray-400">
+        <span className="theme-text-subtle text-xs">
           {input.length > 20 ? '复杂' : '简单'}查询
         </span>
       )}
@@ -158,8 +158,8 @@ export const MiniToolIndicator: React.FC<
 
   if (isDebouncing && !localResult) {
     return (
-      <div className={`${sizeClasses[size]} flex items-center justify-center text-gray-400`}>
-        <div className="w-full h-full border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+      <div className={`${sizeClasses[size]} theme-text-subtle flex items-center justify-center`}>
+        <div className="theme-border h-full w-full animate-spin rounded-full border-2 border-t-transparent" />
       </div>
     );
   }
@@ -167,18 +167,18 @@ export const MiniToolIndicator: React.FC<
   if (localResult) {
     const categoryInfo = localResult.category
       ? {
-          file_operations: { icon: '📁' },
-          code_generation: { icon: '✨' },
-          code_analysis: { icon: '🔍' },
-          terminal_commands: { icon: '⚡' },
-          ai_chat: { icon: '💬' },
-          search_operations: { icon: '🔎' },
-          no_tool_needed: { icon: '💭' },
+          file_operations: { icon: 'F' },
+          code_generation: { icon: 'G' },
+          code_analysis: { icon: 'A' },
+          terminal_commands: { icon: 'T' },
+          ai_chat: { icon: 'C' },
+          search_operations: { icon: 'S' },
+          no_tool_needed: { icon: 'N' },
         }[localResult.category]
-      : { icon: '❓' };
+      : { icon: '?' };
 
     return (
-      <span className={sizeClasses[size]} role="img" aria-label="Tool category">
+      <span className={`${sizeClasses[size]} theme-text-muted inline-flex items-center justify-center font-semibold`} aria-label="Tool category">
         {categoryInfo.icon}
       </span>
     );

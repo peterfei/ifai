@@ -12,6 +12,7 @@
  */
 
 import React, { useState } from 'react';
+import { Bot, Code2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface TimelineAIBubbleProps {
   time: string;
@@ -54,8 +55,11 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
     <div className="flex flex-col gap-1">
       {/* 时间标签和头像 */}
       <div className="flex items-center gap-2 px-2">
-        <span className="text-xs text-gray-400">🤖 AI</span>
-        <span className="text-xs text-gray-500 font-mono">
+        <span className="text-xs theme-text-muted flex items-center gap-1">
+          <Bot size={12} />
+          AI
+        </span>
+        <span className="text-xs theme-text-subtle font-mono">
           {formatTimeLabel(timestamp)}
         </span>
       </div>
@@ -67,17 +71,17 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
           max-w-[70%]
           rounded-2xl
           rounded-br-sm
-          bg-[#1e293b]
-          text-gray-200
+          theme-panel-muted
+          theme-text
           px-4
           py-3
-          shadow-md
+          theme-shadow
           cursor-pointer
-          hover:bg-[#252f3f]
+          theme-soft-hover
           transition-colors
           duration-150
           border
-          border-gray-700/50
+          theme-border
         "
         onClick={onClick}
         data-testid={dataTestId}
@@ -90,20 +94,21 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
         {/* 代码块折叠标识 */}
         {hasCode && codeLanguage && codeLines && (
           <div
-            className="mt-2 flex items-center justify-between gap-2 px-3 py-2 bg-[#0f172a] rounded-lg cursor-pointer hover:bg-[#1a2332] transition-colors"
+            className="mt-2 flex items-center justify-between gap-2 px-3 py-2 theme-code-surface border theme-border rounded-lg cursor-pointer hover:border-blue-500/20 transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               setCodeExpanded(!codeExpanded);
             }}
             data-testid="code-collapse-button"
           >
-            <div className="flex items-center gap-2 text-xs text-gray-400">
-              <span>📂</span>
+            <div className="flex items-center gap-2 text-xs theme-text-subtle">
+              <Code2 size={12} className="text-blue-500" />
               <span>{codeLanguage}</span>
-              <span className="text-gray-500">({codeLines}行)</span>
+              <span className="theme-text-subtle">({codeLines}行)</span>
             </div>
-            <span className="text-xs text-blue-400">
-              {codeExpanded ? '收起 ▲' : '展开 ▼'}
+            <span className="text-xs text-blue-500 flex items-center gap-1">
+              {codeExpanded ? '收起' : '展开'}
+              {codeExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </span>
           </div>
         )}
@@ -111,10 +116,10 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
         {/* 展开的代码内容 - 始终存在于 DOM 中 */}
         {hasCode && (
           <div
-            className={`mt-2 p-3 bg-[#0f172a] rounded-lg overflow-x-auto ${codeExpanded ? '' : 'hidden'}`}
+            className={`mt-2 p-3 theme-code-surface border theme-border rounded-lg overflow-x-auto ${codeExpanded ? '' : 'hidden'}`}
             data-testid="timeline-code-block"
           >
-            <pre className="text-xs text-gray-300 font-mono">
+            <pre className="text-xs theme-text-muted font-mono">
               <code>{content}</code>
             </pre>
           </div>

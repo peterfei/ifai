@@ -22,6 +22,7 @@ import { StreamingBashOutput } from './StreamingBashOutput';
 import { ProbeSymbolView } from './ProbeSymbolView';
 import { toast } from 'sonner';
 import { toolApprovalRegistry, RiskLevel } from '../../core/approval/ToolApprovalRegistry';
+import { isDarkTheme } from '../../utils/theme';
 
 /**
  * 🏆 将 agent_scan_project 的结构转换为 PivoProjectTree 所需的嵌套结构
@@ -124,6 +125,8 @@ const TypewriterCodeBlock: React.FC <{
 }> = ({ code, isPartial, language, fileName, isExpanded, onToggleExpand }) => {
     // 🔥 FIX: 使用 enableTypewriterEffect 设置来控制是否启用打字机效果
     const enableTypewriter = useSettingsStore((s) => s.enableTypewriterEffect);
+    const theme = useSettingsStore((s) => s.theme);
+    const dark = isDarkTheme(theme);
 
     // 打字机效果：仅在流式传输（isPartial）且启用打字机效果时启用
     const { displayText, isTyping, skip } = useTypewriter({
@@ -140,19 +143,19 @@ const TypewriterCodeBlock: React.FC <{
     const shouldCollapse = code.split('\n').length > PREVIEW_LINES;
 
     return (
-        <div className="group/typewriter relative rounded-xl border border-gray-700/40 bg-[#0d1117] shadow-2xl overflow-hidden transition-all duration-300 hover:border-blue-500/30">
+        <div className="group/typewriter relative rounded-xl border theme-border theme-code-surface theme-shadow overflow-hidden transition-all duration-300 hover:border-blue-500/30">
             {/* Glossy Header */}
-            <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700/30">
+            <div className="flex items-center justify-between px-4 py-2 theme-panel-muted border-b theme-border">
                 <div className="flex items-center gap-2.5">
                     <div className="flex gap-1.5 mr-1">
                         <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] shadow-inner" />
                         <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] shadow-inner" />
                         <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f] shadow-inner" />
                     </div>
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 py-0.5 bg-gray-800 rounded border border-gray-700/50">
+                    <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest px-2 py-0.5 theme-panel rounded border theme-border">
                         {language}
                     </span>
-                    <span className="text-[11px] text-gray-400 font-mono truncate max-w-[150px]">
+                    <span className="text-[11px] theme-text-subtle font-mono truncate max-w-[150px]">
                         {fileName}
                     </span>
                 </div>
@@ -166,7 +169,7 @@ const TypewriterCodeBlock: React.FC <{
                             <span className="text-[10px] font-bold text-blue-400 animate-pulse uppercase">Streaming</span>
                         </div>
                     )}
-                    <span className="text-[10px] text-gray-500 font-mono">{lines.length} lines</span>
+                    <span className="text-[10px] theme-text-subtle font-mono">{lines.length} lines</span>
                 </div>
             </div>
 
@@ -176,7 +179,7 @@ const TypewriterCodeBlock: React.FC <{
                 onClick={isTyping ? skip : undefined}
                 style={isTyping ? { cursor: 'pointer' } : undefined}
             >
-                <pre className="p-4 text-[12px] leading-6 text-gray-300 font-mono whitespace-pre-wrap break-all">
+                <pre className="p-4 text-[12px] leading-6 theme-text-muted font-mono whitespace-pre-wrap break-all">
                     <code>
                         {displayLines.join('\n')}
                         {isPartial && (
@@ -195,7 +198,7 @@ const TypewriterCodeBlock: React.FC <{
             {shouldCollapse && (
                 <button
                     onClick={onToggleExpand}
-                    className="w-full py-1.5 bg-gray-800/30 hover:bg-gray-800/60 border-t border-gray-700/30 text-[10px] font-bold text-gray-500 hover:text-blue-400 uppercase tracking-widest transition-all"
+                    className="w-full py-1.5 theme-panel-muted theme-hoverable border-t theme-border text-[10px] font-bold theme-text-subtle hover:text-blue-500 uppercase tracking-widest transition-all"
                 >
                     {isExpanded ? 'Collapse View' : `Show All Lines (${lines.length})`}
                 </button>
@@ -207,6 +210,8 @@ const TypewriterCodeBlock: React.FC <{
 // Helper to organize paths into a tree structure for better visualization (Point 3)
 const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     const [isExpanded, setIsExpanded] = useState(true);
+    const theme = useSettingsStore((s) => s.theme);
+    const dark = isDarkTheme(theme);
     
     const tree = React.useMemo(() => {
         const root: any = { nodes: {}, files: [] };
@@ -226,15 +231,15 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     const renderNode = (node: any, name: string, depth: number) => (
         <div key={name} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
             {name && (
-                <div className="flex items-center gap-1.5 text-[11px] text-gray-400 py-0.5">
+                <div className="flex items-center gap-1.5 text-[11px] theme-text-muted py-0.5">
                     <FolderOpen size={10} className="text-yellow-500/70" />
                     <span className="font-medium">{name}</span>
                 </div>
             )}
-            <div className={name ? "border-l border-gray-700/50 ml-1.5 pl-2" : ""}>
+            <div className={name ? "border-l theme-border ml-1.5 pl-2" : ""}>
                 {Object.keys(node.nodes).map(dir => renderNode(node.nodes[dir], dir, depth + 1))}
                 {node.files.map((file: string) => (
-                    <div key={file} className="flex items-center gap-1.5 text-[11px] text-gray-300 py-0.5 group">
+                    <div key={file} className="flex items-center gap-1.5 text-[11px] theme-text-muted py-0.5 group">
                         <File size={10} className="text-blue-400/70" />
                         <span className="truncate group-hover:text-blue-300 transition-colors cursor-default">{file}</span>
                     </div>
@@ -244,10 +249,10 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     );
 
     return (
-        <div className="bg-gray-900/40 rounded-lg border border-gray-700/30 p-2.5">
+        <div className="theme-panel-muted rounded-lg border theme-border p-2.5">
             <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">文件结构</span>
-                <button onClick={() => setIsExpanded(!isExpanded)} className="text-gray-500 hover:text-gray-300">
+                <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">文件结构</span>
+                <button onClick={() => setIsExpanded(!isExpanded)} className="theme-button-ghost theme-text-subtle">
                     {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 </button>
             </div>
@@ -285,6 +290,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
     const { t } = useTranslation();
     const settings = useSettingsStore();
+    const dark = isDarkTheme(settings.theme);
     const { editorMode } = useLayoutStore();
     const chatStore = useChatStore();
     const [isExpanded, setIsExpanded] = useState(false);
@@ -680,19 +686,19 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             }, [isWriteFile, filePath, isPartial, oldContent, toolCall.result]);
 
     return (
-        <div data-testid="file-approval-dialog" data-test-id="tool-approval-card" className={`group/tool mt-4 mb-4 rounded-2xl border ${riskVisuals.border} bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5`}>
+        <div data-testid="file-approval-dialog" data-test-id="tool-approval-card" className={`group/tool mt-4 mb-4 rounded-2xl border ${riskVisuals.border} theme-panel-elevated backdrop-blur-sm theme-shadow overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5`}>
                         {/* Elegant Header (Point 2) */}
-                        <div className={`flex items-center justify-between px-5 py-3 bg-gradient-to-r ${riskVisuals.bg} border-b border-gray-700/30`}>
+                        <div className={`flex items-center justify-between px-5 py-3 bg-gradient-to-r ${riskVisuals.bg} border-b theme-border`}>
                             <div className="flex items-center gap-3 pr-12"> {/* Added pr-12 to avoid copy button overlap */}
                                 <div className={`flex items-center justify-center w-8 h-8 rounded-xl ${getToolColor(toolCall.tool)} bg-opacity-10 border border-current opacity-80 shadow-lg shadow-black/20`}>
                                     {getIcon()}
                                 </div>
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                        <span data-testid="tool-name" className="text-[13px] font-bold text-gray-100 tracking-tight leading-tight">
+                                        <span data-testid="tool-name" className="text-[13px] font-bold theme-text tracking-tight leading-tight">
                                             {getToolLabel(toolCall.tool)}
                                         </span>
-                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-800/30 border border-gray-700/50">
+                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md theme-panel border theme-border">
                                             {riskVisuals.icon}
                                             <span className={`text-[9px] font-bold uppercase tracking-tighter ${riskVisuals.textColor}`}>
                                                 {riskVisuals.label}
@@ -701,8 +707,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     </div>
                                     {filePath ? (
                                         <div className="flex items-center gap-2 group/path">
-                                            <span data-testid="file-path" className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
-                                                {toolCall.tool?.includes('write') ? '写入' : '访问'} <span className="text-gray-300 font-bold">{formatFilePath(filePath)}</span>
+                                            <span data-testid="file-path" className="text-[10px] theme-text-subtle font-mono font-medium truncate max-w-[220px]" title={filePath}>
+                                                {toolCall.tool?.includes('write') ? '写入' : '访问'} <span className="theme-text font-bold">{formatFilePath(filePath)}</span>
                                             </span>
                                             {isWriteFile && !isPartial && (
                                                 <button
@@ -723,7 +729,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                                         });
                                                         toast.info('已开启编辑器内联预览');
                                                     }}
-                                                    className="p-1 rounded bg-gray-800 hover:bg-blue-500/20 text-gray-500 hover:text-blue-400 transition-all opacity-0 group-hover/path:opacity-100"
+                                                    className="p-1 rounded theme-panel hover:bg-blue-500/10 theme-text-subtle hover:text-blue-500 transition-all opacity-0 group-hover/path:opacity-100"
                                                     title="在主编辑器中预览变更"
                                                 >
                                                     <ExternalLink size={10} />
@@ -732,7 +738,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                         </div>
                                     ) : (
                                         getToolArg('command') && (
-                                            <span className="text-[10px] text-gray-500 font-mono truncate max-w-[220px]">
+                                            <span className="text-[10px] theme-text-subtle font-mono truncate max-w-[220px]">
                                                 exec: {getToolArg('command')}
                                             </span>
                                         )
@@ -745,7 +751,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     toolCall.status === 'completed' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                                     toolCall.status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                     toolCall.status === 'approved' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                                    toolCall.status === 'rejected' ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                    toolCall.status === 'rejected' ? 'theme-panel-muted theme-text-subtle border-[var(--border-color)]' :
                                     'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                 }`}>
                                     {getStatusLabel()}
@@ -759,7 +765,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     <div className="space-y-4 overflow-hidden">
                         {/* ✅ 流式参数显示 - write_file 也显示参数 */}
                         {isPartial && (
-                            <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
+                            <div data-testid="tool-params" className="theme-code-surface p-4 rounded-xl border theme-border shadow-inner">
                                 <StreamingToolArgsViewer
                                     args={typeof toolCall.args === 'string' ? {} : (toolCall.args || {})}
                                     isStreaming={isPartial}
@@ -787,7 +793,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             <div className="relative mt-4 group/diff">
                                 <div className="flex items-center gap-2 mb-2 ml-1">
                                     <div className="w-1 h-3 bg-blue-500 rounded-full" />
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Changes Analysis</span>
+                                    <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">Changes Analysis</span>
                                 </div>
                                 {(() => {
                                     const contentLength = newContent.length;
@@ -807,7 +813,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     const canShowDiff = oldContent !== null && newContent && typeof oldContent === 'string' && typeof newContent === 'string';
 
                                     return (
-                                        <div className="rounded-xl border border-gray-700/40 overflow-hidden shadow-inner bg-[#0d1117]">
+                                        <div className="rounded-xl border theme-border overflow-hidden shadow-inner theme-code-surface">
                                             {canShowDiff ? (
                                                 <MonacoDiffView
                                                     oldValue={oldContent}
@@ -817,12 +823,12 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                                 />
                                             ) : (
                                                 <div className="p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
-                                                    <div className="text-[11px] text-gray-500 font-mono mb-3 uppercase tracking-widest animate-pulse">
+                                                    <div className="text-[11px] theme-text-subtle font-mono mb-3 uppercase tracking-widest animate-pulse">
                                                         {isWriteFile ? 'Preparing Diff Analysis...' : 'Loading Content...'}
                                                     </div>
                                                     {newContent && typeof newContent === 'string' && (
                                                         <div className="w-full max-w-md">
-                                                            <pre className="text-[10px] text-gray-400 text-left bg-black/20 p-4 rounded border border-gray-800/50 max-h-40 overflow-auto scrollbar-hide">
+                                                            <pre className="text-[10px] theme-text-muted text-left theme-panel p-4 rounded border theme-border max-h-40 overflow-auto scrollbar-hide">
                                                                 {newContent.substring(0, 500)}{newContent.length > 500 ? '...' : ''}
                                                             </pre>
                                                         </div>
@@ -841,7 +847,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {/* 工具类型标题 */}
                         <div className="flex items-center gap-2">
                             <div className="w-1 h-4 bg-blue-500 rounded-full" />
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">操作参数</span>
+                            <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">操作参数</span>
                             {isPartial && (
                                 <div className="flex items-center gap-1.5 ml-auto">
                                     <span className="relative flex h-2 w-2">
@@ -863,7 +869,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         )}
 
                         {/* 工具参数可视化 */}
-                        <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
+                        <div data-testid="tool-params" className="theme-code-surface p-4 rounded-xl border theme-border shadow-inner">
                             <StreamingToolArgsViewer
                                 args={typeof toolCall.args === 'string' ? {} : (toolCall.args || {})}
                                 isStreaming={isPartial}
@@ -880,8 +886,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             />
                         ) : toolCall.tool === 'agent_write_file' && !isPartial && (
                             // 🏆 降级保护：如果预览没出来，显示个占位或提示
-                            <div className="mt-3 p-3 bg-gray-800/50 border border-gray-700/30 rounded-xl">
-                                <div className="text-[10px] text-gray-500 italic">正在准备变更预览...</div>
+                            <div className="mt-3 p-3 theme-panel border theme-border rounded-xl">
+                                <div className="text-[10px] theme-text-subtle italic">正在准备变更预览...</div>
                             </div>
                         )}
 
@@ -904,14 +910,14 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 </div>
                                 <div className="p-3">
                                     <div className="flex items-center gap-2 mb-1.5">
-                                        <span className="text-[10px] text-gray-500 uppercase">关键词:</span>
+                                        <span className="text-[10px] theme-text-subtle uppercase">关键词:</span>
                                         <code className="text-[11px] text-blue-300 font-mono bg-blue-900/30 px-1.5 py-0.5 rounded">
                                             {previewData.query}
                                         </code>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-gray-500 uppercase">范围:</span>
-                                        <span className="text-[11px] text-gray-300 font-mono">{previewData.scope}</span>
+                                        <span className="text-[10px] theme-text-subtle uppercase">范围:</span>
+                                        <span className="text-[11px] theme-text-muted font-mono">{previewData.scope}</span>
                                     </div>
                                 </div>
                             </div>
@@ -945,13 +951,13 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
             {/* Actions (Approve/Reject) */}
             {isPending && !isPartial && (
-                <div className="flex border-t border-gray-700/30">
+                <div className="flex border-t theme-border">
                     {!settings.agentAutoApprove ? (
                         <>
                             <button
                                 data-testid="approve-button"
                                 onClick={() => onApprove(toolCall.id)}
-                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r border-gray-700/30 transition-all duration-200"
+                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r theme-border transition-all duration-200"
                             >
                                 <Check size={14} /> 批准执行
                             </button>
@@ -977,7 +983,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
              toolCall.tool === 'agent_write_file' &&
              hasRollbackData &&
              hasRollbackFeature && (
-                <div className="flex border-t border-gray-700/30">
+                <div className="flex border-t theme-border">
                     <button
                         onClick={handleUndo}
                         disabled={isRollingBack}
@@ -1003,21 +1009,21 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
             {/* 🔥 冲突确认对话框 */}
             {showConflictDialog && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
-                    <div className="bg-[#252526] w-[400px] rounded-lg border border-gray-700 shadow-xl">
-                        <div className="p-4 border-b border-gray-700">
+                <div className="theme-backdrop fixed inset-0 z-[200] flex items-center justify-center">
+                    <div className="theme-panel-elevated w-[400px] rounded-lg border theme-border theme-shadow">
+                        <div className="p-4 border-b theme-border">
                             <h2 className="text-lg font-medium flex items-center gap-2">
                                 <AlertTriangle className="text-amber-400" size={18} />
                                 检测到手动修改
                             </h2>
                         </div>
-                        <div className="p-6 text-sm text-gray-300">
+                        <div className="p-6 text-sm theme-text-muted">
                             文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。
                         </div>
-                        <div className="p-4 border-t border-gray-700 flex justify-end gap-3">
+                        <div className="p-4 border-t theme-border flex justify-end gap-3">
                             <button
                                 onClick={() => setShowConflictDialog(false)}
-                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+                                className="px-4 py-2 theme-button-secondary text-sm rounded transition-colors"
                             >
                                 取消
                             </button>
@@ -1043,7 +1049,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             workingDir={workingDir || undefined}
                             timeoutMs={30000}
                             throttleLines={5}
-                            className="border-gray-700"
+                            className="theme-border"
                         />
                     </div>
                 );
@@ -1054,18 +1060,18 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 const bashCommand = getToolArg('command', '');
                 return (
                     <div className="px-5 pb-4">
-                        <div className="border border-gray-700 rounded-lg overflow-hidden bg-[#1e1e1e]">
-                            <div className="flex items-center justify-between px-3 py-2 bg-[#252526] border-b border-gray-700">
+                        <div className="border theme-border rounded-lg overflow-hidden theme-code-surface">
+                            <div className="flex items-center justify-between px-3 py-2 theme-panel-muted border-b theme-border">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Terminal size={14} className="text-gray-400 shrink-0" />
-                                    <code className="text-xs text-gray-300 truncate font-mono">{bashCommand}</code>
+                                    <Terminal size={14} className="theme-text-subtle shrink-0" />
+                                    <code className="text-xs theme-text-muted truncate font-mono">{bashCommand}</code>
                                 </div>
                                 <div className="flex items-center gap-2 text-yellow-400">
                                     <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
                                     <span className="text-xs">执行中...</span>
                                 </div>
                             </div>
-                            <div className="p-3 font-mono text-xs text-gray-500 flex items-center gap-2">
+                            <div className="p-3 font-mono text-xs theme-text-subtle flex items-center gap-2">
                                 <div className="w-2 h-4 bg-yellow-500/50 animate-pulse" />
                                 <span className="italic">等待命令输出...</span>
                             </div>
@@ -1091,9 +1097,9 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         <div className="flex items-center gap-2">
                             <div className={`w-1 h-4 rounded-full ${
                                 toolCall.status === "failed" ? "bg-red-500" :
-                                toolCall.result || toolCall.status === "completed" ? "bg-green-500" : "bg-gray-500"
+                                toolCall.result || toolCall.status === "completed" ? "bg-green-500" : "theme-divider"
                             }`} />
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                            <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">
                                 {toolCall.status === "failed" ? "执行失败" : "执行结果"}
                             </span>
                         </div>
@@ -1102,7 +1108,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 ? "bg-red-500/10 text-red-400 border-red-500/20"
                                 : toolCall.result || toolCall.status === "completed"
                                 ? "bg-green-500/10 text-green-400 border-green-500/20"
-                                : "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                                : "theme-panel-muted theme-text-subtle border-[var(--border-color)]"
                         }`}>
                             {toolCall.status === "failed" ? "失败" : toolCall.result || toolCall.status === "completed" ? "成功" : "运行中"}
                         </div>
@@ -1111,9 +1117,9 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     <div className={`p-4 rounded-xl border overflow-hidden ${
                         toolCall.status === "failed"
                             ? "bg-gradient-to-br from-red-500/5 to-red-500/10 border-red-500/20"
-                            : toolCall.result || toolCall.status === "completed"
+                        : toolCall.result || toolCall.status === "completed"
                             ? "bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20"
-                            : "bg-gradient-to-br from-gray-500/5 to-gray-500/10 border-gray-500/20"
+                            : "theme-panel-muted theme-border"
                     }`}>
                         {(toolCall.result || toolCall.status === "completed") && toolCall.status !== "failed" && (
                             <div className="flex items-center justify-center mb-3">
@@ -1171,20 +1177,20 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 return (
                                     <ReactMarkdown
                                         components={{
-                                            h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
-                                            h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
-                                            h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
-                                            p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
-                                            ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
-                                            ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
-                                            li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
-                                            strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
-                                            em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
+                                            h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold theme-text mb-2" />,
+                                            h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold theme-text-muted mb-2 mt-3" />,
+                                            h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold theme-text-subtle mb-1" />,
+                                            p: ({node, ...props}) => <p {...props} className="text-xs theme-text-muted mb-2 last:mb-0" />,
+                                            ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 theme-text-muted space-y-1" />,
+                                            ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 theme-text-muted space-y-1" />,
+                                            li: ({node, ...props}) => <li {...props} className="ml-2 theme-text-muted" />,
+                                            strong: ({node, ...props}) => <strong {...props} className="font-bold theme-text" />,
+                                            em: ({node, ...props}) => <em {...props} className="italic theme-text-muted" />,
                                             code({ node, inline, ...rest }: any) {
-                                                if (inline) return <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />;
-                                                return <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />;
+                                                if (inline) return <code {...rest} className="px-1.5 py-0.5 theme-code-inline text-green-400 rounded text-[10px] font-mono" />;
+                                                return <code {...rest} className="block theme-code-surface p-2 rounded text-[10px] theme-text-muted font-mono overflow-x-auto" />;
                                             },
-                                            pre: ({node, ...props}) => <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />,
+                                            pre: ({node, ...props}) => <pre {...props} className="theme-code-surface p-3 rounded-lg overflow-x-auto mb-2 border theme-border" />,
                                         }}
                                     >
                                         {formatToolResultToMarkdown(toolCall.result, toolCall)}

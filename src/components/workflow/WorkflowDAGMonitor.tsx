@@ -245,9 +245,9 @@ function getNodeStatusIcon(status: NodeStatus, size: number = 20) {
     case 'running':
       return <Clock className={`${iconClassName} text-blue-500 animate-spin`} />;
     case 'skipped':
-      return <AlertCircle className={`${iconClassName} text-gray-400`} />;
+      return <AlertCircle className={`${iconClassName} theme-text-subtle`} />;
     default:
-      return <Clock className={`${iconClassName} text-gray-400`} />;
+      return <Clock className={`${iconClassName} theme-text-subtle`} />;
   }
 }
 
@@ -261,9 +261,9 @@ function getNodeStatusColor(status: NodeStatus): string {
     case 'running':
       return 'bg-blue-500';
     case 'skipped':
-      return 'bg-gray-400';
+      return 'bg-[var(--text-subtle)]';
     default:
-      return 'bg-gray-300 dark:bg-gray-600';
+      return 'bg-[var(--border-strong)]';
   }
 }
 
@@ -277,9 +277,9 @@ function getNodeStatusBorderColor(status: NodeStatus): string {
     case 'running':
       return 'border-blue-500';
     case 'skipped':
-      return 'border-gray-400';
+      return 'border-[var(--text-subtle)]';
     default:
-      return 'border-gray-300 dark:border-gray-600';
+      return 'border-[var(--border-strong)]';
   }
 }
 
@@ -476,7 +476,7 @@ export function WorkflowDAGMonitor({
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right" data-testid="workflow-duration">
-                <div className="text-sm text-muted-foreground">运行时间</div>
+                <div className="theme-text-subtle text-sm">运行时间</div>
                 <div className="text-lg font-semibold">{duration}s</div>
               </div>
               {onClose && (
@@ -525,7 +525,7 @@ export function WorkflowDAGMonitor({
           {/* 进度条 */}
           <div data-testid="workflow-progress">
             <Progress value={progress} className="h-2" />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <div className="theme-text-subtle mt-1 flex justify-between text-xs">
               <span>进度</span>
               <span>{Math.round(progress)}%</span>
             </div>
@@ -631,7 +631,7 @@ export function WorkflowDAGMonitor({
               data-testid="timeline-logs"
             >
               {timelineLogs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="theme-text-subtle py-8 text-center">
                   等待事件...
                 </div>
               ) : (
@@ -788,7 +788,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
               {/* 节点状态 */}
               <foreignObject x={8} y={34} width={nodeWidth - 16} height={20}>
-                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <div className="theme-text-subtle flex items-center gap-1 text-xs">
                   {node.status === 'running' && (
                     <>
                       <Clock className="w-3 h-3 animate-spin" />
@@ -832,7 +832,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
       {/* 节点详情面板 */}
       {selectedNode && (
-        <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="theme-panel-muted theme-border mt-4 rounded-lg border p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h4 className="font-semibold flex items-center gap-2">
               <span className="text-xl">{getNodeTypeIcon(selectedNode.id, selectedNode.label)}</span>
@@ -840,7 +840,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             </h4>
             <button
               onClick={() => setSelectedNode(null)}
-              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              className="theme-button-ghost"
             >
               <X className="w-4 h-4" />
             </button>
@@ -848,16 +848,16 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">节点 ID:</span>
+              <span className="theme-text-subtle">节点 ID:</span>
               <span className="font-mono text-xs">{selectedNode.id}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">状态:</span>
+              <span className="theme-text-subtle">状态:</span>
               <span className={`font-medium ${
                 selectedNode.status === 'completed' ? 'text-green-600' :
                 selectedNode.status === 'running' ? 'text-blue-600' :
                 selectedNode.status === 'failed' ? 'text-red-600' :
-                'text-gray-600'
+                'theme-text-muted'
               }`}>
                 {selectedNode.status === 'running' && '运行中'}
                 {selectedNode.status === 'completed' && '完成'}
@@ -867,32 +867,32 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">类型:</span>
+              <span className="theme-text-subtle">类型:</span>
               <span>{parseNodeType(selectedNode.id, selectedNode.label)}</span>
             </div>
             {selectedNode.startedAt && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">开始时间:</span>
+                <span className="theme-text-subtle">开始时间:</span>
                 <span>{formatTimestamp(selectedNode.startedAt)}</span>
               </div>
             )}
             {selectedNode.completedAt && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">完成时间:</span>
+                <span className="theme-text-subtle">完成时间:</span>
                 <span>{formatTimestamp(selectedNode.completedAt)}</span>
               </div>
             )}
             {calculateNodeDuration(selectedNode) > 0 && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">执行时长:</span>
+                <span className="theme-text-subtle">执行时长:</span>
                 <span>{calculateNodeDuration(selectedNode)}ms</span>
               </div>
             )}
 
             {/* 🔥 工具调用详细信息 */}
             {selectedNode.tool_calls && selectedNode.tool_calls.length > 0 && (
-              <div className="mt-3 border-t pt-3">
-                <div className="text-muted-foreground mb-2 font-medium">
+              <div className="theme-border mt-3 border-t pt-3">
+                <div className="theme-text-subtle mb-2 font-medium">
                   工具调用 ({selectedNode.tool_calls.length})
                 </div>
                 <div className="space-y-2">
@@ -901,8 +901,8 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
                       key={idx}
                       className={`p-2 rounded text-xs ${
                         tool.is_error
-                          ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800'
-                          : 'bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800'
+                          ? 'bg-red-500/10 border border-red-500/20'
+                          : 'bg-blue-500/10 border border-blue-500/20'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -912,31 +912,31 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
                         </span>
                       </div>
                       {tool.execution_time_ms !== undefined && (
-                        <div className="text-muted-foreground mb-1">
+                        <div className="theme-text-subtle mb-1">
                           耗时: {tool.execution_time_ms}ms
                         </div>
                       )}
                       {tool.output_length > 0 && (
-                        <div className="text-muted-foreground mb-1">
+                        <div className="theme-text-subtle mb-1">
                           输出: {tool.output_length} 字符
                         </div>
                       )}
                       {tool.tool_input && (
                         <details className="mt-1">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          <summary className="theme-text-subtle cursor-pointer hover:text-[var(--text-primary)]">
                             输入参数
                           </summary>
-                          <pre className="mt-1 p-1 bg-white dark:bg-gray-900 rounded overflow-x-auto">
+                          <pre className="theme-code-surface theme-border mt-1 overflow-x-auto rounded border p-1">
                             {tool.tool_input}
                           </pre>
                         </details>
                       )}
                       {tool.tool_output && (
                         <details className="mt-1">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                          <summary className="theme-text-subtle cursor-pointer hover:text-[var(--text-primary)]">
                             输出结果
                           </summary>
-                          <pre className="mt-1 p-1 bg-white dark:bg-gray-900 rounded overflow-x-auto max-h-32 overflow-y-auto">
+                          <pre className="theme-code-surface theme-border mt-1 max-h-32 overflow-x-auto overflow-y-auto rounded border p-1">
                             {tool.tool_output}
                           </pre>
                         </details>
@@ -949,8 +949,8 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
             {selectedNode.output && (
               <div className="mt-3">
-                <div className="text-muted-foreground mb-1">输出:</div>
-                <div className="bg-muted p-2 rounded text-xs max-h-32 overflow-y-auto">
+                <div className="theme-text-subtle mb-1">输出:</div>
+                <div className="theme-code-surface theme-border max-h-32 overflow-y-auto rounded border p-2 text-xs">
                   {selectedNode.output}
                 </div>
               </div>
@@ -958,7 +958,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             {selectedNode.error && (
               <div className="mt-3">
                 <div className="text-red-600 mb-1">错误:</div>
-                <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded text-xs text-red-700 dark:text-red-300">
+                <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-400">
                   {selectedNode.error}
                 </div>
               </div>
@@ -983,7 +983,7 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
   return (
     <div
       className={`p-3 border rounded-lg transition-all ${
-        node.status === 'running' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20' : ''
+        node.status === 'running' ? 'border-blue-500 bg-blue-500/10' : 'theme-panel-muted theme-border'
       }`}
       data-testid="workflow-node"
       data-status={node.status}
@@ -996,12 +996,12 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
           {getNodeStatusIcon(node.status)}
           <div>
             <div className="font-medium">{node.label}</div>
-            <div className="text-xs text-muted-foreground">{node.id}</div>
+            <div className="theme-text-subtle text-xs">{node.id}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {duration > 0 && (
-            <span className="text-xs text-muted-foreground">{duration}ms</span>
+            <span className="theme-text-subtle text-xs">{duration}ms</span>
           )}
           <Badge
             className={getNodeStatusColor(node.status)}
@@ -1022,11 +1022,11 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
       </div>
 
       {isExpanded && (node.output || node.error) && (
-        <div className="mt-3 pt-3 border-t" data-testid="node-details">
+        <div className="theme-border mt-3 border-t pt-3" data-testid="node-details">
           {node.output && (
             <div className="mb-2">
               <div className="text-xs font-medium mb-1">输出:</div>
-              <div className="bg-muted p-2 rounded text-xs overflow-x-auto max-h-20 overflow-y-auto">
+              <div className="theme-code-surface theme-border max-h-20 overflow-x-auto overflow-y-auto rounded border p-2 text-xs">
                 {node.output}
               </div>
             </div>
@@ -1034,7 +1034,7 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
           {node.error && (
             <div data-testid="workflow-error">
               <div className="text-xs font-medium mb-1 text-red-500">错误:</div>
-              <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded text-xs text-red-700 dark:text-red-300">
+              <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-400">
                 {node.error}
               </div>
             </div>
@@ -1062,7 +1062,7 @@ function TimelineLogItem({ log }: TimelineLogItemProps) {
       case 'tool_call':
         return 'text-purple-500';
       default:
-        return 'text-gray-500';
+        return 'theme-text-subtle';
     }
   };
 
@@ -1082,8 +1082,8 @@ function TimelineLogItem({ log }: TimelineLogItemProps) {
   };
 
   return (
-    <div className="flex gap-2 hover:bg-muted/50 px-2 py-1 rounded" data-testid="timeline-log">
-      <span className="text-muted-foreground select-none">
+    <div className="theme-soft-hover flex gap-2 rounded px-2 py-1" data-testid="timeline-log">
+      <span className="theme-text-subtle select-none">
         {formatTimestamp(log.timestamp)}
       </span>
       <span className={getEventColor(log.type)}>
@@ -1093,7 +1093,7 @@ function TimelineLogItem({ log }: TimelineLogItemProps) {
         <span className="text-blue-500">[{log.nodeId}]</span>
       )}
       {log.message && (
-        <span className="text-muted-foreground truncate">{log.message}</span>
+        <span className="theme-text-subtle truncate">{log.message}</span>
       )}
     </div>
   );

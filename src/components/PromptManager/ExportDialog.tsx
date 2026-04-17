@@ -44,6 +44,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   projectRoot,
   onSuccess,
 }) => {
+  const secondaryButtonClass = 'theme-button-secondary rounded-lg px-4 py-2 transition-colors';
+  const primaryButtonClass = 'theme-button-primary flex items-center gap-2 rounded-lg px-4 py-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50';
   const [availablePrompts, setAvailablePrompts] = useState<PromptExportMetadata[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [packageInfo, setPackageInfo] = useState<PackageInfo>({
@@ -154,19 +156,19 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   // 检查是否有项目路径
   if (!projectRoot) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+      <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow w-full max-w-md rounded-lg border p-6">
           <div className="text-center">
             <AlertCircle className="mx-auto mb-4 text-yellow-500" size={48} />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            <h3 className="theme-text mb-2 text-lg font-semibold">
               请先打开项目
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            <p className="theme-text-subtle mb-6 text-sm">
               导出提示词需要先打开一个项目文件夹。
             </p>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="theme-button-primary rounded-lg px-4 py-2 transition-colors"
             >
               确定
             </button>
@@ -177,14 +179,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+    <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+      <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-full max-w-3xl flex-col rounded-lg border">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
-          <h2 className="text-xl font-semibold dark:text-white">导出提示词</h2>
+        <div className="theme-border flex items-center justify-between border-b p-6">
+          <h2 className="theme-text text-xl font-semibold">导出提示词</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="theme-button-ghost rounded p-1"
           >
             <X size={24} />
           </button>
@@ -193,10 +195,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         {/* 内容 */}
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
-            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+            <div className="mb-4 flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
               <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
               <div className="flex-1">
-                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                <p className="text-sm text-red-500">{error}</p>
               </div>
             </div>
           )}
@@ -204,8 +206,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           {step === 'select' && (
             <div>
               <div className="mb-4">
-                <h3 className="text-lg font-medium dark:text-white mb-2">选择提示词</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <h3 className="theme-text mb-2 text-lg font-medium">选择提示词</h3>
+                <p className="theme-text-subtle text-sm">
                   选择要导出的提示词（{selectedPaths.size} / {availablePrompts.length}）
                 </p>
               </div>
@@ -213,7 +215,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
               <div className="mb-4 flex justify-between items-center">
                 <button
                   onClick={handleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  className="text-sm text-blue-500 hover:text-blue-600"
                 >
                   {selectedPaths.size === availablePrompts.length ? '取消全选' : '全选'}
                 </button>
@@ -233,8 +235,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       className={`
                         flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors
                         ${selectedPaths.has(prompt.path)
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                          ? 'border-blue-500 bg-blue-500/10'
+                          : 'theme-border hover:border-[var(--border-strong)]'
                         }
                       `}
                     >
@@ -244,25 +246,25 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                             <Check size={14} className="text-white" />
                           </div>
                         ) : (
-                          <div className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600" />
+                          <div className="theme-border h-5 w-5 rounded border-2" />
                         )}
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-gray-900 dark:text-white">
+                          <span className="theme-text font-medium">
                             {prompt.name}
                           </span>
                           <span className={`
                             text-xs px-2 py-0.5 rounded
-                            ${prompt.access_tier === 'private' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                              prompt.access_tier === 'protected' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}
+                            ${prompt.access_tier === 'private' ? 'bg-red-500/10 text-red-500' :
+                              prompt.access_tier === 'protected' ? 'bg-yellow-500/10 text-yellow-600' :
+                              'bg-green-500/10 text-green-500'}
                           `}>
                             {prompt.access_tier}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                        <p className="theme-text-subtle line-clamp-2 text-sm">
                           {prompt.description}
                         </p>
                       </div>
@@ -276,67 +278,67 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           {step === 'info' && (
             <div>
               <div className="mb-6">
-                <h3 className="text-lg font-medium dark:text-white mb-2">包信息</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <h3 className="theme-text mb-2 text-lg font-medium">包信息</h3>
+                <p className="theme-text-subtle text-sm">
                   填写导出包的元数据信息
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
                     包名称 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={packageInfo.name}
                     onChange={(e) => setPackageInfo({ ...packageInfo, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="theme-input-surface theme-border theme-text w-full rounded-lg border px-3 py-2 focus:border-blue-500 focus:outline-none"
                     placeholder="例如: my-prompts"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
                     描述 <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={packageInfo.description}
                     onChange={(e) => setPackageInfo({ ...packageInfo, description: e.target.value })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="theme-input-surface theme-border theme-text w-full rounded-lg border px-3 py-2 focus:border-blue-500 focus:outline-none"
                     placeholder="描述这个提示词包的用途和内容"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
                     作者 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={packageInfo.author}
                     onChange={(e) => setPackageInfo({ ...packageInfo, author: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="theme-input-surface theme-border theme-text w-full rounded-lg border px-3 py-2 focus:border-blue-500 focus:outline-none"
                     placeholder="作者名称或组织"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
                     版本
                   </label>
                   <input
                     type="text"
                     value={packageInfo.version}
                     onChange={(e) => setPackageInfo({ ...packageInfo, version: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="theme-input-surface theme-border theme-text w-full rounded-lg border px-3 py-2 focus:border-blue-500 focus:outline-none"
                     placeholder="1.0.0"
                   />
                 </div>
 
-                <div className="pt-4 border-t dark:border-gray-700">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="theme-border border-t pt-4">
+                  <p className="theme-text-subtle text-sm">
                     将导出 <strong>{selectedPaths.size}</strong> 个提示词
                   </p>
                 </div>
@@ -346,19 +348,19 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex justify-end gap-3 p-6 border-t dark:border-gray-700">
+        <div className="theme-panel-muted theme-border flex justify-end gap-3 border-t p-6">
           {step === 'select' && (
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className={secondaryButtonClass}
               >
                 取消
               </button>
               <button
                 onClick={handleNext}
                 disabled={selectedPaths.size === 0 || isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className={primaryButtonClass}
               >
                 下一步
               </button>
@@ -369,14 +371,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             <>
               <button
                 onClick={() => setStep('select')}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className={secondaryButtonClass}
               >
                 上一步
               </button>
               <button
                 onClick={handleExport}
                 disabled={isLoading || !packageInfo.name || !packageInfo.description || !packageInfo.author}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className={primaryButtonClass}
               >
                 {isLoading ? (
                   <>

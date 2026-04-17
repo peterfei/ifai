@@ -26,7 +26,7 @@ export const TimelineBubbleSkeleton: React.FC<TimelineBubbleSkeletonProps> = ({
     >
       {/* 时间标签骨架 */}
       <div className="flex items-center gap-2 px-2">
-        <div className="w-12 h-3 bg-gray-700/50 rounded animate-pulse" />
+        <div className="w-12 h-3 theme-panel-muted rounded animate-pulse" />
       </div>
 
       {/* 气泡骨架 */}
@@ -34,7 +34,7 @@ export const TimelineBubbleSkeleton: React.FC<TimelineBubbleSkeletonProps> = ({
         className={`
           max-w-[70%]
           rounded-2xl
-          ${isUser ? 'rounded-bl-sm bg-blue-900/30' : 'rounded-br-sm bg-[#1e293b]/50'}
+          ${isUser ? 'rounded-bl-sm bg-blue-500/10 border border-blue-500/20' : 'rounded-br-sm theme-panel-muted border theme-border'}
           px-4
           py-3
           animate-pulse
@@ -42,17 +42,17 @@ export const TimelineBubbleSkeleton: React.FC<TimelineBubbleSkeletonProps> = ({
       >
         {/* 文本骨架 */}
         <div className="space-y-2">
-          <div className="w-32 h-3 bg-gray-700/50 rounded" />
-          <div className="w-48 h-3 bg-gray-700/50 rounded" />
-          <div className="w-24 h-3 bg-gray-700/50 rounded" />
+          <div className="w-32 h-3 theme-panel rounded" />
+          <div className="w-48 h-3 theme-panel rounded" />
+          <div className="w-24 h-3 theme-panel rounded" />
         </div>
 
         {/* 代码块骨架（仅 AI 气泡） */}
         {!isUser && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-[#0f172a]/50 rounded">
-            <div className="w-4 h-4 bg-gray-700/50 rounded" />
-            <div className="w-16 h-3 bg-gray-700/50 rounded" />
-            <div className="w-8 h-3 bg-gray-700/50 rounded" />
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 theme-code-surface border theme-border rounded">
+            <div className="w-4 h-4 theme-panel rounded" />
+            <div className="w-16 h-3 theme-panel rounded" />
+            <div className="w-8 h-3 theme-panel rounded" />
           </div>
         )}
       </div>

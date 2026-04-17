@@ -13,6 +13,38 @@ import { detectLanguageFromPath } from '../../utils/languageDetection';
 
 import { Skeleton } from '../UI/Skeleton';
 
+const getWorkspaceRootItemClass = (isActive: boolean) =>
+  `theme-border flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm select-none transition-colors ${
+    isActive ? 'bg-blue-500/10 text-[var(--text-primary)]' : 'theme-text-muted theme-hoverable'
+  }`;
+
+const getTreeItemClass = (isSelected: boolean) =>
+  `flex cursor-pointer items-center rounded-md px-2 py-1 text-sm select-none transition-colors ${
+    isSelected
+      ? 'bg-blue-500/10 text-[var(--text-primary)] ring-1 ring-inset ring-blue-500/20'
+      : 'theme-text-muted theme-hoverable'
+  }`;
+
+const getGitStatusClass = (status?: GitStatus): string => {
+  switch (status) {
+    case GitStatus.Added:
+    case GitStatus.Untracked:
+      return 'text-green-500';
+    case GitStatus.Modified:
+      return 'text-yellow-500';
+    case GitStatus.Deleted:
+    case GitStatus.Conflicted:
+      return 'text-red-500';
+    case GitStatus.Renamed:
+    case GitStatus.TypeChange:
+      return 'text-blue-500';
+    case GitStatus.Ignored:
+      return 'theme-text-subtle opacity-50';
+    default:
+      return 'theme-text-muted';
+  }
+};
+
 // v0.3.0: 根目录项组件
 interface WorkspaceRootItemProps {
   root: WorkspaceRoot;
@@ -27,15 +59,13 @@ const WorkspaceRootItem: React.FC<WorkspaceRootItemProps> = ({ root, isActive, o
       data-testid="workspace-root"
       data-active={isActive}
       data-root-id={root.id}
-      className={`flex items-center py-2 px-3 cursor-pointer text-sm select-none transition-colors border-b border-gray-800 ${
-        isActive ? 'bg-blue-600/20 text-white' : 'hover:bg-gray-800 text-gray-400'
-      }`}
+      className={getWorkspaceRootItemClass(isActive)}
       onClick={onClick}
       onContextMenu={(e) => onContextMenu(e, root)}
     >
-      <Layers size={16} className="mr-2" />
-      <span className="font-medium">{root.name}</span>
-      <span className="ml-auto text-xs text-gray-600">{root.path}</span>
+      <Layers size={16} className={isActive ? 'text-blue-500' : 'theme-text-subtle'} />
+      <span className="min-w-0 flex-1 truncate font-medium">{root.name}</span>
+      <span className="theme-text-subtle ml-auto max-w-[45%] truncate text-xs">{root.path}</span>
     </div>
   );
 };
@@ -154,24 +184,7 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, o
   }, [isSelected]);
 
   const getStatusColorClass = (path: string) => {
-    const status = gitStatuses.get(path);
-    switch (status) {
-      case GitStatus.Added:
-      case GitStatus.Untracked:
-        return 'text-green-500';
-      case GitStatus.Modified:
-        return 'text-yellow-500';
-      case GitStatus.Deleted:
-      case GitStatus.Conflicted:
-        return 'text-red-500';
-      case GitStatus.Renamed:
-      case GitStatus.TypeChange:
-        return 'text-blue-400';
-      case GitStatus.Ignored:
-        return 'text-gray-500 opacity-50';
-      default:
-        return 'text-gray-300';
-    }
+    return getGitStatusClass(gitStatuses.get(path));
   };
 
   return (
@@ -181,14 +194,12 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, o
         data-testid="file-tree-item"
         data-node-id={node.id}
         data-selected={isSelected}
-        className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
-          isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
-        }`}
+        className={getTreeItemClass(isSelected)}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, node)}
       >
-        <span className="mr-1 text-gray-500">
+        <span className="theme-text-subtle mr-1 flex items-center">
           {node.kind === 'directory' && (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
           {node.kind === 'file' && <File size={14} />}
         </span>
@@ -671,24 +682,7 @@ export const FileTree = () => {
 
   // Helper function to get status color (inline for virtual rendering)
   const getStatusColorClassInline = (path: string): string => {
-    const status = gitStatuses.get(path);
-    switch (status) {
-      case GitStatus.Added:
-      case GitStatus.Untracked:
-        return 'text-green-500';
-      case GitStatus.Modified:
-        return 'text-yellow-500';
-      case GitStatus.Deleted:
-      case GitStatus.Conflicted:
-        return 'text-red-500';
-      case GitStatus.Renamed:
-      case GitStatus.TypeChange:
-        return 'text-blue-400';
-      case GitStatus.Ignored:
-        return 'text-gray-500 opacity-50';
-      default:
-        return 'text-gray-300';
-    }
+    return getGitStatusClass(gitStatuses.get(path));
   };
 
   // v0.3.0: 判断是否有多工作区
@@ -697,19 +691,19 @@ export const FileTree = () => {
   // 🔥 工业级加载反馈：当 rootPath 存在但 fileTree 尚未解析完成时，展示骨架屏
   if (rootPath && !fileTree) {
     return (
-      <div className="p-4 space-y-4">
-        <Skeleton className="h-4 w-3/4 bg-gray-800/50 rounded" />
-        <Skeleton className="h-4 w-1/2 bg-gray-800/50 rounded" />
-        <Skeleton className="h-4 w-5/6 bg-gray-800/50 rounded" />
-        <Skeleton className="h-4 w-2/3 bg-gray-800/50 rounded" />
-        <Skeleton className="h-4 w-3/4 bg-gray-800/50 rounded" />
+      <div className="theme-panel p-4 space-y-4">
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-4 w-5/6" />
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-4 w-3/4" />
       </div>
     );
   }
 
   if (!fileTree) return (
-    <div className="p-4 text-gray-500 text-sm text-center flex flex-col items-center gap-4">
-      <p className="text-gray-400">{t('fileTree.noFolderOpen')}</p>
+    <div className="theme-panel theme-text-subtle flex flex-col items-center gap-4 p-4 text-center text-sm">
+      <p className="theme-text-muted">{t('fileTree.noFolderOpen')}</p>
       <button
         onClick={async () => {
           try {
@@ -722,25 +716,25 @@ export const FileTree = () => {
             console.error('[FileTree] Failed to open directory:', e);
           }
         }}
-        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors"
+        className="theme-button-primary theme-shadow flex items-center gap-2 rounded px-4 py-2"
       >
         <Folder size={16} />
         <span>{t('fileTree.openFolder')}</span>
       </button>
-      <p className="text-xs text-gray-600">{t('fileTree.orClickFolderIcon')}</p>
+      <p className="theme-text-subtle text-xs">{t('fileTree.orClickFolderIcon')}</p>
     </div>
   );
 
   return (
     <div
       ref={containerRef}
-      className="h-full focus:outline-none flex flex-col"
+      className="theme-panel flex h-full flex-col focus:outline-none"
       onContextMenu={(e) => e.preventDefault()}
       tabIndex={0}
     >
       {/* v0.3.0: 多工作区根目录列表 */}
       {hasMultiWorkspace && (
-        <div className="border-b border-gray-700">
+        <div className="theme-panel-muted theme-border border-b">
           {workspaceRoots.map(root => (
             <WorkspaceRootItem
               key={root.id}
@@ -754,7 +748,7 @@ export const FileTree = () => {
           <button
             data-testid="add-folder-btn"
             onClick={handleAddFolder}
-            className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
+            className="theme-text-muted theme-hoverable theme-border flex w-full items-center border-t px-3 py-2 text-sm transition-colors"
           >
             <FolderPlus size={16} className="mr-2" />
             <span>{t('fileTree.addFolder')}</span>
@@ -763,7 +757,7 @@ export const FileTree = () => {
           <button
             data-testid="save-workspace-btn"
             onClick={handleSaveWorkspace}
-            className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
+            className="theme-text-muted theme-hoverable theme-border flex w-full items-center border-t px-3 py-2 text-sm transition-colors"
           >
             <Save size={16} className="mr-2" />
             <span>{t('fileTree.saveWorkspaceAs')}</span>
@@ -772,7 +766,7 @@ export const FileTree = () => {
           <button
             data-testid="open-workspace-btn"
             onClick={handleOpenWorkspace}
-            className="w-full flex items-center py-2 px-3 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
+            className="theme-text-muted theme-hoverable theme-border flex w-full items-center border-t px-3 py-2 text-sm transition-colors"
           >
             <FolderOpen size={16} className="mr-2" />
             <span>{t('fileTree.openWorkspace')}</span>
@@ -797,9 +791,7 @@ export const FileTree = () => {
                   data-testid="file-tree-item"
                   data-node-id={node.id}
                   data-selected={isSelected}
-                  className={`flex items-center py-1 px-2 cursor-pointer text-sm select-none transition-colors ${
-                    isSelected ? 'bg-blue-600/30 text-white' : 'hover:bg-gray-800 text-gray-300'
-                  }`}
+                  className={getTreeItemClass(isSelected)}
                   style={{ paddingLeft: `${level * 12 + 8}px` }}
                   onClick={(e) => {
                     handleNodeSelect(node.id, e.ctrlKey || e.metaKey, e.shiftKey);
@@ -809,7 +801,7 @@ export const FileTree = () => {
                   }}
                   onContextMenu={(e) => handleContextMenu(e, node)}
                 >
-                  <span className="mr-1 text-gray-500">
+                  <span className="theme-text-subtle mr-1 flex items-center">
                     {node.kind === 'directory' && (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
                     {node.kind === 'file' && <File size={14} />}
                   </span>

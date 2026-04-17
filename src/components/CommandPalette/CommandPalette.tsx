@@ -7,6 +7,7 @@ import { switchThread } from '../../stores/useChatStore';
 import { invoke } from '@tauri-apps/api/core';
 import Fuse from 'fuse.js';
 import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
 
 interface CommandPaletteProps {
   onSelect?: (path: string) => void;
@@ -231,63 +232,62 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-20 bg-black bg-opacity-50"
+      className="theme-backdrop fixed inset-0 z-[100] flex items-start justify-center pt-20"
       onClick={handleClose} // Close when clicking outside
     >
       <div
-        className="bg-[#252526] rounded-lg shadow-2xl w-[600px] flex flex-col max-h-[80vh] border border-gray-700 overflow-hidden"
+        className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-[600px] flex-col overflow-hidden rounded-lg border"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
       >
-        <div className="relative p-3 border-b border-gray-700 bg-[#252526]">
+        <div className="theme-panel-elevated theme-border relative border-b p-3">
           <input
             ref={inputRef}
             type="text"
-            className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            className="theme-input-surface theme-border theme-text w-full rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             placeholder={getPlaceholder()}
             value={input}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
           />
           <button
-            className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            className="theme-hoverable theme-text-subtle absolute right-6 top-1/2 -translate-y-1/2 rounded p-1 transition-colors"
             onClick={handleClose}
           >
             <X size={16} />
           </button>
         </div>
 
-        <div ref={listRef} className="flex-1 overflow-y-auto py-2 bg-[#252526] custom-scrollbar">
+        <div ref={listRef} className="theme-panel flex-1 overflow-y-auto py-2 custom-scrollbar">
           {results.length > 0 ? (
             results.map((result, index) => (
               <div
                 key={`${result.type}-${result.id}-${index}`}
-                className={`px-4 py-2 text-sm cursor-pointer transition-colors flex items-center gap-3 ${
-                  index === selectedIndex
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-[#2a2d2e] hover:text-white'
-                }`}
+                className={clsx('flex cursor-pointer items-center gap-3 px-4 py-2 text-sm transition-colors', index === selectedIndex
+                    ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]'
+                    : 'theme-text-muted theme-hoverable'
+                )}
                 onClick={() => handleSelect(result)}
               >
-                <div className={`flex-shrink-0 ${index === selectedIndex ? 'text-white' : 'text-gray-400'}`}>
+                <div className={clsx('flex-shrink-0', index === selectedIndex ? 'text-[var(--accent-color)]' : 'theme-text-subtle')}>
                   {result.icon}
                 </div>
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="font-medium truncate">{result.title}</span>
-                  <span className={`text-[10px] truncate ${index === selectedIndex ? 'text-blue-100' : 'text-gray-500'}`}>
+                  <span className={clsx('truncate text-[10px]', index === selectedIndex ? 'text-[var(--accent-color)]' : 'theme-text-subtle')}>
                     {result.subtitle}
                   </span>
                 </div>
                 {result.type === 'thread' && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
-                    index === selectedIndex ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400'
-                  }`}>
+                  <span className={clsx('text-[10px] px-1.5 py-0.5 rounded flex-shrink-0',
+                    index === selectedIndex ? 'bg-[var(--accent-color)] text-white' : 'theme-panel-muted theme-text-subtle'
+                  )}>
                     会话
                   </span>
                 )}
               </div>
             ))
           ) : (
-            <div className="px-4 py-6 text-center text-sm text-gray-400">
+            <div className="theme-text-subtle px-4 py-6 text-center text-sm">
               {t('commandPalette.noResults') || "未找到结果"}
             </div>
           )}

@@ -72,12 +72,12 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
           <span className="text-sm font-semibold" style={{ color: categoryInfo.color }}>
             {categoryInfo.label}
           </span>
-          <span className="text-xs text-gray-500">{categoryInfo.description}</span>
+          <span className="theme-text-subtle text-xs">{categoryInfo.description}</span>
         </div>
       </div>
 
       {/* 分隔线 */}
-      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+      <div className="theme-divider h-6 w-px" />
 
       {/* 层级信息 */}
       {showLayer && (
@@ -86,7 +86,7 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: layerInfo.color }}
           />
-          <span className="text-xs text-gray-600 dark:text-gray-400">
+          <span className="theme-text-muted text-xs">
             {layerInfo.label}
           </span>
         </div>
@@ -99,10 +99,10 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: confidenceInfo.color }}
           />
-          <span className="text-xs text-gray-600 dark:text-gray-400">
+          <span className="theme-text-muted text-xs">
             {confidenceInfo.label}置信度
           </span>
-          <span className="text-xs font-mono text-gray-500">
+          <span className="theme-text-subtle text-xs font-mono">
             ({(result.confidence * 100).toFixed(0)}%)
           </span>
         </div>
@@ -110,7 +110,7 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
 
       {/* 匹配类型 */}
       {result.matchType && (
-        <span className="text-xs text-gray-400 italic">
+        <span className="theme-text-subtle text-xs italic">
           via {result.matchType}
         </span>
       )}

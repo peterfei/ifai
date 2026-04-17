@@ -24,7 +24,6 @@ interface EditorInstance {
 interface EditorState {
   editorInstances: Map<string, EditorInstance>;
   activeEditorId: string | null;
-  theme: 'vs-dark' | 'light';
   inlineEdit: InlineEditState;
   approvalPreview: ApprovalPreviewState;
   activeFileTokenCount: number;
@@ -33,7 +32,6 @@ interface EditorState {
   getEditorInstance: (paneId: string) => editor.IStandaloneCodeEditor | null;
   removeEditorInstance: (paneId: string) => void;
   setActiveEditor: (paneId: string) => void;
-  setTheme: (theme: 'vs-dark' | 'light') => void;
   setInlineEdit: (state: Partial<InlineEditState>) => void;
   closeInlineEdit: () => void;
   setApprovalPreview: (state: Partial<ApprovalPreviewState>) => void;
@@ -48,7 +46,6 @@ const MAX_EDITOR_INSTANCES = 4;
 export const useEditorStore = create<EditorState>((set, get) => ({
   editorInstances: new Map(),
   activeEditorId: null,
-  theme: 'vs-dark',
   inlineEdit: {
     isVisible: false,
     position: null,
@@ -121,8 +118,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActiveEditor: (paneId) => {
     set({ activeEditorId: paneId });
   },
-
-  setTheme: (theme) => set({ theme }),
 
   setInlineEdit: (newState) => set((state) => ({
     inlineEdit: { ...state.inlineEdit, ...newState }

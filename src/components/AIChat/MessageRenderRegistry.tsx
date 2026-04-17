@@ -73,13 +73,13 @@ export const AssistantTextRenderer: MessageRendererComponent = ({ message, conte
   // 这里需要导入实际的 MarkdownRenderer 组件
   // 为了简化，暂时使用简单的文本渲染
   return (
-    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
+    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
       {thinkingText && (
-        <div className="mb-3 text-xs text-gray-500 italic">
+        <div className="theme-text-subtle mb-3 text-xs italic">
           Thinking: {thinkingText}
         </div>
       )}
-      <div className="whitespace-pre-wrap break-words">{contentWithoutThinking}</div>
+      <div className="theme-text whitespace-pre-wrap break-words">{contentWithoutThinking}</div>
     </div>
   );
 };
@@ -91,27 +91,27 @@ export const AssistantToolRenderer: MessageRendererComponent = ({ message, conte
   const { thinkingText, contentWithoutThinking } = extractThinkingContent(message);
 
   return (
-    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
+    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
       {thinkingText && (
-        <div className="mb-3 text-xs text-gray-500 italic">
+        <div className="theme-text-subtle mb-3 text-xs italic">
           Thinking: {thinkingText}
         </div>
       )}
 
       {/* 工具调用渲染 */}
       {message.toolCalls && message.toolCalls.map((toolCall) => (
-        <div key={toolCall.id} className="mb-2 p-2 bg-[#1e1e1e] rounded border border-gray-700">
-          <div className="text-xs font-mono text-gray-400">
+        <div key={toolCall.id} className="theme-code-surface theme-border mb-2 rounded border p-2">
+          <div className="theme-text-muted text-xs font-mono">
             {toolCall.function?.name || (toolCall as any).toolName || 'unknown'}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="theme-text-subtle mt-1 text-xs">
             Status: {toolCall.status || 'unknown'}
           </div>
         </div>
       ))}
 
       {contentWithoutThinking && (
-        <div className="whitespace-pre-wrap break-words mt-2">{contentWithoutThinking}</div>
+        <div className="theme-text mt-2 whitespace-pre-wrap break-words">{contentWithoutThinking}</div>
       )}
     </div>
   );
@@ -124,10 +124,10 @@ export const ExploreMessageRenderer: MessageRendererComponent = ({ message, cont
   const exploreProgress = (message as any).exploreProgress;
 
   return (
-    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
-      <div className="text-sm font-medium text-gray-400 mb-2">探索项目</div>
+    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
+      <div className="theme-text-muted mb-2 text-sm font-medium">探索项目</div>
       {exploreProgress && (
-        <div className="text-xs text-gray-500">
+        <div className="theme-text-subtle text-xs">
           扫描了 {exploreProgress.fileCount || 0} 个文件
         </div>
       )}
@@ -141,8 +141,8 @@ export const ExploreMessageRenderer: MessageRendererComponent = ({ message, cont
 export const TaskBreakdownRenderer: MessageRendererComponent = ({ message, context }) => {
   // 这里需要导入 TaskBreakdownViewer 组件
   return (
-    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
-      <div className="text-sm text-gray-400">任务拆解</div>
+    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
+      <div className="theme-text-muted text-sm">任务拆解</div>
     </div>
   );
 };
@@ -154,11 +154,11 @@ export const MultimodalMessageRenderer: MessageRendererComponent = ({ message, c
   const parts = message.multiModalContent || [];
 
   return (
-    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
+    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
       {parts.map((part, index) => {
         if (part.type === 'text') {
           return (
-            <div key={index} className="whitespace-pre-wrap break-words">
+            <div key={index} className="theme-text whitespace-pre-wrap break-words">
               {part.text}
             </div>
           );
@@ -186,8 +186,8 @@ export const SystemMessageRenderer: MessageRendererComponent = ({ message }) => 
   const content = typeof message.content === 'string' ? message.content : '';
 
   return (
-    <div className="w-full rounded-lg p-3 bg-yellow-900/20 border border-yellow-700/50 text-yellow-200 text-sm">
-      <div className="font-medium mb-1">系统消息</div>
+    <div className="w-full rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-yellow-500">
+      <div className="mb-1 font-medium">系统消息</div>
       <div className="whitespace-pre-wrap break-words">{content}</div>
     </div>
   );
@@ -208,9 +208,9 @@ export const UnknownMessageRenderer: MessageRendererComponent = ({ message }) =>
   const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
   return (
-    <div className="w-full rounded-2xl p-4 bg-gray-800/50 border border-gray-700 text-gray-400 text-sm">
-      <div className="mb-2 text-gray-500">未知消息类型: {message.role}</div>
-      <div className="whitespace-pre-wrap break-words">{content}</div>
+    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 text-sm">
+      <div className="theme-text-subtle mb-2">未知消息类型: {message.role}</div>
+      <div className="theme-text whitespace-pre-wrap break-words">{content}</div>
     </div>
   );
 };

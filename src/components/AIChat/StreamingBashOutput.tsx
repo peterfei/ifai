@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Terminal, X, Minimize2, Maximize2 } from 'lucide-react';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { isDarkTheme } from '../../utils/theme';
 
 interface BashStreamEvent {
   event_type: 'output' | 'error' | 'complete';
@@ -62,6 +64,8 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
   const outputRef = useRef<HTMLDivElement>(null);
   const eventIdRef = useRef<string>(propEventId || `bash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const unlistenRef = useRef<(() => void) | null>(null);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -191,12 +195,12 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
   };
 
   return (
-    <div className={`border border-gray-700 rounded-lg overflow-hidden bg-[#1e1e1e] ${className}`}>
+    <div className={`theme-panel theme-border rounded-lg border overflow-hidden ${className}`}>
       {/* 头部：命令和状态 */}
-      <div className="flex items-center justify-between px-3 py-2 bg-[#252526] border-b border-gray-700">
+      <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Terminal size={14} className="text-gray-400 shrink-0" />
-          <code className="text-xs text-gray-300 truncate font-mono">
+          <Terminal size={14} className="theme-text-subtle shrink-0" />
+          <code className="theme-text truncate font-mono text-xs">
             {command}
           </code>
         </div>
@@ -207,7 +211,7 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
           {/* 折叠按钮 */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-gray-200 transition-colors"
+            className="theme-button-ghost rounded p-1"
             title={isCollapsed ? '展开' : '折叠'}
           >
             {isCollapsed ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
@@ -222,21 +226,19 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
           className="p-3 max-h-[400px] overflow-y-auto font-mono text-xs leading-relaxed"
           style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: '#4b5563 #1e1e1e',
+            scrollbarColor: dark ? '#4b5563 #1e1e1e' : '#cbd5e1 #ffffff',
           }}
         >
           {outputLines.length === 0 && isRunning && (
-            <div className="text-gray-500 italic">等待输出...</div>
+            <div className="theme-text-subtle italic">等待输出...</div>
           )}
 
           {outputLines.map((line, index) => (
             <div
               key={`${line.lineNum}-${index}`}
-              className={`py-0.5 px-1 -mx-1 hover:bg-[#2a2a2a] rounded ${
-                line.isStderr ? 'text-red-400' : 'text-gray-300'
-              }`}
+              className={`theme-hoverable -mx-1 rounded px-1 py-0.5 ${line.isStderr ? 'text-red-400' : 'theme-text'}`}
             >
-              <span className="inline-block w-6 text-gray-600 select-none mr-2 text-right">
+              <span className="theme-text-subtle mr-2 inline-block w-6 select-none text-right">
                 {line.lineNum}
               </span>
               <span className="whitespace-pre-wrap break-words">{line.text}</span>
@@ -245,8 +247,8 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
 
           {/* 执行中光标 */}
           {isRunning && outputLines.length > 0 && (
-            <div className="flex items-center gap-2 mt-2 text-gray-500">
-              <div className="w-2 h-4 bg-gray-500 animate-pulse" />
+            <div className="theme-text-subtle mt-2 flex items-center gap-2">
+              <div className="theme-divider h-4 w-2 animate-pulse" />
               <span className="text-xs italic">等待输出...</span>
             </div>
           )}

@@ -3,6 +3,8 @@ import { Code, Box, Search, Loader2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '../../stores/fileStore';
 import clsx from 'clsx';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { isDarkTheme } from '../../utils/theme';
 
 interface SymbolInfo {
   name: string;
@@ -24,6 +26,8 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
   const [results, setResults] = useState<SymbolInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   
   const activeFileId = useFileStore(s => s.activeFileId);
   const openedFiles = useFileStore(s => s.openedFiles);
@@ -86,18 +90,18 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
   return (
     <div 
       data-testid="symbol-mention-panel"
-      className="absolute bottom-full left-0 mb-2 w-80 bg-[#1e1e1e]/95 backdrop-blur-xl border border-blue-500/30 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50"
+      className="absolute bottom-full left-0 mb-2 w-80 theme-panel-elevated backdrop-blur-xl border border-blue-500/20 rounded-xl theme-shadow overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50"
     >
-      <div className="p-2 border-b border-gray-800 bg-blue-900/20 flex items-center justify-between">
+      <div className="p-2 border-b theme-border bg-blue-500/10 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Code size={12} className="text-blue-400" />
-          <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">引用符号 (#)</span>
+          <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">引用符号 (#)</span>
         </div>
         {loading && <Loader2 size={10} className="text-blue-400 animate-spin" />}
       </div>
       <div className="max-h-60 overflow-y-auto py-1">
         {results.length === 0 && !loading ? (
-          <div className="px-4 py-6 text-center text-xs text-gray-500 italic">
+          <div className="px-4 py-6 text-center text-xs theme-text-subtle italic">
             {!filePath ? '请先在编辑器中打开一个文件...' : '未在当前文件中找到匹配符号...'}
           </div>
         ) : (
@@ -108,18 +112,22 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
               onClick={() => onSelect(symbol)}
               className={clsx(
                 "px-3 py-2 flex items-center gap-3 cursor-pointer transition-all duration-200",
-                index === selectedIndex ? "bg-blue-600/30 border-l-2 border-blue-400" : "hover:bg-white/5 border-l-2 border-transparent"
+                index === selectedIndex
+                  ? 'bg-blue-500/10 border-l-2 border-blue-500'
+                  : 'theme-soft-hover border-l-2 border-transparent'
               )}
             >
               <div className={clsx(
                 "p-1.5 rounded-lg",
-                index === selectedIndex ? "bg-blue-500 text-white" : "bg-gray-800 text-gray-400"
+                index === selectedIndex
+                  ? 'bg-blue-500 text-white'
+                  : 'theme-panel-muted theme-text-subtle'
               )}>
                 {symbol.kind === 'Class' || symbol.kind === 'Structure' ? <Box size={14} /> : <Code size={14} />}
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-sm text-gray-200 truncate font-mono">{symbol.name}</span>
-                <span className="text-[10px] text-gray-500 truncate">第 {symbol.line} 行 · {symbol.kind}</span>
+                <span className="text-sm theme-text truncate font-mono">{symbol.name}</span>
+                <span className="text-[10px] theme-text-subtle truncate">第 {symbol.line} 行 · {symbol.kind}</span>
               </div>
             </div>
           ))

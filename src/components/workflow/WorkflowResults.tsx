@@ -81,7 +81,7 @@ export function WorkflowResults({
       case 'Failed':
         return <XCircle className="w-5 h-5 text-red-500" />;
       case 'Skipped':
-        return <AlertCircle className="w-5 h-5 text-gray-400" />;
+        return <AlertCircle className="theme-text-subtle w-5 h-5" />;
       default:
         return <Clock className="w-5 h-5 text-blue-500" />;
     }
@@ -145,21 +145,21 @@ export function WorkflowResults({
             </div>
 
             <div className="p-4 border rounded-lg">
-              <div className="text-sm text-muted-foreground mb-1">总耗时</div>
+              <div className="theme-text-subtle mb-1 text-sm">总耗时</div>
               <div className="text-2xl font-bold">
                 {formatDuration(results.total_duration)}
               </div>
             </div>
 
             <div className="p-4 border rounded-lg">
-              <div className="text-sm text-muted-foreground mb-1">完成节点</div>
+              <div className="theme-text-subtle mb-1 text-sm">完成节点</div>
               <div className="text-2xl font-bold">
                 {results.summary.completed_nodes}/{results.summary.total_nodes}
               </div>
             </div>
 
             <div className="p-4 border rounded-lg">
-              <div className="text-sm text-muted-foreground mb-1">失败节点</div>
+              <div className="theme-text-subtle mb-1 text-sm">失败节点</div>
               <div className="text-2xl font-bold text-red-500">
                 {results.summary.failed_nodes}
               </div>
@@ -168,11 +168,11 @@ export function WorkflowResults({
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
-              <div className="text-sm text-muted-foreground">开始时间</div>
+              <div className="theme-text-subtle text-sm">开始时间</div>
               <div className="font-semibold">{formatTimestamp(results.started_at)}</div>
             </div>
             <div>
-              <div className="text-sm text-muted-foreground">完成时间</div>
+              <div className="theme-text-subtle text-sm">完成时间</div>
               <div className="font-semibold">{formatTimestamp(results.completed_at)}</div>
             </div>
           </div>
@@ -327,7 +327,7 @@ function NodeResultCard({
               <h4 className="font-semibold">{node.node_id}</h4>
               <div className="flex items-center gap-2">
                 {duration > 0 && (
-                  <span className="text-sm text-muted-foreground">
+                  <span className="theme-text-subtle text-sm">
                     {formatDuration(duration)}
                   </span>
                 )}
@@ -338,7 +338,7 @@ function NodeResultCard({
             {node.output && (
               <div className="mb-2">
                 <div className="text-sm font-medium mb-1">输出:</div>
-                <div className="bg-muted p-3 rounded text-sm overflow-x-auto max-h-40 overflow-y-auto">
+                <div className="theme-code-surface theme-border max-h-40 overflow-x-auto overflow-y-auto rounded border p-3 text-sm">
                   <pre className="whitespace-pre-wrap">{node.output}</pre>
                 </div>
               </div>
@@ -347,7 +347,7 @@ function NodeResultCard({
             {node.error && (
               <div className="mb-2">
                 <div className="text-sm font-medium mb-1 text-red-500">错误:</div>
-                <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded text-sm text-red-700 dark:text-red-300">
+                <div className="rounded border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
                   {node.error}
                 </div>
               </div>
@@ -356,7 +356,7 @@ function NodeResultCard({
             {node.metadata && Object.keys(node.metadata).length > 0 && (
               <div>
                 <div className="text-sm font-medium mb-1">元数据:</div>
-                <div className="bg-muted p-3 rounded text-sm">
+                <div className="theme-code-surface theme-border rounded border p-3 text-sm">
                   <pre className="whitespace-pre-wrap">
                     {JSON.stringify(node.metadata, null, 2)}
                   </pre>

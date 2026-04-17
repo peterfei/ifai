@@ -8,7 +8,7 @@ export const Card = React.forwardRef<
   <div
     ref={ref}
     className={clsx(
-      'bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700',
+      'theme-panel-muted theme-border rounded-lg border shadow-sm',
       className
     )}
     {...props}
@@ -34,7 +34,7 @@ export const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h3
     ref={ref}
-    className={clsx('text-lg font-semibold text-gray-900 dark:text-gray-100', className)}
+    className={clsx('theme-text text-lg font-semibold', className)}
     {...props}
   />
 ));
@@ -46,7 +46,7 @@ export const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={clsx('text-sm text-gray-500 dark:text-gray-400', className)}
+    className={clsx('theme-text-subtle text-sm', className)}
     {...props}
   />
 ));

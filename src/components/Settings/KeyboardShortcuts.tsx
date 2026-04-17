@@ -130,14 +130,14 @@ export const KeyboardShortcuts = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] text-white p-6">
+    <div className="theme-panel theme-text flex h-full flex-col p-6">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-xl font-semibold">{t('shortcuts.keyboardShortcuts')}</h2>
         <div className="flex items-center space-x-2">
           <select
             value={activeScheme}
             onChange={handleSchemeChange}
-            className="bg-[#252526] border border-gray-700 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+            className="theme-input-surface theme-border theme-text rounded px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
           >
             <option value="ifai">{t('shortcuts.ifaiScheme')}</option>
             <option value="vscode">{t('shortcuts.vscodeScheme')}</option>
@@ -145,7 +145,7 @@ export const KeyboardShortcuts = () => {
           </select>
           <button 
               onClick={handleImportClick}
-              className="p-2 text-gray-400 hover:text-white rounded hover:bg-gray-700 flex items-center gap-2 text-sm"
+              className="theme-hoverable theme-text-subtle flex items-center gap-2 rounded p-2 text-sm"
               title={t('shortcuts.import')}
           >
               <Upload size={16} />
@@ -159,14 +159,14 @@ export const KeyboardShortcuts = () => {
           />
           <button 
               onClick={handleExport}
-              className="p-2 text-gray-400 hover:text-white rounded hover:bg-gray-700 flex items-center gap-2 text-sm"
+              className="theme-hoverable theme-text-subtle flex items-center gap-2 rounded p-2 text-sm"
               title={t('shortcuts.export')}
           >
               <Download size={16} />
           </button>
           <button 
               onClick={handleReset}
-              className="p-2 text-gray-400 hover:text-white rounded hover:bg-gray-700 flex items-center gap-2 text-sm"
+              className="theme-hoverable theme-text-subtle flex items-center gap-2 rounded p-2 text-sm"
               title={t('shortcuts.resetDefaults')}
           >
               <RotateCcw size={16} />
@@ -175,11 +175,11 @@ export const KeyboardShortcuts = () => {
       </div>
 
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={16} />
+        <Search className="theme-text-subtle absolute left-3 top-1/2 -translate-y-1/2 transform" size={16} />
         <input 
             type="text" 
             placeholder={t('shortcuts.searchKeybindings')}
-            className="w-full bg-[#252526] border border-gray-700 rounded pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+            className="theme-input-surface theme-border theme-text w-full rounded py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
         />
@@ -187,19 +187,19 @@ export const KeyboardShortcuts = () => {
 
       <div className="flex-1 overflow-y-auto">
         <table className="w-full text-left text-sm">
-            <thead className="bg-[#252526] text-gray-400 sticky top-0">
+            <thead className="theme-panel-muted theme-text-subtle sticky top-0">
                 <tr>
                     <th className="p-3 font-medium">{t('shortcuts.command')}</th>
                     <th className="p-3 font-medium">{t('shortcuts.keybinding')}</th>
                     <th className="p-3 font-medium">{t('shortcuts.source')}</th>
                 </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="theme-border divide-y">
                 {filteredBindings.map(kb => (
-                    <tr key={kb.id} className="hover:bg-[#2d2d2d] group">
+                    <tr key={kb.id} className="group theme-hoverable">
                         <td className="p-3">
                             <div className="font-medium">{kb.label}</div>
-                            <div className="text-xs text-gray-500">{kb.commandId}</div>
+                            <div className="theme-text-subtle text-xs">{kb.commandId}</div>
                         </td>
                         <td className="p-3">
                             {recordingId === kb.id ? (
@@ -207,8 +207,8 @@ export const KeyboardShortcuts = () => {
                                     <input 
                                         autoFocus
                                         className={clsx(
-                                            "bg-blue-900 border rounded px-2 py-1 outline-none text-white w-full",
-                                            currentConflictId ? "border-red-500" : "border-blue-500"
+                                            'theme-input-surface theme-text w-full rounded border px-2 py-1 outline-none',
+                                            currentConflictId ? 'border-red-500' : 'theme-border focus:border-blue-500'
                                         )}
                                         placeholder={t('shortcuts.pressKeys') || 'Press keys...'}
                                         onKeyDown={(e) => handleKeyDown(e, kb.id)}
@@ -229,23 +229,23 @@ export const KeyboardShortcuts = () => {
                             ) : (
                                 <div 
                                     className={clsx(
-                                        "inline-flex items-center gap-1 cursor-pointer hover:bg-gray-700 rounded px-2 py-1 border",
-                                        hasConflict(kb.keys, kb.id) ? "border-red-500" : "border-transparent hover:border-gray-600"
+                                        "inline-flex items-center gap-1 cursor-pointer rounded px-2 py-1 border transition-colors",
+                                        hasConflict(kb.keys, kb.id) ? "border-red-500" : "theme-border theme-hoverable"
                                     )}
                                     onClick={() => handleRecord(kb.id)}
                                     title={t('shortcuts.clickToEdit')}
                                 >
                                     {kb.keys.split('+').map((part, i) => (
-                                        <span key={i} className="bg-[#333] border-b border-[#111] rounded px-1.5 min-w-[20px] text-center font-mono text-xs">
+                                        <span key={i} className="theme-input-surface theme-border min-w-[20px] rounded border px-1.5 text-center font-mono text-xs">
                                             {part === 'Mod' ? (navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl') : 
                                              part.charAt(0).toUpperCase() + part.slice(1)}
                                         </span>
                                     ))}
-                                    <span className="ml-2 text-gray-500 opacity-0 group-hover:opacity-100 text-xs">✎</span>
+                                    <span className="theme-text-subtle ml-2 text-xs opacity-0 group-hover:opacity-100">✎</span>
                                 </div>
                             )}
                         </td>
-                        <td className="p-3 text-gray-500">
+                        <td className="theme-text-subtle p-3">
                             {kb.category || t('shortcuts.user')}
                         </td>
                     </tr>

@@ -29,24 +29,24 @@ export const PromptList: React.FC = () => {
   }, [rootPath]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 w-64">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+    <div className="theme-panel-muted theme-border flex h-full w-64 flex-col border-r">
+      <div className="theme-border p-4 border-b">
         <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-2">
+          <h2 className="theme-text flex items-center gap-2 font-semibold">
             <FileText size={16} />
             Prompts
           </h2>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setExportDialogOpen(true)}
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors text-gray-500"
+              className="theme-button-ghost rounded p-1 transition-colors"
               title="导出提示词"
             >
               <Download size={14} />
             </button>
             <button
               onClick={() => setImportDialogOpen(true)}
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors text-gray-500"
+              className="theme-button-ghost rounded p-1 transition-colors"
               title="导入提示词"
             >
               <Upload size={14} />
@@ -54,7 +54,7 @@ export const PromptList: React.FC = () => {
             <button
               onClick={() => loadPrompts()}
               disabled={isLoading}
-              className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-colors ${isLoading ? 'animate-spin text-blue-500' : 'text-gray-500'}`}
+              className={`rounded p-1 transition-colors ${isLoading ? 'animate-spin text-blue-500' : 'theme-button-ghost'}`}
               title="刷新"
             >
               <RefreshCw size={14} />
@@ -66,8 +66,8 @@ export const PromptList: React.FC = () => {
           onClick={toggleExpertMode}
           className={`w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
             expertMode
-              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+              ? 'border border-purple-500/30 bg-purple-500/10 text-purple-500'
+              : 'theme-button-secondary border'
           }`}
           title={expertMode ? '关闭专家模式' : '开启专家模式'}
         >
@@ -77,22 +77,22 @@ export const PromptList: React.FC = () => {
       </div>
 
       {error && (
-        <div className="p-3 m-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded flex items-start gap-2">
+        <div className="m-2 flex items-start gap-2 rounded border border-red-500/20 bg-red-500/10 p-3">
             <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-red-600 dark:text-red-400 break-all">{error}</div>
+            <div className="break-all text-xs text-red-500">{error}</div>
         </div>
       )}
 
       <div data-testid="prompt-list" className="flex-1 overflow-y-auto custom-scrollbar">
         {isLoading && filteredPrompts.length === 0 && (
-            <div className="p-8 text-center text-xs text-gray-500">Loading prompts...</div>
+            <div className="theme-text-subtle p-8 text-center text-xs">Loading prompts...</div>
         )}
 
         {!isLoading && filteredPrompts.length === 0 && !error && (
             <div className="p-8 text-center">
-                <div className="text-3xl mb-2 opacity-20">📁</div>
-                <div className="text-xs text-gray-500">No prompts found</div>
-                <div className="text-[10px] text-gray-400 break-all mt-1">{rootPath}/.ifai/prompts</div>
+                <FileText size={28} className="theme-text-subtle mx-auto mb-2 opacity-30" />
+                <div className="theme-text-subtle text-xs">No prompts found</div>
+                <div className="theme-text-subtle mt-1 break-all text-[10px]">{rootPath}/.ifai/prompts</div>
             </div>
         )}
 
@@ -110,19 +110,21 @@ export const PromptList: React.FC = () => {
               data-testid="prompt-item"
               data-prompt-access-tier={tier}
               onClick={() => prompt.path && selectPrompt(prompt.path)}
-              className={`p-3 cursor-pointer border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-all ${
-                isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 shadow-sm' : 'border-l-4 border-transparent'
+              className={`p-3 cursor-pointer transition-all ${
+                'theme-border border-b theme-soft-hover'
+              } ${
+                isSelected ? 'border-l-4 border-blue-500 bg-blue-500/10 shadow-sm' : 'border-l-4 border-transparent'
               }`}
             >
-              <div className="font-medium text-sm text-gray-800 dark:text-gray-200 truncate" title={prompt.metadata.name}>
+              <div className="theme-text truncate text-sm font-medium" title={prompt.metadata.name}>
                   {prompt.metadata.name || 'Untitled Prompt'}
               </div>
-              <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+              <div className="theme-text-subtle mt-0.5 truncate text-[11px]">
                   {prompt.metadata.description || 'No description'}
               </div>
               <div className="mt-2 flex items-center justify-between">
                   <AccessTierBadge tier={tier} />
-                  <span className="text-[10px] text-gray-400 font-mono">v{prompt.metadata.version || '1.0.0'}</span>
+                  <span className="theme-text-subtle font-mono text-[10px]">v{prompt.metadata.version || '1.0.0'}</span>
               </div>
             </div>
           );

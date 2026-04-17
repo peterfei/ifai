@@ -59,11 +59,11 @@ const permissionLabels: Record<string, string> = {
  * 权限颜色
  */
 const permissionColors: Record<string, string> = {
-  ReadOnly: 'bg-green-100 text-green-800 border-green-200',
-  WorkspaceWrite: 'bg-blue-100 text-blue-800 border-blue-200',
-  Prompt: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  DangerFullAccess: 'bg-red-100 text-red-800 border-red-200',
-  Allow: 'bg-purple-100 text-purple-800 border-purple-200',
+  ReadOnly: 'bg-green-500/12 text-green-500 border-green-500/20',
+  WorkspaceWrite: 'bg-blue-500/12 text-blue-500 border-blue-500/20',
+  Prompt: 'bg-amber-500/12 text-amber-500 border-amber-500/20',
+  DangerFullAccess: 'bg-red-500/12 text-red-500 border-red-500/20',
+  Allow: 'bg-purple-500/12 text-purple-500 border-purple-500/20',
 };
 
 /**
@@ -120,7 +120,7 @@ export const ToolExplorerPanel: React.FC = () => {
   return (
     <div
       data-testid="tool-explorer-panel"
-      className="tool-explorer-panel h-full flex flex-col bg-background"
+      className="tool-explorer-panel theme-panel h-full flex flex-col"
     >
       {/* 头部：搜索和统计 */}
       <div className="tool-explorer-header border-b border-border p-4 space-y-4">
@@ -147,7 +147,7 @@ export const ToolExplorerPanel: React.FC = () => {
         {/* 搜索框 */}
         <div className="relative">
           <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            className="theme-text-subtle absolute left-3 top-1/2 -translate-y-1/2"
             size={18}
           />
           <input
@@ -156,7 +156,7 @@ export const ToolExplorerPanel: React.FC = () => {
             placeholder="搜索工具名称或描述..."
             value={filter.searchQuery}
             onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            className="theme-input-surface theme-border theme-text w-full rounded-md border py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           />
         </div>
       </div>
@@ -177,7 +177,7 @@ export const ToolExplorerPanel: React.FC = () => {
                   ${
                     filter.categories.includes(category as ToolCategory)
                       ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border hover:bg-muted'
+                      : 'theme-panel-muted theme-border theme-text-muted hover:bg-[var(--hover-bg)]'
                   }
                 `}
               >
@@ -202,7 +202,7 @@ export const ToolExplorerPanel: React.FC = () => {
                   ${
                     filter.permissions.includes(permission as ToolPermission)
                       ? permissionColors[permission]
-                      : 'border-border hover:bg-muted'
+                      : 'theme-panel-muted theme-border theme-text-muted hover:bg-[var(--hover-bg)]'
                   }
                 `}
               >
@@ -218,7 +218,7 @@ export const ToolExplorerPanel: React.FC = () => {
           filter.searchQuery) && (
           <button
             onClick={resetFilter}
-            className="text-sm text-muted-foreground hover:text-foreground underline"
+            className="text-sm text-blue-500 hover:text-blue-400 underline"
           >
             重置过滤器
           </button>
@@ -233,10 +233,10 @@ export const ToolExplorerPanel: React.FC = () => {
           </div>
         ) : filteredTools.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="text-muted-foreground mb-2">没有找到匹配的工具</p>
+            <p className="theme-text-subtle mb-2">没有找到匹配的工具</p>
             <button
               onClick={resetFilter}
-              className="text-sm text-primary hover:underline"
+              className="text-sm text-blue-500 hover:underline"
             >
               清除过滤器
             </button>
@@ -255,7 +255,7 @@ export const ToolExplorerPanel: React.FC = () => {
                     {categoryIcons[category]}
                   </div>
                   <h2 className="text-lg font-semibold">{category}</h2>
-                  <span className="text-sm text-muted-foreground">({tools.length})</span>
+                  <span className="theme-text-subtle text-sm">({tools.length})</span>
                 </div>
 
                 {/* 工具卡片网格 */}

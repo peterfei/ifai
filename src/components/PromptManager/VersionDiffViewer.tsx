@@ -74,7 +74,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
         return (
           <div key={index} className="flex">
             <span className="w-8 text-red-400 text-right pr-2 select-none">-</span>
-            <span className="flex-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-2 py-0.5">
+            <span className="flex-1 bg-red-500/10 px-2 py-0.5 text-red-500">
               {line.substring(1)}
             </span>
           </div>
@@ -83,7 +83,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
         return (
           <div key={index} className="flex">
             <span className="w-8 text-green-400 text-right pr-2 select-none">+</span>
-            <span className="flex-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2 py-0.5">
+            <span className="flex-1 bg-green-500/10 px-2 py-0.5 text-green-500">
               {line.substring(1)}
             </span>
           </div>
@@ -91,8 +91,8 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
       } else {
         return (
           <div key={index} className="flex">
-            <span className="w-8 text-gray-300 text-right pr-2 select-none"> </span>
-            <span className="flex-1 px-2 py-0.5 text-gray-700 dark:text-gray-300">
+            <span className="theme-text-subtle w-8 select-none pr-2 text-right"> </span>
+            <span className="theme-text-muted flex-1 px-2 py-0.5">
               {line}
             </span>
           </div>
@@ -103,10 +103,10 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
+      <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow rounded-lg border p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400 text-sm">正在加载版本对比...</p>
+          <p className="theme-text-subtle mt-4 text-sm">正在加载版本对比...</p>
         </div>
       </div>
     );
@@ -114,12 +114,12 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
 
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-md">
-          <p className="text-red-600 dark:text-red-400">加载版本对比失败: {error}</p>
+      <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow w-full max-w-md rounded-lg border p-8">
+          <p className="text-red-500">加载版本对比失败: {error}</p>
           <button
             onClick={onClose}
-            className="mt-4 w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            className="theme-button-secondary mt-4 w-full rounded-lg px-4 py-2 text-sm"
           >
             关闭
           </button>
@@ -131,32 +131,32 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
   if (!diff) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+    <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg border">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+        <div className="theme-border flex items-center justify-between border-b p-4">
           <div className="flex items-center gap-4 flex-1">
             {/* 旧版本 */}
             <div className="flex-1">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">旧版本</div>
-              <code className="text-sm font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+              <div className="theme-text-subtle mb-1 text-xs">旧版本</div>
+              <code className="theme-input-surface theme-border rounded border px-2 py-1 text-sm font-mono">
                 {diff.old_version.version_id.substring(0, 7)}
               </code>
-              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+              <div className="theme-text-subtle mt-1 text-xs">
                 {formatDate(diff.old_version.timestamp)}
               </div>
             </div>
 
             {/* 箭头 */}
-            <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+            <ArrowRight className="theme-text-subtle h-5 w-5 flex-shrink-0" />
 
             {/* 新版本 */}
             <div className="flex-1">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">新版本</div>
-              <code className="text-sm font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+              <div className="theme-text-subtle mb-1 text-xs">新版本</div>
+              <code className="theme-input-surface theme-border rounded border px-2 py-1 text-sm font-mono">
                 {diff.new_version.version_id.substring(0, 7)}
               </code>
-              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+              <div className="theme-text-subtle mt-1 text-xs">
                 {formatDate(diff.new_version.timestamp)}
               </div>
             </div>
@@ -164,13 +164,13 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
             {/* 统计信息 */}
             <div className="flex items-center gap-3 flex-shrink-0">
               {diff.additions > 0 && (
-                <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                <div className="flex items-center gap-1 text-green-500">
                   <Plus className="w-4 h-4" />
                   <span className="text-sm font-medium">{diff.additions}</span>
                 </div>
               )}
               {diff.deletions > 0 && (
-                <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                <div className="flex items-center gap-1 text-red-500">
                   <Minus className="w-4 h-4" />
                   <span className="text-sm font-medium">{diff.deletions}</span>
                 </div>
@@ -181,30 +181,30 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
           {/* 关闭按钮 */}
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+            className="theme-button-ghost rounded p-2 transition-colors"
             data-testid="close-diff-viewer"
           >
-            <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* 差异内容 */}
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 font-mono text-sm leading-relaxed">
+          <div className="theme-code-surface theme-border rounded-lg border p-4 font-mono text-sm leading-relaxed">
             {renderDiffLines()}
           </div>
         </div>
 
         {/* 底部 */}
-        <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex justify-between items-center">
-          <div className="text-xs text-gray-500 dark:text-gray-400">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-t p-4">
+          <div className="theme-text-subtle text-xs">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <span className="w-3 h-3 bg-green-200 dark:bg-green-900/40 rounded"></span>
+                <span className="h-3 w-3 rounded bg-green-500/20"></span>
                 添加的行
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-3 h-3 bg-red-200 dark:bg-red-900/40 rounded"></span>
+                <span className="h-3 w-3 rounded bg-red-500/20"></span>
                 删除的行
               </span>
             </div>
@@ -212,7 +212,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
 
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+            className="theme-button-primary rounded-lg px-4 py-2 text-sm"
           >
             关闭
           </button>

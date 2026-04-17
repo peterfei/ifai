@@ -55,7 +55,7 @@ export const Tabs: React.FC<TabsProps> = ({ defaultValue, value, onValueChange, 
 };
 
 export const TabsList: React.FC<TabsListProps> = ({ children, className }) => (
-  <div className={clsx('inline-flex h-10 items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800 p-1', className)}>
+  <div className={clsx('theme-panel-muted inline-flex h-10 items-center justify-center rounded-md p-1', className)}>
     {children}
   </div>
 );
@@ -67,10 +67,10 @@ export const TabsTrigger: React.FC<TabsTriggerProps> = ({ value, children, class
     <button
       onClick={() => setActiveTab(value)}
       className={clsx(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:pointer-events-none disabled:opacity-50',
         activeTab === value
-          ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200',
+          ? 'theme-panel theme-text shadow-sm'
+          : 'theme-text-muted theme-soft-hover',
         className
       )}
     >
@@ -85,7 +85,7 @@ export const TabsContent: React.FC<TabsContentProps> = ({ value, children, class
   if (activeTab !== value) return null;
 
   return (
-    <div className={clsx('mt-2 ring-offset-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2', className)}>
+    <div className={clsx('mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30', className)}>
       {children}
     </div>
   );

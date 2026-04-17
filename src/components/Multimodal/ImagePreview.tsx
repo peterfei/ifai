@@ -45,13 +45,13 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
   };
 
   return (
-    <div className="group relative inline-flex flex-col items-start gap-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-blue-500/50 transition-colors">
+    <div className="theme-panel-muted theme-border group relative inline-flex flex-col items-start gap-2 rounded-lg border p-2 transition-colors hover:border-blue-500/50">
       {/* 图片预览 */}
       <div className="relative">
         <img
           src={previewUrl}
           alt={content.name || 'Image'}
-          className="max-w-[200px] max-h-[150px] object-contain rounded"
+          className="theme-border max-h-[150px] max-w-[200px] rounded border object-contain"
         />
         {/* 状态遮罩 */}
         {(status === 'pending' || status === 'uploading') && (
@@ -68,7 +68,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
       </div>
 
       {/* 文件信息 */}
-      <div className="flex items-center gap-2 text-xs text-gray-400 min-w-[150px]">
+      <div className="theme-text-muted flex min-w-[150px] items-center gap-2 text-xs">
         <FileImage size={14} />
         <span className="flex-1 truncate" title={content.name}>
           {content.name || 'Image'}

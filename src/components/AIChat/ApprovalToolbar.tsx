@@ -90,7 +90,7 @@ export const ApprovalToolbar: React.FC = () => {
       <div className="flex items-center gap-2">
         <button
           onClick={handleReject}
-          className="flex items-center gap-1.5 px-3 py-1 rounded bg-black/20 hover:bg-red-500/30 text-xs font-bold transition-all border border-transparent hover:border-red-500/50"
+          className="theme-button-secondary flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold transition-all border border-red-500/20 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/40"
         >
           <X size={14} /> 拒绝
         </button>
@@ -102,7 +102,7 @@ export const ApprovalToolbar: React.FC = () => {
         </button>
         <button
           onClick={closeApprovalPreview}
-          className="p-1 hover:bg-white/10 rounded transition-colors ml-2"
+          className="theme-button-ghost ml-2 rounded p-1 transition-colors"
           title="关闭预览"
         >
           <X size={14} className="opacity-50" />

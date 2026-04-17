@@ -44,6 +44,7 @@ import { PivoTreeList } from './PivoTreeList';
 import { usePivoStore } from '../../stores/pivoStore';
 import { MarkdownRenderer, SimpleMarkdownRenderer } from './MarkdownRenderer';
 import styles from './MessageItem.module.css';
+import { isDarkTheme } from '../../utils/theme';
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -73,9 +74,9 @@ function filesToStructure(files: string[]): any {
  */
 const STYLES = {
     userBubble: 'max-w-[85%] rounded-2xl p-4 bg-blue-600 text-white shadow-lg ml-auto',
-    assistantBubble: 'w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm relative group',
-    agentBubble: 'w-full rounded-2xl p-4 bg-[#1e1e1e] text-blue-100 border border-blue-900/30 shadow-sm relative group',
-    timestamp: 'text-[10px] text-gray-500 mt-1'
+    assistantBubble: 'w-full rounded-2xl p-4 theme-panel-muted theme-text theme-border border shadow-sm relative group',
+    agentBubble: 'w-full rounded-2xl p-4 border shadow-sm relative group bg-blue-950/40 text-blue-100 border-blue-900/30',
+    timestamp: 'theme-text-subtle text-[10px] mt-1'
 };
 /**
  * 检测内容是否是任务拆解 JSON
@@ -188,6 +189,8 @@ const areMessageItemPropsEqual = (prevProps: MessageItemProps, nextProps: Messag
 
 export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
+    const theme = useSettingsStore(state => state.theme);
+    const dark = isDarkTheme(theme);
     const isUser = message.role === 'user';
     const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
 
@@ -491,8 +494,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const isAgent = !!(message as any).agentId;
     const isInlineTask = !!(message as any).isInlineTask;
     const bubbleClass = isInlineTask 
-        ? "bg-gray-800/40 border border-white/5 text-white/40 italic py-1.5 px-3 rounded-lg text-[11px]" 
-        : (isUser ? STYLES.userBubble : (isAgent ? STYLES.agentBubble : STYLES.assistantBubble));
+        ? 'theme-panel-muted theme-border border theme-text-subtle italic py-1.5 px-3 rounded-lg text-[11px]'
+        : (isUser
+            ? STYLES.userBubble
+            : (isAgent
+                ? (dark
+                    ? 'w-full rounded-2xl p-4 border border-blue-900/30 bg-blue-950/40 text-blue-100 shadow-sm relative group'
+                    : 'w-full rounded-2xl p-4 bg-blue-500/5 text-[var(--text-primary)] border border-blue-500/20 shadow-sm relative group')
+                : 'w-full rounded-2xl p-4 theme-panel-muted theme-text theme-border border shadow-sm relative group'));
     // 🔥 FIX v0.3.9.3: 更加稳健的内容检测逻辑，支持字符串和数组
     const hasVisibleContent = React.useMemo(() => {
         if (!message.content) return false;
@@ -831,7 +840,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             );
         } else if (part.type === 'image_url' && part.image_url?.url) {
             return (
-                <div key={index} className="my-2 max-w-xs border border-gray-600 rounded overflow-hidden">
+                <div key={index} className="my-2 max-w-xs border theme-border rounded overflow-hidden theme-panel">
                     <img src={part.image_url.url} alt="AI generated image" className="w-full h-auto" />
                 </div>
             );
@@ -853,11 +862,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <User size={12} />
                         </div>
                     ) : isAgent ? (
-                        <div className="w-5 h-5 rounded-md bg-indigo-900 flex items-center justify-center border border-indigo-500/30 shadow-lg text-indigo-400">
+                        <div className={dark ? 'w-5 h-5 rounded-md bg-indigo-900 flex items-center justify-center border border-indigo-500/30 shadow-lg text-indigo-400' : 'w-5 h-5 rounded-md bg-indigo-50 flex items-center justify-center border border-indigo-200 shadow-sm text-indigo-600'}>
                             <Bot size={12} />
                         </div>
                     ) : (
-                        <div className="w-5 h-5 rounded-md overflow-hidden border border-white/5 bg-black/40 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-md overflow-hidden border theme-border theme-panel flex items-center justify-center">
                             <img src={ifaiLogo} alt="AI" className="w-3.5 h-3.5 opacity-80" />
                         </div>
                     )}
@@ -867,11 +876,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 <div className="flex-1 min-w-0 text-inherit relative">
                     {/* B1. 悬浮工具栏 (仅在非用户气泡模式下显示) */}
                     {!isUser && !shouldHideBubble && (
-                        <div className="absolute -top-10 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#2d2d2d] border border-white/10 rounded-md p-1 shadow-xl z-10">
-                            <button onClick={handleCopy} className="p-1 hover:bg-white/5 rounded text-gray-400" title="Copy">
+                        <div className="absolute -top-10 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity theme-panel-elevated theme-border rounded-md border p-1 theme-shadow z-10">
+                            <button onClick={handleCopy} className="p-1 rounded theme-button-ghost theme-text-subtle" title="Copy">
                                 <Copy size={12} />
                             </button>
-                            <button className="p-1 hover:bg-white/5 rounded text-gray-400" title="Regenerate">
+                            <button className="p-1 rounded theme-button-ghost theme-text-subtle" title="Regenerate">
                                 <RotateCcw size={12} />
                             </button>
                         </div>
@@ -891,7 +900,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         <div className="mb-3">
                             <button 
                                 onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-                                className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-blue-400 transition-colors uppercase tracking-widest group/think"
+                                className="flex items-center gap-2 text-[10px] font-bold theme-text-subtle hover:text-blue-500 transition-colors uppercase tracking-widest group/think"
                             >
                                 <div className={`transition-transform duration-200 ${isThinkingExpanded ? 'rotate-180' : ''}`}>
                                     <ChevronDown size={10} />
@@ -902,7 +911,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                 )}
                             </button>
                             {isThinkingExpanded && (
-                                <div className="mt-2 p-3 bg-white/[0.03] border border-white/5 rounded-lg text-xs text-gray-400 leading-relaxed italic animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="mt-2 p-3 theme-panel border theme-border rounded-lg text-xs theme-text-subtle leading-relaxed italic animate-in fade-in slide-in-from-top-1 duration-200">
                                     {thinkingText}
                                 </div>
                             )}
@@ -930,13 +939,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                         {/* Batch Review Panel */}
                         {pendingCount > 1 && (
-                            <div className="mb-3 p-2 bg-blue-900/20 rounded border border-blue-700/50 flex items-center justify-between">
-                                <div className="text-xs font-medium text-blue-300">有 {pendingCount} 个待处理的操作</div>
+                            <div className="mb-3 p-2 bg-blue-500/10 rounded border border-blue-500/20 flex items-center justify-between">
+                                <div className="text-xs font-medium text-blue-500">有 {pendingCount} 个待处理的操作</div>
                                 <div className="flex gap-2">
-                                    <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] rounded transition-colors">
+                                    <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 theme-button-success text-[10px] rounded transition-colors">
                                         <CheckCheck size={12} /> 全部批准
                                     </button>
-                                    <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors">
+                                    <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 theme-button-danger text-[10px] rounded transition-colors">
                                         <XCircle size={12} /> 全部拒绝
                                     </button>
                                 </div>
@@ -948,11 +957,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <TaskBreakdownViewer breakdown={taskBreakdown} mode="inline" allowModeSwitch={true} />
                         ) : isStreamingTaskBreakdown ? (
                             <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                <div className="flex items-center gap-2 text-sm theme-text-subtle">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                                     <span>正在拆解任务...</span>
                                 </div>
-                                <div className="text-xs text-gray-500 font-mono max-h-32 overflow-y-auto bg-[#1e1e1e] rounded border border-gray-700 p-2">
+                                <div className="text-xs theme-text-subtle font-mono max-h-32 overflow-y-auto theme-panel rounded border theme-border p-2">
                                     {displayContent.slice(-500)}
                                 </div>
                             </div>
@@ -1226,7 +1235,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         {/* Composer Diff Button */}
                         {hasFileChanges && onOpenComposer && !effectivelyStreaming && (
                             <div className="mt-3">
-                                <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                                <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 theme-button-primary text-sm font-medium rounded-lg transition-colors">
                                     <FileCode size={16} />
                                     <span>查看 Diff ({(message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length} 个文件)</span>
                                 </button>
@@ -1240,23 +1249,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     if (action.type === 'patch') {
                                         const isIgnored = ignoredActions.has(actionIndex);
                                         return (
-                                            <div key={`action-${actionIndex}`} className={`p-3 rounded border ${isIgnored ? 'bg-gray-900/20 border-gray-700/50' : 'bg-green-900/20 border-green-700/50'}`}>
+                                            <div key={`action-${actionIndex}`} className={`p-3 rounded border ${isIgnored ? 'theme-panel border theme-border' : 'bg-green-500/5 border-green-500/20'}`}>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <FileCode size={14} className={isIgnored ? 'text-gray-400' : 'text-green-400'} />
-                                                            <span className="text-xs font-medium truncate">{action.filePath || 'Apply Fix'}</span>
+                                                            <FileCode size={14} className={isIgnored ? 'theme-text-subtle' : 'text-green-500'} />
+                                                            <span className="text-xs font-medium truncate theme-text">{action.filePath || 'Apply Fix'}</span>
                                                         </div>
                                                         {!isIgnored && action.patch && (
-                                                            <div className="text-xs text-gray-400 font-mono max-h-20 overflow-y-auto bg-[#1e1e1e] rounded p-2">
+                                                            <div className="text-xs theme-text-subtle font-mono max-h-20 overflow-y-auto theme-panel rounded p-2 border theme-border">
                                                                 {action.patch.substring(0, 200)}
                                                             </div>
                                                         )}
                                                     </div>
                                                     {!isIgnored && (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => { setIgnoredActions(prev => new Set(prev).add(actionIndex)); toast.info('Fix ignored'); }} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded">Ignore</button>
-                                                            <button onClick={() => toast.success('Fix applied')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded">Apply Fix</button>
+                                                            <button onClick={() => { setIgnoredActions(prev => new Set(prev).add(actionIndex)); toast.info('Fix ignored'); }} className="px-3 py-1.5 theme-button-secondary text-xs font-medium rounded">Ignore</button>
+                                                            <button onClick={() => toast.success('Fix applied')} className="px-3 py-1.5 theme-button-success text-xs font-medium rounded">Apply Fix</button>
                                                         </div>
                                                     )}
                                                 </div>

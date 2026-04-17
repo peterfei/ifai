@@ -10,6 +10,8 @@ import { useLayoutStore } from '../../stores/layoutStore';
 import { X, Bug } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/useChatStore';
+import clsx from 'clsx';
+import { isDarkTheme } from '../../utils/theme';
 
 interface TerminalPanelProps {
   onClose: () => void;
@@ -52,6 +54,8 @@ export const TerminalPanel = ({ onClose }: TerminalPanelProps) => {
   // Get settings and stores
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
   const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
   const toggleChat = useLayoutStore(state => state.toggleChat);
@@ -110,10 +114,10 @@ ${lastError}
         fontFamily: 'MesloLGS NF, Menlo, Monaco, "Courier New", monospace',
         fontSize: 15,
         theme: {
-          background: '#1e1e1e',
-          foreground: '#cccccc',
-          cursor: '#cccccc',
-          selectionBackground: '#5f78ee',
+          background: dark ? '#1e1e1e' : '#ffffff',
+          foreground: dark ? '#cccccc' : '#334155',
+          cursor: dark ? '#cccccc' : '#334155',
+          selectionBackground: dark ? '#5f78ee' : '#bfdbfe',
           // ANSI colors from VSCode Dark+ theme
           black: '#000000',
           red: '#cd3131',
@@ -210,7 +214,7 @@ ${lastError}
         terminal.dispose();
       };
     }
-  }, [rootPath]);
+  }, [rootPath, dark]);
 
   // Resize observer to fit terminal when container size changes
   useEffect(() => {
@@ -255,14 +259,14 @@ ${lastError}
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e]">
-      <div className="flex items-center justify-between p-2 border-b border-gray-700">
+    <div className="theme-panel flex h-full flex-col transition-colors">
+      <div className="theme-border flex items-center justify-between border-b p-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-300">{t('terminal.title')}</span>
+          <span className="theme-text-muted text-sm">{t('terminal.title')}</span>
           {hasError && (
             <button
               onClick={handleDebugWithAI}
-              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors terminal-fix-hint"
+              className="theme-button-primary terminal-fix-hint flex items-center gap-1 rounded px-2 py-1 text-xs"
               data-testid="debug-with-ai-button"
             >
               <Bug size={12} />
@@ -273,7 +277,7 @@ ${lastError}
             </button>
           )}
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-white">
+        <button onClick={onClose} className="theme-button-ghost rounded p-1">
           <X size={16} />
         </button>
       </div>
@@ -281,4 +285,3 @@ ${lastError}
     </div>
   );
 };
-

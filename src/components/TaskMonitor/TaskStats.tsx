@@ -185,7 +185,7 @@ const StatusChart: React.FC<{ distribution: StatusDistribution[]; compact?: bool
 }) => {
   if (compact) {
     return (
-      <div className="flex h-2 rounded overflow-hidden bg-[#1e1e1e]">
+      <div className="theme-input-surface flex h-2 overflow-hidden rounded">
         {distribution.map(({ status, percentage, color }) => (
           <div
             key={status}
@@ -202,16 +202,16 @@ const StatusChart: React.FC<{ distribution: StatusDistribution[]; compact?: bool
     <div className="space-y-2">
       {distribution.map(({ status, count, percentage, color }) => (
         <div key={status} className="flex items-center gap-2">
-          <span className="text-[10px] text-[#858585] w-16 capitalize">
+          <span className="theme-text-subtle w-16 text-[10px] capitalize">
             {status}
           </span>
-          <div className="flex-1 h-3 bg-[#1e1e1e] rounded overflow-hidden">
+          <div className="theme-input-surface flex-1 h-3 overflow-hidden rounded">
             <div
               className="h-full transition-all duration-300"
               style={{ width: `${percentage}%`, backgroundColor: color }}
             />
           </div>
-          <span className="text-[10px] text-[#cccccc] w-16 text-right">
+          <span className="theme-text w-16 text-right text-[10px]">
             {count} ({Math.round(percentage)}%)
           </span>
         </div>
@@ -235,20 +235,20 @@ const SummaryCards: React.FC<{
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
       {/* Total tasks */}
-      <div className="bg-[#252526] border border-[#3c3c3c] rounded p-2">
+      <div className="theme-panel-muted theme-border rounded p-2">
         <div className="flex items-center gap-1.5 mb-1">
           <Activity size={12} className="text-[#569cd6]" />
-          <span className="text-[10px] text-[#858585]">总任务</span>
+          <span className="theme-text-subtle text-[10px]">总任务</span>
         </div>
-        <div className="text-[16px] font-bold text-[#cccccc]">{total}</div>
+        <div className="theme-text text-[16px] font-bold">{total}</div>
       </div>
 
       {/* Success rate */}
       {total > 0 && (
-        <div className="bg-[#252526] border border-[#3c3c3c] rounded p-2">
+        <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <TrendingUp size={12} className="text-[#4ec9b0]" />
-            <span className="text-[10px] text-[#858585]">成功率</span>
+            <span className="theme-text-subtle text-[10px]">成功率</span>
           </div>
           <div className="text-[16px] font-bold text-[#4ec9b0]">
             {Math.round(successRate)}%
@@ -258,10 +258,10 @@ const SummaryCards: React.FC<{
 
       {/* Completed */}
       {successCount > 0 && (
-        <div className="bg-[#252526] border border-[#3c3c3c] rounded p-2">
+        <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <CheckCircle2 size={12} className="text-[#4ec9b0]" />
-            <span className="text-[10px] text-[#858585]">已完成</span>
+            <span className="theme-text-subtle text-[10px]">已完成</span>
           </div>
           <div className="text-[16px] font-bold text-[#4ec9b0]">{successCount}</div>
         </div>
@@ -269,10 +269,10 @@ const SummaryCards: React.FC<{
 
       {/* Failed */}
       {failedCount > 0 && (
-        <div className="bg-[#252526] border border-[#3c3c3c] rounded p-2">
+        <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <XCircle size={12} className="text-[#f14c4c]" />
-            <span className="text-[10px] text-[#858585]">失败</span>
+            <span className="theme-text-subtle text-[10px]">失败</span>
           </div>
           <div className="text-[16px] font-bold text-[#f14c4c]">{failedCount}</div>
         </div>
@@ -280,10 +280,10 @@ const SummaryCards: React.FC<{
 
       {/* Running */}
       {runningCount > 0 && (
-        <div className="bg-[#252526] border border-[#3c3c3c] rounded p-2">
+        <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <Clock size={12} className="text-[#569cd6]" />
-            <span className="text-[10px] text-[#858585]">运行中</span>
+            <span className="theme-text-subtle text-[10px]">运行中</span>
           </div>
           <div className="text-[16px] font-bold text-[#569cd6]">{runningCount}</div>
         </div>
@@ -291,10 +291,10 @@ const SummaryCards: React.FC<{
 
       {/* Avg duration */}
       {avgDuration > 0 && (
-        <div className="bg-[#252526] border border-[#3c3c3c] rounded p-2">
+        <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <Zap size={12} className="text-[#dcdcaa]" />
-            <span className="text-[10px] text-[#858585]">平均耗时</span>
+            <span className="theme-text-subtle text-[10px]">平均耗时</span>
           </div>
           <div className="text-[14px] font-bold text-[#dcdcaa]">
             {formatDuration(avgDuration)}
@@ -332,28 +332,28 @@ const CategoryTable: React.FC<{ breakdown: CategoryBreakdown[] }> = ({ breakdown
 
   return (
     <div className="mt-3">
-      <h4 className="text-[10px] text-[#858585] uppercase tracking-wider mb-2">
+      <h4 className="theme-text-subtle mb-2 text-[10px] uppercase tracking-wider">
         按类别统计
       </h4>
       <div className="space-y-1">
         {breakdown.map(({ category, count, avgDuration }) => (
           <div
             key={category}
-            className="flex items-center justify-between text-[11px] py-1 px-2 bg-[#1e1e1e] rounded"
+            className="theme-input-surface flex items-center justify-between rounded px-2 py-1 text-[11px]"
           >
             <div className="flex items-center gap-2">
               <div
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: CATEGORY_COLORS[category] }}
               />
-              <span className="text-[#cccccc] capitalize">
+              <span className="theme-text capitalize">
                 {getCategoryLabel(category)}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-[#858585]">{count} 个</span>
+              <span className="theme-text-subtle">{count} 个</span>
               {avgDuration > 0 && (
-                <span className="text-[#858585] font-mono">
+                <span className="theme-text-subtle font-mono">
                   {formatDuration(avgDuration)}
                 </span>
               )}
@@ -381,7 +381,7 @@ export const TaskStats: React.FC<TaskStatsProps> = ({
   if (stats.total === 0) {
     return (
       <div className={`task-stats-empty ${className}`}>
-        <div className="text-center py-8 text-[#858585]">
+        <div className="theme-text-subtle py-8 text-center">
           <Activity size={32} className="mx-auto mb-2 opacity-30" />
           <p className="text-[12px]">暂无任务统计数据</p>
         </div>
@@ -397,7 +397,7 @@ export const TaskStats: React.FC<TaskStatsProps> = ({
       {/* Status distribution chart */}
       {showChart && stats.byStatus.length > 0 && (
         <div className="mt-3">
-          <h4 className="text-[10px] text-[#858585] uppercase tracking-wider mb-2">
+          <h4 className="theme-text-subtle mb-2 text-[10px] uppercase tracking-wider">
             状态分布
           </h4>
           <StatusChart distribution={stats.byStatus} compact={compact} />

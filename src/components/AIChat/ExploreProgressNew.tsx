@@ -99,19 +99,19 @@ export const ScannedFileStream: React.FC<ScannedFileStreamProps> = ({
 
   return (
     <div className={compact ? "mt-3" : "mt-4"}>
-      <div className="text-[12px] text-[#cccccc] font-medium mb-2">
+      <div className="theme-text mb-2 text-[12px] font-medium">
         {compact ? '扫描文件' : '最近扫描'}
       </div>
-      <div className={`bg-[#252526] rounded p-${compact ? '2' : '3'} max-h-[${compact ? '100' : '140'}px] overflow-hidden`}>
+      <div className={`theme-panel-muted overflow-hidden rounded ${compact ? 'p-2 max-h-[100px]' : 'p-3 max-h-[140px]'}`}>
         <div className="space-y-1">
           {/* Show scanning file at top */}
           {scanningFile && !isComplete && (
             <div
               key={`scanning-${scanningFile}`}
-              className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300 bg-[#569cd6]/20 animate-in slide-in-from-top-2 fade-in"
+              className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300 bg-blue-500/12 animate-in slide-in-from-top-2 fade-in"
             >
-              <Loader2 size={10} className="text-[#569cd6] animate-spin flex-shrink-0" />
-              <span className="flex-1 truncate font-mono text-[#569cd6]">
+              <Loader2 size={10} className="text-[var(--info-color)] animate-spin flex-shrink-0" />
+              <span className="flex-1 truncate font-mono text-[var(--info-color)]">
                 {getFileName(scanningFile)}
               </span>
             </div>
@@ -126,8 +126,8 @@ export const ScannedFileStream: React.FC<ScannedFileStreamProps> = ({
                 key={`${file.path}-${file.timestamp}`}
                 className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300"
               >
-                <CheckCircle2 size={10} className="text-[#4ec9b0] flex-shrink-0" />
-                <span className="flex-1 truncate font-mono text-[#cccccc]">
+                <CheckCircle2 size={10} className="text-[var(--success-color)] flex-shrink-0" />
+                <span className="theme-text flex-1 truncate font-mono">
                   {fileName}
                 </span>
               </div>
@@ -180,28 +180,28 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
   // ============================================================================
   if (mode === 'minimal') {
     return (
-      <div className="bg-[#252526] border border-[#3c3c3c] rounded p-3">
+      <div className="theme-panel-muted theme-border rounded border p-3">
         {/* Status bar */}
         <div className="flex items-center gap-3 mb-2">
           {/* Phase icon */}
           {isComplete ? (
-            <CheckCircle2 size={12} className="text-[#4ec9b0] flex-shrink-0" />
+            <CheckCircle2 size={12} className="text-[var(--success-color)] flex-shrink-0" />
           ) : phase === 'scanning' ? (
-            <Loader2 size={12} className="text-[#569cd6] animate-spin flex-shrink-0" />
+            <Loader2 size={12} className="text-[var(--info-color)] animate-spin flex-shrink-0" />
           ) : (
-            <Search size={12} className="text-[#dcdcaa] flex-shrink-0" />
+            <Search size={12} className="text-[var(--warning-color)] flex-shrink-0" />
           )}
 
           {/* Phase text */}
-          <span className="text-[12px] text-[#cccccc]">
+          <span className="theme-text text-[12px]">
             {phase === 'scanning' ? '扫描中' : phase === 'analyzing' ? '分析中' : '已完成'}
           </span>
 
           {/* Stats */}
-          <span className="text-[#3c3c3c]">|</span>
-          <span className="text-[11px] text-[#858585] font-mono">{data.scanned}/{data.total} 目录</span>
-          <span className="text-[#3c3c3c]">|</span>
-          <span className="text-[11px] text-[#858585] font-mono">{scannedFiles?.length || 0} 文件</span>
+          <span className="theme-text-subtle opacity-60">|</span>
+          <span className="theme-text-subtle text-[11px] font-mono">{data.scanned}/{data.total} 目录</span>
+          <span className="theme-text-subtle opacity-60">|</span>
+          <span className="theme-text-subtle text-[11px] font-mono">{scannedFiles?.length || 0} 文件</span>
         </div>
 
         {/* Progress bar */}
@@ -214,7 +214,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
 
         {/* Complete message */}
         {isComplete && (
-          <div className="flex items-center gap-2 mt-2 text-[11px] text-[#4ec9b0]">
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--success-color)]">
             <CheckCircle2 size={10} />
             <span>扫描完成 {scannedFiles?.length || 0} 个文件</span>
           </div>
@@ -237,18 +237,18 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
 
         {/* Scanned files stream */}
         {(phase === 'scanning' || phase === 'analyzing' || (scannedFiles && scannedFiles.length > 0)) && (
-          <div className="mt-3 bg-[#1e1e1e] border border-[#3c3c3c] rounded p-3">
+          <div className="theme-panel theme-border mt-3 rounded border p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <File size={12} className="text-[#569cd6]" />
-                <span className="text-[12px] font-medium text-[#cccccc]">
+                <File size={12} className="text-[var(--info-color)]" />
+                <span className="theme-text text-[12px] font-medium">
                   {phase === 'scanning' ? '正在扫描' : phase === 'analyzing' ? '分析中' : '扫描文件'}
                 </span>
-                {phase === 'scanning' && <Loader2 size={10} className="text-[#569cd6] animate-spin" />}
-                {phase === 'analyzing' && <Search size={10} className="text-[#dcdcaa] animate-pulse" />}
-                {isComplete && <CheckCircle2 size={10} className="text-[#4ec9b0]" />}
+                {phase === 'scanning' && <Loader2 size={10} className="text-[var(--info-color)] animate-spin" />}
+                {phase === 'analyzing' && <Search size={10} className="text-[var(--warning-color)] animate-pulse" />}
+                {isComplete && <CheckCircle2 size={10} className="text-[var(--success-color)]" />}
               </div>
-              <span className="text-[11px] text-[#858585]">
+              <span className="theme-text-subtle text-[11px]">
                 {scannedFiles?.length || 0} 文件
               </span>
             </div>
@@ -261,7 +261,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
               scannedFiles={scannedFiles}
             />
             {isComplete && (
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[#3c3c3c] text-[11px] text-[#4ec9b0]">
+              <div className="theme-border mt-2 flex items-center gap-2 border-t pt-2 text-[11px] text-[var(--success-color)]">
                 <CheckCircle2 size={10} />
                 <span>扫描完成，共 {scannedFiles?.length || 0} 个文件</span>
               </div>
@@ -294,7 +294,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
 
       {/* Complete message */}
       {isComplete && (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#3c3c3c] text-[12px] text-[#4ec9b0]">
+        <div className="theme-border mt-3 flex items-center gap-2 border-t pt-3 text-[12px] text-[var(--success-color)]">
           <CheckCircle2 size={12} />
           <span>扫描完成，共扫描 {scannedFiles?.length || 0} 个文件</span>
         </div>

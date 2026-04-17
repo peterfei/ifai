@@ -47,7 +47,7 @@ function getArgColor(key: string): string {
   if (lowerKey.includes('url') || lowerKey.includes('link')) {
     return 'text-purple-400';
   }
-  return 'text-gray-400';
+  return 'theme-text-subtle';
 }
 
 /**
@@ -89,14 +89,14 @@ function ArgItem({ propKey: key, value, depth = 0 }: { propKey: string; value: a
       <div key={key} style={{ marginLeft: depth * 12 }}>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 py-1 px-2 hover:bg-gray-800/50 rounded transition-colors w-full text-left"
+          className="flex items-center gap-2 py-1 px-2 theme-soft-hover rounded transition-colors w-full text-left"
         >
-          <span className="text-gray-500">
+          <span className="theme-text-subtle">
             {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </span>
           <span className={color}>{icon}</span>
-          <span className="text-[11px] text-gray-400 font-medium">{key}</span>
-          <span className="text-[10px] text-gray-600 ml-auto">
+          <span className="text-[11px] theme-text-muted font-medium">{key}</span>
+          <span className="text-[10px] theme-text-subtle ml-auto">
             {entries.length} items
           </span>
         </button>
@@ -116,28 +116,28 @@ function ArgItem({ propKey: key, value, depth = 0 }: { propKey: string; value: a
       <div key={key} style={{ marginLeft: depth * 12 }}>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 py-1 px-2 hover:bg-gray-800/50 rounded transition-colors w-full text-left"
+          className="flex items-center gap-2 py-1 px-2 theme-soft-hover rounded transition-colors w-full text-left"
         >
-          <span className="text-gray-500">
+          <span className="theme-text-subtle">
             {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </span>
           <span className={color}>{icon}</span>
-          <span className="text-[11px] text-gray-400 font-medium">{key}</span>
-          <span className="text-[10px] text-gray-600 ml-auto">
+          <span className="text-[11px] theme-text-muted font-medium">{key}</span>
+          <span className="text-[10px] theme-text-subtle ml-auto">
             [{value.length} items]
           </span>
         </button>
         {isExpanded && value.length <= 20 && (
           <div className="ml-4 mt-1 space-y-0.5">
             {value.map((item: any, idx: number) => (
-              <div key={idx} className="px-2 py-0.5 bg-gray-900/30 rounded text-[10px] text-gray-500 font-mono">
+              <div key={idx} className="px-2 py-0.5 theme-panel rounded text-[10px] theme-text-subtle font-mono border theme-border">
                 {typeof item === 'string' ? `"${item.slice(0, 50)}${item.length > 50 ? '...' : ''}"` : formatValue(item)}
               </div>
             ))}
           </div>
         )}
         {isExpanded && value.length > 20 && (
-          <div className="ml-4 mt-1 px-2 py-1 text-[10px] text-gray-600 italic">
+          <div className="ml-4 mt-1 px-2 py-1 text-[10px] theme-text-subtle italic">
             Array too large to display ({value.length} items)
           </div>
         )}
@@ -146,11 +146,11 @@ function ArgItem({ propKey: key, value, depth = 0 }: { propKey: string; value: a
   }
 
   return (
-    <div key={key} style={{ marginLeft: depth * 12 }} className="flex items-center gap-2 py-1 px-2 hover:bg-gray-800/50 rounded">
+    <div key={key} style={{ marginLeft: depth * 12 }} className="flex items-center gap-2 py-1 px-2 theme-soft-hover rounded">
       <span className="w-3"></span>
       <span className={color}>{icon}</span>
-      <span className="text-[11px] text-gray-500 font-medium">{key}:</span>
-      <span className="text-[11px] text-gray-300 font-mono flex-1 truncate" title={String(value)}>
+      <span className="text-[11px] theme-text-subtle font-medium">{key}:</span>
+      <span className="text-[11px] theme-text-muted font-mono flex-1 truncate" title={String(value)}>
         {displayValue}
       </span>
     </div>
@@ -165,7 +165,7 @@ export const ToolArgsViewer: React.FC<ToolArgsViewerProps> = ({ args, isPartial 
 
   if (entries.length === 0) {
     return (
-      <div className="text-center py-6 text-gray-600">
+      <div className="text-center py-6 theme-text-subtle">
         <Settings size={20} className="mx-auto mb-2 opacity-50" />
         <span className="text-xs">无参数</span>
       </div>
@@ -206,14 +206,14 @@ export const CompactToolArgsViewer: React.FC<ToolArgsViewerProps> = ({ args }) =
     <div className="space-y-1.5">
       {entries.slice(0, previewCount).map(([key, value]) => (
         <div key={key} className="flex items-center gap-2 text-[10px]">
-          <span className="text-gray-500 font-medium min-w-[60px]">{key}:</span>
-          <span className="text-gray-300 font-mono truncate flex-1" title={String(value)}>
+          <span className="theme-text-subtle font-medium min-w-[60px]">{key}:</span>
+          <span className="theme-text-muted font-mono truncate flex-1" title={String(value)}>
             {formatValue(value)}
           </span>
         </div>
       ))}
       {entries.length > previewCount && (
-        <div className="text-[10px] text-gray-600 italic px-2">
+        <div className="text-[10px] theme-text-subtle italic px-2">
           +{entries.length - previewCount} more parameters
         </div>
       )}

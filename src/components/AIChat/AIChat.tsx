@@ -77,6 +77,7 @@ import type { ImageAttachment } from '../../types/multimodal';
 import { ToolClassificationIndicator } from '../ToolClassification';
 import { MessageSkeleton } from '../UI/Skeleton';
 import clsx from 'clsx';
+import { isDarkTheme } from '../../utils/theme';
 
 interface AIChatProps {
   width?: number;
@@ -139,6 +140,8 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
   const transparencyLevel = useSettingsStore(state => state.transparencyLevel);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   const currentPromptMeta = useTransparencyStore(state => state.currentPromptMeta);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
 
@@ -2301,9 +2304,9 @@ ${suggestion.fixContext.code_context}
 
   // Header Component for reuse - Secondary Thinning (Phase 6)
   const renderHeader = () => (
-    <div className="flex flex-col bg-[#1e1e1e]/60 backdrop-blur-md sticky top-0 z-[60] relative" data-testid="ai-chat-header">
+    <div className="flex flex-col theme-glass backdrop-blur-md sticky top-0 z-[60] relative" data-testid="ai-chat-header">
       {/* Precision Border Overlay */}
-      <div className="absolute inset-x-0 bottom-0 h-px bg-white/5 z-10" />
+      <div className="absolute inset-x-0 bottom-0 h-px theme-divider z-10 opacity-70" />
 
       {/* Line 1: Brand & App Info - Thin Mode: 36px */}
       <div 
@@ -2320,7 +2323,7 @@ ${suggestion.fixContext.code_context}
           </div>
           {!isSidekickMode && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-row items-baseline gap-2">
-              <span className="text-[11px] font-black text-gray-100 tracking-tight leading-none">IfAI Editor</span>
+              <span className="text-[11px] font-black theme-text tracking-tight leading-none">IfAI Editor</span>
               <span className="text-[9px] font-bold text-blue-500/80 tracking-widest uppercase">
                 V{appVersion}{IS_COMMERCIAL ? ' PRO' : ''}
               </span>
@@ -2332,7 +2335,12 @@ ${suggestion.fixContext.code_context}
           <button
             onClick={() => toggleSearch()}
             data-testid="ai-search-toggle"
-            className={`p-1 rounded-lg transition-all active:scale-95 ${isSearchVisible ? 'text-blue-400 bg-blue-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            className={clsx(
+              'p-1 rounded-lg transition-all active:scale-95',
+              isSearchVisible
+                ? 'text-blue-500 bg-blue-500/10'
+                : 'theme-button-ghost theme-text-subtle'
+            )}
             title="搜索对话 (Cmd+F)"
           >
             <Search size={isSidekickMode ? 18 : 14} />
@@ -2341,7 +2349,12 @@ ${suggestion.fixContext.code_context}
           <button
             onClick={() => setIsNotesPanelOpen(!isNotesPanelOpen)}
             data-testid="ai-notes-toggle"
-            className={`p-1 rounded-lg transition-all active:scale-95 ${isNotesPanelOpen ? 'text-green-400 bg-green-500/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            className={clsx(
+              'p-1 rounded-lg transition-all active:scale-95',
+              isNotesPanelOpen
+                ? 'text-green-500 bg-green-500/10'
+                : 'theme-button-ghost theme-text-subtle'
+            )}
             title="会话笔记"
           >
             <FileText size={isSidekickMode ? 18 : 14} />
@@ -2355,7 +2368,7 @@ ${suggestion.fixContext.code_context}
     return (
       <div 
         data-testid="chat-panel"
-        className="flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative transition-colors"
+        className="flex flex-col h-full theme-panel border-l theme-border flex-shrink-0 relative transition-colors"
         style={{ width: width ? `${width}px` : '384px' }}
       >
         {onResizeStart && (
@@ -2367,9 +2380,9 @@ ${suggestion.fixContext.code_context}
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
           <img src={ifaiLogo} alt="IfAI Logo" className="w-10 h-10 text-gray-500 mb-4 opacity-70" />
-          <p className="text-gray-400 mb-4">{t('chat.errorNoKey')} {currentProvider ? `(${currentProvider.name})` : ''}</p>
+          <p className="theme-text-subtle mb-4">{t('chat.errorNoKey')} {currentProvider ? `(${currentProvider.name})` : ''}</p>
           <button 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+              className="theme-button-primary theme-shadow px-4 py-2 rounded text-sm"
               onClick={() => setSettingsOpen(true)}
           >
               {t('chat.settings')}
@@ -2382,7 +2395,10 @@ ${suggestion.fixContext.code_context}
   return (
     <div
         data-testid="chat-panel"
-        className={`flex flex-col h-full bg-[#1e1e1e] border-l border-gray-700 flex-shrink-0 relative transition-colors ${isDragHighlight ? 'border-blue-500 bg-blue-900/20' : ''}`}
+        className={clsx(
+          'flex flex-col h-full theme-panel border-l theme-border flex-shrink-0 relative transition-colors',
+          isDragHighlight && 'border-blue-500 bg-blue-500/10'
+        )}
         style={{ width: width ? `${width}px` : '384px', contain: 'layout' }}
     >
       {/* 🔥 DEBUG: 在最顶层添加一个调试 div */}
@@ -2406,7 +2422,7 @@ ${suggestion.fixContext.code_context}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="overflow-hidden border-b border-white/5 bg-[#1e1e1e]"
+            className="overflow-hidden border-b theme-border theme-panel"
             data-testid="ai-search-panel"
           >
             <ThreadSearchBar />
@@ -2422,7 +2438,7 @@ ${suggestion.fixContext.code_context}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="overflow-hidden border-b border-white/5 bg-[#1e1e1e]"
+            className="overflow-hidden border-b theme-border theme-panel"
             data-testid="ai-notes-panel"
           >
             <div className="h-[400px] overflow-y-auto">
@@ -2440,19 +2456,24 @@ ${suggestion.fixContext.code_context}
       <ThreadTabs width={width} maxVisibleTabs={5} showMessageCount={true} showCloseButton={true} />
 
       {/* 🚀 Phase 1: Segmented Control for View Switching */}
-      <div className="px-4 py-2 border-b border-white/5 bg-[#1e1e1e]/40 backdrop-blur-md" data-testid="ai-view-selector">
-        <div className="flex p-0.5 bg-gray-900/50 rounded-lg relative border border-white/5">
+      <div className="px-4 py-2 border-b theme-border theme-glass backdrop-blur-md" data-testid="ai-view-selector">
+        <div className="flex p-0.5 rounded-lg relative border theme-border theme-panel-muted">
           <button
             onClick={() => setViewMode('normal')}
             data-testid="view-mode-chat"
-            className={`flex-1 flex items-center justify-center gap-2 py-1 text-[11px] font-bold transition-colors relative z-10 ${viewMode === 'normal' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-2 py-1 text-[11px] font-bold transition-colors relative z-10',
+              viewMode === 'normal'
+                ? 'theme-text'
+                : 'theme-text-subtle hover:text-[var(--text-primary)]'
+            )}
           >
             <span>对话</span>
             {viewMode === 'normal' && (
               <motion.div
                 layoutId="view-mode-active"
                 data-testid="tab-active-pill"
-                className="absolute inset-0 bg-gray-800 rounded-md -z-10 shadow-sm border border-white/5"
+                className="absolute inset-0 rounded-md -z-10 border shadow-sm theme-panel theme-border"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -2460,14 +2481,19 @@ ${suggestion.fixContext.code_context}
           <button
             onClick={() => setViewMode('timeline')}
             data-testid="view-mode-timeline"
-            className={`flex-1 flex items-center justify-center gap-2 py-1 text-[11px] font-bold transition-colors relative z-10 ${viewMode === 'timeline' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-2 py-1 text-[11px] font-bold transition-colors relative z-10',
+              viewMode === 'timeline'
+                ? 'theme-text'
+                : 'theme-text-subtle hover:text-[var(--text-primary)]'
+            )}
           >
             <span>时间线</span>
             {viewMode === 'timeline' && (
               <motion.div
                 layoutId="view-mode-active"
                 data-testid="tab-active-pill"
-                className="absolute inset-0 bg-gray-800 rounded-md -z-10 shadow-sm border border-white/5"
+                className="absolute inset-0 rounded-md -z-10 border shadow-sm theme-panel theme-border"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -2597,7 +2623,7 @@ ${suggestion.fixContext.code_context}
         <QueueIndicator />
       </div>
 
-      <div className="p-4 bg-[#1e1e1e]/30 relative z-[100]">
+      <div className="p-4 theme-glass relative z-[100]">
         <ChatInputArea isLoading={isLoading} />
       </div>
 
@@ -2610,9 +2636,9 @@ ${suggestion.fixContext.code_context}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed inset-0 z-[210] flex items-center justify-center p-4 md:p-8 bg-black/60 backdrop-blur-sm"
+              className="theme-backdrop-strong fixed inset-0 z-[210] flex items-center justify-center p-4 md:p-8 backdrop-blur-sm"
             >
-              <div className="w-full h-full max-w-[1400px] max-h-[900px] shadow-2xl shadow-black/50 border border-white/10 rounded-xl overflow-hidden bg-[#1e1e1e]">
+              <div className="w-full h-full max-w-[1400px] max-h-[900px] rounded-xl overflow-hidden border theme-panel-elevated theme-border theme-shadow">
                 <ComposerDiffView
                   changes={composerChanges}
                   onAcceptAll={handleComposerAcceptAll}

@@ -49,7 +49,7 @@ export const ProbeSymbolView: React.FC<ProbeSymbolViewProps> = ({ path, result, 
                         <span className="text-[10px] font-black uppercase tracking-[0.1em] text-blue-400/80 leading-none mb-1">
                             Symbol Probe Pipeline
                         </span>
-                        <span className="text-xs font-medium text-gray-300 truncate">
+                        <span className="text-xs font-medium theme-text truncate">
                             {path.split('/').pop()}
                         </span>
                     </div>
@@ -65,7 +65,7 @@ export const ProbeSymbolView: React.FC<ProbeSymbolViewProps> = ({ path, result, 
                     {status === 'completed' && (
                         <button 
                             onClick={() => setIsExpanded(!isExpanded)}
-                            className="p-1 hover:bg-white/5 rounded text-gray-500 transition-colors"
+                            className="p-1 theme-button-ghost rounded transition-colors"
                         >
                             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
@@ -75,15 +75,15 @@ export const ProbeSymbolView: React.FC<ProbeSymbolViewProps> = ({ path, result, 
 
             {/* Content / Skeleton View */}
             {isExpanded && hasData && (
-                <div className="px-2 py-2 max-h-[300px] overflow-y-auto bg-black/20 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="px-2 py-2 max-h-[300px] overflow-y-auto theme-code-surface animate-in fade-in slide-in-from-top-1 duration-200">
                     <div className="space-y-1">
                         {symbols.map((s, i) => (
-                            <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5 group/item">
-                                <div className="text-[9px] font-mono text-gray-600 w-6 text-right tabular-nums italic">
+                            <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded-lg theme-soft-hover transition-colors border border-transparent hover:border-blue-500/10 group/item">
+                                <div className="text-[9px] font-mono theme-text-subtle w-6 text-right tabular-nums italic">
                                     L{s.line}
                                 </div>
                                 <div className={clsx(
-                                    "p-1 rounded text-white/80",
+                                    "p-1 rounded",
                                     s.kind === 'class' ? "bg-amber-500/20 text-amber-400" :
                                     s.kind === 'function' ? "bg-emerald-500/20 text-emerald-400" :
                                     "bg-blue-500/20 text-blue-400"
@@ -91,10 +91,10 @@ export const ProbeSymbolView: React.FC<ProbeSymbolViewProps> = ({ path, result, 
                                     {s.kind === 'class' ? <Box size={10} /> : 
                                      s.kind === 'function' ? <Terminal size={10} /> : <Code2 size={10} />}
                                 </div>
-                                <span className="text-xs font-mono text-gray-300 truncate">
+                                <span className="text-xs font-mono theme-text-muted truncate">
                                     {s.name}
                                 </span>
-                                <span className="ml-auto opacity-0 group-hover/item:opacity-100 text-[8px] font-black uppercase text-gray-600 tracking-tighter transition-opacity">
+                                <span className="ml-auto opacity-0 group-hover/item:opacity-100 text-[8px] font-black uppercase theme-text-subtle tracking-tighter transition-opacity">
                                     {s.kind}
                                 </span>
                             </div>
@@ -106,7 +106,7 @@ export const ProbeSymbolView: React.FC<ProbeSymbolViewProps> = ({ path, result, 
             {/* Empty / Loading State */}
             {status === 'completed' && !hasData && (
                 <div className="p-4 text-center">
-                    <span className="text-[10px] text-gray-500 italic">No significant symbols detected in this file.</span>
+                    <span className="text-[10px] theme-text-subtle italic">No significant symbols detected in this file.</span>
                 </div>
             )}
         </div>

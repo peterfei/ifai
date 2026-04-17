@@ -51,30 +51,30 @@ export const ExploreFindings: React.FC<ExploreFindingsProps> = ({
   // Compact mode - simplified view
   if (compact) {
     return (
-      <div className="bg-[#252526] border border-[#3c3c3c] rounded p-3">
+      <div className="theme-panel-muted theme-border rounded border p-3">
         <div className="flex items-center gap-2 mb-2">
-          <CheckCircle2 size={14} className="text-[#4ec9b0]" />
-          <span className="text-[11px] font-medium text-[#cccccc]">探索完成</span>
+          <CheckCircle2 size={14} className="text-[var(--success-color)]" />
+          <span className="theme-text text-[11px] font-medium">探索完成</span>
         </div>
-        <div className="text-[11px] text-[#cccccc]">{findings.summary}</div>
+        <div className="theme-text-muted text-[11px]">{findings.summary}</div>
       </div>
     );
   }
 
   // Simplified mode - single line summary
   return (
-    <div className="bg-[#252526] border border-[#3c3c3c] rounded p-3 my-2">
+    <div className="theme-panel-muted theme-border my-2 rounded border p-3">
       <div className="explore-status-bar">
-        <CheckCircle2 size={12} className="text-[#4ec9b0]" />
-        <span className="text-[#cccccc]">探索完成</span>
-        <span className="text-[#3c3c3c]">|</span>
-        <span className="text-[#cccccc]">{findings.directories.length} 目录</span>
-        <span className="text-[#3c3c3c]">|</span>
-        <span className="text-[#cccccc]">{totalFiles} 文件</span>
+        <CheckCircle2 size={12} className="text-[var(--success-color)]" />
+        <span className="theme-text">探索完成</span>
+        <span className="theme-text-subtle opacity-60">|</span>
+        <span className="theme-text">{findings.directories.length} 目录</span>
+        <span className="theme-text-subtle opacity-60">|</span>
+        <span className="theme-text">{totalFiles} 文件</span>
         {patternCount > 0 && (
           <>
-            <span className="text-[#3c3c3c]">|</span>
-            <span className="text-[#cccccc]">{patternCount} 模式</span>
+            <span className="theme-text-subtle opacity-60">|</span>
+            <span className="theme-text">{patternCount} 模式</span>
           </>
         )}
       </div>

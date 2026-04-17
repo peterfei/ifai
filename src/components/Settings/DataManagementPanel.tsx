@@ -10,9 +10,13 @@ import { useThreadStore } from '../../stores/threadStore';
 import { exportThreadsToFile, importThreadsFromFile } from '../../stores/persistence/threadPersistence';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { isDarkTheme } from '../../utils/theme';
 
 export const DataManagementPanel: React.FC = () => {
   const { t } = useTranslation();
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   const threadStore = useThreadStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -92,28 +96,28 @@ export const DataManagementPanel: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Statistics */}
-      <div className="bg-[#1e1e1e] rounded-lg p-4 border border-gray-700">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">{t('dataManagement.statistics')}</h3>
+      <div className="theme-panel-muted theme-border rounded-lg border p-4">
+        <h3 className="theme-text-muted mb-3 text-sm font-medium">{t('dataManagement.statistics')}</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-400">{activeThreads}</div>
-            <div className="text-xs text-gray-500 mt-1">{t('dataManagement.activeThreads')}</div>
+            <div className="theme-text-subtle mt-1 text-xs">{t('dataManagement.activeThreads')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-yellow-400">{archivedThreads}</div>
-            <div className="text-xs text-gray-500 mt-1">{t('dataManagement.archivedThreads')}</div>
+            <div className="theme-text-subtle mt-1 text-xs">{t('dataManagement.archivedThreads')}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-400">{totalMessages}</div>
-            <div className="text-xs text-gray-500 mt-1">{t('dataManagement.totalMessages')}</div>
+            <div className="theme-text-subtle mt-1 text-xs">{t('dataManagement.totalMessages')}</div>
           </div>
         </div>
       </div>
 
       {/* Export / Import */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-gray-300">{t('dataManagement.exportImport')}</h3>
-        <p className="text-xs text-gray-500">
+        <h3 className="theme-text-muted text-sm font-medium">{t('dataManagement.exportImport')}</h3>
+        <p className="theme-text-subtle text-xs">
           {t('dataManagement.exportImportDesc')}
         </p>
 
@@ -124,8 +128,8 @@ export const DataManagementPanel: React.FC = () => {
             className={`
               flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
               ${isExporting || activeThreads === 0
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
+                : 'theme-button-primary'
               }
             `}
           >
@@ -139,8 +143,8 @@ export const DataManagementPanel: React.FC = () => {
             className={`
               flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
               ${isImporting
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700 text-white'
+                ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
+                : 'theme-button-success'
               }
             `}
           >
@@ -160,8 +164,8 @@ export const DataManagementPanel: React.FC = () => {
 
       {/* Storage Management */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-gray-300">{t('dataManagement.storageManagement')}</h3>
-        <p className="text-xs text-gray-500">
+        <h3 className="theme-text-muted text-sm font-medium">{t('dataManagement.storageManagement')}</h3>
+        <p className="theme-text-subtle text-xs">
           {t('dataManagement.storageManagementDesc')}
         </p>
 
@@ -172,8 +176,8 @@ export const DataManagementPanel: React.FC = () => {
             className={`
               flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
               ${isClearing
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-red-600 hover:bg-red-700 text-white'
+                ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
+                : 'theme-button-danger'
               }
             `}
           >
@@ -184,10 +188,10 @@ export const DataManagementPanel: React.FC = () => {
       </div>
 
       {/* Info */}
-      <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
+      <div className={dark ? 'rounded-lg border border-blue-700 bg-blue-900/20 p-4' : 'rounded-lg border border-blue-200 bg-blue-50 p-4'}>
         <div className="flex gap-2">
           <RefreshCw size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-blue-200">
+          <div className={dark ? 'text-xs text-blue-200' : 'text-xs text-blue-800'}>
             <strong className="block mb-1">{t('dataManagement.autoSave')}</strong>
             {t('dataManagement.autoSaveDesc')}
           </div>

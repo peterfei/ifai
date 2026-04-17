@@ -26,6 +26,14 @@ import {
   GitBranch,
   Box,
   Settings,
+  Compass,
+  Search as SearchIcon,
+  Wrench,
+  FlaskConical,
+  FileText,
+  ListChecks,
+  Lightbulb,
+  Bot,
 } from 'lucide-react';
 
 interface WorkflowNode {
@@ -47,14 +55,14 @@ interface WorkflowEditorProps {
 }
 
 const AGENT_TYPES = [
-  { value: 'explore', label: '探索', icon: '🧭', color: 'bg-blue-500' },
-  { value: 'review', label: '审查', icon: '🔍', color: 'bg-green-500' },
-  { value: 'refactor', label: '重构', icon: '🔧', color: 'bg-purple-500' },
-  { value: 'test', label: '测试', icon: '🧪', color: 'bg-orange-500' },
-  { value: 'doc', label: '文档', icon: '📄', color: 'bg-pink-500' },
-  { value: 'task_breakdown', label: '任务拆解', icon: '📋', color: 'bg-indigo-500' },
-  { value: 'proposal_generator', label: '提案生成', icon: '💡', color: 'bg-yellow-500' },
-  { value: 'general_purpose', label: '通用', icon: '⚙️', color: 'bg-gray-500' },
+  { value: 'explore', label: '探索', icon: Compass, color: 'bg-blue-500/15 text-blue-500' },
+  { value: 'review', label: '审查', icon: SearchIcon, color: 'bg-green-500/15 text-green-500' },
+  { value: 'refactor', label: '重构', icon: Wrench, color: 'bg-purple-500/15 text-purple-500' },
+  { value: 'test', label: '测试', icon: FlaskConical, color: 'bg-orange-500/15 text-orange-500' },
+  { value: 'doc', label: '文档', icon: FileText, color: 'bg-pink-500/15 text-pink-500' },
+  { value: 'task_breakdown', label: '任务拆解', icon: ListChecks, color: 'bg-indigo-500/15 text-indigo-500' },
+  { value: 'proposal_generator', label: '提案生成', icon: Lightbulb, color: 'bg-yellow-500/15 text-yellow-500' },
+  { value: 'general_purpose', label: '通用', icon: Bot, color: 'bg-neutral-500/15 text-neutral-500' },
 ];
 
 export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
@@ -202,7 +210,7 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
         </CardHeader>
         <CardContent>
           {nodes.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="theme-text-subtle py-8 text-center">
               <Box className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>还没有节点，点击"添加节点"开始创建</p>
             </div>
@@ -236,7 +244,7 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
         </CardHeader>
         <CardContent>
           {edges.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="theme-text-subtle py-8 text-center">
               <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>还没有连接，添加节点后会自动创建</p>
             </div>
@@ -245,11 +253,11 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
               {edges.map((edge, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="theme-panel-muted theme-border flex items-center justify-between rounded-lg border p-3"
                 >
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{edge.from}</Badge>
-                    <GitBranch className="w-4 h-4 text-muted-foreground" />
+                    <GitBranch className="theme-text-subtle w-4 h-4" />
                     <Badge variant="outline">{edge.to}</Badge>
                   </div>
                   <Button
@@ -278,7 +286,7 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
         >
           {executing ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current" />
               执行中...
             </>
           ) : (
@@ -299,7 +307,7 @@ interface NodeCardProps {
   agentTypes: Array<{
     value: string;
     label: string;
-    icon: string;
+    icon: React.ComponentType<{ className?: string }>;
     color: string;
   }>;
   isSelected: boolean;
@@ -321,14 +329,18 @@ function NodeCard({
 
   return (
     <div
-      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-        isSelected ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+      className={`theme-border rounded-lg border p-4 cursor-pointer transition-colors ${
+        isSelected ? 'bg-blue-500/10 border-blue-500/30' : 'theme-panel-muted hover:border-blue-500/20'
       }`}
       onClick={onSelect}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{agentType?.icon}</span>
+          {agentType && (
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${agentType.color}`}>
+              <agentType.icon className="h-5 w-5" />
+            </div>
+          )}
           <div>
             <Input
               value={node.label}
@@ -338,7 +350,7 @@ function NodeCard({
             />
             <div className="flex items-center gap-2 mt-1">
               <Badge className={agentType?.color}>{agentType?.label}</Badge>
-              <span className="text-xs text-muted-foreground">#{index + 1}</span>
+              <span className="theme-text-subtle text-xs">#{index + 1}</span>
             </div>
           </div>
         </div>
@@ -355,7 +367,7 @@ function NodeCard({
       </div>
 
       {isSelected && (
-        <div className="mt-3 pt-3 border-t space-y-3">
+        <div className="theme-border mt-3 space-y-3 border-t pt-3">
           <div>
             <Label>智能体类型</Label>
             <Select
@@ -366,7 +378,7 @@ function NodeCard({
             >
               {agentTypes.map((type) => (
                 <option key={type.value} value={type.value}>
-                  {type.icon} {type.label}
+                  {type.label}
                 </option>
               ))}
             </Select>

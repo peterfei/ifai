@@ -25,7 +25,7 @@ export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
       case 'error':
         return <AlertCircle size={12} className="text-red-400" />;
       default:
-        return <Circle size={12} className="text-white/20" />;
+        return <Circle size={12} className="theme-text-subtle" />;
     }
   };
 
@@ -47,7 +47,7 @@ export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
             initial={{ opacity: 0, x: -5, height: 0 }}
             animate={{ opacity: 1, x: 0, height: 'auto' }}
             exit={{ opacity: 0, x: 5, height: 0 }}
-            className={`flex items-center gap-3 px-3 py-1.5 rounded-md bg-white/5 border-l-2 ${getStageColor(task.stage)} transition-all duration-300`}
+            className={`theme-panel-muted flex items-center gap-3 px-3 py-1.5 rounded-md border-l-2 ${getStageColor(task.stage)} transition-all duration-300`}
           >
             <div className="flex-shrink-0">
               {getStatusIcon(task.status)}
@@ -55,8 +55,8 @@ export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
             
             <div className="flex-1 flex items-center justify-between min-w-0">
               <span className={`text-[11px] truncate ${
-                task.status === 'success' ? 'text-white/40 line-through' : 
-                task.status === 'error' ? 'text-red-400' : 'text-white/70'
+                task.status === 'success' ? 'theme-text-subtle line-through' : 
+                task.status === 'error' ? 'text-red-400' : 'theme-text-muted'
               }`}>
                 {task.description}
               </span>

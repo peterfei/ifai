@@ -15,7 +15,7 @@ import {
 import { Button } from '../UI/button';
 import { Badge } from '../UI/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../UI/tabs';
-import { Play, FileText, Settings, Zap } from 'lucide-react';
+import { Play, FileText, Settings, Zap, Search, Compass, CheckCircle2 } from 'lucide-react';
 
 // 动态导入 Tauri API 的辅助函数
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -124,7 +124,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-center h-40">
-            <div className="text-muted-foreground">加载工作流...</div>
+            <div className="theme-text-subtle">加载工作流...</div>
           </div>
         </CardContent>
       </Card>
@@ -135,7 +135,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold">多智能体工作流</h2>
-        <p className="text-muted-foreground">
+        <p className="theme-text-subtle">
           选择一个工作流模板来自动化您的代码任务
         </p>
       </div>
@@ -162,7 +162,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
             <QuickWorkflowCard
               title="代码审查"
               description="自动探索、审查、测试和生成文档"
-              icon="🔍"
+              icon={Search}
               workflowType="code_review"
               executing={executing}
               onExecute={() => executeQuickWorkflow('code_review')}
@@ -170,7 +170,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
             <QuickWorkflowCard
               title="代码探索"
               description="快速探索和分析项目结构"
-              icon="🧭"
+              icon={Compass}
               workflowType="exploration"
               executing={executing}
               onExecute={() => executeQuickWorkflow('exploration')}
@@ -178,7 +178,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
             <QuickWorkflowCard
               title="质量检查"
               description="全面的代码质量检查和分析"
-              icon="✅"
+              icon={CheckCircle2}
               workflowType="quality_check"
               executing={executing}
               onExecute={() => executeQuickWorkflow('quality_check')}
@@ -210,7 +210,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <p className="theme-text-subtle text-sm">
                 自定义工作流编辑器即将推出...
               </p>
               <Button variant="outline" disabled className="mt-4">
@@ -227,7 +227,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
 interface QuickWorkflowCardProps {
   title: string;
   description: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string }>;
   workflowType: string;
   executing: string | null;
   onExecute: () => Promise<void>;
@@ -236,7 +236,7 @@ interface QuickWorkflowCardProps {
 function QuickWorkflowCard({
   title,
   description,
-  icon,
+  icon: Icon,
   workflowType,
   executing,
   onExecute,
@@ -244,15 +244,17 @@ function QuickWorkflowCard({
   const isExecuting = executing === workflowType;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="theme-shadow hover:shadow-md transition-shadow">
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-3xl">{icon}</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/12 text-blue-500">
+                <Icon className="h-5 w-5" />
+              </div>
               <h3 className="text-lg font-semibold">{title}</h3>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">{description}</p>
+            <p className="theme-text-subtle mb-4 text-sm">{description}</p>
             <Button
               onClick={onExecute}
               disabled={isExecuting}
@@ -260,7 +262,7 @@ function QuickWorkflowCard({
             >
               {isExecuting ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current" />
                   执行中...
                 </>
               ) : (
@@ -287,7 +289,7 @@ function TemplateCard({ workflow, executing, onExecute }: TemplateCardProps) {
   const isExecuting = executing === workflow.id;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="theme-shadow hover:shadow-md transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
@@ -305,7 +307,7 @@ function TemplateCard({ workflow, executing, onExecute }: TemplateCardProps) {
         >
           {isExecuting ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current" />
               执行中...
             </>
           ) : (

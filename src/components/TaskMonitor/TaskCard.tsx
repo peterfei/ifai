@@ -84,28 +84,28 @@ const TaskActions: React.FC<{
   return (
     <div className="flex items-center gap-1">
       {canPause && onPause && (
-        <button onClick={onPause} className="p-1.5 hover:bg-gray-800 rounded transition-colors" title="Pause">
+        <button onClick={onPause} className="theme-soft-hover rounded p-1.5 transition-colors" title="Pause">
           <Pause size={12} className="text-yellow-500" />
         </button>
       )}
       {canResume && onResume && (
-        <button onClick={onResume} className="p-1.5 hover:bg-gray-800 rounded transition-colors" title="Resume">
+        <button onClick={onResume} className="theme-soft-hover rounded p-1.5 transition-colors" title="Resume">
           <Play size={12} className="text-green-500" />
         </button>
       )}
       {canCancel && onCancel && (
-        <button onClick={onCancel} className="p-1.5 hover:bg-gray-800 rounded transition-colors" title="Cancel">
+        <button onClick={onCancel} className="theme-soft-hover rounded p-1.5 transition-colors" title="Cancel">
           <X size={12} className="text-red-500" />
         </button>
       )}
       {canRetry && onRetry && (
-        <button onClick={onRetry} className="p-1.5 hover:bg-gray-800 rounded transition-colors" title="Retry">
+        <button onClick={onRetry} className="theme-soft-hover rounded p-1.5 transition-colors" title="Retry">
           <RotateCcw size={12} className="text-blue-500" />
         </button>
       )}
       {canRemove && onRemove && (
-        <button onClick={onRemove} className="p-1.5 hover:bg-gray-800 rounded transition-colors" title="Remove">
-          <X size={12} className="text-gray-500" />
+        <button onClick={onRemove} className="theme-soft-hover rounded p-1.5 transition-colors" title="Remove">
+          <X size={12} className="theme-text-subtle" />
         </button>
       )}
     </div>
@@ -165,13 +165,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         layout
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`task-card-compact flex items-center gap-2 bg-[#252526] border border-[#3c3c3c] rounded p-1.5 ${className}`}
+        className={`task-card-compact theme-panel-muted theme-border flex items-center gap-2 rounded border p-1.5 ${className}`}
       >
         <span className="text-[10px] flex-shrink-0 opacity-80">{CATEGORY_ICONS[task.category] || '📋'}</span>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-center mb-0.5">
-            <span className="text-[10px] text-gray-300 truncate font-medium">{task.title}</span>
-            <span className="text-[9px] text-gray-500 font-mono">{task.progress.percentage}%</span>
+            <span className="theme-text truncate text-[10px] font-medium">{task.title}</span>
+            <span className="theme-text-subtle text-[9px] font-mono">{task.progress.percentage}%</span>
           </div>
           <TaskProgressBar value={task.progress.percentage} height={2} color={getProgressColor(task.status)} />
         </div>
@@ -185,30 +185,30 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       layout
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className={`task-card group bg-[#1e1e1e] border rounded-lg transition-all duration-300 ${
-        isRunning ? 'border-blue-500/50 shadow-[0_0_15px_-5px_rgba(59,130,246,0.2)]' : 'border-gray-800'
+      className={`task-card theme-panel group border rounded-lg transition-all duration-300 ${
+        isRunning ? 'border-blue-500/50 shadow-[0_0_15px_-5px_rgba(59,130,246,0.2)]' : 'theme-border'
       } ${mode === 'detailed' ? 'p-4' : 'p-3'} ${className}`}
     >
       {/* Top row: Icon + Title + Actions */}
       <div className="flex items-start justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className={`p-1.5 rounded-md bg-gray-900 border ${isRunning ? 'border-blue-500/30 text-blue-400' : 'border-gray-800 text-gray-500'}`}>
+          <div className={`theme-panel-muted p-1.5 rounded-md border ${isRunning ? 'border-blue-500/30 text-blue-400' : 'theme-border theme-text-subtle'}`}>
              <span className="text-xs">{CATEGORY_ICONS[task.category] || <Activity size={12}/>}</span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-                <h4 className="text-[12px] font-semibold text-gray-200 truncate leading-tight">{task.title}</h4>
+                <h4 className="theme-text truncate text-[12px] font-semibold leading-tight">{task.title}</h4>
                 <TaskStatusBadge status={task.status} size="sm" />
             </div>
             {task.description && (mode as string) !== 'compact' && (
-                <p className="text-[10px] text-gray-500 truncate mt-0.5">{task.description}</p>
+                <p className="theme-text-subtle mt-0.5 truncate text-[10px]">{task.description}</p>
             )}
           </div>
         </div>
         
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
            <TaskActions task={task} onCancel={onCancel} onPause={onPause} onResume={onResume} onRetry={onRetry} onRemove={onRemove} />
-           <button onClick={handleToggle} className="p-1 hover:bg-gray-800 rounded transition-colors text-gray-500">
+           <button onClick={handleToggle} className="theme-soft-hover theme-text-subtle rounded p-1 transition-colors">
              {expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
            </button>
         </div>
@@ -217,10 +217,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {/* Progress Section */}
       <div className="space-y-1.5">
         <div className="flex justify-between items-end">
-            <span className="text-[10px] text-gray-500 font-mono">
+            <span className="theme-text-subtle text-[10px] font-mono">
                 {isRunning ? 'PROCESSING...' : task.status.toUpperCase()}
             </span>
-            <span className="text-[11px] font-bold text-gray-300 font-mono">{task.progress.percentage}%</span>
+            <span className="theme-text text-[11px] font-bold font-mono">{task.progress.percentage}%</span>
         </div>
         <TaskProgressBar
             value={task.progress.current}
@@ -232,10 +232,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       </div>
 
       {/* Footer info: Metrics & Duration */}
-      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-800/50">
+      <div className="theme-border mt-3 flex items-center justify-between border-t pt-2.5">
         <MetricsSummary metrics={task.metrics} />
         
-        <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono">
+        <div className="theme-text-subtle flex items-center gap-2 text-[10px] font-mono">
            {duration && (
              <span className="flex items-center gap-1">
                <Clock size={10}/>
@@ -254,11 +254,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="mt-4 space-y-4 pt-4 border-t border-gray-800">
+              <div className="theme-border mt-4 space-y-4 border-t pt-4">
                   {task.logs && task.logs.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Real-time Logs</span>
+                         <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-widest">Real-time Logs</span>
                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/20 text-blue-400 border border-blue-500/20 animate-pulse">LIVE</span>
                       </div>
                       <TaskLogStream
@@ -267,7 +267,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                         showSearch={false}
                         showLineNumbers={false}
                         fontSize="xs"
-                        className="bg-black/20 rounded-lg border border-gray-800"
+                        className="theme-panel-muted theme-border rounded-lg border"
                       />
                     </div>
                   )}

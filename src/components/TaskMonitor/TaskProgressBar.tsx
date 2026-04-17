@@ -53,8 +53,7 @@ const COLOR_MAP: Record<ProgressBarColor, string> = {
   gray: '#858585',
 };
 
-const BG_COLOR = '#2d2d2d';
-const TRACK_COLOR = '#3c3c3c';
+const TRACK_COLOR = 'var(--bg-tertiary)';
 
 // ============================================================================
 // Component
@@ -123,12 +122,12 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
       {(showPercentage || showProgressText) && (
         <div className="task-progress-text" style={{ marginTop: '4px' }}>
           {showProgressText && total !== undefined && (
-            <span className="text-[11px] text-[#858585] font-mono mr-2">
+            <span className="theme-text-subtle mr-2 text-[11px] font-mono">
               {value}/{total}
             </span>
           )}
           {showPercentage && (
-            <span className="text-[11px] text-[#cccccc] font-mono">
+            <span className="theme-text text-[11px] font-mono">
               {percentage}%
             </span>
           )}

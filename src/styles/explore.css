@@ -14,33 +14,33 @@
 
 :root {
   /* Background colors */
-  --explore-bg: #1e1e1e;
-  --explore-sidebar: #252526;
-  --explore-hover: #2a2d2e;
-  --explore-selection: #094771;
+  --explore-bg: var(--bg-primary);
+  --explore-sidebar: var(--bg-secondary);
+  --explore-hover: var(--hover-bg);
+  --explore-selection: color-mix(in srgb, var(--accent-color) 16%, var(--bg-primary));
 
   /* Border colors */
-  --explore-border: #3c3c3c;
-  --explore-separator: #2d2d2d;
+  --explore-border: var(--border-color);
+  --explore-separator: var(--border-color);
 
   /* Text colors */
-  --explore-text: #cccccc;
-  --explore-text-active: #ffffff;
-  --explore-text-muted: #858585;
+  --explore-text: var(--text-primary);
+  --explore-text-active: var(--text-primary);
+  --explore-text-muted: var(--text-subtle);
 
   /* Link color */
-  --explore-link: #3794ff;
-  --explore-link-hover: #1e8eff;
+  --explore-link: var(--info-color);
+  --explore-link-hover: var(--accent-color);
 
   /* Status colors */
-  --explore-success: #4ec9b0;
-  --explore-info: #569cd6;
-  --explore-warning: #dcdcaa;
-  --explore-error: #f14c4c;
+  --explore-success: var(--success-color);
+  --explore-info: var(--info-color);
+  --explore-warning: var(--warning-color);
+  --explore-error: var(--danger-color);
 
   /* Icon colors */
-  --explore-icon-folder: #dcdcaa;
-  --explore-icon-file: #858585;
+  --explore-icon-folder: var(--warning-color);
+  --explore-icon-file: var(--text-subtle);
 
   /* Spacing - 增加间距提高可读性 */
   --explore-spacing-compact: 8px;

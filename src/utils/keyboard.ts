@@ -1,7 +1,14 @@
 export const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
 export const formatKeybinding = (keys: string): string => {
-  return keys.replace('Mod', isMac ? 'Cmd' : 'Ctrl');
+  return keys
+    .split('+')
+    .map((part) => {
+      if (part === 'Mod') return isMac ? 'Cmd' : 'Ctrl';
+      if (part.length === 1) return part.toUpperCase();
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join('+');
 };
 
 export const matchesKeybinding = (e: KeyboardEvent, keybinding: string): boolean => {

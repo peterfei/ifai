@@ -40,15 +40,15 @@ const StatCard: React.FC<StatCardProps> = ({
   icon,
   color = '#3b82f6',
 }) => (
-  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+  <div className="theme-panel-muted theme-border rounded-lg border p-4">
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm text-gray-600 dark:text-gray-400">{title}</p>
+        <p className="theme-text-muted text-sm">{title}</p>
         <p className="text-2xl font-bold mt-1" style={{ color }}>
           {value}
         </p>
         {description && (
-          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{description}</p>
+          <p className="theme-text-subtle mt-1 text-xs">{description}</p>
         )}
       </div>
       {icon && (
@@ -139,13 +139,13 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       {/* 标签切换 */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
+      <div className="theme-border flex border-b">
         <button
           onClick={() => setActiveTab('classify')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'classify'
-              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'text-blue-500 border-b-2 border-blue-500'
+              : 'theme-text-muted hover:text-[var(--text-primary)]'
           }`}
         >
           🔍 分类测试
@@ -154,8 +154,8 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           onClick={() => setActiveTab('history')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'history'
-              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'text-blue-500 border-b-2 border-blue-500'
+              : 'theme-text-muted hover:text-[var(--text-primary)]'
           }`}
         >
           📜 历史记录
@@ -164,8 +164,8 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           onClick={() => setActiveTab('stats')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'stats'
-              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ? 'text-blue-500 border-b-2 border-blue-500'
+              : 'theme-text-muted hover:text-[var(--text-primary)]'
           }`}
         >
           📊 统计信息
@@ -177,7 +177,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
         <div className="flex flex-col gap-4">
           {/* 输入框 */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="theme-text-muted text-sm font-medium">
               输入要分类的文本
             </label>
             <div className="flex gap-2">
@@ -193,12 +193,12 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
                   }
                 }}
                 placeholder="例如：读取文件、生成函数、git status..."
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="theme-input-surface theme-border theme-text flex-1 rounded-lg border px-3 py-2 placeholder:opacity-70 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
               <button
                 onClick={handleClassify}
                 disabled={isClassifying || !input.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
+                className="theme-button-primary rounded-lg px-4 py-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isClassifying ? '分析中...' : '分类'}
               </button>
@@ -210,8 +210,8 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
 
           {/* 当前结果 */}
           {currentResult && (
-            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="theme-panel-muted theme-border rounded-lg border p-4">
+              <h3 className="theme-text-muted mb-2 text-sm font-medium">
                 分类结果
               </h3>
               <ClassificationBadge result={currentResult} showConfidence showLayer />
@@ -220,8 +220,8 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
 
           {/* 错误提示 */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+              <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
 
@@ -229,31 +229,31 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           <div className="flex gap-2">
             <button
               onClick={handleBenchmark}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+              className="theme-button-success rounded-lg px-4 py-2 font-medium transition-colors"
             >
-              🧪 运行批量测试
+              运行批量测试
             </button>
             {stats.totalCount > 0 && (
               <button
                 onClick={clearHistory}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                className="theme-button-secondary rounded-lg px-4 py-2 font-medium transition-colors"
               >
-                🗑️ 清空历史
+                清空历史
               </button>
             )}
           </div>
 
           {/* 批量测试结果 */}
           {benchmarkResults && (
-            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="theme-panel-muted theme-border rounded-lg border p-4">
+              <h3 className="theme-text-muted mb-2 text-sm font-medium">
                 批量测试结果
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {benchmarkResults.results.map((result: any, index: number) => (
                   <div
                     key={index}
-                    className="p-2 rounded bg-white dark:bg-gray-900 text-xs"
+                    className="theme-code-surface theme-border rounded border p-2 text-xs"
                   >
                     <ClassificationBadge result={result} compact />
                   </div>
@@ -304,7 +304,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
 
           {/* 按类别统计 */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <h3 className="theme-text-muted mb-2 text-sm font-medium">
               按类别统计
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -313,7 +313,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
                 return (
                   <div
                     key={category}
-                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+                    className="theme-panel-muted theme-border rounded-lg border p-3"
                   >
                     <div className="flex items-center gap-2">
                       <span role="img">{info.icon}</span>
@@ -330,7 +330,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
 
           {/* 按层级统计 */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <h3 className="theme-text-muted mb-2 text-sm font-medium">
               按层级统计
             </h3>
             <div className="grid grid-cols-3 gap-2">
@@ -339,15 +339,15 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
                 return (
                   <div
                     key={layer}
-                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-700"
+                    className="theme-panel-muted theme-border rounded-lg border p-3"
                   >
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div className="theme-text-muted text-xs">
                       {info.label}
                     </div>
                     <p className="text-2xl font-bold mt-1" style={{ color: info.color }}>
                       {count}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">{info.targetLatency}</p>
+                    <p className="theme-text-subtle mt-1 text-xs">{info.targetLatency}</p>
                   </div>
                 );
               })}

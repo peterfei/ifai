@@ -21,11 +21,11 @@ export const Skeleton = React.forwardRef<HTMLDivElement, SkeletonProps>(
       <div
         ref={ref}
         className={clsx(
-          'animate-pulse bg-gray-200 dark:bg-gray-700',
+          'animate-pulse',
           variantStyles[variant],
           className
         )}
-        style={{ width, height }}
+        style={{ width, height, backgroundColor: 'var(--bg-tertiary)' }}
         {...props}
       />
     );
@@ -46,4 +46,3 @@ export const MessageSkeleton: React.FC<SkeletonProps> = (props) => (
     <Skeleton variant="text" width="80%" height={16} />
   </div>
 );
-

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import clsx from 'clsx';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { formatTokenCount } from '../../utils/tokenCounter';
@@ -50,17 +51,21 @@ export const Statusbar = () => {
   }, []);
 
   return (
-    <div className="h-6 bg-blue-600 flex items-center px-4 text-xs text-white select-none justify-between overflow-hidden">
+    <div
+      className="theme-panel-elevated theme-border theme-text flex h-6 items-center justify-between overflow-hidden border-t px-4 text-xs select-none transition-colors"
+    >
       <div className="flex items-center space-x-4 min-w-0 flex-1 mr-4">
         <span className="truncate block font-medium">{activeFile ? activeFile.path : 'No file open'}</span>
         
         {rootPath && (
-          <div className="flex items-center space-x-2 bg-blue-700/50 px-2 py-0.5 rounded border border-blue-400/20">
+          <div className={clsx(
+            'theme-panel theme-border flex items-center space-x-2 rounded border px-2 py-0.5'
+          )}>
             <span className={`whitespace-nowrap ${ragStatus.includes('...') ? 'animate-pulse' : ''}`}>
               RAG: {ragStatus}
             </span>
             {ragProgress !== null && (
-              <span className="bg-blue-500 px-1.5 rounded-full text-[10px] font-bold">
+              <span className="rounded-full bg-[var(--selected-bg)] px-1.5 text-[10px] font-bold text-[var(--accent-color)]">
                 {ragProgress} files
               </span>
             )}
@@ -72,7 +77,7 @@ export const Statusbar = () => {
         <span>{activeFile?.language || 'Plain Text'}</span>
         <span 
           data-testid="statusbar-token-count"
-          className="bg-blue-700/50 px-2 py-0.5 rounded border border-blue-400/20 tabular-nums"
+          className="theme-panel theme-border rounded border px-2 py-0.5 tabular-nums"
         >
           Tokens: {formatTokenCount(activeFileTokenCount)}
         </span>

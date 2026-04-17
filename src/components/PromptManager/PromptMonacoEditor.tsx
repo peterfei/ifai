@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { OnMount, OnChange, Monaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { getMonacoBaseTheme, isDarkTheme } from '../../utils/theme';
 
 // Configure monaco-editor to use local files
 import { loader } from '@monaco-editor/react';
@@ -32,6 +34,9 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
 }) => {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
+  const monacoThemeName = dark ? 'handlebars-theme-dark' : 'handlebars-theme-light';
 
   /**
    * 设置 Handlebars 语言配置
@@ -106,7 +111,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
     });
 
     // 设置主题（支持 Handlebars 高亮）
-    monaco.editor.defineTheme('handlebars-theme', {
+    monaco.editor.defineTheme('handlebars-theme-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
@@ -120,6 +125,23 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
       ],
       colors: {
         'editor.background': '#1e1e1e',
+      },
+    });
+
+    monaco.editor.defineTheme('handlebars-theme-light', {
+      base: getMonacoBaseTheme('light'),
+      inherit: true,
+      rules: [
+        { token: 'delimiter.handlebars', foreground: '0f766e' },
+        { token: 'tag.helper', foreground: '1d4ed8', fontStyle: 'bold' },
+        { token: 'variable', foreground: '0f172a' },
+        { token: 'comment.handlebar', foreground: '047857', fontStyle: 'italic' },
+        { token: 'property.yaml', foreground: '2563eb' },
+        { token: 'delimiter.yaml', foreground: '64748b' },
+        { token: 'string.link', foreground: '2563eb', fontStyle: 'underline' },
+      ],
+      colors: {
+        'editor.background': '#ffffff',
       },
     });
   }, []);
@@ -199,7 +221,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
     setupCompletionProvider(monaco, variables);
 
     // 应用主题
-    monaco.editor.setTheme('handlebars-theme');
+    monaco.editor.setTheme(monacoThemeName);
 
     // 设置编辑器选项
     editor.updateOptions({
@@ -229,7 +251,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
     });
 
     console.log('[PromptMonacoEditor] Editor mounted and configured');
-  }, [variables, setupHandlebarsLanguage, setupCompletionProvider]);
+  }, [variables, setupHandlebarsLanguage, setupCompletionProvider, monacoThemeName]);
 
   /**
    * 处理内容变化
@@ -249,6 +271,12 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
     }
   }, [variables, setupCompletionProvider]);
 
+  useEffect(() => {
+    if (monacoRef.current) {
+      monacoRef.current.editor.setTheme(monacoThemeName);
+    }
+  }, [monacoThemeName]);
+
   return (
     <div className="h-full w-full">
       <Editor
@@ -257,7 +285,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
         value={value}
         onChange={handleEditorChange}
         onMount={handleEditorDidMount}
-        theme="handlebars-theme"
+        theme={monacoThemeName}
         options={{
           readOnly,
           domReadOnly: readOnly,
@@ -267,7 +295,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
         loading={
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className="ml-3 text-sm text-gray-600 dark:text-gray-400">加载编辑器...</span>
+            <span className="theme-text-subtle ml-3 text-sm">加载编辑器...</span>
           </div>
         }
       />

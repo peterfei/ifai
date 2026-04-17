@@ -90,13 +90,13 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
   if (filteredCommands.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 mx-2 bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#3e3e42] rounded-lg shadow-2xl overflow-hidden z-[100] animate-in slide-in-from-bottom-2 fade-in duration-150 ring-1 ring-black/5">
-      <div className="flex items-center justify-between px-3 py-2 bg-gray-50/80 dark:bg-[#252526] border-b border-gray-100 dark:border-[#3e3e42] backdrop-blur-sm">
-        <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider flex items-center gap-1">
+    <div className="absolute bottom-full left-0 right-0 mb-2 mx-2 theme-panel-elevated border theme-border rounded-lg theme-shadow overflow-hidden z-[100] animate-in slide-in-from-bottom-2 fade-in duration-150 ring-1 ring-black/5">
+      <div className="flex items-center justify-between px-3 py-2 theme-panel-muted border-b theme-border backdrop-blur-sm">
+        <span className="text-[10px] uppercase font-bold theme-text-subtle tracking-wider flex items-center gap-1">
             <Terminal size={10} />
             {t('commands.title')}
         </span>
-        <span className="text-[9px] text-gray-400 bg-gray-200 dark:bg-[#333] px-1.5 py-0.5 rounded">
+        <span className="text-[9px] theme-panel px-1.5 py-0.5 rounded border theme-border theme-text-subtle">
             ↑↓ to navigate
         </span>
       </div>
@@ -109,8 +109,8 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
             data-selected={index === selectedIndex}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-all duration-75 group ${
               index === selectedIndex
-                ? 'bg-blue-50 dark:bg-blue-900/20'
-                : 'hover:bg-gray-100 dark:hover:bg-[#2d2d2d]'
+                ? 'bg-blue-500/10 border border-blue-500/20'
+                : 'theme-soft-hover border border-transparent'
             }`}
             onClick={() => onSelect(cmd.id)}
           >
@@ -127,20 +127,20 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
             <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 overflow-hidden">
-                    <span className={`text-sm font-bold truncate ${index === selectedIndex ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-200'}`}>
+                    <span className={`text-sm font-bold truncate ${index === selectedIndex ? 'text-blue-500' : 'theme-text'}`}>
                         {cmd.id}
                     </span>
-                    <span className={`text-[10px] opacity-60 font-medium truncate ${index === selectedIndex ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
+                    <span className={`text-[10px] opacity-60 font-medium truncate ${index === selectedIndex ? 'text-blue-500' : 'theme-text-subtle'}`}>
                         {cmd.label}
                     </span>
                   </div>
                   {index === selectedIndex && (
-                      <span className="text-[10px] text-gray-400 bg-white dark:bg-black/20 px-1.5 rounded shadow-sm border border-gray-100 dark:border-white/5">
+                      <span className="text-[10px] theme-panel px-1.5 rounded shadow-sm border theme-border theme-text-subtle">
                           Enter
                       </span>
                   )}
               </div>
-              <span className={`text-[11px] truncate ${index === selectedIndex ? 'text-blue-600/70 dark:text-blue-300/70' : 'text-gray-500'}`}>
+              <span className={`text-[11px] truncate ${index === selectedIndex ? 'text-blue-500/80' : 'theme-text-subtle'}`}>
                 {cmd.description}
               </span>
             </div>

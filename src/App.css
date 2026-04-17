@@ -15,6 +15,317 @@ html, body, #root {
   color: #ffffff;
 }
 
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d30;
+  --bg-elevated: rgba(37, 38, 38, 0.92);
+  --bg-glass: rgba(30, 30, 30, 0.78);
+  --bg-input: #3c3c3c;
+  --backdrop-color: rgba(2, 6, 23, 0.52);
+  --backdrop-strong: rgba(2, 6, 23, 0.7);
+  --code-bg: #18181b;
+  --code-inline-bg: #27272a;
+  --border-color: #3f3f46;
+  --border-strong: #52525b;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --hover-bg: #2a2d2e;
+  --hover-soft: rgba(255, 255, 255, 0.06);
+  --selected-bg: #37373d;
+  --accent-color: #2563eb;
+  --accent-hover: #1d4ed8;
+  --success-color: #34d399;
+  --success-hover: #10b981;
+  --info-color: #60a5fa;
+  --warning-color: #facc15;
+  --danger-color: #f87171;
+  --danger-hover: #ef4444;
+  --app-shadow: 0 18px 48px rgba(15, 23, 42, 0.32);
+}
+
+html[data-theme='light'],
+html[data-theme='light'] body,
+html[data-theme='light'] #root {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html[data-theme='light'] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #eef2f7;
+  --bg-elevated: rgba(255, 255, 255, 0.96);
+  --bg-glass: rgba(255, 255, 255, 0.82);
+  --bg-input: #ffffff;
+  --backdrop-color: rgba(15, 23, 42, 0.36);
+  --backdrop-strong: rgba(15, 23, 42, 0.52);
+  --code-bg: #f8fafc;
+  --code-inline-bg: #eff6ff;
+  --border-color: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
+  --hover-bg: #f1f5f9;
+  --hover-soft: rgba(148, 163, 184, 0.12);
+  --selected-bg: #dbeafe;
+  --accent-color: #2563eb;
+  --accent-hover: #1d4ed8;
+  --success-color: #059669;
+  --success-hover: #047857;
+  --info-color: #2563eb;
+  --warning-color: #ca8a04;
+  --danger-color: #dc2626;
+  --danger-hover: #b91c1c;
+  --app-shadow: 0 18px 48px rgba(148, 163, 184, 0.28);
+}
+
+.app-shell[data-editor-mode='spec'][data-theme='vs-dark'] {
+  background: linear-gradient(180deg, #0f172a 0%, var(--bg-primary) 26%);
+}
+
+.app-shell[data-editor-mode='spec'][data-theme='light'] {
+  background: linear-gradient(180deg, #eef4ff 0%, var(--bg-primary) 22%);
+}
+
+.theme-panel {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.theme-panel-muted {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.theme-panel-elevated {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.theme-glass {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+.theme-backdrop {
+  background: var(--backdrop-color);
+}
+
+.theme-backdrop-strong {
+  background: var(--backdrop-strong);
+}
+
+.theme-input-surface {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.theme-input-surface::placeholder {
+  color: var(--text-subtle);
+}
+
+.theme-border {
+  border-color: var(--border-color);
+}
+
+.theme-border-strong {
+  border-color: var(--border-strong);
+}
+
+.theme-divider {
+  background: var(--border-color);
+}
+
+.theme-text {
+  color: var(--text-primary);
+}
+
+.theme-text-muted {
+  color: var(--text-secondary);
+}
+
+.theme-text-subtle {
+  color: var(--text-subtle);
+}
+
+.theme-hoverable {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-hoverable:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.theme-soft-hover {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-soft-hover:hover {
+  background: var(--hover-soft);
+}
+
+.theme-button-primary,
+.theme-button-success,
+.theme-button-danger,
+.theme-button-secondary,
+.theme-button-ghost {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.theme-button-primary {
+  background: var(--accent-color);
+  color: #ffffff;
+}
+
+.theme-button-primary:hover {
+  background: var(--accent-hover);
+}
+
+.theme-button-success {
+  background: var(--success-color);
+  color: #ffffff;
+}
+
+.theme-button-success:hover {
+  background: var(--success-hover);
+}
+
+.theme-button-danger {
+  background: var(--danger-color);
+  color: #ffffff;
+}
+
+.theme-button-danger:hover {
+  background: var(--danger-hover);
+}
+
+.theme-button-secondary {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.theme-button-secondary:hover {
+  background: var(--hover-bg);
+}
+
+.theme-button-ghost {
+  color: var(--text-secondary);
+}
+
+.theme-button-ghost:hover {
+  background: var(--hover-soft);
+  color: var(--text-primary);
+}
+
+.theme-code-surface {
+  background: var(--code-bg);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.theme-code-inline {
+  background: var(--code-inline-bg);
+  color: var(--text-primary);
+}
+
+.theme-checkbox-input {
+  accent-color: var(--accent-color);
+  background: var(--bg-input);
+  border-color: var(--border-strong);
+  color: var(--accent-color);
+}
+
+.theme-toggle-track {
+  background: var(--border-strong);
+  transition: background-color 0.2s ease;
+}
+
+.theme-toggle-track[data-active='true'] {
+  background: var(--accent-color);
+}
+
+.theme-shadow {
+  box-shadow: var(--app-shadow);
+}
+
+.settings-modal[data-theme='light'] {
+  color: #0f172a;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-panel,
+.settings-modal[data-theme='light'] .settings-modal-header,
+.settings-modal[data-theme='light'] .settings-modal-content {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-sidebar {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-label,
+.settings-modal[data-theme='light'] .settings-modal-title,
+.settings-modal[data-theme='light'] .settings-modal-value {
+  color: #334155;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-tab {
+  color: #475569;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-tab:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-tab[data-active='true'] {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-input {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.settings-modal[data-theme='light'] .settings-modal-input::placeholder {
+  color: #64748b;
+}
+
+.keyboard-shortcuts-modal[data-theme='light'] .keyboard-shortcuts-panel,
+.keyboard-shortcuts-modal[data-theme='light'] .keyboard-shortcuts-footer {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.keyboard-shortcuts-modal[data-theme='light'] .keyboard-shortcuts-text {
+  color: #334155;
+}
+
+.keyboard-shortcuts-modal[data-theme='light'] .keyboard-shortcuts-muted {
+  color: #64748b;
+}
+
+.keyboard-shortcuts-modal[data-theme='light'] .keyboard-shortcuts-row:hover {
+  background: #f1f5f9;
+}
+
+.keyboard-shortcuts-modal[data-theme='light'] kbd {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
 /* Custom Scrollbar for horizontal scrolling containers like TabBar */
 .horizontal-scrollbar::-webkit-scrollbar {
   height: 2px; /* Ultra thin */

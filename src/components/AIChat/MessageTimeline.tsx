@@ -152,7 +152,7 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
   if (state.groups.length === 0 && state.loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-400">加载中...</div>
+        <div className="theme-text-subtle">加载中...</div>
       </div>
     );
   }
@@ -160,7 +160,7 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
   return (
     <div
       ref={timelineRef}
-      className="flex flex-col h-full bg-[#1e1e1e] overflow-y-auto"
+      className="flex flex-col h-full theme-panel overflow-y-auto"
       onScroll={handleScroll}
       data-testid="timeline-view"
     >
@@ -186,12 +186,12 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
         return (
           <div
             key={group.label}
-            className="border-b border-gray-700/50"
+            className="border-b theme-border"
             data-testid={getTestId(group.label)}
           >
             {/* 分组标签 */}
-            <div className="px-4 py-2 bg-[#252526] sticky top-0 z-10">
-              <span className="text-xs text-gray-400 font-medium">
+            <div className="px-4 py-2 theme-panel-muted sticky top-0 z-10 border-b theme-border">
+              <span className="text-xs theme-text-subtle font-medium">
                 {group.label}
               </span>
             </div>

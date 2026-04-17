@@ -82,6 +82,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useChatStore } from './stores/chat/CoreStoreProxy';
 import { useSettingsStore } from './stores/settingsStore';
 import { useSnippetStore } from './stores/snippetStore';
+import { applyThemeToDocument, getSonnerTheme, isDarkTheme } from './utils/theme';
 
 // v0.3.0: 暴露 i18n 到 window 对象供 E2E 测试使用
 // 在模块加载时立即暴露，确保在测试运行时可用
@@ -92,11 +93,13 @@ console.log('[App] i18n exposed at module load, language:', i18nInstance.languag
 /** TodoWrite 面板三态包装器（full/collapsed/hidden） */
 function TodoWritePanelWrapper() {
   const panelState = useTodoWriteStore((s) => s.panelState);
+  const theme = useSettingsStore((state) => state.theme);
+  const dark = isDarkTheme(theme);
   if (panelState === 'hidden') return null;
   return (
-    <div className={`border-l border-gray-700 transition-all duration-300 ease-in-out overflow-hidden ${
+    <div className={clsx('theme-border overflow-hidden border-l transition-all duration-300 ease-in-out', dark ? 'theme-panel' : 'theme-panel', 
       panelState === 'collapsed' ? 'w-10' : 'w-96'
-    }`}>
+    )}>
       <Suspense fallback={null}>
         <TodoWritePanel onClose={() => useTodoWriteStore.getState().setPanelState('hidden')} />
       </Suspense>
@@ -129,6 +132,8 @@ function App() {
 
   const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, fetchGitStatuses } = useFileStore();
+  const theme = useSettingsStore((state) => state.theme);
+  const dark = isDarkTheme(theme);
 
   const {
     isChatOpen,
@@ -185,6 +190,10 @@ function App() {
 
   // Onboarding state
   const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | 'apikey' | null>(null);
+
+  useEffect(() => {
+    applyThemeToDocument(theme);
+  }, [theme]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -921,16 +930,14 @@ function App() {
       <div 
 
         className={clsx(
-
-          "flex flex-col h-screen text-white overflow-hidden transition-all duration-1000",
-
-          editorMode === 'vibe' ? "bg-[#1e1e1e]" : "bg-[#0f172a]"
-
+          'app-shell theme-panel flex h-screen flex-col overflow-hidden transition-all duration-300'
         )}
 
         data-layout={layoutMode}
 
         data-editor-mode={editorMode}
+
+        data-theme={theme}
 
       >
 
@@ -946,7 +953,7 @@ function App() {
         )}
         {isSidebarOpen && sidebarPosition === 'left' && (
           <div
-            className="cursor-col-resize hover:bg-blue-500/50 transition-colors w-1 bg-transparent"
+            className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-blue-500/50"
             onMouseDown={(e) => {
               setIsResizingSidebar(true);
               const startX = e.clientX;
@@ -977,7 +984,7 @@ function App() {
           <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />
         )}
 
-        <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
+        <div className="theme-panel flex-1 flex flex-col min-w-0 overflow-hidden">
           <TabBar />
           <ApprovalToolbar />
           <div className="flex-1 relative overflow-hidden">
@@ -997,7 +1004,7 @@ function App() {
             )}
           </div>
           {isTerminalOpen && (
-            <div className="h-64 border-t border-gray-700 relative">
+            <div className="theme-border relative h-64 border-t">
               <TerminalPanel onClose={toggleTerminal} />
             </div>
           )}
@@ -1009,14 +1016,14 @@ function App() {
 
         {/* v0.3.0: 代码分析面板 */}
         {useCodeSmellStore((state) => state.isPanelOpen) && (
-          <div className="w-96 border-l border-gray-700">
+          <div className="theme-border w-96 border-l">
             <CodeSmellPanel onClose={() => useCodeSmellStore.getState().setPanelOpen(false)} />
           </div>
         )}
 
         {/* v0.3.0: 重构预览面板 */}
         {useRefactoringStore((state) => state.isPreviewOpen) && (
-          <div className="w-[500px] border-l border-gray-700">
+          <div className="theme-border w-[500px] border-l">
             <RefactoringPreviewPanel onClose={() => useRefactoringStore.getState().clearPreview()} />
           </div>
         )}
@@ -1028,7 +1035,7 @@ function App() {
         {isSidebarOpen && sidebarPosition === 'right' && (
           <>
             <div
-              className="cursor-col-resize hover:bg-blue-500/50 transition-colors w-1 bg-transparent"
+              className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-blue-500/50"
               onMouseDown={(e) => {
                 setIsResizingSidebar(true);
                 const startX = e.clientX;
@@ -1075,7 +1082,7 @@ function App() {
         {useDebugStore((state) => state.isToolClassificationTestOpen) && <ToolClassificationTestPage />}
 
         <div data-testid="toast-container">
-          <Toaster position="bottom-right" theme="dark" />
+          <Toaster position="bottom-right" theme={getSonnerTheme(theme)} />
         </div>
 
         {/* Onboarding */}
@@ -1128,7 +1135,7 @@ function App() {
           <div className="fixed bottom-20 right-8 z-[200]">
             <button
               onClick={handleCommitClick}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all"
+              className="theme-button-primary theme-shadow flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
               data-testid="commit-button"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

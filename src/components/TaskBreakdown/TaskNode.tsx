@@ -42,11 +42,12 @@ const getStatusConfig = (status: TaskStatus) => {
     case 'pending':
       return {
         icon: Circle,
-        color: 'text-gray-400',
-        bgColor: 'bg-gray-500/10',
-        borderColor: 'border-gray-500/30',
+        color: 'theme-text-subtle',
+        bgColor: 'theme-panel-elevated',
+        borderColor: 'theme-border',
+        progressColor: 'bg-[var(--border-strong)]',
         label: '待办',
-        labelColor: 'text-gray-400',
+        labelColor: 'theme-text-subtle',
       };
     case 'in_progress':
       return {
@@ -54,6 +55,7 @@ const getStatusConfig = (status: TaskStatus) => {
         color: 'text-blue-400',
         bgColor: 'bg-blue-500/10',
         borderColor: 'border-blue-500/30',
+        progressColor: 'bg-blue-500',
         label: '进行中',
         labelColor: 'text-blue-400',
       };
@@ -63,6 +65,7 @@ const getStatusConfig = (status: TaskStatus) => {
         color: 'text-green-400',
         bgColor: 'bg-green-500/10',
         borderColor: 'border-green-500/30',
+        progressColor: 'bg-green-500',
         label: '已完成',
         labelColor: 'text-green-400',
       };
@@ -72,17 +75,19 @@ const getStatusConfig = (status: TaskStatus) => {
         color: 'text-red-400',
         bgColor: 'bg-red-500/10',
         borderColor: 'border-red-500/30',
+        progressColor: 'bg-red-500',
         label: '失败',
         labelColor: 'text-red-400',
       };
     default:
       return {
         icon: Circle,
-        color: 'text-gray-400',
-        bgColor: 'bg-gray-500/10',
-        borderColor: 'border-gray-500/30',
+        color: 'theme-text-subtle',
+        bgColor: 'theme-panel-elevated',
+        borderColor: 'theme-border',
+        progressColor: 'bg-[var(--border-strong)]',
         label: '待办',
-        labelColor: 'text-gray-400',
+        labelColor: 'theme-text-subtle',
       };
   }
 };
@@ -99,9 +104,9 @@ const getPriorityStyle = (priority?: string) => {
     case 'medium':
       return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
     case 'low':
-      return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      return 'theme-panel-elevated theme-border theme-text-subtle';
     default:
-      return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+      return 'theme-panel-elevated theme-border theme-text-subtle';
   }
 };
 
@@ -173,15 +178,18 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
   return (
     <div className="relative">
       {/* 连接线 */}
-      <div className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-gray-700/50 to-transparent" style={{ marginLeft: '11px' }} />
+      <div
+        className="absolute bottom-0 left-0 top-0 w-px"
+        style={{ marginLeft: '11px', background: 'linear-gradient(180deg, var(--border-color), transparent)' }}
+      />
 
       {/* 节点内容 */}
       <motion.div
         className={`
           relative flex items-start gap-2 py-2 px-3 rounded-lg border cursor-pointer transition-all
           ${isSelected
-            ? `${statusConfig.bgColor} ${statusConfig.borderColor} border shadow-lg shadow-black/20`
-            : 'border-transparent hover:bg-[#2a2a2a] hover:border-gray-700/50'
+            ? `${statusConfig.bgColor} ${statusConfig.borderColor} border shadow-lg shadow-black/10`
+            : 'border-transparent theme-soft-hover hover:border-[var(--border-strong)]'
           }
         `}
         onClick={handleClick}
@@ -195,18 +203,18 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
         <div
           className={`
             flex items-center justify-center w-6 h-6 rounded transition-colors
-            ${hasChildren ? 'hover:bg-[#3a3a3a] cursor-pointer' : 'opacity-30'}
+            ${hasChildren ? 'theme-hoverable cursor-pointer' : 'opacity-30'}
           `}
           onClick={handleToggleClick}
         >
           {hasChildren ? (
             isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-400" />
+              <ChevronDown className="theme-text-subtle w-4 h-4" />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <ChevronRight className="theme-text-subtle w-4 h-4" />
             )
           ) : (
-            <div className="w-2 h-2 rounded-full bg-gray-600" />
+            <div className="theme-divider h-2 w-2 rounded-full" />
           )}
         </div>
 
@@ -219,7 +227,7 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
         <div className="flex-1 min-w-0">
           {/* 标题行 */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-medium ${statusConfig.color} truncate`}>
+            <span className="theme-text truncate text-sm font-medium">
               {node.title}
             </span>
 
@@ -240,7 +248,7 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
 
             {/* 类别标签 */}
             {node.category && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-400 border border-gray-600/30 flex items-center gap-1">
+              <span className="theme-panel-elevated theme-border theme-text-subtle flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]">
                 <Tag className="w-3 h-3" />
                 {getCategoryLabel(node.category)}
               </span>
@@ -248,7 +256,7 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
 
             {/* 工时 */}
             {node.estimatedHours && (
-              <span className="text-[10px] text-gray-500 flex items-center gap-1">
+              <span className="theme-text-subtle flex items-center gap-1 text-[10px]">
                 <Clock className="w-3 h-3" />
                 {node.estimatedHours}h
               </span>
@@ -256,7 +264,7 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
 
             {/* 依赖关系 */}
             {node.dependencies && node.dependencies.length > 0 && (
-              <span className="text-[10px] text-gray-600 flex items-center gap-1" title={`依赖: ${node.dependencies.join(', ')}`}>
+              <span className="theme-text-subtle flex items-center gap-1 text-[10px]" title={`依赖: ${node.dependencies.join(', ')}`}>
                 <GitBranch className="w-3 h-3" />
                 {node.dependencies.length}
               </span>
@@ -266,7 +274,7 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
           {/* 描述（如果有） */}
           {node.description && (isHovered || isSelected) && (
             <motion.p
-              className="text-xs text-gray-500 mt-1 line-clamp-2"
+              className="theme-text-subtle mt-1 line-clamp-2 text-xs"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -279,15 +287,15 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
           {hasChildren && (
             <div className="mt-2">
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-1 bg-gray-700/50 rounded-full overflow-hidden">
+                <div className="theme-panel-elevated flex-1 overflow-hidden rounded-full h-1">
                   <motion.div
-                    className={`h-full ${statusConfig.color.replace('text', 'bg')}`}
+                    className={`h-full ${statusConfig.progressColor}`}
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
                     transition={{ duration: 0.3 }}
                   />
                 </div>
-                <span className="text-[10px] text-gray-500">
+                <span className="theme-text-subtle text-[10px]">
                   {progress}%
                 </span>
               </div>
@@ -300,7 +308,7 @@ export const TaskNode: React.FC<TaskNodeProps> = ({
       <AnimatePresence>
         {isExpanded && hasChildren && (
           <motion.div
-            className="ml-6 pl-4 border-l border-gray-700/30 mt-1 space-y-1"
+            className="theme-border ml-6 mt-1 space-y-1 border-l pl-4"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}

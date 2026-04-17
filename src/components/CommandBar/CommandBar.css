@@ -11,19 +11,20 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 15vh;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(2, 6, 23, 0.48);
 }
 
 .command-bar-container {
-  background-color: #252526;
+  background-color: var(--bg-elevated);
   border-radius: 8px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--app-shadow);
   width: 600px;
   max-width: 90vw;
   display: flex;
   flex-direction: column;
-  border: 1px solid #454545;
+  border: 1px solid var(--border-color);
   overflow: hidden;
+  backdrop-filter: blur(18px);
 }
 
 .command-bar-form {
@@ -35,13 +36,13 @@
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  background-color: #252526;
-  border-bottom: 1px solid #454545;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
   gap: 8px;
 }
 
 .command-bar-prefix {
-  color: #808080;
+  color: var(--text-subtle);
   font-size: 14px;
   font-weight: 500;
   user-select: none;
@@ -49,21 +50,21 @@
 
 .command-bar-input {
   flex: 1;
-  background-color: #3c3c3c;
-  border: 1px solid #555555;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   outline: none;
 }
 
 .command-bar-input:focus {
-  border-color: #007acc;
+  border-color: var(--accent-color);
 }
 
 .command-bar-input::placeholder {
-  color: #808080;
+  color: var(--text-subtle);
 }
 
 .command-bar-close {
@@ -72,7 +73,7 @@
   justify-content: center;
   background: transparent;
   border: none;
-  color: #808080;
+  color: var(--text-subtle);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -80,20 +81,21 @@
 }
 
 .command-bar-close:hover {
-  color: #ffffff;
-  background-color: #3c3c3c;
+  color: var(--text-primary);
+  background-color: var(--hover-soft);
 }
 
 /* 命令反馈区域 */
 .command-bar-feedback {
   padding: 16px;
-  background-color: #1e1e1e;
-  border-top: 1px solid #454545;
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
   min-height: 80px;
   max-height: 300px;
   overflow-y: auto;
   font-size: 13px;
   line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .command-bar-success {
@@ -115,7 +117,7 @@
 
 /* Markdown 样式适配 */
 .command-bar-markdown {
-  color: #cccccc;
+  color: var(--text-secondary);
 }
 
 .command-bar-markdown :global(p) {
@@ -125,7 +127,7 @@
 .command-bar-markdown :global(h1),
 .command-bar-markdown :global(h2),
 .command-bar-markdown :global(h3) {
-  color: #ffffff;
+  color: var(--text-primary);
   margin-top: 12px;
   margin-bottom: 8px;
 }
@@ -141,7 +143,7 @@
 }
 
 .command-bar-markdown :global(code) {
-  background-color: #2d2d2d;
+  background-color: var(--code-inline-bg);
   padding: 2px 4px;
   border-radius: 3px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -149,8 +151,8 @@
 }
 
 .command-bar-markdown :global(pre) {
-  background-color: #1e1e1e;
-  border: 1px solid #454545;
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 12px;
   margin: 8px 0;
@@ -166,21 +168,21 @@
 
 .command-bar-markdown :global(th),
 .command-bar-markdown :global(td) {
-  border: 1px solid #454545;
+  border: 1px solid var(--border-color);
   padding: 6px 10px;
   text-align: left;
 }
 
 .command-bar-markdown :global(th) {
-  background-color: #2d2d2d;
-  color: #ffffff;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .command-bar-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #808080;
+  color: var(--text-subtle);
   gap: 8px;
 }
 
@@ -188,8 +190,8 @@
   content: '';
   width: 16px;
   height: 16px;
-  border: 2px solid #454545;
-  border-top-color: #007acc;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: command-bar-spin 1s linear infinite;
 }
@@ -202,10 +204,11 @@
 
 /* 自动补全建议列表 */
 .command-bar-suggestions {
-  border-top: 1px solid #454545;
+  border-top: 1px solid var(--border-color);
   max-height: 200px;
   overflow-y: auto;
   overflow-x: hidden;
+  background-color: var(--bg-secondary);
 }
 
 .command-bar-suggestion-item {
@@ -215,7 +218,7 @@
   padding: 10px 16px;
   cursor: pointer;
   transition: background-color 0.15s;
-  border-bottom: 1px solid #3c3c3c;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .command-bar-suggestion-item:last-child {
@@ -224,15 +227,15 @@
 
 .command-bar-suggestion-item:hover,
 .command-bar-suggestion-item.selected {
-  background-color: #094771;
+  background-color: var(--selected-bg);
 }
 
 .command-bar-suggestion-item.selected {
-  border-left: 2px solid #007acc;
+  border-left: 2px solid var(--accent-color);
 }
 
 .command-bar-suggestion-icon {
-  color: #808080;
+  color: var(--text-subtle);
   flex-shrink: 0;
   width: 16px;
   height: 16px;
@@ -247,13 +250,13 @@
 }
 
 .command-bar-suggestion-name {
-  color: #cccccc;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
 }
 
 .command-bar-suggestion-description {
-  color: #808080;
+  color: var(--text-subtle);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -261,19 +264,19 @@
 }
 
 .command-bar-suggestion-item.selected .command-bar-suggestion-name {
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .command-bar-suggestion-item.selected .command-bar-suggestion-description {
-  color: #cccccc;
+  color: var(--text-secondary);
 }
 
 /* === 实时搜索结果预览 === */
 .command-bar-search-preview {
   max-height: 300px;
   overflow-y: auto;
-  border-top: 1px solid #3c3c3c;
-  background-color: #252526;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
 }
 
 .search-preview-header {
@@ -281,15 +284,15 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #3c3c3c;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
 .search-preview-title {
-  color: #cccccc;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -297,7 +300,7 @@
 }
 
 .search-preview-count {
-  color: #808080;
+  color: var(--text-subtle);
   font-size: 11px;
 }
 
@@ -308,7 +311,7 @@
 
 .search-preview-item {
   padding: 8px 12px;
-  border-bottom: 1px solid #2d2d2d;
+  border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -318,16 +321,16 @@
 }
 
 .search-preview-item:hover {
-  background-color: #2a2d2e;
+  background-color: var(--hover-bg);
 }
 
 .search-preview-item.selected {
-  background-color: #094771;
-  border-left: 2px solid #007acc;
+  background-color: var(--selected-bg);
+  border-left: 2px solid var(--accent-color);
 }
 
 .search-preview-file {
-  color: #9cdcfe;
+  color: var(--info-color);
   font-size: 12px;
   font-family: 'Courier New', monospace;
   margin-bottom: 4px;
@@ -343,7 +346,7 @@
 }
 
 .search-preview-line-number {
-  color: #808080;
+  color: var(--text-subtle);
   font-size: 11px;
   font-family: 'Courier New', monospace;
   min-width: 30px;
@@ -352,7 +355,7 @@
 }
 
 .search-preview-content {
-  color: #d4d4d4;
+  color: var(--text-secondary);
   font-size: 12px;
   font-family: 'Courier New', monospace;
   overflow: hidden;
@@ -367,14 +370,14 @@
 }
 
 .command-bar-search-preview::-webkit-scrollbar-track {
-  background-color: #1e1e1e;
+  background-color: var(--bg-primary);
 }
 
 .command-bar-search-preview::-webkit-scrollbar-thumb {
-  background-color: #424242;
+  background-color: var(--border-strong);
   border-radius: 4px;
 }
 
 .command-bar-search-preview::-webkit-scrollbar-thumb:hover {
-  background-color: #4f4f4f;
+  background-color: var(--text-subtle);
 }

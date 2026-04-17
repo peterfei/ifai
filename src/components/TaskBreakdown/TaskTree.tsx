@@ -17,7 +17,6 @@ import {
   Minimize2,
   Search,
   Download,
-  RefreshCw,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -125,40 +124,32 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  /**
-   * 刷新任务树（重新计算统计）
-   */
-  const handleRefresh = () => {
-    // 触发重新渲染
-    window.location.reload();
-  };
-
   return (
     <div
       className={`
-        flex flex-row bg-[#1a1a1a] border border-gray-800 rounded-lg overflow-hidden
-        ${isFullscreen ? 'fixed inset-4 z-50' : 'h-full'}
+        theme-panel theme-border flex flex-row overflow-hidden rounded-lg border
+        ${isFullscreen ? 'theme-shadow fixed inset-4 z-50' : 'h-full'}
       `}
     >
       {/* 主任务树区域 */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* 工具栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#1e1e1e]">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-3">
-            <h3 className="text-sm font-medium text-gray-200">任务树</h3>
+            <h3 className="theme-text text-sm font-medium">任务树</h3>
 
             {/* 统计信息 */}
             <div className="flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1 text-gray-400">
+              <span className="theme-text-subtle flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
                 {stats.completed}/{stats.total}
               </span>
-              <span className="flex items-center gap-1 text-gray-400">
+              <span className="theme-text-subtle flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-blue-400" />
                 {stats.inProgress}
               </span>
               {stats.failed > 0 && (
-                <span className="flex items-center gap-1 text-gray-400">
+                <span className="theme-text-subtle flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5 text-red-400" />
                   {stats.failed}
                 </span>
@@ -169,27 +160,27 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
           <div className="flex items-center gap-2">
             {/* 搜索框 */}
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="theme-text-subtle absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="搜索任务..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs bg-[#2a2a2a] border border-gray-700 rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 w-40"
+                className="theme-input-surface theme-border theme-text w-40 rounded-md border py-1.5 pl-8 pr-3 text-xs focus:border-blue-500 focus:outline-none"
               />
             </div>
 
             {/* 展开/折叠 */}
             <button
               onClick={handleExpandAll}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
+              className="theme-button-ghost rounded-md p-1.5"
               title="展开全部"
             >
               <ChevronDown className="w-4 h-4" />
             </button>
             <button
               onClick={collapseAll}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
+              className="theme-button-ghost rounded-md p-1.5"
               title="折叠全部"
             >
               <ChevronRight className="w-4 h-4" />
@@ -198,7 +189,7 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
             {/* 导出 */}
             <button
               onClick={handleExport}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
+              className="theme-button-ghost rounded-md p-1.5"
               title="导出 JSON"
             >
               <Download className="w-4 h-4" />
@@ -207,7 +198,7 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
             {/* 全屏 */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
+              className="theme-button-ghost rounded-md p-1.5"
               title={isFullscreen ? '退出全屏' : '全屏'}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -216,7 +207,7 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
         </div>
 
         {/* 任务树内容 */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="theme-panel flex-1 overflow-auto p-4">
           <TaskNode node={taskTree} depth={0} />
         </div>
       </div>

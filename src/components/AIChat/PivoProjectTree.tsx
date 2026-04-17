@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from "react";
-import { Folder, File, ChevronRight, ChevronDown, Star, Code, Eye, EyeOff } from "lucide-react";
+import { Folder, File, ChevronRight, ChevronDown, Star, Code, Eye, EyeOff, FileText } from "lucide-react";
 
 interface TreeNode {
   name: string;
@@ -27,35 +27,35 @@ const KeyFilePreview: React.FC<{ path: string; content: string }> = ({ path, con
     : content;
 
   return (
-    <div className="mt-2 bg-black/30 rounded border border-white/10 overflow-hidden">
+    <div className="mt-2 rounded border theme-border theme-code-surface overflow-hidden">
       <div
-        className="flex items-center justify-between px-3 py-1.5 bg-white/5 border-b border-white/10 cursor-pointer hover:bg-white/10 transition-colors"
+        className="flex items-center justify-between px-3 py-1.5 theme-panel-muted border-b theme-border cursor-pointer theme-hoverable"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
           <Code size={12} className="text-blue-400" />
-          <span className="text-xs text-gray-300 font-mono">{path}</span>
+          <span className="text-xs theme-text-muted font-mono">{path}</span>
         </div>
         <div className="flex items-center gap-2">
           {isTruncated && !isExpanded && (
-            <span className="text-[10px] text-gray-500">
+            <span className="text-[10px] theme-text-subtle">
               ({content.length} 字符)
             </span>
           )}
           {isTruncated ? (
             isExpanded ? (
-              <EyeOff size={12} className="text-gray-400" />
+              <EyeOff size={12} className="theme-text-subtle" />
             ) : (
-              <Eye size={12} className="text-gray-400" />
+              <Eye size={12} className="theme-text-subtle" />
             )
           ) : null}
         </div>
       </div>
-      <pre className="p-3 text-xs text-gray-400 font-mono overflow-x-auto max-h-[300px] overflow-y-auto">
+      <pre className="p-3 text-xs theme-text-muted font-mono overflow-x-auto max-h-[300px] overflow-y-auto">
         <code>
           {displayContent}
           {isTruncated && !isExpanded && (
-            <span className="text-blue-400">
+            <span className="text-blue-500">
               {"\n\n... (已截断，点击展开查看全部)"}
             </span>
           )}
@@ -80,8 +80,10 @@ const TreeItem: React.FC<{
   return (
     <div className="select-none">
       <div
-        className={`flex items-center py-1 px-2 hover:bg-white/5 rounded cursor-pointer transition-colors ${
-          isKeyFile ? "text-blue-400" : "text-gray-300"
+        className={`flex items-center py-1 px-2 rounded cursor-pointer transition-colors ${
+          'theme-soft-hover'
+        } ${
+          isKeyFile ? "text-blue-500" : "theme-text-muted"
         }`}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={() => setIsOpen(!isOpen)}
@@ -93,9 +95,9 @@ const TreeItem: React.FC<{
         </span>
         <span className="mr-2">
           {node.type === "directory" ? (
-            <Folder size={16} className="text-amber-400/80" />
+            <Folder size={16} className="text-amber-500" />
           ) : (
-            <File size={16} className="text-gray-400" />
+            <File size={16} className="theme-text-subtle" />
           )}
         </span>
         <span className="text-sm font-medium truncate">{node.name}</span>
@@ -103,7 +105,7 @@ const TreeItem: React.FC<{
       </div>
 
       {hasChildren && isOpen && (
-        <div className="border-l border-white/10 ml-[18px]">
+        <div className="border-l theme-border ml-[18px]">
           {node.children!.map((child, i) => (
             <TreeItem
               key={i}
@@ -121,7 +123,7 @@ const TreeItem: React.FC<{
         <div style={{ paddingLeft: `${level * 12 + 20}px` }} className="mt-1">
           <button
             onClick={() => setShowContentPreview(!showContentPreview)}
-            className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 rounded transition-colors"
           >
             <Code size={10} />
             <span>{showContentPreview ? "隐藏" : "预览"}关键文件内容</span>
@@ -223,10 +225,10 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
   return (
     <div className="space-y-3">
       {/* 📁 文件树部分 */}
-      <div className="bg-[#1e1e1e]/50 border border-white/10 rounded-lg p-3 font-mono max-h-[400px] overflow-y-auto custom-scrollbar">
-        <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-3 px-1 flex justify-between items-center">
+      <div className="theme-panel-muted border theme-border rounded-lg p-3 font-mono max-h-[400px] overflow-y-auto custom-scrollbar">
+        <div className="text-[10px] uppercase tracking-wider theme-text-subtle mb-3 px-1 flex justify-between items-center">
           <span>Project Topology</span>
-          <span className="text-blue-400">{keyFilesPaths.length} key files</span>
+          <span className="text-blue-500">{keyFilesPaths.length} key files</span>
         </div>
         {treeData.children?.map((node, i) => (
           <TreeItem
@@ -241,10 +243,13 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
 
       {/* 🏆 关键文件内容摘要（可折叠） */}
       {keyFilesPaths.length > 0 && (
-        <div className="bg-[#1e1e1e]/30 border border-blue-500/20 rounded-lg p-3">
-          <div className="text-[10px] uppercase tracking-wider text-blue-400 mb-2 px-1 flex justify-between items-center">
-            <span>📝 Key Files Preview</span>
-            <span className="text-gray-500">{keyFilesPaths.length} files</span>
+        <div className="theme-panel-muted border border-blue-500/20 rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wider text-blue-500 mb-2 px-1 flex justify-between items-center">
+            <span className="flex items-center gap-1.5">
+              <FileText size={12} />
+              Key Files Preview
+            </span>
+            <span className="theme-text-subtle">{keyFilesPaths.length} files</span>
           </div>
           <div className="space-y-2">
             {keyFilesPaths.slice(0, 3).map((path) => {
@@ -255,22 +260,22 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
               return (
                 <div
                   key={path}
-                  className="bg-black/20 rounded border border-white/5 p-2 hover:border-white/10 transition-colors"
+                  className="theme-code-surface rounded border theme-border p-2 hover:border-blue-500/30 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-blue-300 font-mono truncate flex-1">{path}</span>
-                    <span className="text-[10px] text-gray-500 ml-2">
+                    <span className="text-xs text-blue-500 font-mono truncate flex-1">{path}</span>
+                    <span className="text-[10px] theme-text-subtle ml-2">
                       {content.length} chars
                     </span>
                   </div>
-                  <pre className="text-[10px] text-gray-500 font-mono overflow-hidden">
+                  <pre className="text-[10px] theme-text-subtle font-mono overflow-hidden">
                     <code>{preview}{content.length > 100 ? '...' : ''}</code>
                   </pre>
                 </div>
               );
             })}
             {keyFilesPaths.length > 3 && (
-              <div className="text-center text-[10px] text-gray-500 py-1">
+              <div className="text-center text-[10px] theme-text-subtle py-1">
                 ... and {keyFilesPaths.length - 3} more key files
               </div>
             )}

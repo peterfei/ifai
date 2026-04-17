@@ -13,6 +13,7 @@ import { useHelpStore } from '../../stores/helpStore';
 import { resetTutorialCommand } from '../Onboarding/OnboardingTour';
 import { toast } from 'sonner';
 import { open } from '@tauri-apps/plugin-shell';
+import clsx from 'clsx';
 
 interface HelpMenuProps {
   className?: string;
@@ -22,6 +23,12 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerClass = clsx(
+    'theme-button-ghost flex items-center rounded px-2 py-1 text-sm'
+  );
+  const itemClass = clsx(
+    'theme-text-muted theme-hoverable flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm transition-colors'
+  );
 
   // v0.3.0: 使用全局 store 管理弹窗状态
   const { isKeyboardShortcutsOpen, closeKeyboardShortcuts, isAboutOpen, closeAbout, openKeyboardShortcuts, openAbout } = useHelpStore();
@@ -105,7 +112,7 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
   return (
     <div className={`relative ${className}`} ref={menuRef}>
       <button
-        className="flex items-center text-gray-400 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700"
+        className={triggerClass}
         onClick={handleMenuToggle}
         data-testid="help-menu-button"
       >
@@ -115,58 +122,39 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
       {isOpen && (
         <div
           role="menu"
-          className="absolute top-full right-0 mt-1 bg-gray-700 rounded shadow-lg z-50 py-1 w-56 dropdown-menu"
+          className="theme-panel-elevated theme-border theme-shadow dropdown-menu absolute top-full right-0 z-50 mt-1 w-56 rounded border py-1"
         >
-          <div
-            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
-            onClick={handleOpenShortcuts}
-          >
+          <div className={itemClass} onClick={handleOpenShortcuts}>
             <Keyboard size={14} />
             {t('help.keyboardShortcuts')}
-            <span className="ml-auto text-xs text-gray-500">?</span>
+            <span className="theme-text-subtle ml-auto text-xs">?</span>
           </div>
 
-          <div
-            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
-            onClick={handleOpenAbout}
-          >
+          <div className={itemClass} onClick={handleOpenAbout}>
             <Info size={14} />
             {t('help.about')}
           </div>
 
-          <div className="border-t border-gray-600 my-1"></div>
+          <div className="theme-divider my-1 h-px"></div>
 
-          <div
-            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
-            onClick={handleOpenDocumentation}
-          >
+          <div className={itemClass} onClick={handleOpenDocumentation}>
             <Book size={14} />
             {t('help.documentation')}
           </div>
 
-          <div
-            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
-            onClick={handleOpenGitHub}
-          >
+          <div className={itemClass} onClick={handleOpenGitHub}>
             {t('help.githubRepository')}
-            <span className="ml-auto text-xs text-gray-500">GitHub</span>
+            <span className="theme-text-subtle ml-auto text-xs">GitHub</span>
           </div>
 
-          <div
-            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
-            onClick={handleOpenIssues}
-          >
+          <div className={itemClass} onClick={handleOpenIssues}>
             {t('help.reportIssue')}
-            <span className="ml-auto text-xs text-gray-500">GitHub</span>
+            <span className="theme-text-subtle ml-auto text-xs">GitHub</span>
           </div>
 
-          <div className="border-t border-gray-600 my-1"></div>
+          <div className="theme-divider my-1 h-px"></div>
 
-          <div
-            className="px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-600 cursor-pointer flex items-center gap-2"
-            onClick={handleResetTutorial}
-            data-testid="reset-tutorial"
-          >
+          <div className={itemClass} onClick={handleResetTutorial} data-testid="reset-tutorial">
             <RotateCcw size={14} />
             {t('onboarding.resetTutorial') || '重置新手引导'}
           </div>

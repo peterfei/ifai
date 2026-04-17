@@ -112,7 +112,7 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
 
   return (
     <div className="mt-2 mb-1 px-1 animate-in fade-in slide-in-from-bottom-1 duration-500">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] theme-text-subtle">
         <div className="flex items-center gap-1.5 py-0.5 px-1.5 rounded bg-green-500/5 border border-green-500/10">
           <CheckCircle className="w-3 h-3 text-green-500/70" />
           <span className="text-green-500/80 font-medium">任务已完成</span>
@@ -146,7 +146,7 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
                   <button
                     key={idx}
                     onClick={() => onOpenFile?.(file)}
-                    className="hover:text-blue-400 hover:underline transition-colors font-mono truncate max-w-[120px]"
+                    className="font-mono truncate max-w-[120px] text-blue-500 hover:text-blue-400 hover:underline transition-colors"
                   >
                     {file.split('/').pop()}
                   </button>
@@ -162,7 +162,7 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
             <span>{info.contentLength} 字符</span>
             <button
               onClick={() => onCopyContent?.(typeof message.content === 'string' ? message.content : '')}
-              className="text-blue-500/60 hover:text-blue-400 transition-colors"
+              className="text-blue-500 hover:text-blue-400 transition-colors"
             >
               复制
             </button>

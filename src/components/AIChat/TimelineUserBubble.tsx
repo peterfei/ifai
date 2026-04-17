@@ -11,6 +11,7 @@
  */
 
 import React from 'react';
+import { User, Code2 } from 'lucide-react';
 
 interface TimelineUserBubbleProps {
   time: string;
@@ -41,10 +42,13 @@ export const TimelineUserBubble: React.FC<TimelineUserBubbleProps> = ({
     <div className="flex flex-col gap-1">
       {/* 时间标签和头像 */}
       <div className="flex items-center gap-2 px-2">
-        <span className="text-xs text-gray-500 font-mono">
+        <span className="text-xs theme-text-subtle font-mono">
           {formatTimeLabel(timestamp)}
         </span>
-        <span className="text-xs text-gray-400">👤 用户</span>
+        <span className="text-xs theme-text-muted flex items-center gap-1">
+          <User size={12} />
+          用户
+        </span>
       </div>
 
       {/* 气泡 */}
@@ -75,7 +79,7 @@ export const TimelineUserBubble: React.FC<TimelineUserBubbleProps> = ({
         {/* 代码块标识 */}
         {hasCode && (
           <div className="mt-2 flex items-center gap-1 text-xs text-blue-100">
-            <span>📂</span>
+            <Code2 size={12} />
             <span>包含代码</span>
           </div>
         )}
