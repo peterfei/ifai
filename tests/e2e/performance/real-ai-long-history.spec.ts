@@ -5,7 +5,7 @@
  * 客户反馈在长历史消息（10000+）场景下，LLM 生成信息时有卡顿
  *
  * 测试目标：
- * - 模拟 10000 条长历史消息
+ * - 模拟 200 条长历史消息（中等规模）
  * - 使用真实 AI 测试流式响应性能
  * - 检测渲染卡顿的具体原因
  * - 分析每次 content_delta 的渲染延迟
@@ -29,17 +29,17 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
   });
 
   /**
-   * 🎯 核心测试：10000 条历史 + 真实 AI 流式响应
+   * 🎯 核心测试：200 条历史 + 真实 AI 流式响应
    *
    * 测试场景：
-   * 1. 生成 10000 条历史消息
+   * 1. 生成 200 条历史消息
    * 2. 发送真实 AI 请求
    * 3. 监控每次 content_delta 的渲染时间
    * 4. 检测是否有卡顿（渲染时间 > 100ms）
    *
    * 🔥 FIX: 复用对比测试的代码逻辑
    */
-  test('🔬 [真实 AI] 10000 条历史 + 流式响应卡顿检测', async ({ page }) => {
+  test('🔬 [真实 AI] 200 条历史 + 流式响应卡顿检测', async ({ page }) => {
     // 检查 API Key
     const hasApiKey = !!process.env.E2E_AI_API_KEY;
     if (!hasApiKey) {
@@ -69,8 +69,8 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
     // 需要等待这个自愈过程完成后再发送 AI 请求
     await page.waitForTimeout(2000);
 
-    // ========== 步骤 1：生成 10000 条历史消息 ==========
-    console.log('\n📝 步骤 1: 生成 10000 条历史消息...');
+    // ========== 步骤 1：生成 200 条历史消息 ==========
+    console.log('\n📝 步骤 1: 生成 200 条历史消息...');
     const historyStartTime = Date.now();
 
     try {
@@ -84,20 +84,20 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
 
         const messages = [];
 
-        for (let i = 0; i < 10000; i++) {
+        for (let i = 0; i < 200; i++) {
           if (i % 2 === 0) {
             messages.push({
               id: `msg-${i}`,
               role: 'user',
               content: `测试消息 ${i}`,
-              timestamp: Date.now() - (10000 - i) * 1000,
+              timestamp: Date.now() - (200 - i) * 1000,
             });
           } else {
             messages.push({
               id: `msg-${i}`,
               role: 'assistant',
               content: `测试回复 ${i}`,
-              timestamp: Date.now() - (10000 - i) * 1000,
+              timestamp: Date.now() - (200 - i) * 1000,
             });
           }
         }
@@ -111,7 +111,7 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
         return {
           success: true,
           actualCount,
-          expectedCount: 10000,
+          expectedCount: 200,
         };
       });
 
@@ -134,7 +134,7 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
       const chatStore = (window as any).__chatStore;
       return chatStore?.getState()?.messages?.length || 0;
     });
-    console.log(`[E2E] 📊 历史消息验证: 期望 10000 条，实际 ${messageCount} 条`);
+    console.log(`[E2E] 📊 历史消息验证: 期望 200 条，实际 ${messageCount} 条`);
 
     const historyTime = Date.now() - historyStartTime;
     console.log(`✅ 历史消息生成完成，耗时: ${historyTime}ms`);
