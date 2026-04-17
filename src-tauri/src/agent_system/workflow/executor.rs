@@ -414,11 +414,45 @@ impl AgentNodeExecutor {
         Ok(response_text)
     }
 
-    /// 构建系统提示词
-    fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
-        let base_prompt = match node.agent_type {
-            AgentType::Explore => {
-                format!(r#"你是一个高效的代码探索智能体。你可以访问实际文件系统。
+    /// 🔥 加载 Explore Agent 的完整提示词（从 .ifai/prompts/agents/explore.md）
+    ///
+    /// 这个函数会尝试加载完整的 Explore Agent 提示词文件，
+    /// 如果加载失败则 fallback 到内置的简化提示词
+    fn load_explore_agent_prompt(project_root: &str, target_path: &str) -> String {
+        // 尝试从项目根目录加载提示词文件
+        let prompt_path = std::path::PathBuf::from(project_root)
+            .join(".ifai/prompts/agents/explore.md");
+
+        // 读取提示词文件
+        match std::fs::read_to_string(&prompt_path) {
+            Ok(content) => {
+                // 🔥 提取提示词的正文内容（跳过 YAML front matter）
+                let prompt_body = if let Some(start) = content.find("---") {
+                    if let Some(second_marker) = content[start + 3..].find("---") {
+                        &content[start + 3 + second_marker + 3..]
+                    } else {
+                        &content
+                    }
+                } else {
+                    &content
+                };
+
+                // 🔥 替换提示词中的占位符变量
+                prompt_body
+                    .replace("{PROJECT_ROOT}", project_root)
+                    .replace("{TARGET_PATH}", target_path)
+                    .to_string()
+            }
+            Err(e) => {
+                println!(
+                    "[WorkflowExecutor] ⚠️ Failed to load explore prompt from {:?}: {}",
+                    prompt_path, e
+                );
+                println!("[WorkflowExecutor] 🔄 Using fallback built-in explore prompt");
+
+                // Fallback 到内置的简化提示词
+                format!(
+                    r#"你是一个高效的代码探索智能体。你可以访问实际文件系统。
 
 **项目信息**：
 - 项目根目录：{}
@@ -426,35 +460,23 @@ impl AgentNodeExecutor {
 
 **可用工具**（按优先级排序）：
 1. `agent_scan_project(rel_path, max_depth)` - **优先使用**，一次获取完整目录结构
-   - rel_path: 要扫描的相对路径
-   - max_depth: 最大扫描深度（默认3）
-2. `agent_read_file(rel_path)` - 读取文件内容
-   - rel_path: 要读取的文件相对路径
+2. `agent_batch_read(paths)` - 批量并行读取多个文件（推荐）
+3. `agent_read_file(rel_path)` - 读取单个文件内容
+4. `grep` - 搜索文件内容
 
 **工具使用策略**（性能优化）：
 1. ✅ 第一步：使用 `agent_scan_project` 一次获取完整结构
-2. ✅ 第二步：根据结构，**批量并行读取**关键文件（如 package.json, README.md, 主要源码）
+2. ✅ 第二步：根据结构，**批量并行读取**关键文件（3-10个）
 3. ❌ 避免使用 `agent_list_dir`（scan_project 已包含完整信息）
-4. ❌ 避免多次扫描相同路径
 
-**性能提示**：
-- 工具调用是**并行的**，可以一次性发起多个 `agent_read_file` 调用
-- 例如：扫描后立即读取 3-5 个关键文件，而不是一个一个读取
-- 优先读取配置文件、入口文件、核心模块
+**核心探索策略 (PIVO)**：
+- **优先全景扫描**：始终先调用 `agent_scan_project` 获取项目全局拓扑
+- **禁止盲目爬行**：严禁在不了解全貌的情况下使用 `agent_list_dir`
+- **精准深入**：确定关键文件后，使用 `agent_batch_read` 批量读取
 
-**你的任务**（一次性完成，不要分多次）：
-1. 使用 `agent_scan_project` 扫描路径："{}"（深度建议 2-3）
-2. **在同一个响应中立即调用** `agent_read_file` 读取关键文件：
-   - 配置文件：package.json, Cargo.toml, pom.xml, build.gradle 等
-   - 文档：README.md, CONTRIBUTING.md
-   - 入口文件：index.js, main.rs, app.py 等
-   - 核心模块：lib/, src/ 下的主要文件
-3. 快速分析并输出结构化报告
-
-**⚠️ 性能关键**：
-- 必须在**第一次工具调用**时同时返回所有需要的 `agent_read_file` 调用
-- 不要先 scan 再等第二次迭代才读取文件
-- 一次性完成所有工具调用，然后输出结果
+**两阶段扫描工作流**：
+Phase 1: 使用 `agent_scan_project` 扫描路径："{}"（深度建议 2-3）
+Phase 2: 使用 `agent_batch_read` 批量读取关键文件（配置文件、入口文件、核心模块）
 
 **输出格式**（简洁实用）：
 - 📊 **项目概述**（1-2句话）
@@ -463,14 +485,21 @@ impl AgentNodeExecutor {
 - 🔑 **关键文件**（已读取的文件摘要）
 - 🏗️ **架构特点**（3-5点）
 
-**重要**：
-- 快速完成，不需要过度分析
-- 只读取真正必要的文件
-- 输出简洁明了，避免冗长"#,
-                    ctx.project_root,
-                    ctx.task_description,
-                    ctx.task_description
+快速完成，输出简洁明了，避免冗长。
+"#,
+                    project_root, target_path, target_path
                 )
+            }
+        }
+    }
+
+    /// 构建系统提示词
+    fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
+        let base_prompt = match node.agent_type {
+            // 🔥 FIX: 使用完整的 Explore Agent 提示词（从 .ifai/prompts/agents/explore.md）
+            AgentType::Explore => {
+                println!("[WorkflowExecutor] 🔍 Loading Explore Agent prompt from file...");
+                Self::load_explore_agent_prompt(&ctx.project_root, &ctx.task_description)
             }
             AgentType::Review => {
                 format!(r#"你是一个专业的代码审查智能体。
