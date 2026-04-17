@@ -2,9 +2,22 @@ import { describe, it, expect, vi } from 'vitest';
 import { setThreadMessages } from '../../../src/stores/useChatStore';
 
 // Mock 依赖
-vi.mock('../../../src/stores/persistence/threadPersistence', () => ({
-    autoSaveThread: vi.fn()
-}));
+// 🔥 FIX: 使用 vi.importActual 保留原始模块，避免动态导入失败
+vi.mock('../../../src/stores/persistence/threadPersistence', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        threadPersistence: {
+            init: vi.fn(),
+            restoreFromStorage: vi.fn(),
+            saveThreadMessages: vi.fn().mockResolvedValue(undefined),
+            queueAutoSave: vi.fn(),
+            exportToJSON: vi.fn(),
+        },
+        autoSaveThread: vi.fn(),
+        initThreadPersistence: vi.fn().mockResolvedValue(undefined),
+    };
+});
 
 vi.mock('../../../src/stores/threadStore', () => ({
     useThreadStore: {

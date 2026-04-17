@@ -139,6 +139,10 @@ export async function setupE2ETestEnvironment(
     window.__E2E_SKIP_STABILIZER__ = true;
     window.__E2E_REAL_AI_CONFIG__ = params;
 
+    // 🔥 FIX: 禁用骨架屏引擎，避免 E2E 测试中元素被隐藏
+    // 骨架屏在 initial/loading 状态时会隐藏 chat-scroll-container
+    window.__ENABLE_SKELETON_ENGINE__ = false;
+
     const setupE2EHelpers = () => {
       if (window.__E2E_HELPERS_INSTALLED__) return;
       window.__E2E_HELPERS_INSTALLED__ = true;
