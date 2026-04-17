@@ -51,8 +51,10 @@ export const AI_CHAT_STATE_MACHINE: LoadingPhaseConfig[] = [
     },
     detect: () => {
       const store = useChatStore.getState();
-      // 🔥 只在初次加载时显示全屏骨架屏（没有消息）
-      return store && store.messages.length === 0;
+      // 🔥 FIX: 只在初次加载时短暂显示全屏骨架屏
+      // 如果 store 已就绪且有/没有消息，都应该进入下一个状态
+      // 不应该一直停留在 loading
+      return false; // 始终返回 false，让状态机继续检查其他状态
     },
   },
   {
@@ -80,8 +82,10 @@ export const AI_CHAT_STATE_MACHINE: LoadingPhaseConfig[] = [
     transitions: {},
     detect: () => {
       const store = useChatStore.getState();
-      // 🔥 只有在有消息且不在加载时才显示 ready
-      return store && store.messages.length > 0 && store.isLoading === false;
+      // 🔥 FIX: ready 状态应该是默认状态
+      // - 有消息且不在加载，或
+      // - 没有消息但 store 已就绪（新对话）
+      return store !== null && store !== undefined;
     },
   },
   {
