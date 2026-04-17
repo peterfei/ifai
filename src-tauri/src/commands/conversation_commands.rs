@@ -275,3 +275,132 @@ pub async fn save_conversation_archive(
 
     Ok(file_path.to_string_lossy().to_string())
 }
+
+/**
+ * 加载对话归档详细内容
+ *
+ * @param project_root - 项目根目录
+ * @param archive_id - 归档 ID（文件名，不含扩展名）
+ * @returns 归档详细内容
+ */
+#[tauri::command]
+pub async fn load_conversation_archive(
+    project_root: String,
+    archive_id: String,
+) -> Result<ConversationArchiveDetail, String> {
+    let archive_dir = PathBuf::from(&project_root)
+        .join(".ifai")
+        .join("sessions")
+        .join("archive");
+
+    // 支持 JSON 和 Markdown 格式
+    let json_path = archive_dir.join(format!("{}.json", &archive_id));
+    let md_path = archive_dir.join(format!("{}.md", &archive_id));
+
+    // 优先读取 JSON 格式（结构化数据）
+    let archive_path = if json_path.exists() {
+        json_path
+    } else if md_path.exists() {
+        // Markdown 格式需要解析
+        return parse_markdown_archive(&md_path).await;
+    } else {
+        return Err(format!("Archive not found: {}", archive_id));
+    };
+
+    // 读取 JSON 文件
+    let content = fs::read_to_string(&archive_path)
+        .map_err(|e| format!("Failed to read archive file: {}", e))?;
+
+    // 解析 JSON
+    let value: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse archive JSON: {}", e))?;
+
+    // 提取元数据
+    let timestamp = value.get("timestamp")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+
+    let summary = value.get("summary")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let messages: Vec<Message> = serde_json::from_value(
+        value.get("messages").cloned().unwrap_or(serde_json::json!([]))
+    ).map_err(|e| format!("Failed to parse messages: {}", e))?;
+
+    let metadata = value.get("metadata").cloned();
+
+    // 获取文件大小
+    let file_size = fs::metadata(&archive_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    Ok(ConversationArchiveDetail {
+        id: archive_id,
+        timestamp,
+        message_count: messages.len(),
+        token_count: token_counter::count_messages_tokens(&messages),
+        summary_preview: summary.chars().take(100).collect(),
+        file_path: Some(archive_path.to_string_lossy().to_string()),
+        format: Some("json".to_string()),
+        size: Some(file_size as usize),
+        summary,
+        messages,
+        metadata,
+    })
+}
+
+/**
+ * 解析 Markdown 格式的归档
+ */
+async fn parse_markdown_archive(md_path: &PathBuf) -> Result<ConversationArchiveDetail, String> {
+    let content = fs::read_to_string(md_path)
+        .map_err(|e| format!("Failed to read markdown archive: {}", e))?;
+
+    // 简单解析 Markdown（提取基本信息）
+    let lines: Vec<&str> = content.lines().collect();
+
+    let summary = lines.iter()
+        .find(|l| l.starts_with("**Summary:**"))
+        .map(|l| l.replace("**Summary:**", "").trim().to_string())
+        .unwrap_or_default();
+
+    // TODO: 完整解析 Markdown 格式
+    // 目前返回基础信息，完整解析需要更复杂的逻辑
+
+    Ok(ConversationArchiveDetail {
+        id: md_path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        timestamp: 0,
+        message_count: 0,
+        token_count: 0,
+        summary_preview: summary.chars().take(100).collect(),
+        file_path: Some(md_path.to_string_lossy().to_string()),
+        format: Some("markdown".to_string()),
+        size: Some(fs::metadata(md_path).map(|m| m.len() as usize).unwrap_or(0)),
+        summary,
+        messages: vec![],
+        metadata: None,
+    })
+}
+
+/**
+ * 对话归档详细内容（返回给前端）
+ */
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ConversationArchiveDetail {
+    pub id: String,
+    pub timestamp: i64,
+    pub message_count: usize,
+    pub token_count: usize,
+    pub summary_preview: String,
+    pub file_path: Option<String>,
+    pub format: Option<String>,
+    pub size: Option<usize>,
+    pub summary: String,
+    pub messages: Vec<Message>,
+    pub metadata: Option<serde_json::Value>,
+}

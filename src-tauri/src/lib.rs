@@ -1840,6 +1840,8 @@ pub fn run() {
             // ⚠️  [DEPRECATED] 已废弃：使用前端多格式归档引擎替代 (f357f2f)
             // 此命令将在未来版本中移除
             commands::conversation_commands::save_conversation_archive,
+            // 归档浏览和恢复
+            commands::conversation_commands::load_conversation_archive,
             // P5: 会话笔记系统
             commands::session_notes_commands::create_session_notes,
             commands::session_notes_commands::extract_notes_from_messages,
