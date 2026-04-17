@@ -200,7 +200,8 @@ impl AgentPromptLoader {
             api_key: String::new(),
             base_url: String::new(),
             models: Vec::new(),
-            protocol: crate::core_traits::ai::AIProtocol::Openai,
+            protocol: crate::core_traits::ai::AIProtocol::OpenAI,
+            enabled: false,
         }
     }
 }
