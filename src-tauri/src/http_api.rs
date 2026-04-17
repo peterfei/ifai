@@ -10,6 +10,8 @@
  * - POST /api/health - 健康检查
  * - POST /api/workflow/execute - 执行工作流（调用真实后端逻辑）
  * - GET /api/workflow/progress - SSE progress 事件流
+ * - POST /api/ai/chat - AI 聊天（非流式）
+ * - GET /api/ai/chat/stream - AI 聊天（SSE 流式）
  */
 
 use axum::{
@@ -21,12 +23,15 @@ use axum::{
 };
 use futures::stream::{self, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
+use uuid::Uuid;
 
 use crate::agent_system::workflow::{types::Workflow, runner::{WorkflowRunner, PlannedNode}};
+use crate::core_traits::ai::{AIService, Message as CoreMessage, Content as CoreContent, AIProviderConfig as CoreAIProviderConfig};
 
 /// HTTP API 响应
 #[derive(Debug, Serialize)]
@@ -72,6 +77,75 @@ pub struct ExecuteWorkflowResponse {
     pub status: String,
 }
 
+/// AI Chat 的 HTTP API 请求
+#[derive(Debug, Deserialize)]
+pub struct AIChatRequest {
+    pub messages: Vec<AIChatMessage>,
+    pub provider_config: AIProviderConfig,
+    pub model: String,
+    pub project_root: Option<String>,
+    pub enable_tools: Option<bool>,
+    pub stream: Option<bool>,  // 是否使用流式输出（默认 false）
+}
+
+/// AI Chat 消息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIChatMessage {
+    pub role: String,  // "user", "assistant", "system"
+    pub content: String,
+    pub tool_calls: Option<Vec<AIToolCall>>,
+    pub tool_call_id: Option<String>,
+}
+
+/// AI Tool Call
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIToolCall {
+    pub id: String,
+    pub r#type: String,  // "function"
+    pub function: AIToolCallFunction,
+}
+
+/// AI Tool Call Function
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIToolCallFunction {
+    pub name: String,
+    pub arguments: String,
+}
+
+/// AI Provider Config
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIProviderConfig {
+    pub name: String,
+    pub api_key: String,
+    pub base_url: String,
+}
+
+/// AI Chat 的 HTTP API 响应（非流式）
+#[derive(Debug, Serialize)]
+pub struct AIChatResponse {
+    pub content: String,
+    pub role: String,
+    pub finish_reason: Option<String>,
+    pub tool_calls: Option<Vec<AIToolCall>>,
+}
+
+/// AI Chat 流式事件（SSE）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIChatStreamEvent {
+    pub event_type: String,  // "content_delta", "tool_call", "error", "done"
+    pub content_delta: Option<String>,
+    pub tool_call: Option<AIToolCall>,
+    pub error: Option<AIStreamError>,
+    pub finish_reason: Option<String>,
+}
+
+/// AI Stream Error
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIStreamError {
+    pub code: String,
+    pub message: String,
+}
+
 /// 🔥 使用 workflow::runner::PlannedNode，避免重复定义
 /// use crate::agent_system::workflow::runner::PlannedNode;
 
@@ -96,6 +170,10 @@ pub struct WorkflowProgressEvent {
 #[derive(Clone)]
 pub struct HttpApiState {
     pub progress_sender: broadcast::Sender<WorkflowProgressEvent>,
+    /// AI chat 事件的 broadcast channel（每个请求会创建一个唯一的 channel）
+    pub ai_chat_senders: Arc<tokio::sync::Mutex<HashMap<String, broadcast::Sender<AIChatStreamEvent>>>>,
+    /// AI 服务（用于实际的 AI chat 调用）
+    pub ai_service: Option<Arc<dyn crate::core_traits::ai::AIService>>,
 }
 
 /// 创建 HTTP API 路由
@@ -104,6 +182,8 @@ fn create_routes(state: HttpApiState) -> Router {
         .route("/api/workflow/execute", post(execute_workflow_http))
         .route("/api/workflow/progress", get(progress_stream))
         .route("/api/health", post(health_check))
+        .route("/api/ai/chat", post(ai_chat_http))
+        .route("/api/ai/chat/stream", post(ai_chat_stream_http))
         .with_state(state)
         .layer(
             CorsLayer::new()
@@ -456,10 +536,236 @@ fn create_workflow_from_request(req: &ExecuteWorkflowRequest) -> Result<Workflow
     Ok(workflow.clone())
 }
 
+/// ============================================================================
+/// AI Chat HTTP API 端点
+/// ============================================================================
+
+/// AI Chat 非流式端点
+async fn ai_chat_http(
+    State(state): State<HttpApiState>,
+    Json(req): Json<AIChatRequest>,
+) -> Result<Json<ApiResponse<AIChatResponse>>, (StatusCode, String)> {
+    println!("[HttpAPI] 📨 Received AI chat request (non-streaming)");
+    println!("  model: {}", req.model);
+    println!("  message count: {}", req.messages.len());
+    println!("  enable_tools: {:?}", req.enable_tools);
+
+    // 🔥 TODO: 实现非流式 AI chat
+    // 这需要调用实际的 AI 服务
+    // 暂时返回未实现错误
+    Err((
+        StatusCode::NOT_IMPLEMENTED,
+        "Non-streaming AI chat not yet implemented. Please use /api/ai/chat/stream for streaming responses.".to_string()
+    ))
+}
+
+/// AI Chat 流式端点（SSE）
+async fn ai_chat_stream_http(
+    State(state): State<HttpApiState>,
+    Json(req): Json<AIChatRequest>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, (StatusCode, String)> {
+    println!("[HttpAPI] 📨 Received AI chat request (streaming)");
+    println!("  model: {}", req.model);
+    println!("  message count: {}", req.messages.len());
+    println!("  enable_tools: {:?}", req.enable_tools);
+
+    // 检查是否有 AI 服务
+    let ai_service = state.ai_service.as_ref().ok_or_else(|| {
+        (StatusCode::SERVICE_UNAVAILABLE, "AI service not available".to_string())
+    })?.clone();
+
+    // 生成唯一的 chat_id
+    let chat_id = format!("chat_{}", Uuid::new_v4());
+
+    // 创建 broadcast channel 用于此 chat 会话
+    let (sender, _receiver) = broadcast::channel(100);
+
+    // 注册 sender 到全局状态
+    {
+        let mut senders = state.ai_chat_senders.lock().await;
+        senders.insert(chat_id.clone(), sender.clone());
+    }
+
+    // 🔥 转换请求格式：HTTP -> AI Service
+    let core_messages: Vec<CoreMessage> = req.messages.into_iter().map(|msg| {
+        let content = CoreContent::Text(msg.content);
+        CoreMessage {
+            role: msg.role,
+            content,
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }).collect();
+
+    use crate::core_traits::ai::AIProtocol;
+
+    let core_provider_config = CoreAIProviderConfig {
+        id: String::new(),
+        name: req.provider_config.name,
+        api_key: req.provider_config.api_key,
+        base_url: req.provider_config.base_url,
+        models: vec![req.model.clone()],
+        protocol: AIProtocol::OpenAI,  // 默认使用 OpenAI 协议
+        enabled: true,
+    };
+
+    // 创建工具列表（如果启用）
+    let tools = if req.enable_tools.unwrap_or(false) {
+        // TODO: 从工具注册表获取工具定义
+        Some(vec![])
+    } else {
+        None
+    };
+
+    // 🔥 真实的 AI chat 调用
+    let sender_clone = sender.clone();
+    let state_clone = state.clone();
+    let chat_id_for_spawn = chat_id.clone();
+
+    // 创建 callback 来接收 AI 服务的事件
+    let callback = move |event_json: String| {
+        println!("[HttpAPI] 📨 Received AI event: {}", event_json);
+
+        // 解析 AI 服务的事件
+        if let Ok(event_value) = serde_json::from_str::<serde_json::Value>(&event_json) {
+            // 转换为 SSE 事件
+            let stream_event = if let Some(choices) = event_value.get("choices").and_then(|c| c.as_array()) {
+                if let Some(first_choice) = choices.first() {
+                    if let Some(delta) = first_choice.get("delta") {
+                        // 内容增量事件
+                        if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+                            AIChatStreamEvent {
+                                event_type: "content_delta".to_string(),
+                                content_delta: Some(content.to_string()),
+                                tool_call: None,
+                                error: None,
+                                finish_reason: None,
+                            }
+                        } else {
+                            return;  // 忽略空内容
+                        }
+                    } else if first_choice.get("finish_reason").is_some() {
+                        // 完成事件
+                        AIChatStreamEvent {
+                            event_type: "done".to_string(),
+                            content_delta: None,
+                            tool_call: None,
+                            error: None,
+                            finish_reason: first_choice.get("finish_reason").and_then(|f| f.as_str()).map(|s| s.to_string()),
+                        }
+                    } else {
+                        return;  // 忽略未知事件
+                    }
+                } else {
+                    return;  // 忽略空 choices
+                }
+            } else if let Some(_error) = event_value.get("error") {
+                // 错误事件
+                AIChatStreamEvent {
+                    event_type: "error".to_string(),
+                    content_delta: None,
+                    tool_call: None,
+                    error: Some(AIStreamError {
+                        code: "AI_ERROR".to_string(),
+                        message: event_value.to_string(),
+                    }),
+                    finish_reason: None,
+                }
+            } else {
+                // 忽略其他事件
+                return;
+            };
+
+            // 发送 SSE 事件
+            let _ = sender_clone.send(stream_event);
+        }
+    };
+
+    // 在后台任务中调用 AI 服务
+    tokio::spawn(async move {
+        println!("[HttpAPI] 🚀 Calling AI service for chat: {}", chat_id_for_spawn);
+
+        // 调用 AI 服务
+        let result = ai_service.stream_chat(
+            &core_provider_config,
+            core_messages,
+            &chat_id_for_spawn,
+            tools,
+            Box::new(callback),
+        ).await;
+
+        // 处理结果
+        match result {
+            Ok(_) => {
+                println!("[HttpAPI] ✅ AI chat completed: {}", chat_id_for_spawn);
+            }
+            Err(e) => {
+                eprintln!("[HttpAPI] ❌ AI chat failed: {} - {}", chat_id_for_spawn, e);
+
+                // 发送错误事件
+                let error_event = AIChatStreamEvent {
+                    event_type: "error".to_string(),
+                    content_delta: None,
+                    tool_call: None,
+                    error: Some(AIStreamError {
+                        code: "AI_SERVICE_ERROR".to_string(),
+                        message: e,
+                    }),
+                    finish_reason: None,
+                };
+
+                let senders = state_clone.ai_chat_senders.lock().await;
+                if let Some(sender) = senders.get(&chat_id_for_spawn) {
+                    let _ = sender.send(error_event);
+                }
+            }
+        }
+
+        // 清理：完成后移除 sender
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;  // 等待最后的消息被发送
+        let mut senders = state_clone.ai_chat_senders.lock().await;
+        senders.remove(&chat_id_for_spawn);
+    });
+
+    // 创建 SSE 流
+    let sender_for_stream = {
+        let senders = state.ai_chat_senders.lock().await;
+        senders.get(&chat_id).cloned()
+    };
+
+    if let Some(sender) = sender_for_stream {
+        let rx = sender.subscribe();
+        let stream = stream::unfold(rx, |mut rx| async move {
+            match rx.recv().await {
+                Ok(event) => {
+                    let json = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
+                    let sse_event = Event::default()
+                        .json_data(&json)
+                        .unwrap_or_else(|_| Event::default().data(json));
+                    Some((Ok(sse_event), rx))
+                }
+                Err(_) => {
+                    // Channel closed, end stream
+                    None
+                }
+            }
+        });
+
+        Ok(Sse::new(stream).keep_alive(
+            axum::response::sse::KeepAlive::new()
+                .interval(std::time::Duration::from_secs(1))
+                .text("keepalive"),
+        ))
+    } else {
+        Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to create chat session".to_string()))
+    }
+}
+
 /// HTTP API 服务器
 pub struct HttpApiServer {
     port: u16,
     handle: Option<tokio::task::JoinHandle<()>>,
+    ai_service: Option<Arc<dyn crate::core_traits::ai::AIService>>,
 }
 
 impl HttpApiServer {
@@ -468,6 +774,7 @@ impl HttpApiServer {
         Self {
             port,
             handle: None,
+            ai_service: None,
         }
     }
 
@@ -481,13 +788,24 @@ impl HttpApiServer {
         Self::new(port)
     }
 
+    /// 设置 AI 服务
+    pub fn with_ai_service(mut self, ai_service: Arc<dyn crate::core_traits::ai::AIService>) -> Self {
+        self.ai_service = Some(ai_service);
+        self
+    }
+
     /// 启动 HTTP API 服务器
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // 创建 broadcast channel 用于分发 progress 事件
         let (progress_sender, _receiver) = broadcast::channel(100);
 
+        // 创建 AI chat senders 映射
+        let ai_chat_senders = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
         let state = HttpApiState {
             progress_sender,
+            ai_chat_senders,
+            ai_service: self.ai_service.clone(),
         };
 
         let app = create_routes(state);
@@ -501,6 +819,8 @@ impl HttpApiServer {
         println!("[HttpAPI]   - POST http://localhost:{}/api/workflow/execute", self.port);
         println!("[HttpAPI]   - GET  http://localhost:{}/api/workflow/progress (SSE)", self.port);
         println!("[HttpAPI]   - POST http://localhost:{}/api/health", self.port);
+        println!("[HttpAPI]   - POST http://localhost:{}/api/ai/chat", self.port);
+        println!("[HttpAPI]   - POST http://localhost:{}/api/ai/chat/stream (SSE)", self.port);
 
         // 保存服务器句柄
         let handle = tokio::spawn(async move {

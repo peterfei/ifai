@@ -143,6 +143,12 @@ export class SkeletonEngine {
    * @internal
    */
   private getVisibility(): boolean {
+    // 🔥 FIX: 如果引擎被禁用，永远不显示骨架屏
+    // 这修复了 E2E 测试中骨架屏一直显示的问题
+    if (!this.options.enabled) {
+      return false;
+    }
+
     const phase = this.stateMachine.getCurrentPhase();
     // 🔥 关键：streaming 阶段不显示 overlay（由 AIChat 直接渲染单消息气泡骨架屏）
     return phase === 'initial' || phase === 'loading';
@@ -212,6 +218,18 @@ export function useSkeletonEngine(config: SkeletonConfig, options?: SkeletonEngi
 
   // 🔥 优化：立即更新可见性状态
   const updateVisibility = useCallback(() => {
+    // 🔥 FIX: 如果引擎被禁用，永远不显示骨架屏
+    if (!options?.enabled) {
+      if (isVisibleRef.current) {
+        isVisibleRef.current = false;
+        setIsVisible(false);
+        if (options?.debug) {
+          console.log(`[SkeletonEngine] Skeleton engine disabled, hiding overlay`);
+        }
+      }
+      return;
+    }
+
     const phase = engine.getCurrentPhase();
     // 🔥 关键：streaming 阶段不显示 overlay（由 AIChat 直接渲染单消息气泡骨架屏）
     const visible = phase === 'initial' || phase === 'loading';

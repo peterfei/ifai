@@ -1570,7 +1570,7 @@ pub fn run() {
         };
         
         app.manage(AppState {
-            ai_service: ai,
+            ai_service: ai.clone(),
             rag_service: rag,
             agent_service: agent,
             task_store: crate::harness::task::TaskStore::new(),
@@ -1628,9 +1628,13 @@ pub fn run() {
             if std::env::var("ENABLE_HTTP_API").ok().as_deref() == Some("true") {
                 println!("[HttpAPI] 🔥 HTTP API enabled via ENABLE_HTTP_API=true");
 
+                // 获取 ai_service 的克隆
+                let ai_service_clone = ai.clone();
+
                 async_runtime::spawn(async move {
                     println!("[HttpAPI] 🚀 About to create HTTP API server...");
-                    let mut http_server = crate::http_api::HttpApiServer::from_env();
+                    let mut http_server = crate::http_api::HttpApiServer::from_env()
+                        .with_ai_service(ai_service_clone);
                     println!("[HttpAPI] ✅ HTTP API server created");
 
                     println!("[HttpAPI] ⚠️ HTTP API server starting in background...");

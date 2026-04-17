@@ -139,6 +139,10 @@ export async function setupE2ETestEnvironment(
     window.__E2E_SKIP_STABILIZER__ = true;
     window.__E2E_REAL_AI_CONFIG__ = params;
 
+    // 🔥 FIX: E2E 测试环境启用所有日志，以便捕获性能监控数据
+    // 设置标志，让 logger.ts 检测到测试环境
+    window.__E2E_ENABLE_ALL_LOGS__ = true;
+
     // 🔥 FIX: 禁用骨架屏引擎，避免 E2E 测试中元素被隐藏
     // 骨架屏在 initial/loading 状态时会隐藏 chat-scroll-container
     window.__ENABLE_SKELETON_ENGINE__ = false;
