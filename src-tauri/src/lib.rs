@@ -1765,6 +1765,7 @@ pub fn run() {
             commands::task_commands::load_task_breakdown,
             commands::task_commands::list_task_breakdowns,
             commands::task_commands::delete_task_breakdown,
+            commands::task_commands::append_task_breakdown_to_proposal,  // 🔥 Phase 1: 任务输出到提案
             // v0.2.6 新增：OpenSpec 集成
             openspec::detector::detect_openspec_cli,
             commands::proposal_commands::save_proposal,
