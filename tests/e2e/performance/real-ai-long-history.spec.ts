@@ -400,7 +400,9 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
       return;
     }
 
-    const historySizes = [100, 500, 1000, 5000, 10000];
+    // 🔥 FIX: 使用奇数长度，确保最后一条历史消息是 user（不是 assistant）
+    // 否则 waitForFunction 会立即匹配到最后一条 assistant 历史消息
+    const historySizes = [101, 501, 1001, 5001, 10001];
     const results: any[] = [];
 
     for (const size of historySizes) {
@@ -476,11 +478,17 @@ test.describe('🔬 长历史真实 AI 性能测试', () => {
         let interrupted = false;
 
         try {
+          // 🔥 FIX: 增加 content 非空检查，防止匹配到历史消息中的空 assistant 消息
+          // 同时检查 status === 'completed' 确保是完整的 AI 响应
           await page.waitForFunction(() => {
             const chatStore = (window as any).__chatStore;
             const messages = chatStore?.getState()?.messages || [];
             const lastMessage = messages[messages.length - 1];
-            return lastMessage && lastMessage.role === 'assistant' && !lastMessage.isStreaming;
+            return lastMessage &&
+                   lastMessage.role === 'assistant' &&
+                   !lastMessage.isStreaming &&
+                   lastMessage.content &&
+                   lastMessage.content.length > 0;
           }, { timeout: 60000 });
           completed = true;
         } catch (error) {
