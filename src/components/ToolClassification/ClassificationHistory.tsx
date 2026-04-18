@@ -9,6 +9,8 @@ import { useHistoryItems, useClassificationStats, useToolClassificationStore } f
 import ClassificationBadge from './ClassificationBadge';
 import type { ToolCategory, ClassificationLayer, ClassificationHistoryItem } from '@/types/toolClassification';
 import { getToolCategoryDisplayInfo, getLayerDisplayInfo } from '@/types/toolClassification';
+import { useTranslation } from 'react-i18next';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 
 /**
  * 历史记录项组件
@@ -23,9 +25,10 @@ interface HistoryItemProps {
 }
 
 const HistoryItem: React.FC<HistoryItemProps> = ({ item, onDelete, onClick }) => {
+  const { t } = useTranslation();
   const categoryInfo = getToolCategoryDisplayInfo(item.result.category);
   const layerInfo = getLayerDisplayInfo(item.result.layer);
-  const timeAgo = getTimeAgo(item.timestamp);
+  const timeAgo = getTimeAgo(item.timestamp, t);
 
   return (
     <div
@@ -50,8 +53,8 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ item, onDelete, onClick }) =>
               e.stopPropagation();
               onDelete(item.id);
             }}
-            className="theme-button-ghost opacity-0 transition-opacity group-hover:opacity-100 p-1 hover:text-red-500"
-            title="删除"
+            className="theme-button-ghost theme-focus-ring-accent opacity-0 p-1 transition-opacity group-hover:opacity-100 hover:text-[var(--danger-color)]"
+            title={t('common.delete')}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -76,13 +79,13 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ item, onDelete, onClick }) =>
 /**
  * 获取相对时间
  */
-function getTimeAgo(timestamp: number): string {
+function getTimeAgo(timestamp: number, t: (key: string, options?: Record<string, unknown>) => string): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
-  if (seconds < 60) return `${seconds}秒前`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟前`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}小时前`;
-  return `${Math.floor(seconds / 86400)}天前`;
+  if (seconds < 60) return t('toolClassificationHistory.secondsAgo', { count: seconds });
+  if (seconds < 3600) return t('toolClassificationHistory.minutesAgo', { count: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('toolClassificationHistory.hoursAgo', { count: Math.floor(seconds / 3600) });
+  return t('toolClassificationHistory.daysAgo', { count: Math.floor(seconds / 86400) });
 }
 
 /**
@@ -102,6 +105,7 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
   className = '',
   onItemClick,
 }) => {
+  const { t } = useTranslation();
   const history = useHistoryItems();
   const { removeHistoryItem, clearHistory } = useToolClassificationStore();
   const stats = useClassificationStats();
@@ -109,6 +113,7 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
   // 筛选状态
   const [categoryFilter, setCategoryFilter] = useState<ToolCategory | 'all'>('all');
   const [layerFilter, setLayerFilter] = useState<ClassificationLayer | 'all'>('all');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // 过滤后的历史记录
   const filteredHistory = useMemo(() => {
@@ -128,17 +133,30 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
   if (history.length === 0) {
     return (
       <div className={`text-center py-8 ${className}`}>
-        <p className="theme-text-subtle">暂无分类历史</p>
+        <p className="theme-text-subtle">{t('toolClassificationHistory.empty')}</p>
       </div>
     );
   }
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
+      <ConfirmDialog
+        open={showClearConfirm}
+        title={t('toolClassificationHistory.clear')}
+        description={t('toolClassificationHistory.clearConfirm')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        tone="danger"
+        onCancel={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+          clearHistory();
+          setShowClearConfirm(false);
+        }}
+      />
       {/* 统计信息和筛选器 */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="theme-text-muted text-sm">
-          共 <span className="font-semibold">{stats.totalCount}</span> 条记录
+          {t('toolClassificationHistory.total', { count: stats.totalCount })}
         </div>
 
         <div className="flex gap-2">
@@ -148,14 +166,14 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
             onChange={(e) => setCategoryFilter(e.target.value as ToolCategory | 'all')}
             className="theme-input-surface theme-border theme-text rounded border px-2 py-1 text-sm"
           >
-            <option value="all">所有类别</option>
-            <option value="file_operations">文件操作</option>
-            <option value="code_generation">代码生成</option>
-            <option value="code_analysis">代码分析</option>
-            <option value="terminal_commands">终端命令</option>
-            <option value="ai_chat">AI 对话</option>
-            <option value="search_operations">搜索操作</option>
-            <option value="no_tool_needed">无需工具</option>
+            <option value="all">{t('toolClassificationHistory.categories.all')}</option>
+            <option value="file_operations">{t('toolClassificationHistory.categories.fileOperations')}</option>
+            <option value="code_generation">{t('toolClassificationHistory.categories.codeGeneration')}</option>
+            <option value="code_analysis">{t('toolClassificationHistory.categories.codeAnalysis')}</option>
+            <option value="terminal_commands">{t('toolClassificationHistory.categories.terminalCommands')}</option>
+            <option value="ai_chat">{t('toolClassificationHistory.categories.aiChat')}</option>
+            <option value="search_operations">{t('toolClassificationHistory.categories.searchOperations')}</option>
+            <option value="no_tool_needed">{t('toolClassificationHistory.categories.noToolNeeded')}</option>
           </select>
 
           {/* 层级筛选 */}
@@ -164,10 +182,10 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
             onChange={(e) => setLayerFilter(e.target.value as ClassificationLayer | 'all')}
             className="theme-input-surface theme-border theme-text rounded border px-2 py-1 text-sm"
           >
-            <option value="all">所有层级</option>
-            <option value="layer1">Layer 1 (精确匹配)</option>
-            <option value="layer2">Layer 2 (规则分类)</option>
-            <option value="layer3">Layer 3 (LLM 分类)</option>
+            <option value="all">{t('toolClassificationHistory.layers.all')}</option>
+            <option value="layer1">{t('toolClassificationHistory.layers.layer1')}</option>
+            <option value="layer2">{t('toolClassificationHistory.layers.layer2')}</option>
+            <option value="layer3">{t('toolClassificationHistory.layers.layer3')}</option>
           </select>
         </div>
       </div>
@@ -187,14 +205,10 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
       {/* 清空按钮 */}
       {history.length > 0 && (
         <button
-          onClick={() => {
-            if (confirm('确定要清空所有历史记录吗？')) {
-              clearHistory();
-            }
-          }}
-          className="rounded px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
+          onClick={() => setShowClearConfirm(true)}
+          className="theme-focus-ring-accent rounded px-3 py-2 text-sm text-[var(--danger-color)] transition-colors hover:bg-[var(--danger-soft-bg)]"
         >
-          清空历史
+          {t('toolClassificationHistory.clear')}
         </button>
       )}
     </div>

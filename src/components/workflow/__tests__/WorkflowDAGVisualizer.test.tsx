@@ -118,9 +118,9 @@ describe('WorkflowDAGVisualizer - 基础渲染', () => {
     expect(completedNode).toBeInTheDocument();
     expect(completedNode?.className).toContain('completed');
 
-    // 验证节点包含状态图标符号（极简设计使用字母而非 emoji）
-    expect(runningNode?.textContent).toContain('R'); // 运行中符号
-    expect(completedNode?.textContent).toContain('C'); // 完成符号
+    // 验证节点包含状态符号（极简设计使用通用符号而非英文缩写）
+    expect(runningNode?.textContent).toContain('↻'); // 运行中符号
+    expect(completedNode?.textContent).toContain('✓'); // 完成符号
   });
 
   it('应该处理空节点数组', () => {

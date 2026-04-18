@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Activity, Clock, TrendingUp, AlertCircle, X, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useToolClassificationStore, useClassificationStats } from '@/stores/toolClassificationStore';
 import ClassificationHistory from './ClassificationHistory';
 
@@ -26,6 +27,19 @@ interface StatsCardProps {
   trend?: number; // 正数=上升，负数=下降
 }
 
+const STAT_COLORS = {
+  totalCalls: 'var(--info-color)',
+  accuracy: 'var(--success-color)',
+  latency: 'var(--warning-color)',
+  errors: 'var(--danger-color)',
+} as const;
+
+const LAYER_DOT_COLORS = {
+  layer1: 'var(--success-color)',
+  layer2: 'var(--info-color)',
+  layer3: 'var(--accent-color)',
+} as const;
+
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, unit, icon, color, trend }) => (
   <div className="theme-panel-muted theme-border rounded-lg border p-4">
     <div className="flex items-center justify-between mb-2">
@@ -38,7 +52,7 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, unit, icon, color, 
       <span className="theme-text text-2xl font-bold">{value}</span>
       {unit && <span className="theme-text-subtle text-xs">{unit}</span>}
       {trend !== undefined && (
-        <span className={`text-xs ${trend >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <span className={`text-xs ${trend >= 0 ? 'theme-text-success' : 'theme-text-danger'}`}>
           {trend >= 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
         </span>
       )}
@@ -47,6 +61,7 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, unit, icon, color, 
 );
 
 export const ToolClassificationMonitor: React.FC = () => {
+  const { t } = useTranslation();
   const stats = useClassificationStats();
   const history = useToolClassificationStore(state => state.history);
   const [errorLogs, setErrorLogs] = useState<ErrorLog[]>([]);
@@ -61,11 +76,13 @@ export const ToolClassificationMonitor: React.FC = () => {
         id: item.id,
         timestamp: item.timestamp,
         input: item.input,
-        error: `低置信度 (${(item.result.confidence * 100).toFixed(0)}%)`,
+        error: t('toolClassificationMonitor.lowConfidence', {
+          confidence: (item.result.confidence * 100).toFixed(0),
+        }),
         layer: item.result.layer,
       }));
     setErrorLogs(errors);
-  }, [history]);
+  }, [history, t]);
 
   // 计算平均延迟
   const avgLatency = history.length > 0
@@ -97,14 +114,14 @@ export const ToolClassificationMonitor: React.FC = () => {
       {/* 头部 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-blue-400" />
-          <h3 className="theme-text text-lg font-semibold">工具分类监控</h3>
+          <Activity className="theme-text-info w-5 h-5" />
+          <h3 className="theme-text text-lg font-semibold">{t('toolClassificationMonitor.title')}</h3>
         </div>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
           className="theme-button-ghost rounded-lg p-2 transition-colors"
-          title="刷新数据"
+          title={t('toolClassificationMonitor.refresh')}
         >
           <RefreshCw className={`theme-text-subtle w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
@@ -113,41 +130,41 @@ export const ToolClassificationMonitor: React.FC = () => {
       {/* 统计卡片 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatsCard
-          title="总调用次数"
+          title={t('toolClassificationMonitor.totalCalls')}
           value={stats.totalCount}
           icon={<Activity className="w-4 h-4" />}
-          color="#3b82f6"
+          color={STAT_COLORS.totalCalls}
         />
         <StatsCard
-          title="平均准确率"
+          title={t('toolClassificationMonitor.averageAccuracy')}
           value={accuracy.toFixed(1)}
           unit="%"
           icon={<TrendingUp className="w-4 h-4" />}
-          color="#10b981"
+          color={STAT_COLORS.accuracy}
         />
         <StatsCard
-          title="平均延迟"
+          title={t('toolClassificationMonitor.averageLatency')}
           value={avgLatency.toFixed(1)}
           unit="ms"
           icon={<Clock className="w-4 h-4" />}
-          color="#f59e0b"
+          color={STAT_COLORS.latency}
         />
         <StatsCard
-          title="错误数量"
+          title={t('toolClassificationMonitor.errorCount')}
           value={errorLogs.length}
           icon={<AlertCircle className="w-4 h-4" />}
-          color="#ef4444"
+          color={STAT_COLORS.errors}
         />
       </div>
 
       {/* 层级分布 */}
       <div className="theme-panel-muted theme-border rounded-lg border p-4">
-        <h4 className="theme-text-muted mb-3 text-sm font-medium">层级分布</h4>
+        <h4 className="theme-text-muted mb-3 text-sm font-medium">{t('toolClassificationMonitor.layerDistribution')}</h4>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="theme-text-subtle text-xs">Layer 1 (精确匹配)</span>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LAYER_DOT_COLORS.layer1 }} />
+              <span className="theme-text-subtle text-xs">{t('toolClassificationHistory.layers.layer1')}</span>
             </div>
             <div className="theme-text text-xl font-bold">{layerStats.layer1}</div>
             <div className="theme-text-subtle text-xs">
@@ -156,8 +173,8 @@ export const ToolClassificationMonitor: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span className="theme-text-subtle text-xs">Layer 2 (规则分类)</span>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LAYER_DOT_COLORS.layer2 }} />
+              <span className="theme-text-subtle text-xs">{t('toolClassificationHistory.layers.layer2')}</span>
             </div>
             <div className="theme-text text-xl font-bold">{layerStats.layer2}</div>
             <div className="theme-text-subtle text-xs">
@@ -166,8 +183,8 @@ export const ToolClassificationMonitor: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-3 rounded-full bg-purple-500" />
-              <span className="theme-text-subtle text-xs">Layer 3 (LLM分类)</span>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: LAYER_DOT_COLORS.layer3 }} />
+              <span className="theme-text-subtle text-xs">{t('toolClassificationHistory.layers.layer3')}</span>
             </div>
             <div className="theme-text text-xl font-bold">{layerStats.layer3}</div>
             <div className="theme-text-subtle text-xs">
@@ -179,7 +196,7 @@ export const ToolClassificationMonitor: React.FC = () => {
 
       {/* 历史记录 */}
       <div className="theme-panel-muted theme-border rounded-lg border p-4">
-        <h4 className="theme-text-muted mb-3 text-sm font-medium">最近分类记录</h4>
+        <h4 className="theme-text-muted mb-3 text-sm font-medium">{t('toolClassificationMonitor.recentHistory')}</h4>
         <ClassificationHistory maxItems={5} />
       </div>
 
@@ -187,21 +204,21 @@ export const ToolClassificationMonitor: React.FC = () => {
       <div className="theme-panel-muted theme-border rounded-lg border p-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="theme-text-muted flex items-center gap-2 text-sm font-medium">
-            <AlertCircle className="w-4 h-4 text-red-400" />
-            错误日志 ({errorLogs.length})
+            <AlertCircle className="theme-text-danger w-4 h-4" />
+            {t('toolClassificationMonitor.errorLog', { count: errorLogs.length })}
           </h4>
           {errorLogs.length > 0 && (
             <button
               onClick={() => setShowErrors(!showErrors)}
-              className="text-xs text-blue-400 hover:text-blue-300"
+              className="theme-button-ghost theme-text-accent rounded px-2 py-0.5 text-xs"
             >
-              {showErrors ? '收起' : '展开'}
+              {showErrors ? t('toolClassificationMonitor.collapse') : t('toolClassificationMonitor.expand')}
             </button>
           )}
         </div>
 
         {errorLogs.length === 0 ? (
-          <p className="theme-text-subtle py-4 text-center text-xs">暂无错误记录</p>
+          <p className="theme-text-subtle py-4 text-center text-xs">{t('toolClassificationMonitor.noErrors')}</p>
         ) : showErrors ? (
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {errorLogs.map((log) => (
@@ -211,7 +228,7 @@ export const ToolClassificationMonitor: React.FC = () => {
               >
                 <div className="flex items-start justify-between mb-1">
                   <code className="theme-text-muted flex-1 truncate">{log.input}</code>
-                  <span className="text-red-400 ml-2">{log.error}</span>
+                  <span className="theme-text-danger ml-2">{log.error}</span>
                 </div>
                 <div className="theme-text-subtle flex items-center gap-2">
                   <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
@@ -222,7 +239,7 @@ export const ToolClassificationMonitor: React.FC = () => {
           </div>
         ) : (
           <p className="theme-text-subtle py-4 text-center text-xs">
-            点击"展开"查看错误详情
+            {t('toolClassificationMonitor.expandHint')}
           </p>
         )}
       </div>

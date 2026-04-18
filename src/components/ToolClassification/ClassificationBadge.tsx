@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ClassificationResult } from '@/types/toolClassification';
 import {
   getToolCategoryDisplayInfo,
@@ -12,6 +13,7 @@ import {
   getConfidenceLevel,
   CONFIDENCE_LEVEL_DISPLAY_INFO,
 } from '@/types/toolClassification';
+import { ToolCategoryIcon } from './ToolCategoryIcon';
 
 interface ClassificationBadgeProps {
   /** 分类结果 */
@@ -33,10 +35,13 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
   showLayer = false,
   className = '',
 }) => {
+  const { t, i18n } = useTranslation();
   const categoryInfo = getToolCategoryDisplayInfo(result.category);
   const layerInfo = getLayerDisplayInfo(result.layer);
   const confidenceLevel = getConfidenceLevel(result.confidence);
   const confidenceInfo = CONFIDENCE_LEVEL_DISPLAY_INFO[confidenceLevel];
+  const categoryLabel = i18n.language.startsWith('zh') ? categoryInfo.label : categoryInfo.labelEn;
+  const layerLabel = t(`toolClassificationHistory.layers.${result.layer}` as any);
 
   if (compact) {
     return (
@@ -47,10 +52,10 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
           color: categoryInfo.color,
           border: `1px solid ${categoryInfo.color}40`,
         }}
-        title={`${categoryInfo.label} (${layerInfo.label}) - 置信度: ${(result.confidence * 100).toFixed(0)}%`}
+        title={`${categoryLabel} · ${(result.confidence * 100).toFixed(0)}%`}
       >
-        <span>{categoryInfo.icon}</span>
-        <span>{categoryInfo.label}</span>
+        <ToolCategoryIcon icon={categoryInfo.icon} className="h-3.5 w-3.5" />
+        <span>{categoryLabel}</span>
       </div>
     );
   }
@@ -65,14 +70,11 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
     >
       {/* 类别图标和名称 */}
       <div className="flex items-center gap-2">
-        <span className="text-lg" role="img" aria-label={categoryInfo.labelEn}>
-          {categoryInfo.icon}
-        </span>
+        <ToolCategoryIcon icon={categoryInfo.icon} className="h-[18px] w-[18px]" />
         <div className="flex flex-col">
           <span className="text-sm font-semibold" style={{ color: categoryInfo.color }}>
-            {categoryInfo.label}
+            {categoryLabel}
           </span>
-          <span className="theme-text-subtle text-xs">{categoryInfo.description}</span>
         </div>
       </div>
 
@@ -87,7 +89,7 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
             style={{ backgroundColor: layerInfo.color }}
           />
           <span className="theme-text-muted text-xs">
-            {layerInfo.label}
+            {layerLabel}
           </span>
         </div>
       )}
@@ -99,9 +101,6 @@ export const ClassificationBadge: React.FC<ClassificationBadgeProps> = ({
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: confidenceInfo.color }}
           />
-          <span className="theme-text-muted text-xs">
-            {confidenceInfo.label}置信度
-          </span>
           <span className="theme-text-subtle text-xs font-mono">
             ({(result.confidence * 100).toFixed(0)}%)
           </span>

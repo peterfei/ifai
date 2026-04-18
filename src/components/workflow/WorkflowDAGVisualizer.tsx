@@ -18,6 +18,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
+import { useTranslation } from 'react-i18next';
+import { GitBranch } from 'lucide-react';
 
 import type { DAGNode, DAGEdge } from './WorkflowDAGMonitor';
 
@@ -32,28 +34,19 @@ interface WorkflowDAGVisualizerProps {
 
 // ==================== 极简配色方案 ====================
 
-/** 状态颜色 - 参考 GitHub Actions */
-const STATUS_STYLES = {
-  pending: { color: '#9CA3AF', bg: '#F3F4F6', icon: 'P' },
-  running: { color: '#3B82F6', bg: '#EFF6FF', icon: 'R' },
-  completed: { color: '#10B981', bg: '#ECFDF5', icon: 'C' },
-  failed: { color: '#EF4444', bg: '#FEF2F2', icon: 'F' },
-  skipped: { color: '#9CA3AF', bg: '#F3F4F6', icon: 'S' },
-};
-
 /** 节点类型 - 参考 GitLab CI */
 const NODE_STYLES: Record<string, { color: string; icon: string }> = {
-  'Search': { color: '#3B82F6', icon: 'search' },
-  'Read': { color: '#10B981', icon: 'file-text' },
-  'Write': { color: '#F59E0B', icon: 'edit' },
-  'Agent': { color: '#8B5CF6', icon: 'bot' },
-  'Command': { color: '#EC4899', icon: 'terminal' },
-  'Explore': { color: '#3B82F6', icon: 'compass' },
-  'Review': { color: '#06B6D4', icon: 'eye' },
-  'Refactor': { color: '#F59E0B', icon: 'refresh-cw' },
-  'Test': { color: '#84CC16', icon: 'check-circle' },
-  'Build': { color: '#F97316', icon: 'box' },
-  'Deploy': { color: '#14B8A6', icon: 'rocket' },
+  'Search': { color: 'var(--accent-color)', icon: 'search' },
+  'Read': { color: 'var(--success-color)', icon: 'file-text' },
+  'Write': { color: 'var(--warning-color)', icon: 'edit' },
+  'Agent': { color: 'var(--info-color)', icon: 'bot' },
+  'Command': { color: 'var(--danger-color)', icon: 'terminal' },
+  'Explore': { color: 'var(--accent-color)', icon: 'compass' },
+  'Review': { color: 'var(--info-color)', icon: 'eye' },
+  'Refactor': { color: 'var(--warning-color)', icon: 'refresh-cw' },
+  'Test': { color: 'var(--success-color)', icon: 'check-circle' },
+  'Build': { color: 'var(--warning-color)', icon: 'box' },
+  'Deploy': { color: 'var(--success-color)', icon: 'rocket' },
 };
 
 // ==================== 布局配置 ====================
@@ -218,7 +211,11 @@ interface CustomNodeData {
   iconKey: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   nodeColor: string;
-  statusStyle: typeof STATUS_STYLES[keyof typeof STATUS_STYLES];
+  statusStyle: {
+    color: string;
+    icon: string;
+    label: string;
+  };
   originalNode: DAGNode;
   onNodeClick?: (node: DAGNode) => void;
 }
@@ -230,31 +227,13 @@ function CustomNode({ data }: { data: CustomNodeData }) {
     <div
       data-testid={`dag-node-${data.originalNode.id}`}
       onClick={() => data.onNodeClick?.(data.originalNode)}
-      style={{
-        width: '180px',
-        height: '64px',
-        background: '#1F2937', // gray-800
-        border: '1px solid #374151', // gray-700
-        borderRadius: '8px',
-        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease-out',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 12px',
-        gap: '10px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = '#4B5563'; // gray-600
-        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = '#374151';
-        e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
-      }}
       className={`dag-node dag-node-${data.status}`}
+      style={
+        {
+          '--dag-node-accent': data.nodeColor,
+          '--dag-status-color': data.statusStyle.color,
+        } as React.CSSProperties
+      }
     >
       {/* 左侧状态条 - IfAI 风格 */}
       <div
@@ -264,7 +243,7 @@ function CustomNode({ data }: { data: CustomNodeData }) {
           top: '6px',
           bottom: '6px',
           width: '2px',
-          background: data.statusStyle.color,
+          background: 'var(--dag-status-color)',
           borderRadius: '1px',
         }}
       />
@@ -272,7 +251,7 @@ function CustomNode({ data }: { data: CustomNodeData }) {
       {/* 图标 */}
       <div
         style={{
-          color: data.nodeColor,
+          color: 'var(--dag-node-accent)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -291,10 +270,10 @@ function CustomNode({ data }: { data: CustomNodeData }) {
         }}
       >
         <div
+          className="theme-text"
           style={{
             fontSize: '13px',
             fontWeight: '500',
-            color: '#F9FAFB', // gray-50
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -307,12 +286,14 @@ function CustomNode({ data }: { data: CustomNodeData }) {
 
       {/* 状态图标 - 右上角 */}
       <div
+        aria-label={data.statusStyle.label}
+        title={data.statusStyle.label}
         style={{
           position: 'absolute',
           top: '6px',
           right: '8px',
           fontSize: '12px',
-          color: data.statusStyle.color,
+          color: 'var(--dag-status-color)',
           opacity: 0.8,
         }}
       >
@@ -328,11 +309,11 @@ function CustomNode({ data }: { data: CustomNodeData }) {
           transform: 'translateY(-50%)',
           width: '8px',
           height: '8px',
-          background: '#1F2937',
-          border: '1.5px solid #4B5563',
+          background: 'var(--bg-primary)',
+          border: '1.5px solid var(--border-strong)',
           borderRadius: '50%',
         }}
-        className="react-flow__handle react-flow__handle-left"
+        className="dag-node-handle react-flow__handle react-flow__handle-left"
       />
       <div
         style={{
@@ -342,11 +323,11 @@ function CustomNode({ data }: { data: CustomNodeData }) {
           transform: 'translateY(-50%)',
           width: '8px',
           height: '8px',
-          background: '#1F2937',
-          border: '1.5px solid #4B5563',
+          background: 'var(--bg-primary)',
+          border: '1.5px solid var(--border-strong)',
           borderRadius: '50%',
         }}
-        className="react-flow__handle react-flow__handle-right"
+        className="dag-node-handle react-flow__handle react-flow__handle-right"
       />
     </div>
   );
@@ -364,30 +345,55 @@ export function WorkflowDAGVisualizer({
   workflowId,
   onNodeClick,
 }: WorkflowDAGVisualizerProps) {
+  const { t } = useTranslation();
+  const statusStyles = useMemo(
+    () => ({
+      pending: {
+        color: 'var(--text-subtle)',
+        icon: '…',
+        label: t('workflow.inlineMonitor.dagMonitor.status.pending'),
+      },
+      running: {
+        color: 'var(--accent-color)',
+        icon: '↻',
+        label: t('workflow.inlineMonitor.dagMonitor.status.running'),
+      },
+      completed: {
+        color: 'var(--success-color)',
+        icon: '✓',
+        label: t('workflow.inlineMonitor.dagMonitor.status.completed'),
+      },
+      failed: {
+        color: 'var(--danger-color)',
+        icon: '✕',
+        label: t('workflow.inlineMonitor.dagMonitor.status.failed'),
+      },
+      skipped: {
+        color: 'var(--text-subtle)',
+        icon: '−',
+        label: t('workflow.inlineMonitor.dagMonitor.status.skipped'),
+      },
+    }),
+    [t]
+  );
+
   // 空状态处理（IfAI 风格）
   if (dagNodes.length === 0) {
     return (
       <div
         data-testid="dag-empty-state"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '500px',
-          color: '#9CA3AF',
-          flexDirection: 'column',
-          gap: '12px',
-          background: '#111827', // gray-900
-          borderRadius: '8px',
-          border: '1px solid #1F2937', // gray-800
-        }}
+        className="theme-panel-muted theme-border flex h-[500px] flex-col items-center justify-center gap-3 rounded-lg border"
       >
-        <div style={{ fontSize: '32px', opacity: 0.4 }}>📊</div>
-        <div style={{ fontSize: '13px', fontWeight: '500', color: '#D1D5DB' }}>
-          暂无节点数据
+        <GitBranch className="theme-text-subtle h-8 w-8 opacity-40" />
+        <div className="theme-text text-sm font-medium">
+          {t('workflow.inlineMonitor.dagVisualizer.empty.title', {
+            defaultValue: '暂无节点数据',
+          })}
         </div>
-        <div style={{ fontSize: '12px', color: '#9CA3AF' }}>
-          执行工作流后将显示 DAG 可视化
+        <div className="theme-text-subtle text-xs">
+          {t('workflow.inlineMonitor.dagVisualizer.empty.description', {
+            defaultValue: '执行工作流后将显示 DAG 可视化',
+          })}
         </div>
       </div>
     );
@@ -398,7 +404,7 @@ export function WorkflowDAGVisualizer({
     return dagNodes.map((dagNode) => {
       const nodeStyle = getNodeTypeStyle(dagNode.id, dagNode.label);
       // 🔥 使用默认的 pending 状态作为 fallback，防止 statusStyle 为 undefined
-      const statusStyle = STATUS_STYLES[dagNode.status] || STATUS_STYLES.pending;
+      const statusStyle = statusStyles[dagNode.status] || statusStyles.pending;
 
       return {
         id: dagNode.id,
@@ -417,7 +423,7 @@ export function WorkflowDAGVisualizer({
         targetPosition: Position.Left,
       };
     });
-  }, [dagNodes, onNodeClick]);
+  }, [dagNodes, onNodeClick, statusStyles]);
 
   // 转换 DAG 边为 React Flow 边（IfAI 深色主题风格）
   const reactFlowEdges: Edge[] = useMemo(() => {
@@ -427,18 +433,18 @@ export function WorkflowDAGVisualizer({
       const toNode = dagNodes.find(n => n.id === dagEdge.to);
 
       // IfAI 深色主题连线样式 - 使用更亮的颜色
-      let stroke = '#9CA3AF'; // 默认 gray-400（更亮，在深色背景上可见）
+      let stroke = 'var(--text-subtle)';
       let strokeWidth = 2;
       let animated = false;
 
       if (toNode?.status === 'completed') {
-        stroke = '#10B981'; // 绿色
+        stroke = 'var(--success-color)';
         strokeWidth = 2.5;
       } else if (toNode?.status === 'failed') {
-        stroke = '#EF4444'; // 红色
+        stroke = 'var(--danger-color)';
         strokeWidth = 2.5;
       } else if (toNode?.status === 'running') {
-        stroke = '#3B82F6'; // 蓝色
+        stroke = 'var(--accent-color)';
         strokeWidth = 2.5;
         animated = true;
       }
@@ -490,19 +496,76 @@ export function WorkflowDAGVisualizer({
   );
 
   return (
-    <div data-testid="dag-visualizer-container" style={{ width: '100%', height: '100%' }}>
+    <div
+      data-testid="dag-visualizer-container"
+      data-workflow-id={workflowId}
+      className="workflow-dag-visualizer h-full w-full"
+    >
       <style>
         {`
           @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
           }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+          .workflow-dag-visualizer .dag-node {
+            width: 180px;
+            height: 64px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.15s ease-out, border-color 0.15s ease-out, transform 0.15s ease-out;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
           }
-          .dag-node-running {
+          .workflow-dag-visualizer .dag-node:hover {
+            background: var(--hover-bg);
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+          }
+          .workflow-dag-visualizer .dag-node-running {
             animation: pulse 2s ease-in-out infinite;
+          }
+          .workflow-dag-visualizer .dag-node-handle {
+            background: var(--bg-primary);
+            border-color: var(--border-strong);
+          }
+          .workflow-dag-visualizer .react-flow__controls {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--app-shadow);
+            overflow: hidden;
+          }
+          .workflow-dag-visualizer .react-flow__controls-button {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+          }
+          .workflow-dag-visualizer .react-flow__controls-button:hover {
+            background: var(--hover-soft);
+          }
+          .workflow-dag-visualizer .react-flow__controls-button:last-child {
+            border-bottom: none;
+          }
+          .workflow-dag-visualizer .react-flow__controls-button svg {
+            stroke: currentColor;
+          }
+          .workflow-dag-visualizer .react-flow__minimap {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--app-shadow);
+          }
+          .workflow-dag-visualizer .react-flow__attribution {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-subtle);
           }
         `}
       </style>
@@ -520,25 +583,16 @@ export function WorkflowDAGVisualizer({
         panOnScroll
         selectionKeyCode="Shift"
         deleteKeyCode="Backspace"
+        className="theme-panel"
       >
         <Background
-          color="#4B5563" // gray-600
+          color="var(--border-strong)"
           gap={20}
           size={1}
           variant={BackgroundVariant.Dots}
           style={{ opacity: 0.3 }}
         />
-        <Controls
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            background: '#1F2937', // gray-800
-            border: '1px solid #374151', // gray-700
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          }}
-        />
+        <Controls />
         <MiniMap
           nodeColor={(node) => {
             const customData = node.data as CustomNodeData;
@@ -546,12 +600,11 @@ export function WorkflowDAGVisualizer({
           }}
           nodeStrokeWidth={1.5}
           nodeBorderRadius={6}
-          maskColor="rgba(0, 0, 0, 0.4)"
+          maskColor="var(--backdrop-color)"
           style={{
-            background: '#1F2937', // gray-800
-            border: '1px solid #374151', // gray-700
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-color)',
             borderRadius: '8px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           }}
           zoomable
           pannable

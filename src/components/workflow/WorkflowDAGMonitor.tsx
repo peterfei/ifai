@@ -14,7 +14,6 @@ import {
   CardTitle,
 } from '../UI/card';
 import { Badge } from '../UI/badge';
-import { Progress } from '../UI/progress';
 import { Button } from '../UI/button';
 import {
   CheckCircle,
@@ -24,9 +23,21 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  Bot,
+  Boxes,
+  Compass,
+  Eye,
+  FileText,
+  Pencil,
+  Rocket,
+  Search,
+  Terminal,
+  TestTube2,
+  Wrench,
   Zap,
   Settings2,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { WorkflowDAGVisualizer } from './WorkflowDAGVisualizer';
 
 // 动态导入 Tauri API
@@ -59,6 +70,8 @@ export type NodeStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipp
 
 /** 进度事件类型 */
 export type ProgressEventType = 'node_started' | 'node_progress' | 'node_completed' | 'tool_call';
+
+type WorkflowStatus = 'running' | 'completed' | 'failed';
 
 /** 🔥 工具调用详细信息 */
 export interface ToolCallDetails {
@@ -139,33 +152,33 @@ interface WorkflowDAGMonitorProps {
 // ==================== 辅助函数 ====================
 
 /** 节点类型图标映射（Claude Code 风格） */
-const NODE_TYPE_ICONS: Record<string, string> = {
-  'Search': 'S',
-  'Read': 'R',
-  'Write': 'W',
-  'Agent': 'A',
-  'Command': 'C',
-  'Explore': 'E',
-  'Review': 'V',
-  'Refactor': 'F',
-  'Test': 'T',
-  'Build': 'B',
-  'Deploy': 'D',
+const NODE_TYPE_ICONS: Record<string, React.ReactNode> = {
+  'Search': <Search className="h-4 w-4" />,
+  'Read': <FileText className="h-4 w-4" />,
+  'Write': <Pencil className="h-4 w-4" />,
+  'Agent': <Bot className="h-4 w-4" />,
+  'Command': <Terminal className="h-4 w-4" />,
+  'Explore': <Compass className="h-4 w-4" />,
+  'Review': <Eye className="h-4 w-4" />,
+  'Refactor': <Wrench className="h-4 w-4" />,
+  'Test': <TestTube2 className="h-4 w-4" />,
+  'Build': <Boxes className="h-4 w-4" />,
+  'Deploy': <Rocket className="h-4 w-4" />,
 };
 
 /** 节点类型颜色映射（Claude Code 风格） */
 const NODE_TYPE_COLORS: Record<string, string> = {
-  'Search': '#3B82F6',    // 蓝色
-  'Read': '#10B981',      // 绿色
-  'Write': '#F59E0B',     // 橙色
-  'Agent': '#8B5CF6',     // 紫色
-  'Command': '#EC4899',   // 粉色
-  'Explore': '#3B82F6',   // 蓝色
-  'Review': '#06B6D4',    // 青色
-  'Refactor': '#F59E0B',  // 橙色
-  'Test': '#84CC16',      // 青绿色
-  'Build': '#F97316',     // 深橙色
-  'Deploy': '#14B8A6',    // 青绿色
+  'Search': 'var(--accent-color)',
+  'Read': 'var(--success-color)',
+  'Write': 'var(--warning-color)',
+  'Agent': 'var(--info-color)',
+  'Command': 'var(--danger-color)',
+  'Explore': 'var(--accent-color)',
+  'Review': 'var(--info-color)',
+  'Refactor': 'var(--warning-color)',
+  'Test': 'var(--success-color)',
+  'Build': 'var(--warning-color)',
+  'Deploy': 'var(--success-color)',
 };
 
 /** 解析节点类型 */
@@ -222,28 +235,28 @@ function parseNodeType(nodeId: string, label: string): string {
 }
 
 /** 获取节点类型图标 */
-function getNodeTypeIcon(nodeId: string, label: string): string {
+function getNodeTypeIcon(nodeId: string, label: string): React.ReactNode {
   const nodeType = parseNodeType(nodeId, label);
-  return NODE_TYPE_ICONS[nodeType] || '⚡';
+  return NODE_TYPE_ICONS[nodeType] || <Zap className="h-4 w-4" />;
 }
 
 /** 获取节点类型颜色 */
 function getNodeTypeColor(nodeId: string, label: string): string {
   const nodeType = parseNodeType(nodeId, label);
-  return NODE_TYPE_COLORS[nodeType] || '#64748B';
+  return NODE_TYPE_COLORS[nodeType] || 'var(--text-subtle)';
 }
 
 /** 获取节点状态图标 */
 function getNodeStatusIcon(status: NodeStatus, size: number = 20) {
-  const iconClassName = `w-${size/4} h-${size/4}`;
+  const iconClassName = `w-${size / 4} h-${size / 4}`;
 
   switch (status) {
     case 'completed':
-      return <CheckCircle className={`${iconClassName} text-green-500`} />;
+      return <CheckCircle className={`${iconClassName} theme-text-success`} />;
     case 'failed':
-      return <XCircle className={`${iconClassName} text-red-500`} />;
+      return <XCircle className={`${iconClassName} theme-text-danger`} />;
     case 'running':
-      return <Clock className={`${iconClassName} text-blue-500 animate-spin`} />;
+      return <Clock className={`${iconClassName} theme-text-accent animate-spin`} />;
     case 'skipped':
       return <AlertCircle className={`${iconClassName} theme-text-subtle`} />;
     default:
@@ -251,35 +264,64 @@ function getNodeStatusIcon(status: NodeStatus, size: number = 20) {
   }
 }
 
-/** 获取节点状态颜色 */
-function getNodeStatusColor(status: NodeStatus): string {
+/** 获取节点状态色值 */
+function getNodeStatusColorValue(status: NodeStatus): string {
   switch (status) {
     case 'completed':
-      return 'bg-green-500';
+      return 'var(--success-color)';
     case 'failed':
-      return 'bg-red-500';
+      return 'var(--danger-color)';
     case 'running':
-      return 'bg-blue-500';
+      return 'var(--accent-color)';
     case 'skipped':
-      return 'bg-[var(--text-subtle)]';
+      return 'var(--text-subtle)';
     default:
-      return 'bg-[var(--border-strong)]';
+      return 'var(--border-strong)';
   }
 }
 
-/** 获取节点状态边框颜色 */
-function getNodeStatusBorderColor(status: NodeStatus): string {
+function getNodeStatusBadgeClass(status: NodeStatus): string {
   switch (status) {
     case 'completed':
-      return 'border-green-500';
+      return 'theme-badge-success';
     case 'failed':
-      return 'border-red-500';
+      return 'theme-badge-danger';
     case 'running':
-      return 'border-blue-500';
+      return 'theme-badge-accent';
     case 'skipped':
-      return 'border-[var(--text-subtle)]';
+      return 'theme-panel-elevated theme-border theme-text-subtle';
     default:
-      return 'border-[var(--border-strong)]';
+      return 'theme-panel theme-border theme-text-muted';
+  }
+}
+
+function getNodeStatusSurfaceClass(status: NodeStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'theme-surface-success';
+    case 'failed':
+      return 'theme-surface-danger';
+    case 'running':
+      return 'theme-surface-accent';
+    case 'skipped':
+      return 'theme-panel-elevated theme-border';
+    default:
+      return 'theme-panel theme-border';
+  }
+}
+
+function getNodeStatusTextClass(status: NodeStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'theme-text-success';
+    case 'failed':
+      return 'theme-text-danger';
+    case 'running':
+      return 'theme-text-accent';
+    case 'skipped':
+      return 'theme-text-subtle';
+    default:
+      return 'theme-text-muted';
   }
 }
 
@@ -304,6 +346,19 @@ function calculateNodeDuration(node: DAGNode): number {
   return 0;
 }
 
+function translateWithDefault(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  key: string,
+  defaultValue: string,
+  values: Record<string, string | number> = {}
+): string {
+  const translated = t(key, { defaultValue, ...values });
+
+  return Object.entries(values).reduce((message, [name, value]) => {
+    return message.replace(new RegExp(`{{\\s*${name}\\s*}}`, 'g'), String(value));
+  }, translated);
+}
+
 // ==================== 主组件 ====================
 
 export function WorkflowDAGMonitor({
@@ -314,11 +369,13 @@ export function WorkflowDAGMonitor({
   onError,
   onClose,
 }: WorkflowDAGMonitorProps) {
+  const { t } = useTranslation();
+
   // ==================== 状态 ====================
 
   const [nodes, setNodes] = useState<DAGNode[]>(initialNodes);
   const [timelineLogs, setTimelineLogs] = useState<TimelineLog[]>([]);
-  const [status, setStatus] = useState<string>('Running');
+  const [status, setStatus] = useState<WorkflowStatus>('running');
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [showTimeline, setShowTimeline] = useState(true);
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
@@ -334,6 +391,30 @@ export function WorkflowDAGMonitor({
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   const duration = Math.floor((Date.now() - startTime) / 1000);
+  const workflowTitle =
+    status === 'completed'
+      ? t('workflow.inlineMonitor.dagMonitor.workflow.titleCompleted', {
+          defaultValue: '工作流执行完成',
+        })
+      : status === 'failed'
+        ? t('workflow.inlineMonitor.dagMonitor.workflow.titleFailed', {
+            defaultValue: '工作流执行失败',
+          })
+        : t('workflow.inlineMonitor.dagMonitor.workflow.titleRunning', {
+            defaultValue: '工作流执行中',
+          });
+  const workflowStatusLabel =
+    status === 'completed'
+      ? t('workflow.inlineMonitor.dagMonitor.workflow.statusCompleted', {
+          defaultValue: '执行完成',
+        })
+      : status === 'failed'
+        ? t('workflow.inlineMonitor.dagMonitor.workflow.statusFailed', {
+            defaultValue: '执行失败',
+          })
+        : t('workflow.inlineMonitor.dagMonitor.workflow.statusRunning', {
+            defaultValue: '执行中...',
+          });
 
   // ==================== 事件处理 ====================
 
@@ -403,7 +484,7 @@ export function WorkflowDAGMonitor({
 
         console.log('[WorkflowDAGMonitor] ✅ Workflow completed:', event.payload);
 
-        setStatus('Completed');
+        setStatus('completed');
 
         // 更新所有节点状态
         if (event.payload.node_results) {
@@ -437,10 +518,15 @@ export function WorkflowDAGMonitor({
 
       console.error('[WorkflowDAGMonitor] ❌ Workflow error:', event.payload);
 
-      setStatus('Failed');
+      setStatus('failed');
 
       if (onError) {
-        onError(event.payload.error || '工作流执行失败');
+        onError(
+          event.payload.error ||
+            t('workflow.inlineMonitor.dagMonitor.workflow.executionFailedGeneric', {
+              defaultValue: '工作流执行失败',
+            })
+        );
       }
     });
 
@@ -450,7 +536,7 @@ export function WorkflowDAGMonitor({
       unlistenCompleted.then((f) => f());
       unlistenError.then((f) => f());
     };
-  }, [workflowId, onComplete, onError]);
+  }, [workflowId, onComplete, onError, t]);
 
   // 自动滚动到时间线底部
   useEffect(() => {
@@ -469,18 +555,40 @@ export function WorkflowDAGMonitor({
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-blue-500" />
-                工作流执行中
+                <Zap className="h-5 w-5 theme-text-accent" />
+                {workflowTitle}
               </CardTitle>
-              <CardDescription>工作流 ID: {workflowId}</CardDescription>
+              <CardDescription>
+                {t('workflow.inlineMonitor.labels.workflowId', {
+                  defaultValue: '工作流 ID',
+                })}
+                : {workflowId}
+              </CardDescription>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right" data-testid="workflow-duration">
-                <div className="theme-text-subtle text-sm">运行时间</div>
-                <div className="text-lg font-semibold">{duration}s</div>
+                <div className="theme-text-subtle text-sm">
+                  {t('workflow.inlineMonitor.dagMonitor.workflow.durationLabel', {
+                    defaultValue: '运行时间',
+                  })}
+                </div>
+                <div className="theme-text text-lg font-semibold">
+                  {translateWithDefault(
+                    t,
+                    'workflow.inlineMonitor.duration.secondsShort',
+                    '{{value}}s',
+                    { value: duration }
+                  )}
+                </div>
               </div>
               {onClose && (
-                <Button variant="ghost" size="sm" onClick={onClose}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  aria-label={t('common.close', { defaultValue: '关闭' })}
+                  title={t('common.close', { defaultValue: '关闭' })}
+                >
                   <X className="w-4 h-4" />
                 </Button>
               )}
@@ -489,32 +597,51 @@ export function WorkflowDAGMonitor({
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 整体状态 */}
-          <div className="flex items-center justify-between" data-testid="workflow-status" data-status={status.toLowerCase()}>
+          <div className="flex items-center justify-between" data-testid="workflow-status" data-status={status}>
             <div className="flex items-center gap-2">
-              {status === 'Running' && (
-                <Clock className="w-5 h-5 text-blue-500 animate-pulse" />
+              {status === 'running' && (
+                <Clock className="h-5 w-5 theme-text-accent animate-pulse" />
               )}
-              {status === 'Completed' && (
-                <CheckCircle className="w-5 h-5 text-green-500" />
+              {status === 'completed' && (
+                <CheckCircle className="h-5 w-5 theme-text-success" />
               )}
-              {status === 'Failed' && (
-                <XCircle className="w-5 h-5 text-red-500" />
+              {status === 'failed' && (
+                <XCircle className="h-5 w-5 theme-text-danger" />
               )}
-              <span className="font-semibold">
-                {status === 'Running' && '执行中...'}
-                {status === 'Completed' && '执行完成'}
-                {status === 'Failed' && '执行失败'}
+              <span className="theme-text font-semibold">
+                {workflowStatusLabel}
               </span>
             </div>
             <div className="flex items-center gap-2" data-testid="workflow-node-stats">
               {runningCount > 0 && (
-                <Badge className="bg-blue-500">运行中 {runningCount}</Badge>
+                <Badge variant="outline" className="theme-badge-accent">
+                  {translateWithDefault(
+                    t,
+                    'workflow.inlineMonitor.dagMonitor.summary.runningCount',
+                    '运行中 {{count}}',
+                    { count: runningCount }
+                  )}
+                </Badge>
               )}
               {completedCount > 0 && (
-                <Badge className="bg-green-500">完成 {completedCount}</Badge>
+                <Badge variant="outline" className="theme-badge-success">
+                  {translateWithDefault(
+                    t,
+                    'workflow.inlineMonitor.dagMonitor.summary.completedCount',
+                    '完成 {{count}}',
+                    { count: completedCount }
+                  )}
+                </Badge>
               )}
               {failedCount > 0 && (
-                <Badge className="bg-red-500">失败 {failedCount}</Badge>
+                <Badge variant="outline" className="theme-badge-danger">
+                  {translateWithDefault(
+                    t,
+                    'workflow.inlineMonitor.dagMonitor.summary.failedCount',
+                    '失败 {{count}}',
+                    { count: failedCount }
+                  )}
+                </Badge>
               )}
               <Badge variant="outline">
                 {completedCount} / {totalCount}
@@ -524,9 +651,21 @@ export function WorkflowDAGMonitor({
 
           {/* 进度条 */}
           <div data-testid="workflow-progress">
-            <Progress value={progress} className="h-2" />
+            <div className="theme-panel h-2 w-full overflow-hidden rounded-full">
+              <div
+                className="h-full transition-all duration-300 ease-in-out"
+                style={{
+                  width: `${progress}%`,
+                  background: 'var(--accent-color)',
+                }}
+              />
+            </div>
             <div className="theme-text-subtle mt-1 flex justify-between text-xs">
-              <span>进度</span>
+              <span>
+                {t('workflow.inlineMonitor.dagMonitor.workflow.progressLabel', {
+                  defaultValue: '进度',
+                })}
+              </span>
               <span>{Math.round(progress)}%</span>
             </div>
           </div>
@@ -537,7 +676,11 @@ export function WorkflowDAGMonitor({
       <Card data-testid="dag-visualization">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>工作流可视化</CardTitle>
+            <CardTitle>
+              {t('workflow.inlineMonitor.dagMonitor.sections.visualization', {
+                defaultValue: '工作流可视化',
+              })}
+            </CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -546,7 +689,13 @@ export function WorkflowDAGMonitor({
               data-testid="view-mode-toggle"
             >
               <Settings2 className="w-4 h-4" />
-              {viewMode === 'svg' ? '切换到 React Flow' : '切换到 SVG'}
+              {viewMode === 'svg'
+                ? t('workflow.inlineMonitor.dagMonitor.viewMode.switchToReactFlow', {
+                    defaultValue: '切换到 React Flow',
+                  })
+                : t('workflow.inlineMonitor.dagMonitor.viewMode.switchToSvg', {
+                    defaultValue: '切换到 SVG',
+                  })}
             </Button>
           </div>
         </CardHeader>
@@ -578,7 +727,11 @@ export function WorkflowDAGMonitor({
       {/* 节点详情 */}
       <Card data-testid="workflow-nodes">
         <CardHeader>
-          <CardTitle>节点状态</CardTitle>
+          <CardTitle>
+            {t('workflow.inlineMonitor.dagMonitor.sections.nodes', {
+              defaultValue: '节点状态',
+            })}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -608,7 +761,11 @@ export function WorkflowDAGMonitor({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>执行时间线</CardTitle>
+            <CardTitle>
+              {t('workflow.inlineMonitor.dagMonitor.sections.timeline', {
+                defaultValue: '执行时间线',
+              })}
+            </CardTitle>
             <Button
               variant="ghost"
               size="sm"
@@ -632,7 +789,9 @@ export function WorkflowDAGMonitor({
             >
               {timelineLogs.length === 0 ? (
                 <div className="theme-text-subtle py-8 text-center">
-                  等待事件...
+                  {t('workflow.inlineMonitor.dagMonitor.timeline.empty', {
+                    defaultValue: '等待事件...',
+                  })}
                 </div>
               ) : (
                 timelineLogs.map((log) => <TimelineLogItem key={log.id} log={log} />)
@@ -655,6 +814,8 @@ interface DAGVisualizationProps {
 }
 
 function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) {
+  const { t } = useTranslation();
+
   // 选中的节点
   const [selectedNode, setSelectedNode] = React.useState<DAGNode | null>(null);
 
@@ -684,12 +845,13 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
   });
 
   // 计算SVG尺寸
-  const maxX = Math.max(
-    ...Array.from(nodePositions.values()).map((pos) => pos.x)
-  );
-  const maxY = Math.max(
-    ...Array.from(nodePositions.values()).map((pos) => pos.y)
-  );
+  const positionValues = Array.from(nodePositions.values());
+  const maxX = positionValues.length > 0
+    ? Math.max(...positionValues.map((pos) => pos.x))
+    : 0;
+  const maxY = positionValues.length > 0
+    ? Math.max(...positionValues.map((pos) => pos.y))
+    : 0;
   const svgWidth = Math.max(600, maxX + nodeWidth + 40);
   const svgHeight = maxY + nodeHeight + 40;
 
@@ -706,7 +868,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             refY="3"
             orient="auto"
           >
-            <polygon points="0 0, 10 3, 0 6" fill="#64748b" />
+            <polygon points="0 0, 10 3, 0 6" style={{ fill: 'var(--text-subtle)' }} />
           </marker>
         </defs>
 
@@ -729,7 +891,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             <path
               key={`edge-${index}`}
               d={pathD}
-              stroke="#64748b"
+              stroke="var(--text-subtle)"
               strokeWidth="2"
               fill="none"
               markerEnd="url(#arrowhead)"
@@ -743,8 +905,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
           const pos = nodePositions.get(node.id);
           if (!pos) return null;
 
-          const statusColor = getNodeStatusColor(node.status);
-          const borderColor = getNodeStatusBorderColor(node.status);
+          const statusColor = getNodeStatusColorValue(node.status);
           const nodeTypeIcon = getNodeTypeIcon(node.id, node.label);
           const nodeTypeColor = getNodeTypeColor(node.id, node.label);
 
@@ -774,7 +935,7 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
               {/* 节点类型图标 */}
               <foreignObject x={8} y={8} width={24} height={24}>
-                <div className="flex items-center justify-center w-full h-full text-lg">
+                <div className="flex h-full w-full items-center justify-center" style={{ color: nodeTypeColor }}>
                   {nodeTypeIcon}
                 </div>
               </foreignObject>
@@ -791,24 +952,44 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
                 <div className="theme-text-subtle flex items-center gap-1 text-xs">
                   {node.status === 'running' && (
                     <>
-                      <Clock className="w-3 h-3 animate-spin" />
-                      运行中...
+                      <Clock className="h-3 w-3 theme-text-accent animate-spin" />
+                      {t('workflow.inlineMonitor.dagMonitor.status.running', {
+                        defaultValue: '运行中',
+                      })}
                     </>
                   )}
                   {node.status === 'completed' && (
                     <>
-                      <CheckCircle className="w-3 h-3 text-green-500" />
-                      {calculateNodeDuration(node)}ms
+                      <CheckCircle className="h-3 w-3 theme-text-success" />
+                      {translateWithDefault(
+                        t,
+                        'workflow.inlineMonitor.duration.millisecondsShort',
+                        '{{value}}ms',
+                        { value: calculateNodeDuration(node) }
+                      )}
                     </>
                   )}
-                  {node.status === 'pending' && '⏳ 等待'}
+                  {node.status === 'pending' &&
+                    (
+                      <>
+                        <Clock className="h-3 w-3 theme-text-subtle" />
+                        {t('workflow.inlineMonitor.dagMonitor.status.pending', {
+                          defaultValue: '等待',
+                        })}
+                      </>
+                    )}
                   {node.status === 'failed' && (
                     <>
-                      <XCircle className="w-3 h-3 text-red-500" />
-                      失败
+                      <XCircle className="h-3 w-3 theme-text-danger" />
+                      {t('workflow.inlineMonitor.dagMonitor.status.failed', {
+                        defaultValue: '失败',
+                      })}
                     </>
                   )}
-                  {node.status === 'skipped' && '跳过'}
+                  {node.status === 'skipped' &&
+                    t('workflow.inlineMonitor.dagMonitor.status.skipped', {
+                      defaultValue: '跳过',
+                    })}
                 </div>
               </foreignObject>
 
@@ -834,13 +1015,17 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
       {selectedNode && (
         <div className="theme-panel-muted theme-border mt-4 rounded-lg border p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="font-semibold flex items-center gap-2">
-              <span className="text-xl">{getNodeTypeIcon(selectedNode.id, selectedNode.label)}</span>
+            <h4 className="theme-text flex items-center gap-2 font-semibold">
+              <span className="theme-text-subtle inline-flex items-center justify-center">
+                {getNodeTypeIcon(selectedNode.id, selectedNode.label)}
+              </span>
               {selectedNode.label}
             </h4>
             <button
               onClick={() => setSelectedNode(null)}
               className="theme-button-ghost"
+              aria-label={t('common.close', { defaultValue: '关闭' })}
+              title={t('common.close', { defaultValue: '关闭' })}
             >
               <X className="w-4 h-4" />
             </button>
@@ -848,44 +1033,132 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="theme-text-subtle">节点 ID:</span>
-              <span className="font-mono text-xs">{selectedNode.id}</span>
+              <span className="theme-text-subtle">
+                {t('workflow.inlineMonitor.dagMonitor.nodeDetails.nodeId', {
+                  defaultValue: '节点 ID',
+                })}
+                :
+              </span>
+              <span className="theme-text font-mono text-xs">{selectedNode.id}</span>
             </div>
             <div className="flex justify-between">
-              <span className="theme-text-subtle">状态:</span>
-              <span className={`font-medium ${
-                selectedNode.status === 'completed' ? 'text-green-600' :
-                selectedNode.status === 'running' ? 'text-blue-600' :
-                selectedNode.status === 'failed' ? 'text-red-600' :
-                'theme-text-muted'
-              }`}>
-                {selectedNode.status === 'running' && '运行中'}
-                {selectedNode.status === 'completed' && '完成'}
-                {selectedNode.status === 'pending' && '等待'}
-                {selectedNode.status === 'failed' && '失败'}
-                {selectedNode.status === 'skipped' && '跳过'}
+              <span className="theme-text-subtle">
+                {t('workflow.inlineMonitor.dagMonitor.nodeDetails.status', {
+                  defaultValue: '状态',
+                })}
+                :
+              </span>
+              <span className={`font-medium ${getNodeStatusTextClass(selectedNode.status)}`}>
+                {selectedNode.status === 'running' &&
+                  t('workflow.inlineMonitor.dagMonitor.status.running', {
+                    defaultValue: '运行中',
+                  })}
+                {selectedNode.status === 'completed' &&
+                  t('workflow.inlineMonitor.dagMonitor.status.completed', {
+                    defaultValue: '完成',
+                  })}
+                {selectedNode.status === 'pending' &&
+                  t('workflow.inlineMonitor.dagMonitor.status.pending', {
+                    defaultValue: '等待',
+                  })}
+                {selectedNode.status === 'failed' &&
+                  t('workflow.inlineMonitor.dagMonitor.status.failed', {
+                    defaultValue: '失败',
+                  })}
+                {selectedNode.status === 'skipped' &&
+                  t('workflow.inlineMonitor.dagMonitor.status.skipped', {
+                    defaultValue: '跳过',
+                  })}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="theme-text-subtle">类型:</span>
-              <span>{parseNodeType(selectedNode.id, selectedNode.label)}</span>
+              <span className="theme-text-subtle">
+                {t('workflow.inlineMonitor.dagMonitor.nodeDetails.type', {
+                  defaultValue: '类型',
+                })}
+                :
+              </span>
+              <span className="theme-text">
+                {(() => {
+                  const type = parseNodeType(selectedNode.id, selectedNode.label);
+                  const typeLabels: Record<string, string> = {
+                    Search: t('workflow.inlineMonitor.dagMonitor.nodeTypes.search', {
+                      defaultValue: '搜索',
+                    }),
+                    Read: t('workflow.inlineMonitor.dagMonitor.nodeTypes.read', {
+                      defaultValue: '读取',
+                    }),
+                    Write: t('workflow.inlineMonitor.dagMonitor.nodeTypes.write', {
+                      defaultValue: '写入',
+                    }),
+                    Agent: t('workflow.inlineMonitor.dagMonitor.nodeTypes.agent', {
+                      defaultValue: '智能体',
+                    }),
+                    Command: t('workflow.inlineMonitor.dagMonitor.nodeTypes.command', {
+                      defaultValue: '命令',
+                    }),
+                    Explore: t('workflow.inlineMonitor.dagMonitor.nodeTypes.explore', {
+                      defaultValue: '探索',
+                    }),
+                    Review: t('workflow.inlineMonitor.dagMonitor.nodeTypes.review', {
+                      defaultValue: '审查',
+                    }),
+                    Refactor: t('workflow.inlineMonitor.dagMonitor.nodeTypes.refactor', {
+                      defaultValue: '重构',
+                    }),
+                    Test: t('workflow.inlineMonitor.dagMonitor.nodeTypes.test', {
+                      defaultValue: '测试',
+                    }),
+                    Build: t('workflow.inlineMonitor.dagMonitor.nodeTypes.build', {
+                      defaultValue: '构建',
+                    }),
+                    Deploy: t('workflow.inlineMonitor.dagMonitor.nodeTypes.deploy', {
+                      defaultValue: '部署',
+                    }),
+                  };
+
+                  return typeLabels[type] || type;
+                })()}
+              </span>
             </div>
             {selectedNode.startedAt && (
               <div className="flex justify-between">
-                <span className="theme-text-subtle">开始时间:</span>
-                <span>{formatTimestamp(selectedNode.startedAt)}</span>
+                <span className="theme-text-subtle">
+                  {t('workflow.inlineMonitor.dagMonitor.nodeDetails.startedAt', {
+                    defaultValue: '开始时间',
+                  })}
+                  :
+                </span>
+                <span className="theme-text">{formatTimestamp(selectedNode.startedAt)}</span>
               </div>
             )}
             {selectedNode.completedAt && (
               <div className="flex justify-between">
-                <span className="theme-text-subtle">完成时间:</span>
-                <span>{formatTimestamp(selectedNode.completedAt)}</span>
+                <span className="theme-text-subtle">
+                  {t('workflow.inlineMonitor.dagMonitor.nodeDetails.completedAt', {
+                    defaultValue: '完成时间',
+                  })}
+                  :
+                </span>
+                <span className="theme-text">{formatTimestamp(selectedNode.completedAt)}</span>
               </div>
             )}
             {calculateNodeDuration(selectedNode) > 0 && (
               <div className="flex justify-between">
-                <span className="theme-text-subtle">执行时长:</span>
-                <span>{calculateNodeDuration(selectedNode)}ms</span>
+                <span className="theme-text-subtle">
+                  {t('workflow.inlineMonitor.dagMonitor.nodeDetails.duration', {
+                    defaultValue: '执行时长',
+                  })}
+                  :
+                </span>
+                <span className="theme-text">
+                  {translateWithDefault(
+                    t,
+                    'workflow.inlineMonitor.duration.millisecondsShort',
+                    '{{value}}ms',
+                    { value: calculateNodeDuration(selectedNode) }
+                  )}
+                </span>
               </div>
             )}
 
@@ -893,38 +1166,61 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             {selectedNode.tool_calls && selectedNode.tool_calls.length > 0 && (
               <div className="theme-border mt-3 border-t pt-3">
                 <div className="theme-text-subtle mb-2 font-medium">
-                  工具调用 ({selectedNode.tool_calls.length})
+                  {translateWithDefault(
+                    t,
+                    'workflow.inlineMonitor.dagMonitor.nodeDetails.toolCalls',
+                    '工具调用 ({{count}})',
+                    { count: selectedNode.tool_calls.length }
+                  )}
                 </div>
                 <div className="space-y-2">
                   {selectedNode.tool_calls.map((tool, idx) => (
                     <div
                       key={idx}
-                      className={`p-2 rounded text-xs ${
+                      className={`rounded p-2 text-xs ${
                         tool.is_error
-                          ? 'bg-red-500/10 border border-red-500/20'
-                          : 'bg-blue-500/10 border border-blue-500/20'
+                          ? 'theme-surface-danger'
+                          : 'theme-surface-success'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium">{tool.tool_name}</span>
-                        <span className={tool.is_error ? 'text-red-600' : 'text-green-600'}>
-                          {tool.is_error ? '❌ 失败' : '✅ 成功'}
+                        <span className="theme-text font-medium">{tool.tool_name}</span>
+                        <span className={tool.is_error ? 'theme-text-danger' : 'theme-text-success'}>
+                          {tool.is_error
+                            ? t('workflow.inlineMonitor.dagMonitor.nodeDetails.toolFailed', {
+                                defaultValue: '失败',
+                              })
+                            : t('workflow.inlineMonitor.dagMonitor.nodeDetails.toolSuccess', {
+                                defaultValue: '成功',
+                              })}
                         </span>
                       </div>
                       {tool.execution_time_ms !== undefined && (
                         <div className="theme-text-subtle mb-1">
-                          耗时: {tool.execution_time_ms}ms
+                          {translateWithDefault(
+                            t,
+                            'workflow.inlineMonitor.dagMonitor.nodeDetails.toolDuration',
+                            '耗时: {{count}}ms',
+                            { count: tool.execution_time_ms }
+                          )}
                         </div>
                       )}
                       {tool.output_length > 0 && (
                         <div className="theme-text-subtle mb-1">
-                          输出: {tool.output_length} 字符
+                          {translateWithDefault(
+                            t,
+                            'workflow.inlineMonitor.dagMonitor.nodeDetails.toolOutputLength',
+                            '输出: {{count}} 字符',
+                            { count: tool.output_length }
+                          )}
                         </div>
                       )}
                       {tool.tool_input && (
                         <details className="mt-1">
                           <summary className="theme-text-subtle cursor-pointer hover:text-[var(--text-primary)]">
-                            输入参数
+                            {t('workflow.inlineMonitor.dagMonitor.nodeDetails.toolInput', {
+                              defaultValue: '输入参数',
+                            })}
                           </summary>
                           <pre className="theme-code-surface theme-border mt-1 overflow-x-auto rounded border p-1">
                             {tool.tool_input}
@@ -934,7 +1230,9 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
                       {tool.tool_output && (
                         <details className="mt-1">
                           <summary className="theme-text-subtle cursor-pointer hover:text-[var(--text-primary)]">
-                            输出结果
+                            {t('workflow.inlineMonitor.dagMonitor.nodeDetails.toolOutput', {
+                              defaultValue: '输出结果',
+                            })}
                           </summary>
                           <pre className="theme-code-surface theme-border mt-1 max-h-32 overflow-x-auto overflow-y-auto rounded border p-1">
                             {tool.tool_output}
@@ -949,7 +1247,12 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
 
             {selectedNode.output && (
               <div className="mt-3">
-                <div className="theme-text-subtle mb-1">输出:</div>
+                <div className="theme-text-subtle mb-1">
+                  {t('workflow.inlineMonitor.dagMonitor.nodeDetails.output', {
+                    defaultValue: '输出',
+                  })}
+                  :
+                </div>
                 <div className="theme-code-surface theme-border max-h-32 overflow-y-auto rounded border p-2 text-xs">
                   {selectedNode.output}
                 </div>
@@ -957,8 +1260,13 @@ function DAGVisualization({ nodes, edges, onNodeClick }: DAGVisualizationProps) 
             )}
             {selectedNode.error && (
               <div className="mt-3">
-                <div className="text-red-600 mb-1">错误:</div>
-                <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-400">
+                <div className="theme-text-danger mb-1">
+                  {t('workflow.inlineMonitor.dagMonitor.nodeDetails.error', {
+                    defaultValue: '错误',
+                  })}
+                  :
+                </div>
+                <div className="theme-surface-danger p-2 text-xs">
                   {selectedNode.error}
                 </div>
               </div>
@@ -978,13 +1286,12 @@ interface NodeCardProps {
 }
 
 function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
+  const { t } = useTranslation();
   const duration = calculateNodeDuration(node);
 
   return (
     <div
-      className={`p-3 border rounded-lg transition-all ${
-        node.status === 'running' ? 'border-blue-500 bg-blue-500/10' : 'theme-panel-muted theme-border'
-      }`}
+      className={`rounded-lg border p-3 transition-all ${getNodeStatusSurfaceClass(node.status)}`}
       data-testid="workflow-node"
       data-status={node.status}
     >
@@ -995,28 +1302,47 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
         <div className="flex items-center gap-3">
           {getNodeStatusIcon(node.status)}
           <div>
-            <div className="font-medium">{node.label}</div>
+            <div className="theme-text font-medium">{node.label}</div>
             <div className="theme-text-subtle text-xs">{node.id}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {duration > 0 && (
-            <span className="theme-text-subtle text-xs">{duration}ms</span>
+            <span className="theme-text-subtle text-xs">
+              {translateWithDefault(
+                t,
+                'workflow.inlineMonitor.duration.millisecondsShort',
+                '{{value}}ms',
+                { value: duration }
+              )}
+            </span>
           )}
-          <Badge
-            className={getNodeStatusColor(node.status)}
-            style={{ backgroundColor: getNodeStatusColor(node.status) }}
-          >
-            {node.status === 'running' && '运行中'}
-            {node.status === 'completed' && '完成'}
-            {node.status === 'pending' && '等待'}
-            {node.status === 'failed' && '失败'}
-            {node.status === 'skipped' && '跳过'}
+          <Badge variant="outline" className={getNodeStatusBadgeClass(node.status)}>
+            {node.status === 'running' &&
+              t('workflow.inlineMonitor.dagMonitor.status.running', {
+                defaultValue: '运行中',
+              })}
+            {node.status === 'completed' &&
+              t('workflow.inlineMonitor.dagMonitor.status.completed', {
+                defaultValue: '完成',
+              })}
+            {node.status === 'pending' &&
+              t('workflow.inlineMonitor.dagMonitor.status.pending', {
+                defaultValue: '等待',
+              })}
+            {node.status === 'failed' &&
+              t('workflow.inlineMonitor.dagMonitor.status.failed', {
+                defaultValue: '失败',
+              })}
+            {node.status === 'skipped' &&
+              t('workflow.inlineMonitor.dagMonitor.status.skipped', {
+                defaultValue: '跳过',
+              })}
           </Badge>
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="h-4 w-4 theme-text-subtle" />
           ) : (
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="h-4 w-4 theme-text-subtle" />
           )}
         </div>
       </div>
@@ -1025,7 +1351,12 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
         <div className="theme-border mt-3 border-t pt-3" data-testid="node-details">
           {node.output && (
             <div className="mb-2">
-              <div className="text-xs font-medium mb-1">输出:</div>
+              <div className="theme-text text-xs font-medium mb-1">
+                {t('workflow.inlineMonitor.dagMonitor.nodeDetails.output', {
+                  defaultValue: '输出',
+                })}
+                :
+              </div>
               <div className="theme-code-surface theme-border max-h-20 overflow-x-auto overflow-y-auto rounded border p-2 text-xs">
                 {node.output}
               </div>
@@ -1033,8 +1364,13 @@ function NodeCard({ node, isExpanded, onToggleExpand }: NodeCardProps) {
           )}
           {node.error && (
             <div data-testid="workflow-error">
-              <div className="text-xs font-medium mb-1 text-red-500">错误:</div>
-              <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-400">
+              <div className="theme-text-danger text-xs font-medium mb-1">
+                {t('workflow.inlineMonitor.dagMonitor.nodeDetails.error', {
+                  defaultValue: '错误',
+                })}
+                :
+              </div>
+              <div className="theme-surface-danger p-2 text-xs">
                 {node.error}
               </div>
             </div>
@@ -1051,16 +1387,18 @@ interface TimelineLogItemProps {
 }
 
 function TimelineLogItem({ log }: TimelineLogItemProps) {
+  const { t } = useTranslation();
+
   const getEventColor = (type: ProgressEventType): string => {
     switch (type) {
       case 'node_started':
-        return 'text-blue-500';
+        return 'theme-text-accent';
       case 'node_completed':
-        return 'text-green-500';
+        return 'theme-text-success';
       case 'node_progress':
-        return 'text-yellow-500';
+        return 'theme-text-warning';
       case 'tool_call':
-        return 'text-purple-500';
+        return 'theme-text-info';
       default:
         return 'theme-text-subtle';
     }
@@ -1069,13 +1407,21 @@ function TimelineLogItem({ log }: TimelineLogItemProps) {
   const getEventLabel = (type: ProgressEventType): string => {
     switch (type) {
       case 'node_started':
-        return '▶ 开始';
+        return t('workflow.inlineMonitor.dagMonitor.timeline.started', {
+          defaultValue: '▶ 开始',
+        });
       case 'node_completed':
-        return '完成';
+        return t('workflow.inlineMonitor.dagMonitor.timeline.completed', {
+          defaultValue: '完成',
+        });
       case 'node_progress':
-        return '进度';
+        return t('workflow.inlineMonitor.dagMonitor.timeline.progress', {
+          defaultValue: '进度',
+        });
       case 'tool_call':
-        return '工具调用';
+        return t('workflow.inlineMonitor.dagMonitor.timeline.toolCall', {
+          defaultValue: '工具调用',
+        });
       default:
         return type;
     }
@@ -1090,7 +1436,7 @@ function TimelineLogItem({ log }: TimelineLogItemProps) {
         {getEventLabel(log.type)}
       </span>
       {log.nodeId && (
-        <span className="text-blue-500">[{log.nodeId}]</span>
+        <span className="theme-text-accent">[{log.nodeId}]</span>
       )}
       {log.message && (
         <span className="theme-text-subtle truncate">{log.message}</span>

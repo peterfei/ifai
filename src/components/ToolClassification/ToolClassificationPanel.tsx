@@ -5,6 +5,8 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { BarChart3, Clock3, Target } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useToolClassificationStore } from '@/stores/toolClassificationStore';
 import { useClassificationStats } from '@/stores/toolClassificationStore';
 import ToolIndicator from './ToolIndicator';
@@ -16,6 +18,7 @@ import {
   TOOL_CATEGORY_DISPLAY_INFO,
   LAYER_DISPLAY_INFO,
 } from '@/types/toolClassification';
+import { ToolCategoryIcon } from './ToolCategoryIcon';
 
 /**
  * 统计卡片组件
@@ -28,7 +31,7 @@ interface StatCardProps {
   /** 描述 */
   description?: string;
   /** 图标 */
-  icon?: string;
+  icon?: React.ReactNode;
   /** 颜色 */
   color?: string;
 }
@@ -52,7 +55,7 @@ const StatCard: React.FC<StatCardProps> = ({
         )}
       </div>
       {icon && (
-        <span className="text-3xl opacity-50" role="img">
+        <span className="theme-text-subtle text-3xl opacity-60">
           {icon}
         </span>
       )}
@@ -79,6 +82,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
   className = '',
   defaultTab = 'classify',
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
   const [input, setInput] = useState('');
   const [benchmarkResults, setBenchmarkResults] = useState<any>(null);
@@ -94,6 +98,19 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
   } = useToolClassificationStore();
 
   const stats = useClassificationStats();
+  const getCategoryLabel = (category: ToolCategory) => {
+    const keyMap: Record<ToolCategory, string> = {
+      file_operations: 'toolClassificationHistory.categories.fileOperations',
+      code_generation: 'toolClassificationHistory.categories.codeGeneration',
+      code_analysis: 'toolClassificationHistory.categories.codeAnalysis',
+      terminal_commands: 'toolClassificationHistory.categories.terminalCommands',
+      ai_chat: 'toolClassificationHistory.categories.aiChat',
+      search_operations: 'toolClassificationHistory.categories.searchOperations',
+      no_tool_needed: 'toolClassificationHistory.categories.noToolNeeded',
+    };
+    return t(keyMap[category] as any);
+  };
+  const getLayerLabel = (layer: ClassificationLayer) => t(`toolClassificationHistory.layers.${layer}` as any);
 
   // 聚焦输入框
   useEffect(() => {
@@ -144,31 +161,31 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           onClick={() => setActiveTab('classify')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'classify'
-              ? 'text-blue-500 border-b-2 border-blue-500'
+              ? 'border-b-2 border-[var(--accent-color)] text-[var(--accent-color)]'
               : 'theme-text-muted hover:text-[var(--text-primary)]'
           }`}
         >
-          🔍 分类测试
+          {t('toolClassificationPanel.tabs.classify')}
         </button>
         <button
           onClick={() => setActiveTab('history')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'history'
-              ? 'text-blue-500 border-b-2 border-blue-500'
+              ? 'border-b-2 border-[var(--accent-color)] text-[var(--accent-color)]'
               : 'theme-text-muted hover:text-[var(--text-primary)]'
           }`}
         >
-          📜 历史记录
+          {t('toolClassificationPanel.tabs.history')}
         </button>
         <button
           onClick={() => setActiveTab('stats')}
           className={`px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'stats'
-              ? 'text-blue-500 border-b-2 border-blue-500'
+              ? 'border-b-2 border-[var(--accent-color)] text-[var(--accent-color)]'
               : 'theme-text-muted hover:text-[var(--text-primary)]'
           }`}
         >
-          📊 统计信息
+          {t('toolClassificationPanel.tabs.stats')}
         </button>
       </div>
 
@@ -178,7 +195,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           {/* 输入框 */}
           <div className="flex flex-col gap-2">
             <label className="theme-text-muted text-sm font-medium">
-              输入要分类的文本
+              {t('toolClassificationPanel.inputLabel')}
             </label>
             <div className="flex gap-2">
               <input
@@ -192,15 +209,15 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
                     handleClassify();
                   }
                 }}
-                placeholder="例如：读取文件、生成函数、git status..."
-                className="theme-input-surface theme-border theme-text flex-1 rounded-lg border px-3 py-2 placeholder:opacity-70 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                placeholder={t('toolClassificationPanel.inputPlaceholder')}
+                className="theme-input-surface theme-border theme-text theme-focus-accent flex-1 rounded-lg border px-3 py-2 placeholder:opacity-70"
               />
               <button
                 onClick={handleClassify}
                 disabled={isClassifying || !input.trim()}
                 className="theme-button-primary rounded-lg px-4 py-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isClassifying ? '分析中...' : '分类'}
+                {isClassifying ? t('toolClassificationPanel.classifying') : t('toolClassificationPanel.classify')}
               </button>
             </div>
 
@@ -212,7 +229,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           {currentResult && (
             <div className="theme-panel-muted theme-border rounded-lg border p-4">
               <h3 className="theme-text-muted mb-2 text-sm font-medium">
-                分类结果
+                {t('toolClassificationPanel.result')}
               </h3>
               <ClassificationBadge result={currentResult} showConfidence showLayer />
             </div>
@@ -220,8 +237,8 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
 
           {/* 错误提示 */}
           {error && (
-            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
-              <p className="text-sm text-red-400">{error}</p>
+            <div className="theme-surface-danger rounded-lg p-3">
+              <p className="theme-text-danger text-sm">{error}</p>
             </div>
           )}
 
@@ -231,14 +248,14 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
               onClick={handleBenchmark}
               className="theme-button-success rounded-lg px-4 py-2 font-medium transition-colors"
             >
-              运行批量测试
+              {t('toolClassificationPanel.runBenchmark')}
             </button>
             {stats.totalCount > 0 && (
               <button
                 onClick={clearHistory}
                 className="theme-button-secondary rounded-lg px-4 py-2 font-medium transition-colors"
               >
-                清空历史
+                {t('toolClassificationPanel.clearHistory')}
               </button>
             )}
           </div>
@@ -247,7 +264,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           {benchmarkResults && (
             <div className="theme-panel-muted theme-border rounded-lg border p-4">
               <h3 className="theme-text-muted mb-2 text-sm font-medium">
-                批量测试结果
+                {t('toolClassificationPanel.benchmarkResults')}
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {benchmarkResults.results.map((result: any, index: number) => (
@@ -281,31 +298,31 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           {/* 总体统计 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
-              title="总分类数"
+              title={t('toolClassificationPanel.totalClassifications')}
               value={stats.totalCount}
-              icon="📊"
-              color="#3b82f6"
+              icon={<BarChart3 className="h-7 w-7" />}
+              color="var(--accent-color)"
             />
             <StatCard
-              title="平均置信度"
+              title={t('toolClassificationPanel.averageConfidence')}
               value={`${(stats.averageConfidence * 100).toFixed(1)}%`}
-              description={stats.averageConfidence >= 0.8 ? '高准确率' : '需优化'}
-              icon="🎯"
-              color={stats.averageConfidence >= 0.8 ? '#22c55e' : '#f59e0b'}
+              description={stats.averageConfidence >= 0.8 ? t('toolClassificationPanel.highAccuracy') : t('toolClassificationPanel.needsTuning')}
+              icon={<Target className="h-7 w-7" />}
+              color={stats.averageConfidence >= 0.8 ? 'var(--success-color)' : 'var(--warning-color)'}
             />
             <StatCard
-              title="最近分类"
-              value={stats.totalCount > 0 ? '刚刚' : '-'}
-              description="最新一次分类时间"
-              icon="⏱️"
-              color="#8b5cf6"
+              title={t('toolClassificationPanel.latestClassification')}
+              value={stats.totalCount > 0 ? t('toolClassificationPanel.justNow') : '-'}
+              description={t('toolClassificationPanel.latestClassificationDesc')}
+              icon={<Clock3 className="h-7 w-7" />}
+              color="var(--accent-color)"
             />
           </div>
 
           {/* 按类别统计 */}
           <div>
             <h3 className="theme-text-muted mb-2 text-sm font-medium">
-              按类别统计
+              {t('toolClassificationPanel.byCategory')}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {Object.entries(stats.byCategory).map(([category, count]) => {
@@ -316,8 +333,8 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
                     className="theme-panel-muted theme-border rounded-lg border p-3"
                   >
                     <div className="flex items-center gap-2">
-                      <span role="img">{info.icon}</span>
-                      <span className="text-sm">{info.label}</span>
+                      <ToolCategoryIcon icon={info.icon} className="h-4 w-4" />
+                      <span className="theme-text text-sm">{getCategoryLabel(category as ToolCategory)}</span>
                     </div>
                     <p className="text-2xl font-bold mt-1" style={{ color: info.color }}>
                       {count}
@@ -331,7 +348,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           {/* 按层级统计 */}
           <div>
             <h3 className="theme-text-muted mb-2 text-sm font-medium">
-              按层级统计
+              {t('toolClassificationPanel.byLayer')}
             </h3>
             <div className="grid grid-cols-3 gap-2">
               {Object.entries(stats.byLayer).map(([layer, count]) => {
@@ -342,7 +359,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
                     className="theme-panel-muted theme-border rounded-lg border p-3"
                   >
                     <div className="theme-text-muted text-xs">
-                      {info.label}
+                      {getLayerLabel(layer as ClassificationLayer)}
                     </div>
                     <p className="text-2xl font-bold mt-1" style={{ color: info.color }}>
                       {count}
