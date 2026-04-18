@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { AccessTier } from '../../types/prompt';
 
 interface AccessTierBadgeProps {
@@ -14,31 +15,33 @@ interface AccessTierBadgeProps {
  * - 🔴 Private: 不可见（专家模式下显示）
  */
 export const AccessTierBadge: React.FC<AccessTierBadgeProps> = ({ tier }) => {
+  const { t } = useTranslation();
+
   const getBadgeConfig = () => {
     switch (tier) {
       case AccessTier.Public:
         return {
-          label: '可编辑',
-          dotClassName: 'bg-green-500',
-          className: 'border-green-500/20 bg-green-500/10 text-green-500',
+          label: t('promptManager.accessTier.public'),
+          className: 'border-[var(--success-soft-border)] bg-[var(--success-soft-bg)] text-[var(--text-primary)]',
+          dotClassName: 'bg-[var(--success-color)]',
         };
       case AccessTier.Protected:
         return {
-          label: '只读+覆盖',
-          dotClassName: 'bg-yellow-500',
-          className: 'border-yellow-500/20 bg-yellow-500/10 text-yellow-600',
+          label: t('promptManager.accessTier.protected'),
+          className: 'border-[var(--warning-soft-border)] bg-[var(--warning-soft-bg)] text-[var(--text-primary)]',
+          dotClassName: 'bg-[var(--warning-color)]',
         };
       case AccessTier.Private:
         return {
-          label: '专家',
-          dotClassName: 'bg-red-500',
-          className: 'border-red-500/20 bg-red-500/10 text-red-500',
+          label: t('promptManager.accessTier.private'),
+          className: 'border-[var(--danger-soft-border)] bg-[var(--danger-soft-bg)] text-[var(--text-primary)]',
+          dotClassName: 'bg-[var(--danger-color)]',
         };
       default:
         return {
-          label: '未知',
-          dotClassName: 'theme-divider',
+          label: t('promptManager.accessTier.unknown'),
           className: 'theme-panel-elevated theme-border theme-text-muted',
+          dotClassName: 'bg-current',
         };
     }
   };
@@ -49,7 +52,7 @@ export const AccessTierBadge: React.FC<AccessTierBadgeProps> = ({ tier }) => {
     <span
       data-testid="access-tier-badge"
       data-access-tier={tier}
-      className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-wider px-2 py-0.5 rounded font-bold border ${config.className}`}
+      className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold tracking-wide shadow-sm ${config.className}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${config.dotClassName}`}></span>
       <span>{config.label}</span>

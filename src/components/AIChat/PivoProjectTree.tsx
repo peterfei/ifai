@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Folder, File, ChevronRight, ChevronDown, Star, Code, Eye, EyeOff, FileText } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface TreeNode {
   name: string;
@@ -19,6 +20,7 @@ const MAX_CONTENT_PREVIEW_LENGTH = 500;
 
 // 🏆 关键文件预览组件 - 显示截断后的文件内容
 const KeyFilePreview: React.FC<{ path: string; content: string }> = ({ path, content }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const isTruncated = content.length > MAX_CONTENT_PREVIEW_LENGTH;
 
@@ -33,13 +35,13 @@ const KeyFilePreview: React.FC<{ path: string; content: string }> = ({ path, con
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
-          <Code size={12} className="text-blue-400" />
+          <Code size={12} className="theme-text-accent" />
           <span className="text-xs theme-text-muted font-mono">{path}</span>
         </div>
         <div className="flex items-center gap-2">
           {isTruncated && !isExpanded && (
             <span className="text-[10px] theme-text-subtle">
-              ({content.length} 字符)
+              {t('aiChat.projectTree.characters', { count: content.length })}
             </span>
           )}
           {isTruncated ? (
@@ -55,8 +57,8 @@ const KeyFilePreview: React.FC<{ path: string; content: string }> = ({ path, con
         <code>
           {displayContent}
           {isTruncated && !isExpanded && (
-            <span className="text-blue-500">
-              {"\n\n... (已截断，点击展开查看全部)"}
+            <span className="theme-text-accent">
+              {`\n\n${t('aiChat.projectTree.truncatedHint')}`}
             </span>
           )}
         </code>
@@ -71,6 +73,7 @@ const TreeItem: React.FC<{
   keyFilesPaths: string[];
   keyFiles: Record<string, string>;
 }> = ({ node, level, keyFilesPaths, keyFiles }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(level < 1); // 默认展开第一层
   const [showContentPreview, setShowContentPreview] = useState(false);
   const hasChildren = node.children && node.children.length > 0;
@@ -83,7 +86,7 @@ const TreeItem: React.FC<{
         className={`flex items-center py-1 px-2 rounded cursor-pointer transition-colors ${
           'theme-soft-hover'
         } ${
-          isKeyFile ? "text-blue-500" : "theme-text-muted"
+          isKeyFile ? "theme-text-accent" : "theme-text-muted"
         }`}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={() => setIsOpen(!isOpen)}
@@ -95,13 +98,13 @@ const TreeItem: React.FC<{
         </span>
         <span className="mr-2">
           {node.type === "directory" ? (
-            <Folder size={16} className="text-amber-500" />
+            <Folder size={16} className="theme-text-warning" />
           ) : (
             <File size={16} className="theme-text-subtle" />
           )}
         </span>
         <span className="text-sm font-medium truncate">{node.name}</span>
-        {isKeyFile && <Star size={12} className="ml-2 text-yellow-500 fill-yellow-500/20" />}
+        {isKeyFile && <Star size={12} className="ml-2 text-[var(--warning-color)] fill-[var(--warning-soft-bg)]" />}
       </div>
 
       {hasChildren && isOpen && (
@@ -123,10 +126,10 @@ const TreeItem: React.FC<{
         <div style={{ paddingLeft: `${level * 12 + 20}px` }} className="mt-1">
           <button
             onClick={() => setShowContentPreview(!showContentPreview)}
-            className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-blue-500 hover:text-blue-600 hover:bg-blue-500/10 rounded transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-[10px] theme-text-accent hover:bg-[var(--accent-soft-bg)] rounded transition-colors"
           >
             <Code size={10} />
-            <span>{showContentPreview ? "隐藏" : "预览"}关键文件内容</span>
+            <span>{showContentPreview ? t('aiChat.projectTree.hidePreview') : t('aiChat.projectTree.showPreview')}</span>
           </button>
           {showContentPreview && (
             <KeyFilePreview path={node.fullPath || node.name} content={keyFileContent} />
@@ -177,6 +180,7 @@ const arePivoProjectTreePropsEqual = (prevProps: ProjectTreeProps, nextProps: Pr
 };
 
 export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structure, keyFiles = {} }) => {
+  const { t } = useTranslation();
   // 🔥 PERFORMANCE FIX: 使用 useMemo 缓存解析结果，避免重复计算
   const treeData = useMemo(() => {
     // 🐛 DEBUG: 添加日志追踪useMemo调用
@@ -227,8 +231,8 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
       {/* 📁 文件树部分 */}
       <div className="theme-panel-muted border theme-border rounded-lg p-3 font-mono max-h-[400px] overflow-y-auto custom-scrollbar">
         <div className="text-[10px] uppercase tracking-wider theme-text-subtle mb-3 px-1 flex justify-between items-center">
-          <span>Project Topology</span>
-          <span className="text-blue-500">{keyFilesPaths.length} key files</span>
+          <span>{t('aiChat.projectTree.topology')}</span>
+          <span className="theme-text-accent">{t('aiChat.projectTree.keyFiles', { count: keyFilesPaths.length })}</span>
         </div>
         {treeData.children?.map((node, i) => (
           <TreeItem
@@ -243,13 +247,13 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
 
       {/* 🏆 关键文件内容摘要（可折叠） */}
       {keyFilesPaths.length > 0 && (
-        <div className="theme-panel-muted border border-blue-500/20 rounded-lg p-3">
-          <div className="text-[10px] uppercase tracking-wider text-blue-500 mb-2 px-1 flex justify-between items-center">
+        <div className="theme-panel-muted border border-[var(--accent-soft-border)] rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wider theme-text-accent mb-2 px-1 flex justify-between items-center">
             <span className="flex items-center gap-1.5">
               <FileText size={12} />
-              Key Files Preview
+              {t('aiChat.projectTree.keyFilesPreview')}
             </span>
-            <span className="theme-text-subtle">{keyFilesPaths.length} files</span>
+            <span className="theme-text-subtle">{t('aiChat.projectTree.files', { count: keyFilesPaths.length })}</span>
           </div>
           <div className="space-y-2">
             {keyFilesPaths.slice(0, 3).map((path) => {
@@ -260,12 +264,12 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
               return (
                 <div
                   key={path}
-                  className="theme-code-surface rounded border theme-border p-2 hover:border-blue-500/30 transition-colors"
+                  className="theme-code-surface rounded border theme-border p-2 hover:border-[var(--accent-soft-border)] transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-blue-500 font-mono truncate flex-1">{path}</span>
+                    <span className="text-xs theme-text-accent font-mono truncate flex-1">{path}</span>
                     <span className="text-[10px] theme-text-subtle ml-2">
-                      {content.length} chars
+                      {t('aiChat.projectTree.characters', { count: content.length })}
                     </span>
                   </div>
                   <pre className="text-[10px] theme-text-subtle font-mono overflow-hidden">
@@ -276,7 +280,7 @@ export const PivoProjectTree: React.FC<ProjectTreeProps> = React.memo(({ structu
             })}
             {keyFilesPaths.length > 3 && (
               <div className="text-center text-[10px] theme-text-subtle py-1">
-                ... and {keyFilesPaths.length - 3} more key files
+                {t('aiChat.projectTree.moreKeyFiles', { count: keyFilesPaths.length - 3 })}
               </div>
             )}
           </div>

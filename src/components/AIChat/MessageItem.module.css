@@ -23,10 +23,10 @@
 }
 
 .bubble.user {
-  background: #2563eb;
+  background: var(--accent-color);
   color: white;
   border-bottom-right-radius: 0.25rem;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 4px 12px var(--accent-soft-border);
 }
 
 .bubble.assistant {
@@ -34,18 +34,18 @@
   color: var(--text-primary);
   border-radius: 0.5rem;
   border: 1px solid var(--border-color);
-  border-left: 2px solid #3b82f6;
+  border-left: 2px solid var(--accent-color);
   padding-left: 1.25rem;
 }
 
 /* 工业级 UI 增强 */
 .industrial {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-ui);
   line-height: 1.6;
 }
 
 .mono {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 /* Markdown 内容样式 */
@@ -102,12 +102,12 @@
 
 /* 链接样式 */
 .markdownContent :global(a) {
-  color: #60a5fa;
+  color: var(--accent-color);
   text-decoration: underline;
 }
 
 .markdownContent :global(a:hover) {
-  color: #93c5fd;
+  color: var(--accent-hover);
 }
 
 /* 行内代码样式 */
@@ -158,7 +158,7 @@
   margin-top: 0.25rem;
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
-  color: #60a5fa;
+  color: var(--accent-color);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 0.375rem;
@@ -170,7 +170,7 @@
 }
 
 .collapseButton:hover {
-  color: #93c5fd;
+  color: var(--accent-hover);
   background: var(--hover-bg);
 }
 
@@ -190,7 +190,7 @@
 .streamingDot {
   width: 0.375rem;
   height: 0.375rem;
-  background: #3b82f6;
+  background: var(--accent-color);
   border-radius: 50%;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -217,15 +217,15 @@
 }
 
 .avatar.user {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent-color) 100%);
   color: white;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1px 2px var(--accent-soft-border);
 }
 
 .avatar.assistant {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  color: white;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 2px var(--border-color);
 }
 
 /* 工具栏样式 */
@@ -240,7 +240,7 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border-color);
   border-radius: 0.375rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--app-shadow);
   opacity: 0;
   transition: opacity 0.2s ease;
   z-index: 10;

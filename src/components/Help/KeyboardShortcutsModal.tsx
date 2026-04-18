@@ -5,9 +5,11 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatKeybinding } from '../../utils/keyboard';
+import { formatKeybinding, formatKeyLabel } from '../../utils/keyboard';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface ShortcutItem {
   shortcut: string;
@@ -21,31 +23,10 @@ interface KeyboardShortcutsModalProps {
 }
 
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ isOpen, onClose }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const theme = useSettingsStore((state) => state.theme);
 
-  // 🔍 调试：打印当前语言和翻译值
-  React.useEffect(() => {
-    if (isOpen) {
-      console.log('=== KeyboardShortcutsModal 调试信息 ===');
-      console.log('1. 当前语言 (i18n.language):', i18n.language);
-      console.log('2. localStorage i18nextLng:', localStorage.getItem('i18nextLng'));
-
-      const titleText = t('help.keyboardShortcuts');
-      console.log('3. t("help.keyboardShortcuts") 返回值:', titleText);
-
-      // 检查 i18n store 中的实际值
-      const storeData = i18n.store.data;
-      console.log('4. i18n.store.data 键:', Object.keys(storeData || {}));
-
-      const zhCNData = (storeData as any)?.['zh-CN']?.translation?.help;
-      const enUSData = (storeData as any)?.['en-US']?.translation?.help;
-      console.log('5. zh-CN translation.help.keyboardShortcuts:', zhCNData?.keyboardShortcuts);
-      console.log('6. en-US translation.help.keyboardShortcuts:', enUSData?.keyboardShortcuts);
-      console.log('7. 实际渲染的标题文本:', titleText);
-    }
-  }, [isOpen, i18n, t]);
-
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const shortcuts: ShortcutItem[] = [
     // 文件操作
@@ -89,15 +70,26 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
     return acc;
   }, {} as Record<string, ShortcutItem[]>);
 
-  return (
-    <div className="keyboard-shortcuts-modal theme-backdrop fixed inset-0 z-[220] flex items-center justify-center">
+  return createPortal(
+    <div
+      className="help-modal-overlay keyboard-shortcuts-modal theme-backdrop fixed inset-0 flex items-center justify-center p-4 backdrop-blur-sm"
+      data-theme={theme}
+    >
       <div
-        className="keyboard-shortcuts-panel theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border"
+        aria-labelledby="keyboard-shortcuts-title"
+        aria-modal="true"
+        className="help-modal-panel keyboard-shortcuts-panel theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border"
         data-testid="keyboard-shortcuts-dialog"
+        role="dialog"
       >
         {/* 标题栏 */}
         <div className="theme-border flex items-center justify-between border-b px-6 py-4">
-          <h2 className="keyboard-shortcuts-text theme-text text-lg font-semibold">{t('help.keyboardShortcuts')}</h2>
+          <h2
+            id="keyboard-shortcuts-title"
+            className="keyboard-shortcuts-text theme-text text-lg font-semibold"
+          >
+            {t('help.keyboardShortcuts')}
+          </h2>
           <button
             onClick={onClose}
             className="theme-button-ghost rounded p-1"
@@ -137,7 +129,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ 
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -151,7 +144,7 @@ export const ShortcutKey: React.FC<{ keys: string[] }> = ({ keys }) => {
         <React.Fragment key={index}>
           {index > 0 && <span className="theme-text-subtle">+</span>}
           <kbd className="theme-input-surface theme-border rounded border px-1.5 py-0.5 text-xs">
-            {key}
+            {formatKeyLabel(key)}
           </kbd>
         </React.Fragment>
       ))}

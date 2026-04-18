@@ -8,6 +8,7 @@
 
 import React, { useEffect } from 'react';
 import { CheckCircle2, CheckSquare2, Circle, Loader2, Trash2, RefreshCw, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useTodoWriteTasks, useTodoWriteStats, useTodoWriteLoading, useTodoWriteStore } from '../../stores/todoWriteStore';
 import { useTodoWriteStore as useTodoWriteActions } from '../../stores/todoWriteStore';
 import type { TaskStatus } from '../../services/taskStoreService';
@@ -26,9 +27,9 @@ function TaskStatusIcon({ status }: { status: TaskStatus }) {
     case 'pending':
       return <Circle className="theme-text-subtle h-4 w-4" />;
     case 'in_progress':
-      return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      return <Loader2 className="theme-text-info h-4 w-4 animate-spin" />;
     case 'completed':
-      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      return <CheckCircle2 className="theme-text-success h-4 w-4" />;
   }
 }
 
@@ -36,14 +37,14 @@ function TaskStatusIcon({ status }: { status: TaskStatus }) {
  * 任务状态标签样式
  */
 function getStatusBadgeStyle(status: TaskStatus): string {
-  const baseStyle = 'px-2 py-0.5 rounded-full text-xs font-medium';
+  const baseStyle = 'rounded-full border px-2 py-0.5 text-xs font-medium';
   switch (status) {
     case 'pending':
-      return `${baseStyle} theme-panel-muted theme-text-muted ring-1 ring-inset ring-[var(--border-color)]`;
+      return `${baseStyle} theme-panel-muted theme-border theme-text-muted`;
     case 'in_progress':
-      return `${baseStyle} bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/20`;
+      return `${baseStyle} border-[var(--info-soft-border)] bg-[var(--info-soft-bg)] text-[var(--info-color)]`;
     case 'completed':
-      return `${baseStyle} bg-green-500/10 text-green-500 ring-1 ring-inset ring-green-500/20`;
+      return `${baseStyle} border-[var(--success-soft-border)] bg-[var(--success-soft-bg)] text-[var(--success-color)]`;
   }
 }
 
@@ -51,6 +52,7 @@ function getStatusBadgeStyle(status: TaskStatus): string {
  * TodoWrite 任务面板
  */
 export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', onClose }) => {
+  const { t } = useTranslation();
   const tasks = useTodoWriteTasks();
   const stats = useTodoWriteStats();
   const isLoading = useTodoWriteLoading();
@@ -74,9 +76,9 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
   const handleStatusChange = async (index: number, newStatus: TaskStatus) => {
     try {
       await updateTaskStatus(index, newStatus);
-      toast.success('任务状态已更新');
+      toast.success(t('todoWrite.toast.statusUpdated'));
     } catch (error) {
-      toast.error('更新任务状态失败');
+      toast.error(t('todoWrite.toast.statusUpdateFailed'));
     }
   };
 
@@ -84,9 +86,9 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
   const handleRemoveTask = async (index: number) => {
     try {
       await removeTask(index);
-      toast.success('任务已删除');
+      toast.success(t('todoWrite.toast.deleted'));
     } catch (error) {
-      toast.error('删除任务失败');
+      toast.error(t('todoWrite.toast.deleteFailed'));
     }
   };
 
@@ -96,9 +98,9 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
 
     try {
       await clearTasks();
-      toast.success('任务列表已清空');
+      toast.success(t('todoWrite.toast.cleared'));
     } catch (error) {
-      toast.error('清空任务失败');
+      toast.error(t('todoWrite.toast.clearFailed'));
     }
   };
 
@@ -106,9 +108,20 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
   const handleRefresh = async () => {
     try {
       await loadTasks();
-      toast.success('任务列表已刷新');
+      toast.success(t('todoWrite.toast.refreshed'));
     } catch (error) {
-      toast.error('刷新任务列表失败');
+      toast.error(t('todoWrite.toast.refreshFailed'));
+    }
+  };
+
+  const getStatusLabel = (status: TaskStatus) => {
+    switch (status) {
+      case 'in_progress':
+        return t('todoWrite.status.inProgress');
+      case 'completed':
+        return t('todoWrite.status.completed');
+      default:
+        return t('todoWrite.status.pending');
     }
   };
 
@@ -119,12 +132,15 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
       <div
         className="theme-panel-muted theme-border theme-hoverable flex h-full cursor-pointer items-center gap-1 rounded-md border px-2 py-3 transition-colors"
         onClick={() => setPanelState('full')}
-        title="展开任务面板"
+        title={t('todoWrite.actions.expand')}
         data-testid="todowrite-panel-collapsed"
       >
-        <CheckSquare2 size={16} className={allDone ? 'text-green-400' : 'text-blue-400'} />
-        <span className={`whitespace-nowrap text-[10px] ${allDone ? 'text-green-400' : 'theme-text-subtle'}`}>
-          {stats.completed}/{stats.total}{allDone ? ' ✓' : ''}
+        <CheckSquare2
+          size={16}
+          className={allDone ? 'theme-text-success' : 'theme-text-accent'}
+        />
+        <span className={`whitespace-nowrap text-[10px] ${allDone ? 'theme-text-success' : 'theme-text-subtle'}`}>
+          {t('todoWrite.progress', { completed: stats.completed, total: stats.total })}
         </span>
       </div>
     );
@@ -136,9 +152,12 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
       <div className="theme-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <h3 className="theme-text font-semibold">
-            任务列表
+            {t('todoWrite.title')}
           </h3>
-          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-500 ring-1 ring-inset ring-blue-500/20" data-testid="task-count">
+          <span
+            className="rounded-full border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] px-2 py-0.5 text-xs font-medium text-[var(--accent-color)]"
+            data-testid="task-count"
+          >
             {stats.total}
           </span>
         </div>
@@ -149,7 +168,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
             <button
               onClick={onClose}
               className="theme-button-ghost rounded-lg p-1.5"
-              title="关闭面板"
+              title={t('common.close')}
               data-testid="close-panel-button"
             >
               <X className="w-4 h-4" />
@@ -161,7 +180,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
             onClick={handleRefresh}
             disabled={isLoading}
             className="theme-button-ghost rounded-lg p-1.5 disabled:opacity-50"
-            title="刷新"
+            title={t('todoWrite.actions.refresh')}
             data-testid="refresh-tasks-button"
           >
             <RefreshCw className={`theme-text-subtle h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} data-testid="refresh-icon" />
@@ -171,8 +190,8 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
           {safeTasks.length > 0 && (
             <button
               onClick={handleClearTasks}
-              className="theme-button-ghost rounded-lg p-1.5 text-red-400 hover:bg-red-500/10 hover:text-red-500"
-              title="清空所有任务"
+              className="theme-button-ghost theme-text-danger rounded-lg p-1.5 hover:bg-[var(--danger-soft-bg)]"
+              title={t('todoWrite.actions.clear')}
               data-testid="clear-tasks-button"
             >
               <Trash2 className="w-4 h-4" />
@@ -183,26 +202,26 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
 
       {/* 统计信息 */}
       {stats.total > 0 && (
-        <div className="theme-panel-muted theme-border flex items-center gap-4 border-b px-4 py-2">
-          <div className="flex items-center gap-1.5">
-            <Circle className="theme-text-subtle h-3 w-3" />
-            <span className="theme-text-muted text-sm" data-testid="stat-pending">
-              待办: {stats.pending}
-            </span>
+          <div className="theme-panel-muted theme-border flex items-center gap-4 border-b px-4 py-2">
+            <div className="flex items-center gap-1.5">
+              <Circle className="theme-text-subtle h-3 w-3" />
+              <span className="theme-text-muted text-sm" data-testid="stat-pending">
+                {t('todoWrite.stats.pending', { count: stats.pending })}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Loader2 className="theme-text-info h-3 w-3" />
+              <span className="theme-text-muted text-sm" data-testid="stat-in-progress">
+                {t('todoWrite.stats.inProgress', { count: stats.inProgress })}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="theme-text-success h-3 w-3" />
+              <span className="theme-text-muted text-sm" data-testid="stat-completed">
+                {t('todoWrite.stats.completed', { count: stats.completed })}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Loader2 className="w-3 h-3 text-blue-500" />
-            <span className="theme-text-muted text-sm" data-testid="stat-in-progress">
-              进行中: {stats.inProgress}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3 h-3 text-green-500" />
-            <span className="theme-text-muted text-sm" data-testid="stat-completed">
-              已完成: {stats.completed}
-            </span>
-          </div>
-        </div>
       )}
 
       {/* 任务列表 */}
@@ -214,10 +233,10 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
         ) : safeTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             <p className="theme-text-muted text-sm">
-              暂无任务
+              {t('todoWrite.empty.title')}
             </p>
             <p className="theme-text-subtle mt-1 text-xs">
-              AI 可以使用 TodoWrite 工具创建任务
+              {t('todoWrite.empty.description')}
             </p>
           </div>
         ) : (
@@ -248,8 +267,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
                 {/* 状态标签和操作 */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={getStatusBadgeStyle(task.status)} data-testid="task-status">
-                    {task.status === 'in_progress' ? '进行中' :
-                     task.status === 'completed' ? '已完成' : '待办'}
+                    {getStatusLabel(task.status)}
                   </span>
 
                   {/* 操作按钮 */}
@@ -259,7 +277,7 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
                       <button
                         onClick={() => handleStatusChange(index, task.status === 'pending' ? 'in_progress' : 'completed')}
                         className="theme-button-ghost rounded p-1"
-                        title={task.status === 'pending' ? '开始任务' : '完成任务'}
+                        title={task.status === 'pending' ? t('todoWrite.actions.startTask') : t('todoWrite.actions.completeTask')}
                         data-testid={task.status === 'pending' ? 'task-start-button' : 'task-complete-button'}
                       >
                         {task.status === 'pending' ? (
@@ -273,8 +291,8 @@ export const TodoWritePanel: React.FC<TodoWritePanelProps> = ({ className = '', 
                     {/* 删除按钮 */}
                     <button
                       onClick={() => handleRemoveTask(index)}
-                      className="theme-button-ghost rounded p-1 text-red-400 hover:bg-red-500/10 hover:text-red-500"
-                      title="删除任务"
+                      className="theme-button-ghost theme-text-danger rounded p-1 hover:bg-[var(--danger-soft-bg)]"
+                      title={t('common.delete')}
                       data-testid="task-delete-button"
                     >
                       <X className="w-3.5 h-3.5" />

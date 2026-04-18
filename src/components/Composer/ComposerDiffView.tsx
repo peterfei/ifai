@@ -10,9 +10,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { DiffEditor as MonacoDiffEditor } from '@monaco-editor/react';
+import { Check, X } from 'lucide-react';
 import './ComposerDiffView.css';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { getMonacoTheme } from '../../utils/theme';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // 类型定义
@@ -67,6 +69,7 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
   onRejectFile,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const theme = useSettingsStore(state => state.theme);
   const [selectedPath, setSelectedPath] = useState<string>(changes[0]?.path || '');
   const [appliedFiles, setAppliedFiles] = useState<Set<string>>(new Set());
@@ -152,16 +155,16 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
   // 获取目录显示
   const getDirName = (path: string) => {
     const parts = path.split('/');
-    return parts.slice(0, -1).join('/') || 'root';
+    return parts.slice(0, -1).join('/') || t('composerDiff.rootDirectory');
   };
 
   if (changes.length === 0) {
     return (
       <div className="composer-diff-empty">
-        <p>没有文件变更</p>
+        <p>{t('composerDiff.empty')}</p>
         {onClose && (
           <button onClick={onClose} className="btn-close">
-            关闭
+            {t('composerDiff.close')}
           </button>
         )}
       </div>
@@ -173,32 +176,32 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
       {/* 头部：标题和全局操作 */}
       <div className="composer-diff-header">
         <div className="composer-diff-title">
-          <h3>代码变更预览</h3>
-          <span className="file-count">{changes.length} 个文件</span>
+          <h3>{t('composerDiff.title')}</h3>
+          <span className="file-count">{t('composerDiff.fileCount', { count: changes.length })}</span>
         </div>
 
         <div className="composer-diff-actions">
           <button
             onClick={handleAcceptAll}
             className="btn-accept-all"
-            title="接受所有变更"
+            title={t('composerDiff.acceptAllTitle')}
           >
-            ✓ 全部接受
+            <Check size={14} aria-hidden="true" /> {t('composerDiff.acceptAll')}
           </button>
           <button
             onClick={handleRejectAll}
             className="btn-reject-all"
-            title="拒绝所有变更"
+            title={t('composerDiff.rejectAllTitle')}
           >
-            ✗ 全部拒绝
+            <X size={14} aria-hidden="true" /> {t('composerDiff.rejectAll')}
           </button>
           {onClose && (
             <button
               onClick={onClose}
               className="btn-close"
-              title="关闭"
+              title={t('composerDiff.closeTitle')}
             >
-              ✕
+              <X size={14} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -234,14 +237,14 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
                 <div className="file-item-actions">
                   {isApplied ? (
                     <>
-                      <span className="applied-badge">已应用</span>
+                      <span className="applied-badge">{t('composerDiff.appliedBadge')}</span>
                       {/* 🔥 已应用的文件也可以拒绝（回滚） */}
                       <button
                         className="btn-reject-single"
                         onClick={(e) => handleRejectFile(change.path, e)}
-                        title="拒绝此文件变更（回滚）"
+                        title={t('composerDiff.rejectFileRollbackTitle')}
                       >
-                        ✗
+                        <X size={12} aria-hidden="true" />
                       </button>
                     </>
                   ) : (
@@ -249,16 +252,16 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
                       <button
                         className="btn-accept-single"
                         onClick={(e) => handleAcceptFile(change.path, e)}
-                        title="接受此文件变更"
+                        title={t('composerDiff.acceptFileTitle')}
                       >
-                        ✓
+                        <Check size={12} aria-hidden="true" />
                       </button>
                       <button
                         className="btn-reject-single"
                         onClick={(e) => handleRejectFile(change.path, e)}
-                        title="拒绝此文件变更"
+                        title={t('composerDiff.rejectFileTitle')}
                       >
-                        ✗
+                        <X size={12} aria-hidden="true" />
                       </button>
                     </>
                   )}
@@ -281,7 +284,7 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
             />
           ) : (
             <div className="diff-empty">
-              选择一个文件查看变更
+              {t('composerDiff.selectFile')}
             </div>
           )}
         </div>
@@ -290,9 +293,9 @@ export const ComposerDiffView: React.FC<ComposerDiffViewProps> = ({
       {/* 底部：状态栏 */}
       <div className="composer-diff-footer">
         <div className="status-info">
-          <span>已应用: {appliedFiles.size}/{changes.length}</span>
+          <span>{t('composerDiff.appliedSummary', { applied: appliedFiles.size, total: changes.length })}</span>
           {appliedFiles.size === changes.length && (
-            <span className="all-applied-badge">✓ 所有变更已应用</span>
+            <span className="all-applied-badge">✓ {t('composerDiff.allApplied')}</span>
           )}
         </div>
       </div>
@@ -321,6 +324,7 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
   readOnly = true,
   theme,
 }) => {
+  const { t } = useTranslation();
   const [isMonacoLoaded, setIsMonacoLoaded] = useState(false);
   const editorRef = useRef<any>(null);
 
@@ -355,12 +359,12 @@ const DiffEditor: React.FC<DiffEditorProps> = ({
         </div>
         <div className="diff-content">
           <div className="diff-panel diff-original">
-            <div className="diff-panel-title">原始内容</div>
-            <pre>{original || '<空文件>'}</pre>
+            <div className="diff-panel-title">{t('composerDiff.original')}</div>
+            <pre>{original || t('composerDiff.emptyFile')}</pre>
           </div>
           <div className="diff-panel diff-modified">
-            <div className="diff-panel-title">新内容</div>
-            <pre>{modified || '<空文件>'}</pre>
+            <div className="diff-panel-title">{t('composerDiff.modified')}</div>
+            <pre>{modified || t('composerDiff.emptyFile')}</pre>
           </div>
         </div>
       </div>

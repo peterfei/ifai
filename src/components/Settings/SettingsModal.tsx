@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM, Globe, Target } from 'lucide-react';
+import { X, Monitor, Type, Cpu, Keyboard, Zap, Database, Cpu as LocalLLM, Globe, Target } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { useTranslation } from 'react-i18next';
@@ -10,22 +10,29 @@ import { LocalModelSettings } from './LocalModelSettings';
 import { CustomProviderSettings } from './CustomProviderSettings';
 import { ToolClassificationSettings } from './ToolClassificationSettings';
 import { SkillsSettings } from './SkillsSettings';
-import { isDarkTheme } from '../../utils/theme';
+import { formatKeybinding } from '../../utils/keyboard';
 
 export const SettingsModal = () => {
   const { t, i18n } = useTranslation();
   const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
   const settings = useSettingsStore();
   const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>('general');
-  const dark = isDarkTheme(settings.theme);
   const fieldLabelClass = 'settings-modal-label theme-text-muted mb-1 block text-sm font-medium';
   const fieldHintClass = 'settings-modal-value theme-text-subtle mt-1 text-xs';
-  const fieldInputClass = 'settings-modal-input theme-input-surface theme-border theme-text w-full rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none';
-  const compactInputClass = 'theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs focus:border-blue-500 focus:outline-none';
+  const fieldInputClass = 'settings-modal-input theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm';
+  const compactInputClass = 'theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-2 py-1 text-xs';
   const toggleTextClass = 'theme-text-muted text-sm font-medium';
   const smallMutedClass = 'theme-text-subtle text-xs';
-  const settingsCardClass = 'theme-panel-muted theme-border rounded-lg border p-3 transition-all';
-  const checkboxClass = 'theme-checkbox-input h-4 w-4 rounded focus:ring-2 focus:ring-blue-500';
+  const checkboxClass = 'theme-checkbox-input theme-focus-ring-accent h-4 w-4 rounded';
+  const providerCardClass = 'theme-panel-muted theme-border overflow-hidden rounded-lg border p-3 transition-all';
+  const providerHeaderClass = 'flex flex-col gap-3 md:flex-row md:items-start md:justify-between';
+  const providerMetaClass = 'min-w-0 flex-1';
+  const providerBadgeRowClass = 'mt-2 flex flex-wrap items-center gap-2';
+  const providerToggleShellClass = 'theme-panel theme-border flex items-center gap-3 rounded-full border px-2.5 py-1';
+  const providerToggleTrackClass = 'theme-toggle-track theme-focus-ring-accent relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors';
+  const providerToggleThumbClass = 'theme-toggle-thumb inline-block h-4 w-4 rounded-full';
+  const providerSummaryClass = 'theme-text-subtle text-xs leading-5';
+  const toggleSidebarShortcut = formatKeybinding('Mod+b');
 
   // 获取本地化的提供商名称
   const getProviderName = (providerId: string, fallbackName: string): string => {
@@ -36,30 +43,6 @@ export const SettingsModal = () => {
     }
     return fallbackName;
   };
-
-  // 🔍 调试：打印翻译值
-  React.useEffect(() => {
-    if (isSettingsOpen) {
-      console.log('=== SettingsModal 调试信息 ===');
-      console.log('1. 当前语言 (i18n.language):', i18n.language);
-      console.log('2. localStorage i18nextLng:', localStorage.getItem('i18nextLng'));
-
-      // 检查 shortcuts.keyboardShortcuts 翻译
-      const shortcutsKeyboardShortcuts = t('shortcuts.keyboardShortcuts');
-      console.log('3. t("shortcuts.keyboardShortcuts") 返回值:', shortcutsKeyboardShortcuts);
-
-      // 检查 i18n store 中的实际值
-      const storeData = i18n.store.data;
-      const zhCNData = (storeData as any)?.['zh-CN']?.translation?.shortcuts;
-      const enUSData = (storeData as any)?.['en-US']?.translation?.shortcuts;
-      console.log('4. zh-CN translation.shortcuts.keyboardShortcuts:', zhCNData?.keyboardShortcuts);
-      console.log('5. en-US translation.shortcuts.keyboardShortcuts:', enUSData?.keyboardShortcuts);
-
-      // 检查 tabs 数组中的 label 值
-      console.log('6. 活动的 tab:', activeTab);
-      console.log('7. 当前渲染的 keybindings 标签文本:', shortcutsKeyboardShortcuts);
-    }
-  }, [isSettingsOpen, activeTab, i18n, t]);
 
   if (!isSettingsOpen) return null;
 
@@ -72,9 +55,31 @@ export const SettingsModal = () => {
     { id: 'keybindings', label: t('shortcuts.keyboardShortcuts'), icon: Keyboard },
     { id: 'data', label: t('settings.dataManagement'), icon: Database },
     { id: 'localModel', label: t('settings.localModelSettings'), icon: LocalLLM },
-    { id: 'toolClassification', label: '工具分类', icon: Target },
-    { id: 'skills', label: '技能中心', icon: Zap },
+    { id: 'toolClassification', label: t('settings.toolClassification'), icon: Target },
+    { id: 'skills', label: t('settings.skills'), icon: Zap },
   ] as const;
+
+  const renderProviderToggle = (providerName: string, enabled: boolean, onToggle: () => void) => (
+    <div className={providerToggleShellClass}>
+      <span className="theme-text-subtle text-xs font-medium">{enabled ? t('common.on') : t('common.off')}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label={`${providerName}: ${enabled ? t('common.on') : t('common.off')}`}
+        data-active={enabled}
+        onClick={onToggle}
+        className={providerToggleTrackClass}
+      >
+        <span
+          className={clsx(
+            providerToggleThumbClass,
+            enabled ? 'translate-x-6' : 'translate-x-1'
+          )}
+        />
+      </button>
+    </div>
+  );
 
   return (
     <div className="theme-backdrop fixed inset-0 z-[200] flex items-center justify-center backdrop-blur-sm" onClick={() => setSettingsOpen(false)}>
@@ -115,8 +120,8 @@ export const SettingsModal = () => {
                activeTab === 'data' ? t('settings.dataManagement') :
                activeTab === 'localModel' ? t('settings.localModelSettings') :
                activeTab === 'customProvider' ? t('settings.customProvider') :
-               activeTab === 'toolClassification' ? '工具分类设置' :
-               activeTab === 'skills' ? '技能中心 (Skills Center)' :
+               activeTab === 'toolClassification' ? t('settings.toolClassificationSettings') :
+               activeTab === 'skills' ? t('settings.skills') :
                `${t(`settings.${activeTab}`)} ${t('chat.settings')}`}
             </h2>
             <button onClick={() => setSettingsOpen(false)} className="theme-button-ghost rounded p-1" data-testid="close-settings">
@@ -140,8 +145,8 @@ export const SettingsModal = () => {
                     }}
                     className={fieldInputClass}
                   >
-                    <option value="zh-CN">简体中文</option>
-                    <option value="en-US">English</option>
+                    <option value="zh-CN">{t('settings.languageZhCn')}</option>
+                    <option value="en-US">{t('settings.languageEnUs')}</option>
                   </select>
                   <p className={fieldHintClass}>{t('settings.languageHint')}</p>
                 </div>
@@ -167,7 +172,7 @@ export const SettingsModal = () => {
                     <option value="left">{t('settings.sidebarLeft')}</option>
                     <option value="right">{t('settings.sidebarRight')}</option>
                   </select>
-                  <p className={fieldHintClass}>{t('settings.sidebarPositionHint')}</p>
+                  <p className={fieldHintClass}>{t('settings.sidebarPositionHint', { shortcut: toggleSidebarShortcut })}</p>
                 </div>
               </div>
             )}
@@ -228,41 +233,42 @@ export const SettingsModal = () => {
                 {/* 内置提供商 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                      <h3 className="theme-text-muted text-sm font-bold">内置提供商</h3>
+                      <h3 className="theme-text-muted text-sm font-bold">{t('settings.builtInProviders')}</h3>
                   </div>
 
                   {settings.providers.filter(p => !p.isCustom).map(provider => {
                       const isCurrent = provider.id === settings.currentProviderId;
                       const hasApiKey = provider.apiKey && provider.apiKey.trim() !== '';
+                      const providerName = getProviderName(provider.id, provider.name);
 
                       return (
                           <div key={provider.id} className={clsx(
-                              settingsCardClass,
-                              isCurrent && 'border-blue-500 bg-blue-500/10'
+                              providerCardClass,
+                              isCurrent && 'border-[var(--accent-soft-border)] bg-[var(--selected-bg)]'
                           )}>
-                              <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center">
-                                      <span className="theme-text font-semibold">{getProviderName(provider.id, provider.name)}</span>
-                                      {isCurrent && (
-                                          <span className="theme-badge-accent ml-2 rounded px-2 py-0.5 text-xs">{t('settings.current')}</span>
-                                      )}
-                                      {hasApiKey && !isCurrent && (
-                                          <span className="theme-badge-success ml-2 rounded px-2 py-0.5 text-xs">已配置</span>
-                                      )}
+                              <div className={providerHeaderClass}>
+                                  <div className={providerMetaClass}>
+                                      <div className="min-w-0">
+                                        <span className="theme-text font-semibold">{providerName}</span>
+                                      </div>
+                                      <div className={providerBadgeRowClass}>
+                                        {isCurrent && (
+                                            <span className="theme-badge-accent rounded px-2 py-0.5 text-xs">{t('settings.current')}</span>
+                                        )}
+                                        {hasApiKey && !isCurrent && (
+                                            <span className="theme-badge-success rounded px-2 py-0.5 text-xs">{t('settings.configured')}</span>
+                                        )}
+                                      </div>
                                   </div>
-                                  <div className="flex items-center">
-                                      <span className="theme-text-subtle mr-2 text-xs">{provider.enabled ? t('common.on') : t('common.off')}</span>
-                                      <input
-                                          type="checkbox"
-                                          checked={provider.enabled}
-                                          onChange={(e) => settings.updateProviderConfig(provider.id, { enabled: e.target.checked })}
-                                          className="cursor-pointer"
-                                      />
-                                  </div>
+                                  {renderProviderToggle(
+                                    providerName,
+                                    provider.enabled,
+                                    () => settings.updateProviderConfig(provider.id, { enabled: !provider.enabled })
+                                  )}
                               </div>
 
                               {provider.enabled && (
-                                  <div className="space-y-3 mt-2">
+                                  <div className="mt-3 space-y-3">
                                       <div>
                                           <label className={clsx(smallMutedClass, 'mb-1 block')}>{t('settings.apiKey')}</label>
                                           <input
@@ -271,9 +277,9 @@ export const SettingsModal = () => {
                                               onChange={(e) => settings.updateProviderConfig(provider.id, { apiKey: e.target.value })}
                                               className={clsx(
                                                   compactInputClass,
-                                                  isCurrent && 'border-blue-500 bg-blue-500/10 focus:border-blue-400'
+                                                  isCurrent && 'border-[var(--accent-soft-border)] bg-[var(--selected-bg)] focus:border-[var(--accent-color)]'
                                               )}
-                                              placeholder={t('settings.apiKeyFor', { providerName: getProviderName(provider.id, provider.name) })}
+                                              placeholder={t('settings.apiKeyFor', { providerName })}
                                           />
                                           {hasApiKey && (
                                               <div className="theme-text-success mt-1 text-xs">
@@ -316,7 +322,7 @@ export const SettingsModal = () => {
                         </h3>
                         <button
                           onClick={() => setActiveTab('customProvider')}
-                          className="theme-button-ghost rounded px-2 py-1 text-xs text-blue-400"
+                          className="theme-button-ghost theme-text-accent rounded px-2 py-1 text-xs"
                         >
                           {t('settings.manageCustomProvider')} →
                         </button>
@@ -325,45 +331,45 @@ export const SettingsModal = () => {
                     {settings.providers.filter(p => p.isCustom).map(provider => {
                         const isCurrent = provider.id === settings.currentProviderId;
                         const hasApiKey = provider.apiKey && provider.apiKey.trim() !== '';
+                        const providerName = provider.displayName || provider.name;
 
                         return (
                             <div key={provider.id} className={clsx(
-                                settingsCardClass,
-                                isCurrent && 'border-blue-500 bg-blue-500/10',
-                                provider.isCustom && "border-purple-500/30"
+                                providerCardClass,
+                                isCurrent && 'border-[var(--accent-soft-border)] bg-[var(--selected-bg)]'
                             )}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center">
-                                        <Globe size={14} className="mr-1 text-purple-400" />
-                                        <span className="theme-text font-semibold">
-                                          {provider.displayName || provider.name}
-                                        </span>
-                                        {isCurrent && (
-                                            <span className="theme-badge-accent ml-2 rounded px-2 py-0.5 text-xs">当前</span>
-                                        )}
-                                        <span className="ml-2 px-2 py-0.5 text-xs bg-purple-600/50 text-purple-300 rounded">{t('settings.custom')}</span>
-                                        {hasApiKey && !isCurrent && (
-                                            <span className="theme-badge-success ml-2 rounded px-2 py-0.5 text-xs">已配置</span>
-                                        )}
+                                <div className={providerHeaderClass}>
+                                    <div className={providerMetaClass}>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                          <Globe size={14} className="theme-text-accent flex-shrink-0" />
+                                          <span className="theme-text truncate font-semibold">
+                                            {providerName}
+                                          </span>
+                                        </div>
+                                        <div className={providerBadgeRowClass}>
+                                          {isCurrent && (
+                                              <span className="theme-badge-accent rounded px-2 py-0.5 text-xs">{t('settings.current')}</span>
+                                          )}
+                                          <span className="theme-badge-info rounded px-2 py-0.5 text-xs">{t('settings.custom')}</span>
+                                          {hasApiKey && !isCurrent && (
+                                              <span className="theme-badge-success rounded px-2 py-0.5 text-xs">{t('settings.configured')}</span>
+                                          )}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center">
-                                        <span className="theme-text-subtle mr-2 text-xs">{provider.enabled ? t('common.on') : t('common.off')}</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={provider.enabled}
-                                            onChange={(e) => settings.updateProviderConfig(provider.id, { enabled: e.target.checked })}
-                                            className="cursor-pointer"
-                                        />
-                                    </div>
+                                    {renderProviderToggle(
+                                      providerName,
+                                      provider.enabled,
+                                      () => settings.updateProviderConfig(provider.id, { enabled: !provider.enabled })
+                                    )}
                                 </div>
 
                                 {provider.enabled && (
-                                    <div className="space-y-2 mt-2">
-                                        <div className="theme-text-subtle text-xs">
-                                            {t('settings.endpoint')}: <span className="font-mono">{provider.baseUrl}</span>
+                                    <div className="mt-3 space-y-2">
+                                        <div className={providerSummaryClass}>
+                                            {t('settings.endpoint')}: <span className="theme-text break-all font-mono">{provider.baseUrl}</span>
                                         </div>
-                                        <div className="theme-text-subtle text-xs">
-                                            {t('settings.modelLabel')}: {provider.models.length > 0 ? provider.models.join(', ') : t('settings.notConfigured')}
+                                        <div className={providerSummaryClass}>
+                                            {t('settings.modelLabel')}: <span className="theme-text break-words">{provider.models.length > 0 ? provider.models.join(', ') : t('settings.notConfigured')}</span>
                                         </div>
                                         {!isCurrent && hasApiKey && (
                                             <button
@@ -395,10 +401,10 @@ export const SettingsModal = () => {
                 <div className="flex items-center justify-between pt-4">
                   <div className="flex-1">
                     <label className={fieldLabelClass}>
-                      启用打字机效果
+                      {t('settings.typewriterEffect')}
                     </label>
                     <p className={fieldHintClass}>
-                      逐字显示 AI 响应，关闭后将直接显示完整内容
+                      {t('settings.typewriterEffectDesc')}
                     </p>
                   </div>
                   <input
@@ -440,10 +446,10 @@ export const SettingsModal = () => {
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex-1">
                       <label className={fieldLabelClass}>
-                        沙箱模式
+                        {t('settings.sandboxMode')}
                       </label>
                       <p className={fieldHintClass}>
-                        控制破坏性操作（如 bash、删除文件）的自动审批策略
+                        {t('settings.sandboxModeDesc')}
                       </p>
                     </div>
                     <select
@@ -454,10 +460,10 @@ export const SettingsModal = () => {
                       data-testid="sandbox-mode-select"
                       className={clsx(compactInputClass, 'ml-4 px-3 py-1.5 text-sm')}
                     >
-                      <option value="auto">自动检测</option>
-                      <option value="tauri-only">仅桌面应用</option>
-                      <option value="always-on">始终启用</option>
-                      <option value="always-off">始终禁用</option>
+                      <option value="auto">{t('settings.sandboxModeAuto')}</option>
+                      <option value="tauri-only">{t('settings.sandboxModeTauriOnly')}</option>
+                      <option value="always-on">{t('settings.sandboxModeAlwaysOn')}</option>
+                      <option value="always-off">{t('settings.sandboxModeAlwaysOff')}</option>
                     </select>
                   </div>
                 </div>

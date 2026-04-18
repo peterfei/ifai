@@ -4,53 +4,31 @@
  */
 
 import React from 'react';
-import { TaskNode } from '../../types/taskBreakdown';
+import { Check, CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { TaskNode as TaskNodeType } from '../../types/taskBreakdown';
+import { formatTaskHours, getTaskCategoryLabel, getTaskPriorityMeta, getTaskStatusMeta } from './taskBreakdownMeta';
 
 interface SimpleTaskViewProps {
-  taskTree: TaskNode;
+  taskTree: TaskNodeType;
   depth?: number;
 }
 
 /**
- * 获取任务状态对应的颜色和图标
- */
-const getStatusStyle = (status: TaskNode['status']) => {
-  switch (status) {
-    case 'pending':
-      return { color: 'theme-text-subtle', bg: 'bg-[var(--border-strong)]', icon: '○' };
-    case 'in_progress':
-      return { color: 'text-blue-400', bg: 'bg-blue-500', icon: '◐' };
-    case 'completed':
-      return { color: 'text-green-400', bg: 'bg-green-500', icon: '●' };
-    case 'failed':
-      return { color: 'text-red-400', bg: 'bg-red-500', icon: '✕' };
-    default:
-      return { color: 'theme-text-subtle', bg: 'bg-[var(--border-strong)]', icon: '○' };
-  }
-};
-
-/**
- * 获取任务类别对应的标签
- */
-const getCategoryLabel = (category?: TaskNode['category']) => {
-  if (!category) return null;
-  const labels = {
-    development: '开发',
-    testing: '测试',
-    documentation: '文档',
-    design: '设计',
-    research: '研究',
-  };
-  return labels[category] || category;
-};
-
-/**
  * 递归渲染任务节点
  */
-const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth }) => {
-  const statusStyle = getStatusStyle(node.status);
+const TaskNodeItem: React.FC<{ node: TaskNodeType; depth: number }> = ({ node, depth }) => {
+  const { t } = useTranslation();
+  const statusMeta = getTaskStatusMeta(node.status, t);
+  const priorityMeta = getTaskPriorityMeta(node.priority, t);
   const indent = depth * 16; // 每层缩进 16px
-  const categoryLabel = getCategoryLabel(node.category);
+  const categoryLabel = getTaskCategoryLabel(node.category, t);
+  const statusIcon = {
+    pending: <Circle className={`h-3.5 w-3.5 ${statusMeta.textClass}`} />,
+    inProgress: <Loader2 className={`h-3.5 w-3.5 animate-spin ${statusMeta.textClass}`} />,
+    completed: <CheckCircle2 className={`h-3.5 w-3.5 ${statusMeta.textClass}`} />,
+    failed: <XCircle className={`h-3.5 w-3.5 ${statusMeta.textClass}`} />,
+  }[statusMeta.key];
 
   return (
     <div className="mb-1">
@@ -60,8 +38,8 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
         style={{ marginLeft: `${indent}px` }}
       >
         {/* 状态图标 */}
-        <span className={`text-xs ${statusStyle.color}`} title={node.status}>
-          {statusStyle.icon}
+        <span className="text-xs" title={statusMeta.label}>
+          {statusIcon}
         </span>
 
         {/* 任务标题 */}
@@ -70,7 +48,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
         {/* 工时估算 */}
         {node.estimatedHours && (
           <span className="theme-text-subtle text-xs">
-            {node.estimatedHours}h
+            {formatTaskHours(node.estimatedHours, t, true)}
           </span>
         )}
 
@@ -82,18 +60,9 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
         )}
 
         {/* 优先级 */}
-        {node.priority && (
-          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-            node.priority === 'high' || node.priority === 'critical'
-              ? 'bg-red-900/50 text-red-300'
-              : node.priority === 'medium'
-              ? 'bg-yellow-900/50 text-yellow-300'
-              : 'theme-panel-elevated theme-text-subtle'
-          }`}>
-            {node.priority === 'high' ? '高' :
-             node.priority === 'medium' ? '中' :
-             node.priority === 'low' ? '低' :
-             node.priority === 'critical' ? '紧急' : ''}
+        {priorityMeta && (
+          <span className={`rounded px-1.5 py-0.5 text-[10px] ${priorityMeta.badgeClass}`}>
+            {priorityMeta.label}
           </span>
         )}
       </div>
@@ -116,7 +85,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
         >
           {node.acceptanceCriteria.map((criteria, index) => (
             <div key={index} className="theme-text-subtle flex items-start gap-1 text-xs">
-              <span className="text-green-500">✓</span>
+              <Check className="theme-text-success mt-0.5 h-3 w-3 flex-shrink-0" />
               <span>{criteria}</span>
             </div>
           ))}
@@ -129,7 +98,7 @@ const TaskNodeItem: React.FC<{ node: TaskNode; depth: number }> = ({ node, depth
           className="theme-text-subtle mb-1 ml-6 text-xs"
           style={{ marginLeft: `${indent + 20}px` }}
         >
-          依赖: {node.dependencies.join(', ')}
+          {t('taskBreakdown.labels.dependenciesTitle', { items: node.dependencies.join(', ') })}
         </div>
       )}
 

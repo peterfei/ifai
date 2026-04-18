@@ -16,22 +16,23 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  min-height: 32px;
+  padding: 0 10px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
 }
 
 .layout-trigger:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--hover-soft);
+  border-color: var(--border-color);
+  color: var(--text-primary);
 }
 
 .layout-trigger:active {
@@ -39,13 +40,13 @@
 }
 
 .layout-trigger.active {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: rgba(255, 255, 255, 1);
+  background: var(--accent-soft-bg);
+  border-color: var(--accent-soft-border);
+  color: var(--text-primary);
 }
 
 .layout-trigger:focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline: 2px solid var(--accent-soft-border);
   outline-offset: 2px;
 }
 
@@ -73,7 +74,7 @@
 
 /* 标签文字 */
 .layout-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -98,14 +99,11 @@
   top: calc(100% + 6px);
   right: 0;
   min-width: 280px;
-  background: #1e1e1e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.3),
-    0 2px 4px -1px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(0, 0, 0, 0.1);
-  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--app-shadow);
+  padding: 6px;
   z-index: 1000;
   animation: dropdownSlideIn 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -132,9 +130,9 @@
 }
 
 .layout-dropdown-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
@@ -142,9 +140,8 @@
 .layout-dropdown-subtitle {
   font-size: 10px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  color: var(--text-subtle);
+  letter-spacing: 0.03em;
   margin-top: 2px;
 }
 
@@ -153,7 +150,7 @@
    ============================================ */
 .layout-dropdown-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border-color);
   margin: 8px 0;
 }
 
@@ -165,7 +162,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -173,15 +170,15 @@
 }
 
 .layout-option:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-soft);
 }
 
 .layout-option.selected {
-  background: rgba(59, 130, 246, 0.12);
+  background: var(--accent-soft-bg);
 }
 
 .layout-option.selected:hover {
-  background: rgba(59, 130, 246, 0.16);
+  background: var(--selected-bg);
 }
 
 /* 选项图标 */
@@ -192,21 +189,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 6px;
+  background: var(--bg-strong);
+  border-radius: var(--radius-sm);
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .layout-option:hover .layout-option-icon {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
 }
 
 .layout-option.selected .layout-option-icon {
-  background: rgba(59, 130, 246, 0.15);
+  background: var(--accent-soft-bg);
 }
 
 .layout-option-icon-accent {
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 /* 选项内容 */
@@ -221,18 +218,18 @@
 .layout-option-title {
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   letter-spacing: 0.01em;
 }
 
 .layout-option-description {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-subtle);
   letter-spacing: 0.01em;
 }
 
 .layout-option.selected .layout-option-description {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-secondary);
 }
 
 /* 选中标记 */
@@ -243,9 +240,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(59, 130, 246, 0.2);
+  background: var(--accent-soft-bg);
   border-radius: 4px;
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 /* ============================================
@@ -257,18 +254,19 @@
   gap: 8px;
   padding: 8px 12px;
   margin-top: 4px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 
 .layout-dropdown-footer-icon {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-subtle);
 }
 
 .layout-dropdown-footer-text {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-subtle);
   letter-spacing: 0.01em;
 }
 
@@ -282,32 +280,6 @@
 
   .layout-label {
     display: none;
-  }
-}
-
-/* ============================================
-   深色主题优化
-   ============================================ */
-@media (prefers-color-scheme: dark) {
-  .layout-dropdown {
-    background: #1a1a1a;
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow:
-      0 8px 16px -4px rgba(0, 0, 0, 0.5),
-      0 4px 8px -2px rgba(0, 0, 0, 0.3),
-      0 0 0 1px rgba(0, 0, 0, 0.2);
-  }
-
-  .layout-dropdown-divider {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .layout-option:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .layout-option.selected {
-    background: rgba(59, 130, 246, 0.15);
   }
 }
 
@@ -328,7 +300,7 @@
   }
 
   .layout-option-description {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
   }
 }
 
@@ -359,7 +331,7 @@
    Focus visible 优化
    ============================================ */
 .layout-option:focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline: 2px solid var(--accent-soft-border);
   outline-offset: 2px;
   z-index: 1;
 }
@@ -374,8 +346,8 @@
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.95);
-  color: white;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 500;
   border-radius: 4px;
@@ -396,7 +368,7 @@
   height: 0;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 5px solid rgba(0, 0, 0, 0.95);
+  border-top: 5px solid var(--bg-elevated);
   z-index: 1001;
 }
 
@@ -426,10 +398,10 @@
 
   /* 移除悬停效果，使用触摸反馈 */
   .layout-trigger:active {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--hover-bg);
   }
 
   .layout-option:active {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--hover-soft);
   }
 }

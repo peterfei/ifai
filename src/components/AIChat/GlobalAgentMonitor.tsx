@@ -15,11 +15,11 @@ import { exploreToTaskMetadata } from './exploreTaskAdapter';
 // Utility for status colors
 const getStatusColor = (status: string) => {
     switch (status) {
-        case 'completed': return 'text-green-500 bg-green-500/10 border-green-500/20';
-        case 'failed': return 'text-red-500 bg-red-500/10 border-red-500/20';
-        case 'waitingfortool': return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-        case 'initializing': return 'text-purple-500 bg-purple-500/10 border-purple-500/20';
-        default: return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
+        case 'completed': return 'text-[var(--success-color)] bg-[var(--success-soft-bg)] border border-[var(--success-soft-border)]';
+        case 'failed': return 'text-[var(--danger-color)] bg-[var(--danger-soft-bg)] border border-[var(--danger-soft-border)]';
+        case 'waitingfortool': return 'text-[var(--warning-color)] bg-[var(--warning-soft-bg)] border border-[var(--warning-soft-border)]';
+        case 'initializing': return 'text-[var(--info-color)] bg-[var(--info-soft-bg)] border border-[var(--info-soft-border)]';
+        default: return 'text-[var(--accent-color)] bg-[var(--accent-soft-bg)] border border-[var(--accent-soft-border)]';
     }
 };
 
@@ -202,7 +202,7 @@ export const GlobalAgentMonitor: React.FC = () => {
             className="flex items-center gap-3 theme-panel-elevated border theme-border theme-shadow rounded-lg p-2 pr-4 cursor-move hover:border-[var(--border-strong)] transition-all group select-none"
             onMouseDown={handleMouseDown}
         >
-            <div className={`p-2 rounded-md transition-colors ${activeCount > 0 ? 'bg-blue-600' : 'bg-green-600'}`}>
+            <div className={`p-2 rounded-md transition-colors ${activeCount > 0 ? 'bg-[var(--accent-color)]' : 'bg-[var(--success-color)]'}`}>
                 {activeCount > 0 ? <Loader2 size={18} className="text-white animate-spin" /> : <Terminal size={18} className="text-white" />}
             </div>
             <div className="flex flex-col">
@@ -265,8 +265,8 @@ export const GlobalAgentMonitor: React.FC = () => {
                                             {agent.threadId && getThreadTitle(agent.threadId) && (
                                                 <button
                                                     onClick={(e) => handleThreadClick(agent.threadId!, e)}
-                                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors flex-shrink-0"
-                                                    title={`切换到会话: ${getThreadTitle(agent.threadId)}`}
+                                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[var(--accent-soft-bg)] text-[var(--accent-color)] hover:bg-[var(--accent-soft-border)] transition-colors flex-shrink-0"
+                                                    title={t('aiChat.globalAgentMonitor.switchToThread', { title: getThreadTitle(agent.threadId) })}
                                                 >
                                                     <MessageSquare size={10} />
                                                     <span className="text-[9px] max-w-[80px] truncate">
@@ -282,14 +282,18 @@ export const GlobalAgentMonitor: React.FC = () => {
                                             {agent.expiresAt && (agent.status === 'completed' || agent.status === 'failed') ? (
                                                 <span className={`text-[9px] border-l theme-border pl-2 ${
                                                     Math.ceil((agent.expiresAt - Date.now()) / 1000) <= 3
-                                                        ? 'text-red-400 animate-pulse'
+                                                        ? 'text-[var(--danger-color)] animate-pulse'
                                                         : 'theme-text-subtle'
                                                 }`}>
-                                                    {Math.ceil((agent.expiresAt - Date.now()) / 1000)}s后关闭
+                                                    {t('aiChat.globalAgentMonitor.closeInSeconds', {
+                                                      count: Math.ceil((agent.expiresAt - Date.now()) / 1000)
+                                                    })}
                                                 </span>
                                             ) : agent.startTime && (
                                                 <span className="text-[9px] theme-text-subtle border-l theme-border pl-2">
-                                                    {Math.round((Date.now() - agent.startTime) / 1000)}s
+                                                    {t('aiChat.globalAgentMonitor.secondsElapsed', {
+                                                      count: Math.round((Date.now() - agent.startTime) / 1000)
+                                                    })}
                                                 </span>
                                             )}
                                         </div>
@@ -299,14 +303,14 @@ export const GlobalAgentMonitor: React.FC = () => {
                                     {agent.status === 'running' && (
                                         <div className="w-12 h-1 theme-panel rounded-full overflow-hidden">
                                             <div 
-                                                className="h-full bg-blue-500 transition-all duration-300" 
+                                                className="h-full bg-[var(--accent-color)] transition-all duration-300" 
                                                 style={{ width: `${(agent.progress || 0) * 100}%` }} 
                                             />
                                         </div>
                                     )}
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); removeAgent(agent.id); }}
-                                        className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded-md theme-text-subtle transition-colors"
+                                        className="p-1.5 hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)] rounded-md theme-text-subtle transition-colors"
                                         title={t('agent_monitor_stopRemove')}
                                     >
                                         <X size={14} />
@@ -333,7 +337,7 @@ export const GlobalAgentMonitor: React.FC = () => {
                                             <span className="opacity-30 italic">{t('agent_monitor_initializing')}</span>
                                         ) : (
                                             agent.logs.map((log, i) => (
-                                                <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-blue-500/50 pl-2">
+                                                <div key={i} className="mb-1 break-words border-l-2 border-transparent hover:border-[var(--accent-soft-border)] pl-2">
                                                     <pre className="theme-text-muted whitespace-pre-wrap">{log}</pre>
                                                 </div>
                                             ))
@@ -349,8 +353,8 @@ export const GlobalAgentMonitor: React.FC = () => {
                                     {/* Explore Progress Preview */}
                                     {agent.exploreProgress && (
                                         <div className="mb-2 flex items-center gap-2 text-[10px] theme-text-muted">
-                                            <span className="text-blue-500">∙</span>
-                                            <span className="capitalize">{agent.exploreProgress.phase}</span>
+                                            <span className="text-[var(--accent-color)]">∙</span>
+                                            <span>{t(`aiChat.exploreProgress.phase.${agent.exploreProgress.phase}`)}</span>
                                             <span className="theme-text-subtle">
                                                 {agent.exploreProgress.progress.scanned}/{agent.exploreProgress.progress.total}
                                             </span>
@@ -360,7 +364,7 @@ export const GlobalAgentMonitor: React.FC = () => {
                                     {/* Regular Log Preview */}
                                     {!agent.exploreProgress && agent.logs.length > 0 && (
                                         <div className="text-[10px] theme-text-subtle truncate font-mono opacity-70">
-                                            <span className="text-blue-500 mr-1">›</span>
+                                            <span className="text-[var(--accent-color)] mr-1">›</span>
                                             {agent.logs[agent.logs.length - 1]}
                                         </div>
                                     )}

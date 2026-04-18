@@ -11,6 +11,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Download, ChevronDown, ChevronUp, Filter, X, Copy, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { LogLevel, LogEntry } from './types';
 import { parseANSIToHTML, formatLogTimestamp } from './ansiUtils';
 
@@ -73,9 +74,9 @@ export interface LogFilter {
 const LogLevelBadge: React.FC<{ level: LogLevel }> = ({ level }) => {
   const config = {
     [LogLevel.DEBUG]: { label: 'DEBUG', color: 'theme-text-subtle', bg: 'bg-[var(--hover-soft)]' },
-    [LogLevel.INFO]: { label: 'INFO', color: 'text-blue-400', bg: 'bg-blue-500/15' },
-    [LogLevel.WARN]: { label: 'WARN', color: 'text-amber-400', bg: 'bg-amber-500/15' },
-    [LogLevel.ERROR]: { label: 'ERROR', color: 'text-red-400', bg: 'bg-red-500/15' },
+    [LogLevel.INFO]: { label: 'INFO', color: 'text-[var(--info-color)]', bg: 'bg-[var(--info-soft-bg)]' },
+    [LogLevel.WARN]: { label: 'WARN', color: 'text-[var(--warning-color)]', bg: 'bg-[var(--warning-soft-bg)]' },
+    [LogLevel.ERROR]: { label: 'ERROR', color: 'text-[var(--danger-color)]', bg: 'bg-[var(--danger-soft-bg)]' },
   };
 
   const { label, color, bg } = config[level];
@@ -113,6 +114,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
   onExport,
   onCopy,
 }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -124,7 +126,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="搜索日志..."
+          placeholder={t('taskLogStream.searchPlaceholder')}
           className="theme-text flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-[var(--text-subtle)]"
         />
         {search && (
@@ -143,7 +145,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
         className={`theme-soft-hover rounded p-1 flex-shrink-0 transition-colors ${
           expanded ? 'theme-panel-muted' : ''
         }`}
-        title="筛选"
+        title={t('taskLogStream.filter')}
       >
         <Filter size={12} className="theme-text-subtle" />
       </button>
@@ -153,7 +155,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
         <button
           onClick={onExport}
           className="theme-soft-hover rounded p-1 flex-shrink-0"
-          title="导出日志"
+          title={t('taskLogStream.export')}
         >
           <Download size={12} className="theme-text-subtle" />
         </button>
@@ -164,7 +166,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
         <button
           onClick={onClear}
           className="theme-soft-hover rounded p-1 flex-shrink-0"
-          title="清除日志"
+          title={t('taskLogStream.clear')}
         >
           <Trash2 size={12} className="theme-text-subtle" />
         </button>
@@ -178,7 +180,7 @@ const LogSearchBar: React.FC<LogSearchBarProps> = ({
             onChange={(e) => onLevelChange(e.target.value as LogLevel | 'all')}
             className="theme-panel-muted theme-border theme-text rounded border px-2 py-0.5 text-[10px]"
           >
-            <option value="all">全部</option>
+            <option value="all">{t('taskLogStream.allLevels')}</option>
             <option value={LogLevel.DEBUG}>DEBUG</option>
             <option value={LogLevel.INFO}>INFO</option>
             <option value={LogLevel.WARN}>WARN</option>
@@ -211,6 +213,7 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
   className = '',
   exportFilename = 'logs.txt',
 }) => {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<LogLevel | 'all'>('all');
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(autoScroll);
@@ -305,7 +308,7 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
             ) : (
               <ChevronUp size={12} />
             )}
-            <span>日志 ({filteredLogs.length})</span>
+            <span>{t('taskLogStream.title', { count: filteredLogs.length })}</span>
           </button>
         </div>
       )}
@@ -334,7 +337,7 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
         >
           {filteredLogs.length === 0 ? (
             <div className="theme-text-subtle px-3 py-8 text-center italic">
-              {logs.length === 0 ? '暂无日志' : '没有匹配的日志'}
+              {logs.length === 0 ? t('taskLogStream.empty') : t('taskLogStream.noMatches')}
             </div>
           ) : (
             <div className="px-2 py-1 space-y-0.5">
@@ -395,7 +398,7 @@ export const TaskLogStream: React.FC<TaskLogStreamProps> = ({
               onChange={(e) => setAutoScrollEnabled(e.target.checked)}
               className="theme-checkbox-input h-3 w-3"
             />
-            <span>自动滚动</span>
+            <span>{t('taskLogStream.autoScroll')}</span>
           </label>
         </div>
       )}
@@ -420,15 +423,15 @@ export interface TaskLogCompactProps {
 }
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
-  debug: '#858585',
-  info: '#569cd6',
-  warn: '#dcdcaa',
-  error: '#f14c4c',
+  debug: 'var(--text-subtle)',
+  info: 'var(--info-color)',
+  warn: 'var(--warning-color)',
+  error: 'var(--danger-color)',
 };
 
 const getLevelColor = (level: LogLevel, theme: TaskLogCompactProps['theme'] = 'default'): string => {
   if (theme === 'subtle') {
-    return '#858585';
+    return 'var(--text-subtle)';
   }
   return LEVEL_COLORS[level] || LEVEL_COLORS.info;
 };
@@ -444,6 +447,7 @@ export const TaskLogCompact: React.FC<TaskLogCompactProps> = ({
   onClick,
   theme = 'default',
 }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const recentLogs = logs.slice(-maxLines);
   const displayLogs = expanded ? logs : recentLogs;
@@ -502,12 +506,12 @@ export const TaskLogCompact: React.FC<TaskLogCompactProps> = ({
       {/* Show more/less indicator */}
       {hasMore && (
         <div className="mt-0.5 text-[10px] font-mono text-[var(--info-color)] opacity-70">
-          {logs.length - maxLines} more...
+          {t('taskLogStream.more', { count: logs.length - maxLines })}
         </div>
       )}
       {expanded && logs.length > maxLines && (
         <div className="mt-0.5 text-[10px] font-mono text-[var(--info-color)] opacity-70">
-          Show less
+          {t('taskLogStream.less')}
         </div>
       )}
     </div>

@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { Terminal, X, Minimize2, Maximize2 } from 'lucide-react';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
+import { Terminal, Minimize2, Maximize2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface BashStreamEvent {
   event_type: 'output' | 'error' | 'complete';
@@ -54,6 +53,7 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
   throttleLines = 10,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const [outputLines, setOutputLines] = useState<Array<{ text: string; isStderr: boolean; lineNum: number }>>([]);
   const [isRunning, setIsRunning] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -64,8 +64,6 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
   const outputRef = useRef<HTMLDivElement>(null);
   const eventIdRef = useRef<string>(propEventId || `bash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const unlistenRef = useRef<(() => void) | null>(null);
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -103,7 +101,7 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
             } else if (payload.event_type === 'error') {
               setIsRunning(false);
               setOutputLines(prev => [...prev, {
-                text: `❌ ${payload.content}`,
+                text: t('aiChat.streamingBash.streamError', { error: payload.content }),
                 isStderr: true,
                 lineNum: payload.line_count,
               }]);
@@ -145,7 +143,7 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
         const errorMsg = error instanceof Error ? error.message : String(error);
         onError?.(errorMsg);
         setOutputLines(prev => [...prev, {
-          text: `❌ 执行失败: ${errorMsg}`,
+          text: t('aiChat.streamingBash.commandFailed', { error: errorMsg }),
           isStderr: true,
           lineNum: lineCount + 1,
         }]);
@@ -160,33 +158,39 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
         unlistenRef.current();
       }
     };
-  }, [command, workingDir, timeoutMs, envVars, throttleLines, propEventId, onComplete, onError]);
+  }, [command, workingDir, timeoutMs, envVars, throttleLines, propEventId, onComplete, onError, t]);
 
   // 获取状态指示器
   const getStatusIndicator = () => {
     if (isRunning) {
       return (
-        <div className="flex items-center gap-2 text-yellow-400">
-          <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-          <span className="text-xs">执行中... ({lineCount} 行)</span>
+        <div className="theme-surface-warning flex items-center gap-2 rounded-full px-2 py-1">
+          <div className="h-2 w-2 rounded-full bg-[var(--warning-color)] animate-pulse" />
+          <span className="theme-text-warning text-xs">
+            {t('aiChat.streamingBash.running', { lineCount })}
+          </span>
         </div>
       );
     }
 
     if (exitCode === 0) {
       return (
-        <div className="flex items-center gap-2 text-green-400">
-          <div className="w-2 h-2 bg-green-400 rounded-full" />
-          <span className="text-xs">已完成 ({lineCount} 行, {elapsedMs}ms)</span>
+        <div className="theme-surface-success flex items-center gap-2 rounded-full px-2 py-1">
+          <div className="h-2 w-2 rounded-full bg-[var(--success-color)]" />
+          <span className="theme-text-success text-xs">
+            {t('aiChat.streamingBash.completed', { lineCount, elapsedMs })}
+          </span>
         </div>
       );
     }
 
     if (exitCode !== null) {
       return (
-        <div className="flex items-center gap-2 text-red-400">
-          <div className="w-2 h-2 bg-red-400 rounded-full" />
-          <span className="text-xs">失败 (退出码: {exitCode}, {lineCount} 行)</span>
+        <div className="theme-surface-danger flex items-center gap-2 rounded-full px-2 py-1">
+          <div className="h-2 w-2 rounded-full bg-[var(--danger-color)]" />
+          <span className="theme-text-danger text-xs">
+            {t('aiChat.streamingBash.failed', { exitCode, lineCount })}
+          </span>
         </div>
       );
     }
@@ -211,8 +215,9 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
           {/* 折叠按钮 */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="theme-button-ghost rounded p-1"
-            title={isCollapsed ? '展开' : '折叠'}
+            className="theme-button-ghost theme-focus-ring-accent rounded p-1"
+            title={isCollapsed ? t('aiChat.streamingBash.expand') : t('aiChat.streamingBash.collapse')}
+            aria-label={isCollapsed ? t('aiChat.streamingBash.expand') : t('aiChat.streamingBash.collapse')}
           >
             {isCollapsed ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
           </button>
@@ -223,20 +228,19 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
       {!isCollapsed && (
         <div
           ref={outputRef}
-          className="p-3 max-h-[400px] overflow-y-auto font-mono text-xs leading-relaxed"
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: dark ? '#4b5563 #1e1e1e' : '#cbd5e1 #ffffff',
-          }}
+          role="log"
+          aria-live="polite"
+          aria-label={t('aiChat.streamingBash.commandOutput')}
+          className="theme-code-surface max-h-[400px] overflow-y-auto p-3 font-mono text-xs leading-relaxed"
         >
           {outputLines.length === 0 && isRunning && (
-            <div className="theme-text-subtle italic">等待输出...</div>
+            <div className="theme-text-subtle italic">{t('aiChat.streamingBash.waitingOutput')}</div>
           )}
 
           {outputLines.map((line, index) => (
             <div
               key={`${line.lineNum}-${index}`}
-              className={`theme-hoverable -mx-1 rounded px-1 py-0.5 ${line.isStderr ? 'text-red-400' : 'theme-text'}`}
+              className={`theme-hoverable -mx-1 rounded px-1 py-0.5 ${line.isStderr ? 'theme-text-danger' : 'theme-text'}`}
             >
               <span className="theme-text-subtle mr-2 inline-block w-6 select-none text-right">
                 {line.lineNum}
@@ -249,7 +253,7 @@ export const StreamingBashOutput: React.FC<StreamingBashOutputProps> = ({
           {isRunning && outputLines.length > 0 && (
             <div className="theme-text-subtle mt-2 flex items-center gap-2">
               <div className="theme-divider h-4 w-2 animate-pulse" />
-              <span className="text-xs italic">等待输出...</span>
+              <span className="text-xs italic">{t('aiChat.streamingBash.waitingOutput')}</span>
             </div>
           )}
         </div>

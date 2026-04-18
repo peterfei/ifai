@@ -30,6 +30,7 @@ import { Skeleton } from '../UI/Skeleton';
 import { AgentDecorationProvider } from './AgentDecorationProvider';
 import { InlineDiffZone } from './InlineDiffZone';
 import { InlineAIWidget } from '../InlineEdit/InlineAIWidget';
+import { openFileFromPath } from '../../utils/fileActions';
 import '../../styles/monaco-decorations.css';
 import { toast } from 'sonner';
 import { PivoStage } from '../../stores/types';
@@ -447,39 +448,16 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         try {
           console.log('[MonacoEditor] Cross-file definition jump:', definition);
 
-          // 读取目标文件内容
-          const { readFileContent } = await import('../../utils/fileSystem');
-          const content = await readFileContent(definition.filePath);
-
-          // 提取文件名和语言
           const fileName = definition.filePath.split('/').pop() || 'unknown';
-          const language = (window as any).__detectLanguageFromPath?.(definition.filePath) ||
-            monaco.languages.getEncodedLanguageId?.(definition.filePath) ||
-            'plaintext';
-
-          // 打开文件（使用 fileStore）
-          const { useFileStore } = await import('../../stores/fileStore');
-          const { openFile, setActiveFile } = useFileStore.getState();
-
-          const fileId = openFile({
-            id: `file-${definition.filePath}-${Date.now()}`,
-            path: definition.filePath,
-            name: fileName,
-            content: content,
-            isDirty: false,
-            language: language,
-            initialLine: definition.line, // 设置初始行号
+          const opened = await openFileFromPath(definition.filePath, {
+            initialLine: definition.line,
           });
 
-          // 激活文件
-          setActiveFile(fileId);
-
-          // 显示提示
-          const { toast } = await import('sonner');
-          toast.success(`Opened ${fileName}:${definition.line}`);
+          if (opened) {
+            toast.success(`Opened ${fileName}:${definition.line}`);
+          }
         } catch (e) {
           console.error('[MonacoEditor] Failed to open definition file:', e);
-          const { toast } = await import('sonner');
           toast.error(`Failed to open definition: ${String(e)}`);
         }
       }

@@ -4,7 +4,8 @@
  */
 
 import React from 'react';
-import { FileCheck, FolderOpen, CheckCircle, Clock, FileText } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { FileCheck, CheckCircle, Clock, FileText } from 'lucide-react';
 import { Message } from '../../stores/useChatStore';
 
 interface TaskSummaryProps {
@@ -20,6 +21,8 @@ interface ToolCallSummary {
   totalToolCalls: number;
   completedToolCalls: number;
 }
+
+const TASK_SUMMARY_OPERATION_FAILED = '__TASK_SUMMARY_OPERATION_FAILED__';
 
 /**
  * 从消息的工具调用中提取总结信息
@@ -97,7 +100,7 @@ function extractTaskSummary(message: Message): ToolCallSummary | null {
 
     // 提取错误信息
     if (result.error || result.success === false) {
-      summary.errors.push(result.error || 'Operation failed');
+      summary.errors.push(result.error || TASK_SUMMARY_OPERATION_FAILED);
     }
   });
 
@@ -121,6 +124,7 @@ function extractTaskSummary(message: Message): ToolCallSummary | null {
 }
 
 export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
+  const { t } = useTranslation();
   const summary = extractTaskSummary(message);
 
   if (!summary) {
@@ -139,35 +143,38 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
   }
 
   return (
-    <div className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5">
+    <div className="theme-panel-elevated theme-border theme-shadow mt-4 overflow-hidden rounded-xl border">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-3">
-        <CheckCircle className="w-4 h-4 text-green-400" />
-        <span className="text-sm font-bold theme-text">生成完成</span>
-        <span className="text-xs theme-text-subtle ml-2">
-          {summary.completedToolCalls}/{summary.totalToolCalls} 操作已完成
+      <div className="theme-panel-muted theme-border flex items-center gap-2 border-b px-4 py-3">
+        <CheckCircle className="theme-text-success h-4 w-4" />
+        <span className="theme-text text-sm font-bold">{t('taskSummary.title')}</span>
+        <span className="theme-text-subtle ml-2 text-xs">
+          {t('taskSummary.completedOperations', {
+            completed: summary.completedToolCalls,
+            total: summary.totalToolCalls,
+          })}
         </span>
       </div>
 
       {/* Content */}
-      <div className="space-y-3">
+      <div className="space-y-3 p-4">
         {/* 生成的文件 */}
         {summary.filesCreated.length > 0 && (
-          <div>
+          <div className="theme-surface-success rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-2">
-              <FileText className="w-3.5 h-3.5 text-green-400" />
-              <span className="text-xs font-semibold theme-text-subtle uppercase tracking-wider">
-                生成的文件 ({summary.filesCreated.length})
+              <FileText className="theme-text-success h-3.5 w-3.5" />
+              <span className="theme-text text-xs font-semibold uppercase tracking-wider">
+                {t('taskSummary.filesCreated', { count: summary.filesCreated.length })}
               </span>
             </div>
             <div className="space-y-1 ml-5">
               {summary.filesCreated.map((filePath, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-2 px-2 py-1.5 theme-panel rounded border theme-border hover:border-green-500/30 transition-colors group"
+                  className="theme-panel theme-border flex items-center gap-2 rounded border px-2 py-1.5 transition-colors group hover:border-[var(--success-soft-border)]"
                 >
-                  <FileCheck className="w-3 h-3 text-green-400 shrink-0" />
-                  <code className="text-xs theme-text-muted font-mono truncate flex-1 group-hover:text-green-400 transition-colors">
+                  <FileCheck className="theme-text-success h-3 w-3 shrink-0" />
+                  <code className="theme-text-muted flex-1 truncate font-mono text-xs transition-colors group-hover:text-[var(--success-color)]">
                     {filePath}
                   </code>
                 </div>
@@ -178,21 +185,21 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
 
         {/* 读取的文件 */}
         {summary.filesRead.length > 0 && (
-          <div>
+          <div className="theme-surface-info rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-2">
-              <FileText className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-xs font-semibold theme-text-subtle uppercase tracking-wider">
-                读取的文件 ({summary.filesRead.length})
+              <FileText className="theme-text-info h-3.5 w-3.5" />
+              <span className="theme-text text-xs font-semibold uppercase tracking-wider">
+                {t('taskSummary.filesRead', { count: summary.filesRead.length })}
               </span>
             </div>
             <div className="space-y-1 ml-5">
               {summary.filesRead.map((filePath, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-2 px-2 py-1.5 theme-panel rounded border theme-border"
+                  className="theme-panel theme-border flex items-center gap-2 rounded border px-2 py-1.5"
                 >
-                  <FileText className="w-3 h-3 text-blue-400 shrink-0" />
-                  <code className="text-xs theme-text-subtle font-mono truncate">
+                  <FileText className="theme-text-info h-3 w-3 shrink-0" />
+                  <code className="theme-text-muted truncate font-mono text-xs">
                     {filePath}
                   </code>
                 </div>
@@ -203,27 +210,29 @@ export const TaskSummary: React.FC<TaskSummaryProps> = ({ message }) => {
 
         {/* 执行的命令 */}
         {summary.commandsExecuted > 0 && (
-          <div className="flex items-center gap-2 text-xs theme-text-subtle">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span>执行了 {summary.commandsExecuted} 个命令</span>
+          <div className="theme-surface-warning flex items-center gap-2 rounded-lg px-3 py-2 text-xs">
+            <Clock className="theme-text-warning h-3.5 w-3.5" />
+            <span className="theme-text">
+              {t('taskSummary.commandsExecuted', { count: summary.commandsExecuted })}
+            </span>
           </div>
         )}
 
         {/* 错误信息 */}
         {summary.errors.length > 0 && (
-          <div>
+          <div className="theme-surface-danger rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-2">
-              <span className="text-xs font-semibold text-red-400 uppercase tracking-wider">
-                错误 ({summary.errors.length})
+              <span className="theme-text text-xs font-semibold uppercase tracking-wider">
+                {t('taskSummary.errors', { count: summary.errors.length })}
               </span>
             </div>
             <div className="space-y-1 ml-5">
               {summary.errors.map((error, idx) => (
                 <div
                   key={idx}
-                  className="px-2 py-1.5 bg-red-500/10 rounded border border-red-500/20 text-xs text-red-300"
+                  className="theme-panel theme-border theme-text rounded border px-2 py-1.5 text-xs"
                 >
-                  {error}
+                  {error === TASK_SUMMARY_OPERATION_FAILED ? t('taskSummary.operationFailed') : error}
                 </div>
               ))}
             </div>

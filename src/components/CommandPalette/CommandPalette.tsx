@@ -25,7 +25,7 @@ type SearchResult = {
 };
 
 export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isCommandPaletteOpen, setCommandPaletteOpen } = useLayoutStore();
   const { rootPath } = useFileStore();
   const threads = useThreadStore(state => state.threads);
@@ -61,11 +61,11 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}小时前`;
-    if (diffMins < 43200) return `${Math.floor(diffMins / 1440)}天前`;
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+    if (diffMins < 1) return t('commandPalette.justNow');
+    if (diffMins < 60) return t('commandPalette.minutesAgo', { count: diffMins });
+    if (diffMins < 1440) return t('commandPalette.hoursAgo', { count: Math.floor(diffMins / 60) });
+    if (diffMins < 43200) return t('commandPalette.daysAgo', { count: Math.floor(diffMins / 1440) });
+    return date.toLocaleDateString(i18n.language, { month: '2-digit', day: '2-digit' });
   };
 
   // Convert threads to search results
@@ -76,11 +76,11 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
         type: 'thread' as const,
         id: thread.id,
         title: thread.title,
-        subtitle: `${thread.messageCount} 条消息 • ${formatThreadTimestamp(thread.lastActiveAt)}`,
+        subtitle: `${t('commandPalette.messageCount', { count: thread.messageCount })} • ${formatThreadTimestamp(thread.lastActiveAt)}`,
         icon: <MessageSquare size={16} />,
         threadId: thread.id,
       }));
-  }, [threads]);
+  }, [threads, t, i18n.language]);
 
   useEffect(() => {
     if (isCommandPaletteOpen) {
@@ -223,9 +223,9 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
   // Get placeholder text based on current input mode
   const getPlaceholder = () => {
     const { mode } = parseInput(input);
-    if (mode === 'files') return t('commandPalette.placeholder') || "搜索文件...";
-    if (mode === 'threads') return "搜索会话...";
-    return "搜索文件、会话... (@文件, #会话)";
+    if (mode === 'files') return t('commandPalette.placeholder');
+    if (mode === 'threads') return t('commandPalette.placeholderThreads');
+    return t('commandPalette.placeholderAll');
   };
 
   if (!isCommandPaletteOpen) return null;
@@ -243,7 +243,7 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
           <input
             ref={inputRef}
             type="text"
-            className="theme-input-surface theme-border theme-text w-full rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-[var(--radius-sm)] border px-3 py-2 text-sm"
             placeholder={getPlaceholder()}
             value={input}
             onChange={handleChange}
@@ -281,14 +281,14 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
                   <span className={clsx('text-[10px] px-1.5 py-0.5 rounded flex-shrink-0',
                     index === selectedIndex ? 'bg-[var(--accent-color)] text-white' : 'theme-panel-muted theme-text-subtle'
                   )}>
-                    会话
+                    {t('commandPalette.threadType')}
                   </span>
                 )}
               </div>
             ))
           ) : (
             <div className="theme-text-subtle px-4 py-6 text-center text-sm">
-              {t('commandPalette.noResults') || "未找到结果"}
+              {t('commandPalette.noResults')}
             </div>
           )}
         </div>

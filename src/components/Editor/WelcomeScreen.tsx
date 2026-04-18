@@ -2,22 +2,18 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
-import { useSettingsStore } from '../../stores/settingsStore';
 import { FilePlus, FolderOpen, MessageSquare } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { openDirectory, readFileContent } from '../../utils/fileSystem';
+import { openDirectory } from '../../utils/fileSystem';
+import { openFileFromPath } from '../../utils/fileActions';
 import { open } from '@tauri-apps/plugin-dialog';
 import ifaiLogo from '../../../imgs/ifai.png';
-import clsx from 'clsx';
 import { formatKeybinding } from '../../utils/keyboard';
-import { isDarkTheme } from '../../utils/theme';
 
 export const WelcomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { openFile, setFileTree } = useFileStore();
     const { toggleChat, assignFileToPane, activePaneId } = useLayoutStore();
-    const theme = useSettingsStore(state => state.theme);
-    const dark = isDarkTheme(theme);
 
     const handleNewFile = () => {
         const newFileId = uuidv4();
@@ -40,19 +36,10 @@ export const WelcomeScreen: React.FC = () => {
                 multiple: false,
             });
             if (selected && typeof selected === 'string') {
-                const content = await readFileContent(selected);
-                const newFileId = uuidv4();
-                openFile({
-                    id: newFileId,
-                    path: selected,
+                await openFileFromPath(selected, {
+                    id: uuidv4(),
                     name: selected.split('/').pop() || 'Untitled',
-                    content: content,
-                    isDirty: false,
-                    language: 'plaintext', // Simplification, ideally detect language
                 });
-                if (activePaneId) {
-                    assignFileToPane(activePaneId, newFileId);
-                }
             }
         } catch (e) {
             console.error(e);
@@ -73,19 +60,19 @@ export const WelcomeScreen: React.FC = () => {
 
             <div className="flex flex-col space-y-2 w-64">
                 <button onClick={handleNewFile} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <FilePlus size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-blue-500" />
+                    <FilePlus size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
                     {t('common.newFile') || 'New File'}
                 </button>
                 <button onClick={handleOpenFile} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <FolderOpen size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-blue-500" />
+                    <FolderOpen size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
                     {t('common.openFile') || 'Open File...'}
                 </button>
                 <button onClick={handleOpenFolder} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <FolderOpen size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-blue-500" />
+                    <FolderOpen size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
                     {t('common.openFolder') || 'Open Folder...'}
                 </button>
                 <button onClick={toggleChat} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <MessageSquare size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-blue-500" />
+                    <MessageSquare size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
                     {t('common.toggleChat') || 'Toggle AI Chat'}
                 </button>
             </div>

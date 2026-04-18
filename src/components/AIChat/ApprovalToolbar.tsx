@@ -6,10 +6,12 @@ import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { RiskPolicy } from '../../core/approval/policies/RiskPolicy';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 const riskPolicy = new RiskPolicy();
 
 export const ApprovalToolbar: React.FC = () => {
+  const { t } = useTranslation();
   const { approvalPreview, closeApprovalPreview } = useEditorStore();
   const { isVisible, filePath, toolCallId } = approvalPreview;
   const { editorMode } = useLayoutStore();
@@ -33,9 +35,9 @@ export const ApprovalToolbar: React.FC = () => {
       
       if (message) {
         chatStore.approveToolCall(message.id, toolCallId);
-        toast.success('已批准变更');
+        toast.success(t('approvalToolbar.approved'));
       } else {
-        toast.error('无法定位原始消息');
+        toast.error(t('approvalToolbar.messageNotFound'));
       }
     }
     closeApprovalPreview();
@@ -50,9 +52,9 @@ export const ApprovalToolbar: React.FC = () => {
 
       if (message) {
         chatStore.rejectToolCall(message.id, toolCallId);
-        toast.error('已拒绝变更');
+        toast.error(t('approvalToolbar.rejected'));
       } else {
-        toast.error('无法定位原始消息');
+        toast.error(t('approvalToolbar.messageNotFound'));
       }
     }
     closeApprovalPreview();
@@ -79,7 +81,7 @@ export const ApprovalToolbar: React.FC = () => {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider">
           {getRiskIcon()}
-          正在预览 AI 变更
+          {t('approvalToolbar.previewing')}
         </div>
         <div className="h-4 w-[1px] bg-current opacity-20 mx-1" />
         <div className="text-xs font-mono opacity-90 truncate max-w-[300px]">
@@ -92,18 +94,18 @@ export const ApprovalToolbar: React.FC = () => {
           onClick={handleReject}
           className="theme-button-secondary flex items-center gap-1.5 rounded border border-[var(--danger-soft-border)] px-3 py-1 text-xs font-bold transition-all hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
         >
-          <X size={14} /> 拒绝
+          <X size={14} /> {t('approvalToolbar.reject')}
         </button>
         <button
           onClick={handleApprove}
           className="theme-button-primary theme-glow-accent flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold transition-all"
         >
-          <Check size={14} /> 接受修改
+          <Check size={14} /> {t('approvalToolbar.accept')}
         </button>
         <button
           onClick={closeApprovalPreview}
           className="theme-button-ghost ml-2 rounded p-1 transition-colors"
-          title="关闭预览"
+          title={t('approvalToolbar.close')}
         >
           <X size={14} className="opacity-50" />
         </button>

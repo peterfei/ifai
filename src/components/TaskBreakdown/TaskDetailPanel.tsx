@@ -12,9 +12,11 @@
  */
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Copy, CheckCircle2, Clock, Circle, XCircle, Loader2, Calendar, User, GitBranch } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Copy, CheckCircle2, Clock, Circle, XCircle, Loader2, GitBranch } from 'lucide-react';
 import { TaskNode, TaskStatus } from '../../types/taskBreakdown';
+import { useTranslation } from 'react-i18next';
+import { formatTaskHours, getTaskCategoryLabel, getTaskPriorityMeta, getTaskStatusMeta } from './taskBreakdownMeta';
 
 interface TaskDetailPanelProps {
   node: TaskNode;
@@ -27,32 +29,6 @@ interface TaskDetailPanelProps {
 }
 
 /**
- * 状态选项
- */
-const STATUS_OPTIONS: { value: TaskStatus; label: string; icon: any; color: string; bgColor: string }[] = [
-  { value: 'pending', label: '待办', icon: Circle, color: 'theme-text-subtle', bgColor: 'theme-panel-elevated' },
-  { value: 'in_progress', label: '进行中', icon: Loader2, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
-  { value: 'completed', label: '已完成', icon: CheckCircle2, color: 'text-green-400', bgColor: 'bg-green-500/10' },
-  { value: 'failed', label: '失败', icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10' },
-];
-
-/**
- * 获取类别标签
- */
-const getCategoryLabel = (category?: string) => {
-  if (!category) return null;
-  const labels: Record<string, string> = {
-    development: '开发',
-    testing: '测试',
-    documentation: '文档',
-    design: '设计',
-    research: '研究',
-    deployment: '部署',
-  };
-  return labels[category] || category;
-};
-
-/**
  * TaskDetailPanel 组件
  */
 export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
@@ -61,8 +37,21 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   onClose,
   onStatusChange,
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
-  const currentStatus = STATUS_OPTIONS.find(s => s.value === node.status) || STATUS_OPTIONS[0];
+  const statusOptions = ([
+    { value: 'pending' as const, icon: Circle },
+    { value: 'in_progress' as const, icon: Loader2 },
+    { value: 'completed' as const, icon: CheckCircle2 },
+    { value: 'failed' as const, icon: XCircle },
+  ]).map((option) => ({
+    ...option,
+    meta: getTaskStatusMeta(option.value, t),
+  }));
+  const currentStatusMeta = getTaskStatusMeta(node.status, t);
+  const currentStatus = statusOptions.find((option) => option.meta.key === currentStatusMeta.key) || statusOptions[0];
+  const priorityMeta = getTaskPriorityMeta(node.priority, t);
+  const categoryLabel = getTaskCategoryLabel(node.category, t);
   const StatusIcon = currentStatus.icon;
 
   /**
@@ -83,21 +72,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     }
   };
 
-  /**
-   * 格式化时间戳
-   */
-  const formatTimestamp = (timestamp?: number) => {
-    if (!timestamp) return null;
-    const date = new Date(timestamp);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   return (
     <>
       <motion.div
@@ -113,7 +87,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         {/* 头部 */}
         <div className="theme-panel theme-border flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <StatusIcon className={`w-5 h-5 ${currentStatus.color} ${node.status === 'in_progress' ? 'animate-spin' : ''}`} />
+            <StatusIcon className={`h-5 w-5 ${currentStatus.meta.textClass} ${currentStatus.meta.key === 'inProgress' ? 'animate-spin' : ''}`} />
             <h3 className="theme-text flex-1 truncate text-sm font-medium">
               {node.title}
             </h3>
@@ -132,9 +106,9 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         <div className="p-4 space-y-4 overflow-auto max-h-[calc(100vh-120px)]">
           {/* 状态切换 */}
           <div>
-            <label className="theme-text-subtle mb-2 block text-xs">任务状态</label>
+            <label className="theme-text-subtle mb-2 block text-xs">{t('taskBreakdown.labels.status')}</label>
             <div className="grid grid-cols-2 gap-2">
-              {STATUS_OPTIONS.map((option) => {
+              {statusOptions.map((option) => {
                 const Icon = option.icon;
                 const isActive = option.value === node.status;
                 return (
@@ -144,13 +118,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                     className={`
                       flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all
                       ${isActive
-                        ? `${option.bgColor} ${option.color} border-current`
+                        ? `${option.meta.surfaceClass} ${option.meta.textClass} ${option.meta.borderClass}`
                         : 'theme-input-surface theme-border theme-text-subtle hover:border-[var(--border-strong)]'
                       }
                     `}
                   >
                     <Icon className={`w-4 h-4 ${option.value === 'in_progress' && isActive ? 'animate-spin' : ''}`} />
-                    <span>{option.label}</span>
+                    <span>{option.meta.label}</span>
                   </button>
                 );
               })}
@@ -162,14 +136,14 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 描述 */}
             {node.description && (
               <div>
-                <label className="theme-text-subtle mb-1 block text-xs">描述</label>
+                <label className="theme-text-subtle mb-1 block text-xs">{t('taskBreakdown.labels.description')}</label>
                 <p className="theme-text-muted text-sm leading-relaxed">{node.description}</p>
               </div>
             )}
 
             {/* 任务 ID */}
             <div>
-              <label className="theme-text-subtle mb-1 block text-xs">任务 ID</label>
+              <label className="theme-text-subtle mb-1 block text-xs">{t('taskBreakdown.labels.taskId')}</label>
               <div className="flex items-center gap-2">
                 <code className="theme-input-surface theme-border theme-text-subtle flex-1 truncate rounded border px-2 py-1 text-xs">
                   {node.id}
@@ -177,12 +151,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 <button
                   onClick={handleCopyId}
                   className="theme-button-ghost rounded p-1"
-                  title="复制 ID"
+                  title={t('taskBreakdown.actions.copyId')}
                 >
                   <Copy className="w-4 h-4" />
                 </button>
                 {copied && (
-                  <span className="text-xs text-green-400">已复制</span>
+                  <span className="text-xs text-[var(--success-color)]">{t('taskBreakdown.feedback.copied')}</span>
                 )}
               </div>
             </div>
@@ -190,30 +164,21 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 属性网格 */}
             <div className="grid grid-cols-2 gap-3">
               {/* 优先级 */}
-              {node.priority && (
+              {priorityMeta && (
                 <div>
-                  <label className="theme-text-subtle mb-1 block text-xs">优先级</label>
-                  <span className={`
-                    text-xs px-2 py-1 rounded inline-block
-                    ${node.priority === 'urgent' ? 'bg-red-500/20 text-red-300' :
-                      node.priority === 'high' ? 'bg-orange-500/20 text-orange-300' :
-                      node.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                      'theme-panel-elevated theme-text-subtle'}
-                  `}>
-                    {node.priority === 'urgent' ? '紧急' :
-                     node.priority === 'high' ? '高' :
-                     node.priority === 'medium' ? '中' :
-                     node.priority === 'low' ? '低' : node.priority}
+                  <label className="theme-text-subtle mb-1 block text-xs">{t('taskBreakdown.labels.priority')}</label>
+                  <span className={`inline-block rounded px-2 py-1 text-xs ${priorityMeta.badgeClass}`}>
+                    {priorityMeta.label}
                   </span>
                 </div>
               )}
 
               {/* 类别 */}
-              {node.category && (
+              {categoryLabel && (
                 <div>
-                  <label className="theme-text-subtle mb-1 block text-xs">类别</label>
+                  <label className="theme-text-subtle mb-1 block text-xs">{t('taskBreakdown.labels.category')}</label>
                   <span className="theme-panel-elevated theme-border theme-text-muted inline-block rounded border px-2 py-1 text-xs">
-                    {getCategoryLabel(node.category)}
+                    {categoryLabel}
                   </span>
                 </div>
               )}
@@ -221,10 +186,10 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               {/* 工时估算 */}
               {node.estimatedHours && (
                 <div>
-                  <label className="theme-text-subtle mb-1 block text-xs">预估工时</label>
+                  <label className="theme-text-subtle mb-1 block text-xs">{t('taskBreakdown.labels.estimatedHours')}</label>
                   <span className="theme-text-muted flex items-center gap-1 text-xs">
                     <Clock className="w-3.5 h-3.5" />
-                    {node.estimatedHours} 小时
+                    {formatTaskHours(node.estimatedHours, t)}
                   </span>
                 </div>
               )}
@@ -235,13 +200,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               <div>
                 <label className="theme-text-subtle mb-2 flex items-center gap-1 text-xs">
                   <GitBranch className="w-3.5 h-3.5" />
-                  依赖关系 ({node.dependencies.length})
+                  {t('taskBreakdown.labels.dependencies', { count: node.dependencies.length })}
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {node.dependencies.map((depId) => (
                     <code
                       key={depId}
-                      className="text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20"
+                      className="rounded border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] px-2 py-1 text-xs text-[var(--accent-color)]"
                     >
                       {depId}
                     </code>
@@ -253,14 +218,14 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 验收标准 */}
             {node.acceptanceCriteria && node.acceptanceCriteria.length > 0 && (
               <div>
-                <label className="theme-text-subtle mb-2 block text-xs">验收标准</label>
+                <label className="theme-text-subtle mb-2 block text-xs">{t('taskBreakdown.labels.acceptanceCriteria')}</label>
                 <ul className="space-y-1.5">
                   {node.acceptanceCriteria.map((criteria, index) => (
                     <li
                       key={index}
                       className="theme-text-muted flex items-start gap-2 text-xs"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--success-color)]" />
                       <span>{criteria}</span>
                     </li>
                   ))}
@@ -271,20 +236,21 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {/* 子任务统计 */}
             {node.children && node.children.length > 0 && (
               <div>
-                <label className="theme-text-subtle mb-2 block text-xs">子任务</label>
+                <label className="theme-text-subtle mb-2 block text-xs">{t('taskBreakdown.labels.subtasks')}</label>
                 <div className="space-y-1">
                   {node.children.map((child) => {
-                    const childStatus = STATUS_OPTIONS.find(s => s.value === child.status);
-                    const ChildIcon = childStatus?.icon || Circle;
+                    const childMeta = getTaskStatusMeta(child.status, t);
+                    const childStatus = statusOptions.find((option) => option.meta.key === childMeta.key) || statusOptions[0];
+                    const ChildIcon = childStatus.icon;
                     return (
                       <div
                         key={child.id}
                         className="theme-hoverable theme-text-muted flex items-center gap-2 rounded p-2 text-xs transition-colors"
                       >
-                        <ChildIcon className={`w-3.5 h-3.5 ${childStatus?.color} ${child.status === 'in_progress' ? 'animate-spin' : ''}`} />
+                        <ChildIcon className={`h-3.5 w-3.5 ${childStatus.meta.textClass} ${childStatus.meta.key === 'inProgress' ? 'animate-spin' : ''}`} />
                         <span className="flex-1 truncate">{child.title}</span>
                         {child.estimatedHours && (
-                          <span className="theme-text-subtle text-[10px]">{child.estimatedHours}h</span>
+                          <span className="theme-text-subtle text-[10px]">{formatTaskHours(child.estimatedHours, t, true)}</span>
                         )}
                       </div>
                     );

@@ -13,11 +13,13 @@
 
 import React, { useEffect, useMemo } from 'react';
 import { Search, File, Code, Globe, Terminal, Settings, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useToolStore, useFilteredTools, useToolStats, useToolLoading } from '../../stores/toolStore';
 import { ToolCard } from './ToolCard';
 import { ToolDetailDialog } from './ToolDetailDialog';
 import { ToolStats } from './ToolStats';
 import { ToolCategory, ToolPermission } from '../../types/tool';
+import { getToolCategoryClass, getToolPermissionClass } from '../../utils/toolExplorerI18n';
 import './ToolExplorerPanel.css';
 
 /**
@@ -33,47 +35,20 @@ const categoryIcons: Record<string, React.ReactNode> = {
 };
 
 /**
- * 分类颜色映射
- */
-const categoryColors: Record<string, string> = {
-  File: 'bg-blue-500',
-  Search: 'bg-purple-500',
-  Command: 'bg-orange-500',
-  Network: 'bg-green-500',
-  System: 'bg-zinc-500',
-  Other: 'bg-neutral-500',
-};
-
-/**
- * 权限级别标签
- */
-const permissionLabels: Record<string, string> = {
-  ReadOnly: '只读',
-  WorkspaceWrite: '写入',
-  Prompt: '提示',
-  DangerFullAccess: '危险',
-  Allow: '允许',
-};
-
-/**
- * 权限颜色
- */
-const permissionColors: Record<string, string> = {
-  ReadOnly: 'bg-green-500/12 text-green-500 border-green-500/20',
-  WorkspaceWrite: 'bg-blue-500/12 text-blue-500 border-blue-500/20',
-  Prompt: 'bg-amber-500/12 text-amber-500 border-amber-500/20',
-  DangerFullAccess: 'bg-red-500/12 text-red-500 border-red-500/20',
-  Allow: 'bg-purple-500/12 text-purple-500 border-purple-500/20',
-};
-
-/**
  * 工具探索器面板组件
  */
 export const ToolExplorerPanel: React.FC = () => {
+  const { t } = useTranslation();
   const { loadTools, filter, setFilter, resetFilter, error, clearError } = useToolStore();
   const filteredTools = useFilteredTools();
   const stats = useToolStats();
   const isLoading = useToolLoading();
+
+  const getCategoryLabel = (category: string) =>
+    t(`toolExplorer.categories.${category}`, { defaultValue: category });
+
+  const getPermissionLabel = (permission: string) =>
+    t(`toolExplorer.permissions.${permission}`, { defaultValue: permission });
 
   // 初始加载工具列表
   useEffect(() => {
@@ -123,19 +98,19 @@ export const ToolExplorerPanel: React.FC = () => {
       className="tool-explorer-panel theme-panel h-full flex flex-col"
     >
       {/* 头部：搜索和统计 */}
-      <div className="tool-explorer-header border-b border-border p-4 space-y-4">
+      <div className="tool-explorer-header theme-border border-b p-4 space-y-4">
         {/* 标题 */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">工具浏览器</h1>
+          <h1 className="theme-text text-2xl font-bold">{t('toolExplorer.title')}</h1>
           {error && (
-            <div className="flex items-center gap-2 text-red-500">
+            <div className="theme-text-danger flex items-center gap-2">
               <AlertTriangle size={16} />
-              <span className="text-sm">{error}</span>
+              <span className="text-sm">{t('toolExplorer.loadError')}</span>
               <button
                 onClick={clearError}
-                className="text-xs underline hover:no-underline"
+                className="theme-button-ghost rounded px-2 py-0.5 text-xs underline hover:no-underline"
               >
-                关闭
+                {t('common.close')}
               </button>
             </div>
           )}
@@ -153,19 +128,19 @@ export const ToolExplorerPanel: React.FC = () => {
           <input
             data-testid="tool-search-input"
             type="text"
-            placeholder="搜索工具名称或描述..."
+            placeholder={t('toolExplorer.searchPlaceholder')}
             value={filter.searchQuery}
             onChange={handleSearchChange}
-            className="theme-input-surface theme-border theme-text w-full rounded-md border py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="theme-input-surface theme-border theme-text w-full rounded-md border py-2 pl-10 pr-4 focus:border-[var(--accent-color)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft-bg)]"
           />
         </div>
       </div>
 
       {/* 过滤器 */}
-      <div className="tool-filters border-b border-border p-4 space-y-3">
+      <div className="tool-filters theme-border border-b p-4 space-y-3">
         {/* 分类过滤 */}
         <div>
-          <div className="text-sm font-medium mb-2">分类</div>
+          <div className="theme-text text-sm font-medium mb-2">{t('toolExplorer.filters.category')}</div>
           <div className="flex flex-wrap gap-2">
             {Object.entries(categoryIcons).map(([category, icon]) => (
               <button
@@ -176,13 +151,13 @@ export const ToolExplorerPanel: React.FC = () => {
                   flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors
                   ${
                     filter.categories.includes(category as ToolCategory)
-                      ? 'border-primary bg-primary text-primary-foreground'
+                      ? 'theme-selection-accent theme-text-accent shadow-sm'
                       : 'theme-panel-muted theme-border theme-text-muted hover:bg-[var(--hover-bg)]'
                   }
                 `}
               >
                 {icon}
-                <span>{category}</span>
+                <span>{getCategoryLabel(category)}</span>
               </button>
             ))}
           </div>
@@ -190,9 +165,15 @@ export const ToolExplorerPanel: React.FC = () => {
 
         {/* 权限过滤 */}
         <div>
-          <div className="text-sm font-medium mb-2">权限级别</div>
+          <div className="theme-text text-sm font-medium mb-2">{t('toolExplorer.filters.permission')}</div>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(permissionLabels).map(([permission, label]) => (
+            {Object.entries({
+              ReadOnly: getPermissionLabel('ReadOnly'),
+              WorkspaceWrite: getPermissionLabel('WorkspaceWrite'),
+              Prompt: getPermissionLabel('Prompt'),
+              DangerFullAccess: getPermissionLabel('DangerFullAccess'),
+              Allow: getPermissionLabel('Allow'),
+            }).map(([permission, label]) => (
               <button
                 key={permission}
                 data-testid={`filter-permission-${permission.toLowerCase()}`}
@@ -201,7 +182,7 @@ export const ToolExplorerPanel: React.FC = () => {
                   px-3 py-1.5 rounded-md text-sm border transition-colors
                   ${
                     filter.permissions.includes(permission as ToolPermission)
-                      ? permissionColors[permission]
+                      ? `${getToolPermissionClass(permission)} shadow-sm`
                       : 'theme-panel-muted theme-border theme-text-muted hover:bg-[var(--hover-bg)]'
                   }
                 `}
@@ -218,9 +199,9 @@ export const ToolExplorerPanel: React.FC = () => {
           filter.searchQuery) && (
           <button
             onClick={resetFilter}
-            className="text-sm text-blue-500 hover:text-blue-400 underline"
+            className="theme-button-ghost theme-text-accent rounded px-2 py-1 text-sm underline hover:no-underline"
           >
-            重置过滤器
+            {t('toolExplorer.resetFilters')}
           </button>
         )}
       </div>
@@ -229,16 +210,16 @@ export const ToolExplorerPanel: React.FC = () => {
       <div className="tool-list flex-1 overflow-y-auto p-4">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <div className="theme-text-accent h-8 w-8 animate-spin rounded-full border-2 border-current border-b-transparent" />
           </div>
         ) : filteredTools.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="theme-text-subtle mb-2">没有找到匹配的工具</p>
+            <p className="theme-text-subtle mb-2">{t('toolExplorer.empty')}</p>
             <button
               onClick={resetFilter}
-              className="text-sm text-blue-500 hover:underline"
+              className="theme-button-ghost theme-text-accent rounded px-2 py-1 text-sm underline hover:no-underline"
             >
-              清除过滤器
+              {t('toolExplorer.clearFilters')}
             </button>
           </div>
         ) : (
@@ -251,10 +232,10 @@ export const ToolExplorerPanel: React.FC = () => {
               >
                 {/* 分类标题 */}
                 <div className="flex items-center gap-2 mb-3">
-                  <div className={`p-1.5 rounded-md ${categoryColors[category]}`}>
+                  <div className={`flex items-center justify-center p-1.5 rounded-md ${getToolCategoryClass(category)}`}>
                     {categoryIcons[category]}
                   </div>
-                  <h2 className="text-lg font-semibold">{category}</h2>
+                  <h2 className="theme-text text-lg font-semibold">{getCategoryLabel(category)}</h2>
                   <span className="theme-text-subtle text-sm">({tools.length})</span>
                 </div>
 

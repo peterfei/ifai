@@ -68,8 +68,8 @@ export const PaneResizer: React.FC<PaneResizerProps> = ({
   }, []);
 
   const baseClasses = direction === 'horizontal'
-    ? 'w-1 cursor-ew-resize hover:bg-blue-500'
-    : 'h-1 cursor-ns-resize hover:bg-blue-500';
+    ? 'w-1 cursor-ew-resize hover:bg-[var(--accent-soft-border)]'
+    : 'h-1 cursor-ns-resize hover:bg-[var(--accent-soft-border)]';
 
   const positionClasses = direction === 'horizontal'
     ? 'absolute top-0 bottom-0 right-0 -mr-0.5 z-10'
@@ -78,7 +78,7 @@ export const PaneResizer: React.FC<PaneResizerProps> = ({
   return (
     <div
       ref={resizerRef}
-      className={`${baseClasses} ${positionClasses} ${isResizing ? 'bg-blue-500' : 'theme-divider'} transition-colors duration-200 hover:brightness-125 ${className}`}
+      className={`${baseClasses} ${positionClasses} ${isResizing ? 'bg-[var(--accent-color)]' : 'theme-divider'} transition-colors duration-200 hover:brightness-125 ${className}`}
       onMouseDown={handleMouseDown}
       style={{
         opacity: isResizing ? 1 : 0.3,

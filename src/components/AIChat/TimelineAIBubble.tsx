@@ -3,8 +3,8 @@
  *
  * 样式特点:
  * - 右对齐
- * - 深色背景 (#1e293b)
- * - 浅色文字 (#e2e8f0)
+ * - 主题面板背景
+ * - 主题文字颜色
  * - 圆角 18px，左下角 4px
  * - 支持代码块折叠
  *
@@ -13,6 +13,7 @@
 
 import React, { useState } from 'react';
 import { Bot, Code2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface TimelineAIBubbleProps {
   time: string;
@@ -35,6 +36,7 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
   onClick,
   'data-testid': dataTestId
 }) => {
+  const { t } = useTranslation();
   const [codeExpanded, setCodeExpanded] = useState(false);
 
   // 格式化时间标签
@@ -57,7 +59,7 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
       <div className="flex items-center gap-2 px-2">
         <span className="text-xs theme-text-muted flex items-center gap-1">
           <Bot size={12} />
-          AI
+          {t('aiChat.timeline.assistant')}
         </span>
         <span className="text-xs theme-text-subtle font-mono">
           {formatTimeLabel(timestamp)}
@@ -94,7 +96,7 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
         {/* 代码块折叠标识 */}
         {hasCode && codeLanguage && codeLines && (
           <div
-            className="mt-2 flex items-center justify-between gap-2 px-3 py-2 theme-code-surface border theme-border rounded-lg cursor-pointer hover:border-blue-500/20 transition-colors"
+            className="mt-2 flex items-center justify-between gap-2 px-3 py-2 theme-code-surface border theme-border rounded-lg cursor-pointer hover:border-[var(--accent-soft-border)] transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               setCodeExpanded(!codeExpanded);
@@ -102,12 +104,14 @@ export const TimelineAIBubble: React.FC<TimelineAIBubbleProps> = ({
             data-testid="code-collapse-button"
           >
             <div className="flex items-center gap-2 text-xs theme-text-subtle">
-              <Code2 size={12} className="text-blue-500" />
+              <Code2 size={12} className="theme-text-accent" />
               <span>{codeLanguage}</span>
-              <span className="theme-text-subtle">({codeLines}行)</span>
+              <span className="theme-text-subtle">
+                {t('aiChat.timeline.codeLines', { count: codeLines })}
+              </span>
             </div>
-            <span className="text-xs text-blue-500 flex items-center gap-1">
-              {codeExpanded ? '收起' : '展开'}
+            <span className="text-xs theme-text-accent flex items-center gap-1">
+              {codeExpanded ? t('aiChat.timeline.collapse') : t('aiChat.timeline.expand')}
               {codeExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </span>
           </div>

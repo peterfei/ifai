@@ -34,6 +34,23 @@
     "saveWorkspaceAs": "Save Workspace As...",
     "openWorkspace": "Open Workspace..."
   },
+  "approvalToolbar": {
+    "previewing": "Previewing AI Changes",
+    "reject": "Reject",
+    "accept": "Accept Changes",
+    "close": "Close Preview",
+    "approved": "Changes approved",
+    "rejected": "Changes rejected",
+    "messageNotFound": "Unable to locate the source message"
+  },
+  "diffEditorModal": {
+    "title": "Code Change Preview",
+    "addedLines": "+{{count}} lines",
+    "deletedLines": "-{{count}} lines",
+    "reject": "Reject",
+    "accept": "Accept Changes",
+    "applied": "Code changes applied"
+  },
   "sidebar": {
     "explorer": "Explorer",
     "search": "Search",
@@ -64,6 +81,7 @@
     "inlineWidget": {
         "title": "AI Edit",
         "placeholder": "Edit with IfAI (e.g. 'Add comments')...",
+        "processing": "IfAI is processing...",
         "submit": "Submit",
         "cancel": "Cancel",
         "prompt": {
@@ -78,9 +96,15 @@
             "directive5": "NO SIDE EFFECTS: Maintain the integrity of the rest of the file. If using tools to write, ensure zero collateral damage to unrelated code areas."
         }
     },
+    "inlineDiff": {
+      "title": "AI Drafted Code Suggestion",
+      "hint": "Esc to dismiss • Cmd+K to apply"
+    },
 
     "splitPane": "Split Pane",
     "closePane": "Close Pane",
+    "closeOtherTabs": "Close Others",
+    "closeAllTabs": "Close All",
     "splitRight": "Split Right",
     "splitDown": "Split Down"
   },
@@ -133,8 +157,58 @@
       "daysAgo": "{{count}}d ago"
     }
   },
+  "cacheStatsPanel": {
+    "title": "Performance Monitor",
+    "cacheStats": "Cache stats",
+    "hitRate": "Hit rate",
+    "cacheSize": "Cache size",
+    "hits": "Hits",
+    "misses": "Misses",
+    "performanceMetrics": "Performance metrics",
+    "count": "{{count}} runs",
+    "average": "Avg",
+    "min": "Min",
+    "max": "Max",
+    "instructionsTitle": "How to test",
+    "instructions": {
+      "expandCollapse": "Expand and collapse directories to observe cache hit rate changes",
+      "repeatAccess": "Open the same directory repeatedly to verify faster responses",
+      "observeLatency": "Watch latency changes across different operations"
+    },
+    "operations": {
+      "readDirectory": "Read directory",
+      "expandDirectory": "Expand directory",
+      "gitStatusUpdate": "Update Git status",
+      "refreshTree": "Refresh tree"
+    }
+  },
+  "performancePanel": {
+    "title": "Performance Monitor",
+    "expand": "Expand performance monitor",
+    "minimize": "Minimize performance monitor",
+    "metrics": {
+      "fps": "FPS",
+      "memory": "Memory",
+      "tokens": "Tokens"
+    }
+  },
+  "performanceMonitor": {
+    "title": "Performance",
+    "fps": "FPS",
+    "avgFps": "Avg FPS"
+  },
+  "storageQuotaBanner": {
+    "title": "Local storage is almost full ({{percentage}}% used).",
+    "description": "Move old history or clear cache soon to reduce the risk of data loss.",
+    "dismiss": "Dismiss storage warning"
+  },
   "terminal": {
-    "title": "Terminal"
+    "title": "Terminal",
+    "debugWithAI": "Debug With AI",
+    "processExited": "Process exited",
+    "ptyError": "PTY error: {{error}}",
+    "createFailed": "Failed to create terminal: {{error}}",
+    "debugPrompt": "Please help me diagnose and fix the following terminal error:\n\n```text\n{{error}}\n```\n\nExplain the root cause and suggest actionable fixes."
   },
   "taskMonitor": {
     "title": "Mission Control",
@@ -163,7 +237,47 @@
       "progressBar": "Task progress"
     },
     "metrics": {
-      "remaining": "Remaining {{duration}}"
+      "remaining": "Remaining {{duration}}",
+      "bytesPerSecond": "{{value}} B/s",
+      "kilobytesPerSecond": "{{value}} KB/s",
+      "megabytesPerSecond": "{{value}} MB/s",
+      "filesPerSecond": "{{value}} files/s",
+      "itemsPerSecond": "{{value}} items/s"
+    },
+    "duration": {
+      "secondsShort": "{{count}}s",
+      "minutesSecondsShort": "{{minutes}}m {{seconds}}s",
+      "hoursMinutesShort": "{{hours}}h {{minutes}}m"
+    },
+    "categories": {
+      "scan": "Scan",
+      "build": "Build",
+      "generation": "Generation",
+      "transfer": "Transfer",
+      "analysis": "Analysis",
+      "test": "Test",
+      "deploy": "Deploy",
+      "install": "Install",
+      "git": "Git",
+      "format": "Format",
+      "refactor": "Refactor",
+      "document": "Document",
+      "backup": "Backup",
+      "cleanup": "Cleanup",
+      "optimize": "Optimize",
+      "security": "Security"
+    },
+    "stats": {
+      "total": "Total",
+      "successRate": "Success rate",
+      "completed": "Completed",
+      "failed": "Failed",
+      "running": "Running",
+      "averageDuration": "Avg duration",
+      "byStatus": "Status distribution",
+      "byCategory": "By category",
+      "categoryCount": "{{count}} tasks",
+      "empty": "No task statistics yet"
     },
     "status": {
       "pending": "Pending",
@@ -172,6 +286,82 @@
       "success": "Completed",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    }
+  },
+  "todoWrite": {
+    "title": "Todo list",
+    "progress": "{{completed}}/{{total}} complete",
+    "status": {
+      "pending": "Pending",
+      "inProgress": "In progress",
+      "completed": "Completed"
+    },
+    "stats": {
+      "pending": "Pending: {{count}}",
+      "inProgress": "In progress: {{count}}",
+      "completed": "Completed: {{count}}"
+    },
+    "empty": {
+      "title": "No tasks yet",
+      "description": "AI can create tasks with the TodoWrite tool."
+    },
+    "actions": {
+      "expand": "Expand todo panel",
+      "refresh": "Refresh tasks",
+      "clear": "Clear all tasks",
+      "startTask": "Start task",
+      "completeTask": "Complete task"
+    },
+    "toast": {
+      "statusUpdated": "Task status updated",
+      "statusUpdateFailed": "Failed to update task status",
+      "deleted": "Task deleted",
+      "deleteFailed": "Failed to delete task",
+      "cleared": "Task list cleared",
+      "clearFailed": "Failed to clear tasks",
+      "refreshed": "Task list refreshed",
+      "refreshFailed": "Failed to refresh tasks"
+    }
+  },
+  "refactoring": {
+    "preview": {
+      "title": "Refactoring Preview",
+      "empty": {
+        "title": "No refactoring preview",
+        "description": "Run a refactoring action to inspect pending edits before applying them."
+      },
+      "summary": {
+        "filesChanged": "{{count}} files changed",
+        "totalEdits": "{{count}} edits"
+      },
+      "diff": {
+        "created": "Created",
+        "deleted": "Deleted",
+        "updated": "Updated"
+      },
+      "labels": {
+        "original": "Original",
+        "updated": "Updated",
+        "location": "Location",
+        "emptyValue": "(empty)",
+        "deletedValue": "(deleted)"
+      },
+      "actions": {
+        "executing": "Applying...",
+        "apply": "Apply Changes"
+      }
+    }
+  },
+  "reviewHistory": {
+    "title": "Review History",
+    "empty": "No review history yet",
+    "commitFallback": "N/A",
+    "issueCount": "{{count}} issues",
+    "moreIssues": "{{count}} more issues",
+    "status": {
+      "fixed": "Fixed",
+      "ignored": "Ignored",
+      "pending": "Pending"
     }
   },
   "taskTimeline": {
@@ -458,7 +648,10 @@
   },
   "snippetList": {
     "loading": "Loading snippets...",
-    "noSnippets": "No snippets found"
+    "noSnippets": "No snippets found",
+    "untitled": "Untitled snippet",
+    "emptyTitle": "No snippets yet",
+    "emptyDescription": "Create a snippet or generate demo data to populate this list."
   },
   "snippetSearch": {
     "placeholder": "Search snippets...",
@@ -467,7 +660,9 @@
     "clearAll": "Clear All",
     "confirmGenerate": "Generate 1000 test snippets? This will clear existing ones.",
     "confirmClear": "Clear all snippets?",
-    "newSnippet": "New Snippet"
+    "newSnippet": "New Snippet",
+    "defaultTitle": "New Snippet",
+    "defaultCode": "// Start coding here..."
   },
   "promptManager": {
     "common": {
@@ -1025,9 +1220,9 @@
     "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization" }
   },
   "help_message": {
-    "title": "🚀 Welcome to IfAI v0.2.0",
+    "title": "Welcome to IfAI v0.2.0",
     "intro": "I am your AI programming companion, designed to boost your productivity with deeply integrated Agents.",
-    "commands_title": "💡 Smart Commands",
+    "commands_title": "Smart Commands",
     "commands": [
       "**@codebase** - Include this in your query for global semantic code search",
       "**/explore** - Explore codebase, analyze architecture and logic",
@@ -1036,7 +1231,7 @@
       "**/doc** - Write documentation, READMEs, or code comments",
       "**/index** - Manually rebuild the project's RAG semantic index"
     ],
-    "shortcuts_title": "⌨️ Key Shortcuts",
+    "shortcuts_title": "Key Shortcuts",
     "shortcuts": [
       "**{{quickOpenShortcut}}** - Quick search and open project files",
       "**{{inlineEditShortcut}}** - Trigger inline AI editing in editor",
@@ -1048,8 +1243,11 @@
   },
   "inlineAIWidget": {
     "title": "Inline Assistant",
+    "placeholder": "Optimize this, add comments, or ask questions...",
     "targetLabel": "Target",
     "currentContext": "Current Context",
+    "modifiedFiles": "Modified Files ({{count}})",
+    "openModifiedFile": "Open modified file {{file}}",
     "newLineHint": "{{shortcut}} for new line",
     "processing": "Processing",
     "readyToApply": "Changes ready to apply",
@@ -1133,7 +1331,12 @@
     "installDemo": "Install built-in demo skills",
     "refresh": "Refresh",
     "viewSource": "View source",
-    "footerTip": "Tip: After a skill is enabled, the AI automatically receives enhanced instructions for that domain."
+    "footerTip": "Tip: After a skill is enabled, the AI automatically receives enhanced instructions for that domain.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "toggleSkill": "Toggle skill {{name}}",
+    "openProjectFirst": "Open a project folder before installing demo skills.",
+    "loadFailed": "Failed to load skills: {{error}}"
   },
   "commandPalette": {
     "placeholder": "Search files...",
@@ -1430,13 +1633,30 @@
       "waitingOutput": "Waiting for output...",
       "running": "Running... ({{lineCount}} lines)",
       "completed": "Completed ({{lineCount}} lines, {{elapsedMs}}ms)",
-      "failed": "Failed (exit code: {{exitCode}}, {{lineCount}} lines)"
+      "failed": "Failed (exit code: {{exitCode}}, {{lineCount}} lines)",
+      "collapse": "Collapse output",
+      "expand": "Expand output",
+      "commandOutput": "Command output",
+      "streamError": "Stream error: {{error}}",
+      "commandFailed": "Execution failed: {{error}}"
     },
     "streamingToolArgs": {
       "none": "No parameters",
       "generating": "Generating...",
       "empty": "Empty",
       "generatingArgs": "Generating arguments..."
+    },
+    "exploreFindings": {
+      "completed": "Explore complete",
+      "directories": "{{count}} directories",
+      "files": "{{count}} files",
+      "patterns": "{{count}} patterns"
+    },
+    "symbolSearch": {
+      "title": "Reference Symbols (#)",
+      "openFileFirst": "Open a file in the editor first...",
+      "noMatches": "No matching symbols found in the current file...",
+      "lineKind": "Line {{line}} · {{kind}}"
     },
     "toolExecution": {
       "progress": "Execution progress",
@@ -1570,7 +1790,9 @@
       "exploreProject": "Explore project",
       "scannedFiles": "Scanned {{count}} files",
       "taskBreakdown": "Task breakdown",
+      "generatedImage": "AI generated image",
       "systemMessage": "System message",
+      "uploadedImage": "Uploaded image",
       "unknownMessageType": "Unknown message type: {{role}}"
     },
     "commandMessages": {
@@ -1587,15 +1809,15 @@
         }
       },
       "index": {
-        "rebuilding": "✅ **Rebuilding project index**\n\nThe system is scanning files and building semantic vectors. This may take a moment. You can watch the live progress in the status bar.",
-        "initFailed": "❌ **Index initialization failed**\n\nError details: {{error}}",
-        "projectNotOpen": "❌ **No project folder is open**\n\nOpen a project folder before using this command."
+        "rebuilding": "**Rebuilding project index**\n\nThe system is scanning files and building semantic vectors. This may take a moment. You can watch the live progress in the status bar.",
+        "initFailed": "**Index initialization failed**\n\nError details: {{error}}",
+        "projectNotOpen": "**No project folder is open**\n\nOpen a project folder before using this command."
       },
       "taskDemo": {
-        "message": "### 📋 Task Breakdown Demo\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**Tip:** This is a demo of the task breakdown feature. Use **/task:breakdown [task description]** to break down a real task.\n\nThe task tree includes:\n- **Hierarchy:** parent tasks → subtasks → nested subtasks\n- **Status tracking:** todo ○ / in progress ◐ / done ● / failed ✕\n- **Priority:** urgent / high / medium / low\n- **Categories:** development / testing / documentation / design / research\n- **Effort estimate:** estimated hours\n- **Acceptance criteria:** explicit completion conditions\n- **Dependencies:** task-to-task dependencies{{saveHint}}\n\nTest it in the console:\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
+        "message": "### Task Breakdown Demo\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**Tip:** This is a demo of the task breakdown feature. Use **/task:breakdown [task description]** to break down a real task.\n\nThe task tree includes:\n- **Hierarchy:** parent tasks → subtasks → nested subtasks\n- **Status tracking:** todo / in progress / completed / failed\n- **Priority:** urgent / high / medium / low\n- **Categories:** development / testing / documentation / design / research\n- **Effort estimate:** estimated hours\n- **Acceptance criteria:** explicit completion conditions\n- **Dependencies:** task-to-task dependencies{{saveHint}}\n\nTest it in the console:\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
         "saveHint": {
-          "saved": "\n\n💾 Saved to: `{{path}}`",
-          "memoryOnly": "\n\n⚠️ No project is open. The demo task is stored in memory only."
+          "saved": "\n\nSaved to: `{{path}}`",
+          "memoryOnly": "\n\nNo project is open. The demo task is stored in memory only."
         },
         "tree": {
           "title": "Demo: Implement user login",
@@ -1644,27 +1866,27 @@
         }
       },
       "taskBreakdown": {
-        "missingDescription": "❌ Please provide a task description to break down\n\n**Usage**: `/task:breakdown [task description]`\n\n**Example**: `/task:breakdown Implement user login`",
+        "missingDescription": "Please provide a task description to break down\n\n**Usage**: `/task:breakdown [task description]`\n\n**Example**: `/task:breakdown Implement user login`",
         "failedTitle": "Task breakdown failed",
         "simplifySuggestion": "Try simplifying the task description"
       },
       "proposal": {
-        "missingDescription": "❌ Please provide a requirement description for the proposal\n\n**Usage**: `/proposal [requirement description]`\n\n**Example**: `/proposal Implement user login`",
+        "missingDescription": "Please provide a requirement description for the proposal\n\n**Usage**: `/proposal [requirement description]`\n\n**Example**: `/proposal Implement user login`",
         "starting": "_[Generating OpenSpec proposal...]_\n\n",
         "failedTitle": "Proposal generation failed",
         "simplifySuggestion": "Try simplifying the requirement description"
       },
       "taskStart": {
-        "missingTaskId": "❌ Please provide a task ID\n\n**Usage**: `/task:start <task-id>`\n\n**Examples**: `/task:start 1` or `/task:start 2-1`\n\n**See available tasks**: run `/task:list`",
-        "tasksFileMissing": "❌ Could not find `tasks.md`\n\nOpen a `tasks.md` file from a proposal first.",
-        "taskNotFound": "❌ Task not found: {{taskId}}\n\n**Available tasks**:\n{{taskList}}",
-        "failed": "❌ Failed to start the task: {{error}}"
+        "missingTaskId": "Please provide a task ID\n\n**Usage**: `/task:start <task-id>`\n\n**Examples**: `/task:start 1` or `/task:start 2-1`\n\n**See available tasks**: run `/task:list`",
+        "tasksFileMissing": "Could not find `tasks.md`\n\nOpen a `tasks.md` file from a proposal first.",
+        "taskNotFound": "Task not found: {{taskId}}\n\n**Available tasks**:\n{{taskList}}",
+        "failed": "Failed to start the task: {{error}}"
       },
       "taskList": {
-        "projectNotOpen": "❌ No project is open\n\nOpen a project folder first.",
+        "projectNotOpen": "No project is open\n\nOpen a project folder first.",
         "openFilesTitle": "Currently open files",
-        "tasksFileMissing": "❌ Could not find `tasks.md`{{fileList}}\n\n**How to fix it**:\n1. Find the proposal directory in `.ifai/changes/xxx/`\n2. Open `tasks.md`\n3. Run `/task:list` again",
-        "failed": "❌ Failed to fetch the task list: {{error}}",
+        "tasksFileMissing": "Could not find `tasks.md`{{fileList}}\n\n**How to fix it**:\n1. Find the proposal directory in `.ifai/changes/xxx/`\n2. Open `tasks.md`\n3. Run `/task:list` again",
+        "failed": "Failed to fetch the task list: {{error}}",
         "report": {
           "title": "Task Statistics",
           "total": "Total",
@@ -1679,13 +1901,13 @@
         }
       },
       "taskComplete": {
-        "missingTaskId": "❌ Please provide a task ID\n\n**Usage**: `/task:complete <task-id>`",
-        "success": "✅ Task **{{taskId}}** has been marked as completed.",
-        "failed": "❌ Operation failed: {{error}}"
+        "missingTaskId": "Please provide a task ID\n\n**Usage**: `/task:complete <task-id>`",
+        "success": "Task **{{taskId}}** has been marked as completed.",
+        "failed": "Operation failed: {{error}}"
       },
       "taskTestAll": {
         "starting": "_[Starting automated test integration flow...]_",
-        "failed": "❌ Failed to start the test agent: {{error}}",
+        "failed": "Failed to start the test agent: {{error}}",
         "mission": "Run the full unit and E2E suites, then summarize the report in Mission Control"
       }
     },
@@ -1693,6 +1915,9 @@
       "fileTooLarge": "File too large (5MB limit)",
       "processingFailed": "Processing failed"
     }
+  },
+  "ghostTaskList": {
+    "active": "Active"
   },
   "layout": {
     "switcher": {
@@ -1716,9 +1941,9 @@
     "steps": {
       "welcome": "Welcome to IfAI Editor! This is a powerful AI-powered code editor. Let's take a quick tour of the core features.",
       "welcomeTitle": "Welcome to IfAI Editor",
-      "commandBar": "⌨️ CommandBar\n\nThis is a Vim-style command line! Press **:** to open it.\n\nCommon commands:\n• **:w** - Save current file\n• **:q** - Close current file\n• **:wq** - Save and close\n• **:grep keyword** - Search in files",
+      "commandBar": "CommandBar\n\nThis is a Vim-style command line. Press **:** to open it.\n\nCommon commands:\n• **:w** - Save current file\n• **:q** - Close current file\n• **:wq** - Save and close\n• **:grep keyword** - Search in files",
       "commandBarTitle": "Vim-Style Command Line",
-      "settingsGuide": "⚙️ Settings Panel\n\nHere you can:\n• Configure AI providers and API keys\n• Adjust editor appearance and behavior\n• View and customize keyboard shortcuts\n• Manage performance and display options",
+      "settingsGuide": "Settings Panel\n\nHere you can:\n• Configure AI providers and API keys\n• Adjust editor appearance and behavior\n• View and customize keyboard shortcuts\n• Manage performance and display options",
       "settingsGuideTitle": "Settings Guide",
       "layoutSwitcher": "Click here to switch between different layout modes to adapt to different work scenarios.",
       "layoutSwitcherTitle": "Layout Switcher"
@@ -1731,6 +1956,7 @@
       "open": "Open Dialog",
       "skip": "Skip"
     },
+    "progress": "Step {{current}} of {{total}}",
     "resetTutorial": "Reset Tutorial",
     "resetConfirm": "Are you sure you want to reset the tutorial?",
     "resetMessage": "The page will reload to show the onboarding tour"
@@ -1852,7 +2078,15 @@
     "disabled": "Local model disabled",
     "validateSuccess": "Model validation successful",
     "parseSuccess": "Parse successful!",
-    "parseFailed": "Parse failed"
+    "parseFailed": "Parse failed",
+    "loadFailed": "Failed to load local model settings: {{error}}",
+    "validateFailed": "Model validation failed: {{error}}",
+    "openDirFailed": "Failed to open model directory: {{error}}",
+    "toggleLabel": "Enable or disable the local model",
+    "etaUnknown": "--",
+    "etaSeconds": "{{count}}s",
+    "etaMinutesSeconds": "{{minutes}}m {{seconds}}s",
+    "etaHoursMinutes": "{{hours}}h {{minutes}}m"
   },
   "dataManagement": {
     "statistics": "Data Statistics",
@@ -1959,7 +2193,8 @@
       "copy": "Copy",
       "copied": "Copied",
       "export": "Export",
-      "compacted": "Conversation compacted"
+      "compacted": "Conversation compacted",
+      "estimatedCost": "Est. cost ¥{{value}}"
     }
   },
   "proposalReview": {
@@ -2335,14 +2570,14 @@
       },
       "nodeStatus": {
         "completed": "Completed",
-        "failed": "✗ Failed",
+        "failed": "Failed",
         "generating": "Generating...",
         "pending": "Waiting",
         "running": "Running"
       },
       "toolStatus": {
-        "error": "X",
-        "success": "OK"
+        "error": "Failed",
+        "success": "Succeeded"
       },
       "content": {
         "length": "Content length: {{count}} chars"

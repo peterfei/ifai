@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, Puzzle, ExternalLink, ShieldCheck, Download } from 'lucide-react';
+import { RefreshCw, Puzzle, ShieldCheck, Download, AlertCircle } from 'lucide-react';
 import { useSkillStore } from '../../stores/skillStore';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '../../stores/fileStore';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 export const SkillsSettings: React.FC = () => {
+    const { t } = useTranslation();
+    const rootPath = useFileStore(state => state.rootPath);
     const { 
         availableSkills, 
         activeSkillIds, 
         isLoading, 
+        error,
         fetchSkills, 
         toggleSkill 
     } = useSkillStore();
@@ -21,10 +25,9 @@ export const SkillsSettings: React.FC = () => {
         if (availableSkills.length === 0) {
             fetchSkills();
         }
-    }, []);
+    }, [availableSkills.length, fetchSkills]);
 
     const installDemo = async () => {
-        const rootPath = useFileStore.getState().rootPath;
         if (!rootPath) return;
         
         setIsInstalling(true);
@@ -44,43 +47,58 @@ export const SkillsSettings: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-2">
                     <Puzzle size={20} className="theme-text-accent" />
-                    <h3 className="theme-text text-lg font-medium">技能中心 (Skills Center)</h3>
+                    <h3 className="theme-text text-lg font-medium">{t('settings.skills')}</h3>
                 </div>
                 <button 
+                    type="button"
                     onClick={() => fetchSkills()}
                     disabled={isLoading}
-                    className="theme-input-surface theme-border flex items-center gap-2 rounded px-3 py-1.5 text-sm theme-text transition-colors disabled:opacity-50 hover:border-[var(--border-strong)]"
-                    aria-label="刷新"
+                    className="theme-button-secondary theme-focus-ring-accent flex items-center gap-2 rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                    aria-label={t('skillsSettings.refresh')}
                 >
                     <RefreshCw size={14} className={clsx(isLoading && "animate-spin")} />
-                    <span>刷新</span>
+                    <span>{t('skillsSettings.refresh')}</span>
                 </button>
             </div>
 
             {/* Content Container */}
             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                {error && (
+                    <div className="theme-surface-danger flex items-start gap-2 rounded-lg p-3">
+                        <AlertCircle size={16} className="theme-text-danger mt-0.5 flex-shrink-0" />
+                        <p className="theme-text text-sm">
+                            {t('skillsSettings.loadFailed', { error })}
+                        </p>
+                    </div>
+                )}
+
                 {isLoading && (
                     <div className="theme-text-subtle flex flex-col items-center justify-center py-12">
                         <RefreshCw size={32} className="animate-spin mb-4" />
-                        <p>正在扫描技能目录...</p>
+                        <p>{t('skillsSettings.scanning')}</p>
                     </div>
                 )}
 
                 {!isLoading && availableSkills.length === 0 && (
                     <div className="theme-panel-muted theme-border flex flex-col items-center justify-center rounded-lg border border-dashed py-12">
                         <ShieldCheck size={48} className="theme-text-subtle mb-4 opacity-70" />
-                        <p className="theme-text-muted">未发现可用技能</p>
+                        <p className="theme-text-muted">{t('skillsSettings.emptyTitle')}</p>
                         <p className="theme-text-subtle mt-2 mb-6 px-8 text-center text-xs">
-                            IfAI 会自动扫描项目根目录下 .ifai/skills 中的技能插件。<br/>
-                            您可以安装内置示例来快速开始体验。
+                            {t('skillsSettings.emptyDescription')}
                         </p>
+                        {!rootPath && (
+                            <p className="theme-text-warning mb-4 px-8 text-center text-xs">
+                                {t('skillsSettings.openProjectFirst')}
+                            </p>
+                        )}
                         <button
+                            type="button"
                             onClick={installDemo}
-                            disabled={isInstalling}
+                            disabled={isInstalling || !rootPath}
                             className="theme-button-primary theme-shadow flex items-center gap-2 rounded-md px-4 py-2 text-sm disabled:opacity-50"
                         >
                             {isInstalling ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
-                            <span>安装内置示例技能</span>
+                            <span>{t('skillsSettings.installDemo')}</span>
                         </button>
                     </div>
                 )}
@@ -93,8 +111,8 @@ export const SkillsSettings: React.FC = () => {
                             className={clsx(
                                 "flex items-start gap-4 p-4 rounded-lg border transition-all",
                                 isActive 
-                                    ? "theme-panel-elevated border-[var(--accent-soft-border)] shadow-[0_12px_24px_var(--accent-soft-bg)]" 
-                                    : "theme-panel-muted theme-border hover:border-[var(--border-strong)]"
+                                    ? "theme-selection-accent shadow-sm"
+                                    : "theme-panel-muted theme-border theme-soft-hover"
                             )}
                         >
                             <div className={clsx(
@@ -117,11 +135,22 @@ export const SkillsSettings: React.FC = () => {
                             </div>
 
                             <div className="flex flex-col items-end gap-4">
-                                {/* Toggle Switch */}
+                                <span
+                                    className={clsx(
+                                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                        isActive ? 'theme-badge-accent' : 'theme-panel-muted theme-border theme-text-subtle border'
+                                    )}
+                                >
+                                    {isActive ? t('skillsSettings.enabled') : t('skillsSettings.disabled')}
+                                </span>
                                 <button
+                                    type="button"
                                     onClick={() => toggleSkill(skill.id)}
-                                    className="theme-toggle-track relative inline-flex h-5 w-10 items-center rounded-full focus:outline-none"
+                                    className="theme-toggle-track theme-focus-ring-accent relative inline-flex h-5 w-10 items-center rounded-full"
                                     data-active={isActive}
+                                    role="switch"
+                                    aria-checked={isActive}
+                                    aria-label={t('skillsSettings.toggleSkill', { name: skill.name })}
                                 >
                                     <span
                                         className={clsx(
@@ -129,10 +158,6 @@ export const SkillsSettings: React.FC = () => {
                                             isActive ? "translate-x-6" : "translate-x-1"
                                         )}
                                     />
-                                </button>
-                                
-                                <button className="theme-hoverable theme-text-subtle rounded p-1 transition-colors" title="查看源码">
-                                    <ExternalLink size={14} />
                                 </button>
                             </div>
                         </div>
@@ -142,7 +167,7 @@ export const SkillsSettings: React.FC = () => {
 
             {/* Footer Tip */}
             <div className="theme-border theme-text-subtle mt-4 border-t pt-4 text-[11px] italic">
-                提示：激活技能后，AI 将自动获得该领域的增强指令。
+                {t('skillsSettings.footerTip')}
             </div>
         </div>
     );

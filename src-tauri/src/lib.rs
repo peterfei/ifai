@@ -1498,9 +1498,18 @@ async fn ai_completion(
 
 #[tauri::command]
 async fn create_window(app: tauri::AppHandle, label: String, title: String, url: String) -> Result<(), String> {
-    let window_builder = tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
+    let mut window_builder = tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
         .title(title)
-        .inner_size(1000.0, 800.0);
+        .inner_size(1000.0, 800.0)
+        .accept_first_mouse(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        window_builder = window_builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(14.0, 16.0));
+    }
     
     match window_builder.build() {
         Ok(_) => Ok(()),

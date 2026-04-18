@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Loader2, CheckCircle, XCircle, AlertCircle, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ToolExecutionIndicatorProps {
   status: 'pending' | 'approved' | 'running' | 'completed' | 'failed' | 'rejected';
@@ -22,79 +23,80 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
   message,
   compact = false
 }) => {
+  const { t } = useTranslation();
+
   const getStatusConfig = () => {
     switch (status) {
       case 'pending':
         return {
           icon: <AlertCircle size={14} />,
-          color: 'text-amber-400',
-          bgColor: 'bg-amber-500/10',
-          borderColor: 'border-amber-500/20',
-          label: '待审批',
+          color: 'theme-text-warning',
+          containerClass: 'theme-surface-warning',
+          label: t('aiChat.toolExecution.status.pending'),
           pulse: false,
         };
       case 'approved':
         return {
           icon: <Zap size={14} />,
-          color: 'text-blue-400',
-          bgColor: 'bg-blue-500/10',
-          borderColor: 'border-blue-500/20',
-          label: '已批准',
+          color: 'theme-text-accent',
+          containerClass: 'theme-surface-accent',
+          label: t('aiChat.toolExecution.status.approved'),
           pulse: true,
         };
       case 'running':
         return {
           icon: <Loader2 size={14} className="animate-spin" />,
-          color: 'text-blue-400',
-          bgColor: 'bg-blue-500/10',
-          borderColor: 'border-blue-500/20',
-          label: '执行中',
+          color: 'theme-text-accent',
+          containerClass: 'theme-surface-accent',
+          label: t('aiChat.toolExecution.status.running'),
           pulse: true,
         };
       case 'completed':
         return {
           icon: <CheckCircle size={14} />,
-          color: 'text-green-400',
-          bgColor: 'bg-green-500/10',
-          borderColor: 'border-green-500/20',
-          label: '已完成',
+          color: 'theme-text-success',
+          containerClass: 'theme-surface-success',
+          label: t('aiChat.toolExecution.status.completed'),
           pulse: false,
         };
       case 'failed':
         return {
           icon: <XCircle size={14} />,
-          color: 'text-red-400',
-          bgColor: 'bg-red-500/10',
-          borderColor: 'border-red-500/20',
-          label: '失败',
+          color: 'theme-text-danger',
+          containerClass: 'theme-surface-danger',
+          label: t('aiChat.toolExecution.status.failed'),
           pulse: false,
         };
       case 'rejected':
         return {
           icon: <XCircle size={14} />,
           color: 'theme-text-subtle',
-          bgColor: 'theme-panel-muted',
-          borderColor: 'theme-border',
-          label: '已拒绝',
+          containerClass: 'theme-panel-muted theme-border theme-text-subtle border',
+          label: t('aiChat.toolExecution.status.rejected'),
           pulse: false,
         };
       default:
         return {
           icon: <AlertCircle size={14} />,
           color: 'theme-text-subtle',
-          bgColor: 'theme-panel-muted',
-          borderColor: 'theme-border',
-          label: '未知',
+          containerClass: 'theme-panel-muted theme-border theme-text-subtle border',
+          label: t('aiChat.toolExecution.status.unknown'),
           pulse: false,
         };
     }
   };
 
   const config = getStatusConfig();
+  const activeStepIndex = progress !== undefined ? Math.floor(progress / 33) : 0;
+  const steps = [
+    t('aiChat.toolExecution.steps.initialize'),
+    t('aiChat.toolExecution.steps.execute'),
+    t('aiChat.toolExecution.steps.process'),
+  ];
 
   if (compact) {
     return (
-      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${config.bgColor} ${config.borderColor} ${config.pulse ? 'animate-pulse' : ''}`}>
+      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${config.containerClass} ${config.pulse ? 'animate-pulse' : ''}`}>
         <span className={config.color}>{config.icon}</span>
         <span className={`text-[10px] font-bold uppercase tracking-wider ${config.color}`}>
           {config.label}
@@ -111,7 +113,7 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
   return (
     <div className={`space-y-2 ${config.pulse ? 'animate-pulse' : ''}`}>
       {/* 状态指示器 */}
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${config.bgColor} ${config.borderColor}`}>
+      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${config.containerClass}`}>
         <span className={config.color}>{config.icon}</span>
         <div className="flex-1">
           <div className={`text-[11px] font-bold uppercase tracking-wider ${config.color}`}>
@@ -129,7 +131,7 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="w-1 h-3 bg-blue-400 rounded-full animate-pulse"
+                  className="h-3 w-1 rounded-full bg-[var(--accent-color)] animate-pulse"
                   style={{ animationDelay: `${i * 150}ms`, animationDuration: '1s' }}
                 />
               ))}
@@ -142,12 +144,12 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
       {progress !== undefined && status === 'running' && (
         <div className="px-4">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] theme-text-subtle">执行进度</span>
-            <span className="text-[10px] font-mono text-blue-400">{progress}%</span>
+            <span className="text-[10px] theme-text-subtle">{t('aiChat.toolExecution.progress')}</span>
+            <span className="text-[10px] font-mono theme-text-accent">{progress}%</span>
           </div>
           <div className="h-1.5 theme-panel-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300 ease-out"
+              className="h-full bg-[var(--accent-color)] transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -157,14 +159,14 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
       {/* 执行步骤 */}
       {status === 'running' && (
         <div className="px-4 space-y-1">
-          {['初始化环境', '执行命令', '处理结果'].map((step, idx) => (
+          {steps.map((step, idx) => (
             <div key={step} className="flex items-center gap-2 text-[10px]">
               <div className={`w-3 h-3 rounded-full border ${
-                idx < Math.floor(progress / 33)
-                  ? 'bg-blue-400 border-blue-400'
+                idx < activeStepIndex
+                  ? 'border-[var(--accent-color)] bg-[var(--accent-color)]'
                   : 'theme-border bg-transparent'
               }`} />
-              <span className={idx < Math.floor(progress / 33) ? 'theme-text-muted' : 'theme-text-subtle'}>
+              <span className={idx < activeStepIndex ? 'theme-text-muted' : 'theme-text-subtle'}>
                 {step}
               </span>
             </div>
@@ -179,12 +181,14 @@ export const ToolExecutionIndicator: React.FC<ToolExecutionIndicatorProps> = ({
  * 流式内容加载指示器
  */
 export const StreamingContentLoader: React.FC<{ fileName?: string }> = ({ fileName }) => {
+  const { t } = useTranslation();
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-blue-500/5 rounded-xl border border-blue-500/20 animate-pulse">
-      <Loader2 size={16} className="text-blue-400 animate-spin" />
+    <div className="theme-surface-accent flex items-center gap-3 rounded-xl px-4 py-3 animate-pulse">
+      <Loader2 size={16} className="theme-text-accent animate-spin" />
       <div className="flex-1">
-        <div className="text-[11px] font-medium text-blue-500">
-          正在生成内容...
+        <div className="theme-text-accent text-[11px] font-medium">
+          {t('aiChat.toolExecution.generatingContent')}
         </div>
         {fileName && (
           <div className="text-[10px] theme-text-subtle mt-0.5 font-mono">
@@ -196,7 +200,7 @@ export const StreamingContentLoader: React.FC<{ fileName?: string }> = ({ fileNa
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="w-1 h-4 bg-blue-400 rounded-full animate-bounce"
+            className="h-4 w-1 rounded-full bg-[var(--accent-color)] animate-bounce"
             style={{ animationDelay: `${i * 100}ms` }}
           />
         ))}

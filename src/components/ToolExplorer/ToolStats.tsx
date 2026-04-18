@@ -10,22 +10,32 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ToolStatsResponse } from '../../types/tool';
+import { getToolCategoryClass, getToolPermissionClass } from '../../utils/toolExplorerI18n';
 import './ToolStats.css';
 
 /**
  * 工具统计组件
  */
 export const ToolStats: React.FC<{ stats: ToolStatsResponse }> = ({ stats }) => {
+  const { t } = useTranslation();
+
+  const getCategoryLabel = (category: string) =>
+    t(`toolExplorer.categories.${category}`, { defaultValue: category });
+
+  const getPermissionLabel = (permission: string) =>
+    t(`toolExplorer.permissions.${permission}`, { defaultValue: permission });
+
   return (
     <div data-testid="tool-stats" className="tool-stats theme-panel-muted theme-border rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-4 text-sm">
         {/* 总工具数 */}
         <div className="flex items-center gap-2">
-          <span className="theme-text-subtle">总工具数:</span>
+          <span className="theme-text-subtle">{t('toolExplorer.totalTools')}</span>
           <span
             data-testid="tool-total-count"
-            className="text-lg font-bold text-primary"
+            className="theme-text-accent text-lg font-bold"
           >
             {stats.total_count}
           </span>
@@ -34,7 +44,7 @@ export const ToolStats: React.FC<{ stats: ToolStatsResponse }> = ({ stats }) => 
         {/* 分类统计 */}
         {Object.keys(stats.category_counts).length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="theme-text-subtle">分类:</span>
+            <span className="theme-text-subtle">{t('toolExplorer.filters.category')}:</span>
             <div
               data-testid="tool-category-counts"
               className="flex flex-wrap gap-1.5"
@@ -42,9 +52,12 @@ export const ToolStats: React.FC<{ stats: ToolStatsResponse }> = ({ stats }) => 
               {Object.entries(stats.category_counts).map(([category, count]) => (
                 <span
                   key={category}
-                  className="theme-panel theme-border rounded border px-2 py-0.5 text-xs"
+                  className={`${getToolCategoryClass(category)} rounded border px-2 py-0.5 text-xs`}
                 >
-                  {category}: {count}
+                  {t('toolExplorer.countLabel', {
+                    label: getCategoryLabel(category),
+                    count,
+                  })}
                 </span>
               ))}
             </div>
@@ -54,7 +67,7 @@ export const ToolStats: React.FC<{ stats: ToolStatsResponse }> = ({ stats }) => 
         {/* 权限统计 */}
         {Object.keys(stats.permission_counts).length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="theme-text-subtle">权限:</span>
+            <span className="theme-text-subtle">{t('toolExplorer.filters.permission')}:</span>
             <div
               data-testid="tool-permission-counts"
               className="flex flex-wrap gap-1.5"
@@ -62,18 +75,12 @@ export const ToolStats: React.FC<{ stats: ToolStatsResponse }> = ({ stats }) => 
               {Object.entries(stats.permission_counts).map(([permission, count]) => (
                 <span
                   key={permission}
-                  className={`
-                    px-2 py-0.5 border rounded text-xs
-                    ${
-                      permission === 'DangerFullAccess'
-                        ? 'bg-red-500/12 text-red-500 border-red-500/20'
-                        : permission === 'ReadOnly'
-                        ? 'bg-green-500/12 text-green-500 border-green-500/20'
-                        : 'theme-panel theme-border theme-text-muted'
-                    }
-                  `}
+                  className={`${getToolPermissionClass(permission)} rounded px-2 py-0.5 text-xs`}
                 >
-                  {permission}: {count}
+                  {t('toolExplorer.countLabel', {
+                    label: getPermissionLabel(permission),
+                    count,
+                  })}
                 </span>
               ))}
             </div>

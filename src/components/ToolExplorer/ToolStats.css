@@ -3,5 +3,5 @@
  */
 
 .tool-stats {
-  border: 1px solid hsl(var(--border));
+  border-color: var(--border-color);
 }

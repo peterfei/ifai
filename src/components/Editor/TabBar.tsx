@@ -113,7 +113,7 @@ export const TabBar = () => {
                   <motion.div
                     layoutId="tab-active-pill"
                     data-testid="tab-active-pill"
-                    className="absolute inset-0 bg-blue-600/10 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                    className="theme-active-pill absolute inset-0 rounded-full"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                   />
                 )}
@@ -123,7 +123,7 @@ export const TabBar = () => {
                 </span>
 
                 {file.isDirty && (
-                  <span className="relative z-10 ml-2 w-1.5 h-1.5 rounded-full bg-blue-400/80 shadow-[0_0_8px_rgba(96,165,250,0.5)]" />
+                  <span className="relative z-10 ml-2 h-1.5 w-1.5 rounded-full bg-[var(--accent-color)]" />
                 )}
 
                 <button
@@ -151,7 +151,7 @@ export const TabBar = () => {
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all",
               previewMode !== 'editor'
-                ? 'bg-blue-500/10 text-blue-400 shadow-sm'
+                ? 'theme-selection-accent shadow-sm'
                 : 'theme-button-ghost'
             )}
             onClick={togglePreviewMode}

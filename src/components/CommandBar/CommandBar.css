@@ -11,7 +11,8 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 15vh;
-  background-color: rgba(2, 6, 23, 0.48);
+  background-color: var(--backdrop-color);
+  backdrop-filter: blur(6px);
 }
 
 .command-bar-container {
@@ -99,11 +100,11 @@
 }
 
 .command-bar-success {
-  border-left: 3px solid #4ec9b0;
+  border-left: 3px solid var(--success-color);
 }
 
 .command-bar-error {
-  border-left: 3px solid #f48771;
+  border-left: 3px solid var(--danger-color);
 }
 
 .command-bar-message {

@@ -2,10 +2,9 @@ import React, { useMemo } from 'react';
 import { useTaskStore } from '../../stores/taskStore';
 import { CheckCircle2, Clock, PlayCircle, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { enUS, zhCN } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { TaskStatus, TaskMetadata } from './types';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
 
 export interface TaskTimelineProps {
   tasks?: TaskMetadata[];
@@ -17,9 +16,7 @@ export interface TaskTimelineProps {
 
 export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
   const tasks = useTaskStore(state => state.tasks);
-  const { t } = useTranslation();
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
+  const { t, i18n } = useTranslation();
 
   // Memoize the sorted array
   const sortedTasks = useMemo(() => {
@@ -41,11 +38,11 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
             {/* Icon Column */}
             <div className="theme-panel z-10 rounded-full p-1 ring-4 ring-[var(--bg-primary)]">
               {task.status === TaskStatus.SUCCESS ? (
-                <CheckCircle2 size={16} className="text-green-500" />
+                <CheckCircle2 size={16} className="theme-text-success" />
               ) : task.status === TaskStatus.RUNNING ? (
-                <PlayCircle size={16} className="text-blue-500 animate-pulse" />
+                <PlayCircle size={16} className="theme-text-accent animate-pulse" />
               ) : task.status === TaskStatus.FAILED ? (
-                <XCircle size={16} className="text-red-500" />
+                <XCircle size={16} className="theme-text-danger" />
               ) : (
                 <Clock size={16} className="theme-text-subtle" />
               )}
@@ -56,14 +53,17 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
               <div className="flex justify-between items-start mb-1">
                 <h4 className="theme-text truncate text-xs font-semibold">{task.title}</h4>
                 <span className="theme-text-subtle shrink-0 text-[10px]">
-                  {formatDistanceToNow(task.createdAt, { addSuffix: true })}
+                  {formatDistanceToNow(task.createdAt, {
+                    addSuffix: true,
+                    locale: i18n.language.startsWith('zh') ? zhCN : enUS,
+                  })}
                 </span>
               </div>
               <p className="theme-text-subtle line-clamp-2 text-[11px]">{task.description}</p>
               
               {task.logs && task.logs.length > 0 && (
                 <div className="theme-input-surface theme-border theme-text-subtle mt-2 overflow-hidden rounded border p-2 font-mono text-[9px]">
-                  <div className="theme-border mb-1 border-b pb-1 italic opacity-70">Recent Log:</div>
+                  <div className="theme-border mb-1 border-b pb-1 italic opacity-70">{t('taskTimeline.recentLog')}</div>
                   {task.logs.slice(-1)[0].message}
                 </div>
               )}

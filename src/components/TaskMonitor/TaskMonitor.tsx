@@ -1,17 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Filter, Trash2, X, Search, LayoutGrid, ListTree, Activity } from 'lucide-react';
+import { Filter, Trash2, Search, LayoutGrid, ListTree, Activity } from 'lucide-react';
 import { TaskCard } from './TaskCard';
-import { TaskStatusBadge } from './TaskStatusBadge';
 import { TaskTimeline } from './TaskTimeline';
 import { useTaskStore, useFilteredTasks, useTaskCounts } from '../../stores/taskStore';
-import type { TaskFilter, TaskCardMode } from './types';
-import { TaskStatus, TaskCategory } from './types';
+import type { TaskFilter } from './types';
+import { TaskStatus } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { shallow } from 'zustand/shallow';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
-import clsx from 'clsx';
 
 // ============================================================================
 // 子组件：筛选控制
@@ -34,16 +29,15 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
   filter,
   onFilterChange,
 }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
 
   const STATUS_OPTIONS: Array<{ value: TaskStatus | 'all'; label: string }> = [
-    { value: 'all', label: '全部' },
-    { value: TaskStatus.RUNNING, label: '运行中' },
-    { value: TaskStatus.PENDING, label: '等待中' },
-    { value: TaskStatus.SUCCESS, label: '完成' },
-    { value: TaskStatus.FAILED, label: '失败' },
+    { value: 'all', label: t('taskMonitor.all') },
+    { value: TaskStatus.RUNNING, label: t('taskMonitor.status.running') },
+    { value: TaskStatus.PENDING, label: t('taskMonitor.status.pending') },
+    { value: TaskStatus.SUCCESS, label: t('taskMonitor.status.success') },
+    { value: TaskStatus.FAILED, label: t('taskMonitor.status.failed') },
   ];
 
   return (
@@ -55,7 +49,7 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
         }`}
       >
         <Filter size={12} />
-        <span>筛选</span>
+        <span>{t('taskMonitor.filter')}</span>
       </button>
 
       {expanded && (
@@ -85,34 +79,32 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
 
 const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
   const { t } = useTranslation();
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   const chartData = useMemo(() => [
-    { name: 'R', value: counts.running, color: '#3b82f6' },
-    { name: 'P', value: counts.pending, color: '#6b7280' },
-    { name: 'S', value: counts.success, color: '#10b981' },
-    { name: 'F', value: counts.failed, color: '#ef4444' },
-  ].filter(d => d.value > 0), [counts]);
+    { name: t('taskMonitor.summary.runningShort'), value: counts.running, color: 'var(--accent-color)' },
+    { name: t('taskMonitor.summary.pendingShort'), value: counts.pending, color: 'var(--text-subtle)' },
+    { name: t('taskMonitor.summary.successShort'), value: counts.success, color: 'var(--success-color)' },
+    { name: t('taskMonitor.summary.failedShort'), value: counts.failed, color: 'var(--danger-color)' },
+  ].filter(d => d.value > 0), [counts, t]);
 
   return (
     <div className="theme-panel-muted theme-border border-b p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-            <Activity size={14} className="text-blue-500" />
+            <Activity size={14} className="theme-text-accent" />
             <span className="theme-text-subtle text-[11px] font-bold uppercase tracking-tight">{t('taskMonitor.title')}</span>
         </div>
         <div className="theme-panel flex rounded border p-0.5 theme-border">
             <button 
                 onClick={() => setView('list')}
                 className={`p-1 rounded ${view === 'list' ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]' : 'theme-text-subtle'}`}
-                title="List View"
+                title={t('taskMonitor.listView')}
             >
                 <ListTree size={12} />
             </button>
             <button 
                 onClick={() => setView('timeline')}
                 className={`p-1 rounded ${view === 'timeline' ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]' : 'theme-text-subtle'}`}
-                title="Timeline View"
+                title={t('taskMonitor.timelineView')}
             >
                 <LayoutGrid size={12} />
             </button>
@@ -136,10 +128,10 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
                         <span className="theme-text-subtle text-[9px] font-bold">{d.name}</span>
                         <span className="theme-text text-[11px] font-mono leading-none">{d.value}</span>
                     </div>
-                ))}
+            ))}
             </div>
             {counts.success > 0 && (
-              <button onClick={onClearCompleted} className="theme-hoverable theme-text-subtle ml-auto rounded p-1.5 transition-colors hover:text-red-400">
+              <button onClick={onClearCompleted} className="theme-hoverable theme-text-subtle ml-auto rounded p-1.5 transition-colors hover:text-[var(--danger-color)]" title={t('taskMonitor.clearCompleted')}>
                   <Trash2 size={12} />
               </button>
             )}
@@ -154,14 +146,13 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
 // ============================================================================
 
 export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = ({ className = '' }) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'list' | 'timeline'>('list');
   const tasks = useFilteredTasks();
   const counts = useTaskCounts();
   const filter = useTaskStore((state: any) => state.filter);
   const setFilter = useTaskStore((state: any) => state.setFilter);
   const clearCompleted = useTaskStore((state: any) => state.clearCompleted);
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
 
   return (
     <div className={`theme-panel flex flex-col h-full overflow-hidden ${className}`}>
@@ -181,8 +172,8 @@ export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = 
                     <input
                         value={(filter as TaskFilter).search || ''}
                         onChange={(e) => setFilter({ ...filter, search: e.target.value || undefined })}
-                        placeholder="快速过滤..."
-                        className={clsx('theme-text w-20 bg-transparent text-[10px] outline-none', dark ? 'placeholder-gray-500' : 'placeholder-slate-400')}
+                        placeholder={t('taskMonitor.searchPlaceholder')}
+                        className="theme-text w-20 bg-transparent text-[10px] outline-none placeholder:text-[var(--text-muted)]"
                     />
                 </div>
             </div>
@@ -191,7 +182,7 @@ export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = 
                 {tasks.length === 0 ? (
                   <div className="theme-text-subtle flex flex-col items-center justify-center py-20 opacity-50">
                     <Activity size={32} className="mb-2" />
-                    <span className="text-xs">暂无任务记录</span>
+                    <span className="text-xs">{t('taskMonitor.noTasks')}</span>
                   </div>
                 ) : (
                     tasks.map(task => <TaskCard key={task.id} task={task} mode="normal" />)

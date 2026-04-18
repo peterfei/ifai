@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, FileText, CheckCircle } from 'lucide-react';
 import { AccessTier } from '../../types/prompt';
 
@@ -6,6 +7,7 @@ interface OverrideConfirmDialogProps {
   isOpen: boolean;
   accessTier: AccessTier;
   promptName: string;
+  overrideFileName: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -21,18 +23,21 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
   isOpen,
   accessTier,
   promptName,
+  overrideFileName,
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation();
+
   if (!isOpen) return null;
 
   const isProtected = accessTier === AccessTier.Protected;
   const isPrivate = accessTier === AccessTier.Private;
 
   const getTitle = () => {
-    if (isPrivate) return '专家模式编辑';
-    if (isProtected) return '创建覆盖文件';
-    return '编辑确认';
+    if (isPrivate) return t('promptManager.overrideDialog.expertTitle');
+    if (isProtected) return t('promptManager.overrideDialog.protectedTitle');
+    return t('promptManager.overrideDialog.defaultTitle');
   };
 
   const getMessage = () => {
@@ -40,13 +45,16 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
       return (
         <div className="space-y-3">
           <p className="theme-text-muted text-sm">
-            您正在以<span className="font-bold text-red-600">专家模式</span>编辑私有提示词 <span className="font-mono font-bold">{promptName}</span>
+            {t('promptManager.overrideDialog.expertIntroPrefix')}{' '}
+            <span className="font-mono font-bold">{promptName}</span>
+            {' · '}
+            <span className="theme-text-danger font-bold">{t('promptManager.overrideDialog.expertModeLabel')}</span>
           </p>
-          <div className="rounded-md border border-red-500/20 bg-red-500/10 p-3">
-            <p className="mb-1 text-xs font-semibold text-red-500">警告</p>
-            <p className="text-xs text-red-500">
-              私有提示词是系统核心组件，修改可能会影响 AI 行为。请确保您了解修改的影响。
+          <div className="theme-surface-danger rounded-md p-3">
+            <p className="theme-text-danger mb-1 text-xs font-semibold">
+              {t('promptManager.overrideDialog.expertWarningTitle')}
             </p>
+            <p className="theme-text text-xs">{t('promptManager.overrideDialog.expertWarningBody')}</p>
           </div>
         </div>
       );
@@ -56,19 +64,24 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
       return (
         <div className="space-y-3">
           <p className="theme-text-muted text-sm">
-            您即将编辑受保护的提示词 <span className="font-mono font-bold">{promptName}</span>
+            {t('promptManager.overrideDialog.protectedIntro')}{' '}
+            <span className="font-mono font-bold">{promptName}</span>
           </p>
-          <div className="rounded-md border border-blue-500/20 bg-blue-500/10 p-3">
-            <p className="mb-1 text-xs font-semibold text-blue-500">覆盖机制</p>
-            <p className="text-xs text-blue-500">
-              系统将创建 <span className="rounded bg-blue-500/15 px-1 font-mono">{promptName}.override.md</span> 文件。
-              原始提示词不会被修改，您的覆盖将在此项目中优先使用。
+          <div className="theme-surface-accent rounded-md p-3">
+            <p className="theme-text-accent mb-1 text-xs font-semibold">
+              {t('promptManager.overrideDialog.overrideMechanismTitle')}
+            </p>
+            <p className="theme-text text-xs">
+              {t('promptManager.overrideDialog.overrideMechanismPrefix')}{' '}
+              <span className="theme-code-inline rounded px-1 font-mono">{overrideFileName}</span>
+              {' '}
+              {t('promptManager.overrideDialog.overrideMechanismSuffix')}
             </p>
           </div>
           <div className="theme-text-subtle flex items-start gap-2 text-xs">
             <FileText size={14} className="mt-0.5 flex-shrink-0" />
             <p>
-              如需恢复原始提示词，只需删除覆盖文件即可。
+              {t('promptManager.overrideDialog.restoreHint')}
             </p>
           </div>
         </div>
@@ -77,7 +90,8 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
 
     return (
       <p className="theme-text-muted text-sm">
-        确认要保存对提示词 <span className="font-mono font-bold">{promptName}</span> 的修改吗？
+        {t('promptManager.overrideDialog.defaultMessage')}{' '}
+        <span className="font-mono font-bold">{promptName}</span>
       </p>
     );
   };
@@ -90,7 +104,7 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
           className="theme-button-danger flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold shadow-sm transition-colors active:shadow-none"
         >
           <AlertTriangle size={16} />
-          <span>以专家模式保存</span>
+          <span>{t('promptManager.overrideDialog.saveAsExpert')}</span>
         </button>
       );
     }
@@ -101,7 +115,7 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
         className="theme-button-primary flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold shadow-sm transition-colors active:shadow-none"
       >
         <CheckCircle size={16} />
-        <span>创建覆盖并保存</span>
+        <span>{t('promptManager.overrideDialog.createOverrideAndSave')}</span>
       </button>
     );
   };
@@ -127,7 +141,7 @@ export const OverrideConfirmDialog: React.FC<OverrideConfirmDialogProps> = ({
             onClick={onCancel}
             className="theme-button-secondary rounded-md px-4 py-2 text-sm font-medium"
           >
-            取消
+            {t('common.cancel')}
           </button>
           {getConfirmButton()}
         </div>

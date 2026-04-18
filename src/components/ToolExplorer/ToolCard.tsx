@@ -12,26 +12,31 @@
 
 import React from 'react';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useToolStore } from '../../stores/toolStore';
 import type { ToolDescriptionResponse } from '../../types/tool';
+import {
+  getLocalizedToolCategoryLabel,
+  getLocalizedToolDescription,
+  getLocalizedToolName,
+  getLocalizedToolPermissionLabel,
+  getToolPermissionClass,
+} from '../../utils/toolExplorerI18n';
 import './ToolCard.css';
-
-/**
- * 权限级别颜色映射
- */
-const permissionColors: Record<string, string> = {
-  ReadOnly: 'bg-green-500/12 text-green-500 border-green-500/20',
-  WorkspaceWrite: 'bg-blue-500/12 text-blue-500 border-blue-500/20',
-  Prompt: 'bg-amber-500/12 text-amber-500 border-amber-500/20',
-  DangerFullAccess: 'bg-red-500/12 text-red-500 border-red-500/20',
-  Allow: 'bg-purple-500/12 text-purple-500 border-purple-500/20',
-};
 
 /**
  * 工具卡片组件
  */
 export const ToolCard: React.FC<{ tool: ToolDescriptionResponse }> = ({ tool }) => {
+  const { t } = useTranslation();
   const { selectTool } = useToolStore();
+
+  const toolName = getLocalizedToolName(tool, t);
+  const permissionLabel = getLocalizedToolPermissionLabel(tool.required_permission, t);
+  const categoryLabel = getLocalizedToolCategoryLabel(tool.category, t);
+  const description = getLocalizedToolDescription(tool, t);
+
+  const permissionClass = getToolPermissionClass(tool.required_permission);
 
   const handleClick = () => {
     selectTool(tool);
@@ -41,16 +46,16 @@ export const ToolCard: React.FC<{ tool: ToolDescriptionResponse }> = ({ tool }) 
     <div
       data-testid={`tool-card-${tool.name.toLowerCase()}`}
       onClick={handleClick}
-      className="tool-card theme-panel-muted theme-border group relative cursor-pointer rounded-lg border p-4 transition-all hover:border-blue-500/30 hover:shadow-md"
+      className="tool-card theme-panel-muted theme-border group relative cursor-pointer rounded-lg border p-4 transition-all hover:border-[var(--accent-soft-border)] hover:shadow-md"
     >
       {/* 危险工具标识 */}
       {tool.is_dangerous && (
         <div
           data-testid="tool-dangerous-badge"
-          className="absolute top-2 right-2 flex items-center gap-1 rounded-full border border-red-500/20 bg-red-500/12 px-2 py-0.5 text-xs font-medium text-red-500"
+          className="theme-badge-danger absolute top-2 right-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
         >
           <AlertTriangle size={12} />
-          <span>危险</span>
+          <span>{t('toolExplorer.danger')}</span>
         </div>
       )}
 
@@ -58,9 +63,9 @@ export const ToolCard: React.FC<{ tool: ToolDescriptionResponse }> = ({ tool }) 
       <div className="flex items-start justify-between mb-2">
         <h3
           data-testid="tool-name"
-          className="text-base font-semibold font-mono group-hover:text-primary transition-colors"
+          className="tool-card-title theme-text text-base font-semibold font-mono transition-colors group-hover:text-[var(--accent-color)]"
         >
-          {tool.name}
+          {toolName}
         </h3>
         <ChevronRight
           className="theme-text-subtle opacity-0 transition-opacity group-hover:opacity-100"
@@ -73,23 +78,20 @@ export const ToolCard: React.FC<{ tool: ToolDescriptionResponse }> = ({ tool }) 
         data-testid="tool-description"
         className="theme-text-subtle mb-3 line-clamp-2 text-sm"
       >
-        {tool.description}
+        {description}
       </p>
 
       {/* 权限级别 */}
       <div
         data-testid="tool-permission"
-        className={`
-          inline-flex px-2 py-0.5 text-xs font-medium rounded border
-          ${permissionColors[tool.required_permission] || 'theme-panel theme-border theme-text-muted'}
-        `}
+        className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${permissionClass}`}
       >
-        {tool.required_permission}
+        {permissionLabel}
       </div>
 
       {/* 工具分类 */}
       <div className="theme-text-subtle mt-2 text-xs">
-        {tool.category}
+        {categoryLabel}
       </div>
     </div>
   );

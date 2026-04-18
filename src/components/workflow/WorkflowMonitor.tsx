@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardContent,
@@ -24,9 +25,13 @@ async function listen<T>(event: string, handler: (event: { payload: T }) => void
   return tauriListen<T>(event, handler);
 }
 import { Badge } from '../UI/badge';
-import { Progress } from '../UI/progress';
 import { Button } from '../UI/button';
 import { CheckCircle, XCircle, Clock, AlertCircle, X } from 'lucide-react';
+import {
+  getWorkflowStatusBadgeClass,
+  getWorkflowStatusLabel,
+  getWorkflowStatusTextClass,
+} from './workflowStatusMeta';
 
 interface NodeResultInfo {
   node_id: string;
@@ -56,6 +61,7 @@ export function WorkflowMonitor({
   onError,
   onClose,
 }: WorkflowMonitorProps) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<string>('Running');
   const [nodeResults, setNodeResults] = useState<NodeResultInfo[]>([]);
   const [currentNode, setCurrentNode] = useState<string | null>(null);
@@ -85,7 +91,7 @@ export function WorkflowMonitor({
           }
         }
       } catch (err) {
-        console.error('获取状态失败:', err);
+        console.error('[WorkflowMonitor] Failed to fetch workflow status:', err);
         if (mounted) {
           clearInterval(pollInterval);
         }
@@ -144,27 +150,22 @@ export function WorkflowMonitor({
   const getNodeStatusIcon = (nodeStatus: string) => {
     switch (nodeStatus) {
       case 'Completed':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <CheckCircle className="theme-text-success w-5 h-5" />;
       case 'Failed':
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return <XCircle className="theme-text-danger w-5 h-5" />;
       case 'Running':
-        return <Clock className="w-5 h-5 text-blue-500 animate-spin" />;
+        return <Clock className="theme-text-info w-5 h-5 animate-spin" />;
       default:
         return <AlertCircle className="theme-text-subtle w-5 h-5" />;
     }
   };
 
   const getNodeStatusBadge = (nodeStatus: string) => {
-    switch (nodeStatus) {
-      case 'Completed':
-        return <Badge className="bg-green-500">完成</Badge>;
-      case 'Failed':
-        return <Badge className="bg-red-500">失败</Badge>;
-      case 'Running':
-        return <Badge className="bg-blue-500">运行中</Badge>;
-      default:
-        return <Badge variant="outline">等待</Badge>;
-    }
+    return (
+      <Badge variant="outline" className={getWorkflowStatusBadgeClass(nodeStatus)}>
+        {getWorkflowStatusLabel(nodeStatus, t)}
+      </Badge>
+    );
   };
 
   const progress = nodeResults.length > 0
@@ -178,20 +179,31 @@ export function WorkflowMonitor({
     : 0;
 
   return (
-    <Card className="w-full">
-      <CardHeader>
+    <Card className="theme-panel theme-border w-full border">
+      <CardHeader className="theme-panel-muted theme-border border-b">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>工作流执行中</CardTitle>
-            <CardDescription>工作流 ID: {workflowId}</CardDescription>
+            <CardTitle className="theme-text">{t('workflow.monitor.title')}</CardTitle>
+            <CardDescription className="theme-text-subtle">
+              {t('workflow.monitor.workflowId', { id: workflowId })}
+            </CardDescription>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <div className="theme-text-subtle text-sm">运行时间</div>
-              <div className="text-lg font-semibold">{duration}s</div>
+              <div className="theme-text-subtle text-sm">{t('workflow.monitor.duration')}</div>
+              <div className="theme-text text-lg font-semibold">
+                {t('workflow.monitor.durationSeconds', { count: duration })}
+              </div>
             </div>
             {onClose && (
-              <Button variant="ghost" size="sm" onClick={onClose}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="theme-button-ghost"
+                title={t('common.close')}
+                aria-label={t('common.close')}
+              >
                 <X className="w-4 h-4" />
               </Button>
             )}
@@ -203,23 +215,24 @@ export function WorkflowMonitor({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {status === 'Running' && (
-              <Clock className="w-5 h-5 text-blue-500 animate-pulse" />
+              <Clock className="theme-text-info w-5 h-5 animate-pulse" />
             )}
             {status === 'Completed' && (
-              <CheckCircle className="w-5 h-5 text-green-500" />
+              <CheckCircle className="theme-text-success w-5 h-5" />
             )}
             {status === 'Failed' && (
-              <XCircle className="w-5 h-5 text-red-500" />
+              <XCircle className="theme-text-danger w-5 h-5" />
             )}
-            <span className="font-semibold">
-              {status === 'Running' && '执行中...'}
-              {status === 'Completed' && '执行完成'}
-              {status === 'Failed' && '执行失败'}
+            <span className={`font-semibold ${getWorkflowStatusTextClass(status)}`}>
+              {getWorkflowStatusLabel(status, t)}
             </span>
           </div>
           {nodeResults.length > 0 && (
-            <Badge variant="outline">
-              {completedNodes.length} / {nodeResults.length} 节点
+            <Badge variant="outline" className="theme-panel-elevated theme-border theme-text-muted border">
+              {t('workflow.monitor.completedNodes', {
+                completed: completedNodes.length,
+                total: nodeResults.length,
+              })}
             </Badge>
           )}
         </div>
@@ -227,9 +240,17 @@ export function WorkflowMonitor({
         {/* 进度条 */}
         {nodeResults.length > 0 && (
           <div>
-            <Progress value={progress} className="h-2" />
+            <div className="theme-panel h-2 w-full overflow-hidden rounded-full">
+              <div
+                className="h-full transition-all duration-300 ease-in-out"
+                style={{
+                  width: `${progress}%`,
+                  background: 'var(--accent-color)',
+                }}
+              />
+            </div>
             <div className="theme-text-subtle mt-1 flex justify-between text-xs">
-              <span>进度</span>
+              <span>{t('workflow.monitor.progress')}</span>
               <span>{Math.round(progress)}%</span>
             </div>
           </div>
@@ -238,9 +259,9 @@ export function WorkflowMonitor({
         {/* 节点结果 */}
         {nodeResults.length > 0 ? (
           <div className="space-y-2">
-            <h3 className="text-sm font-semibold">节点执行结果</h3>
+            <h3 className="theme-text text-sm font-semibold">{t('workflow.monitor.nodeResults')}</h3>
             <div className="space-y-2">
-              {nodeResults.map((node, index) => (
+              {nodeResults.map((node) => (
                 <div
                   key={node.node_id}
                   className="theme-panel-muted theme-border flex items-start gap-3 rounded-lg border p-3"
@@ -248,12 +269,12 @@ export function WorkflowMonitor({
                   <div className="mt-0.5">{getNodeStatusIcon(node.status)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium">{node.node_id}</span>
+                      <span className="theme-text font-medium">{node.node_id}</span>
                       {getNodeStatusBadge(node.status)}
                     </div>
                     {node.output && (
                       <div className="theme-text-subtle text-sm">
-                        <div className="font-medium mb-1">输出:</div>
+                        <div className="theme-text font-medium mb-1">{t('workflow.monitor.output')}</div>
                         <div className="theme-code-surface theme-border overflow-x-auto rounded border p-2 text-xs">
                           {node.output.length > 200
                             ? `${node.output.slice(0, 200)}...`
@@ -262,9 +283,9 @@ export function WorkflowMonitor({
                       </div>
                     )}
                     {node.error && (
-                      <div className="text-sm text-red-500">
-                        <div className="font-medium mb-1">错误:</div>
-                        <div className="rounded border border-red-500/20 bg-red-500/10 p-2 text-xs">
+                      <div className="text-sm">
+                        <div className="theme-text-danger font-medium mb-1">{t('workflow.monitor.error')}</div>
+                        <div className="theme-surface-danger theme-text rounded p-2 text-xs">
                           {node.error}
                         </div>
                       </div>
@@ -277,20 +298,20 @@ export function WorkflowMonitor({
         ) : (
           <div className="theme-text-subtle py-8 text-center">
             <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>等待节点执行结果...</p>
+            <p>{t('workflow.monitor.waitingForResults')}</p>
           </div>
         )}
 
         {/* 错误信息 */}
         {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+          <div className="theme-surface-danger rounded-lg p-4">
             <div className="flex items-start gap-2">
-              <XCircle className="w-5 h-5 text-red-500 mt-0.5" />
+              <XCircle className="theme-text-danger mt-0.5 w-5 h-5" />
               <div className="flex-1">
-                <div className="font-semibold text-red-500">
-                  执行失败
+                <div className="theme-text font-semibold">
+                  {t('workflow.monitor.executionFailed')}
                 </div>
-                <div className="mt-1 text-sm text-red-400">
+                <div className="theme-text mt-1 text-sm">
                   {error}
                 </div>
               </div>

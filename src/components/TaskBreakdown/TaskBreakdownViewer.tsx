@@ -8,13 +8,15 @@
  * 2. modal: 模态框模式（完整交互式任务树）
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, Minimize2, X, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Maximize2, X, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { TaskBreakdown } from '../../types/taskBreakdown';
 import { TaskTree } from './TaskTree';
 import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import { formatTaskHours, getTaskStatusMeta } from './taskBreakdownMeta';
 
 interface TaskBreakdownViewerProps {
   breakdown: TaskBreakdown;
@@ -28,27 +30,29 @@ interface TaskBreakdownViewerProps {
  * 简化的统计信息卡片（用于 inline 模式）
  */
 const StatsCard: React.FC<{ breakdown: TaskBreakdown }> = ({ breakdown }) => {
+  const { t } = useTranslation();
   const stats = (breakdown.stats as any) || { total: 0, pending: 0, inProgress: 0, completed: 0, failed: 0 };
+  const completedMeta = getTaskStatusMeta('completed', t);
+  const inProgressMeta = getTaskStatusMeta('in_progress', t);
+  const failedMeta = getTaskStatusMeta('failed', t);
 
   return (
     <div className="flex items-center gap-4 text-xs">
       <span className="theme-text-subtle flex items-center gap-1.5">
-        <CheckCircle2 className="w-4 h-4 text-green-400" />
-        <span>已完成: {stats.completed || 0}</span>
+        <CheckCircle2 className={`h-4 w-4 ${completedMeta.textClass}`} />
+        <span>{t('taskBreakdown.stats.completed', { count: stats.completed || 0 })}</span>
       </span>
       <span className="theme-text-subtle flex items-center gap-1.5">
-        <Clock className="w-4 h-4 text-blue-400" />
-        <span>进行中: {stats.inProgress || 0}</span>
+        <Clock className={`h-4 w-4 ${inProgressMeta.textClass}`} />
+        <span>{t('taskBreakdown.stats.inProgress', { count: stats.inProgress || 0 })}</span>
       </span>
       {(stats.failed || 0) > 0 && (
         <span className="theme-text-subtle flex items-center gap-1.5">
-          <AlertCircle className="w-4 h-4 text-red-400" />
-          <span>失败: {stats.failed}</span>
+          <AlertCircle className={`h-4 w-4 ${failedMeta.textClass}`} />
+          <span>{t('taskBreakdown.stats.failed', { count: stats.failed })}</span>
         </span>
       )}
-      <span className="theme-text-subtle">
-        总计: {stats.total || 0} 任务
-      </span>
+      <span className="theme-text-subtle">{t('taskBreakdown.stats.total', { count: stats.total || 0 })}</span>
     </div>
   );
 };
@@ -61,13 +65,10 @@ export const TaskBreakdownViewer: React.FC<TaskBreakdownViewerProps> = ({
   mode: propMode,
   allowModeSwitch = true,
 }) => {
+  const { t } = useTranslation();
   // 使用 store 管理模态框状态
   const { isModalOpen, openModal, closeModal, setCurrentBreakdown } = useTaskBreakdownStore();
-  // 内部模式状态（用于 local mode 控制）
-  const [localMode, setLocalMode] = useState(propMode || 'inline');
-
-  // 如果传入了 propMode，使用 propMode；否则使用内部状态
-  const mode = propMode || localMode;
+  const mode = propMode || 'inline';
 
   /**
    * 切换到全屏模式
@@ -105,7 +106,7 @@ export const TaskBreakdownViewer: React.FC<TaskBreakdownViewerProps> = ({
               className="theme-button-secondary flex flex-shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs"
             >
               <Maximize2 className="w-3.5 h-3.5" />
-              查看完整
+              {t('taskBreakdown.actions.viewFull')}
             </button>
           )}
         </div>
@@ -116,13 +117,15 @@ export const TaskBreakdownViewer: React.FC<TaskBreakdownViewerProps> = ({
         {/* 工时信息 */}
         {breakdown.totalEstimatedHours && (
           <div className="theme-text-subtle text-xs">
-            预估总工时: {breakdown.totalEstimatedHours.toFixed(1)} 小时
+            {t('taskBreakdown.labels.totalEstimatedHours', {
+              hours: formatTaskHours(Number(breakdown.totalEstimatedHours.toFixed(1)), t),
+            })}
           </div>
         )}
 
         {/* 任务 ID */}
         <div className="theme-text-subtle font-mono text-[10px]">
-          ID: {breakdown.id}
+          {t('taskBreakdown.labels.id', { id: breakdown.id })}
         </div>
       </div>
     );

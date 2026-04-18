@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { File, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useFileStore } from '../../stores/fileStore';
 import clsx from 'clsx';
 
@@ -14,6 +15,7 @@ interface FuzzyFileSearchProps {
  */
 export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, ref: React.Ref<any>) => {
   const { filter, onSelect, onClose } = props;
+  const { t } = useTranslation();
   const [results, setResults] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
   if (results.length === 0 && filter.length > 1) {
     return (
       <div className="theme-panel-elevated theme-border theme-shadow absolute bottom-full left-0 mb-2 w-64 rounded-lg border p-3 text-xs italic animate-in fade-in slide-in-from-bottom-2">
-        未找到匹配文件...
+        <span className="theme-text-subtle">{t('fuzzyFileSearch.noMatches')}</span>
       </div>
     );
   }
@@ -78,8 +80,10 @@ export const FuzzyFileSearch = React.forwardRef((props: FuzzyFileSearchProps, re
       className="theme-panel-elevated theme-border theme-shadow absolute bottom-full left-0 mb-2 w-80 overflow-hidden rounded-xl border backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 z-50"
     >
       <div className="theme-panel-muted theme-border flex items-center gap-2 border-b p-2">
-        <Search size={12} className="text-[var(--info-color)]" />
-        <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-wider">引用文件 (@)</span>
+        <Search size={12} className="theme-text-info" />
+        <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-wider">
+          {t('fuzzyFileSearch.title')}
+        </span>
       </div>
       <div className="max-h-60 overflow-y-auto py-1">
         {results.map((file, index) => (

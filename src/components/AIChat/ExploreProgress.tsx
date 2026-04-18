@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Folder, FolderOpen, File, CheckCircle2, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
 import { useExploreStore } from '../../stores/exploreStore';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Types
@@ -52,16 +53,11 @@ const StatusBar: React.FC<{
   progress: ExploreProgressData;
   scanRate: number;
 }> = ({ progress, scanRate }) => {
+  const { t } = useTranslation();
   const { phase, currentFile } = progress;
   const { total, scanned } = progress.progress;
   const percentage = total > 0 ? Math.min(100, Math.round((scanned / total) * 100)) : 0;
   const isComplete = scanned >= total && total > 0;
-
-  const phaseText = {
-    'scanning': '扫描中',
-    'analyzing': '分析中',
-    'completed': '已完成'
-  }[phase];
 
   return (
     <div className="explore-status-bar">
@@ -74,7 +70,7 @@ const StatusBar: React.FC<{
         ) : (
           <Search size={12} className="text-[var(--warning-color)]" />
         )}
-        <span className="theme-text">{phaseText}</span>
+        <span className="theme-text">{t(`aiChat.exploreProgress.phase.${phase}`)}</span>
         <span className="theme-text-subtle">{percentage}%</span>
       </div>
 
@@ -83,7 +79,7 @@ const StatusBar: React.FC<{
 
       {/* Directory progress */}
       <span className="theme-text font-mono text-[11px]">
-        {scanned}/{total} 目录
+        {t('aiChat.exploreProgress.directories', { current: scanned, total })}
       </span>
 
       {/* Separator */}
@@ -91,14 +87,14 @@ const StatusBar: React.FC<{
 
       {/* File count and scan rate */}
       <span className="theme-text font-mono text-[11px]">
-        {progress.scannedFiles?.length || 0} 文件
+        {t('aiChat.exploreProgress.files', { count: progress.scannedFiles?.length || 0 })}
       </span>
 
       {scanRate > 0 && !isComplete && (
         <>
           <span className="theme-text-subtle opacity-60">|</span>
           <span className="font-mono text-[11px] text-[var(--success-color)]">
-            {scanRate} 文件/秒
+            {t('aiChat.exploreProgress.filesPerSecond', { count: scanRate })}
           </span>
         </>
       )}
@@ -123,9 +119,10 @@ const StatusBar: React.FC<{
  * Compact phase stepper
  */
 const PhaseStepper: React.FC<{ phase: 'scanning' | 'analyzing' | 'completed' }> = ({ phase }) => {
+  const { t } = useTranslation();
   const steps = [
-    { key: 'scanning', label: '扫描' },
-    { key: 'analyzing', label: '分析' },
+    { key: 'scanning', label: t('aiChat.exploreProgress.phase.scanning') },
+    { key: 'analyzing', label: t('aiChat.exploreProgress.phase.analyzing') },
   ];
 
   const currentIndex = phase === 'completed' ? steps.length : steps.findIndex(s => s.key === phase);
@@ -141,9 +138,9 @@ const PhaseStepper: React.FC<{ phase: 'scanning' | 'analyzing' | 'completed' }> 
           <React.Fragment key={step.key}>
             <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium transition-all ${
               isActive
-                ? 'bg-blue-500/10 border border-blue-500/20 text-blue-500'
+                ? 'bg-[var(--accent-soft-bg)] border border-[var(--accent-soft-border)] text-[var(--accent-color)]'
                 : isCompletedStep
-                ? 'bg-green-500/10 border border-green-500/20 text-green-500'
+                ? 'bg-[var(--success-soft-bg)] border border-[var(--success-soft-border)] text-[var(--success-color)]'
                 : 'theme-panel-muted theme-border theme-text-subtle border'
             }`}>
               <span>{step.label}</span>
@@ -151,7 +148,7 @@ const PhaseStepper: React.FC<{ phase: 'scanning' | 'analyzing' | 'completed' }> 
               {isCompletedStep && !isActive && <CheckCircle2 size={8} className="ml-1" />}
             </div>
             {index < steps.length - 1 && (
-              <div className={`w-6 h-px ${index < currentIndex || isComplete ? 'bg-green-500' : 'theme-divider'}`} />
+              <div className={`w-6 h-px ${index < currentIndex || isComplete ? 'bg-[var(--success-color)]' : 'theme-divider'}`} />
             )}
           </React.Fragment>
         );
@@ -175,7 +172,7 @@ const CompactProgressBar: React.FC<{
       <div className="theme-panel-muted h-1 rounded-full overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ease-out ${
-            isComplete ? 'bg-green-500' : 'bg-blue-500'
+            isComplete ? 'bg-[var(--success-color)]' : 'bg-[var(--accent-color)]'
           }`}
           style={{ width: `${percentage}%` }}
         />
@@ -206,6 +203,7 @@ export const ScannedFileStream: React.FC<{
   compact = false,
   scannedFiles: externalFiles = []
 }) => {
+  const { t } = useTranslation();
   const MAX_FILES = compact ? 5 : 6;
   const fileStreamRef = useRef<Set<string>>(new Set());
   const [fileStream, setFileStream] = useState<FileStreamItem[]>([]);
@@ -270,7 +268,7 @@ export const ScannedFileStream: React.FC<{
       <div className="theme-panel-muted rounded p-3">
         <div className="theme-text-subtle flex items-center gap-2 text-[12px]">
           <Loader2 size={10} className="animate-spin text-[var(--info-color)]" />
-          <span>正在准备扫描...</span>
+          <span>{t('aiChat.exploreProgress.preparing')}</span>
         </div>
       </div>
     );
@@ -279,7 +277,7 @@ export const ScannedFileStream: React.FC<{
   return (
     <div className={compact ? "mt-3" : "mt-4"}>
       <div className="theme-text mb-2 text-[12px] font-medium">
-        {compact ? '扫描文件' : '最近扫描'}
+        {compact ? t('aiChat.exploreProgress.scannedFiles') : t('aiChat.exploreProgress.recentScanned')}
       </div>
       <div className={`theme-panel-muted overflow-hidden rounded ${compact ? 'p-2 max-h-[100px]' : 'p-3 max-h-[140px]'}`}>
         <div className="space-y-1">
@@ -287,7 +285,7 @@ export const ScannedFileStream: React.FC<{
           {scanningFile && !isComplete && (
             <div
               key={`scanning-${scanningFile}`}
-              className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300 bg-blue-500/12 animate-in slide-in-from-top-2 fade-in"
+              className="flex items-center gap-2 text-[12px] py-1 px-2 rounded transition-all duration-300 bg-[var(--info-soft-bg)] animate-in slide-in-from-top-2 fade-in"
             >
               <Loader2 size={10} className="text-[var(--info-color)] animate-spin flex-shrink-0" />
               <span className="flex-1 truncate font-mono text-[var(--info-color)]">
@@ -405,7 +403,7 @@ const DirectoryTreeNode: React.FC<{
     <div>
       <div
         className={`theme-soft-hover flex items-center gap-1 py-1 rounded cursor-pointer text-[12px] ${
-          node.status === 'scanning' ? 'bg-blue-500/10' : ''
+          node.status === 'scanning' ? 'bg-[var(--info-soft-bg)]' : ''
         }`}
         style={{ paddingLeft: `${(node.depth - 1) * 12 + 4}px` }}
         onClick={() => hasChildren && setExpanded(!expanded)}
@@ -453,6 +451,7 @@ const CollapsibleDirectoryTree: React.FC<{
   onToggle: () => void;
   onOpenFile?: (path: string) => void;
 }> = ({ byDirectory, isCollapsed, onToggle, onOpenFile }) => {
+  const { t } = useTranslation();
   const tree = useMemo(() => buildDirectoryTree(byDirectory), [byDirectory]);
   const hasData = Object.keys(byDirectory).length > 0;
 
@@ -469,7 +468,7 @@ const CollapsibleDirectoryTree: React.FC<{
         ) : (
           <ChevronDown size={12} />
         )}
-        <span>目录结构 ({Object.keys(byDirectory).length})</span>
+        <span>{t('aiChat.exploreProgress.directoryTree', { count: Object.keys(byDirectory).length })}</span>
       </button>
       {!isCollapsed && (
         <div className="theme-panel-muted rounded p-3 max-h-[180px] overflow-y-auto">
@@ -482,7 +481,7 @@ const CollapsibleDirectoryTree: React.FC<{
               />
             ))
           ) : (
-            <div className="theme-text-subtle py-3 text-[12px]">正在扫描目录...</div>
+            <div className="theme-text-subtle py-3 text-[12px]">{t('aiChat.exploreProgress.scanningDirectory')}</div>
           )}
         </div>
       )}
@@ -499,6 +498,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
   mode = 'full',
   onOpenFile,
 }) => {
+  const { t } = useTranslation();
   const { toggleSection, collapsedSections } = useExploreStore();
   const [scanRate, setScanRate] = useState(0);
   const lastUpdateRef = useRef<number>(Date.now());
@@ -539,7 +539,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
         {isComplete && (
           <div className="mt-2 flex items-center gap-2 text-[11px] text-[var(--success-color)]">
             <CheckCircle2 size={10} />
-            <span>扫描完成 {progress.scannedFiles?.length || 0} 个文件</span>
+            <span>{t('aiChat.exploreProgress.scanCompleted', { count: progress.scannedFiles?.length || 0 })}</span>
           </div>
         )}
       </div>
@@ -571,14 +571,14 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
               <div className="flex items-center gap-2">
                 <File size={12} className="text-[var(--info-color)]" />
                 <span className="theme-text text-[12px] font-medium">
-                  {phase === 'scanning' ? '正在扫描' : phase === 'analyzing' ? '分析中' : '扫描文件'}
+                  {phase === 'scanning' ? t('aiChat.exploreProgress.scanningNow') : phase === 'analyzing' ? t('aiChat.exploreProgress.phase.analyzing') : t('aiChat.exploreProgress.scannedFiles')}
                 </span>
                 {phase === 'scanning' && <Loader2 size={10} className="text-[var(--info-color)] animate-spin" />}
                 {phase === 'analyzing' && <Search size={10} className="text-[var(--warning-color)] animate-pulse" />}
                 {isComplete && <CheckCircle2 size={10} className="text-[var(--success-color)]" />}
               </div>
               <span className="theme-text-subtle text-[11px]">
-                {progress.scannedFiles?.length || 0} 文件
+                {t('aiChat.exploreProgress.files', { count: progress.scannedFiles?.length || 0 })}
               </span>
             </div>
             <ScannedFileStream
@@ -592,7 +592,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
             {isComplete && (
               <div className="theme-border mt-2 flex items-center gap-2 border-t pt-2 text-[11px] text-[var(--success-color)]">
                 <CheckCircle2 size={10} />
-                <span>扫描完成，共 {progress.scannedFiles?.length || 0} 个文件</span>
+                <span>{t('aiChat.exploreProgress.scanCompletedTotal', { count: progress.scannedFiles?.length || 0 })}</span>
               </div>
             )}
           </div>
@@ -631,7 +631,7 @@ export const ExploreProgress: React.FC<ExploreProgressProps> = ({
       {isComplete && (
         <div className="theme-border mt-3 flex items-center gap-2 border-t pt-3 text-[12px] text-[var(--success-color)]">
           <CheckCircle2 size={12} />
-          <span>扫描完成，共扫描 {progress.scannedFiles?.length || 0} 个文件</span>
+          <span>{t('aiChat.exploreProgress.scanCompletedDetailed', { count: progress.scannedFiles?.length || 0 })}</span>
         </div>
       )}
     </div>

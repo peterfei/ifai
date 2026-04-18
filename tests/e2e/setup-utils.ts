@@ -239,6 +239,23 @@ export async function setupE2ETestEnvironment(
           w.__TAURI_INTERNALS__ = {};
         }
 
+        if (!w.__TAURI_INTERNALS__.metadata) {
+          w.__TAURI_INTERNALS__.metadata = {
+            app: { name: 'IfAI', version: '0.4.1' },
+            os: { name: 'darwin' },
+            currentWindow: { label: 'main' },
+          };
+        } else if (!w.__TAURI_INTERNALS__.metadata.currentWindow) {
+          w.__TAURI_INTERNALS__.metadata.currentWindow = { label: 'main' };
+        }
+
+        if (!w.__TAURI_INTERNALS__.window) {
+          w.__TAURI_INTERNALS__.window = {
+            label: 'main',
+            currentWindow: () => w.__TAURI_INTERNALS__.window,
+          };
+        }
+
         // Mock transformCallback（Tauri 内部使用）
         if (!w.__TAURI_INTERNALS__.transformCallback) {
           w.__TAURI_INTERNALS__.transformCallback = (callback: any, once: any) => {
@@ -250,6 +267,249 @@ export async function setupE2ETestEnvironment(
         if (!w.__TAURI_INTERNALS__.invoke) {
           w.__TAURI_INTERNALS__.invoke = async (cmd: string, args: any) => {
             console.log(`[E2E Tauri Mock] invoke: ${cmd}`, args);
+
+            const mockTools = [
+              {
+                name: 'read_file',
+                description: 'Read the contents of a file.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    path: { type: 'string' },
+                  },
+                  required: ['path'],
+                },
+                required_permission: 'ReadOnly',
+                category: 'File',
+                is_dangerous: false,
+                examples: ['Read a file', 'Inspect source code'],
+                parameter_descriptions: { path: 'Path of the file to read' },
+              },
+              {
+                name: 'write_file',
+                description: 'Write content to a file.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    path: { type: 'string' },
+                    content: { type: 'string' },
+                  },
+                  required: ['path', 'content'],
+                },
+                required_permission: 'WorkspaceWrite',
+                category: 'File',
+                is_dangerous: false,
+                examples: ['Create a file', 'Save generated code'],
+                parameter_descriptions: {
+                  path: 'Path of the file to write',
+                  content: 'Content to write into the file',
+                },
+              },
+              {
+                name: 'edit_file',
+                description: 'Edit specific parts of a file.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    path: { type: 'string' },
+                    old_text: { type: 'string' },
+                    new_text: { type: 'string' },
+                  },
+                  required: ['path', 'old_text', 'new_text'],
+                },
+                required_permission: 'WorkspaceWrite',
+                category: 'File',
+                is_dangerous: false,
+                examples: ['Replace a code snippet', 'Patch a config entry'],
+                parameter_descriptions: {
+                  path: 'Path of the file to edit',
+                  old_text: 'Original text to replace',
+                  new_text: 'New text that replaces the original text',
+                },
+              },
+              {
+                name: 'glob_search',
+                description: 'Search for files with glob patterns.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    pattern: { type: 'string' },
+                    path: { type: 'string' },
+                  },
+                },
+                required_permission: 'ReadOnly',
+                category: 'Search',
+                is_dangerous: false,
+                examples: ['Find all .ts files', 'Search files in a folder'],
+                parameter_descriptions: {
+                  pattern: 'Glob pattern to match',
+                  path: 'Directory to search in',
+                },
+              },
+              {
+                name: 'grep_search',
+                description: 'Search for text in files.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    pattern: { type: 'string' },
+                    path: { type: 'string' },
+                  },
+                },
+                required_permission: 'ReadOnly',
+                category: 'Search',
+                is_dangerous: false,
+                examples: ['Search text in files', 'Locate function definitions'],
+                parameter_descriptions: {
+                  pattern: 'Text or regular expression to search for',
+                  path: 'Directory to search in',
+                },
+              },
+              {
+                name: 'bash',
+                description: 'Execute bash commands.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    command: { type: 'string' },
+                  },
+                  required: ['command'],
+                },
+                required_permission: 'DangerFullAccess',
+                category: 'Command',
+                is_dangerous: true,
+                examples: ['Run a shell command', 'Execute a build script'],
+                parameter_descriptions: {
+                  command: 'Bash command to execute',
+                },
+              },
+              {
+                name: 'PowerShell',
+                description: 'Execute PowerShell commands on Windows.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    command: { type: 'string' },
+                  },
+                  required: ['command'],
+                },
+                required_permission: 'DangerFullAccess',
+                category: 'Command',
+                is_dangerous: true,
+                examples: ['Run a PowerShell command', 'Manage system configuration'],
+                parameter_descriptions: {
+                  command: 'PowerShell command to execute',
+                },
+              },
+              {
+                name: 'WebFetch',
+                description: 'Fetch content from a web URL.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    url: { type: 'string' },
+                  },
+                  required: ['url'],
+                },
+                required_permission: 'Allow',
+                category: 'Network',
+                is_dangerous: false,
+                examples: ['Fetch a webpage', 'Read online documentation'],
+                parameter_descriptions: {
+                  url: 'Web URL to fetch',
+                },
+              },
+              {
+                name: 'WebSearch',
+                description: 'Search the web for information.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    query: { type: 'string' },
+                  },
+                  required: ['query'],
+                },
+                required_permission: 'Allow',
+                category: 'Network',
+                is_dangerous: false,
+                examples: ['Search documentation', 'Find the latest information'],
+                parameter_descriptions: {
+                  query: 'Search query keywords',
+                },
+              },
+              {
+                name: 'TodoWrite',
+                description: 'Create or update a structured task list for the current session.',
+                input_schema: {
+                  type: 'object',
+                  properties: {
+                    todos: { type: 'array' },
+                  },
+                  required: ['todos'],
+                },
+                required_permission: 'Prompt',
+                category: 'System',
+                is_dangerous: false,
+                examples: ['Create a task list', 'Update task progress'],
+                parameter_descriptions: {
+                  todos: 'Array of tasks to manage',
+                },
+              },
+            ];
+
+            const buildToolListResponse = () => {
+              const byCategory = mockTools.reduce((acc: Record<string, any[]>, tool) => {
+                if (!acc[tool.category]) acc[tool.category] = [];
+                acc[tool.category].push(tool);
+                return acc;
+              }, {});
+
+              const byPermission = mockTools.reduce((acc: Record<string, any[]>, tool) => {
+                if (!acc[tool.required_permission]) acc[tool.required_permission] = [];
+                acc[tool.required_permission].push(tool);
+                return acc;
+              }, {});
+
+              const category_counts = Object.fromEntries(
+                Object.entries(byCategory).map(([key, tools]) => [key, tools.length])
+              );
+              const permission_counts = Object.fromEntries(
+                Object.entries(byPermission).map(([key, tools]) => [key, tools.length])
+              );
+
+              return {
+                tools: mockTools,
+                by_category: byCategory,
+                by_permission: byPermission,
+                stats: {
+                  total_count: mockTools.length,
+                  category_counts,
+                  permission_counts,
+                },
+              };
+            };
+
+            if (cmd === 'get_tool_descriptions') {
+              return Promise.resolve(buildToolListResponse());
+            }
+
+            if (cmd === 'get_tool_description') {
+              const tool = mockTools.find((item) => item.name === args?.name) || null;
+              return Promise.resolve(tool);
+            }
+
+            if (cmd === 'get_tools_by_permission') {
+              const response = buildToolListResponse();
+              return Promise.resolve(response.by_permission[args?.maxPermission] || []);
+            }
+
+            if (cmd === 'plugin:window|get_all_windows') {
+              return Promise.resolve(['main']);
+            }
+
+            if (cmd.startsWith('plugin:window|')) {
+              return Promise.resolve();
+            }
 
             // 🔥 HTTP API 代理：execute_quick_workflow 通过真实后端调用
             if (cmd === 'execute_quick_workflow') {

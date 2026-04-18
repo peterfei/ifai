@@ -10,7 +10,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { useThreadStore } from '../../stores/threadStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
-import { readFileContent } from '../../utils/fileSystem';
+import { isAbsolutePath, normalizePath, readFileContent } from '../../utils/fileSystem';
+import { openFileFromPath } from '../../utils/fileActions';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 import ToolService from '../../services/toolService';
@@ -76,12 +77,24 @@ import { ImageInput } from '../Multimodal';
 import type { ImageAttachment } from '../../types/multimodal';
 import { ToolClassificationIndicator } from '../ToolClassification';
 import { MessageSkeleton } from '../UI/Skeleton';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 import clsx from 'clsx';
 import { isDarkTheme } from '../../utils/theme';
+import { formatKeybinding } from '../../utils/keyboard';
 
 interface AIChatProps {
   width?: number;
   onResizeStart?: (e: React.MouseEvent) => void;
+}
+
+interface PendingExternalOpenRequest {
+  path: string;
+  options?: {
+    id?: string;
+    name?: string;
+    initialLine?: number;
+    language?: string;
+  };
 }
 
 export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
@@ -146,7 +159,6 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
 
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
-  const openFile = useFileStore(state => state.openFile);
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   // v0.3.1: 视图模式状态（普通视图 vs 时间线视图）
@@ -172,6 +184,7 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   // v0.3.0: 拖拽高亮状态（用于视觉反馈）- 只在文件管理器拖拽时显示
   const [isDragHighlight, setIsDragHighlight] = useState(false);
+  const [pendingExternalOpen, setPendingExternalOpen] = useState<PendingExternalOpenRequest | null>(null);
 
   // 🔥 使用 refs 存储 E2E 测试需要的最新值（解决闭包问题）
   const composerOpenRef = useRef(composerOpen);
@@ -388,6 +401,80 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const isProviderConfigured = !!(currentProvider && currentProvider.enabled &&
     (currentProvider.isCustom || currentProvider.apiKey));
 
+  const formatCommandError = useCallback((error: unknown) => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return String(error);
+  }, []);
+
+  const buildCommandFailureMessage = useCallback((
+    titleKey: string,
+    error: unknown,
+    firstSuggestionKey: string,
+  ) => [
+    `### ${t(titleKey)}`,
+    '',
+    formatCommandError(error),
+    '',
+    `**${t('aiChat.commandMessages.shared.possibleReasons')}**:`,
+    `- ${t('aiChat.commandMessages.shared.reasons.invalidResponseFormat')}`,
+    `- ${t('aiChat.commandMessages.shared.reasons.networkIssue')}`,
+    `- ${t('aiChat.commandMessages.shared.reasons.apiQuotaExceeded')}`,
+    '',
+    `**${t('aiChat.commandMessages.shared.suggestions')}**:`,
+    `1. ${t(firstSuggestionKey)}`,
+    `2. ${t('aiChat.commandMessages.shared.checkApiKey')}`,
+    `3. ${t('aiChat.commandMessages.shared.retryLater')}`,
+  ].join('\n'), [formatCommandError, t]);
+
+  const buildTaskListReport = useCallback((
+    stats: { total: number; todo: number; inProgress: number; done: number },
+    todoTasks: Array<{ id: string; title: string }>,
+    inProgressTasks: Array<{ id: string; title: string }>,
+    doneTasks: Array<{ id: string; title: string }>,
+  ) => {
+    let content = `### ${t('aiChat.commandMessages.taskList.report.title')}\n\n`;
+    content += `- ${t('aiChat.commandMessages.taskList.report.total')}: ${stats.total}\n`;
+    content += `- ${t('aiChat.commandMessages.taskList.report.todo')}: ${stats.todo}\n`;
+    content += `- ${t('aiChat.commandMessages.taskList.report.inProgress')}: ${stats.inProgress}\n`;
+    content += `- ${t('aiChat.commandMessages.taskList.report.done')}: ${stats.done}\n\n`;
+
+    if (todoTasks.length > 0) {
+      content += `### ${t('aiChat.commandMessages.taskList.report.todoSection')}\n\n`;
+      todoTasks.forEach((task) => {
+        content += `- \`/task:start ${task.id}\`: ${task.title}\n`;
+      });
+      content += '\n';
+    }
+
+    if (inProgressTasks.length > 0) {
+      content += `### ${t('aiChat.commandMessages.taskList.report.inProgressSection')}\n\n`;
+      inProgressTasks.forEach((task) => {
+        content += `- \`${task.id}\`: ${task.title}\n`;
+      });
+      content += '\n';
+    }
+
+    if (doneTasks.length > 0) {
+      content += `### ${t('aiChat.commandMessages.taskList.report.doneSection')}\n\n`;
+      doneTasks.slice(0, 5).forEach((task) => {
+        content += `- \`${task.id}\`: ${task.title}\n`;
+      });
+      if (doneTasks.length > 5) {
+        content += `${t('aiChat.commandMessages.taskList.report.moreDone', {
+          count: doneTasks.length - 5,
+        })}\n`;
+      }
+    }
+
+    if (stats.total === 0) {
+      content += `\n${t('aiChat.commandMessages.taskList.report.noTasksParsed')}`;
+    }
+
+    return content;
+  }, [t]);
+
   const handleSend = async () => {
     if (!input.trim()) return;
     const msg = input.trim();
@@ -398,6 +485,16 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     if (msg.toLowerCase() === '/help') {
       const { addMessage } = useChatStore.getState() as any;
       const helpId = crypto.randomUUID();
+      const helpCommands = t('help_message.commands', { returnObjects: true });
+      const helpShortcuts = t('help_message.shortcuts', {
+        returnObjects: true,
+        quickOpenShortcut: formatKeybinding('Mod+p'),
+        inlineEditShortcut: formatKeybinding('Mod+k'),
+        toggleChatShortcut: formatKeybinding('Mod+l'),
+        performanceMonitorShortcut: formatKeybinding('Mod+Alt+p'),
+      });
+      const localizedHelpCommands = Array.isArray(helpCommands) ? helpCommands : [];
+      const localizedHelpShortcuts = Array.isArray(helpShortcuts) ? helpShortcuts : [];
       
       const helpContent = `
 ### ${t('help_message.title')}
@@ -405,12 +502,10 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 ${t('help_message.intro')}
 
 #### ${t('help_message.commands_title')}
-${(t('help_message.commands', { returnObjects: true }) as string[]).map(c => `- ${c}`).join('\n')}
-- **@codebase** - 在提问中加入此指令可进行全局代码语义搜索
-- **/index** - 手动强制为项目代码库建立 RAG 语义索引
+${localizedHelpCommands.map(c => `- ${c}`).join('\n')}
 
 #### ${t('help_message.shortcuts_title')}
-${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `- ${s}`).join('\n')}
+${localizedHelpShortcuts.map(s => `- ${s}`).join('\n')}
 
 ---
 *${t('help_message.footer')}*
@@ -458,7 +553,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
             addMessage({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: "✅ **正在重建项目索引**\n\n系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。"
+              content: t('aiChat.commandMessages.index.rebuilding')
             });
           }, 100);
         } catch (e) {
@@ -466,7 +561,9 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
             addMessage({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `❌ **索引初始化失败**\n\n错误详情: ${String(e)}`
+              content: t('aiChat.commandMessages.index.initFailed', {
+                error: formatCommandError(e),
+              })
             });
           }, 100);
         }
@@ -475,7 +572,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: "❌ **未打开项目文件夹**\n\n请先打开一个项目文件夹后再使用此命令。"
+            content: t('aiChat.commandMessages.index.projectNotOpen')
           });
         }, 100);
       }
@@ -500,13 +597,13 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       // 创建示例任务树
       const demoTaskTree = {
         id: `tb-${Date.now()}-demo`,
-        title: '示例：实现用户登录功能',
-        description: '这是一个示例任务拆解，展示了任务树的结构',
+        title: t('aiChat.commandMessages.taskDemo.tree.title'),
+        description: t('aiChat.commandMessages.taskDemo.tree.description'),
         originalPrompt: '/task:demo',
         taskTree: {
           id: 'root-1',
-          title: '实现用户登录功能',
-          description: '完整的用户认证系统，包括登录、注册、密码重置',
+          title: t('aiChat.commandMessages.taskDemo.tree.root.title'),
+          description: t('aiChat.commandMessages.taskDemo.tree.root.description'),
           status: 'in_progress' as const,
           dependencies: [],
           priority: 'high' as const,
@@ -515,22 +612,22 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
           children: [
             {
               id: 'task-1',
-              title: '后端 API 开发',
-              description: '实现登录、注册、密码重置的后端接口',
+              title: t('aiChat.commandMessages.taskDemo.tree.backend.title'),
+              description: t('aiChat.commandMessages.taskDemo.tree.backend.description'),
               status: 'completed' as const,
               dependencies: [],
               category: 'development' as const,
               estimatedHours: 8,
               priority: 'high' as const,
               acceptanceCriteria: [
-                'POST /api/auth/login 返回 JWT token',
-                'POST /api/auth/register 创建新用户',
-                'POST /api/auth/reset-password 发送重置邮件',
+                t('aiChat.commandMessages.taskDemo.tree.backend.acceptance.login'),
+                t('aiChat.commandMessages.taskDemo.tree.backend.acceptance.register'),
+                t('aiChat.commandMessages.taskDemo.tree.backend.acceptance.resetPassword'),
               ],
               children: [
                 {
                   id: 'task-1-1',
-                  title: '设计数据库 Schema',
+                  title: t('aiChat.commandMessages.taskDemo.tree.backend.children.databaseSchema'),
                   status: 'completed' as const,
                   dependencies: [],
                   category: 'development' as const,
@@ -539,7 +636,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
                 },
                 {
                   id: 'task-1-2',
-                  title: '实现 JWT 认证中间件',
+                  title: t('aiChat.commandMessages.taskDemo.tree.backend.children.jwtMiddleware'),
                   status: 'completed' as const,
                   dependencies: ['task-1-1'],
                   category: 'development' as const,
@@ -548,7 +645,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
                 },
                 {
                   id: 'task-1-3',
-                  title: '编写 API 端点',
+                  title: t('aiChat.commandMessages.taskDemo.tree.backend.children.apiEndpoints'),
                   status: 'completed' as const,
                   dependencies: ['task-1-2'],
                   category: 'development' as const,
@@ -559,23 +656,23 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
             },
             {
               id: 'task-2',
-              title: '前端登录页面',
-              description: '实现用户登录和注册表单',
+              title: t('aiChat.commandMessages.taskDemo.tree.frontend.title'),
+              description: t('aiChat.commandMessages.taskDemo.tree.frontend.description'),
               status: 'in_progress' as const,
               dependencies: ['task-1'],
               category: 'development' as const,
               estimatedHours: 6,
               priority: 'high' as const,
               acceptanceCriteria: [
-                '响应式设计，支持移动端',
-                '表单验证（邮箱格式、密码强度）',
-                '错误提示友好',
-                '记住我功能',
+                t('aiChat.commandMessages.taskDemo.tree.frontend.acceptance.responsive'),
+                t('aiChat.commandMessages.taskDemo.tree.frontend.acceptance.validation'),
+                t('aiChat.commandMessages.taskDemo.tree.frontend.acceptance.friendlyErrors'),
+                t('aiChat.commandMessages.taskDemo.tree.frontend.acceptance.rememberMe'),
               ],
               children: [
                 {
                   id: 'task-2-1',
-                  title: '设计 UI 原型',
+                  title: t('aiChat.commandMessages.taskDemo.tree.frontend.children.uiPrototype'),
                   status: 'completed' as const,
                   dependencies: [],
                   category: 'design' as const,
@@ -584,7 +681,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
                 },
                 {
                   id: 'task-2-2',
-                  title: '实现登录表单组件',
+                  title: t('aiChat.commandMessages.taskDemo.tree.frontend.children.loginForm'),
                   status: 'in_progress' as const,
                   dependencies: ['task-2-1'],
                   category: 'development' as const,
@@ -593,7 +690,7 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
                 },
                 {
                   id: 'task-2-3',
-                  title: '集成后端 API',
+                  title: t('aiChat.commandMessages.taskDemo.tree.frontend.children.integrateApi'),
                   status: 'pending' as const,
                   dependencies: ['task-2-2', 'task-1'],
                   category: 'development' as const,
@@ -604,8 +701,8 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
             },
             {
               id: 'task-3',
-              title: '编写测试用例',
-              description: '为认证系统编写单元测试和集成测试',
+              title: t('aiChat.commandMessages.taskDemo.tree.testing.title'),
+              description: t('aiChat.commandMessages.taskDemo.tree.testing.description'),
               status: 'pending' as const,
               dependencies: ['task-1', 'task-2'],
               category: 'testing' as const,
@@ -615,8 +712,8 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
             },
             {
               id: 'task-4',
-              title: '编写技术文档',
-              description: '编写 API 文档和部署指南',
+              title: t('aiChat.commandMessages.taskDemo.tree.documentation.title'),
+              description: t('aiChat.commandMessages.taskDemo.tree.documentation.description'),
               status: 'pending' as const,
               dependencies: ['task-1'],
               category: 'documentation' as const,
@@ -651,36 +748,15 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
       // 添加助手响应
       setTimeout(() => {
         const saveHint = rootPath
-          ? `\n\n💾 任务已保存到：\`${rootPath}/.ifai/tasks/breakdowns/${demoTaskTree.id}.json\``
-          : '\n\n⚠️ 未打开项目，任务仅保存在内存中';
+          ? t('aiChat.commandMessages.taskDemo.saveHint.saved', {
+            path: `${rootPath}/.ifai/tasks/breakdowns/${demoTaskTree.id}.json`,
+          })
+          : t('aiChat.commandMessages.taskDemo.saveHint.memoryOnly');
 
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `### 📋 任务拆解示例
-
-\`\`\`tsx
-<SimpleTaskView taskTree={demoTaskTree.taskTree} />
-\`\`\`
-
----
-
-**提示：** 这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。
-
-任务树包含：
-- **层级结构**：主任务 → 子任务 → 子子任务
-- **状态跟踪**：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕
-- **优先级**：紧急 / 高 / 中 / 低
-- **类别**：开发 / 测试 / 文档 / 设计 / 研究
-- **工时估算**：预估小时数
-- **验收标准**：明确的完成条件
-- **依赖关系**：任务间的依赖${saveHint}
-
-使用控制台测试：
-\`\`\`javascript
-window.__taskBreakdownStore.getState()
-\`\`\`
-`,
+          content: t('aiChat.commandMessages.taskDemo.message', { saveHint }),
         });
       }, 100);
 
@@ -699,7 +775,7 @@ window.__taskBreakdownStore.getState()
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: '❌ 请提供要拆解的任务描述\n\n**用法**：`/task:breakdown [任务描述]`\n\n**示例**：`/task:breakdown 实现用户登录功能`'
+          content: t('aiChat.commandMessages.taskBreakdown.missingDescription')
         });
         setInput('');
         setShowCommands(false);
@@ -759,20 +835,11 @@ window.__taskBreakdownStore.getState()
         addMsg({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `### ❌ 任务拆解失败
-
-${error}
-
-**可能的原因**：
-- AI 响应格式不正确
-- 网络连接问题
-- API 配额不足
-
-**建议**：
-1. 尝试简化任务描述
-2. 检查 API 密钥配置
-3. 稍后重试
-`
+          content: buildCommandFailureMessage(
+            'aiChat.commandMessages.taskBreakdown.failedTitle',
+            error,
+            'aiChat.commandMessages.taskBreakdown.simplifySuggestion',
+          )
         });
       }
 
@@ -791,7 +858,7 @@ ${error}
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: '❌ 请提供要生成提案的需求描述\n\n**用法**：`/proposal [需求描述]`\n\n**示例**：`/proposal 实现用户登录功能`'
+          content: t('aiChat.commandMessages.proposal.missingDescription')
         });
         setInput('');
         setShowCommands(false);
@@ -813,7 +880,7 @@ ${error}
         addMessage({
           id: assistantMsgId,
           role: 'assistant',
-          content: `_[正在生成 OpenSpec 提案...]_\n\n`,
+          content: t('aiChat.commandMessages.proposal.starting'),
           // @ts-ignore - custom property
           agentId: undefined,
           isAgentLive: true
@@ -837,20 +904,11 @@ ${error}
         addMsg({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `### ❌ 提案生成失败
-
-${error}
-
-**可能的原因**：
-- AI 响应格式不正确
-- 网络连接问题
-- API 配额不足
-
-**建议**：
-1. 尝试简化需求描述
-2. 检查 API 密钥配置
-3. 稍后重试
-`
+          content: buildCommandFailureMessage(
+            'aiChat.commandMessages.proposal.failedTitle',
+            error,
+            'aiChat.commandMessages.proposal.simplifySuggestion',
+          )
         });
       }
 
@@ -869,7 +927,7 @@ ${error}
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: '❌ 请提供任务 ID\n\n**用法**：`/task:start <任务ID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用任务**：使用 `/task:list` 查看所有任务'
+          content: t('aiChat.commandMessages.taskStart.missingTaskId')
         });
         setInput('');
         setShowCommands(false);
@@ -884,7 +942,7 @@ ${error}
           const rootPath = useFileStore.getState().rootPath;
 
           if (!rootPath) {
-            throw new Error('未打开项目');
+            throw new Error(t('aiChat.projectFolderNotOpen'));
           }
 
           // 尝试从当前打开的文件中加载任务
@@ -895,7 +953,7 @@ ${error}
             addMessage({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: '❌ 未找到 tasks.md 文件\n\n请先打开一个提案中的 tasks.md 文件'
+              content: t('aiChat.commandMessages.taskStart.tasksFileMissing')
             });
             setInput('');
             return;
@@ -914,7 +972,10 @@ ${error}
             addMessage({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `❌ 未找到任务: ${taskId}\n\n**可用任务**：\n${taskList || '无'}`
+              content: t('aiChat.commandMessages.taskStart.taskNotFound', {
+                taskId,
+                taskList: taskList || t('aiChat.commandMessages.shared.none'),
+              })
             });
             setInput('');
             return;
@@ -972,7 +1033,9 @@ ${context}
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `❌ 任务启动失败: ${e}`
+            content: t('aiChat.commandMessages.taskStart.failed', {
+              error: formatCommandError(e),
+            })
           });
           setInput('');
         }
@@ -994,7 +1057,7 @@ ${context}
             addMessage({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: '❌ 未打开项目\n\n请先打开一个项目文件夹'
+              content: t('aiChat.commandMessages.taskList.projectNotOpen')
             });
             setInput('');
             return;
@@ -1010,13 +1073,15 @@ ${context}
           if (!activeFile) {
             const { addMessage } = useChatStore.getState() as any;
             const fileList = openedFiles.length > 0
-              ? '\n\n**当前打开的文件**：\n' + openedFiles.map(f => `- ${f.path.split('/').pop()}`).join('\n')
+              ? `\n\n**${t('aiChat.commandMessages.taskList.openFilesTitle')}**:\n${openedFiles.map(f => `- ${f.path.split('/').pop()}`).join('\n')}`
               : '';
 
             addMessage({
               id: crypto.randomUUID(),
               role: 'assistant',
-              content: `❌ 未找到 tasks.md 文件${fileList}\n\n**解决方法**：\n1. 在文件树中找到提案目录（.ifai/changes/xxx/）\n2. 打开 tasks.md 文件\n3. 再次运行 /task:list`
+              content: t('aiChat.commandMessages.taskList.tasksFileMissing', {
+                fileList,
+              })
             });
             setInput('');
             setShowCommands(false);
@@ -1036,41 +1101,7 @@ ${context}
           console.log('[TaskList] Stats:', stats);
           console.log('[TaskList] Tasks:', { todo: todoTasks.length, inProgress: inProgressTasks.length, done: doneTasks.length });
 
-          let content = `### 📊 任务统计\n\n`;
-          content += `- 总计: ${stats.total}\n`;
-          content += `- 待办: ${stats.todo}\n`;
-          content += `- 进行中: ${stats.inProgress}\n`;
-          content += `- 已完成: ${stats.done}\n\n`;
-
-          if (todoTasks.length > 0) {
-            content += `### 📋 待办任务\n\n`;
-            todoTasks.forEach(t => {
-              content += `- \`/task:start ${t.id}\`: ${t.title}\n`;
-            });
-            content += '\n';
-          }
-
-          if (inProgressTasks.length > 0) {
-            content += `### 🔄 进行中\n\n`;
-            inProgressTasks.forEach(t => {
-              content += `- \`${t.id}\`: ${t.title}\n`;
-            });
-            content += '\n';
-          }
-
-          if (doneTasks.length > 0) {
-            content += `### ✅ 已完成\n\n`;
-            doneTasks.slice(0, 5).forEach(t => {
-              content += `- \`${t.id}\`: ${t.title}\n`;
-            });
-            if (doneTasks.length > 5) {
-              content += `... 还有 ${doneTasks.length - 5} 个已完成任务\n`;
-            }
-          }
-
-          if (stats.total === 0) {
-            content += '\n⚠️ 未解析到任何任务，请检查 tasks.md 文件格式';
-          }
+          const content = buildTaskListReport(stats, todoTasks, inProgressTasks, doneTasks);
 
           const { addMessage } = useChatStore.getState() as any;
           addMessage({
@@ -1089,7 +1120,9 @@ ${context}
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `❌ 获取任务列表失败: ${e}`
+            content: t('aiChat.commandMessages.taskList.failed', {
+              error: formatCommandError(e),
+            })
           });
           setInput('');
         }
@@ -1107,7 +1140,7 @@ ${context}
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: '❌ 请提供任务 ID\n\n**用法**：`/task:complete <任务ID>`'
+          content: t('aiChat.commandMessages.taskComplete.missingTaskId')
         });
         setInput('');
         return;
@@ -1128,7 +1161,7 @@ ${context}
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `✅ 任务 **${taskId}** 已标记为完成。`
+            content: t('aiChat.commandMessages.taskComplete.success', { taskId })
           });
 
           setInput('');
@@ -1139,7 +1172,9 @@ ${context}
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: `❌ 操作失败: ${e}`
+            content: t('aiChat.commandMessages.taskComplete.failed', {
+              error: formatCommandError(e),
+            })
           });
           setInput('');
         }
@@ -1163,14 +1198,14 @@ ${context}
         addMessage({
           id: assistantMsgId,
           role: 'assistant',
-          content: `_[正在启动自动化测试集成流...]_`,
+          content: t('aiChat.commandMessages.taskTestAll.starting'),
           isAgentLive: true
         });
 
         // 启动专属的测试 Agent
         await agentStore.launchAgent(
           'test-suite-executor',
-          '运行全量单元测试与 E2E 测试，并汇总报告至 Mission Control',
+          t('aiChat.commandMessages.taskTestAll.mission'),
           assistantMsgId
         );
 
@@ -1178,7 +1213,9 @@ ${context}
         addMessage({
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `❌ 无法启动测试 Agent: ${e}`
+          content: t('aiChat.commandMessages.taskTestAll.failed', {
+            error: formatCommandError(e),
+          })
         });
       }
 
@@ -1193,7 +1230,7 @@ ${context}
       addMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `❌ ${t('chat.errorNoKey')} (${currentProvider?.name || 'Unknown'})`
+        content: `${t('chat.errorNoKey')} (${currentProvider?.name || t('common.unknown')})`
       });
       return;
     }
@@ -1267,7 +1304,7 @@ ${context}
           },
           previewUrl: '',
           status: 'error',
-          error: '文件过大 (5MB 限制)',
+          error: t('aiChat.imageAttachments.fileTooLarge'),
         };
         setImageAttachments(prev => [...prev, attachment]);
         return;
@@ -1316,7 +1353,7 @@ ${context}
           },
           previewUrl: '',
           status: 'error',
-          error: '处理失败',
+          error: t('aiChat.imageAttachments.processingFailed'),
         };
         setImageAttachments(prev => [...prev, attachment]);
       }
@@ -1324,7 +1361,7 @@ ${context}
       // 直接是 ImageAttachment 对象
       setImageAttachments(prev => [...prev, fileOrAttachment]);
     }
-  }, []);
+  }, [t]);
 
   const handleRemoveImageAttachment = useCallback((id: string) => {
     setImageAttachments(prev => prev.filter(a => a.id !== id));
@@ -1554,21 +1591,34 @@ ${context}
     }
   };
 
-  const handleOpenFile = useCallback(async (path: string) => {
-    try {
-        const content = await readFileContent(path);
-        openFile({
-            id: uuidv4(),
-            path,
-            name: path.split('/').pop() || 'file',
-            content,
-            isDirty: false,
-            language: 'plaintext'
-        });
-    } catch (e) {
-        console.error("Failed to open file:", e);
+  const isPathInsideWorkspace = useCallback((path: string) => {
+    const normalizedPath = normalizePath(path);
+    const { rootPath, workspaceRoots } = useFileStore.getState();
+    const roots = [rootPath, ...workspaceRoots.map((root) => root.path)]
+      .filter((root): root is string => Boolean(root))
+      .map((root) => normalizePath(root));
+
+    return roots.some((root) => normalizedPath === root || normalizedPath.startsWith(`${root}/`));
+  }, []);
+
+  const requestOpenFile = useCallback(async (
+    path: string,
+    options?: PendingExternalOpenRequest['options'],
+  ) => {
+    if (isAbsolutePath(path) && !isPathInsideWorkspace(path)) {
+      setPendingExternalOpen({
+        path: normalizePath(path),
+        options,
+      });
+      return false;
     }
-  }, [openFile]);
+
+    return openFileFromPath(path, options);
+  }, [isPathInsideWorkspace]);
+
+  const handleOpenFile = useCallback(async (path: string) => {
+    await requestOpenFile(path);
+  }, [requestOpenFile]);
 
   const handleApprove = useCallback((messageId: string, toolCallId: string) => {
     // 🔥 FIX v0.3.8.2: 检查消息是否仍然存在于当前 thread 中
@@ -1921,14 +1971,18 @@ ${context}
         setComposerOpen(false);
         setComposerChanges([]);
         setComposerMessageId(null);
-        toast.success(`已应用 ${result.applied_files?.length || operations.length} 个文件变更`);
+        toast.success(t('aiChat.composerApplySuccess', {
+          count: result.applied_files?.length || operations.length,
+        }));
       } else {
         console.error('[Composer] Accept All failed:', result);
-        toast.error(`应用失败: ${result.errors?.join(', ') || '未知错误'}`);
+        toast.error(t('aiChat.composerApplyFailed', {
+          error: result.errors?.join(', ') || t('aiChat.unknownError'),
+        }));
       }
     } catch (error) {
       console.error('[Composer] Failed to apply changes:', error);
-      toast.error(`应用失败: ${error}`);
+      toast.error(t('aiChat.composerApplyFailed', { error: String(error) }));
     }
   }, [composerChanges, refreshOpenedFiles]);
 
@@ -1982,9 +2036,9 @@ ${context}
       setComposerChanges([]);
       setComposerMessageId(null);
 
-      const message = `已拒绝所有文件变更`;
+      const message = t('aiChat.composerRejectAll');
       if (rolledBack > 0 || deleted > 0) {
-        toast.success(`${message}（回滚 ${rolledBack} 个，删除 ${deleted} 个）`);
+        toast.success(t('aiChat.composerRejectSummary', { message, rolledBack, deleted }));
       } else {
         toast.info(message);
       }
@@ -1992,9 +2046,9 @@ ${context}
       console.log('[Composer] Reject All completed:', { rolledBack, deleted });
     } catch (error) {
       console.error('[Composer] Failed to rollback changes:', error);
-      toast.error(`回滚失败: ${error}`);
+      toast.error(t('aiChat.rollbackFailed', { error: String(error) }));
     }
-  }, [composerChanges, refreshOpenedFiles]);
+  }, [composerChanges, refreshOpenedFiles, t]);
 
   /**
    * Composer: 接受单个文件变更
@@ -2022,12 +2076,12 @@ ${context}
             c.path === path ? { ...c, applied: true } : c
           )
         );
-        toast.success(`已应用: ${path}`);
+        toast.success(t('aiChat.composerFileApplied', { path }));
       }
     } catch (error) {
       console.error(`[Composer] Failed to apply ${path}:`, error);
     }
-  }, [composerChanges, refreshOpenedFiles]);
+  }, [composerChanges, refreshOpenedFiles, t]);
 
   /**
    * Composer: 拒绝单个文件变更（回滚文件内容，但保留在列表中以便重新接受）
@@ -2041,13 +2095,13 @@ ${context}
       // 查找要拒绝的变更
       const change = composerChanges.find(c => c.path === path);
       if (!change) {
-        toast.error(`未找到文件变更: ${path}`);
+        toast.error(t('aiChat.composerChangeMissing', { path }));
         return;
       }
 
       const rootPath = useFileStore.getState().rootPath;
       if (!rootPath) {
-        toast.error('未打开项目文件夹');
+        toast.error(t('aiChat.projectFolderNotOpen'));
         return;
       }
 
@@ -2077,12 +2131,12 @@ ${context}
           c.path === path ? { ...c, applied: false } : c
         )
       );
-      toast.success(`已拒绝并回滚: ${path}`);
+      toast.success(t('aiChat.composerFileRejected', { path }));
     } catch (error) {
       console.error('[Composer] Failed to rollback file:', error);
-      toast.error(`回滚失败: ${error}`);
+      toast.error(t('aiChat.rollbackFailed', { error: String(error) }));
     }
-  }, [composerChanges, refreshOpenedFiles]);
+  }, [composerChanges, refreshOpenedFiles, t]);
 
   /**
    * Composer: 关闭面板
@@ -2105,7 +2159,7 @@ ${context}
       const fixableErrors = errors.filter(isFixableError);
 
       if (fixableErrors.length === 0) {
-        toast.info('未发现可修复的错误');
+        toast.info(t('aiChat.errorFixNone'));
         return;
       }
 
@@ -2149,12 +2203,12 @@ ${fixContext.code_context}
       setSelectedError(fixableErrors[0]);
       setErrorFixOpen(true);
 
-      toast.success(`检测到 ${fixableErrors.length} 个可修复错误`);
+      toast.success(t('aiChat.errorFixDetected', { count: fixableErrors.length }));
     } catch (error) {
       console.error('[ErrorFix] 检测错误失败:', error);
-      toast.error('错误检测失败');
+      toast.error(t('aiChat.errorFixFailed'));
     }
-  }, []);
+  }, [t]);
 
   /**
    * 应用 AI 修复建议（发送到聊天）
@@ -2178,33 +2232,24 @@ ${suggestion.fixContext.code_context}
     setInput(fixPrompt);
     setErrorFixOpen(false);
 
-    toast.info('已将错误发送到 AI 助手');
-  }, [setInput]);
+    toast.info(t('aiChat.errorFixSent'));
+  }, [setInput, t]);
 
   /**
    * 跳转到错误位置
    */
   const handleGoToError = useCallback(async (error: ParsedError) => {
-    try {
-      const content = await readFileContent(error.file);
-      const fileName = error.file.split('/').pop() || error.file;
+    const opened = await requestOpenFile(error.file, {
+      id: error.file,
+      name: error.file.split('/').pop() || error.file,
+      language: error.language.toLowerCase(),
+      initialLine: error.line,
+    });
 
-      openFile({
-        id: error.file,
-        path: error.file,
-        name: fileName,
-        content,
-        isDirty: false,
-        language: error.language.toLowerCase(),
-        initialLine: error.line
-      });
-
-      toast.info(`已跳转到 ${error.file}:${error.line}`);
-    } catch (error) {
-      console.error('[ErrorFix] 跳转失败:', error);
-      toast.error('无法打开文件');
+    if (opened) {
+      toast.info(t('aiChat.errorFixOpened', { path: error.file, line: error.line }));
     }
-  }, [openFile]);
+  }, [requestOpenFile, t]);
 
   /**
    * 关闭错误修复面板
@@ -2318,13 +2363,13 @@ ${suggestion.fixContext.code_context}
       >
         <div className="flex items-center gap-2.5 group">
           <div className="relative">
-            <img src={ifaiLogo} alt="IfAI Logo" className={clsx("opacity-90 transition-transform duration-300 group-hover:scale-110", isSidekickMode ? "w-6 h-6" : "w-4 h-4")} />
-            <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            <img src={ifaiLogo} alt="" aria-hidden="true" className={clsx("opacity-90 transition-transform duration-300 group-hover:scale-110", isSidekickMode ? "w-6 h-6" : "w-4 h-4")} />
+            <div className="absolute inset-0 bg-[var(--accent-soft-bg)] blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
           {!isSidekickMode && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-row items-baseline gap-2">
               <span className="text-[11px] font-black theme-text tracking-tight leading-none">IfAI Editor</span>
-              <span className="text-[9px] font-bold text-blue-500/80 tracking-widest uppercase">
+              <span className="text-[9px] font-bold text-[var(--accent-color)] opacity-80 tracking-widest uppercase">
                 V{appVersion}{IS_COMMERCIAL ? ' PRO' : ''}
               </span>
             </motion.div>
@@ -2338,10 +2383,10 @@ ${suggestion.fixContext.code_context}
             className={clsx(
               'p-1 rounded-lg transition-all active:scale-95',
               isSearchVisible
-                ? 'text-blue-500 bg-blue-500/10'
+                ? 'text-[var(--accent-color)] bg-[var(--accent-soft-bg)]'
                 : 'theme-button-ghost theme-text-subtle'
             )}
-            title="搜索对话 (Cmd+F)"
+            title={`${t('search.title')} (${formatKeybinding('Mod+f')})`}
           >
             <Search size={isSidekickMode ? 18 : 14} />
           </button>
@@ -2352,10 +2397,10 @@ ${suggestion.fixContext.code_context}
             className={clsx(
               'p-1 rounded-lg transition-all active:scale-95',
               isNotesPanelOpen
-                ? 'text-green-500 bg-green-500/10'
+                ? 'text-[var(--accent-color)] bg-[var(--accent-soft-bg)]'
                 : 'theme-button-ghost theme-text-subtle'
             )}
-            title="会话笔记"
+            title={t('conversation.notes.title')}
           >
             <FileText size={isSidekickMode ? 18 : 14} />
           </button>
@@ -2373,13 +2418,13 @@ ${suggestion.fixContext.code_context}
       >
         {onResizeStart && (
           <div 
-              className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
+              className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-[var(--accent-color)] transition-colors z-50"
               onMouseDown={onResizeStart}
           />
         )}
         {renderHeader()}
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
-          <img src={ifaiLogo} alt="IfAI Logo" className="w-10 h-10 text-gray-500 mb-4 opacity-70" />
+          <img src={ifaiLogo} alt="" aria-hidden="true" className="w-10 h-10 mb-4 opacity-70" />
           <p className="theme-text-subtle mb-4">{t('chat.errorNoKey')} {currentProvider ? `(${currentProvider.name})` : ''}</p>
           <button 
               className="theme-button-primary theme-shadow px-4 py-2 rounded text-sm"
@@ -2397,17 +2442,33 @@ ${suggestion.fixContext.code_context}
         data-testid="chat-panel"
         className={clsx(
           'flex flex-col h-full theme-panel border-l theme-border flex-shrink-0 relative transition-colors',
-          isDragHighlight && 'border-blue-500 bg-blue-500/10'
+          isDragHighlight && 'border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)]'
         )}
         style={{ width: width ? `${width}px` : '384px', contain: 'layout' }}
     >
+      <ConfirmDialog
+        open={pendingExternalOpen !== null}
+        title={t('aiChat.externalFileOpenTitle')}
+        description={t('aiChat.externalFileOpenDescription', { path: pendingExternalOpen?.path || '' })}
+        confirmLabel={t('menu.openFile')}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setPendingExternalOpen(null)}
+        onConfirm={async () => {
+          if (!pendingExternalOpen) {
+            return;
+          }
+
+          await openFileFromPath(pendingExternalOpen.path, pendingExternalOpen.options);
+          setPendingExternalOpen(null);
+        }}
+      />
       {/* 🔥 DEBUG: 在最顶层添加一个调试 div */}
       <div data-testid="aichat-debug" style={{ display: 'none' }}>
         AIChat Rendered - viewMode: {viewMode}
       </div>
       {onResizeStart && (
         <div 
-            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-50"
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-[var(--accent-color)] transition-colors z-50"
             onMouseDown={onResizeStart}
         />
       )}
@@ -2468,7 +2529,7 @@ ${suggestion.fixContext.code_context}
                 : 'theme-text-subtle hover:text-[var(--text-primary)]'
             )}
           >
-            <span>对话</span>
+            <span>{t('taskMonitor.listView')}</span>
             {viewMode === 'normal' && (
               <motion.div
                 layoutId="view-mode-active"
@@ -2488,7 +2549,7 @@ ${suggestion.fixContext.code_context}
                 : 'theme-text-subtle hover:text-[var(--text-primary)]'
             )}
           >
-            <span>时间线</span>
+            <span>{t('taskMonitor.timelineView')}</span>
             {viewMode === 'timeline' && (
               <motion.div
                 layoutId="view-mode-active"
@@ -2513,9 +2574,9 @@ ${suggestion.fixContext.code_context}
               if (messageElement) {
                 messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 // 高亮消息
-                messageElement.classList.add('ring-2', 'ring-blue-500');
+                messageElement.classList.add('ring-2', 'ring-[var(--accent-color)]');
                 setTimeout(() => {
-                  messageElement.classList.remove('ring-2', 'ring-blue-500');
+                  messageElement.classList.remove('ring-2', 'ring-[var(--accent-color)]');
                 }, 2000);
               }
             }, 100);

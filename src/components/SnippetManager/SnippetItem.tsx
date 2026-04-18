@@ -2,6 +2,7 @@ import React from 'react';
 import { Snippet } from '../../types/snippet';
 import { Clock, Tag } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 interface SnippetItemProps {
   snippet: Snippet;
@@ -10,19 +11,23 @@ interface SnippetItemProps {
 }
 
 export const SnippetItem: React.FC<SnippetItemProps> = ({ snippet, isActive, onClick }) => {
+  const { t, i18n } = useTranslation();
+
   return (
-    <div
+    <button
+      type="button"
       className={clsx(
-        'theme-border cursor-pointer border-b p-3 transition-colors',
+        'theme-focus-ring-accent theme-border w-full border-b p-3 text-left transition-colors',
         isActive
-          ? 'theme-panel-elevated border-l-2 border-l-blue-500 bg-blue-500/10'
+          ? 'theme-panel-elevated border-l-2 border-l-[var(--accent-color)] bg-[var(--accent-soft-bg)]'
           : 'theme-hoverable'
       )}
       onClick={onClick}
+      aria-pressed={isActive}
     >
       <div className="flex justify-between items-start mb-1">
         <h3 className="theme-text truncate pr-2 text-sm font-semibold">
-          {snippet.title || 'Untitled Snippet'}
+          {snippet.title || t('snippetList.untitled')}
         </h3>
         <span className="theme-input-surface theme-border theme-text-subtle rounded border px-1.5 py-0.5 text-[10px] font-mono capitalize">
           {snippet.language}
@@ -36,7 +41,7 @@ export const SnippetItem: React.FC<SnippetItemProps> = ({ snippet, isActive, onC
       <div className="theme-text-subtle flex items-center gap-3 text-[10px]">
         <div className="flex items-center gap-1">
           <Clock size={10} />
-          <span>{new Date(snippet.updatedAt).toLocaleDateString()}</span>
+          <span>{new Date(snippet.updatedAt).toLocaleDateString(i18n.language)}</span>
         </div>
         {snippet.tags.length > 0 && (
           <div className="flex items-center gap-1">
@@ -45,6 +50,6 @@ export const SnippetItem: React.FC<SnippetItemProps> = ({ snippet, isActive, onC
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 };

@@ -17,11 +17,11 @@
   padding: 0;
   border-radius: 16px;
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.4),
-    0 8px 24px rgba(0, 0, 0, 0.2),
-    0 0 1px rgba(255, 255, 255, 0.1) inset;
-  background: linear-gradient(135deg, #1e1e1e 0%, #252526 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+    0 20px 60px color-mix(in srgb, var(--bg-primary) 82%, transparent),
+    0 8px 24px color-mix(in srgb, var(--bg-primary) 60%, transparent),
+    0 0 0 1px var(--border-color) inset;
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  border: 1px solid var(--border-color);
   animation: tourTooltipFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -46,15 +46,15 @@
 ============================================ */
 .react-joyride__tooltip .react-joyride__tooltip__header {
   padding: 24px 32px 20px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
+  border-bottom: 2px solid var(--border-color);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--selected-bg) 40%, transparent) 0%, transparent 100%);
 }
 
 .react-joyride__tooltip h4 {
   margin: 0;
   font-size: 19px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   letter-spacing: -0.01em;
   line-height: 1.4;
 }
@@ -69,7 +69,7 @@
 .react-joyride__tooltip .react-joyride__tooltip__content {
   font-size: 15px;
   line-height: 1.75;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-secondary);
   margin: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -77,20 +77,20 @@
 }
 
 .react-joyride__tooltip .react-joyride__tooltip__content strong {
-  color: #60a5fa;
+  color: var(--accent-color);
   font-weight: 600;
 }
 
 /* 代码样式 */
 .react-joyride__tooltip .react-joyride__tooltip__content code {
-  background: rgba(96, 165, 250, 0.15);
-  color: #60a5fa;
+  background: var(--accent-soft-bg);
+  color: var(--accent-color);
   padding: 2px 6px;
   border-radius: 6px;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   font-size: 13px;
   font-weight: 500;
-  border: 1px solid rgba(96, 165, 250, 0.2);
+  border: 1px solid var(--accent-soft-border);
 }
 
 /* 列表样式 */
@@ -109,7 +109,7 @@
 
 .react-joyride__tooltip .react-joyride__tooltip__content li::before {
   content: "•";
-  color: #60a5fa;
+  color: var(--accent-color);
   font-weight: bold;
   position: absolute;
   left: 0;
@@ -126,8 +126,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 2px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--bg-primary) 84%, transparent);
+  border-top: 2px solid var(--border-color);
   border-radius: 0 0 16px 16px;
 }
 
@@ -146,14 +146,14 @@
   position: relative;
   overflow: hidden;
   margin: 0 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--bg-primary) 45%, transparent);
 }
 
 .react-joyride__tooltip button::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--text-primary) 10%, transparent) 0%, transparent 50%);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -164,56 +164,56 @@
 
 /* Primary 按钮 (Next/Finish) */
 .react-joyride__tooltip .react-joyride__button__primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: var(--accent-color);
   color: #ffffff;
-  border: 1px solid rgba(59, 130, 246, 0.5);
+  border: 1px solid var(--accent-soft-border);
   box-shadow:
-    0 4px 12px rgba(37, 99, 235, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    0 4px 12px color-mix(in srgb, var(--accent-soft-border) 90%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--text-primary) 8%, transparent) inset;
 }
 
 .react-joyride__tooltip .react-joyride__button__primary:hover {
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  border-color: rgba(96, 165, 250, 0.6);
+  filter: brightness(1.06);
   box-shadow:
-    0 6px 16px rgba(37, 99, 235, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    0 6px 16px color-mix(in srgb, var(--accent-soft-border) 100%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--text-primary) 12%, transparent) inset;
   transform: translateY(-1px);
 }
 
 .react-joyride__tooltip .react-joyride__button__primary:active {
+  filter: brightness(0.96);
   transform: translateY(0);
   box-shadow:
-    0 2px 8px rgba(37, 99, 235, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    0 2px 8px color-mix(in srgb, var(--accent-soft-border) 82%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--text-primary) 8%, transparent) inset;
 }
 
 /* Secondary 按钮 (Back) */
 .react-joyride__tooltip .react-joyride__button__secondary {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--bg-primary) 35%, transparent);
 }
 
 .react-joyride__tooltip .react-joyride__button__secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--accent-soft-border);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--bg-primary) 45%, transparent);
 }
 
 /* Skip 按钮 */
 .react-joyride__tooltip .react-joyride__button__skip {
   background: transparent;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   padding: 10px 16px;
   margin-left: 0;
 }
 
 .react-joyride__tooltip .react-joyride__button__skip:hover {
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  background: var(--hover-soft);
 }
 
 /* ============================================
@@ -221,7 +221,7 @@
 ============================================ */
 .react-joyride__tooltip .react-joyride__tooltip__counter {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   padding: 0 4px;
@@ -240,14 +240,14 @@
 }
 
 .react-joyride__tooltip__arrow * {
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--border-color) !important;
 }
 
 /* ============================================
    遮罩层
 ============================================ */
 .react-joyride__overlay {
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--bg-primary) 68%, transparent);
   backdrop-filter: blur(2px);
 }
 
@@ -305,15 +305,15 @@
 ============================================ */
 @media (prefers-contrast: high) {
   .react-joyride__tooltip {
-    border: 2px solid #ffffff;
+    border: 2px solid var(--text-primary);
   }
 
   .react-joyride__tooltip h4 {
-    color: #ffffff;
+    color: var(--text-primary);
   }
 
   .react-joyride__tooltip .react-joyride__tooltip__content {
-    color: #ffffff;
+    color: var(--text-primary);
   }
 }
 

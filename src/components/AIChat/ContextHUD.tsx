@@ -16,8 +16,8 @@ export const ContextHUD: React.FC<ContextHUDProps> = ({ text, maxTokens = 32000 
   const percentage = Math.min(100, (estimatedTokens / maxTokens) * 100);
   
   const statusColor = useMemo(() => {
-    if (percentage > 80) return 'text-red-500/80';
-    if (percentage > 50) return 'text-orange-500/80';
+    if (percentage > 80) return 'text-[var(--danger-color)]';
+    if (percentage > 50) return 'text-[var(--warning-color)]';
     return 'theme-text-subtle';
   }, [percentage]);
 
@@ -37,7 +37,10 @@ export const ContextHUD: React.FC<ContextHUDProps> = ({ text, maxTokens = 32000 
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
-          className={clsx("h-full", percentage > 80 ? "bg-red-500" : "bg-blue-500/60")} 
+          className={clsx(
+            "h-full rounded-full",
+            percentage > 80 ? "bg-[var(--danger-color)]" : "bg-[var(--accent-color)]"
+          )}
         />
       </div>
     </div>

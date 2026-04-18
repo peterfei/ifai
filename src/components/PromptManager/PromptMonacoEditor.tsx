@@ -1,12 +1,78 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { OnMount, OnChange, Monaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { getMonacoBaseTheme, isDarkTheme } from '../../utils/theme';
+import { AppTheme, getMonacoBaseTheme, isDarkTheme } from '../../utils/theme';
 
 // Configure monaco-editor to use local files
 import { loader } from '@monaco-editor/react';
 loader.config({ monaco });
+
+const getThemeToken = (name: string, fallback: string): string => {
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+};
+
+const getThemeTokenChain = (names: string[], fallback: string): string => {
+  for (const name of names) {
+    const value = getThemeToken(name, '');
+    if (value) {
+      return value;
+    }
+  }
+
+  return fallback;
+};
+
+const toMonacoForeground = (value: string): string => value.trim().replace(/^#/, '');
+
+const createHandlebarsTheme = (theme: AppTheme): monaco.editor.IStandaloneThemeData => {
+  const background = getThemeTokenChain(['--code-bg', '--bg-secondary', '--bg-primary'], 'transparent');
+  const foreground = getThemeTokenChain(['--text-primary', '--text-secondary'], 'currentColor');
+  const muted = getThemeTokenChain(['--text-subtle', '--text-muted', '--text-secondary'], foreground);
+  const accent = getThemeTokenChain(['--accent-color', '--info-color'], foreground);
+  const info = getThemeTokenChain(['--info-color', '--accent-color'], accent);
+  const success = getThemeTokenChain(['--success-color', '--accent-color'], accent);
+  const warning = getThemeTokenChain(['--warning-color', '--accent-color'], accent);
+  const border = getThemeTokenChain(['--border-color', '--border-strong'], muted);
+  const selection = getThemeTokenChain(['--selected-bg', '--accent-soft-bg', '--hover-bg'], 'transparent');
+  const lineHighlight = getThemeTokenChain(['--hover-soft', '--selected-bg', '--accent-soft-bg'], selection);
+
+  return {
+    base: getMonacoBaseTheme(theme),
+    inherit: true,
+    rules: [
+      { token: 'delimiter.handlebars', foreground: toMonacoForeground(accent) },
+      { token: 'tag.helper', foreground: toMonacoForeground(info), fontStyle: 'bold' },
+      { token: 'variable', foreground: toMonacoForeground(foreground) },
+      { token: 'comment.handlebars', foreground: toMonacoForeground(success), fontStyle: 'italic' },
+      { token: 'property.yaml', foreground: toMonacoForeground(accent) },
+      { token: 'delimiter.yaml', foreground: toMonacoForeground(muted) },
+      { token: 'string.link', foreground: toMonacoForeground(accent), fontStyle: 'underline' },
+      { token: 'string.strong', foreground: toMonacoForeground(warning), fontStyle: 'bold' },
+      { token: 'string.emphasis', foreground: toMonacoForeground(info), fontStyle: 'italic' },
+      { token: 'keyword', foreground: toMonacoForeground(accent), fontStyle: 'bold' },
+      { token: 'string', foreground: toMonacoForeground(foreground) },
+    ],
+    colors: {
+      'editor.background': background,
+      'editor.foreground': foreground,
+      'editorGutter.background': background,
+      'editorLineNumber.foreground': muted,
+      'editorLineNumber.activeForeground': foreground,
+      'editorCursor.foreground': accent,
+      'editor.selectionBackground': selection,
+      'editor.inactiveSelectionBackground': selection,
+      'editor.lineHighlightBackground': lineHighlight,
+      'editor.lineHighlightBorder': border,
+    },
+  };
+};
 
 interface PromptMonacoEditorProps {
   value: string;
@@ -32,11 +98,17 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
   variables = [],
   height = '100%',
 }) => {
+  const { t } = useTranslation();
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const completionProviderRef = useRef<monaco.IDisposable | null>(null);
   const theme = useSettingsStore(state => state.theme);
   const dark = isDarkTheme(theme);
   const monacoThemeName = dark ? 'handlebars-theme-dark' : 'handlebars-theme-light';
+
+  const applyHandlebarsTheme = useCallback((monacoInstance: Monaco) => {
+    monacoInstance.editor.defineTheme(monacoThemeName, createHandlebarsTheme(theme));
+  }, [monacoThemeName, theme]);
 
   /**
    * 设置 Handlebars 语言配置
@@ -110,64 +182,32 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
       },
     });
 
-    // 设置主题（支持 Handlebars 高亮）
-    monaco.editor.defineTheme('handlebars-theme-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'delimiter.handlebars', foreground: '4EC9B0' },
-        { token: 'tag.helper', foreground: '569CD6', fontStyle: 'bold' },
-        { token: 'variable', foreground: '9CDCFE' },
-        { token: 'comment.handlebar', foreground: '6A9955', fontStyle: 'italic' },
-        { token: 'property.yaml', foreground: '9CDCFE' },
-        { token: 'delimiter.yaml', foreground: '808080' },
-        { token: 'string.link', foreground: '9CDCFE', fontStyle: 'underline' },
-      ],
-      colors: {
-        'editor.background': '#1e1e1e',
-      },
-    });
-
-    monaco.editor.defineTheme('handlebars-theme-light', {
-      base: getMonacoBaseTheme('light'),
-      inherit: true,
-      rules: [
-        { token: 'delimiter.handlebars', foreground: '0f766e' },
-        { token: 'tag.helper', foreground: '1d4ed8', fontStyle: 'bold' },
-        { token: 'variable', foreground: '0f172a' },
-        { token: 'comment.handlebar', foreground: '047857', fontStyle: 'italic' },
-        { token: 'property.yaml', foreground: '2563eb' },
-        { token: 'delimiter.yaml', foreground: '64748b' },
-        { token: 'string.link', foreground: '2563eb', fontStyle: 'underline' },
-      ],
-      colors: {
-        'editor.background': '#ffffff',
-      },
-    });
   }, []);
 
   /**
    * 设置自动补全提供器
    */
   const setupCompletionProvider = useCallback((monaco: Monaco, variables: string[]) => {
+    completionProviderRef.current?.dispose();
+
     // Helper 函数列表
     const helpers = [
-      { label: '{{#if}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '条件判断' },
-      { label: '{{#unless}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '条件否定' },
-      { label: '{{#each}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '循环遍历' },
-      { label: '{{#with}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '上下文切换' },
-      { label: '{{eq}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '等于比较' },
-      { label: '{{ne}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '不等于比较' },
-      { label: '{{gt}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '大于比较' },
-      { label: '{{lt}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '小于比较' },
-      { label: '{{and}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '逻辑与' },
-      { label: '{{or}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '逻辑或' },
-      { label: '{{not}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '逻辑非' },
-      { label: '{{concat}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '字符串连接' },
-      { label: '{{lookup}}', kind: monaco.languages.CompletionItemKind.Function, documentation: '查找属性' },
+      { label: '{{#if}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.if') },
+      { label: '{{#unless}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.unless') },
+      { label: '{{#each}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.each') },
+      { label: '{{#with}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.with') },
+      { label: '{{eq}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.eq') },
+      { label: '{{ne}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.ne') },
+      { label: '{{gt}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.gt') },
+      { label: '{{lt}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.lt') },
+      { label: '{{and}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.and') },
+      { label: '{{or}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.or') },
+      { label: '{{not}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.not') },
+      { label: '{{concat}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.concat') },
+      { label: '{{lookup}}', kind: monaco.languages.CompletionItemKind.Function, documentation: t('promptManager.monaco.helpers.lookup') },
     ];
 
-    monaco.languages.registerCompletionItemProvider('handlebars', {
+    completionProviderRef.current = monaco.languages.registerCompletionItemProvider('handlebars', {
       triggerCharacters: ['{', ' ', '@'],
       provideCompletionItems: (model, position) => {
         const word = model.getWordUntilPosition(position);
@@ -187,8 +227,8 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
           label: v,
           kind: monaco.languages.CompletionItemKind.Variable,
           insertText: `{{${v}}}`,
-          detail: '变量',
-          documentation: `提示词变量: ${v}`,
+          detail: t('promptManager.monaco.variableDetail'),
+          documentation: t('promptManager.monaco.variableDocumentation', { variable: v }),
           range,
         }));
 
@@ -205,7 +245,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
         return { suggestions };
       },
     });
-  }, []);
+  }, [t]);
 
   /**
    * 编辑器挂载后的初始化
@@ -221,6 +261,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
     setupCompletionProvider(monaco, variables);
 
     // 应用主题
+    applyHandlebarsTheme(monaco);
     monaco.editor.setTheme(monacoThemeName);
 
     // 设置编辑器选项
@@ -249,9 +290,7 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
         strings: false,
       },
     });
-
-    console.log('[PromptMonacoEditor] Editor mounted and configured');
-  }, [variables, setupHandlebarsLanguage, setupCompletionProvider, monacoThemeName]);
+  }, [variables, setupHandlebarsLanguage, setupCompletionProvider, monacoThemeName, applyHandlebarsTheme]);
 
   /**
    * 处理内容变化
@@ -272,10 +311,17 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
   }, [variables, setupCompletionProvider]);
 
   useEffect(() => {
+    return () => {
+      completionProviderRef.current?.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
     if (monacoRef.current) {
+      applyHandlebarsTheme(monacoRef.current);
       monacoRef.current.editor.setTheme(monacoThemeName);
     }
-  }, [monacoThemeName]);
+  }, [monacoThemeName, applyHandlebarsTheme]);
 
   return (
     <div className="h-full w-full">
@@ -293,9 +339,9 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
           padding: { top: 16, bottom: 16 },
         }}
         loading={
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className="theme-text-subtle ml-3 text-sm">加载编辑器...</span>
+          <div className="flex h-full items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--accent-soft-border)] border-t-[var(--accent-color)]"></div>
+            <span className="theme-text-subtle ml-3 text-sm">{t('promptManager.monaco.loading')}</span>
           </div>
         }
       />

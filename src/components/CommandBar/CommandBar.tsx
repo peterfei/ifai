@@ -13,7 +13,8 @@ import { useEditorStore } from '../../stores/editorStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { getCommandLineCore } from '../../core/commandBar/bridge';
 import type { CommandResult, CommandSuggestion, CommandContext } from '../../core/commandBar/types';
-import { writeFileContent, readFileContent } from '../../utils/fileSystem';
+import { writeFileContent } from '../../utils/fileSystem';
+import { openFileFromPath } from '../../utils/fileActions';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { SimpleMarkdownRenderer } from '../AIChat/MarkdownRenderer';
@@ -365,36 +366,12 @@ export const CommandBar = () => {
 
   // 打开搜索结果的辅助函数
   const openSearchResult = async (match: any) => {
-    try {
-      const content = await readFileContent(match.path);
-      const fileName = match.path.split('/').pop() || 'unknown';
-      const { openFile } = useFileStore.getState();
+    const opened = await openFileFromPath(match.path, {
+      initialLine: match.line_number,
+    });
 
-      // 使用 v4 生成 ID
-      const { v4: uuidv4 } = await import('uuid');
-      const language = await import(
-        '../../utils/languageDetection'
-      ).then(m => m.detectLanguageFromPath(match.path));
-
-      const openedId = openFile({
-        id: uuidv4(),
-        name: fileName,
-        path: match.path,
-        content,
-        language,
-        isDirty: false,
-        initialLine: match.line_number, // 跳转到对应行
-      });
-
-      // 分配到活动的编辑器窗格
-      const { activePaneId, assignFileToPane } = useLayoutStore.getState();
-      if (activePaneId && assignFileToPane) {
-        assignFileToPane(activePaneId, openedId);
-      }
-
+    if (opened) {
       handleClose();
-    } catch (error) {
-      console.error('[CommandBar] Failed to open file:', error);
     }
   };
 

@@ -5,15 +5,14 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Book, Keyboard, Info, RotateCcw } from 'lucide-react';
+import { ChevronDown, Book, Keyboard, Info, RotateCcw, ExternalLink, Github, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
-import { AboutModal } from './AboutModal';
 import { useHelpStore } from '../../stores/helpStore';
 import { resetTutorialCommand } from '../Onboarding/OnboardingTour';
 import { toast } from 'sonner';
 import { open } from '@tauri-apps/plugin-shell';
 import clsx from 'clsx';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 
 interface HelpMenuProps {
   className?: string;
@@ -22,16 +21,17 @@ interface HelpMenuProps {
 export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerClass = clsx(
-    'theme-button-ghost flex items-center rounded px-2 py-1 text-sm'
+    'theme-button-ghost theme-focus-ring-accent flex items-center rounded px-2 py-1 text-sm'
   );
   const itemClass = clsx(
-    'theme-text-muted theme-hoverable flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm transition-colors'
+    'theme-button-ghost theme-focus-ring-accent theme-text-muted flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm transition-colors'
   );
 
-  // v0.3.0: 使用全局 store 管理弹窗状态
-  const { isKeyboardShortcutsOpen, closeKeyboardShortcuts, isAboutOpen, closeAbout, openKeyboardShortcuts, openAbout } = useHelpStore();
+  const openKeyboardShortcuts = useHelpStore((state) => state.openKeyboardShortcuts);
+  const openAbout = useHelpStore((state) => state.openAbout);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -103,18 +103,31 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
   const handleResetTutorial = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsOpen(false);
-    if (confirm(t('onboarding.resetConfirm') || '确定要重置新手引导吗？')) {
-      resetTutorialCommand();
-      toast.info(t('onboarding.resetMessage') || '页面将重新加载以显示新手引导');
-    }
+    setShowResetConfirm(true);
   };
 
   return (
     <div className={`relative ${className}`} ref={menuRef}>
+      <ConfirmDialog
+        open={showResetConfirm}
+        title={t('onboarding.resetTutorial')}
+        description={t('onboarding.resetConfirm')}
+        confirmLabel={t('common.confirm')}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setShowResetConfirm(false)}
+        onConfirm={() => {
+          resetTutorialCommand();
+          toast.info(t('onboarding.resetMessage'));
+          setShowResetConfirm(false);
+        }}
+      />
       <button
+        type="button"
         className={triggerClass}
         onClick={handleMenuToggle}
         data-testid="help-menu-button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
       >
         {t('menu.help')} <ChevronDown size={14} className="ml-1" />
       </button>
@@ -122,56 +135,53 @@ export const HelpMenu: React.FC<HelpMenuProps> = ({ className = '' }) => {
       {isOpen && (
         <div
           role="menu"
+          aria-label={t('menu.help')}
           className="theme-panel-elevated theme-border theme-shadow dropdown-menu absolute top-full right-0 z-50 mt-1 w-56 rounded border py-1"
         >
-          <div className={itemClass} onClick={handleOpenShortcuts}>
+          <button type="button" role="menuitem" className={itemClass} onClick={handleOpenShortcuts}>
             <Keyboard size={14} />
-            {t('help.keyboardShortcuts')}
-            <span className="theme-text-subtle ml-auto text-xs">?</span>
-          </div>
+            <span>{t('help.keyboardShortcuts')}</span>
+          </button>
 
-          <div className={itemClass} onClick={handleOpenAbout}>
+          <button type="button" role="menuitem" className={itemClass} onClick={handleOpenAbout}>
             <Info size={14} />
-            {t('help.about')}
-          </div>
+            <span>{t('help.about')}</span>
+          </button>
 
           <div className="theme-divider my-1 h-px"></div>
 
-          <div className={itemClass} onClick={handleOpenDocumentation}>
+          <button type="button" role="menuitem" className={itemClass} onClick={handleOpenDocumentation}>
             <Book size={14} />
-            {t('help.documentation')}
-          </div>
+            <span>{t('help.documentation')}</span>
+            <ExternalLink size={12} className="theme-text-subtle ml-auto" />
+          </button>
 
-          <div className={itemClass} onClick={handleOpenGitHub}>
-            {t('help.githubRepository')}
-            <span className="theme-text-subtle ml-auto text-xs">GitHub</span>
-          </div>
+          <button type="button" role="menuitem" className={itemClass} onClick={handleOpenGitHub}>
+            <Github size={14} />
+            <span>{t('help.githubRepository')}</span>
+            <ExternalLink size={12} className="theme-text-subtle ml-auto" />
+          </button>
 
-          <div className={itemClass} onClick={handleOpenIssues}>
-            {t('help.reportIssue')}
-            <span className="theme-text-subtle ml-auto text-xs">GitHub</span>
-          </div>
+          <button type="button" role="menuitem" className={itemClass} onClick={handleOpenIssues}>
+            <FileText size={14} />
+            <span>{t('help.reportIssue')}</span>
+            <ExternalLink size={12} className="theme-text-subtle ml-auto" />
+          </button>
 
           <div className="theme-divider my-1 h-px"></div>
 
-          <div className={itemClass} onClick={handleResetTutorial} data-testid="reset-tutorial">
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={handleResetTutorial}
+            data-testid="reset-tutorial"
+          >
             <RotateCcw size={14} />
-            {t('onboarding.resetTutorial') || '重置新手引导'}
-          </div>
+            <span>{t('onboarding.resetTutorial')}</span>
+          </button>
         </div>
       )}
-
-      {/* 快捷键弹窗 */}
-      <KeyboardShortcutsModal
-        isOpen={isKeyboardShortcutsOpen}
-        onClose={closeKeyboardShortcuts}
-      />
-
-      {/* 关于弹窗 */}
-      <AboutModal
-        isOpen={isAboutOpen}
-        onClose={closeAbout}
-      />
     </div>
   );
 };

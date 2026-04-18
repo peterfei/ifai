@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFileStore } from '../../stores/fileStore';
-import { useLayoutStore } from '../../stores/layoutStore';
 import { ChevronRight, ChevronDown, File, Folder, FolderPlus, Layers, Save, FolderOpen } from 'lucide-react';
 import { FileNode, GitStatus, WorkspaceRoot } from '../../stores/types';
-import { readFileContent, readDirectory, openDirectory } from '../../utils/fileSystem';
+import { readDirectory, openDirectory } from '../../utils/fileSystem';
+import { openFileFromPath } from '../../utils/fileActions';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
@@ -15,13 +15,13 @@ import { Skeleton } from '../UI/Skeleton';
 
 const getWorkspaceRootItemClass = (isActive: boolean) =>
   `theme-border flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm select-none transition-colors ${
-    isActive ? 'bg-blue-500/10 text-[var(--text-primary)]' : 'theme-text-muted theme-hoverable'
+    isActive ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]' : 'theme-text-muted theme-hoverable'
   }`;
 
 const getTreeItemClass = (isSelected: boolean) =>
   `flex cursor-pointer items-center rounded-md px-2 py-1 text-sm select-none transition-colors ${
     isSelected
-      ? 'bg-blue-500/10 text-[var(--text-primary)] ring-1 ring-inset ring-blue-500/20'
+      ? 'bg-[var(--selected-bg)] text-[var(--text-primary)] ring-1 ring-inset ring-[var(--accent-soft-border)]'
       : 'theme-text-muted theme-hoverable'
   }`;
 
@@ -29,15 +29,15 @@ const getGitStatusClass = (status?: GitStatus): string => {
   switch (status) {
     case GitStatus.Added:
     case GitStatus.Untracked:
-      return 'text-green-500';
+      return 'text-[var(--success-color)]';
     case GitStatus.Modified:
-      return 'text-yellow-500';
+      return 'text-[var(--warning-color)]';
     case GitStatus.Deleted:
     case GitStatus.Conflicted:
-      return 'text-red-500';
+      return 'text-[var(--danger-color)]';
     case GitStatus.Renamed:
     case GitStatus.TypeChange:
-      return 'text-blue-500';
+      return 'text-[var(--accent-color)]';
     case GitStatus.Ignored:
       return 'theme-text-subtle opacity-50';
     default:
@@ -63,7 +63,7 @@ const WorkspaceRootItem: React.FC<WorkspaceRootItemProps> = ({ root, isActive, o
       onClick={onClick}
       onContextMenu={(e) => onContextMenu(e, root)}
     >
-      <Layers size={16} className={isActive ? 'text-blue-500' : 'theme-text-subtle'} />
+      <Layers size={16} className={isActive ? 'text-[var(--accent-color)]' : 'theme-text-subtle'} />
       <span className="min-w-0 flex-1 truncate font-medium">{root.name}</span>
       <span className="theme-text-subtle ml-auto max-w-[45%] truncate text-xs">{root.path}</span>
     </div>
@@ -81,10 +81,8 @@ interface FileTreeItemProps {
     node: FileNode;
     level: number;
     onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
-    onReload: () => void;
     selectedNodeIds: string[];
     onNodeSelect: (nodeId: string, ctrlKey: boolean, shiftKey: boolean) => void;
-    onNodeActivate: (node: FileNode) => void;
     expandedNodes: Set<string>;
     onToggleExpand: (nodeId: string) => void;
     onChildrenLoaded?: () => void;
@@ -101,11 +99,10 @@ const flattenVisibleNodes = (node: FileNode, expandedNodes: Set<string>): FileNo
     return nodes;
 };
 
-const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, onNodeSelect, onNodeActivate, expandedNodes, onToggleExpand, onChildrenLoaded }: FileTreeItemProps) => {
+const FileTreeItem = ({ node, level, onContextMenu, selectedNodeIds, onNodeSelect, expandedNodes, onToggleExpand, onChildrenLoaded }: FileTreeItemProps) => {
+  const { t } = useTranslation();
   const [children, setChildren] = useState<FileNode[] | undefined>(node.children);
-  const [forceUpdate, setForceUpdate] = useState(0);
-  const { openFile, gitStatuses } = useFileStore();
-  const { activePaneId, assignFileToPane } = useLayoutStore();
+  const { gitStatuses } = useFileStore();
   const itemRef = useRef<HTMLDivElement>(null);
   const isExpanded = expandedNodes.has(node.id);
   const isSelected = selectedNodeIds.includes(node.id);
@@ -119,16 +116,16 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, o
         onChildrenLoaded?.();
     } catch (e) {
         console.error("Failed to load children", e);
-        toast.error(`Failed to open ${node.name}: ${String(e)}`);
+        toast.error(t('fileTree.openNodeFailed', { name: node.name, error: String(e) }));
     }
   };
 
-  // Sync children from node.children, using forceUpdate to trigger refresh
+  // Sync children from node.children so lazily loaded branches stay in sync.
   useEffect(() => {
     if (node.children && node.children !== children) {
       setChildren(node.children);
     }
-  }, [node.children, forceUpdate]);
+  }, [children, node.children]);
 
   // Load children when directory is expanded and has no children yet
   useEffect(() => {
@@ -154,24 +151,11 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, o
     } else {
       // Only activate file if no modifier keys are pressed
       if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        try {
-          const content = await readFileContent(node.path);
-          const openedId = openFile({
-            id: node.id,
-            path: node.path,
-            name: node.name,
-            content: content,
-            isDirty: false,
-            language: getLanguageFromPath(node.path)
-          });
-
-          if (activePaneId) {
-              assignFileToPane(activePaneId, openedId);
-          }
-        } catch (e) {
-          console.error("Failed to read file", e);
-          toast.error(`Failed to read file: ${String(e)}`);
-        }
+        await openFileFromPath(node.path, {
+          id: node.id,
+          name: node.name,
+          language: getLanguageFromPath(node.path),
+        });
       }
     }
   };
@@ -214,10 +198,8 @@ const FileTreeItem = ({ node, level, onContextMenu, onReload, selectedNodeIds, o
                 node={child}
                 level={level + 1}
                 onContextMenu={onContextMenu}
-                onReload={loadChildren}
                 selectedNodeIds={selectedNodeIds}
                 onNodeSelect={onNodeSelect}
-                onNodeActivate={onNodeActivate}
                 expandedNodes={expandedNodes}
                 onToggleExpand={onToggleExpand}
                 onChildrenLoaded={onChildrenLoaded}
@@ -243,14 +225,11 @@ export const FileTree = () => {
     rootPath,
     setGitStatuses,
     gitStatuses,
-    openFile,
     setFileTree,
     setRootPath,
     expandedNodes,
     toggleExpandedNode,
     setExpandedNodes,
-    openedFiles,
-    setActiveFile,
     selectedNodeIds,
     setSelectedNodeIds,
     lastSelectedNodeId,
@@ -264,7 +243,6 @@ export const FileTree = () => {
     saveWorkspaceConfig,
     loadWorkspaceConfig,
   } = useFileStore();
-  const { activePaneId, assignFileToPane } = useLayoutStore();
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, node: null, root: null });
   const [nodesUpdateTrigger, setNodesUpdateTrigger] = useState(0);
   const { t } = useTranslation();
@@ -364,36 +342,11 @@ export const FileTree = () => {
     if (node.kind === 'directory') {
       toggleExpandedNode(node.id);
     } else {
-      try {
-        // Check if file is already open and not dirty
-        const existingFile = openedFiles.find(f => f.path === node.path);
-        if (existingFile && !existingFile.isDirty) {
-          // File already open and clean, just activate it
-          const fileId = existingFile.id;
-          setActiveFile(fileId);
-          if (activePaneId) {
-            assignFileToPane(activePaneId, fileId);
-          }
-          return;
-        }
-
-        // File not open or dirty, need to read content
-        const content = await readFileContent(node.path);
-        const openedId = openFile({
-          id: node.id,
-          path: node.path,
-          name: node.name,
-          content: content,
-          isDirty: false,
-          language: getLanguageFromPath(node.path)
-        });
-        if (activePaneId) {
-          assignFileToPane(activePaneId, openedId);
-        }
-      } catch (e) {
-        console.error("Failed to read file", e);
-        toast.error(`Failed to read file: ${String(e)}`);
-      }
+      await openFileFromPath(node.path, {
+        id: node.id,
+        name: node.name,
+        language: getLanguageFromPath(node.path),
+      });
     }
   };
 
@@ -601,13 +554,13 @@ export const FileTree = () => {
       if (tree) {
         await addWorkspaceRoot(tree.path);
         invoke('init_rag_index', { rootPath: tree.path }).catch(e => console.warn('RAG init warning:', e));
-        toast.success(`Added folder: ${tree.name}`);
+        toast.success(t('titlebar.folderAdded', { name: tree.name }));
       }
     } catch (e) {
       console.error('[FileTree] Failed to add folder:', e);
-      toast.error(`Failed to add folder: ${String(e)}`);
+      toast.error(t('titlebar.folderAddFailed', { error: String(e) }));
     }
-  }, [addWorkspaceRoot]);
+  }, [addWorkspaceRoot, t]);
 
   // 移除工作区根目录
   const handleRemoveFolder = useCallback(async (rootId: string) => {
@@ -615,13 +568,13 @@ export const FileTree = () => {
       const root = workspaceRoots.find(r => r.id === rootId);
       if (root) {
         removeWorkspaceRoot(rootId);
-        toast.success(`Removed folder: ${root.name}`);
+        toast.success(t('fileTree.folderRemoved', { name: root.name }));
       }
     } catch (e) {
       console.error('[FileTree] Failed to remove folder:', e);
-      toast.error(`Failed to remove folder: ${String(e)}`);
+      toast.error(t('fileTree.folderRemoveFailed', { error: String(e) }));
     }
-  }, [workspaceRoots, removeWorkspaceRoot]);
+  }, [workspaceRoots, removeWorkspaceRoot, t]);
 
   // 点击根目录切换活动状态
   const handleRootClick = useCallback((rootId: string) => {
@@ -629,9 +582,9 @@ export const FileTree = () => {
       setActiveRoot(rootId);
     } catch (e) {
       console.error('[FileTree] Failed to switch root:', e);
-      toast.error(`Failed to switch folder: ${String(e)}`);
+      toast.error(t('fileTree.switchFolderFailed', { error: String(e) }));
     }
-  }, [setActiveRoot]);
+  }, [setActiveRoot, t]);
 
   // 根目录右键菜单
   const handleRootContextMenu = useCallback((e: React.MouseEvent, root: WorkspaceRoot) => {
@@ -644,31 +597,31 @@ export const FileTree = () => {
   const handleSaveWorkspace = useCallback(async () => {
     try {
       const savedPath = await saveWorkspaceConfig();
-      toast.success(`Workspace saved to: ${savedPath}`);
+      toast.success(t('titlebar.workspaceSaved', { path: savedPath }));
     } catch (e: any) {
       // 用户取消操作不显示错误
       if (e?.message?.includes('cancelled')) {
         return;
       }
       console.error('[FileTree] Failed to save workspace:', e);
-      toast.error(`Failed to save workspace: ${String(e)}`);
+      toast.error(t('titlebar.workspaceSaveFailed', { error: String(e) }));
     }
-  }, [saveWorkspaceConfig]);
+  }, [saveWorkspaceConfig, t]);
 
   // v0.3.0: 打开工作区配置
   const handleOpenWorkspace = useCallback(async () => {
     try {
       const result = await loadWorkspaceConfig();
-      toast.success(`Workspace loaded: ${result.rootsCount} folder(s)`);
+      toast.success(t('titlebar.workspaceLoaded', { count: result.rootsCount }));
     } catch (e: any) {
       // 用户取消操作不显示错误
       if (e?.message?.includes('cancelled')) {
         return;
       }
       console.error('[FileTree] Failed to open workspace:', e);
-      toast.error(`Failed to open workspace: ${String(e)}`);
+      toast.error(t('titlebar.workspaceOpenFailed', { error: String(e) }));
     }
-  }, [loadWorkspaceConfig]);
+  }, [loadWorkspaceConfig, t]);
 
   // Determine if virtualization should be used (for large trees)
   const shouldVirtualize = useVirtualization(visibleNodes.length, 500);
@@ -817,10 +770,8 @@ export const FileTree = () => {
             node={fileTree}
             level={0}
             onContextMenu={handleContextMenu}
-            onReload={() => {}}
             selectedNodeIds={selectedNodeIds}
             onNodeSelect={handleNodeSelect}
-            onNodeActivate={activateNode}
             expandedNodes={expandedNodes}
             onToggleExpand={handleToggleExpand}
             onChildrenLoaded={handleChildrenLoaded}

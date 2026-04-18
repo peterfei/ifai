@@ -1,11 +1,9 @@
 import React, { useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight, vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import styles from './MessageItem.module.css';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
 
 interface MarkdownRendererProps {
   content: string;
@@ -15,6 +13,60 @@ interface MarkdownRendererProps {
   onToggleExpand?: () => void;
   index?: number;
 }
+
+const prismTheme = {
+  'code[class*="language-"]': {
+    color: 'var(--text-secondary)',
+    background: 'transparent',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    textShadow: 'none',
+  },
+  'pre[class*="language-"]': {
+    color: 'var(--text-secondary)',
+    background: 'transparent',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    textShadow: 'none',
+  },
+  comment: {
+    color: 'var(--text-subtle)',
+    fontStyle: 'italic',
+  },
+  prolog: { color: 'var(--text-subtle)' },
+  doctype: { color: 'var(--text-subtle)' },
+  cdata: { color: 'var(--text-subtle)' },
+  punctuation: { color: 'var(--text-muted)' },
+  property: { color: 'var(--info-color)' },
+  tag: { color: 'var(--danger-color)' },
+  boolean: { color: 'var(--warning-color)' },
+  number: { color: 'var(--warning-color)' },
+  constant: { color: 'var(--warning-color)' },
+  symbol: { color: 'var(--warning-color)' },
+  inserted: { color: 'var(--success-color)' },
+  selector: { color: 'var(--info-color)' },
+  'attr-name': { color: 'var(--info-color)' },
+  string: { color: 'var(--success-color)' },
+  char: { color: 'var(--success-color)' },
+  builtin: { color: 'var(--accent-color)' },
+  deleted: { color: 'var(--danger-color)' },
+  operator: { color: 'var(--text-secondary)' },
+  entity: { color: 'var(--accent-color)' },
+  url: { color: 'var(--info-color)' },
+  atrule: { color: 'var(--accent-color)' },
+  'attr-value': { color: 'var(--success-color)' },
+  keyword: { color: 'var(--accent-color)' },
+  function: { color: 'var(--warning-color)' },
+  'class-name': { color: 'var(--info-color)' },
+  regex: { color: 'var(--warning-color)' },
+  important: {
+    color: 'var(--danger-color)',
+    fontWeight: '600',
+  },
+  variable: { color: 'var(--text-primary)' },
+};
 
 /**
  * 统一的 Markdown 渲染器
@@ -33,8 +85,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   onToggleExpand,
   index = 0,
 }) => {
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
+  const { t } = useTranslation();
   // 检查是否需要折叠
   const shouldCollapse = !isStreaming && content.split('\n').length > maxLinesBeforeCollapse;
 
@@ -44,8 +95,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       return content;
     }
     const lines = content.split('\n');
-    return lines.slice(0, maxLinesBeforeCollapse).join('\n') + '\n... (展开查看全部)';
-  }, [content, shouldCollapse, isExpanded, maxLinesBeforeCollapse]);
+    return `${lines.slice(0, maxLinesBeforeCollapse).join('\n')}\n... (${t('aiChat.markdown.expandHint')})`;
+  }, [content, shouldCollapse, isExpanded, maxLinesBeforeCollapse, t]);
 
   // Markdown 组件配置
   const markdownComponents = {
@@ -79,7 +130,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     a: ({ node, ...props }: any) => (
       <a
         {...props}
-        className="text-blue-400 hover:text-blue-300 underline"
+        className="theme-text-accent underline hover:text-[var(--accent-hover)]"
         target="_blank"
         rel="noopener noreferrer"
       />
@@ -108,7 +159,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           <SyntaxHighlighter
             {...rest}
             children={String(children).replace(/\n$/, '')}
-            style={dark ? vscDarkPlus : oneLight}
+            style={prismTheme}
             language={language}
             PreTag="div"
             wrapLines={true}
@@ -146,12 +197,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           {isExpanded ? (
             <>
               <ChevronUp size={12} />
-              收起 ({content.split('\n').length} 行)
+              {t('aiChat.markdown.collapse', { count: content.split('\n').length })}
             </>
           ) : (
             <>
               <ChevronDown size={12} />
-              展开全部 ({content.split('\n').length} 行)
+              {t('aiChat.markdown.expandAll', { count: content.split('\n').length })}
             </>
           )}
         </button>
@@ -161,7 +212,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       {isStreaming && (
         <span className={styles.streamingIndicator}>
           <span className={styles.streamingDot} />
-          生成中...
+          {t('aiChat.markdown.streaming')}
         </span>
       )}
     </div>
@@ -227,7 +278,7 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
     a: ({ node, ...props }: any) => (
       <a
         {...props}
-        className="text-blue-400 hover:text-blue-300 underline"
+        className="theme-text-accent underline hover:text-[var(--accent-hover)]"
         target="_blank"
         rel="noopener noreferrer"
       />

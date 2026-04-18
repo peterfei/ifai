@@ -1,13 +1,18 @@
-export const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const detectMacPlatform = (): boolean =>
+  typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+export const isMac = detectMacPlatform();
+
+export const formatKeyLabel = (part: string): string => {
+  if (part === 'Mod') return isMac ? 'Cmd' : 'Ctrl';
+  if (part.length === 1) return part.toUpperCase();
+  return part.charAt(0).toUpperCase() + part.slice(1);
+};
 
 export const formatKeybinding = (keys: string): string => {
   return keys
     .split('+')
-    .map((part) => {
-      if (part === 'Mod') return isMac ? 'Cmd' : 'Ctrl';
-      if (part.length === 1) return part.toUpperCase();
-      return part.charAt(0).toUpperCase() + part.slice(1);
-    })
+    .map((part) => formatKeyLabel(part))
     .join('+');
 };
 

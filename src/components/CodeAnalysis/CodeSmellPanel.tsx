@@ -4,14 +4,10 @@
  * 显示检测到的代码问题和建议
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { X, AlertTriangle, AlertCircle, Info, Search, FileCode, Zap, Shield } from 'lucide-react';
 import { useCodeSmellStore } from '../../stores/codeSmellStore';
 import { useTranslation } from 'react-i18next';
-import { detectLanguageFromPath } from '../../utils/languageDetection';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
-import clsx from 'clsx';
 
 interface CodeSmellPanelProps {
   onClose?: () => void;
@@ -19,32 +15,27 @@ interface CodeSmellPanelProps {
 
 export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
   const { t } = useTranslation();
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   const {
     results,
     activeFilePath,
     isAnalyzing,
     selectedSmell,
     setSelectedSmell,
-    getResult,
     getAllResults,
     getSummary,
   } = useCodeSmellStore();
 
   const summary = useMemo(() => getSummary(), [results]);
   const allResults = useMemo(() => getAllResults(), [results]);
-  const activeResult = activeFilePath ? getResult(activeFilePath) : null;
-
   // 获取严重程度图标
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'error':
-        return <AlertCircle size={16} className="text-red-400 flex-shrink-0" />;
+        return <AlertCircle size={16} className="text-[var(--danger-color)] flex-shrink-0" />;
       case 'warning':
-        return <AlertTriangle size={16} className="text-yellow-400 flex-shrink-0" />;
+        return <AlertTriangle size={16} className="text-[var(--warning-color)] flex-shrink-0" />;
       case 'info':
-        return <Info size={16} className="text-blue-400 flex-shrink-0" />;
+        return <Info size={16} className="text-[var(--info-color)] flex-shrink-0" />;
       default:
         return <Info size={16} className="theme-text-subtle flex-shrink-0" />;
     }
@@ -54,15 +45,15 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
   const getTypeInfo = (type: string) => {
     switch (type) {
       case 'long-function':
-        return { icon: <FileCode size={14} />, label: '长函数', color: 'text-orange-400' };
+        return { icon: <FileCode size={14} />, label: t('codeAnalysisPanel.types.longFunction'), color: 'text-[var(--warning-color)]' };
       case 'complex-function':
-        return { icon: <Zap size={14} />, label: '高复杂度', color: 'text-purple-400' };
+        return { icon: <Zap size={14} />, label: t('codeAnalysisPanel.types.complexFunction'), color: 'text-[var(--accent-color)]' };
       case 'duplicate-code':
-        return { icon: <Search size={14} />, label: '重复代码', color: 'text-cyan-400' };
+        return { icon: <Search size={14} />, label: t('codeAnalysisPanel.types.duplicateCode'), color: 'text-[var(--info-color)]' };
       case 'magic-number':
-        return { icon: <Shield size={14} />, label: '魔法数字', color: 'text-blue-400' };
+        return { icon: <Shield size={14} />, label: t('codeAnalysisPanel.types.magicNumber'), color: 'text-[var(--accent-color)]' };
       case 'deep-nesting':
-        return { icon: <AlertTriangle size={14} />, label: '深层嵌套', color: 'text-yellow-400' };
+        return { icon: <AlertTriangle size={14} />, label: t('codeAnalysisPanel.types.deepNesting'), color: 'text-[var(--warning-color)]' };
       default:
         return { icon: <Info size={14} />, label: type, color: 'theme-text-subtle' };
     }
@@ -88,10 +79,10 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
       {/* 标题栏 */}
       <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <Shield size={18} className="text-purple-400" />
-          <h2 className="theme-text text-sm font-semibold">代码分析</h2>
+          <Shield size={18} className="text-[var(--accent-color)]" />
+          <h2 className="theme-text text-sm font-semibold">{t('codeAnalysisPanel.title')}</h2>
           {isAnalyzing && (
-            <span className="theme-text-subtle text-xs">(分析中...)</span>
+            <span className="theme-text-subtle text-xs">({t('codeAnalysisPanel.analyzing')})</span>
           )}
         </div>
         {onClose && (
@@ -107,20 +98,20 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
       {/* 统计摘要 */}
       <div className="theme-panel-muted theme-border border-b px-4 py-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="theme-text-subtle text-xs">总计</span>
+          <span className="theme-text-subtle text-xs">{t('codeAnalysisPanel.total')}</span>
           <span className="theme-text text-sm font-medium">{summary.total}</span>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="flex items-center gap-1">
-            <AlertCircle size={12} className="text-red-400" />
+            <AlertCircle size={12} className="text-[var(--danger-color)]" />
             <span className="theme-text-muted text-xs">{summary.error}</span>
           </div>
           <div className="flex items-center gap-1">
-            <AlertTriangle size={12} className="text-yellow-400" />
+            <AlertTriangle size={12} className="text-[var(--warning-color)]" />
             <span className="theme-text-muted text-xs">{summary.warning}</span>
           </div>
           <div className="flex items-center gap-1">
-            <Info size={12} className="text-blue-400" />
+            <Info size={12} className="text-[var(--info-color)]" />
             <span className="theme-text-muted text-xs">{summary.info}</span>
           </div>
         </div>
@@ -131,8 +122,8 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
         {allResults.length === 0 ? (
           <div className="theme-text-subtle flex h-full flex-col items-center justify-center">
             <Shield size={48} className="mb-4 opacity-50" />
-            <p className="text-sm">暂无分析结果</p>
-            <p className="text-xs mt-2">打开文件后自动开始分析</p>
+            <p className="text-sm">{t('codeAnalysisPanel.empty')}</p>
+            <p className="text-xs mt-2">{t('codeAnalysisPanel.emptyHint')}</p>
           </div>
         ) : (
           <div className="p-2 space-y-2">
@@ -141,7 +132,7 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
                 key={result.filePath}
                 className={`rounded-lg overflow-hidden transition-colors ${
                   activeFilePath === result.filePath
-                    ? 'theme-panel-elevated ring-1 ring-purple-500'
+                    ? 'theme-panel-elevated ring-1 ring-[var(--accent-soft-border)]'
                     : 'theme-panel-muted'
                 }`}
               >
@@ -154,7 +145,7 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
                     </span>
                   </div>
                   <span className="theme-text-subtle flex-shrink-0 text-xs">
-                    {result.summary.total} 个问题
+                    {t('codeAnalysisPanel.issueCount', { count: result.summary.total })}
                   </span>
                 </div>
 
@@ -188,24 +179,24 @@ export const CodeSmellPanel: React.FC<CodeSmellPanelProps> = ({ onClose }) => {
                             <p className="theme-text-muted mb-1 text-xs">{smell.message}</p>
                             {smell.suggestion && (
                               <p className="theme-text-subtle text-xs italic">
-                                💡 {smell.suggestion}
+                                {smell.suggestion}
                               </p>
                             )}
                             {smell.metrics && (
                               <div className="flex gap-2 mt-1">
                                 {smell.metrics.complexity !== undefined && (
                                   <span className="theme-input-surface theme-text-subtle rounded px-1.5 py-0.5 text-xs">
-                                    复杂度: {smell.metrics.complexity}
+                                    {t('codeAnalysisPanel.metrics.complexity', { count: smell.metrics.complexity })}
                                   </span>
                                 )}
                                 {smell.metrics.length !== undefined && (
                                   <span className="theme-input-surface theme-text-subtle rounded px-1.5 py-0.5 text-xs">
-                                    长度: {smell.metrics.length} 行
+                                    {t('codeAnalysisPanel.metrics.length', { count: smell.metrics.length })}
                                   </span>
                                 )}
                                 {smell.metrics.nestingLevel !== undefined && (
                                   <span className="theme-input-surface theme-text-subtle rounded px-1.5 py-0.5 text-xs">
-                                    嵌套: {smell.metrics.nestingLevel} 层
+                                    {t('codeAnalysisPanel.metrics.nesting', { count: smell.metrics.nestingLevel })}
                                   </span>
                                 )}
                               </div>

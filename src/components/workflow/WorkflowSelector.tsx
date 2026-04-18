@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardContent,
@@ -37,6 +38,7 @@ interface WorkflowSelectorProps {
 }
 
 export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSelectorProps) {
+  const { t } = useTranslation();
   const [workflows, setWorkflows] = useState<WorkflowTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
       const result = await invoke<WorkflowTemplate[]>('get_default_workflows');
       setWorkflows(result);
     } catch (error) {
-      console.error('加载工作流失败:', error);
+      console.error('[WorkflowSelector] Failed to load workflows:', error);
     } finally {
       setLoading(false);
     }
@@ -93,7 +95,7 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
       // 工作流会在后台执行，不需要等待
       console.log('[WorkflowSelector] ✅ Workflow triggered via sendMessage:', triggerText);
     } catch (error) {
-      console.error('执行工作流失败:', error);
+      console.error('[WorkflowSelector] Failed to execute workflow:', error);
       throw error;
     } finally {
       setExecuting(null);
@@ -114,17 +116,17 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
 
       console.log('[WorkflowSelector] ✅ Workflow triggered from file via sendMessage:', triggerText);
     } catch (error) {
-      console.error('执行工作流失败:', error);
+      console.error('[WorkflowSelector] Failed to execute workflow from file:', error);
       throw error;
     }
   };
 
   if (loading) {
     return (
-      <Card>
+      <Card className="theme-panel theme-border border">
         <CardContent className="pt-6">
           <div className="flex items-center justify-center h-40">
-            <div className="theme-text-subtle">加载工作流...</div>
+            <div className="theme-text-subtle">{t('workflow.selector.loading')}</div>
           </div>
         </CardContent>
       </Card>
@@ -134,9 +136,9 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-bold">多智能体工作流</h2>
+        <h2 className="theme-text text-2xl font-bold">{t('workflow.selector.title')}</h2>
         <p className="theme-text-subtle">
-          选择一个工作流模板来自动化您的代码任务
+          {t('workflow.selector.description')}
         </p>
       </div>
 
@@ -144,15 +146,15 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="quick">
             <Zap className="w-4 h-4 mr-2" />
-            快速工作流
+            {t('workflow.selector.tabs.quick')}
           </TabsTrigger>
           <TabsTrigger value="templates">
             <FileText className="w-4 h-4 mr-2" />
-            工作流模板
+            {t('workflow.selector.tabs.templates')}
           </TabsTrigger>
           <TabsTrigger value="custom">
             <Settings className="w-4 h-4 mr-2" />
-            自定义工作流
+            {t('workflow.selector.tabs.custom')}
           </TabsTrigger>
         </TabsList>
 
@@ -160,24 +162,24 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
         <TabsContent value="quick" className="space-y-4">
           <div className="grid gap-4">
             <QuickWorkflowCard
-              title="代码审查"
-              description="自动探索、审查、测试和生成文档"
+              title={t('workflow.selector.quick.codeReview.title')}
+              description={t('workflow.selector.quick.codeReview.description')}
               icon={Search}
               workflowType="code_review"
               executing={executing}
               onExecute={() => executeQuickWorkflow('code_review')}
             />
             <QuickWorkflowCard
-              title="代码探索"
-              description="快速探索和分析项目结构"
+              title={t('workflow.selector.quick.exploration.title')}
+              description={t('workflow.selector.quick.exploration.description')}
               icon={Compass}
               workflowType="exploration"
               executing={executing}
               onExecute={() => executeQuickWorkflow('exploration')}
             />
             <QuickWorkflowCard
-              title="质量检查"
-              description="全面的代码质量检查和分析"
+              title={t('workflow.selector.quick.qualityCheck.title')}
+              description={t('workflow.selector.quick.qualityCheck.description')}
               icon={CheckCircle2}
               workflowType="quality_check"
               executing={executing}
@@ -202,19 +204,19 @@ export function WorkflowSelector({ onExecute, targetPath = './src' }: WorkflowSe
 
         {/* 自定义工作流 */}
         <TabsContent value="custom" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>自定义工作流</CardTitle>
+          <Card className="theme-panel theme-border border">
+            <CardHeader className="theme-panel-muted theme-border border-b">
+              <CardTitle className="theme-text">{t('workflow.selector.custom.title')}</CardTitle>
               <CardDescription>
-                创建您自己的多智能体工作流
+                {t('workflow.selector.custom.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="theme-text-subtle text-sm">
-                自定义工作流编辑器即将推出...
+                {t('workflow.selector.custom.comingSoonDescription')}
               </p>
-              <Button variant="outline" disabled className="mt-4">
-                即将推出
+              <Button variant="outline" disabled className="theme-button-secondary mt-4">
+                {t('workflow.selector.custom.comingSoon')}
               </Button>
             </CardContent>
           </Card>
@@ -241,34 +243,35 @@ function QuickWorkflowCard({
   executing,
   onExecute,
 }: QuickWorkflowCardProps) {
+  const { t } = useTranslation();
   const isExecuting = executing === workflowType;
 
   return (
-    <Card className="theme-shadow hover:shadow-md transition-shadow">
+    <Card className="theme-panel theme-border theme-shadow border transition-shadow hover:shadow-md">
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/12 text-blue-500">
+              <div className="theme-surface-info flex h-10 w-10 items-center justify-center rounded-xl">
                 <Icon className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-semibold">{title}</h3>
+              <h3 className="theme-text text-lg font-semibold">{title}</h3>
             </div>
             <p className="theme-text-subtle mb-4 text-sm">{description}</p>
             <Button
               onClick={onExecute}
               disabled={isExecuting}
-              className="w-full sm:w-auto"
+              className="theme-button-primary w-full sm:w-auto"
             >
               {isExecuting ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current" />
-                  执行中...
+                  {t('workflow.selector.executing')}
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4 mr-2" />
-                  运行工作流
+                  {t('workflow.selector.run')}
                 </>
               )}
             </Button>
@@ -286,34 +289,37 @@ interface TemplateCardProps {
 }
 
 function TemplateCard({ workflow, executing, onExecute }: TemplateCardProps) {
+  const { t } = useTranslation();
   const isExecuting = executing === workflow.id;
 
   return (
-    <Card className="theme-shadow hover:shadow-md transition-shadow">
-      <CardHeader>
+    <Card className="theme-panel theme-border theme-shadow border transition-shadow hover:shadow-md">
+      <CardHeader className="theme-panel-muted theme-border border-b">
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="text-lg">{workflow.name}</CardTitle>
+            <CardTitle className="theme-text text-lg">{workflow.name}</CardTitle>
             <CardDescription>{workflow.description}</CardDescription>
           </div>
-          <Badge variant="secondary">{workflow.nodes_count} 节点</Badge>
+          <Badge variant="outline" className="theme-panel-elevated theme-border theme-text-muted border">
+            {t('workflow.selector.templateNodes', { count: workflow.nodes_count })}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
         <Button
           onClick={onExecute}
           disabled={isExecuting}
-          className="w-full"
+          className="theme-button-primary w-full"
         >
           {isExecuting ? (
             <>
               <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current" />
-              执行中...
+              {t('workflow.selector.executing')}
             </>
           ) : (
             <>
               <Play className="w-4 h-4 mr-2" />
-              执行工作流
+              {t('workflow.selector.run')}
             </>
           )}
         </Button>

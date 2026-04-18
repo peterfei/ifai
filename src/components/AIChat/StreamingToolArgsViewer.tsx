@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Check, Loader2, File, Folder, Terminal, Search, Settings } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface StreamingToolArgsViewerProps {
   args: Record<string, any>;
@@ -37,16 +38,16 @@ function getArgColor(key: string): string {
   const lowerKey = key.toLowerCase();
 
   if (lowerKey.includes('path') || lowerKey.includes('file')) {
-    return 'text-green-400';
+    return 'theme-text-success';
   }
   if (lowerKey.includes('command') || lowerKey.includes('cmd')) {
-    return 'text-amber-400';
+    return 'theme-text-warning';
   }
   if (lowerKey.includes('content') || lowerKey.includes('data')) {
-    return 'text-blue-400';
+    return 'theme-text-accent';
   }
   if (lowerKey.includes('url') || lowerKey.includes('link')) {
-    return 'text-purple-400';
+    return 'theme-text-info';
   }
   return 'theme-text-subtle';
 }
@@ -80,13 +81,14 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
   isStreaming = false,
   streamingKeys = []
 }) => {
+  const { t } = useTranslation();
   const entries = Object.entries(args);
 
   if (entries.length === 0 && !isStreaming) {
     return (
       <div className="text-center py-4 theme-text-subtle">
         <Settings size={16} className="mx-auto mb-1 opacity-50" />
-        <span className="text-xs">无参数</span>
+        <span className="text-xs">{t('aiChat.streamingToolArgs.none')}</span>
       </div>
     );
   }
@@ -109,15 +111,15 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
             <div className="flex items-center gap-2 mt-0.5 flex-shrink-0">
               {isKeyStreaming ? (
                 <div className="relative w-3.5 h-3.5">
-                  <Loader2 size={14} className="text-blue-400 animate-spin" />
+                  <Loader2 size={14} className="theme-text-accent animate-spin" />
                 </div>
               ) : (
                 <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
                   hasValue
-                    ? 'bg-green-500/20 border-green-500/50'
+                    ? 'theme-surface-success'
                     : 'theme-border'
                 }`}>
-                  {hasValue && <Check size={12} className="text-green-400" />}
+                  {hasValue && <Check size={12} className="theme-text-success" />}
                 </div>
               )}
             </div>
@@ -133,9 +135,9 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
                   {displayValue}
                 </span>
               ) : isKeyStreaming ? (
-                <span className="theme-text-subtle italic animate-pulse">生成中...</span>
+                <span className="theme-text-subtle italic animate-pulse">{t('aiChat.streamingToolArgs.generating')}</span>
               ) : (
-                <span className="theme-text-subtle italic">空</span>
+                <span className="theme-text-subtle italic">{t('aiChat.streamingToolArgs.empty')}</span>
               )}
             </div>
           </div>
@@ -145,8 +147,8 @@ export const StreamingToolArgsViewer: React.FC<StreamingToolArgsViewerProps> = (
       {/* 流式传输中提示 */}
       {isStreaming && entries.length === 0 && (
         <div className="flex items-center gap-2 text-xs theme-text-subtle px-2 py-2">
-          <Loader2 size={14} className="animate-spin text-blue-400" />
-          <span className="italic">正在生成参数...</span>
+          <Loader2 size={14} className="theme-text-accent animate-spin" />
+          <span className="italic">{t('aiChat.streamingToolArgs.generatingArgs')}</span>
         </div>
       )}
     </div>

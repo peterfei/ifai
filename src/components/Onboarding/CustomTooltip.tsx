@@ -1,10 +1,11 @@
 /**
  * OnboardingTour - 自定义 Tooltip 组件
- * 工业级 UI 设计
+ * IDE 风格自定义浮层
  */
 
 import React from 'react';
 import { X, Terminal, Settings, Grid3x3, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import './OnboardingTour.css';
 
 interface CustomTooltipProps {
@@ -18,21 +19,7 @@ interface CustomTooltipProps {
   skipAction: () => void;
 }
 
-// 步骤图标映射
-const stepIcons: Record<number, React.ReactNode> = {
-  0: <Sparkles size={32} className="text-blue-400" />,
-  1: <Terminal size={32} className="text-green-400" />,
-  2: <Settings size={32} className="text-purple-400" />,
-  3: <Grid3x3 size={32} className="text-orange-400" />,
-};
-
-// 步骤颜色映射
-const stepColors: Record<number, string> = {
-  0: 'from-blue-500 to-cyan-500',
-  1: 'from-green-500 to-emerald-500',
-  2: 'from-purple-500 to-pink-500',
-  3: 'from-orange-500 to-amber-500',
-};
+const stepIcons = [Sparkles, Terminal, Settings, Grid3x3];
 
 export const CustomTooltip: React.FC<CustomTooltipProps> = ({
   step,
@@ -44,72 +31,74 @@ export const CustomTooltip: React.FC<CustomTooltipProps> = ({
   secondaryAction,
   skipAction,
 }) => {
+  const { t } = useTranslation();
   const stepNumber = step + 1;
+  const StepIcon = stepIcons[step] ?? Sparkles;
 
   return (
-    <div className="onboarding-tooltip">
-      {/* 装饰性光晕效果 */}
-      <div className={`onboarding-tooltip-glow gradient-${stepColors[step]}`}></div>
+    <div className="theme-panel-elevated theme-border relative w-[min(560px,calc(100vw-32px))] overflow-hidden rounded-2xl border shadow-[var(--app-shadow)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[var(--accent-soft-bg)] to-transparent" />
 
-      {/* 进度指示器 */}
-      <div className="onboarding-progress">
-        <div className="onboarding-progress-dots">
+      <div className="theme-panel-muted theme-border relative flex items-center justify-between border-b px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="theme-surface-accent flex h-10 w-10 items-center justify-center rounded-xl">
+            <StepIcon size={20} className="theme-text-accent" />
+          </div>
+          <div>
+            <div className="theme-text text-sm font-semibold">{title}</div>
+            <div className="theme-text-subtle text-[11px] uppercase tracking-[0.14em]">
+              {t('onboarding.progress', { current: stepNumber, total: totalSteps })}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={skipAction}
+          className="theme-button-ghost theme-focus-ring-accent rounded-md p-1.5"
+          aria-label={t('onboarding.buttons.close')}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="relative px-5 pb-5 pt-4">
+        <div className="mb-4 flex items-center gap-2">
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
-              className={`onboarding-progress-dot ${i <= step ? 'active' : ''} ${i === step ? 'current' : ''}`}
-              style={{ backgroundColor: i <= step ? undefined : 'rgba(255,255,255,0.15)' }}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                i < step
+                  ? 'bg-[var(--accent-color)]'
+                  : i === step
+                  ? 'bg-[var(--accent-soft-border)]'
+                  : 'bg-[var(--border-color)]'
+              }`}
             />
           ))}
         </div>
-        <div className="onboarding-progress-text">
-          {stepNumber} / {totalSteps}
-        </div>
-      </div>
 
-      {/* 主要内容区域 */}
-      <div className="onboarding-content">
-        {/* 图标 */}
-        <div className={`onboarding-icon gradient-${stepColors[step]}`}>
-          {stepIcons[step]}
-        </div>
-
-        {/* 标题 */}
-        <h3 className="onboarding-title">{title}</h3>
-
-        {/* 内容 */}
         <div
-          className="onboarding-description"
+          className="theme-text-muted text-sm leading-7"
           dangerouslySetInnerHTML={{ __html: content.replace(/\n/g, '<br />').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/:(\w+)/g, '<code>$1</code>') }}
         />
-      </div>
 
-      {/* 底部操作按钮 */}
-      <div className="onboarding-actions">
-        {/* Skip 按钮 */}
-        <button onClick={skipAction} className="onboarding-btn-skip">
-          跳过
-        </button>
-
-        <div className="onboarding-actions-right">
-          {/* 后退按钮 */}
-          {secondaryAction && (
-            <button onClick={secondaryAction} className="onboarding-btn-secondary">
-              上一步
-            </button>
-          )}
-
-          {/* 主要按钮 */}
-          <button onClick={primaryAction} className="onboarding-btn-primary">
-            {isLastStep ? '完成' : '下一步'}
+        <div className="theme-border mt-5 flex items-center justify-between border-t pt-4">
+          <button onClick={skipAction} className="theme-button-ghost rounded-lg px-3 py-2 text-sm">
+            {t('onboarding.buttons.skip')}
           </button>
+
+          <div className="flex items-center gap-2">
+            {secondaryAction && (
+              <button onClick={secondaryAction} className="theme-button-secondary rounded-lg px-3 py-2 text-sm">
+                {t('onboarding.buttons.back')}
+              </button>
+            )}
+
+            <button onClick={primaryAction} className="theme-button-primary rounded-lg px-3 py-2 text-sm font-medium">
+              {isLastStep ? t('onboarding.buttons.last') : t('onboarding.buttons.next')}
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* 关闭按钮 */}
-      <button onClick={skipAction} className="onboarding-close" aria-label="关闭">
-        <X size={18} />
-      </button>
     </div>
   );
 };

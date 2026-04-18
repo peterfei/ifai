@@ -9,12 +9,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, XCircle, Diff } from 'lucide-react';
-import Editor, { Monaco, DiffEditor } from '@monaco-editor/react';
+import { DiffEditor } from '@monaco-editor/react';
 import { toast } from 'sonner';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
-import { shallow } from 'zustand/shallow';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { getMonacoTheme, isDarkTheme } from '../../utils/theme';
+import { getMonacoTheme } from '../../utils/theme';
+import { useTranslation } from 'react-i18next';
 
 // 简单的 diff 行计算
 function computeLineDiff(original: string, modified: string): {
@@ -184,8 +184,8 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   onAccept,
   onReject,
 }) => {
+  const { t } = useTranslation();
   const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   // 🔥 修复无限循环：使用单独的选择器，避免对象选择器导致引用不稳定
   const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
   const storeOriginalCode = useInlineEditStore(state => state.originalCode);
@@ -200,7 +200,6 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   const filePath = storeFilePath || propFilePath || 'unknown';
   const instruction = storeInstruction || propInstruction || '';
 
-  const [monaco, setMonaco] = useState<Monaco | null>(null);
   const editorRef = useRef<any>(null);
   const diffStats = calculateDiffStats(originalCode, modifiedCode);
   const actualLanguage = language || getLanguageFromPath(filePath);
@@ -256,9 +255,9 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
         {/* Header */}
         <div className="theme-panel-muted theme-border flex items-center justify-between border-b p-4">
           <div className="flex items-center gap-3">
-            <Diff className="text-blue-400" size={20} />
+            <Diff className="theme-text-accent" size={20} />
             <div>
-              <h2 className="theme-text text-lg font-semibold">代码修改预览</h2>
+              <h2 className="theme-text text-lg font-semibold">{t('diffEditorModal.title')}</h2>
               {instruction && (
                 <p className="theme-text-subtle mt-0.5 text-xs">"{instruction}"</p>
               )}
@@ -267,6 +266,7 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
           <button
             onClick={onReject}
             className="theme-button-ghost rounded p-1"
+            aria-label={t('common.close')}
           >
             <X size={20} />
           </button>
@@ -275,10 +275,10 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
         {/* Stats */}
         <div className="theme-panel theme-border flex items-center gap-4 border-b px-4 py-2">
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-green-400">+{diffStats.additions} 行</span>
+            <span className="theme-text-success">{t('diffEditorModal.addedLines', { count: diffStats.additions })}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-red-400">-{diffStats.deletions} 行</span>
+            <span className="theme-text-danger">{t('diffEditorModal.deletedLines', { count: diffStats.deletions })}</span>
           </div>
           <div className="theme-text-subtle ml-auto text-xs">
             {filePathStr}
@@ -302,8 +302,7 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
               renderSideBySide: true,
               enableSplitViewResizing: false,
             }}
-            onMount={(editor, monaco) => {
-              setMonaco(monaco);
+            onMount={(editor) => {
               editorRef.current = editor;
             }}
           />
@@ -317,20 +316,20 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
             data-testid="reject-diff-button"
           >
             <XCircle size={16} />
-            <span>拒绝 (Reject)</span>
+            <span>{t('diffEditorModal.reject')}</span>
           </button>
 
           <div className="flex gap-2">
             <button
               onClick={() => {
                 onAcceptRef.current();
-                toast.success('已应用代码修改');
+                toast.success(t('diffEditorModal.applied'));
               }}
               className="theme-button-success flex items-center gap-2 rounded px-4 py-2 text-sm"
               data-testid="accept-diff-button"
             >
               <Check size={16} />
-              <span>接受 (Accept)</span>
+              <span>{t('diffEditorModal.accept')}</span>
             </button>
           </div>
         </div>

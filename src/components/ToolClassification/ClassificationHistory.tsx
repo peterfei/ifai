@@ -164,7 +164,7 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value as ToolCategory | 'all')}
-            className="theme-input-surface theme-border theme-text rounded border px-2 py-1 text-sm"
+            className="theme-input-surface theme-select-input theme-border theme-focus-accent theme-text rounded border px-2 py-1 text-sm"
           >
             <option value="all">{t('toolClassificationHistory.categories.all')}</option>
             <option value="file_operations">{t('toolClassificationHistory.categories.fileOperations')}</option>
@@ -180,7 +180,7 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
           <select
             value={layerFilter}
             onChange={(e) => setLayerFilter(e.target.value as ClassificationLayer | 'all')}
-            className="theme-input-surface theme-border theme-text rounded border px-2 py-1 text-sm"
+            className="theme-input-surface theme-select-input theme-border theme-focus-accent theme-text rounded border px-2 py-1 text-sm"
           >
             <option value="all">{t('toolClassificationHistory.layers.all')}</option>
             <option value="layer1">{t('toolClassificationHistory.layers.layer1')}</option>
@@ -206,7 +206,7 @@ export const ClassificationHistory: React.FC<ClassificationHistoryProps> = ({
       {history.length > 0 && (
         <button
           onClick={() => setShowClearConfirm(true)}
-          className="theme-focus-ring-accent rounded px-3 py-2 text-sm text-[var(--danger-color)] transition-colors hover:bg-[var(--danger-soft-bg)]"
+          className="theme-button-ghost theme-focus-ring-accent theme-text-danger rounded px-3 py-2 text-sm transition-colors hover:bg-[var(--danger-soft-bg)]"
         >
           {t('toolClassificationHistory.clear')}
         </button>

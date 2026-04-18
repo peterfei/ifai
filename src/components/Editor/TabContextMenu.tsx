@@ -2,8 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { X, XCircle, Trash2 } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
 import clsx from 'clsx';
 
 interface TabContextMenuProps {
@@ -17,8 +15,6 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, fileId, on
   const { closeFile, closeOthers, closeAll } = useFileStore();
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -55,21 +51,18 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, fileId, on
         icon={<X size={14} />}
         label={t('common.close')}
         onClick={handleCloseCurrent}
-        dark={dark}
       />
       <ContextMenuItem
         icon={<XCircle size={14} />}
-        label="关闭其它"
+        label={t('editor.closeOtherTabs')}
         onClick={handleCloseOthers}
-        dark={dark}
       />
       <div className="theme-border my-1 border-t" />
       <ContextMenuItem
         icon={<Trash2 size={14} />}
-        label="关闭所有"
+        label={t('editor.closeAllTabs')}
         onClick={handleCloseAll}
-        className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
-        dark={dark}
+        className="theme-text-danger hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
       />
     </div>
   );
@@ -80,7 +73,6 @@ interface ContextMenuItemProps {
   label: string;
   onClick: () => void;
   className?: string;
-  dark: boolean;
 }
 
 const ContextMenuItem: React.FC<ContextMenuItemProps> = ({ icon, label, onClick, className = '' }) => (

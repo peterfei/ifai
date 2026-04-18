@@ -11,6 +11,7 @@
 
 import React, { useMemo } from 'react';
 import { CheckCircle2, XCircle, Clock, TrendingUp, Activity, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { TaskMetadata, TaskStatus, TaskCategory } from './types';
 
 // ============================================================================
@@ -141,35 +142,31 @@ function calculateStats(tasks: TaskMetadata[]) {
   };
 }
 
-function formatDuration(milliseconds: number): string {
+function formatDuration(
+  milliseconds: number,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
   const seconds = Math.floor(milliseconds / 1000);
-  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 60) return t('taskMonitor.duration.secondsShort', { count: seconds });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  if (minutes < 60) {
+    return t('taskMonitor.duration.minutesSecondsShort', {
+      minutes,
+      seconds: seconds % 60,
+    });
+  }
   const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
+  return t('taskMonitor.duration.hoursMinutesShort', {
+    hours,
+    minutes: minutes % 60,
+  });
 }
 
-function getCategoryLabel(category: TaskCategory): string {
-  const labels: Record<TaskCategory, string> = {
-    scan: '扫描',
-    build: '构建',
-    generation: '生成',
-    transfer: '传输',
-    analysis: '分析',
-    test: '测试',
-    deploy: '部署',
-    install: '安装',
-    git: 'Git',
-    format: '格式化',
-    refactor: '重构',
-    document: '文档',
-    backup: '备份',
-    cleanup: '清理',
-    optimize: '优化',
-    security: '安全',
-  };
-  return labels[category] || category;
+function getCategoryLabel(
+  category: TaskCategory,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
+  return t(`taskMonitor.categories.${category}`, { defaultValue: category });
 }
 
 // ============================================================================
@@ -183,6 +180,7 @@ const StatusChart: React.FC<{ distribution: StatusDistribution[]; compact?: bool
   distribution,
   compact = false,
 }) => {
+  const { t } = useTranslation();
   if (compact) {
     return (
       <div className="theme-input-surface flex h-2 overflow-hidden rounded">
@@ -191,7 +189,7 @@ const StatusChart: React.FC<{ distribution: StatusDistribution[]; compact?: bool
             key={status}
             className="h-full transition-all duration-300"
             style={{ width: `${percentage}%`, backgroundColor: color }}
-            title={`${status}: ${Math.round(percentage)}%`}
+            title={`${t(`taskMonitor.status.${status}`)}: ${Math.round(percentage)}%`}
           />
         ))}
       </div>
@@ -203,7 +201,7 @@ const StatusChart: React.FC<{ distribution: StatusDistribution[]; compact?: bool
       {distribution.map(({ status, count, percentage, color }) => (
         <div key={status} className="flex items-center gap-2">
           <span className="theme-text-subtle w-16 text-[10px] capitalize">
-            {status}
+            {t(`taskMonitor.status.${status}`)}
           </span>
           <div className="theme-input-surface flex-1 h-3 overflow-hidden rounded">
             <div
@@ -226,6 +224,7 @@ const StatusChart: React.FC<{ distribution: StatusDistribution[]; compact?: bool
 const SummaryCards: React.FC<{
   stats: ReturnType<typeof calculateStats>;
 }> = ({ stats }) => {
+  const { t } = useTranslation();
   const { total, byStatus, successRate, avgDuration } = stats;
 
   const successCount = byStatus.find(s => s.status === 'success')?.count || 0;
@@ -236,10 +235,10 @@ const SummaryCards: React.FC<{
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
       {/* Total tasks */}
       <div className="theme-panel-muted theme-border rounded p-2">
-        <div className="flex items-center gap-1.5 mb-1">
-          <Activity size={12} className="theme-text-info" />
-          <span className="theme-text-subtle text-[10px]">总任务</span>
-        </div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Activity size={12} className="theme-text-info" />
+            <span className="theme-text-subtle text-[10px]">{t('taskMonitor.stats.total')}</span>
+          </div>
         <div className="theme-text text-[16px] font-bold">{total}</div>
       </div>
 
@@ -248,7 +247,7 @@ const SummaryCards: React.FC<{
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <TrendingUp size={12} className="theme-text-success" />
-            <span className="theme-text-subtle text-[10px]">成功率</span>
+            <span className="theme-text-subtle text-[10px]">{t('taskMonitor.stats.successRate')}</span>
           </div>
           <div className="theme-text-success text-[16px] font-bold">
             {Math.round(successRate)}%
@@ -261,7 +260,7 @@ const SummaryCards: React.FC<{
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <CheckCircle2 size={12} className="theme-text-success" />
-            <span className="theme-text-subtle text-[10px]">已完成</span>
+            <span className="theme-text-subtle text-[10px]">{t('taskMonitor.stats.completed')}</span>
           </div>
           <div className="theme-text-success text-[16px] font-bold">{successCount}</div>
         </div>
@@ -272,7 +271,7 @@ const SummaryCards: React.FC<{
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <XCircle size={12} className="theme-text-danger" />
-            <span className="theme-text-subtle text-[10px]">失败</span>
+            <span className="theme-text-subtle text-[10px]">{t('taskMonitor.stats.failed')}</span>
           </div>
           <div className="theme-text-danger text-[16px] font-bold">{failedCount}</div>
         </div>
@@ -283,7 +282,7 @@ const SummaryCards: React.FC<{
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <Clock size={12} className="theme-text-info" />
-            <span className="theme-text-subtle text-[10px]">运行中</span>
+            <span className="theme-text-subtle text-[10px]">{t('taskMonitor.stats.running')}</span>
           </div>
           <div className="theme-text-info text-[16px] font-bold">{runningCount}</div>
         </div>
@@ -294,10 +293,10 @@ const SummaryCards: React.FC<{
         <div className="theme-panel-muted theme-border rounded p-2">
           <div className="flex items-center gap-1.5 mb-1">
             <Zap size={12} className="theme-text-warning" />
-            <span className="theme-text-subtle text-[10px]">平均耗时</span>
+            <span className="theme-text-subtle text-[10px]">{t('taskMonitor.stats.averageDuration')}</span>
           </div>
           <div className="theme-text-warning text-[14px] font-bold">
-            {formatDuration(avgDuration)}
+            {formatDuration(avgDuration, t)}
           </div>
         </div>
       )}
@@ -309,31 +308,32 @@ const SummaryCards: React.FC<{
  * Category breakdown table
  */
 const CategoryTable: React.FC<{ breakdown: CategoryBreakdown[] }> = ({ breakdown }) => {
+  const { t } = useTranslation();
   if (breakdown.length === 0) return null;
 
   const CATEGORY_COLORS: Record<TaskCategory, string> = {
     scan: 'var(--info-color)',
     build: 'var(--warning-color)',
-    generation: 'var(--success-color)',
-    transfer: 'var(--danger-color)',
-    analysis: '#ce9178',
-    test: '#c586c0',
-    deploy: 'var(--warning-color)',
-    install: 'var(--success-color)',
+    generation: 'var(--accent-color)',
+    transfer: 'var(--info-color)',
+    analysis: 'var(--info-color)',
+    test: 'var(--success-color)',
+    deploy: 'var(--success-color)',
+    install: 'var(--accent-color)',
     git: 'var(--danger-color)',
-    format: 'var(--info-color)',
-    refactor: '#ce9178',
+    format: 'var(--accent-color)',
+    refactor: 'var(--warning-color)',
     document: 'var(--text-subtle)',
     backup: 'var(--success-color)',
     cleanup: 'var(--warning-color)',
-    optimize: '#ff6b6b',
+    optimize: 'var(--accent-color)',
     security: 'var(--danger-color)',
   };
 
   return (
     <div className="mt-3">
       <h4 className="theme-text-subtle mb-2 text-[10px] uppercase tracking-wider">
-        按类别统计
+        {t('taskMonitor.stats.byCategory')}
       </h4>
       <div className="space-y-1">
         {breakdown.map(({ category, count, avgDuration }) => (
@@ -347,14 +347,14 @@ const CategoryTable: React.FC<{ breakdown: CategoryBreakdown[] }> = ({ breakdown
                 style={{ backgroundColor: CATEGORY_COLORS[category] }}
               />
               <span className="theme-text capitalize">
-                {getCategoryLabel(category)}
+                {getCategoryLabel(category, t)}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="theme-text-subtle">{count} 个</span>
+              <span className="theme-text-subtle">{t('taskMonitor.stats.categoryCount', { count })}</span>
               {avgDuration > 0 && (
                 <span className="theme-text-subtle font-mono">
-                  {formatDuration(avgDuration)}
+                  {formatDuration(avgDuration, t)}
                 </span>
               )}
             </div>
@@ -376,6 +376,7 @@ export const TaskStats: React.FC<TaskStatsProps> = ({
   compact = false,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const stats = useMemo(() => calculateStats(tasks), [tasks]);
 
   if (stats.total === 0) {
@@ -383,7 +384,7 @@ export const TaskStats: React.FC<TaskStatsProps> = ({
       <div className={`task-stats-empty ${className}`}>
         <div className="theme-text-subtle py-8 text-center">
           <Activity size={32} className="mx-auto mb-2 opacity-30" />
-          <p className="text-[12px]">暂无任务统计数据</p>
+          <p className="text-[12px]">{t('taskMonitor.stats.empty')}</p>
         </div>
       </div>
     );
@@ -398,7 +399,7 @@ export const TaskStats: React.FC<TaskStatsProps> = ({
       {showChart && stats.byStatus.length > 0 && (
         <div className="mt-3">
           <h4 className="theme-text-subtle mb-2 text-[10px] uppercase tracking-wider">
-            状态分布
+            {t('taskMonitor.stats.byStatus')}
           </h4>
           <StatusChart distribution={stats.byStatus} compact={compact} />
         </div>

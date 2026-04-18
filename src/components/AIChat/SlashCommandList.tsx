@@ -7,7 +7,7 @@ interface Command {
   label: string;
   description: string;
   icon: React.ReactElement;
-  color: string;
+  toneClass: string;
 }
 
 interface Props {
@@ -26,17 +26,17 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
   const listRef = useRef<HTMLDivElement>(null);
   
   const COMMANDS: Command[] = useMemo(() => [
-    { id: '/explore', label: t('commands.explore.label'), description: t('commands.explore.description'), icon: <Search size={16} />, color: 'bg-blue-500' },
-    { id: '/review', label: t('commands.review.label'), description: t('commands.review.description'), icon: <ShieldCheck size={16} />, color: 'bg-purple-500' },
-    { id: '/test', label: t('commands.test.label'), description: t('commands.test.description'), icon: <TestTube size={16} />, color: 'bg-green-500' },
-    { id: '/doc', label: t('commands.doc.label'), description: t('commands.doc.description'), icon: <FileText size={16} />, color: 'bg-orange-500' },
-    { id: '/refactor', label: t('commands.refactor.label'), description: t('commands.refactor.description'), icon: <Zap size={16} />, color: 'bg-yellow-500' },
+    { id: '/explore', label: t('commands.explore.label'), description: t('commands.explore.description'), icon: <Search size={16} />, toneClass: 'bg-[var(--accent-soft-bg)] text-[var(--accent-color)] border border-[var(--accent-soft-border)]' },
+    { id: '/review', label: t('commands.review.label'), description: t('commands.review.description'), icon: <ShieldCheck size={16} />, toneClass: 'bg-[var(--warning-soft-bg)] text-[var(--warning-color)] border border-[var(--warning-soft-border)]' },
+    { id: '/test', label: t('commands.test.label'), description: t('commands.test.description'), icon: <TestTube size={16} />, toneClass: 'bg-[var(--success-soft-bg)] text-[var(--success-color)] border border-[var(--success-soft-border)]' },
+    { id: '/doc', label: t('commands.doc.label'), description: t('commands.doc.description'), icon: <FileText size={16} />, toneClass: 'bg-[var(--info-soft-bg)] text-[var(--info-color)] border border-[var(--info-soft-border)]' },
+    { id: '/refactor', label: t('commands.refactor.label'), description: t('commands.refactor.description'), icon: <Zap size={16} />, toneClass: 'bg-[var(--warning-soft-bg)] text-[var(--warning-color)] border border-[var(--warning-soft-border)]' },
     // v0.2.6: 提案生成命令
-    { id: '/proposal', label: t('commands.proposal.label'), description: t('commands.proposal.description'), icon: <FileEdit size={16} />, color: 'bg-rose-500' },
-    { id: '/help', label: t('commands.help.label'), description: t('commands.help.description'), icon: <HelpCircle size={16} />, color: 'bg-teal-500' },
-    { id: '/index', label: t('commands.index.label'), description: t('commands.index.description'), icon: <Search size={16} />, color: 'bg-indigo-500' },
+    { id: '/proposal', label: t('commands.proposal.label'), description: t('commands.proposal.description'), icon: <FileEdit size={16} />, toneClass: 'bg-[var(--accent-soft-bg)] text-[var(--accent-color)] border border-[var(--accent-soft-border)]' },
+    { id: '/help', label: t('commands.help.label'), description: t('commands.help.description'), icon: <HelpCircle size={16} />, toneClass: 'bg-[var(--info-soft-bg)] text-[var(--info-color)] border border-[var(--info-soft-border)]' },
+    { id: '/index', label: t('commands.index.label'), description: t('commands.index.description'), icon: <Search size={16} />, toneClass: 'bg-[var(--info-soft-bg)] text-[var(--info-color)] border border-[var(--info-soft-border)]' },
     // v0.2.6: 任务拆解命令
-    { id: '/task', label: t('commands.task.label'), description: t('commands.task.description'), icon: <ListTree size={16} />, color: 'bg-cyan-500' },
+    { id: '/task', label: t('commands.task.label'), description: t('commands.task.description'), icon: <ListTree size={16} />, toneClass: 'bg-[var(--info-soft-bg)] text-[var(--info-color)] border border-[var(--info-soft-border)]' },
   ], [t]);
 
   const filteredCommands = useMemo(() => 
@@ -90,14 +90,14 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
   if (filteredCommands.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 mx-2 theme-panel-elevated border theme-border rounded-lg theme-shadow overflow-hidden z-[100] animate-in slide-in-from-bottom-2 fade-in duration-150 ring-1 ring-black/5">
+    <div className="absolute bottom-full left-0 right-0 mb-2 mx-2 theme-panel-elevated border theme-border rounded-lg theme-shadow overflow-hidden z-[100] animate-in slide-in-from-bottom-2 fade-in duration-150">
       <div className="flex items-center justify-between px-3 py-2 theme-panel-muted border-b theme-border backdrop-blur-sm">
         <span className="text-[10px] uppercase font-bold theme-text-subtle tracking-wider flex items-center gap-1">
             <Terminal size={10} />
             {t('commands.title')}
         </span>
         <span className="text-[9px] theme-panel px-1.5 py-0.5 rounded border theme-border theme-text-subtle">
-            ↑↓ to navigate
+            {t('aiChat.slashCommand.navigationHint')}
         </span>
       </div>
       
@@ -109,13 +109,13 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
             data-selected={index === selectedIndex}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-all duration-75 group ${
               index === selectedIndex
-                ? 'bg-blue-500/10 border border-blue-500/20'
+                ? 'bg-[var(--accent-soft-bg)] border border-[var(--accent-soft-border)]'
                 : 'theme-soft-hover border border-transparent'
             }`}
             onClick={() => onSelect(cmd.id)}
           >
             {/* Icon Box */}
-            <div className={`flex items-center justify-center w-8 h-8 rounded-lg shadow-sm ${cmd.color} text-white`}>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-lg shadow-sm ${cmd.toneClass}`}>
                 {React.cloneElement(cmd.icon, { 
                   // @ts-ignore
                   size: 16, 
@@ -127,20 +127,20 @@ export const SlashCommandList = React.forwardRef<SlashCommandListHandle, Props>(
             <div className="flex flex-col min-w-0 flex-1">
               <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 overflow-hidden">
-                    <span className={`text-sm font-bold truncate ${index === selectedIndex ? 'text-blue-500' : 'theme-text'}`}>
+                    <span className={`text-sm font-bold truncate ${index === selectedIndex ? 'theme-text-accent' : 'theme-text'}`}>
                         {cmd.id}
                     </span>
-                    <span className={`text-[10px] opacity-60 font-medium truncate ${index === selectedIndex ? 'text-blue-500' : 'theme-text-subtle'}`}>
+                    <span className={`text-[10px] opacity-60 font-medium truncate ${index === selectedIndex ? 'theme-text-accent' : 'theme-text-subtle'}`}>
                         {cmd.label}
                     </span>
                   </div>
                   {index === selectedIndex && (
                       <span className="text-[10px] theme-panel px-1.5 rounded shadow-sm border theme-border theme-text-subtle">
-                          Enter
+                          {t('aiChat.slashCommand.enter')}
                       </span>
                   )}
               </div>
-              <span className={`text-[11px] truncate ${index === selectedIndex ? 'text-blue-500/80' : 'theme-text-subtle'}`}>
+              <span className={`text-[11px] truncate ${index === selectedIndex ? 'theme-text-accent opacity-80' : 'theme-text-subtle'}`}>
                 {cmd.description}
               </span>
             </div>

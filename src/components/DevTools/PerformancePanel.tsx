@@ -2,27 +2,36 @@ import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { usePerformanceMetrics } from './usePerformanceMetrics';
 import { useEditorStore } from '../../stores/editorStore';
-import { X, Activity, Cpu, Database } from 'lucide-react';
+import { X, Activity } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface PerformancePanelProps {
   onClose?: () => void;
 }
 
 export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) => {
+  const { t } = useTranslation();
   const { metrics, currentMetrics } = usePerformanceMetrics(1000);
   const activeFileTokenCount = useEditorStore(state => state.activeFileTokenCount);
   const [minimized, setMinimized] = useState(false);
+  const chartColor =
+    currentMetrics.fps < 30
+      ? 'var(--danger-color)'
+      : currentMetrics.fps < 55
+        ? 'var(--warning-color)'
+        : 'var(--success-color)';
 
   if (minimized) {
     return (
-      <div 
-        className="theme-panel-elevated theme-border theme-shadow theme-hoverable fixed bottom-4 right-4 z-50 cursor-pointer rounded-lg border p-2"
+      <button
+        type="button"
+        className="theme-panel-elevated theme-border theme-shadow theme-hoverable fixed bottom-4 right-4 z-50 rounded-lg border p-2"
         onClick={() => setMinimized(false)}
-        role="button"
-        aria-label="Expand Performance Panel"
+        aria-label={t('performancePanel.expand')}
+        title={t('performancePanel.expand')}
       >
-        <Activity className="w-5 h-5 text-green-400" />
-      </div>
+        <Activity className="theme-text-success h-5 w-5" />
+      </button>
     );
   }
 
@@ -32,19 +41,24 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
       <div className="theme-panel-muted theme-border flex items-center justify-between border-b p-2">
         <div className="theme-text flex items-center gap-2 font-semibold">
           <Activity className="w-4 h-4" />
-          <span>Performance Monitor</span>
+          <span>{t('performancePanel.title')}</span>
         </div>
         <div className="flex items-center gap-1">
           <button 
+            type="button"
             onClick={() => setMinimized(true)}
             className="theme-button-ghost rounded p-1"
+            aria-label={t('performancePanel.minimize')}
+            title={t('performancePanel.minimize')}
           >
             _
           </button>
           <button 
+            type="button"
             onClick={onClose}
             className="theme-button-ghost rounded p-1"
-            aria-label="Close"
+            aria-label={t('common.close')}
+            title={t('common.close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -54,19 +68,19 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
       {/* Metrics Cards */}
       <div className="grid grid-cols-3 gap-2 p-3">
         <MetricCard 
-          label="FPS" 
+          label={t('performancePanel.metrics.fps')}
           value={currentMetrics.fps} 
           unit="" 
           status={currentMetrics.fps < 30 ? 'warning' : 'good'} 
         />
         <MetricCard 
-          label="Memory" 
+          label={t('performancePanel.metrics.memory')}
           value={currentMetrics.memory || 0} 
           unit="MB" 
           status={currentMetrics.memory > 500 ? 'warning' : 'good'} 
         />
         <MetricCard 
-          label="Tokens" 
+          label={t('performancePanel.metrics.tokens')}
           value={activeFileTokenCount} 
           unit="" 
           status="good" 
@@ -79,8 +93,8 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
           <AreaChart data={metrics}>
             <defs>
               <linearGradient id="colorFps" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#82ca9d" stopOpacity={0}/>
+                <stop offset="5%" stopColor={chartColor} stopOpacity={0.8}/>
+                <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
               </linearGradient>
             </defs>
             <XAxis dataKey="timestamp" hide />
@@ -93,7 +107,7 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
             <Area 
               type="monotone" 
               dataKey="fps" 
-              stroke="#82ca9d" 
+              stroke={chartColor}
               fillOpacity={1} 
               fill="url(#colorFps)" 
               isAnimationActive={false}
@@ -106,7 +120,12 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ onClose }) =
 };
 
 const MetricCard: React.FC<{ label: string; value: number; unit: string; status: 'good' | 'warning' | 'error' }> = ({ label, value, unit, status }) => {
-  const colorClass = status === 'good' ? 'text-green-400' : status === 'warning' ? 'text-yellow-400' : 'text-red-400';
+  const colorClass =
+    status === 'good'
+      ? 'theme-text-success'
+      : status === 'warning'
+        ? 'theme-text-warning'
+        : 'theme-text-danger';
   
   return (
     <div className="theme-panel-muted flex flex-col items-center rounded p-2">

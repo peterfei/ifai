@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   WorkflowSelector,
   WorkflowEditor,
@@ -15,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/UI/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/UI/card';
 import { Button } from '../components/UI/button';
+import { Input } from '../components/UI/input';
 import {
   Zap,
   FileText,
@@ -48,12 +50,12 @@ interface WorkflowExecution {
 }
 
 // 工作流节点配置映射（与后端 workflow_commands.rs 保持一致）
-const WORKFLOW_NODE_CONFIGS: Record<string, { nodes: DAGNodeType[]; edges: DAGEdgeType[] }> = {
+const getWorkflowNodeConfigs = (t: (key: string) => string): Record<string, { nodes: DAGNodeType[]; edges: DAGEdgeType[] }> => ({
   'quick-code-review': {
     nodes: [
-      { id: 'explore', label: '探索代码', agentType: 'explore', status: 'pending' },
-      { id: 'review', label: '代码审查', agentType: 'review', status: 'pending' },
-      { id: 'refactor', label: '重构建议', agentType: 'refactor', status: 'pending' },
+      { id: 'explore', label: t('workflow.page.nodes.explore'), agentType: 'explore', status: 'pending' },
+      { id: 'review', label: t('workflow.page.nodes.review'), agentType: 'review', status: 'pending' },
+      { id: 'refactor', label: t('workflow.page.nodes.refactor'), agentType: 'refactor', status: 'pending' },
     ],
     edges: [
       { from: 'explore', to: 'review' },
@@ -62,22 +64,23 @@ const WORKFLOW_NODE_CONFIGS: Record<string, { nodes: DAGNodeType[]; edges: DAGEd
   },
   'quick-exploration': {
     nodes: [
-      { id: 'explore', label: '快速探索', agentType: 'explore', status: 'pending' },
+      { id: 'explore', label: t('workflow.page.nodes.quickExplore'), agentType: 'explore', status: 'pending' },
     ],
     edges: [],
   },
   'quick-quality-check': {
     nodes: [
-      { id: 'review', label: '代码审查', agentType: 'review', status: 'pending' },
-      { id: 'security', label: '安全检查', agentType: 'review', status: 'pending' },
+      { id: 'review', label: t('workflow.page.nodes.review'), agentType: 'review', status: 'pending' },
+      { id: 'security', label: t('workflow.page.nodes.security'), agentType: 'review', status: 'pending' },
     ],
     edges: [
       { from: 'review', to: 'security' },
     ],
   },
-};
+});
 
 export function WorkflowsPage() {
+  const { t, i18n } = useTranslation();
   const [searchParams, setSearchParams] = useURLSearchParams();
   const [activeTab, setActiveTab] = useState(
     searchParams.get('tab') || 'select'
@@ -92,10 +95,11 @@ export function WorkflowsPage() {
     string | null
   >(null);
   const [targetPath, setTargetPath] = useState('./src');
+  const workflowNodeConfigs = getWorkflowNodeConfigs(t);
 
   const handleWorkflowExecute = (workflowId: string, workflowType?: string) => {
     // 获取节点配置
-    const nodeConfig = workflowType ? WORKFLOW_NODE_CONFIGS[workflowType] : undefined;
+    const nodeConfig = workflowType ? workflowNodeConfigs[workflowType] : undefined;
 
     const execution: WorkflowExecution = {
       id: workflowId,
@@ -150,28 +154,29 @@ export function WorkflowsPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="theme-panel theme-text h-full overflow-y-auto">
+      <div className="container mx-auto space-y-6 py-6">
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">多智能体工作流</h1>
-          <p className="text-muted-foreground mt-1">
-            自动化代码分析、审查、重构和测试
+          <h1 className="theme-text text-3xl font-bold">{t('workflow.page.title')}</h1>
+          <p className="theme-text-subtle mt-1">
+            {t('workflow.page.description')}
           </p>
         </div>
         <Button variant="outline" onClick={() => window.history.back()}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          返回
+          {t('workflow.page.back')}
         </Button>
       </div>
 
       {/* 运行中的工作流 */}
       {executingWorkflows.length > 0 && (
-        <Card className="border-blue-500">
+        <Card className="theme-surface-info">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-500" />
-              运行中的工作流 ({executingWorkflows.length})
+              <Activity className="theme-text-accent h-5 w-5" />
+              {t('workflow.page.running', { count: executingWorkflows.length })}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -182,10 +187,11 @@ export function WorkflowsPage() {
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div>
-                    <div className="font-semibold">{workflow.id}</div>
-                    <div className="text-sm text-muted-foreground">
-                      开始于:{' '}
-                      {new Date(workflow.startTime).toLocaleTimeString()}
+                    <div className="theme-text font-semibold">{workflow.id}</div>
+                    <div className="theme-text-subtle text-sm">
+                      {t('workflow.page.startedAt', {
+                        time: new Date(workflow.startTime).toLocaleTimeString(i18n.language),
+                      })}
                     </div>
                   </div>
                   <Button
@@ -193,7 +199,7 @@ export function WorkflowsPage() {
                     size="sm"
                     onClick={() => setSelectedWorkflowId(workflow.id)}
                   >
-                    查看
+                    {t('workflow.page.view')}
                   </Button>
                 </div>
               ))}
@@ -207,19 +213,19 @@ export function WorkflowsPage() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="select">
             <Zap className="w-4 h-4 mr-2" />
-            快速工作流
+            {t('workflow.page.tabs.select')}
           </TabsTrigger>
           <TabsTrigger value="templates">
             <FileText className="w-4 h-4 mr-2" />
-            工作流模板
+            {t('workflow.page.tabs.templates')}
           </TabsTrigger>
           <TabsTrigger value="editor">
             <Settings className="w-4 h-4 mr-2" />
-            自定义编辑器
+            {t('workflow.page.tabs.editor')}
           </TabsTrigger>
           <TabsTrigger value="monitor">
             <Activity className="w-4 h-4 mr-2" />
-            执行监控
+            {t('workflow.page.tabs.monitor')}
           </TabsTrigger>
         </TabsList>
 
@@ -227,18 +233,17 @@ export function WorkflowsPage() {
         <TabsContent value="select" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>目标路径</CardTitle>
+              <CardTitle>{t('workflow.page.targetPath')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">
-                <input
-                  type="text"
+                <Input
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-md"
-                  placeholder="./src"
+                  className="flex-1"
+                  placeholder={t('workflow.page.targetPathPlaceholder')}
                 />
-                <Button variant="outline">浏览</Button>
+                <Button variant="outline">{t('workflow.page.browse')}</Button>
               </div>
             </CardContent>
           </Card>
@@ -301,11 +306,11 @@ export function WorkflowsPage() {
           ) : (
             <Card>
               <CardContent className="pt-6">
-                <div className="text-center py-12 text-muted-foreground">
+                <div className="theme-text-subtle py-12 text-center">
                   <Activity className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg mb-2">没有正在运行的工作流</p>
+                  <p className="theme-text text-lg mb-2">{t('workflow.page.idleTitle')}</p>
                   <p className="text-sm">
-                    从"快速工作流"或"工作流模板"启动一个工作流
+                    {t('workflow.page.idleDescription')}
                   </p>
                 </div>
               </CardContent>
@@ -318,19 +323,19 @@ export function WorkflowsPage() {
       {completedWorkflows.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>已完成的工作流 ({completedWorkflows.length})</CardTitle>
+            <CardTitle>{t('workflow.page.completed', { count: completedWorkflows.length })}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {completedWorkflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="theme-border flex items-center justify-between rounded-lg border p-3"
                 >
                   <div>
-                    <div className="font-semibold">{workflow.id}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {new Date(workflow.startTime).toLocaleString()}
+                    <div className="theme-text font-semibold">{workflow.id}</div>
+                    <div className="theme-text-subtle text-sm">
+                      {new Date(workflow.startTime).toLocaleString(i18n.language)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -341,10 +346,12 @@ export function WorkflowsPage() {
                           : 'theme-badge-danger'
                       }`}
                     >
-                      {workflow.status === 'completed' ? '成功' : '失败'}
+                      {workflow.status === 'completed'
+                        ? t('workflow.shared.status.completed')
+                        : t('workflow.shared.status.failed')}
                     </span>
                     <Button variant="outline" size="sm">
-                      查看结果
+                      {t('workflow.page.viewResults')}
                     </Button>
                   </div>
                 </div>
@@ -353,6 +360,7 @@ export function WorkflowsPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }

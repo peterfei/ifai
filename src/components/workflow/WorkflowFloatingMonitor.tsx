@@ -6,11 +6,10 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { WorkflowDAGMonitor, DAGNode, DAGEdge, WorkflowExecutionResult } from './WorkflowDAGMonitor';
 import { Button } from '../UI/button';
-import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
-import { Progress } from '../UI/progress';
 import {
   Minimize2,
   Maximize2,
@@ -18,8 +17,8 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
-  GripVertical,
 } from 'lucide-react';
+import { resolveWorkflowDisplayName } from './workflowStatusMeta';
 
 // 🔥 动态获取 chatEventBus，避免导入时机问题
 function getChatEventBus() {
@@ -59,6 +58,7 @@ export function WorkflowFloatingMonitor({
   onWorkflowError,
   onClose,
 }: WorkflowFloatingMonitorProps) {
+  const { t } = useTranslation();
   // ==================== 状态 ====================
 
   const [isMinimized, setIsMinimized] = useState(false);
@@ -175,10 +175,10 @@ export function WorkflowFloatingMonitor({
         <div className="flex items-center gap-2">
           <Zap className="theme-text-accent h-4 w-4 animate-pulse" />
           <span className="theme-text text-sm font-semibold">
-            工作流监控器
+            {t('workflow.floatingMonitor.title')}
             {runningCount > 0 && (
-              <Badge className="theme-badge-warning ml-2">
-                {runningCount} 运行中
+              <Badge variant="outline" className="theme-badge-warning ml-2">
+                {t('workflow.floatingMonitor.runningCount', { count: runningCount })}
               </Badge>
             )}
           </span>
@@ -189,7 +189,7 @@ export function WorkflowFloatingMonitor({
             size="sm"
             className="theme-button-ghost h-6 w-6 p-0 theme-text-subtle hover:text-[var(--text-primary)]"
             onClick={() => setIsMinimized(!isMinimized)}
-            title={isMinimized ? '展开' : '最小化'}
+            title={isMinimized ? t('workflow.floatingMonitor.expand') : t('workflow.floatingMonitor.minimize')}
           >
             {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
           </Button>
@@ -199,7 +199,7 @@ export function WorkflowFloatingMonitor({
               size="sm"
               className="theme-button-ghost h-6 w-6 p-0 theme-text-subtle hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
               onClick={onClose}
-              title="关闭"
+              title={t('workflow.floatingMonitor.close')}
             >
               <X className="w-3 h-3" />
             </Button>
@@ -217,10 +217,13 @@ export function WorkflowFloatingMonitor({
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <div className="text-sm font-medium truncate">
-                {selectedWorkflow?.name || '工作流执行中'}
+                {selectedWorkflow?.name || t('workflow.floatingMonitor.runningFallback')}
               </div>
               <div className="theme-text-subtle text-xs">
-                {selectedWorkflow?.nodes.filter(n => n.status === 'completed').length || 0} / {selectedWorkflow?.nodes.length || 0} 节点完成
+                {t('workflow.floatingMonitor.completedNodes', {
+                  completed: selectedWorkflow?.nodes.filter(n => n.status === 'completed').length || 0,
+                  total: selectedWorkflow?.nodes.length || 0,
+                })}
               </div>
             </div>
             <div className="w-16">
@@ -259,7 +262,11 @@ export function WorkflowFloatingMonitor({
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
               {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-              <span>{isCollapsed ? '显示详情' : '隐藏详情'}</span>
+              <span>
+                {isCollapsed
+                  ? t('workflow.floatingMonitor.showDetails')
+                  : t('workflow.floatingMonitor.hideDetails')}
+              </span>
             </button>
           </div>
 
@@ -289,31 +296,33 @@ interface WorkflowStatusBadgeProps {
 }
 
 function WorkflowStatusBadge({ status }: WorkflowStatusBadgeProps) {
-  const getStatusColor = () => {
+  const { t } = useTranslation();
+
+  const getStatusClass = () => {
     switch (status) {
       case 'running':
-        return 'bg-[var(--accent-color)]';
+        return 'theme-badge-accent';
       case 'completed':
-        return 'bg-[var(--success-color)]';
+        return 'theme-badge-success';
       case 'failed':
-        return 'bg-[var(--danger-color)]';
+        return 'theme-badge-danger';
     }
   };
 
-  const getStatusIcon = () => {
+  const getStatusLabel = () => {
     switch (status) {
       case 'running':
-        return 'R';
+        return t('workflow.floatingMonitor.status.running');
       case 'completed':
-        return 'C';
+        return t('workflow.floatingMonitor.status.completed');
       case 'failed':
-        return 'F';
+        return t('workflow.floatingMonitor.status.failed');
     }
   };
 
   return (
-    <Badge className={`ml-2 ${getStatusColor()}`}>
-      {getStatusIcon()}
+    <Badge variant="outline" className={`ml-2 ${getStatusClass()}`}>
+      {getStatusLabel()}
     </Badge>
   );
 }
@@ -330,7 +339,15 @@ function MiniWorkflowProgress({ workflow }: MiniWorkflowProgressProps) {
 
   return (
     <div className="space-y-1">
-      <Progress value={progress} className="h-2" />
+      <div className="theme-panel h-2 w-full overflow-hidden rounded-full">
+        <div
+          className="h-full transition-all duration-300 ease-in-out"
+          style={{
+            width: `${progress}%`,
+            background: 'var(--accent-color)',
+          }}
+        />
+      </div>
       <div className="theme-text-subtle text-center text-xs">
         {Math.round(progress)}%
       </div>
@@ -347,6 +364,7 @@ function MiniWorkflowProgress({ workflow }: MiniWorkflowProgressProps) {
  */
 
 export function WorkflowFloatingMonitorContainer() {
+  const { t } = useTranslation();
   const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
 
   console.log('[WorkflowFloatingMonitorContainer] 🎯 组件已挂载');
@@ -376,7 +394,12 @@ export function WorkflowFloatingMonitorContainer() {
       console.log('[WorkflowFloatingMonitorContainer] 📥 Workflow started 事件已触发:', payload);
 
       const workflowId = payload.workflowId || payload.workflow_id;
-      const workflowName = payload.workflowType || payload.workflow_type || payload.workflowName || '工作流';
+      const workflowName = resolveWorkflowDisplayName(
+        payload,
+        t,
+        'workflow.floatingMonitor.defaultWorkflowName',
+        'Workflow',
+      );
 
       console.log('[WorkflowFloatingMonitorContainer] 🔍 解析后的 workflowId:', workflowId);
       console.log('[WorkflowFloatingMonitorContainer] 🔍 解析后的 workflowName:', workflowName);
@@ -456,7 +479,7 @@ export function WorkflowFloatingMonitorContainer() {
       unsubscribeError();
       console.log('[WorkflowFloatingMonitorContainer] 🔌 清理监听器');
     };
-  }, []);
+  }, [t]);
 
   const handleWorkflowComplete = useCallback((workflowId: string, result: WorkflowExecutionResult) => {
     console.log('[WorkflowFloatingMonitorContainer] Workflow complete:', workflowId, result);

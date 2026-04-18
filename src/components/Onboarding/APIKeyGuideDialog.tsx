@@ -131,7 +131,7 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
     <div className="theme-backdrop-strong fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
       <div className="theme-panel-elevated theme-border theme-shadow mx-4 w-full max-w-2xl overflow-hidden rounded-xl border">
         {/* Header */}
-        <div className="theme-panel-muted theme-border relative border-b bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent px-6 py-5">
+        <div className="theme-panel-muted theme-border relative border-b px-6 py-5">
           <button
             onClick={handleSkip}
             className="theme-button-ghost theme-text-subtle absolute right-4 top-4 rounded p-1"
@@ -139,7 +139,7 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
             <X size={20} />
           </button>
           <div className="flex items-center gap-3">
-            <div className="theme-panel-elevated theme-border flex h-10 w-10 items-center justify-center rounded-lg border text-blue-500">
+            <div className="theme-surface-accent flex h-10 w-10 items-center justify-center rounded-lg">
               <Key size={22} />
             </div>
             <div>
@@ -156,8 +156,8 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
           {currentStep === 'guide' ? (
             <div className="space-y-5">
               {/* 智谱 AI 推荐部分 */}
-              <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
-                <h3 className="mb-2 flex items-center gap-2 font-semibold text-blue-500">
+              <div className="theme-surface-accent rounded-lg p-4">
+                <h3 className="theme-text-accent mb-2 flex items-center gap-2 font-semibold">
                   <Award size={18} />
                   {t('apiKeyGuide.zhipuSection.title')}
                 </h3>
@@ -197,15 +197,15 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
               {/* 优势说明 */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="theme-panel-muted theme-border rounded-lg border p-3 text-center">
-                  <Zap size={24} className="mx-auto mb-2 text-yellow-400" />
+                  <Zap size={24} className="theme-text-warning mx-auto mb-2" />
                   <p className="theme-text-muted text-xs">{t('apiKeyGuide.benefits.fast')}</p>
                 </div>
                 <div className="theme-panel-muted theme-border rounded-lg border p-3 text-center">
-                  <Shield size={24} className="mx-auto mb-2 text-green-400" />
+                  <Shield size={24} className="theme-text-success mx-auto mb-2" />
                   <p className="theme-text-muted text-xs">{t('apiKeyGuide.benefits.free')}</p>
                 </div>
                 <div className="theme-panel-muted theme-border rounded-lg border p-3 text-center">
-                  <CheckCircle size={24} className="mx-auto mb-2 text-blue-400" />
+                  <CheckCircle size={24} className="theme-text-accent mx-auto mb-2" />
                   <p className="theme-text-muted text-xs">{t('apiKeyGuide.benefits.stable')}</p>
                 </div>
               </div>
@@ -220,7 +220,7 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
+              <div className="theme-surface-accent rounded-lg p-4">
                 <p className="theme-text-muted text-sm">
                   {t('apiKeyGuide.zhipuSection.step5')}
                 </p>
@@ -235,11 +235,11 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder={t('apiKeyGuide.apiKeyPlaceholder')}
-                  className="theme-input-surface theme-border theme-text w-full rounded-lg border px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="theme-input-surface theme-border theme-focus-accent theme-text w-full rounded-lg border px-4 py-3 text-sm"
                   autoFocus
                 />
                 <p className="theme-text-subtle mt-2 text-xs">
-                  您的 API Key 将安全存储在本地，不会上传到任何服务器
+                  {t('apiKeyGuide.securityNote')}
                 </p>
               </div>
             </div>
@@ -269,7 +269,7 @@ export const APIKeyGuideDialog: React.FC<APIKeyGuideDialogProps> = ({
                 onClick={() => setCurrentStep('guide')}
                 className="theme-button-ghost rounded px-4 py-2 text-sm"
               >
-                ← 返回
+                {`← ${t('onboarding.buttons.back')}`}
               </button>
               <div className="flex gap-3">
                 <button

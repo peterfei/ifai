@@ -11,7 +11,9 @@
  */
 
 import { create } from 'zustand';
+import { useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import type {
   ToolDescriptionResponse,
   ToolListResponse,
@@ -19,6 +21,7 @@ import type {
   ToolCategory,
   ToolPermission,
 } from '../types/tool';
+import { getLocalizedToolSearchText } from '../utils/toolExplorerI18n';
 
 /**
  * 工具 Store 状态
@@ -187,37 +190,37 @@ export const useToolStore = create<ToolState & ToolActions>((set, get) => ({
  * Hook: 获取过滤后的工具列表
  */
 export const useFilteredTools = () => {
+  const { t, i18n } = useTranslation();
   const tools = useToolStore((state) => state.tools);
   const filter = useToolStore((state) => state.filter);
 
-  return tools.filter((tool) => {
-    // 搜索过滤
-    if (filter.searchQuery) {
-      const query = filter.searchQuery.toLowerCase();
-      const matchesSearch =
-        tool.name.toLowerCase().includes(query) ||
-        tool.description.toLowerCase().includes(query);
-      if (!matchesSearch) return false;
-    }
+  return useMemo(
+    () =>
+      tools.filter((tool) => {
+        if (filter.searchQuery) {
+          const query = filter.searchQuery.toLowerCase();
+          const matchesSearch = getLocalizedToolSearchText(tool, t).includes(query);
+          if (!matchesSearch) return false;
+        }
 
-    // 分类过滤
-    if (filter.categories.length > 0) {
-      if (!filter.categories.includes(tool.category as ToolCategory)) {
-        return false;
-      }
-    }
+        if (filter.categories.length > 0) {
+          if (!filter.categories.includes(tool.category as ToolCategory)) {
+            return false;
+          }
+        }
 
-    // 权限过滤
-    if (filter.permissions.length > 0) {
-      if (
-        !filter.permissions.includes(tool.required_permission as ToolPermission)
-      ) {
-        return false;
-      }
-    }
+        if (filter.permissions.length > 0) {
+          if (
+            !filter.permissions.includes(tool.required_permission as ToolPermission)
+          ) {
+            return false;
+          }
+        }
 
-    return true;
-  });
+        return true;
+      }),
+    [filter, i18n.language, t, tools]
+  );
 };
 
 /**

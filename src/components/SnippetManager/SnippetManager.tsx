@@ -11,13 +11,13 @@ export const SnippetManager: React.FC = () => {
 
   useEffect(() => {
     fetchSnippets();
-  }, []);
+  }, [fetchSnippets]);
 
   return (
     <div className="theme-panel theme-border flex h-full w-full flex-col overflow-hidden border-r">
       {/* Header */}
       <div className="theme-panel-muted theme-border flex items-center gap-2 border-b p-3">
-        <Code2 className="h-4 w-4 text-blue-500" />
+        <Code2 className="theme-text-accent h-4 w-4" />
         <span className="theme-text-subtle text-xs font-bold uppercase tracking-wider">{t('snippetManager.title')}</span>
       </div>
 

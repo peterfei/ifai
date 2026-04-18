@@ -3,8 +3,8 @@
  *
  * 样式特点:
  * - 左对齐
- * - 蓝色背景 (#3b82f6)
- * - 白色文字
+ * - 强调色背景
+ * - 浅色文字
  * - 圆角 18px，右下角 4px
  *
  * @version v0.3.1
@@ -12,6 +12,7 @@
 
 import React from 'react';
 import { User, Code2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface TimelineUserBubbleProps {
   time: string;
@@ -30,6 +31,8 @@ export const TimelineUserBubble: React.FC<TimelineUserBubbleProps> = ({
   onClick,
   'data-testid': dataTestId
 }) => {
+  const { t } = useTranslation();
+
   // 格式化时间标签
   const formatTimeLabel = (ts: number): string => {
     const date = new Date(ts);
@@ -47,7 +50,7 @@ export const TimelineUserBubble: React.FC<TimelineUserBubbleProps> = ({
         </span>
         <span className="text-xs theme-text-muted flex items-center gap-1">
           <User size={12} />
-          用户
+          {t('aiChat.timeline.user')}
         </span>
       </div>
 
@@ -58,13 +61,13 @@ export const TimelineUserBubble: React.FC<TimelineUserBubbleProps> = ({
           max-w-[70%]
           rounded-2xl
           rounded-bl-sm
-          bg-blue-600
+          bg-[var(--accent-color)]
           text-white
           px-4
           py-3
           shadow-md
           cursor-pointer
-          hover:bg-blue-700
+          hover:bg-[var(--accent-hover)]
           transition-colors
           duration-150
         "
@@ -78,9 +81,9 @@ export const TimelineUserBubble: React.FC<TimelineUserBubbleProps> = ({
 
         {/* 代码块标识 */}
         {hasCode && (
-          <div className="mt-2 flex items-center gap-1 text-xs text-blue-100">
+          <div className="mt-2 flex items-center gap-1 text-xs text-white/80">
             <Code2 size={12} />
-            <span>包含代码</span>
+            <span>{t('aiChat.timeline.containsCode')}</span>
           </div>
         )}
       </div>

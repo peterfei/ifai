@@ -2,8 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { ChevronDown, ChevronRight, Eye, FileText, Loader2, Zap } from 'lucide-react';
 import { useTransparencyStore, type SystemPromptMeta, type PromptSectionMeta } from '../../stores/transparencyStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import clsx from 'clsx';
-import { isDarkTheme } from '../../utils/theme';
+import { useTranslation } from 'react-i18next';
 
 type TransparencyLevel = 'minimal' | 'standard' | 'verbose' | 'debug';
 
@@ -12,9 +11,8 @@ interface SystemPromptCardProps {
 }
 
 export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
+  const { t } = useTranslation();
   const transparencyLevel = useSettingsStore(s => s.transparencyLevel);
-  const theme = useSettingsStore(s => s.theme);
-  const dark = isDarkTheme(theme);
   const { promptDetailCache, loadingSection, fetchPromptDetail } = useTransparencyStore();
 
   const [expanded, setExpanded] = useState(transparencyLevel === 'debug');
@@ -68,24 +66,24 @@ export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
         className="theme-hoverable theme-text-subtle flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors"
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        <Eye size={12} className="text-blue-400/60" />
-        <span className="font-medium">System Prompt</span>
+        <Eye size={12} className="theme-text-accent opacity-60" />
+        <span className="font-medium">{t('systemPromptCard.title')}</span>
         <span className="theme-text-subtle opacity-60">|</span>
-        <span>{presentSections.length} sections</span>
+        <span>{t('systemPromptCard.sectionsCount', { count: presentSections.length })}</span>
         <span className="theme-text-subtle opacity-60">|</span>
-        <span>~{totalTokens.toLocaleString()} tokens</span>
+        <span>{t('systemPromptCard.totalTokens', { count: totalTokens, tokens: t('conversation.summary.tokens') })}</span>
         {meta.mode && (
           <>
             <span className="theme-text-subtle opacity-60">|</span>
-            <span className="text-purple-400/60">{meta.mode}</span>
+            <span className="theme-text-info opacity-60">{meta.mode}</span>
           </>
         )}
         {meta.skills.length > 0 && (
           <>
             <span className="theme-text-subtle opacity-60">|</span>
-            <span className="text-amber-400/60">
+            <span className="theme-text-warning opacity-60">
               <Zap size={10} className="inline mr-0.5" />
-              {meta.skills.length} skills
+              {t('systemPromptCard.skillsCount', { count: meta.skills.length })}
             </span>
           </>
         )}
@@ -102,7 +100,6 @@ export const SystemPromptCard: React.FC<SystemPromptCardProps> = ({ meta }) => {
               isLoading={loadingSection === section.name}
               content={promptDetailCache[section.name]}
               showDetails={transparencyLevel === 'verbose' || transparencyLevel === 'debug'}
-              dark={dark}
               onToggle={() => {
                 toggleSection(section.name);
                 if (!expandedSections.has(section.name)) {
@@ -125,7 +122,6 @@ interface SectionItemProps {
   isLoading: boolean;
   content?: string;
   showDetails: boolean;
-  dark: boolean;
   onToggle: () => void;
 }
 
@@ -135,9 +131,10 @@ const SectionItem: React.FC<SectionItemProps> = ({
   isLoading,
   content,
   showDetails,
-  dark,
   onToggle,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <div>
       <button
@@ -150,31 +147,31 @@ const SectionItem: React.FC<SectionItemProps> = ({
         <span className="theme-text-subtle ml-auto">
           {section.char_count > 0 && (
             <>
-              {section.char_count.toLocaleString()} chars
+              {t('dialog.characterCount', { count: section.char_count })}
               {showDetails && (
-                <> / ~{section.tokens_estimate.toLocaleString()} tokens</>
+                <> / {t('systemPromptCard.totalTokens', { count: section.tokens_estimate, tokens: t('conversation.summary.tokens') })}</>
               )}
             </>
           )}
           {section.present === false && section.char_count === 0 && (
-            <span className="theme-text-subtle italic opacity-70">inactive</span>
+            <span className="theme-text-subtle italic opacity-70">{t('systemPromptCard.inactive')}</span>
           )}
         </span>
-        {isLoading && <Loader2 size={10} className="animate-spin text-blue-400/60" />}
+        {isLoading && <Loader2 size={10} className="theme-text-accent animate-spin opacity-60" />}
       </button>
 
       {/* Expanded section content */}
       {isExpanded && content && (
         <div className="theme-input-surface theme-border ml-6 mt-1 mb-2 max-h-60 overflow-y-auto rounded border p-2">
           <pre className="theme-text-subtle whitespace-pre-wrap font-mono text-[11px] leading-relaxed">
-            {content.length > 3000 ? content.slice(0, 3000) + '\n\n... (truncated)' : content}
+            {content.length > 3000 ? `${content.slice(0, 3000)}\n\n${t('systemPromptCard.truncated')}` : content}
           </pre>
         </div>
       )}
 
       {isExpanded && !content && !isLoading && section.char_count > 0 && (
         <div className="theme-text-subtle ml-6 mt-1 text-[11px] italic opacity-80">
-          Click to load content
+          {t('systemPromptCard.clickToLoad')}
         </div>
       )}
     </div>

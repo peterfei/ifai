@@ -3,6 +3,7 @@ import { Code, Box, Loader2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '../../stores/fileStore';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 interface SymbolInfo {
   name: string;
@@ -21,6 +22,7 @@ interface SymbolSearchProps {
  */
 export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: React.Ref<any>) => {
   const { filter, onSelect, onClose } = props;
+  const { t } = useTranslation();
   const [results, setResults] = useState<SymbolInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -91,14 +93,14 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
       <div className="theme-panel-muted theme-border flex items-center justify-between border-b p-2">
         <div className="flex items-center gap-2">
           <Code size={12} className="theme-text-accent" />
-          <span className="theme-text-accent text-[10px] font-bold uppercase tracking-wider">引用符号 (#)</span>
+          <span className="theme-text-accent text-[10px] font-bold uppercase tracking-wider">{t('aiChat.symbolSearch.title')}</span>
         </div>
         {loading && <Loader2 size={10} className="theme-text-accent animate-spin" />}
       </div>
       <div className="max-h-60 overflow-y-auto py-1">
         {results.length === 0 && !loading ? (
           <div className="px-4 py-6 text-center text-xs theme-text-subtle italic">
-            {!filePath ? '请先在编辑器中打开一个文件...' : '未在当前文件中找到匹配符号...'}
+            {!filePath ? t('aiChat.symbolSearch.openFileFirst') : t('aiChat.symbolSearch.noMatches')}
           </div>
         ) : (
           results.map((symbol, index) => (
@@ -123,7 +125,7 @@ export const SymbolSearch = React.forwardRef((props: SymbolSearchProps, ref: Rea
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-sm theme-text truncate font-mono">{symbol.name}</span>
-                <span className="text-[10px] theme-text-subtle truncate">第 {symbol.line} 行 · {symbol.kind}</span>
+                <span className="text-[10px] theme-text-subtle truncate">{t('aiChat.symbolSearch.lineKind', { line: symbol.line, kind: symbol.kind })}</span>
               </div>
             </div>
           ))

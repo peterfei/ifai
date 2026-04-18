@@ -98,14 +98,14 @@ export const ThreadSearchBar: React.FC = () => {
     <>
     <div className="flex items-center gap-2 px-3 py-2 theme-panel-muted border-b theme-border">
       {/* Search input */}
-      <div className="flex-1 flex items-center gap-2 theme-input-surface rounded-lg px-3 py-1.5 border theme-border focus-within:border-blue-500 transition-colors">
+      <div className="flex-1 flex items-center gap-2 theme-input-surface rounded-lg px-3 py-1.5 border theme-border focus-within:border-[var(--accent-color)] transition-colors">
         <Search size={16} className="theme-text-subtle flex-shrink-0" />
         <input
           type="text"
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           placeholder={t('threads.searchPlaceholder', '搜索对话...')}
-          className="flex-1 bg-transparent border-none outline-none text-sm theme-text placeholder:theme-text-subtle"
+          className="flex-1 border-none bg-transparent text-sm theme-text outline-none placeholder:text-[var(--text-subtle)]"
         />
         {hasFilters && (
           <button
@@ -125,7 +125,7 @@ export const ThreadSearchBar: React.FC = () => {
           className={`
             flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors
             ${tagFilter
-              ? 'bg-blue-500/10 text-blue-500 border-blue-500/30'
+              ? 'bg-[var(--selected-bg)] text-[var(--text-primary)] border-[var(--accent-soft-border)]'
               : 'theme-button-secondary theme-text-subtle'
             }
           `}
@@ -144,7 +144,7 @@ export const ThreadSearchBar: React.FC = () => {
                 className={`
                   w-full px-3 py-2 text-left text-sm transition-colors
                   ${!tagFilter
-                    ? 'bg-blue-500/10 text-blue-500'
+                    ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]'
                     : 'theme-text-muted theme-hoverable'
                   }
                 `}
@@ -170,7 +170,7 @@ export const ThreadSearchBar: React.FC = () => {
                   className={`
                     w-full px-3 py-2 text-left text-sm transition-colors
                     ${tagFilter === tag
-                      ? 'bg-blue-500/10 text-blue-500'
+                      ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]'
                       : 'theme-text-muted theme-hoverable'
                     }
                   `}
@@ -187,10 +187,10 @@ export const ThreadSearchBar: React.FC = () => {
                     setShowTagDropdown(false);
                     openTagManager();
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-blue-500 hover:bg-blue-500/10 transition-colors flex items-center gap-2"
+                  className="theme-soft-hover-accent theme-text flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
                   title={t('threads.manageCurrentThreadTags', '管理当前会话的标签')}
                 >
-                  <Settings size={12} />
+                  <Settings size={12} className="theme-text-accent" />
                   <span>{t('threads.manageTags', '管理标签')}</span>
                   <span className="text-xs theme-text-subtle ml-auto">
                     {t('threads.currentThread', '当前会话')}

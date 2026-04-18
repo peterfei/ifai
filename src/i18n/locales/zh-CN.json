@@ -34,6 +34,23 @@
     "saveWorkspaceAs": "工作区另存为...",
     "openWorkspace": "打开工作区..."
   },
+  "approvalToolbar": {
+    "previewing": "正在预览 AI 变更",
+    "reject": "拒绝",
+    "accept": "接受修改",
+    "close": "关闭预览",
+    "approved": "已批准变更",
+    "rejected": "已拒绝变更",
+    "messageNotFound": "无法定位原始消息"
+  },
+  "diffEditorModal": {
+    "title": "代码修改预览",
+    "addedLines": "+{{count}} 行",
+    "deletedLines": "-{{count}} 行",
+    "reject": "拒绝",
+    "accept": "接受修改",
+    "applied": "已应用代码修改"
+  },
   "sidebar": {
     "explorer": "资源管理器",
     "search": "搜索",
@@ -64,6 +81,7 @@
     "inlineWidget": {
         "title": "AI 编辑",
         "placeholder": "使用若爱编辑 (例如 '添加注释')...",
+        "processing": "IfAI 正在处理...",
         "submit": "提交",
         "cancel": "取消",
         "prompt": {
@@ -78,8 +96,14 @@
             "directive5": "保持完整性：如果需要读取更多文件来理解上下文，请先执行读取，然后再应用更改。但在应用更改时，禁止对未请求修改的区域产生任何副作用。"
         }
     },
+    "inlineDiff": {
+      "title": "AI 构思的代码建议",
+      "hint": "ESC 退出 • Cmd+K 应用"
+    },
     "splitPane": "分屏",
     "closePane": "关闭分屏",
+    "closeOtherTabs": "关闭其它",
+    "closeAllTabs": "关闭所有",
     "splitRight": "向右分屏",
     "splitDown": "向下分屏"
   },
@@ -132,8 +156,58 @@
       "daysAgo": "{{count}}天前"
     }
   },
+  "cacheStatsPanel": {
+    "title": "性能监控",
+    "cacheStats": "缓存统计",
+    "hitRate": "命中率",
+    "cacheSize": "缓存大小",
+    "hits": "命中次数",
+    "misses": "未命中",
+    "performanceMetrics": "性能指标",
+    "count": "{{count}} 次",
+    "average": "平均",
+    "min": "最小",
+    "max": "最大",
+    "instructionsTitle": "测试方法",
+    "instructions": {
+      "expandCollapse": "展开和收起目录，观察缓存命中率变化",
+      "repeatAccess": "重复访问同一目录，验证响应是否更快",
+      "observeLatency": "观察不同操作的耗时变化"
+    },
+    "operations": {
+      "readDirectory": "读取目录",
+      "expandDirectory": "展开目录",
+      "gitStatusUpdate": "更新 Git 状态",
+      "refreshTree": "刷新目录树"
+    }
+  },
+  "performancePanel": {
+    "title": "性能监控",
+    "expand": "展开性能监控",
+    "minimize": "最小化性能监控",
+    "metrics": {
+      "fps": "FPS",
+      "memory": "内存",
+      "tokens": "Token"
+    }
+  },
+  "performanceMonitor": {
+    "title": "性能",
+    "fps": "FPS",
+    "avgFps": "平均 FPS"
+  },
+  "storageQuotaBanner": {
+    "title": "本地存储空间即将占满（已用 {{percentage}}%）。",
+    "description": "请尽快迁移历史记录或清理缓存，降低数据丢失风险。",
+    "dismiss": "关闭存储告警"
+  },
   "terminal": {
-    "title": "终端"
+    "title": "终端",
+    "debugWithAI": "交给 AI 排查",
+    "processExited": "进程已退出",
+    "ptyError": "终端错误：{{error}}",
+    "createFailed": "创建终端失败：{{error}}",
+    "debugPrompt": "请帮我修复以下终端错误：\n\n```text\n{{error}}\n```\n\n请分析错误原因，并给出可执行的修复建议。"
   },
   "taskMonitor": {
     "title": "任务控制",
@@ -162,7 +236,47 @@
       "progressBar": "任务进度"
     },
     "metrics": {
-      "remaining": "剩余 {{duration}}"
+      "remaining": "剩余 {{duration}}",
+      "bytesPerSecond": "{{value}} 字节/秒",
+      "kilobytesPerSecond": "{{value}} KB/秒",
+      "megabytesPerSecond": "{{value}} MB/秒",
+      "filesPerSecond": "{{value}} 文件/秒",
+      "itemsPerSecond": "{{value}} 项/秒"
+    },
+    "duration": {
+      "secondsShort": "{{count}}秒",
+      "minutesSecondsShort": "{{minutes}}分 {{seconds}}秒",
+      "hoursMinutesShort": "{{hours}}小时 {{minutes}}分"
+    },
+    "categories": {
+      "scan": "扫描",
+      "build": "构建",
+      "generation": "生成",
+      "transfer": "传输",
+      "analysis": "分析",
+      "test": "测试",
+      "deploy": "部署",
+      "install": "安装",
+      "git": "Git",
+      "format": "格式化",
+      "refactor": "重构",
+      "document": "文档",
+      "backup": "备份",
+      "cleanup": "清理",
+      "optimize": "优化",
+      "security": "安全"
+    },
+    "stats": {
+      "total": "总任务数",
+      "successRate": "成功率",
+      "completed": "已完成",
+      "failed": "失败",
+      "running": "运行中",
+      "averageDuration": "平均耗时",
+      "byStatus": "状态分布",
+      "byCategory": "按类别统计",
+      "categoryCount": "{{count}} 个任务",
+      "empty": "暂无任务统计数据"
     },
     "status": {
       "pending": "等待中",
@@ -171,6 +285,82 @@
       "success": "已完成",
       "failed": "失败",
       "cancelled": "已取消"
+    }
+  },
+  "todoWrite": {
+    "title": "待办任务",
+    "progress": "{{completed}}/{{total}} 已完成",
+    "status": {
+      "pending": "待办",
+      "inProgress": "进行中",
+      "completed": "已完成"
+    },
+    "stats": {
+      "pending": "待办：{{count}}",
+      "inProgress": "进行中：{{count}}",
+      "completed": "已完成：{{count}}"
+    },
+    "empty": {
+      "title": "暂无任务",
+      "description": "AI 可以使用 TodoWrite 工具创建任务。"
+    },
+    "actions": {
+      "expand": "展开任务面板",
+      "refresh": "刷新任务",
+      "clear": "清空全部任务",
+      "startTask": "开始任务",
+      "completeTask": "完成任务"
+    },
+    "toast": {
+      "statusUpdated": "任务状态已更新",
+      "statusUpdateFailed": "更新任务状态失败",
+      "deleted": "任务已删除",
+      "deleteFailed": "删除任务失败",
+      "cleared": "任务列表已清空",
+      "clearFailed": "清空任务失败",
+      "refreshed": "任务列表已刷新",
+      "refreshFailed": "刷新任务失败"
+    }
+  },
+  "refactoring": {
+    "preview": {
+      "title": "重构预览",
+      "empty": {
+        "title": "暂无重构预览",
+        "description": "执行一次重构后，可在这里预览待应用的修改。"
+      },
+      "summary": {
+        "filesChanged": "变更文件 {{count}} 个",
+        "totalEdits": "编辑 {{count}} 处"
+      },
+      "diff": {
+        "created": "已创建",
+        "deleted": "已删除",
+        "updated": "已更新"
+      },
+      "labels": {
+        "original": "原始内容",
+        "updated": "更新后内容",
+        "location": "位置",
+        "emptyValue": "（空）",
+        "deletedValue": "（已删除）"
+      },
+      "actions": {
+        "executing": "应用中...",
+        "apply": "应用修改"
+      }
+    }
+  },
+  "reviewHistory": {
+    "title": "审查历史记录",
+    "empty": "暂无审查历史记录",
+    "commitFallback": "N/A",
+    "issueCount": "{{count}} 个问题",
+    "moreIssues": "还有 {{count}} 个问题",
+    "status": {
+      "fixed": "已修复",
+      "ignored": "已忽略",
+      "pending": "待处理"
     }
   },
   "taskTimeline": {
@@ -457,7 +647,10 @@
   },
   "snippetList": {
     "loading": "加载片段中...",
-    "noSnippets": "未找到片段"
+    "noSnippets": "未找到片段",
+    "untitled": "未命名片段",
+    "emptyTitle": "还没有代码片段",
+    "emptyDescription": "新建一个片段，或先生成演示数据来填充列表。"
   },
   "snippetSearch": {
     "placeholder": "搜索片段...",
@@ -466,7 +659,9 @@
     "clearAll": "清除全部",
     "confirmGenerate": "生成 1000 个测试片段？这将清除现有片段。",
     "confirmClear": "清除所有片段？",
-    "newSnippet": "新建片段"
+    "newSnippet": "新建片段",
+    "defaultTitle": "新建片段",
+    "defaultCode": "// 在这里开始编写代码..."
   },
   "promptManager": {
     "common": {
@@ -1043,7 +1238,12 @@
     "installDemo": "安装内置示例技能",
     "refresh": "刷新",
     "viewSource": "查看源码",
-    "footerTip": "提示：激活技能后，AI 将自动获得该领域的增强指令。"
+    "footerTip": "提示：激活技能后，AI 将自动获得该领域的增强指令。",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "toggleSkill": "切换技能 {{name}}",
+    "openProjectFirst": "请先打开一个项目文件夹，再安装示例技能。",
+    "loadFailed": "加载技能失败：{{error}}"
   },
   "commandPalette": {
     "placeholder": "搜索文件...",
@@ -1340,13 +1540,30 @@
       "waitingOutput": "等待输出...",
       "running": "执行中... ({{lineCount}} 行)",
       "completed": "已完成 ({{lineCount}} 行, {{elapsedMs}}ms)",
-      "failed": "失败 (退出码: {{exitCode}}, {{lineCount}} 行)"
+      "failed": "失败 (退出码: {{exitCode}}, {{lineCount}} 行)",
+      "collapse": "收起输出",
+      "expand": "展开输出",
+      "commandOutput": "命令输出",
+      "streamError": "流式输出错误：{{error}}",
+      "commandFailed": "执行失败：{{error}}"
     },
     "streamingToolArgs": {
       "none": "无参数",
       "generating": "生成中...",
       "empty": "空",
       "generatingArgs": "正在生成参数..."
+    },
+    "exploreFindings": {
+      "completed": "探索完成",
+      "directories": "{{count}} 目录",
+      "files": "{{count}} 文件",
+      "patterns": "{{count}} 模式"
+    },
+    "symbolSearch": {
+      "title": "引用符号 (#)",
+      "openFileFirst": "请先在编辑器中打开一个文件...",
+      "noMatches": "未在当前文件中找到匹配符号...",
+      "lineKind": "第 {{line}} 行 · {{kind}}"
     },
     "toolExecution": {
       "progress": "执行进度",
@@ -1480,7 +1697,9 @@
       "exploreProject": "探索项目",
       "scannedFiles": "扫描了 {{count}} 个文件",
       "taskBreakdown": "任务拆解",
+      "generatedImage": "AI 生成的图片",
       "systemMessage": "系统消息",
+      "uploadedImage": "上传的图片",
       "unknownMessageType": "未知消息类型: {{role}}"
     },
     "commandMessages": {
@@ -1497,15 +1716,15 @@
         }
       },
       "index": {
-        "rebuilding": "✅ **正在重建项目索引**\n\n系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。",
-        "initFailed": "❌ **索引初始化失败**\n\n错误详情：{{error}}",
-        "projectNotOpen": "❌ **未打开项目文件夹**\n\n请先打开一个项目文件夹后再使用此命令。"
+        "rebuilding": "**正在重建项目索引**\n\n系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。",
+        "initFailed": "**索引初始化失败**\n\n错误详情：{{error}}",
+        "projectNotOpen": "**未打开项目文件夹**\n\n请先打开一个项目文件夹后再使用此命令。"
       },
       "taskDemo": {
-        "message": "### 📋 任务拆解示例\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**提示：** 这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。\n\n任务树包含：\n- **层级结构**：主任务 → 子任务 → 子子任务\n- **状态跟踪**：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕\n- **优先级**：紧急 / 高 / 中 / 低\n- **类别**：开发 / 测试 / 文档 / 设计 / 研究\n- **工时估算**：预估小时数\n- **验收标准**：明确的完成条件\n- **依赖关系**：任务间的依赖{{saveHint}}\n\n使用控制台测试：\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
+        "message": "### 任务拆解示例\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**提示：** 这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。\n\n任务树包含：\n- **层级结构**：主任务 → 子任务 → 子子任务\n- **状态跟踪**：待办 / 进行中 / 已完成 / 失败\n- **优先级**：紧急 / 高 / 中 / 低\n- **类别**：开发 / 测试 / 文档 / 设计 / 研究\n- **工时估算**：预估小时数\n- **验收标准**：明确的完成条件\n- **依赖关系**：任务间的依赖{{saveHint}}\n\n使用控制台测试：\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
         "saveHint": {
-          "saved": "\n\n💾 任务已保存到：`{{path}}`",
-          "memoryOnly": "\n\n⚠️ 未打开项目，演示任务仅保存在内存中。"
+          "saved": "\n\n任务已保存到：`{{path}}`",
+          "memoryOnly": "\n\n未打开项目，演示任务仅保存在内存中。"
         },
         "tree": {
           "title": "示例：实现用户登录功能",
@@ -1554,27 +1773,27 @@
         }
       },
       "taskBreakdown": {
-        "missingDescription": "❌ 请提供要拆解的任务描述\n\n**用法**：`/task:breakdown [任务描述]`\n\n**示例**：`/task:breakdown 实现用户登录功能`",
+        "missingDescription": "请提供要拆解的任务描述\n\n**用法**：`/task:breakdown [任务描述]`\n\n**示例**：`/task:breakdown 实现用户登录功能`",
         "failedTitle": "任务拆解失败",
         "simplifySuggestion": "尝试简化任务描述"
       },
       "proposal": {
-        "missingDescription": "❌ 请提供要生成提案的需求描述\n\n**用法**：`/proposal [需求描述]`\n\n**示例**：`/proposal 实现用户登录功能`",
+        "missingDescription": "请提供要生成提案的需求描述\n\n**用法**：`/proposal [需求描述]`\n\n**示例**：`/proposal 实现用户登录功能`",
         "starting": "_[正在生成 OpenSpec 提案...]_\n\n",
         "failedTitle": "提案生成失败",
         "simplifySuggestion": "尝试简化需求描述"
       },
       "taskStart": {
-        "missingTaskId": "❌ 请提供任务 ID\n\n**用法**：`/task:start <任务ID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用任务**：使用 `/task:list` 查看所有任务",
-        "tasksFileMissing": "❌ 未找到 `tasks.md` 文件\n\n请先打开一个提案中的 `tasks.md` 文件。",
-        "taskNotFound": "❌ 未找到任务：{{taskId}}\n\n**可用任务**：\n{{taskList}}",
-        "failed": "❌ 任务启动失败：{{error}}"
+        "missingTaskId": "请提供任务 ID\n\n**用法**：`/task:start <任务ID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用任务**：使用 `/task:list` 查看所有任务",
+        "tasksFileMissing": "未找到 `tasks.md` 文件\n\n请先打开一个提案中的 `tasks.md` 文件。",
+        "taskNotFound": "未找到任务：{{taskId}}\n\n**可用任务**：\n{{taskList}}",
+        "failed": "任务启动失败：{{error}}"
       },
       "taskList": {
-        "projectNotOpen": "❌ 未打开项目\n\n请先打开一个项目文件夹。",
+        "projectNotOpen": "未打开项目\n\n请先打开一个项目文件夹。",
         "openFilesTitle": "当前打开的文件",
-        "tasksFileMissing": "❌ 未找到 `tasks.md` 文件{{fileList}}\n\n**解决方法**：\n1. 在文件树中找到提案目录（`.ifai/changes/xxx/`）\n2. 打开 `tasks.md` 文件\n3. 再次运行 `/task:list`",
-        "failed": "❌ 获取任务列表失败：{{error}}",
+        "tasksFileMissing": "未找到 `tasks.md` 文件{{fileList}}\n\n**解决方法**：\n1. 在文件树中找到提案目录（`.ifai/changes/xxx/`）\n2. 打开 `tasks.md` 文件\n3. 再次运行 `/task:list`",
+        "failed": "获取任务列表失败：{{error}}",
         "report": {
           "title": "任务统计",
           "total": "总计",
@@ -1589,13 +1808,13 @@
         }
       },
       "taskComplete": {
-        "missingTaskId": "❌ 请提供任务 ID\n\n**用法**：`/task:complete <任务ID>`",
-        "success": "✅ 任务 **{{taskId}}** 已标记为完成。",
-        "failed": "❌ 操作失败：{{error}}"
+        "missingTaskId": "请提供任务 ID\n\n**用法**：`/task:complete <任务ID>`",
+        "success": "任务 **{{taskId}}** 已标记为完成。",
+        "failed": "操作失败：{{error}}"
       },
       "taskTestAll": {
         "starting": "_[正在启动自动化测试集成流...]_",
-        "failed": "❌ 无法启动测试 Agent：{{error}}",
+        "failed": "无法启动测试 Agent：{{error}}",
         "mission": "运行全量单元测试与 E2E 测试，并汇总报告至任务控制中心"
       }
     },
@@ -1603,6 +1822,9 @@
       "fileTooLarge": "文件过大（5MB 限制）",
       "processingFailed": "处理失败"
     }
+  },
+  "ghostTaskList": {
+    "active": "进行中"
   },
   "commands": {
     "title": "系统命令",
@@ -1618,9 +1840,9 @@
     "task": { "label": "任务拆解", "description": "AI 驱动的任务分解与可视化" }
   },
   "help_message": {
-    "title": "🚀 欢迎使用 若爱 (IfAI) v0.2.0",
+    "title": "欢迎使用 若爱 (IfAI) v0.2.0",
     "intro": "我是您的 AI 编程伙伴，旨在通过深度集成的智能体（Agents）提升您的开发效率。",
-    "commands_title": "💡 智能指令",
+    "commands_title": "智能指令",
     "commands": [
       "**@codebase** - 在提问中加入此指令可进行全局代码语义搜索",
       "**/explore** - 深度探索代码库，分析架构与逻辑",
@@ -1629,7 +1851,7 @@
       "**/doc** - 编写技术文档、README 或详细代码注释",
       "**/index** - 手动为项目代码库重建 RAG 语义索引"
     ],
-    "shortcuts_title": "⌨️ 核心快捷键",
+    "shortcuts_title": "核心快捷键",
     "shortcuts": [
       "**{{quickOpenShortcut}}** - 快速搜索并打开项目文件",
       "**{{inlineEditShortcut}}** - 在编辑器中唤起内联 AI 编辑",
@@ -1641,8 +1863,11 @@
   },
   "inlineAIWidget": {
     "title": "内联助手",
+    "placeholder": "优化这段内容、补充注释，或直接提问...",
     "targetLabel": "目标",
     "currentContext": "当前上下文",
+    "modifiedFiles": "已修改文件（{{count}}）",
+    "openModifiedFile": "打开已修改文件 {{file}}",
     "newLineHint": "{{shortcut}} 换行",
     "processing": "处理中",
     "readyToApply": "修改已准备好应用",
@@ -1715,9 +1940,9 @@
     "steps": {
       "welcome": "欢迎使用 IfAI Editor！这是一个功能强大的 AI 代码编辑器，让我们花一点时间了解核心功能。",
       "welcomeTitle": "欢迎使用 IfAI Editor",
-      "commandBar": "⌨️ CommandBar 命令行\n\n这是类似 Vim 的命令行模式！按 **:** 键即可唤起。\n\n常用命令：\n• **:w** - 保存当前文件\n• **:q** - 关闭当前文件\n• **:wq** - 保存并关闭\n• **:grep 关键词** - 在文件中搜索",
+      "commandBar": "CommandBar 命令行\n\n这是类似 Vim 的命令行模式。按 **:** 键即可唤起。\n\n常用命令：\n• **:w** - 保存当前文件\n• **:q** - 关闭当前文件\n• **:wq** - 保存并关闭\n• **:grep 关键词** - 在文件中搜索",
       "commandBarTitle": "Vim 风格命令行",
-      "settingsGuide": "⚙️ 设置面板\n\n在这里您可以：\n• 配置 AI 提供商和 API 密钥\n• 调整编辑器外观和行为\n• 查看和自定义快捷键\n• 管理性能和显示选项",
+      "settingsGuide": "设置面板\n\n在这里您可以：\n• 配置 AI 提供商和 API 密钥\n• 调整编辑器外观和行为\n• 查看和自定义快捷键\n• 管理性能和显示选项",
       "settingsGuideTitle": "设置说明",
       "layoutSwitcher": "点击这里可以切换不同的布局模式，适应不同的工作场景。",
       "layoutSwitcherTitle": "布局切换"
@@ -1730,6 +1955,7 @@
       "open": "打开对话框",
       "skip": "跳过"
     },
+    "progress": "第 {{current}} / {{total}} 步",
     "resetTutorial": "重置新手引导",
     "resetConfirm": "确定要重置新手引导吗？",
     "resetMessage": "页面将重新加载以显示新手引导"
@@ -1851,7 +2077,15 @@
     "disabled": "本地模型已禁用",
     "validateSuccess": "模型验证成功",
     "parseSuccess": "解析成功！",
-    "parseFailed": "解析失败"
+    "parseFailed": "解析失败",
+    "loadFailed": "加载本地模型设置失败：{{error}}",
+    "validateFailed": "模型验证失败：{{error}}",
+    "openDirFailed": "打开模型目录失败：{{error}}",
+    "toggleLabel": "启用或禁用本地模型",
+    "etaUnknown": "--",
+    "etaSeconds": "{{count}}秒",
+    "etaMinutesSeconds": "{{minutes}}分{{seconds}}秒",
+    "etaHoursMinutes": "{{hours}}小时{{minutes}}分"
   },
   "dataManagement": {
     "statistics": "数据统计",
@@ -1958,7 +2192,8 @@
       "copy": "复制",
       "copied": "已复制",
       "export": "导出",
-      "compacted": "对话已压缩"
+      "compacted": "对话已压缩",
+      "estimatedCost": "预估费用 ¥{{value}}"
     }
   },
   "proposalReview": {
@@ -2334,14 +2569,14 @@
       },
       "nodeStatus": {
         "completed": "完成",
-        "failed": "✗ 失败",
+        "failed": "失败",
         "generating": "正在生成...",
         "pending": "等待中",
         "running": "运行中"
       },
       "toolStatus": {
-        "error": "X",
-        "success": "OK"
+        "error": "失败",
+        "success": "成功"
       },
       "content": {
         "length": "内容长度：{{count}} 字符"

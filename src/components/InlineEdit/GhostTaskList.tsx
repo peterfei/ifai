@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Circle, CheckCircle2, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export interface GhostTask {
   id: string;
@@ -14,16 +15,17 @@ interface GhostTaskListProps {
 }
 
 export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
+  const { t } = useTranslation();
   if (tasks.length === 0) return null;
 
   const getStatusIcon = (status: GhostTask['status']) => {
     switch (status) {
       case 'running':
-        return <Loader2 size={12} className="text-blue-400 animate-spin" />;
+        return <Loader2 size={12} className="theme-text-accent animate-spin" />;
       case 'success':
-        return <CheckCircle2 size={12} className="text-emerald-400" />;
+        return <CheckCircle2 size={12} className="theme-text-success" />;
       case 'error':
-        return <AlertCircle size={12} className="text-red-400" />;
+        return <AlertCircle size={12} className="theme-text-danger" />;
       default:
         return <Circle size={12} className="theme-text-subtle" />;
     }
@@ -31,10 +33,10 @@ export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
 
   const getStageColor = (stage: GhostTask['stage']) => {
     switch (stage) {
-      case 'plan': return 'border-blue-500/30';
-      case 'implement': return 'border-purple-500/30';
-      case 'verify': return 'border-emerald-500/30';
-      case 'optimize': return 'border-amber-500/30';
+      case 'plan': return 'border-[var(--accent-soft-border)]';
+      case 'implement': return 'border-[var(--info-soft-border)]';
+      case 'verify': return 'border-[var(--success-soft-border)]';
+      case 'optimize': return 'border-[var(--warning-soft-border)]';
     }
   };
 
@@ -56,7 +58,7 @@ export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
             <div className="flex-1 flex items-center justify-between min-w-0">
               <span className={`text-[11px] truncate ${
                 task.status === 'success' ? 'theme-text-subtle line-through' : 
-                task.status === 'error' ? 'text-red-400' : 'theme-text-muted'
+                task.status === 'error' ? 'theme-text-danger' : 'theme-text-muted'
               }`}>
                 {task.description}
               </span>
@@ -65,9 +67,9 @@ export const GhostTaskList: React.FC<GhostTaskListProps> = ({ tasks }) => {
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex items-center gap-1 text-[9px] font-bold text-blue-400/60 uppercase tracking-tighter"
+                  className="theme-text-accent flex items-center gap-1 text-[9px] font-bold uppercase tracking-tighter opacity-70"
                 >
-                  Active <ArrowRight size={8} />
+                  {t('ghostTaskList.active')} <ArrowRight size={8} />
                 </motion.div>
               )}
             </div>

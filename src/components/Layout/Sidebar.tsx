@@ -12,16 +12,12 @@ import { TaskMonitor } from '../TaskMonitor/TaskMonitor';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayoutStore } from '../../stores/layoutStore';
-import { useSettingsStore } from '../../stores/settingsStore';
 import { IS_COMMERCIAL } from '../../config/edition';
 import { FileNode } from '../../stores/types';
-import { isDarkTheme } from '../../utils/theme';
 
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { setFileTree, rootPath, fileTree, setExpandedNodes } = useFileStore();
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   const {
     sidebarActiveTab,
     setSidebarActiveTab,
@@ -37,7 +33,7 @@ export const Sidebar = () => {
     if (rootPath && !fileTree) {
       const loadRoot = async () => {
         try {
-          const name = rootPath.split('/').pop() || 'Project';
+          const name = rootPath.split('/').pop() || String(t('sidebar.projectFallback'));
           const children = await readDirectory(rootPath);
           const newTree = {
             id: uuidv4(),
@@ -81,7 +77,7 @@ export const Sidebar = () => {
       };
       loadRoot();
     }
-  }, [rootPath, fileTree, setFileTree, setExpandedNodes]);
+  }, [rootPath, fileTree, setFileTree, setExpandedNodes, t]);
 
   const handleOpenFolder = async () => {
     try {
@@ -108,12 +104,11 @@ export const Sidebar = () => {
     <div className={clsx(
       'theme-panel-muted theme-border relative flex h-full flex-shrink-0 border-r transition-colors'
     )}>
-      {/* Activity Bar - Industrial Floating Capsule Design */}
-      <div className="w-[64px] flex flex-col items-center py-4 bg-transparent relative z-20">
+      <div className="relative z-20 flex w-[58px] flex-col items-center py-3">
         <div 
           data-testid="activity-bar-capsule"
           className={clsx(
-            'theme-glass theme-border theme-shadow absolute inset-y-4 left-2 right-2 flex flex-col items-center gap-4 rounded-full border py-4 backdrop-blur-xl'
+            'theme-panel-muted theme-border absolute inset-y-3 left-2 right-2 flex flex-col items-center gap-3 rounded-2xl border py-3'
           )}
         >
           {[
@@ -128,7 +123,7 @@ export const Sidebar = () => {
               <button
                 key={tab.id}
                 className={clsx(
-                  "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+                  'group relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200',
                   isActive
                     ? 'text-[var(--accent-color)]'
                     : 'theme-text-subtle hover:text-[var(--text-primary)]'
@@ -139,12 +134,12 @@ export const Sidebar = () => {
                 }}
                 title={String(tab.title)}
               >
-                <Icon size={20} className="relative z-10" />
+                <Icon size={18} className="relative z-10" />
                 {isActive && (
                   <motion.div
                     layoutId="activity-active-pill"
                     data-testid="activity-active-pill"
-                    className="absolute inset-0 rounded-full border border-blue-500/25 bg-[var(--selected-bg)] shadow-[0_0_15px_rgba(37,99,235,0.18)]"
+                    className="theme-active-pill absolute inset-0 rounded-xl"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                   />
                 )}
@@ -158,20 +153,20 @@ export const Sidebar = () => {
           <button
             data-testid="tool-explorer-button"
             className={clsx(
-              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              'group relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200',
               isToolExplorerOpen
                 ? 'text-[var(--accent-color)]'
                 : 'theme-text-subtle hover:text-[var(--text-primary)]'
             )}
             onClick={() => toggleToolExplorer()}
-            title={String(t('sidebar.tools') || 'Tools')}
+            title={String(t('sidebar.tools'))}
           >
-            <Wrench size={20} className="relative z-10" />
+            <Wrench size={18} className="relative z-10" />
             {isToolExplorerOpen && (
               <motion.div
                 layoutId="activity-active-pill"
                 data-testid="activity-active-pill"
-                className="absolute inset-0 rounded-full border border-blue-500/25 bg-[var(--selected-bg)] shadow-[0_0_15px_rgba(37,99,235,0.18)]"
+                className="theme-active-pill absolute inset-0 rounded-xl"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -181,7 +176,7 @@ export const Sidebar = () => {
           <button
             data-testid="prompt-manager-button"
             className={clsx(
-              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              'group relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200',
               isPromptManagerOpen
                 ? 'text-[var(--accent-color)]'
                 : 'theme-text-subtle hover:text-[var(--text-primary)]'
@@ -190,13 +185,13 @@ export const Sidebar = () => {
               togglePromptManager();
               if (isToolExplorerOpen) toggleToolExplorer();
             }}
-            title={`${String(t('sidebar.prompts'))}${!IS_COMMERCIAL ? ' (Community - Read Only)' : ''}`}
+            title={!IS_COMMERCIAL ? String(t('sidebar.promptsCommunityReadOnly')) : String(t('sidebar.prompts'))}
           >
             <div className="relative z-10">
-              <Cpu size={20} />
+              <Cpu size={18} />
               {!IS_COMMERCIAL && (
-                <div className="theme-border absolute -top-1 -right-1 rounded-full border bg-amber-500 p-0.5 shadow-sm">
-                  <Lock size={6} className="text-[var(--bg-primary)]" />
+                <div className="theme-surface-warning absolute -top-1 -right-1 rounded-full p-0.5 shadow-sm">
+                  <Lock size={6} className="theme-text-warning" />
                 </div>
               )}
             </div>
@@ -204,7 +199,7 @@ export const Sidebar = () => {
               <motion.div
                 layoutId="activity-active-pill"
                 data-testid="activity-active-pill"
-                className="absolute inset-0 rounded-full border border-blue-500/25 bg-[var(--selected-bg)] shadow-[0_0_15px_rgba(37,99,235,0.18)]"
+                className="theme-active-pill absolute inset-0 rounded-xl"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -224,7 +219,7 @@ export const Sidebar = () => {
             <React.Fragment>
               <div
                 className={clsx(
-                  'theme-glass theme-border flex h-9 items-center justify-between border-b px-4 backdrop-blur-md'
+                  'theme-panel theme-border flex h-9 items-center justify-between border-b px-4'
                 )}
                 data-testid="sidebar-panel-header"
               >

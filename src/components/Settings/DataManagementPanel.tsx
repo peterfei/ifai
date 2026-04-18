@@ -10,13 +10,9 @@ import { useThreadStore } from '../../stores/threadStore';
 import { exportThreadsToFile, importThreadsFromFile } from '../../stores/persistence/threadPersistence';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
 
 export const DataManagementPanel: React.FC = () => {
   const { t } = useTranslation();
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   const threadStore = useThreadStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -98,17 +94,17 @@ export const DataManagementPanel: React.FC = () => {
       {/* Statistics */}
       <div className="theme-panel-muted theme-border rounded-lg border p-4">
         <h3 className="theme-text-muted mb-3 text-sm font-medium">{t('dataManagement.statistics')}</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-400">{activeThreads}</div>
+            <div className="text-2xl font-bold text-[var(--accent-color)]">{activeThreads}</div>
             <div className="theme-text-subtle mt-1 text-xs">{t('dataManagement.activeThreads')}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-400">{archivedThreads}</div>
+            <div className="text-2xl font-bold text-[var(--warning-color)]">{archivedThreads}</div>
             <div className="theme-text-subtle mt-1 text-xs">{t('dataManagement.archivedThreads')}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-400">{totalMessages}</div>
+            <div className="text-2xl font-bold text-[var(--success-color)]">{totalMessages}</div>
             <div className="theme-text-subtle mt-1 text-xs">{t('dataManagement.totalMessages')}</div>
           </div>
         </div>
@@ -121,12 +117,12 @@ export const DataManagementPanel: React.FC = () => {
           {t('dataManagement.exportImportDesc')}
         </p>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={handleExport}
             disabled={isExporting || activeThreads === 0}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+              flex min-w-[180px] flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none
               ${isExporting || activeThreads === 0
                 ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
                 : 'theme-button-primary'
@@ -141,7 +137,7 @@ export const DataManagementPanel: React.FC = () => {
             onClick={handleImportClick}
             disabled={isImporting}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+              flex min-w-[180px] flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-none
               ${isImporting
                 ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
                 : 'theme-button-success'
@@ -169,12 +165,12 @@ export const DataManagementPanel: React.FC = () => {
           {t('dataManagement.storageManagementDesc')}
         </p>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={handleClearDeleted}
             disabled={isClearing}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+              flex min-w-[220px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors
               ${isClearing
                 ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
                 : 'theme-button-danger'
@@ -188,12 +184,12 @@ export const DataManagementPanel: React.FC = () => {
       </div>
 
       {/* Info */}
-      <div className={dark ? 'rounded-lg border border-blue-700 bg-blue-900/20 p-4' : 'rounded-lg border border-blue-200 bg-blue-50 p-4'}>
+      <div className="theme-surface-info rounded-lg p-4">
         <div className="flex gap-2">
-          <RefreshCw size={16} className="text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className={dark ? 'text-xs text-blue-200' : 'text-xs text-blue-800'}>
+          <RefreshCw size={16} className="theme-text-info mt-0.5 flex-shrink-0" />
+          <div className="text-xs">
             <strong className="block mb-1">{t('dataManagement.autoSave')}</strong>
-            {t('dataManagement.autoSaveDesc')}
+            <span className="theme-text-subtle">{t('dataManagement.autoSaveDesc')}</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Hash, Image, AtSign, X, Code, Terminal, ChevronRight, Activity, Cpu } from 'lucide-react';
+import { Send, Hash, Image, AtSign, X, Cpu } from 'lucide-react';
 // 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
 import { useChatStore } from '../../stores/chat/CoreStoreProxy';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -15,6 +15,7 @@ import { ModelCapsulePanel } from './ModelCapsulePanel';
 import type { ImageAttachment } from '../../types/multimodal';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface ChatInputAreaProps {
   isLoading: boolean;
@@ -24,7 +25,8 @@ interface ChatInputAreaProps {
  * v0.3.6: 顶级重构 - 沉浸式多模态输入框 (仪表盘布局版)
  * 优化重点：释放输入宽度，引入底部集成状态栏
  */
-export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
+export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoading }) => {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [showMention, setShowMention] = useState(false);
   const [mentionFilter, setMentionFilter] = useState('');
@@ -43,18 +45,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
 
   // 🔥 FIX: 添加 null 检查，防止在 E2E 测试环境中 store 未初始化
   const chatStoreState = useChatStore();
-  const { providers, currentProviderId, currentModel } = useSettingsStore();
+  const { currentProviderId, currentModel } = useSettingsStore();
   const { allFilePaths, refreshFileTree } = useFileStore();
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
 
   // 🔥 FIX: 使用默认值而不是早期返回，避免违反 React Hooks 规则
-  const sendMessage = chatStoreState?.sendMessage;
   const messages = chatStoreState?.messages || [];
-
-  const currentProvider = React.useMemo(() => 
-    providers.find(p => p.id === currentProviderId),
-    [providers, currentProviderId]
-  );
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -318,7 +314,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
         {isDragging && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="theme-dropzone-accent absolute inset-0 z-[100] flex items-center justify-center gap-3 rounded-2xl border-2 border-dashed backdrop-blur-md pointer-events-none flex-col">
             <div className="theme-button-primary theme-glow-accent rounded-full p-4 animate-bounce"><Image size={32} /></div>
-            <span className="text-sm font-black tracking-wider">释放图片，AI 即刻读图</span>
+            <span className="text-sm font-black tracking-wider">
+              {t('chatInput.dropImageHint')}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -361,7 +359,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="问问 IfAI..."
+            placeholder={t('chat.placeholder')}
             className={clsx(
               'w-full max-h-48 min-h-[44px] py-2.5 px-3 bg-transparent outline-none text-[13px] resize-none leading-relaxed font-semibold transition-all',
               'theme-text placeholder:theme-text-subtle'
@@ -401,7 +399,9 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
                     ? "theme-badge-accent theme-text-accent"
                     : "theme-button-secondary theme-text-subtle hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                 )}
-                title={`当前模型: ${currentModel}`}
+                title={t('chatInput.currentModel', {
+                  model: currentModel,
+                })}
               >
                 <Cpu size={12} className="theme-text-accent" />
                 <span className="text-[9px] font-black uppercase tracking-tighter max-w-[60px] truncate">
@@ -428,14 +428,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
               <button
                 onClick={() => setShowMention(!showMention)}
                 className="theme-soft-hover-accent theme-text-subtle rounded-xl p-2 transition-all hover:text-[var(--accent-color)]"
-                title="引用文件"
+                title={t('chatInput.referenceFile')}
               >
                 <AtSign size={16} />
               </button>
               <button
                 onClick={() => setShowSymbol(!showSymbol)}
                 className="theme-soft-hover-accent theme-text-subtle rounded-xl p-2 transition-all hover:text-[var(--accent-color)]"
-                title="引用符号"
+                title={t('chatInput.referenceSymbol')}
               >
                 <Hash size={16} />
               </button>

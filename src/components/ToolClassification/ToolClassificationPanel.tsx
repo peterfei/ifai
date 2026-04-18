@@ -41,7 +41,7 @@ const StatCard: React.FC<StatCardProps> = ({
   value,
   description,
   icon,
-  color = '#3b82f6',
+  color = 'var(--accent-color)',
 }) => (
   <div className="theme-panel-muted theme-border rounded-lg border p-4">
     <div className="flex items-center justify-between">
@@ -246,7 +246,7 @@ export const ToolClassificationPanel: React.FC<ToolClassificationPanelProps> = (
           <div className="flex gap-2">
             <button
               onClick={handleBenchmark}
-              className="theme-button-success rounded-lg px-4 py-2 font-medium transition-colors"
+              className="theme-button-primary rounded-lg px-4 py-2 font-medium transition-colors"
             >
               {t('toolClassificationPanel.runBenchmark')}
             </button>

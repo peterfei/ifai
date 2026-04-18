@@ -6,6 +6,7 @@ const CommandPalette = React.lazy(() => import('./components/CommandPalette/Comm
 const CommandBar = React.lazy(() => import('./components/CommandBar').then(m => ({ default: m.CommandBar })));
 const SettingsModal = React.lazy(() => import('./components/Settings/SettingsModal').then(m => ({ default: m.SettingsModal })));
 const KeyboardShortcutsModal = React.lazy(() => import('./components/Help/KeyboardShortcutsModal').then(m => ({ default: m.KeyboardShortcutsModal })));
+const AboutModal = React.lazy(() => import('./components/Help/AboutModal').then(m => ({ default: m.AboutModal })));
 const GlobalAgentMonitor = React.lazy(() => import('./components/AIChat/GlobalAgentMonitor').then(m => ({ default: m.GlobalAgentMonitor })));
 const PerformancePanel = React.lazy(() => import('./components/DevTools/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
 const CacheStatsPanel = React.lazy(() => import('./components/PerformanceMonitor/CacheStatsPanel').then(m => ({ default: m.CacheStatsPanel })));
@@ -185,8 +186,10 @@ function App() {
   const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
   const [showCacheStats, setShowCacheStats] = useState(false);
 
-  // Keyboard shortcuts modal state
-  const { isKeyboardShortcutsOpen, closeKeyboardShortcuts } = useHelpStore();
+  const isKeyboardShortcutsOpen = useHelpStore((state) => state.isKeyboardShortcutsOpen);
+  const closeKeyboardShortcuts = useHelpStore((state) => state.closeKeyboardShortcuts);
+  const isAboutOpen = useHelpStore((state) => state.isAboutOpen);
+  const closeAbout = useHelpStore((state) => state.closeAbout);
 
   // Onboarding state
   const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | 'apikey' | null>(null);
@@ -953,7 +956,7 @@ function App() {
         )}
         {isSidebarOpen && sidebarPosition === 'left' && (
           <div
-            className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-blue-500/50"
+            className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent-soft-border)]"
             onMouseDown={(e) => {
               setIsResizingSidebar(true);
               const startX = e.clientX;
@@ -1035,7 +1038,7 @@ function App() {
         {isSidebarOpen && sidebarPosition === 'right' && (
           <>
             <div
-              className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-blue-500/50"
+              className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent-soft-border)]"
               onMouseDown={(e) => {
                 setIsResizingSidebar(true);
                 const startX = e.clientX;
@@ -1066,10 +1069,18 @@ function App() {
         <Suspense fallback={null}><CommandPalette onSelect={handleSelectFileFromPalette} /></Suspense>
         <Suspense fallback={null}><CommandBar /></Suspense>
         <Suspense fallback={<ModalSkeleton />}><SettingsModal /></Suspense>
-        <KeyboardShortcutsModal
-          isOpen={isKeyboardShortcutsOpen}
-          onClose={closeKeyboardShortcuts}
-        />
+        <Suspense fallback={null}>
+          <KeyboardShortcutsModal
+            isOpen={isKeyboardShortcutsOpen}
+            onClose={closeKeyboardShortcuts}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AboutModal
+            isOpen={isAboutOpen}
+            onClose={closeAbout}
+          />
+        </Suspense>
         {/* 🏆 PIVO 3.0: 工作流内嵌监控器 - 在聊天消息流中显示（集成在 AIChat 组件内） */}
         {useSettingsStore((state) => state.showPerformanceMonitor) && (
           <PerformancePanel

@@ -125,7 +125,7 @@ export const InlineEditWidget = () => {
     >
       {/* Header */}
       <div className="theme-panel-muted theme-border flex items-center gap-2 border-b px-3 py-2">
-        <Sparkles className="text-blue-400" size={16} />
+        <Sparkles className="theme-text-accent" size={16} />
         <span className="theme-text text-xs font-medium">{t('editor.inlineWidget.title')}</span>
         <button
           onClick={handleClose}
@@ -141,7 +141,7 @@ export const InlineEditWidget = () => {
         <input
           ref={inputRef}
           type="text"
-          className="theme-input-surface theme-border theme-text flex-1 rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          className="theme-input-surface theme-border theme-text theme-focus-accent flex-1 rounded border px-3 py-2 text-sm"
           placeholder={t('editor.inlineWidget.placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -156,8 +156,8 @@ export const InlineEditWidget = () => {
         <div className="theme-text-subtle flex items-center gap-2 px-3 py-2 text-sm animate-pulse">
           <div className="flex items-center gap-1">
             {/* 简洁的 spinner 动画 */}
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span>IFAI 正在处理...</span>
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent-color)] border-t-transparent" />
+            <span>{t('editor.inlineWidget.processing')}</span>
           </div>
         </div>
       )}

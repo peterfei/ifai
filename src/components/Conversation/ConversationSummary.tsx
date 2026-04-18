@@ -30,12 +30,18 @@ export function ConversationSummary({
   onCopy,
   onExport
 }: ConversationSummaryProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // 🔥 FIX: 确保 summary 是字符串类型，防止对象导致崩溃
   const safeSummary = typeof summary === 'string' ? summary : JSON.stringify(summary, null, 2);
+
+  const formatTimestamp = (value: number) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(value * 1000);
 
   const handleCopy = async () => {
     if (onCopy) {
@@ -48,7 +54,7 @@ export function ConversationSummary({
   };
 
   return (
-    <div className="theme-surface-accent my-4 rounded-lg">
+    <div className="theme-panel-elevated theme-border my-4 rounded-lg border">
       {/* 头部 */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
@@ -61,7 +67,7 @@ export function ConversationSummary({
           </span>
           {timestamp && (
             <span className="theme-text-accent text-xs">
-              {new Date(timestamp * 1000).toLocaleString()}
+              {formatTimestamp(timestamp)}
             </span>
           )}
         </div>
@@ -72,7 +78,7 @@ export function ConversationSummary({
               e.stopPropagation();
               handleCopy();
             }}
-            className="theme-soft-hover-accent theme-text-accent rounded p-1 transition-colors"
+            className="theme-button-ghost theme-text-subtle rounded p-1 transition-colors hover:text-[var(--accent-color)]"
             title={copied ? t('conversation.summary.copied') : t('conversation.summary.copy')}
           >
             <Copy className="h-4 w-4" />
@@ -83,7 +89,7 @@ export function ConversationSummary({
                 e.stopPropagation();
                 onExport();
               }}
-              className="theme-soft-hover-accent theme-text-accent rounded p-1 transition-colors"
+              className="theme-button-ghost theme-text-subtle rounded p-1 transition-colors hover:text-[var(--accent-color)]"
               title={t('conversation.summary.export')}
             >
               <Download className="h-4 w-4" />
@@ -125,7 +131,7 @@ interface TokenStatsProps {
 }
 
 export function TokenStatsDisplay({ stats, model }: TokenStatsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // 🔥 FIX: 检查 stats 和 total_tokens 是否存在
   if (!stats || stats.total_tokens === undefined || stats.total_tokens === null) {
@@ -137,12 +143,12 @@ export function TokenStatsDisplay({ stats, model }: TokenStatsProps) {
       <div className="flex items-center gap-1">
         <FileText className="w-3 h-3" />
         <span>
-          {stats.total_tokens.toLocaleString()} {t('conversation.summary.tokens')}
+          {stats.total_tokens.toLocaleString(i18n.language)} {t('conversation.summary.tokens')}
         </span>
       </div>
       <span>•</span>
       <span>
-        {stats.message_count} {t('conversation.summary.messages')}
+        {stats.message_count.toLocaleString(i18n.language)} {t('conversation.summary.messages')}
       </span>
       {model && (
         <>
@@ -154,7 +160,7 @@ export function TokenStatsDisplay({ stats, model }: TokenStatsProps) {
         <>
           <span>•</span>
           <span>
-            ¥{stats.estimated_cost_cny.toFixed(4)}
+            {t('conversation.summary.estimatedCost', { value: stats.estimated_cost_cny.toFixed(4) })}
           </span>
         </>
       )}
@@ -182,15 +188,15 @@ export function CompactIndicator({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 transition-colors hover:bg-green-500/15"
+      className="theme-button-secondary flex items-center gap-2 rounded-lg border border-[var(--success-soft-border)] bg-[var(--success-soft-bg)] px-3 py-2 transition-colors hover:border-[var(--success-soft-border)] hover:bg-[var(--success-soft-bg)]"
     >
       <div className="flex items-center gap-1">
-        <FileText className="h-4 w-4 text-green-500" />
+        <FileText className="h-4 w-4 text-[var(--success-color)]" />
         <span className="theme-text text-sm font-medium">
           {t('conversation.summary.compacted')}
         </span>
       </div>
-      <div className="text-xs text-green-500">
+      <div className="text-xs text-[var(--success-color)]">
         {originalCount} → {compressedCount} (-{reduction}%)
       </div>
     </button>

@@ -34,7 +34,7 @@ export const TimelineBubbleSkeleton: React.FC<TimelineBubbleSkeletonProps> = ({
         className={`
           max-w-[70%]
           rounded-2xl
-          ${isUser ? 'rounded-bl-sm bg-blue-500/10 border border-blue-500/20' : 'rounded-br-sm theme-panel-muted border theme-border'}
+          ${isUser ? 'rounded-bl-sm bg-[var(--accent-soft-bg)] border border-[var(--accent-soft-border)]' : 'rounded-br-sm theme-panel-muted border theme-border'}
           px-4
           py-3
           animate-pulse

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useShortcutStore, KeyBinding } from '../../stores/shortcutStore';
+import { useShortcutStore } from '../../stores/shortcutStore';
 import { useTranslation } from 'react-i18next';
 import { Search, RotateCcw, Download, Upload } from 'lucide-react';
 import { formatKeybinding } from '../../utils/keyboard';
@@ -15,10 +15,12 @@ export const KeyboardShortcuts = () => {
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [currentConflictId, setCurrentConflictId] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const getDisplayParts = (keys: string) => formatKeybinding(keys).split('+');
 
   const filteredBindings = keybindings.filter(kb => 
     kb.label.toLowerCase().includes(filter.toLowerCase()) || 
-    kb.keys.toLowerCase().includes(filter.toLowerCase())
+    kb.keys.toLowerCase().includes(filter.toLowerCase()) ||
+    formatKeybinding(kb.keys).toLowerCase().includes(filter.toLowerCase())
   );
 
   const handleRecord = (id: string) => {
@@ -97,7 +99,7 @@ export const KeyboardShortcuts = () => {
         }
     } catch (e) {
         console.error('Export failed:', e);
-        toast.error(t('shortcuts.exportError') || 'Export failed');
+        toast.error(t('shortcuts.exportError'));
     }
   };
 
@@ -137,7 +139,7 @@ export const KeyboardShortcuts = () => {
           <select
             value={activeScheme}
             onChange={handleSchemeChange}
-            className="theme-input-surface theme-border theme-text rounded px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+            className="theme-input-surface theme-border theme-text rounded px-2 py-1 text-sm focus:border-[var(--accent-color)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft-bg)]"
           >
             <option value="ifai">{t('shortcuts.ifaiScheme')}</option>
             <option value="vscode">{t('shortcuts.vscodeScheme')}</option>
@@ -179,7 +181,7 @@ export const KeyboardShortcuts = () => {
         <input 
             type="text" 
             placeholder={t('shortcuts.searchKeybindings')}
-            className="theme-input-surface theme-border theme-text w-full rounded py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none"
+            className="theme-input-surface theme-border theme-text w-full rounded py-2 pl-10 pr-4 text-sm focus:border-[var(--accent-color)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft-bg)]"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
         />
@@ -208,14 +210,14 @@ export const KeyboardShortcuts = () => {
                                         autoFocus
                                         className={clsx(
                                             'theme-input-surface theme-text w-full rounded border px-2 py-1 outline-none',
-                                            currentConflictId ? 'border-red-500' : 'theme-border focus:border-blue-500'
+                                            currentConflictId ? 'border-[var(--danger-soft-border)]' : 'theme-border focus:border-[var(--accent-color)] focus:ring-2 focus:ring-[var(--accent-soft-bg)]'
                                         )}
-                                        placeholder={t('shortcuts.pressKeys') || 'Press keys...'}
+                                        placeholder={t('shortcuts.pressKeys')}
                                         onKeyDown={(e) => handleKeyDown(e, kb.id)}
                                         onBlur={() => { setRecordingId(null); setCurrentConflictId(undefined); }}
                                     />
                                     {currentConflictId && (
-                                        <div className="text-red-400 text-xs mt-1 animate-pulse">
+                                        <div className="mt-1 text-xs animate-pulse text-[var(--danger-color)]">
                                             {(() => {
                                                 const conflictCmd = keybindings.find(k => k.id === currentConflictId);
                                                 return t('shortcuts.conflict', { 
@@ -230,15 +232,14 @@ export const KeyboardShortcuts = () => {
                                 <div 
                                     className={clsx(
                                         "inline-flex items-center gap-1 cursor-pointer rounded px-2 py-1 border transition-colors",
-                                        hasConflict(kb.keys, kb.id) ? "border-red-500" : "theme-border theme-hoverable"
+                                        hasConflict(kb.keys, kb.id) ? "border-[var(--danger-soft-border)]" : "theme-border theme-hoverable"
                                     )}
                                     onClick={() => handleRecord(kb.id)}
                                     title={t('shortcuts.clickToEdit')}
                                 >
-                                    {kb.keys.split('+').map((part, i) => (
+                                    {getDisplayParts(kb.keys).map((part, i) => (
                                         <span key={i} className="theme-input-surface theme-border min-w-[20px] rounded border px-1.5 text-center font-mono text-xs">
-                                            {part === 'Mod' ? (navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl') : 
-                                             part.charAt(0).toUpperCase() + part.slice(1)}
+                                            {part}
                                         </span>
                                     ))}
                                     <span className="theme-text-subtle ml-2 text-xs opacity-0 group-hover:opacity-100">✎</span>

@@ -10,11 +10,11 @@ export const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
     const baseStyles = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border';
 
     const variantStyles = {
-      default: 'border-blue-500/20 bg-blue-500/12 text-blue-500',
+      default: 'theme-badge-accent',
       outline: 'theme-panel theme-border theme-text-muted',
-      success: 'border-emerald-500/20 bg-emerald-500/12 text-emerald-500',
-      warning: 'border-amber-500/20 bg-amber-500/12 text-amber-500',
-      error: 'border-red-500/20 bg-red-500/12 text-red-500',
+      success: 'theme-badge-success',
+      warning: 'theme-badge-warning',
+      error: 'theme-badge-danger',
       secondary: 'theme-panel-muted theme-border theme-text-muted',
     };
 

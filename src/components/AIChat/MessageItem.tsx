@@ -73,9 +73,9 @@ function filesToStructure(files: string[]): any {
  * 工业级消息样式常量
  */
 const STYLES = {
-    userBubble: 'max-w-[85%] rounded-2xl p-4 bg-blue-600 text-white shadow-lg ml-auto',
+    userBubble: 'max-w-[85%] rounded-2xl p-4 bg-[var(--accent-color)] text-white shadow-lg ml-auto',
     assistantBubble: 'w-full rounded-2xl p-4 theme-panel-muted theme-text theme-border border shadow-sm relative group',
-    agentBubble: 'w-full rounded-2xl p-4 border shadow-sm relative group bg-blue-950/40 text-blue-100 border-blue-900/30',
+    agentBubble: 'w-full rounded-2xl p-4 border shadow-sm relative group bg-[var(--accent-soft-bg)] text-[var(--text-primary)] border-[var(--accent-soft-border)]',
     timestamp: 'theme-text-subtle text-[10px] mt-1'
 };
 /**
@@ -467,28 +467,28 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const handleUndoAll = async () => {
         const store = useChatStore.getState() as any;
         if (!store.rollbackMessageToolCalls) {
-            toast.error('回滚功能不可用');
+            toast.error(t('messageItem.rollbackUnavailable'));
             return;
         }
         try {
             const result = await store.rollbackMessageToolCalls(message.id, false);
             if (result?.hasConflict) {
-                toast.error('检测到文件冲突，请单独回滚每个文件');
+                toast.error(t('messageItem.rollbackConflict'));
                 return;
             }
             if (result?.success) {
-                toast.success(`已回滚 ${result.count || 0} 个文件`);
+                toast.success(t('messageItem.rollbackSuccess', { count: result.count || 0 }));
             } else {
-                toast.error(result?.error || '回滚失败');
+                toast.error(result?.error || t('messageItem.rollbackFailed'));
             }
         } catch (e) {
             console.error('[Rollback] Error:', e);
-            toast.error('回滚失败: ' + String(e));
+            toast.error(t('messageItem.rollbackFailedWithError', { error: String(e) }));
         }
     };
     const handleCopy = () => {
         navigator.clipboard.writeText(displayContent);
-        toast.success(t('common.copied') || 'Copied to clipboard');
+        toast.success(t('common.copiedToClipboard'));
     };
     // Determine bubble style
     const isAgent = !!(message as any).agentId;
@@ -498,9 +498,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         : (isUser
             ? STYLES.userBubble
             : (isAgent
-                ? (dark
-                    ? 'w-full rounded-2xl p-4 border border-blue-900/30 bg-blue-950/40 text-blue-100 shadow-sm relative group'
-                    : 'w-full rounded-2xl p-4 bg-blue-500/5 text-[var(--text-primary)] border border-blue-500/20 shadow-sm relative group')
+                ? 'w-full rounded-2xl p-4 border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] text-[var(--text-primary)] shadow-sm relative group'
                 : 'w-full rounded-2xl p-4 theme-panel-muted theme-text theme-border border shadow-sm relative group'));
     // 🔥 FIX v0.3.9.3: 更加稳健的内容检测逻辑，支持字符串和数组
     const hasVisibleContent = React.useMemo(() => {
@@ -597,9 +595,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // 🔥 FIX v0.4.0: 工业级骨架屏占位，防止 CLS (布局抖动)
     const renderSkeleton = () => (
         <div className="space-y-3 py-2 animate-pulse w-full max-w-[280px]">
-            <div className="h-2.5 bg-blue-500/10 rounded-full w-full opacity-60"></div>
-            <div className="h-2.5 bg-blue-500/10 rounded-full w-[90%] opacity-40"></div>
-            <div className="h-2.5 bg-blue-500/10 rounded-full w-[70%] opacity-20"></div>
+            <div className="h-2.5 bg-[var(--accent-soft-bg)] rounded-full w-full opacity-60"></div>
+            <div className="h-2.5 bg-[var(--accent-soft-bg)] rounded-full w-[90%] opacity-40"></div>
+            <div className="h-2.5 bg-[var(--accent-soft-bg)] rounded-full w-[70%] opacity-20"></div>
         </div>
     );
 
@@ -841,12 +839,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         } else if (part.type === 'image_url' && part.image_url?.url) {
             return (
                 <div key={index} className="my-2 max-w-xs border theme-border rounded overflow-hidden theme-panel">
-                    <img src={part.image_url.url} alt="AI generated image" className="w-full h-auto" />
+                    <img src={part.image_url.url} alt={t('aiChat.messageRegistry.generatedImage')} className="w-full h-auto" />
                 </div>
             );
         }
         return null;
-    }, [toggleBlock, processScanResult]);
+    }, [toggleBlock, processScanResult, t]);
     // 统一渲染逻辑 (v0.4.1: 去分支化重构，杜绝 Hook 冲突)
     return (
         <div
@@ -858,16 +856,16 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 {/* A. 头像区 - 始终显示 */}
                 <div className="shrink-0 mt-0.5">
                     {isUser ? (
-                        <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shadow-lg text-white">
+                        <div className="w-5 h-5 rounded-md bg-[var(--accent-color)] flex items-center justify-center shadow-lg text-white">
                             <User size={12} />
                         </div>
                     ) : isAgent ? (
-                        <div className={dark ? 'w-5 h-5 rounded-md bg-indigo-900 flex items-center justify-center border border-indigo-500/30 shadow-lg text-indigo-400' : 'w-5 h-5 rounded-md bg-indigo-50 flex items-center justify-center border border-indigo-200 shadow-sm text-indigo-600'}>
+                        <div className="w-5 h-5 rounded-md bg-[var(--accent-soft-bg)] flex items-center justify-center border border-[var(--accent-soft-border)] shadow-sm text-[var(--accent-color)]">
                             <Bot size={12} />
                         </div>
                     ) : (
                         <div className="w-5 h-5 rounded-md overflow-hidden border theme-border theme-panel flex items-center justify-center">
-                            <img src={ifaiLogo} alt="AI" className="w-3.5 h-3.5 opacity-80" />
+                            <img src={ifaiLogo} alt="" aria-hidden="true" className="w-3.5 h-3.5 opacity-80" />
                         </div>
                     )}
                 </div>
@@ -876,21 +874,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 <div className="flex-1 min-w-0 text-inherit relative">
                     {/* B1. 悬浮工具栏 (仅在非用户气泡模式下显示) */}
                     {!isUser && !shouldHideBubble && (
-                        <div className="absolute -top-10 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity theme-panel-elevated theme-border rounded-md border p-1 theme-shadow z-10">
-                            <button onClick={handleCopy} className="p-1 rounded theme-button-ghost theme-text-subtle" title="Copy">
-                                <Copy size={12} />
-                            </button>
-                            <button className="p-1 rounded theme-button-ghost theme-text-subtle" title="Regenerate">
-                                <RotateCcw size={12} />
-                            </button>
+                        <div className="pointer-events-none mb-0 flex justify-end overflow-hidden opacity-0 transition-[max-height,opacity,margin] duration-150 max-h-0 group-hover:mb-2 group-hover:max-h-10 group-hover:opacity-100">
+                            <div className="pointer-events-auto flex items-center gap-1 theme-panel-elevated theme-border rounded-md border p-1 theme-shadow">
+                                <button onClick={handleCopy} className="p-1 rounded theme-button-ghost theme-text-subtle" title={t('common.copy')}>
+                                    <Copy size={12} />
+                                </button>
+                                <button className="p-1 rounded theme-button-ghost theme-text-subtle" title={t('messageItem.regenerate')}>
+                                    <RotateCcw size={12} />
+                                </button>
+                            </div>
                         </div>
                     )}
 
                     {/* B2. 状态标签 */}
                     {isAgent && (
                         <div className="flex items-center gap-1.5 mb-2">
-                            <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
-                                Agent Live
+                            <span className="theme-badge-info rounded border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                                {t('messageItem.agentLive')}
                             </span>
                         </div>
                     )}
@@ -900,14 +900,18 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         <div className="mb-3">
                             <button 
                                 onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-                                className="flex items-center gap-2 text-[10px] font-bold theme-text-subtle hover:text-blue-500 transition-colors uppercase tracking-widest group/think"
+                                className="flex items-center gap-2 text-[10px] font-bold theme-text-subtle hover:text-[var(--accent-color)] transition-colors uppercase tracking-widest group/think"
                             >
                                 <div className={`transition-transform duration-200 ${isThinkingExpanded ? 'rotate-180' : ''}`}>
                                     <ChevronDown size={10} />
                                 </div>
-                                <span>Thinking: {thinkingText.substring(0, 30)}{thinkingText.length > 30 ? '...' : ''}</span>
+                                <span>
+                                    {t('messageItem.thinking', {
+                                        summary: `${thinkingText.substring(0, 30)}${thinkingText.length > 30 ? '...' : ''}`,
+                                    })}
+                                </span>
                                 {effectivelyStreaming && !isThinkingExpanded && (
-                                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                                    <div className="w-1 h-1 bg-[var(--accent-color)] rounded-full animate-ping" />
                                 )}
                             </button>
                             {isThinkingExpanded && (
@@ -939,14 +943,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                         {/* Batch Review Panel */}
                         {pendingCount > 1 && (
-                            <div className="mb-3 p-2 bg-blue-500/10 rounded border border-blue-500/20 flex items-center justify-between">
-                                <div className="text-xs font-medium text-blue-500">有 {pendingCount} 个待处理的操作</div>
+                            <div className="mb-3 p-2 rounded border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] flex items-center justify-between">
+                                <div className="text-xs font-medium text-[var(--accent-color)]">{t('messageItem.pendingActions', { count: pendingCount })}</div>
                                 <div className="flex gap-2">
                                     <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 theme-button-success text-[10px] rounded transition-colors">
-                                        <CheckCheck size={12} /> 全部批准
+                                        <CheckCheck size={12} /> {t('messageItem.approveAll')}
                                     </button>
                                     <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 theme-button-danger text-[10px] rounded transition-colors">
-                                        <XCircle size={12} /> 全部拒绝
+                                        <XCircle size={12} /> {t('messageItem.rejectAll')}
                                     </button>
                                 </div>
                             </div>
@@ -958,8 +962,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         ) : isStreamingTaskBreakdown ? (
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm theme-text-subtle">
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                    <span>正在拆解任务...</span>
+                                    <div className="w-2 h-2 bg-[var(--accent-color)] rounded-full animate-pulse" />
+                                    <span>{t('messageItem.breakingDownTask')}</span>
                                 </div>
                                 <div className="text-xs theme-text-subtle font-mono max-h-32 overflow-y-auto theme-panel rounded border theme-border p-2">
                                     {displayContent.slice(-500)}
@@ -1226,7 +1230,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     onOpenFile={onOpenFile} 
                                     onCopyContent={(content) => { 
                                         navigator.clipboard.writeText(content); 
-                                        toast.success('内容已复制'); 
+                                        toast.success(t('messageItem.contentCopied'));
                                     }} 
                                 />
                             </div>
@@ -1237,7 +1241,11 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <div className="mt-3">
                                 <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 theme-button-primary text-sm font-medium rounded-lg transition-colors">
                                     <FileCode size={16} />
-                                    <span>查看 Diff ({(message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length} 个文件)</span>
+                                    <span>
+                                        {t('messageItem.viewDiff', {
+                                            count: (message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length,
+                                        })}
+                                    </span>
                                 </button>
                             </div>
                         )}
@@ -1249,12 +1257,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     if (action.type === 'patch') {
                                         const isIgnored = ignoredActions.has(actionIndex);
                                         return (
-                                            <div key={`action-${actionIndex}`} className={`p-3 rounded border ${isIgnored ? 'theme-panel border theme-border' : 'bg-green-500/5 border-green-500/20'}`}>
+                                            <div key={`action-${actionIndex}`} className={`p-3 rounded border ${isIgnored ? 'theme-panel border theme-border' : 'bg-[var(--success-soft-bg)] border-[var(--success-soft-border)]'}`}>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <FileCode size={14} className={isIgnored ? 'theme-text-subtle' : 'text-green-500'} />
-                                                            <span className="text-xs font-medium truncate theme-text">{action.filePath || 'Apply Fix'}</span>
+                                                            <FileCode size={14} className={isIgnored ? 'theme-text-subtle' : 'text-[var(--success-color)]'} />
+                                                            <span className="text-xs font-medium truncate theme-text">{action.filePath || t('messageItem.fixActionFallback')}</span>
                                                         </div>
                                                         {!isIgnored && action.patch && (
                                                             <div className="text-xs theme-text-subtle font-mono max-h-20 overflow-y-auto theme-panel rounded p-2 border theme-border">
@@ -1264,8 +1272,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                                     </div>
                                                     {!isIgnored && (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => { setIgnoredActions(prev => new Set(prev).add(actionIndex)); toast.info('Fix ignored'); }} className="px-3 py-1.5 theme-button-secondary text-xs font-medium rounded">Ignore</button>
-                                                            <button onClick={() => toast.success('Fix applied')} className="px-3 py-1.5 theme-button-success text-xs font-medium rounded">Apply Fix</button>
+                                                            <button onClick={() => { setIgnoredActions(prev => new Set(prev).add(actionIndex)); toast.info(t('messageItem.fixIgnored')); }} className="px-3 py-1.5 theme-button-secondary text-xs font-medium rounded">{t('messageItem.ignoreFix')}</button>
+                                                            <button onClick={() => toast.success(t('messageItem.fixApplied'))} className="px-3 py-1.5 theme-button-success text-xs font-medium rounded">{t('messageItem.applyFix')}</button>
                                                         </div>
                                                     )}
                                                 </div>

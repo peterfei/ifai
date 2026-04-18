@@ -5,6 +5,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useTransparencyStore } from '../../stores/transparencyStore';
 import { countMessagesTokens, getModelMaxTokens, calculateTokenUsagePercentage, formatTokenCount } from '../../utils/tokenCounter';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Token 使用量指示器
@@ -12,6 +13,7 @@ import clsx from 'clsx';
  * v0.2.6 新增
  */
 export const TokenUsageIndicator: React.FC = () => {
+  const { t } = useTranslation();
   // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
   // 🔥 FIX 2: 先获取整个 store，再解构，避免选择器中的 null 问题
   const chatStoreState = useChatStore();
@@ -88,17 +90,17 @@ export const TokenUsageIndicator: React.FC = () => {
 
   // 根据使用率确定颜色
   const getColorClass = () => {
-    if (percentage < 50) return 'bg-green-500';
-    if (percentage < 75) return 'bg-yellow-500';
-    if (percentage < 90) return 'bg-orange-500';
-    return 'bg-red-500';
+    if (percentage < 50) return 'bg-[var(--success-color)]';
+    if (percentage < 75) return 'bg-[var(--info-color)]';
+    if (percentage < 90) return 'bg-[var(--warning-color)]';
+    return 'bg-[var(--danger-color)]';
   };
 
   const getTextColorClass = () => {
-    if (percentage < 50) return 'text-green-400';
-    if (percentage < 75) return 'text-yellow-400';
-    if (percentage < 90) return 'text-orange-400';
-    return 'text-red-400';
+    if (percentage < 50) return 'text-[var(--success-color)]';
+    if (percentage < 75) return 'text-[var(--info-color)]';
+    if (percentage < 90) return 'text-[var(--warning-color)]';
+    return 'text-[var(--danger-color)]';
   };
 
   const getIcon = () => {
@@ -154,7 +156,7 @@ export const TokenUsageIndicator: React.FC = () => {
           <button
             onClick={() => setShowDetail(!showDetail)}
             className="ml-1 p-0.5 rounded theme-button-ghost theme-text-subtle transition-colors"
-            title="Token breakdown"
+            title={t('aiChat.tokenUsage.breakdown')}
           >
             {showDetail ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
@@ -171,22 +173,22 @@ export const TokenUsageIndicator: React.FC = () => {
                 <span className="theme-text-subtle w-32 truncate">{section.label}</span>
                 <div className="flex-1 h-1 theme-panel-muted rounded-full overflow-hidden mx-2">
                   <div
-                    className="h-full bg-blue-500/40 rounded-full"
+                    className="h-full rounded-full bg-[var(--accent-soft-border)]"
                     style={{
                       width: `${Math.min(100, (section.tokens_estimate / Math.max(1, currentPromptMeta.total_tokens_estimate)) * 100)}%`
                     }}
                   />
                 </div>
                 <span className="theme-text-subtle w-20 text-right">
-                  ~{section.tokens_estimate.toLocaleString()} tokens ({Math.round((section.tokens_estimate / Math.max(1, currentPromptMeta.total_tokens_estimate)) * 100)}%)
+                  ~{section.tokens_estimate.toLocaleString()} {t('aiChat.tokenUsage.tokens')} ({Math.round((section.tokens_estimate / Math.max(1, currentPromptMeta.total_tokens_estimate)) * 100)}%)
                 </span>
               </div>
             ))}
           <div className="flex items-center text-[10px] font-mono border-t theme-border pt-1 mt-1">
-            <span className="theme-text-muted w-32">System Total</span>
+            <span className="theme-text-muted w-32">{t('aiChat.tokenUsage.systemTotal')}</span>
             <div className="flex-1" />
             <span className="theme-text-subtle w-20 text-right">
-              ~{currentPromptMeta.total_tokens_estimate.toLocaleString()} tokens
+              ~{currentPromptMeta.total_tokens_estimate.toLocaleString()} {t('aiChat.tokenUsage.tokens')}
             </span>
           </div>
         </div>

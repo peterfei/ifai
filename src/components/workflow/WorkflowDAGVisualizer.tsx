@@ -19,7 +19,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { useTranslation } from 'react-i18next';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, Loader2, Circle, CheckCircle2, XCircle, Minus } from 'lucide-react';
 
 import type { DAGNode, DAGEdge } from './WorkflowDAGMonitor';
 
@@ -213,7 +213,7 @@ interface CustomNodeData {
   nodeColor: string;
   statusStyle: {
     color: string;
-    icon: string;
+    icon: React.ReactNode;
     label: string;
   };
   originalNode: DAGNode;
@@ -292,9 +292,11 @@ function CustomNode({ data }: { data: CustomNodeData }) {
           position: 'absolute',
           top: '6px',
           right: '8px',
-          fontSize: '12px',
           color: 'var(--dag-status-color)',
           opacity: 0.8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         {data.statusStyle.icon}
@@ -350,27 +352,27 @@ export function WorkflowDAGVisualizer({
     () => ({
       pending: {
         color: 'var(--text-subtle)',
-        icon: '…',
+        icon: <Circle className="h-3.5 w-3.5" />,
         label: t('workflow.inlineMonitor.dagMonitor.status.pending'),
       },
       running: {
         color: 'var(--accent-color)',
-        icon: '↻',
+        icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
         label: t('workflow.inlineMonitor.dagMonitor.status.running'),
       },
       completed: {
         color: 'var(--success-color)',
-        icon: '✓',
+        icon: <CheckCircle2 className="h-3.5 w-3.5" />,
         label: t('workflow.inlineMonitor.dagMonitor.status.completed'),
       },
       failed: {
         color: 'var(--danger-color)',
-        icon: '✕',
+        icon: <XCircle className="h-3.5 w-3.5" />,
         label: t('workflow.inlineMonitor.dagMonitor.status.failed'),
       },
       skipped: {
         color: 'var(--text-subtle)',
-        icon: '−',
+        icon: <Minus className="h-3.5 w-3.5" />,
         label: t('workflow.inlineMonitor.dagMonitor.status.skipped'),
       },
     }),
@@ -427,8 +429,6 @@ export function WorkflowDAGVisualizer({
 
   // 转换 DAG 边为 React Flow 边（IfAI 深色主题风格）
   const reactFlowEdges: Edge[] = useMemo(() => {
-    console.log('🔍 渲染边数量:', dagEdges.length, '节点数量:', dagNodes.length);
-
     return dagEdges.map((dagEdge, index) => {
       const toNode = dagNodes.find(n => n.id === dagEdge.to);
 
@@ -448,14 +448,6 @@ export function WorkflowDAGVisualizer({
         strokeWidth = 2.5;
         animated = true;
       }
-
-      console.log(`🔍 边 ${index}:`, {
-        from: dagEdge.from,
-        to: dagEdge.to,
-        toStatus: toNode?.status,
-        stroke,
-        strokeWidth,
-      });
 
       return {
         id: `edge-${index}`,

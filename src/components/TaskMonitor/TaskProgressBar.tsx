@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ProgressBarColor } from './types';
 
 // ============================================================================
@@ -46,11 +47,11 @@ export interface TaskProgressBarProps {
 // ============================================================================
 
 const COLOR_MAP: Record<ProgressBarColor, string> = {
-  blue: '#569cd6',
-  green: '#4ec9b0',
-  orange: '#dcdcaa',
-  red: '#f14c4c',
-  gray: '#858585',
+  blue: 'var(--accent-color)',
+  green: 'var(--success-color)',
+  orange: 'var(--warning-color)',
+  red: 'var(--danger-color)',
+  gray: 'var(--text-subtle)',
 };
 
 const TRACK_COLOR = 'var(--bg-tertiary)';
@@ -68,8 +69,9 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
   color = 'blue',
   animated = true,
   className = '',
-  ariaLabel = 'Progress bar',
+  ariaLabel,
 }) => {
+  const { t } = useTranslation();
   // Calculate percentage
   const percentage = total !== undefined
     ? Math.min(100, Math.max(0, Math.round((value / total) * 100)))
@@ -85,6 +87,7 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
   };
 
   const currentColor = COLOR_MAP[getColor()];
+  const resolvedAriaLabel = ariaLabel || t('taskMonitor.card.progressBar');
 
   return (
     <div className={`task-progress-bar ${className}`}>
@@ -101,7 +104,7 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={total || 100}
-        aria-label={ariaLabel}
+        aria-label={resolvedAriaLabel}
       >
         {/* Progress fill */}
         <div

@@ -193,7 +193,7 @@ function parseToolOutputSummary(
 function formatToolCallClawStyle(
   tool: ToolCallDetails,
   translate: InlineMonitorTranslate,
-): { title: string; summary: string; icon: string } {
+): { title: string; summary: string; icon: React.ReactNode } {
   const { tool_name, tool_input, tool_output, output_length, is_error, execution_time_ms } = tool;
 
   // 🔥 调试：输出完整的 tool 对象
@@ -203,8 +203,35 @@ function formatToolCallClawStyle(
   console.log('[formatToolCallClawStyle] execution_time_ms:', execution_time_ms);
   console.log('[formatToolCallClawStyle] is_error:', is_error);
 
-  // 默认图标
-  let icon = is_error ? '×' : '✓';
+  const iconClass = 'h-3.5 w-3.5';
+  const getToolIcon = (name: string) => {
+    switch (name) {
+      case 'read_file':
+      case 'agent_read_file':
+      case 'list_dir':
+      case 'agent_list_dir':
+        return <FileText className={iconClass} />;
+      case 'write_file':
+      case 'agent_write_file':
+      case 'edit_file':
+      case 'agent_edit_file':
+        return <Edit className={iconClass} />;
+      case 'glob_search':
+      case 'agent_glob_search':
+      case 'Glob':
+      case 'grep_search':
+      case 'agent_grep_search':
+      case 'Grep':
+        return <Search className={iconClass} />;
+      case 'bash':
+      case 'Bash':
+        return <Play className={iconClass} />;
+      default:
+        return <Zap className={iconClass} />;
+    }
+  };
+
+  let icon = getToolIcon(tool_name);
   let title = tool_name;
   let summary = '';
 
@@ -218,7 +245,7 @@ function formatToolCallClawStyle(
       switch (tool_name) {
         case 'read_file':
         case 'agent_read_file':
-          icon = '▣';
+          icon = getToolIcon(tool_name);
           const readPath = input.path || input.rel_path || input.file || '?';
           title = translate('toolTitles.read', 'Read');
           params = [`"${readPath}"`];
@@ -226,7 +253,7 @@ function formatToolCallClawStyle(
 
       case 'write_file':
       case 'agent_write_file':
-        icon = '✎';
+        icon = getToolIcon(tool_name);
         const writePath = input.path || input.rel_path || input.file || '?';
         title = translate('toolTitles.write', 'Write');
         params = [`"${writePath}"`];
@@ -234,7 +261,7 @@ function formatToolCallClawStyle(
 
       case 'edit_file':
       case 'agent_edit_file':
-        icon = '✎';
+        icon = getToolIcon(tool_name);
         const editPath = input.path || input.rel_path || input.file || '?';
         title = translate('toolTitles.edit', 'Edit');
         params = [`"${editPath}"`];
@@ -243,7 +270,7 @@ function formatToolCallClawStyle(
       case 'glob_search':
       case 'agent_glob_search':
       case 'Glob':
-        icon = '◎';
+        icon = getToolIcon(tool_name);
         const pattern = input.pattern || '?';
         title = translate('toolTitles.glob', 'Glob');
         params = [`"${pattern}"`];
@@ -252,7 +279,7 @@ function formatToolCallClawStyle(
       case 'grep_search':
       case 'agent_grep_search':
       case 'Grep':
-        icon = '⌕';
+        icon = getToolIcon(tool_name);
         const grepPattern = input.pattern || input.query || '?';
         title = translate('toolTitles.grep', 'Grep');
         params = [`"${grepPattern}"`];
@@ -260,7 +287,7 @@ function formatToolCallClawStyle(
 
       case 'list_dir':
       case 'agent_list_dir':
-        icon = '≣';
+        icon = getToolIcon(tool_name);
         const dirPath = input.path || input.rel_path || '.';
         title = translate('toolTitles.list', 'List');
         params = [`"${dirPath}"`];
@@ -268,7 +295,7 @@ function formatToolCallClawStyle(
 
       case 'bash':
       case 'Bash':
-        icon = '$';
+        icon = getToolIcon(tool_name);
         const command = input.command || input.cmd || '?';
         title = translate('toolTitles.bash', 'Bash');
         params = [`"${command}"`];
@@ -1672,15 +1699,19 @@ export function WorkflowInlineMonitor({
           }
         }
       `}</style>
-      <div className="relative z-0 mx-auto my-4 max-w-2xl" data-workflow-monitor={workflowId} data-monitor="true">
-        <Card className="theme-panel theme-border theme-shadow border">
+      <div
+        className="relative z-0 mx-auto my-4 max-w-2xl rounded-[var(--radius-lg)] bg-gray-900 text-gray-100"
+        data-workflow-monitor={workflowId}
+        data-monitor="true"
+      >
+        <Card className="theme-panel theme-border theme-shadow border bg-gray-900/95 text-gray-100 dark:bg-gray-900">
         <div
-          className="theme-hoverable theme-border flex cursor-pointer items-center justify-between border-b px-4 py-3 transition-colors"
+          className="theme-hoverable theme-border flex cursor-pointer items-center justify-between border-b border-gray-800 px-4 py-3 transition-colors"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-[var(--accent-color)]" />
-            <span className="theme-text text-sm font-semibold">{displayName}</span>
+            <span className="theme-text text-sm font-semibold text-white">{displayName}</span>
             <Badge variant="outline" className={getStatusColor()}>
               {getStatusText()}
             </Badge>
@@ -1698,7 +1729,7 @@ export function WorkflowInlineMonitor({
                   e.stopPropagation();
                   setViewMode(viewMode === 'list' ? 'dag' : 'list');
                 }}
-                className="theme-text-muted theme-soft-hover flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
+                className="theme-button-ghost theme-text-muted flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
                 title={viewMode === 'list'
                   ? tm('viewModes.switchToDag', '切换到 DAG 视图')
                   : tm('viewModes.switchToList', '切换到列表视图')}
@@ -1716,7 +1747,7 @@ export function WorkflowInlineMonitor({
                 )}
               </button>
             )}
-            <span className="theme-text-subtle text-xs">{formatInlineMonitorSeconds(tm, displayDuration)}</span>
+            <span className="theme-text-subtle text-xs text-gray-300">{formatInlineMonitorSeconds(tm, displayDuration)}</span>
             {isExpanded ? <ChevronUp className="theme-text-subtle h-4 w-4" /> : <ChevronDown className="theme-text-subtle h-4 w-4" />}
           </div>
         </div>
@@ -1796,25 +1827,28 @@ export function WorkflowInlineMonitor({
                                   <div className="flex flex-col gap-0.5">
                                     {/* 第一行：工具名称和参数 - 白色文字 */}
                                     <div className="flex items-center gap-2">
-                                      <span className="theme-text text-xs font-mono font-semibold">
-                                        {icon} {title}
+                                      <span className="theme-text flex items-center gap-1.5 text-xs font-mono font-semibold text-white">
+                                        <span className={isSuccess ? 'theme-text-accent' : 'theme-text-danger'}>
+                                          {icon}
+                                        </span>
+                                        <span>{title}</span>
                                       </span>
                                       {/* 状态指示器 */}
                                       {!isSuccess && (
-                                        <span className="text-xs text-[var(--danger-color)]">
-                                          {tm('toolStatus.error', 'X')}
+                                        <span className="rounded-full border border-[var(--danger-soft-border)] bg-[var(--danger-soft-bg)] px-1.5 py-0.5 text-[10px] text-[var(--danger-color)]">
+                                          {tm('toolStatus.error', '失败')}
                                         </span>
                                       )}
                                       {isSuccess && (
-                                        <span className="text-xs text-[var(--success-color)]">
-                                          {tm('toolStatus.success', 'OK')}
+                                        <span className="rounded-full border border-[var(--success-soft-border)] bg-[var(--success-soft-bg)] px-1.5 py-0.5 text-[10px] text-[var(--success-color)]">
+                                          {tm('toolStatus.success', '成功')}
                                         </span>
                                       )}
                                     </div>
 
                                     {/* 第二行：执行结果摘要 - 亮色文字 */}
                                     {summary && (
-                                      <div className="theme-text-muted ml-1 text-xs">
+                                      <div className="theme-text-muted ml-1 text-xs text-gray-300">
                                         {summary}
                                       </div>
                                     )}
@@ -1823,22 +1857,22 @@ export function WorkflowInlineMonitor({
                                   {/* 可折叠的详细输出 */}
                                   {(tool.tool_input || tool.tool_output) && (
                                     <details className="mt-1 group" open={false}>
-                                      <summary className="theme-text-subtle cursor-pointer text-xs hover:text-[var(--text-primary)]">
+                                      <summary className="theme-text-subtle cursor-pointer text-xs text-gray-300 hover:text-white">
                                         {tm('toolDetails.summary', '详情')}
                                       </summary>
                                       <div className="mt-1 space-y-1">
                                         {tool.tool_input && (
                                           <div className="text-xs">
-                                            <span className="theme-text-subtle font-medium">{tm('toolDetails.input', '输入:')}</span>
-                                            <pre className="theme-code-surface theme-border mt-0.5 overflow-x-auto rounded border p-2 text-xs">
+                                            <span className="theme-text-subtle font-medium text-gray-300">{tm('toolDetails.input', '输入:')}</span>
+                                            <pre className="theme-code-surface theme-border mt-0.5 overflow-x-auto rounded border border-gray-800 bg-black text-xs text-gray-200 dark:bg-gray-800 p-2">
                                               {tool.tool_input}
                                             </pre>
                                           </div>
                                         )}
                                         {tool.tool_output && (
                                           <div className="text-xs">
-                                            <span className="theme-text-subtle font-medium">{tm('toolDetails.output', '输出:')}</span>
-                                            <pre className="theme-code-surface theme-border mt-0.5 max-h-32 overflow-x-auto overflow-y-auto rounded border p-2 text-xs">
+                                            <span className="theme-text-subtle font-medium text-gray-300">{tm('toolDetails.output', '输出:')}</span>
+                                            <pre className="theme-code-surface theme-border mt-0.5 max-h-32 overflow-x-auto overflow-y-auto rounded border border-gray-800 bg-black text-xs text-gray-200 dark:bg-gray-800 p-2">
                                               {tool.tool_output}
                                             </pre>
                                           </div>
@@ -1858,7 +1892,7 @@ export function WorkflowInlineMonitor({
                               <>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {/* 节点标签 - 白色文字 */}
-                                  <span className="theme-text text-xs font-mono font-semibold">
+                                  <span className="theme-text text-xs font-mono font-semibold text-white">
                                     {node.label}
                                   </span>
 
@@ -1883,8 +1917,8 @@ export function WorkflowInlineMonitor({
                                 </div>
 
                                 {/* 🔥 流式内容显示 - Markdown 格式 */}
-                                <div className="theme-code-surface theme-border mt-2 max-h-96 overflow-y-auto rounded border p-3">
-                                  <pre className="theme-text-muted whitespace-pre-wrap text-xs font-mono leading-relaxed">
+                                <div className="theme-code-surface theme-border mt-2 max-h-96 overflow-y-auto rounded border border-gray-800 bg-black p-3 dark:bg-gray-800">
+                                  <pre className="theme-text-muted whitespace-pre-wrap text-xs font-mono leading-relaxed text-gray-200">
                                     {node.streaming_content}
                                   </pre>
                                 </div>
@@ -1901,7 +1935,7 @@ export function WorkflowInlineMonitor({
                               <>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {/* 节点标签 - 白色文字 */}
-                              <span className="theme-text text-xs font-mono font-semibold">
+                                  <span className="theme-text text-xs font-mono font-semibold text-white">
                                 {node.label}
                               </span>
 
@@ -1921,7 +1955,7 @@ export function WorkflowInlineMonitor({
                               )}
                               {node.status === 'failed' && (
                                 <span className="text-xs text-[var(--danger-color)]">
-                                  {tm('nodeStatus.failed', '✗ 失败')}
+                                  {tm('nodeStatus.failed', '失败')}
                                 </span>
                               )}
 
@@ -1935,7 +1969,7 @@ export function WorkflowInlineMonitor({
 
                             {/* 详细信息（后备） */}
                             {node.details && node.details !== node.label && (
-                              <div className="theme-text-subtle mt-0.5 max-w-md truncate text-xs font-mono">
+                              <div className="theme-text-subtle mt-0.5 max-w-md truncate text-xs font-mono text-gray-300">
                                 {node.details}
                               </div>
                             )}

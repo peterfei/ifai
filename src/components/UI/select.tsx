@@ -8,7 +8,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     <select
       ref={ref}
       className={clsx(
-        'theme-input-surface theme-border theme-text flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50',
+        'theme-input-surface theme-select-input theme-border theme-text theme-focus-accent flex h-8 w-full items-center justify-between rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-[13px] leading-5 disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
       {...props}

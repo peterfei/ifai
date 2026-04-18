@@ -9,35 +9,60 @@
  */
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, X, Pause, Play, RotateCcw, Activity, Clock } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  X,
+  Pause,
+  Play,
+  RotateCcw,
+  Activity,
+  Clock,
+  Search,
+  Hammer,
+  Sparkles,
+  Package,
+  BarChart3,
+  FlaskConical,
+  Rocket,
+  GitBranch,
+  Wand2,
+  BookText,
+  Archive,
+  Trash2,
+  Gauge,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import type { TaskMetadata, TaskCardMode } from './types';
 import { TaskStatusBadge } from './TaskStatusBadge';
 import { TaskProgressBar } from './TaskProgressBar';
-import { TaskMetrics, MetricsSummary } from './TaskMetrics';
+import { MetricsSummary } from './TaskMetrics';
 import { TaskLogStream } from './TaskLogStream';
 
 // ============================================================================
 // Category Icons
 // ============================================================================
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  scan: '🔍',
-  build: '🔨',
-  generation: '✨',
-  transfer: '📦',
-  analysis: '📊',
-  test: '🧪',
-  deploy: '🚀',
-  install: '📦',
-  git: '🔀',
-  format: '✨',
-  refactor: '🔧',
-  document: '📝',
-  backup: '💾',
-  cleanup: '🧹',
-  optimize: '⚡',
-  security: '🔒',
+const CATEGORY_META: Record<string, { icon: LucideIcon; className: string }> = {
+  scan: { icon: Search, className: 'theme-text-info' },
+  build: { icon: Hammer, className: 'theme-text-warning' },
+  generation: { icon: Sparkles, className: 'theme-text-accent' },
+  transfer: { icon: Package, className: 'theme-text-info' },
+  analysis: { icon: BarChart3, className: 'theme-text-info' },
+  test: { icon: FlaskConical, className: 'theme-text-success' },
+  deploy: { icon: Rocket, className: 'theme-text-success' },
+  install: { icon: Package, className: 'theme-text-accent' },
+  git: { icon: GitBranch, className: 'theme-text-danger' },
+  format: { icon: Wand2, className: 'theme-text-accent' },
+  refactor: { icon: Wand2, className: 'theme-text-warning' },
+  document: { icon: BookText, className: 'theme-text-subtle' },
+  backup: { icon: Archive, className: 'theme-text-success' },
+  cleanup: { icon: Trash2, className: 'theme-text-warning' },
+  optimize: { icon: Gauge, className: 'theme-text-accent' },
+  security: { icon: ShieldCheck, className: 'theme-text-danger' },
 };
 
 // ============================================================================
@@ -55,12 +80,23 @@ function getProgressColor(status: TaskMetadata['status']): 'blue' | 'green' | 'o
   }
 }
 
-function formatDuration(ms: number): string {
+function formatDuration(
+  ms: number,
+  t: ReturnType<typeof useTranslation>['t'],
+): string {
   const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 60) return t('taskMonitor.duration.secondsShort', { count: seconds });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  if (minutes < 60) {
+    return t('taskMonitor.duration.minutesSecondsShort', {
+      minutes,
+      seconds: seconds % 60,
+    });
+  }
+  return t('taskMonitor.duration.hoursMinutesShort', {
+    hours: Math.floor(minutes / 60),
+    minutes: minutes % 60,
+  });
 }
 
 // ============================================================================
@@ -75,6 +111,7 @@ const TaskActions: React.FC<{
   onRetry?: () => void;
   onRemove?: () => void;
 }> = ({ task, onCancel, onPause, onResume, onRetry, onRemove }) => {
+  const { t } = useTranslation();
   const canCancel = task.status === 'running' || task.status === 'pending';
   const canPause = task.status === 'running';
   const canResume = task.status === 'paused';
@@ -84,27 +121,27 @@ const TaskActions: React.FC<{
   return (
     <div className="flex items-center gap-1">
       {canPause && onPause && (
-        <button onClick={onPause} className="theme-soft-hover rounded p-1.5 transition-colors" title="Pause">
-          <Pause size={12} className="text-yellow-500" />
+        <button onClick={onPause} className="theme-button-ghost rounded p-1.5 transition-colors" title={t('taskMonitor.card.pause')}>
+          <Pause size={12} className="theme-text-warning" />
         </button>
       )}
       {canResume && onResume && (
-        <button onClick={onResume} className="theme-soft-hover rounded p-1.5 transition-colors" title="Resume">
-          <Play size={12} className="text-green-500" />
+        <button onClick={onResume} className="theme-button-ghost rounded p-1.5 transition-colors" title={t('taskMonitor.card.resume')}>
+          <Play size={12} className="theme-text-success" />
         </button>
       )}
       {canCancel && onCancel && (
-        <button onClick={onCancel} className="theme-soft-hover rounded p-1.5 transition-colors" title="Cancel">
-          <X size={12} className="text-red-500" />
+        <button onClick={onCancel} className="theme-button-ghost rounded p-1.5 transition-colors" title={t('taskMonitor.card.cancel')}>
+          <X size={12} className="theme-text-danger" />
         </button>
       )}
       {canRetry && onRetry && (
-        <button onClick={onRetry} className="theme-soft-hover rounded p-1.5 transition-colors" title="Retry">
-          <RotateCcw size={12} className="text-blue-500" />
+        <button onClick={onRetry} className="theme-button-ghost rounded p-1.5 transition-colors" title={t('taskMonitor.card.retry')}>
+          <RotateCcw size={12} className="theme-text-accent" />
         </button>
       )}
       {canRemove && onRemove && (
-        <button onClick={onRemove} className="theme-soft-hover rounded p-1.5 transition-colors" title="Remove">
+        <button onClick={onRemove} className="theme-button-ghost rounded p-1.5 transition-colors" title={t('taskMonitor.card.remove')}>
           <X size={12} className="theme-text-subtle" />
         </button>
       )}
@@ -141,6 +178,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onRetry,
   onRemove,
 }) => {
+  const { t } = useTranslation();
   const [internalExpanded, setInternalExpanded] = useState(expandedProp);
   const expanded = onToggle ? expandedProp : internalExpanded;
 
@@ -150,6 +188,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   };
 
   const isRunning = task.status === 'running';
+  const categoryMeta = CATEGORY_META[task.category] || { icon: Activity, className: 'theme-text-subtle' };
+  const CategoryIcon = categoryMeta.icon;
 
   // Calculate duration
   const duration = task.completedAt && task.startedAt
@@ -167,7 +207,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         animate={{ opacity: 1, y: 0 }}
         className={`task-card-compact theme-panel-muted theme-border flex items-center gap-2 rounded border p-1.5 ${className}`}
       >
-        <span className="text-[10px] flex-shrink-0 opacity-80">{CATEGORY_ICONS[task.category] || '📋'}</span>
+        <div className="theme-panel flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border theme-border">
+          <CategoryIcon className={`h-3.5 w-3.5 ${categoryMeta.className}`} />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-center mb-0.5">
             <span className="theme-text truncate text-[10px] font-medium">{task.title}</span>
@@ -186,14 +228,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       className={`task-card theme-panel group border rounded-lg transition-all duration-300 ${
-        isRunning ? 'border-blue-500/50 shadow-[0_0_15px_-5px_rgba(59,130,246,0.2)]' : 'theme-border'
+        isRunning ? 'border-[var(--accent-soft-border)] shadow-[0_0_15px_-5px_var(--accent-soft-border)]' : 'theme-border'
       } ${mode === 'detailed' ? 'p-4' : 'p-3'} ${className}`}
     >
       {/* Top row: Icon + Title + Actions */}
       <div className="flex items-start justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className={`theme-panel-muted p-1.5 rounded-md border ${isRunning ? 'border-blue-500/30 text-blue-400' : 'theme-border theme-text-subtle'}`}>
-             <span className="text-xs">{CATEGORY_ICONS[task.category] || <Activity size={12}/>}</span>
+          <div className={`theme-panel-muted p-1.5 rounded-md border ${isRunning ? 'theme-surface-accent' : 'theme-border theme-text-subtle'}`}>
+            <CategoryIcon className={`h-4 w-4 ${isRunning ? 'theme-text-accent' : categoryMeta.className}`} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -208,7 +250,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
            <TaskActions task={task} onCancel={onCancel} onPause={onPause} onResume={onResume} onRetry={onRetry} onRemove={onRemove} />
-           <button onClick={handleToggle} className="theme-soft-hover theme-text-subtle rounded p-1 transition-colors">
+           <button onClick={handleToggle} className="theme-button-ghost theme-text-subtle rounded p-1 transition-colors">
              {expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
            </button>
         </div>
@@ -218,7 +260,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       <div className="space-y-1.5">
         <div className="flex justify-between items-end">
             <span className="theme-text-subtle text-[10px] font-mono">
-                {isRunning ? 'PROCESSING...' : task.status.toUpperCase()}
+                {isRunning ? t('taskMonitor.processing') : t(`taskMonitor.status.${task.status}`)}
             </span>
             <span className="theme-text text-[11px] font-bold font-mono">{task.progress.percentage}%</span>
         </div>
@@ -239,7 +281,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
            {duration && (
              <span className="flex items-center gap-1">
                <Clock size={10}/>
-               {formatDuration(duration)}
+               {formatDuration(duration, t)}
              </span>
            )}
         </div>
@@ -258,8 +300,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   {task.logs && task.logs.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                         <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-widest">Real-time Logs</span>
-                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/20 text-blue-400 border border-blue-500/20 animate-pulse">LIVE</span>
+                         <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-widest">{t('taskMonitor.card.logs')}</span>
+                         <span className="animate-pulse rounded border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] px-1.5 py-0.5 text-[9px] text-[var(--accent-color)]">
+                           {t('taskMonitor.card.live')}
+                         </span>
                       </div>
                       <TaskLogStream
                         logs={task.logs}
