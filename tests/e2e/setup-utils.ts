@@ -223,7 +223,12 @@ export async function setupE2ETestEnvironment(
               if (checkTauriReady() || attempts >= maxAttempts) {
                 clearInterval(checkInterval);
                 if (attempts >= maxAttempts) {
-                  console.warn('[E2E Setup] ⚠️ Timeout waiting for real Tauri bridge');
+                  console.warn('[E2E Setup] ⚠️ Timeout waiting for real Tauri bridge, falling back to mock invoke (SSE HTTP Proxy)');
+                  // 🔥 FIX: 超时后回退创建 mock invoke
+                  // Playwright 的 Chromium 没有 Tauri IPC bridge，需要 mock invoke
+                  // 但 ai_chat mock 会通过 SSE HTTP Proxy 调用真实 AI
+                  w.__E2E_REAL_TAURI_MODE__ = false;
+                  setupE2EHelpers();
                 }
               }
             }, 100);
@@ -358,8 +363,161 @@ export async function setupE2ETestEnvironment(
               return Promise.resolve();
             }
 
-            // 🎯 Mock: ai_chat (返回模拟响应)
+            // 🎯 Mock: ai_chat (通过 SSE HTTP Proxy 调用真实 AI 或返回模拟响应)
             if (cmd === 'ai_chat') {
+              const realAIConfig = w.__E2E_REAL_AI_CONFIG__;
+
+              if (realAIConfig?.useRealAI && realAIConfig?.realAIApiKey) {
+                // 🔥 真实 AI 模式：通过 SSE HTTP Proxy 调用
+                console.log('[E2E Mock] 🤖 ai_chat - calling real AI via HTTP Proxy...');
+
+                const eventId = args.eventId || `chat_${Date.now()}`;
+                const providerConfig = args.providerConfig || {};
+
+                // 从 providerConfig 或 E2E 配置获取 API 参数
+                const apiKey = providerConfig.api_key || realAIConfig.realAIApiKey;
+                const baseUrl = providerConfig.base_url || realAIConfig.realAIBaseUrl || 'https://open.bigmodel.cn/api/paas/v4';
+                const model = (providerConfig.models && providerConfig.models[0]) || realAIConfig.realAIModel || 'glm-4-flash';
+
+                // 后台调用 SSE HTTP Proxy
+                (async () => {
+                  try {
+                    console.log(`[E2E Mock] 🌐 Fetching SSE from HTTP Proxy (eventId: ${eventId})...`);
+                    console.log(`[E2E Mock] 🌐 apiKey: ${apiKey?.substring(0, 10)}..., model: ${model}, messages: ${(args.messages || []).length}`);
+
+                    const response = await fetch('http://localhost:3333/api/ai/chat/stream', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        messages: args.messages || [],
+                        provider_config: {
+                          name: providerConfig.name || 'zhipu',
+                          api_key: apiKey,
+                          base_url: baseUrl,
+                        },
+                        model: model,
+                        enable_tools: args.enableTools || false,
+                        stream: true,
+                      }),
+                    });
+
+                    console.log(`[E2E Mock] 🌐 SSE response: ${response.status} ${response.ok} content-type: ${response.headers.get('content-type')}`);
+
+                    if (!response.ok) {
+                      console.error(`[E2E Mock] ❌ HTTP API error: ${response.status}`);
+                      const emitFn = w.__TAURI__?.event?.emit;
+                      if (emitFn) {
+                        emitFn(`${eventId}_error`, { message: `HTTP API error: ${response.status}` });
+                      } else {
+                        console.error('[E2E Mock] ❌ No emit function available!');
+                      }
+                      return;
+                    }
+
+                    const reader = response.body?.getReader();
+                    if (!reader) {
+                      console.error('[E2E Mock] ❌ No response body reader');
+                      return;
+                    }
+
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let chunkCount = 0;
+                    let totalBytes = 0;
+
+                    // 超时保护：30 秒无数据则终止
+                    const readWithTimeout = () => {
+                      return Promise.race([
+                        reader.read(),
+                        new Promise<never>((_, reject) =>
+                          setTimeout(() => reject(new Error('SSE read timeout (30s)')), 30000)
+                        )
+                      ]);
+                    };
+
+                    while (true) {
+                      const { done, value } = await readWithTimeout();
+                      if (done) {
+                        console.log(`[E2E Mock] 🌐 SSE stream done. chunks: ${chunkCount}, bytes: ${totalBytes}`);
+                        break;
+                      }
+
+                      const text = decoder.decode(value, { stream: true });
+                      totalBytes += text.length;
+                      buffer += text;
+
+                      // 解析 SSE 事件
+                      const lines = buffer.split('\n');
+                      buffer = lines.pop() || '';
+
+                      for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                          const data = line.slice(5).trim();
+                          if (data === '[DONE]' || !data) continue;
+
+                          try {
+                            let parsed = JSON.parse(data);
+                            // 🔥 FIX: HTTP Proxy 可能双重编码 JSON（data: "...", json_data 包装）
+                            // 如果 parsed 是字符串，再解析一次
+                            if (typeof parsed === 'string') {
+                              parsed = JSON.parse(parsed);
+                            }
+                            const eventType = parsed.event_type;
+
+                            if (eventType === 'content_delta' && parsed.content_delta) {
+                              chunkCount++;
+                              if (chunkCount <= 3) {
+                                console.log(`[E2E Mock] 📝 content_delta #${chunkCount}: "${parsed.content_delta}"`);
+                              }
+                              // 发送流式内容事件（与 Tauri 后端格式一致）
+                              const emitFn = w.__TAURI__?.event?.emit;
+                              if (emitFn) {
+                                const chunk = JSON.stringify({
+                                  choices: [{
+                                    delta: { content: parsed.content_delta },
+                                    finish_reason: null
+                                  }]
+                                });
+                                emitFn(eventId, chunk);
+                              } else {
+                                console.error('[E2E Mock] ❌ No emit function for content_delta!');
+                              }
+                            } else if (eventType === 'done') {
+                              console.log(`[E2E Mock] ✅ AI streaming completed (${chunkCount} chunks, ${totalBytes} bytes)`);
+                              const emitFn = w.__TAURI__?.event?.emit;
+                              if (emitFn) emitFn(`${eventId}_finish`, {});
+                            } else if (eventType === 'error') {
+                              console.error('[E2E Mock] ❌ AI error:', parsed.error);
+                              const emitFn = w.__TAURI__?.event?.emit;
+                              if (emitFn) emitFn(`${eventId}_error`, parsed.error);
+                            }
+                          } catch (e) {
+                            // 忽略 JSON 解析错误（可能是 keepalive 等非 JSON 行）
+                          }
+                        }
+                      }
+                    }
+
+                    // 如果流正常结束但没有收到 done 事件，手动发送 finish
+                    if (chunkCount > 0) {
+                      console.log(`[E2E Mock] 🏁 Stream ended without done event, emitting finish`);
+                      const emitFn = w.__TAURI__?.event?.emit;
+                      if (emitFn) emitFn(`${eventId}_finish`, {});
+                    }
+                  } catch (error) {
+                    console.error('[E2E Mock] ❌ Real AI call failed:', error);
+                    const emitFn = w.__TAURI__?.event?.emit;
+                    if (emitFn) {
+                      emitFn(`${eventId}_error`, { message: String(error) });
+                    }
+                  }
+                })();
+
+                // 立即 resolve，让 invoke 不阻塞（流式内容通过事件发送）
+                return Promise.resolve();
+              }
+
+              // Mock 模式：返回模拟响应
               console.log(`[E2E Mock] ai_chat called - returning mock response`);
               return Promise.resolve({
                 id: `mock-${Date.now()}`,

@@ -211,9 +211,7 @@ async fn progress_stream(State(state): State<HttpApiState>) -> Sse<impl Stream<I
         match rx.recv().await {
             Ok(event) => {
                 let json = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
-                let sse_event = Event::default()
-                    .json_data(&json)
-                    .unwrap_or_else(|_| Event::default().data(json));
+                let sse_event = Event::default().data(json);
                 Some((Ok(sse_event), rx))
             }
             Err(_) => {

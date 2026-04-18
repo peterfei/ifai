@@ -57,7 +57,18 @@ if (typeof window !== 'undefined' && (import.meta.env.VITE_TEST_ENV === 'e2e' ||
   const hasRealBridge = checkRealTauriBridge();
 
   // 如果没有检测到真实 bridge，设置 mock
-  if (!hasRealBridge) {
+  // 🔥 FIX: 如果 setup-utils.ts 已经设置了完整的 E2E mock（包含 ai_chat SSE 逻辑），不要覆盖
+  // 检测 setup-utils mock：可能是直接的 E2E Mock invoke，也可能是 find_references interceptor 包装
+  const existingInvoke = (window as any).__TAURI_INTERNALS__?.invoke;
+  const existingInvokeStr = existingInvoke?.toString() || '';
+  const hasSetupUtilsMock = existingInvokeStr.includes('find_references') ||  // interceptor 包装
+                            (existingInvokeStr.includes('E2E Mock') && existingInvokeStr.includes('ai_chat'));  // 直接 mock
+
+  if (hasSetupUtilsMock) {
+    console.log('[PIVO3-Mock] ✅ setup-utils E2E mock already installed, skipping PIVO3-Mock override');
+  }
+
+  if (!hasRealBridge && !hasSetupUtilsMock) {
     console.log('[PIVO3-Mock] 🎭 No real Tauri bridge found after polling, setting up mock...');
 
     const invoke = async (cmd: string, args?: any) => {
