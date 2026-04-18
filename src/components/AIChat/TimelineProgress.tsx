@@ -7,6 +7,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface TimelineProgressProps {
   loaded: number;
@@ -19,6 +20,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
   total,
   'data-testid': dataTestId
 }) => {
+  const { t } = useTranslation();
   // 计算加载百分比
   const percentage = total > 0 ? Math.round((loaded / total) * 100) : 0;
 
@@ -29,7 +31,7 @@ export const TimelineProgress: React.FC<TimelineProgressProps> = ({
     >
       {/* 进度文字 */}
       <span className="text-xs theme-text-subtle">
-        已加载 <span className="theme-text font-medium">{loaded}</span>/{total} 条消息
+        {t('aiChat.timeline.loadedSummary', { loaded, total })}
       </span>
 
       {/* 进度百分比 */}

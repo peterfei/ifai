@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { X, ArrowRight, Plus, Minus } from 'lucide-react';
+import { useFileStore } from '../../stores/fileStore';
 
 interface PromptVersion {
   version_id: string;
@@ -32,13 +34,15 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
   newVersion,
   onClose
 }) => {
+  const { t, i18n } = useTranslation();
+  const rootPath = useFileStore(state => state.rootPath);
   const [diff, setDiff] = useState<VersionDiff | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDiff();
-  }, [promptPath, oldVersion, newVersion]);
+  }, [promptPath, oldVersion, newVersion, rootPath]);
 
   const loadDiff = async () => {
     setIsLoading(true);
@@ -46,7 +50,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
 
     try {
       const data = await invoke<VersionDiff>('compare_prompt_versions', {
-        projectRoot: '/Users/mac/project/aieditor/ifainew',
+        projectRoot: rootPath || '',
         promptPath: promptPath,
         oldVersion: oldVersion,
         newVersion: newVersion
@@ -62,7 +66,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
-    return date.toLocaleString('zh-CN');
+    return date.toLocaleString(i18n.language);
   };
 
   const renderDiffLines = () => {
@@ -73,8 +77,8 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
       if (line.startsWith('-')) {
         return (
           <div key={index} className="flex">
-            <span className="w-8 text-red-400 text-right pr-2 select-none">-</span>
-            <span className="flex-1 bg-red-500/10 px-2 py-0.5 text-red-500">
+            <span className="theme-text-danger w-8 select-none pr-2 text-right">-</span>
+            <span className="theme-text flex-1 bg-[var(--danger-soft-bg)] px-2 py-0.5">
               {line.substring(1)}
             </span>
           </div>
@@ -82,8 +86,8 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
       } else if (line.startsWith('+')) {
         return (
           <div key={index} className="flex">
-            <span className="w-8 text-green-400 text-right pr-2 select-none">+</span>
-            <span className="flex-1 bg-green-500/10 px-2 py-0.5 text-green-500">
+            <span className="theme-text-success w-8 select-none pr-2 text-right">+</span>
+            <span className="theme-text flex-1 bg-[var(--success-soft-bg)] px-2 py-0.5">
               {line.substring(1)}
             </span>
           </div>
@@ -105,8 +109,8 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
     return (
       <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
         <div className="theme-panel-elevated theme-border theme-shadow rounded-lg border p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="theme-text-subtle mt-4 text-sm">正在加载版本对比...</p>
+          <div className="theme-text-accent h-8 w-8 animate-spin rounded-full border-2 border-current border-b-transparent"></div>
+          <p className="theme-text-subtle mt-4 text-sm">{t('promptManager.versionDiff.loading')}</p>
         </div>
       </div>
     );
@@ -116,12 +120,16 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
     return (
       <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
         <div className="theme-panel-elevated theme-border theme-shadow w-full max-w-md rounded-lg border p-8">
-          <p className="text-red-500">加载版本对比失败: {error}</p>
+          <p className="theme-text-danger text-sm font-medium">{t('promptManager.versionDiff.errorTitle')}</p>
+          <p className="theme-text-muted mt-1 text-sm">{t('promptManager.versionDiff.loadFailedDescription')}</p>
+          <p className="theme-text-subtle mt-2 break-all text-xs">
+            {t('promptManager.common.technicalDetails')}: {error}
+          </p>
           <button
             onClick={onClose}
             className="theme-button-secondary mt-4 w-full rounded-lg px-4 py-2 text-sm"
           >
-            关闭
+            {t('common.close')}
           </button>
         </div>
       </div>
@@ -138,7 +146,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
           <div className="flex items-center gap-4 flex-1">
             {/* 旧版本 */}
             <div className="flex-1">
-              <div className="theme-text-subtle mb-1 text-xs">旧版本</div>
+              <div className="theme-text-subtle mb-1 text-xs">{t('promptManager.versionDiff.oldVersion')}</div>
               <code className="theme-input-surface theme-border rounded border px-2 py-1 text-sm font-mono">
                 {diff.old_version.version_id.substring(0, 7)}
               </code>
@@ -152,7 +160,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
 
             {/* 新版本 */}
             <div className="flex-1">
-              <div className="theme-text-subtle mb-1 text-xs">新版本</div>
+              <div className="theme-text-subtle mb-1 text-xs">{t('promptManager.versionDiff.newVersion')}</div>
               <code className="theme-input-surface theme-border rounded border px-2 py-1 text-sm font-mono">
                 {diff.new_version.version_id.substring(0, 7)}
               </code>
@@ -164,13 +172,13 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
             {/* 统计信息 */}
             <div className="flex items-center gap-3 flex-shrink-0">
               {diff.additions > 0 && (
-                <div className="flex items-center gap-1 text-green-500">
+                <div className="theme-text-success flex items-center gap-1">
                   <Plus className="w-4 h-4" />
                   <span className="text-sm font-medium">{diff.additions}</span>
                 </div>
               )}
               {diff.deletions > 0 && (
-                <div className="flex items-center gap-1 text-red-500">
+                <div className="theme-text-danger flex items-center gap-1">
                   <Minus className="w-4 h-4" />
                   <span className="text-sm font-medium">{diff.deletions}</span>
                 </div>
@@ -200,12 +208,12 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
           <div className="theme-text-subtle text-xs">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <span className="h-3 w-3 rounded bg-green-500/20"></span>
-                添加的行
+                <span className="h-3 w-3 rounded bg-[var(--success-soft-bg)]"></span>
+                {t('promptManager.versionDiff.addedLines')}
               </span>
               <span className="flex items-center gap-1">
-                <span className="h-3 w-3 rounded bg-red-500/20"></span>
-                删除的行
+                <span className="h-3 w-3 rounded bg-[var(--danger-soft-bg)]"></span>
+                {t('promptManager.versionDiff.deletedLines')}
               </span>
             </div>
           </div>
@@ -214,7 +222,7 @@ export const VersionDiffViewer: React.FC<VersionDiffViewerProps> = ({
             onClick={onClose}
             className="theme-button-primary rounded-lg px-4 py-2 text-sm"
           >
-            关闭
+            {t('common.close')}
           </button>
         </div>
       </div>

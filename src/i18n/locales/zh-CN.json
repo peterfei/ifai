@@ -2,7 +2,25 @@
   "titlebar": {
     "toggleSidebar": "切换侧边栏",
     "codeAnalysis": "代码分析 (检测代码异味)",
-    "toggleTheme": "切换主题"
+    "toggleTheme": "切换主题",
+    "createWindowFailed": "创建新窗口失败",
+    "folderAdded": "已添加文件夹：{{name}}",
+    "folderAddFailed": "添加文件夹失败：{{error}}",
+    "workspaceSaved": "工作区已保存到：{{path}}",
+    "workspaceSaveFailed": "保存工作区失败：{{error}}",
+    "workspaceLoaded": "工作区已加载：{{count}} 个文件夹",
+    "workspaceOpenFailed": "打开工作区失败：{{error}}"
+  },
+  "errorBoundary": {
+    "title": "应用崩溃了",
+    "description": "抱歉，应用遇到了一个错误。请尝试以下操作：",
+    "reset": "重置应用",
+    "details": "错误详情（开发模式）",
+    "steps": {
+      "reset": "点击下方按钮重置应用",
+      "refresh": "如果问题持续，请刷新页面",
+      "console": "检查控制台获取详细错误信息"
+    }
   },
   "menu": {
     "file": "文件",
@@ -22,7 +40,9 @@
     "snippets": "代码片段管理",
     "tasks": "任务控制",
     "tools": "工具浏览器",
-    "prompts": "提示词管理"
+    "prompts": "提示词管理",
+    "promptsCommunityReadOnly": "提示词管理（社区版 - 只读）",
+    "projectFallback": "项目"
   },
   "editor": {
     "welcome": "IfAI 编辑器",
@@ -69,7 +89,14 @@
     "orClickFolderIcon": "或点击上方标题栏中的文件夹图标",
     "addFolder": "添加文件夹",
     "saveWorkspaceAs": "另存工作区为...",
-    "openWorkspace": "打开工作区..."
+    "openWorkspace": "打开工作区...",
+    "workspace": "工作区",
+    "removeFolder": "移除文件夹",
+    "removeFolderConfirm": "确定要将文件夹“{{name}}”从工作区移除吗？",
+    "folderRemoved": "已移除文件夹：{{name}}",
+    "folderRemoveFailed": "移除文件夹失败：{{error}}",
+    "switchFolderFailed": "切换文件夹失败：{{error}}",
+    "openNodeFailed": "打开 {{name}} 失败：{{error}}"
   },
   "chat": {
     "title": "若爱助手",
@@ -84,21 +111,349 @@
     "title": "搜索",
     "placeholder": "搜索",
     "noResults": "无结果",
-    "openFolder": "请打开文件夹以搜索文件"
+    "openFolder": "请打开文件夹以搜索文件",
+    "summary": "{{files}} 个文件中共 {{results}} 条结果",
+    "clear": "清除",
+    "submit": "搜索",
+    "options": "选项",
+    "optionsTitle": "搜索选项",
+    "caseSensitive": "区分大小写",
+    "useRegex": "正则表达式",
+    "history": "历史",
+    "historyTitle": "搜索历史",
+    "recentSearches": "最近搜索",
+    "noHistory": "暂无搜索历史",
+    "noHistoryHint": "开始搜索后会在这里显示历史记录",
+    "regexTip": "提示：请检查正则表达式语法",
+    "time": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}}分钟前",
+      "hoursAgo": "{{count}}小时前",
+      "daysAgo": "{{count}}天前"
+    }
   },
   "terminal": {
     "title": "终端"
   },
   "taskMonitor": {
-    "title": "任务控制"
+    "title": "任务控制",
+    "filter": "筛选",
+    "all": "全部",
+    "searchPlaceholder": "快速过滤...",
+    "noTasks": "暂无任务记录",
+    "listView": "列表视图",
+    "timelineView": "时间线视图",
+    "processing": "处理中...",
+    "clearCompleted": "清除已完成任务",
+    "summary": {
+      "runningShort": "运行",
+      "pendingShort": "等待",
+      "successShort": "完成",
+      "failedShort": "失败"
+    },
+    "card": {
+      "pause": "暂停任务",
+      "resume": "继续任务",
+      "cancel": "取消任务",
+      "retry": "重试任务",
+      "remove": "移除任务",
+      "logs": "实时日志",
+      "live": "实时",
+      "progressBar": "任务进度"
+    },
+    "metrics": {
+      "remaining": "剩余 {{duration}}"
+    },
+    "status": {
+      "pending": "等待中",
+      "running": "运行中",
+      "paused": "已暂停",
+      "success": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    }
   },
   "taskTimeline": {
-    "noActivity": "暂无活动记录"
+    "noActivity": "暂无活动记录",
+    "recentLog": "最近日志"
+  },
+  "taskLogStream": {
+    "title": "日志（{{count}}）",
+    "searchPlaceholder": "搜索日志...",
+    "filter": "筛选日志",
+    "export": "导出日志",
+    "clear": "清除日志",
+    "allLevels": "全部",
+    "empty": "暂无日志",
+    "noMatches": "没有匹配的日志",
+    "autoScroll": "自动滚动",
+    "more": "还有 {{count}} 条...",
+    "less": "收起"
   },
   "snippetManager": {
     "title": "代码片段管理",
     "items": "项",
     "storage": "IndexedDB 存储"
+  },
+  "toolExplorer": {
+    "title": "工具浏览器",
+    "searchPlaceholder": "搜索工具名称或描述...",
+    "resetFilters": "重置过滤器",
+    "clearFilters": "清除过滤器",
+    "empty": "没有找到匹配的工具",
+    "loadError": "加载工具信息失败。",
+    "totalTools": "总工具数：",
+    "countLabel": "{{label}}：{{count}}",
+    "description": "描述",
+    "parameterDescriptions": "参数说明",
+    "inputSchema": "输入参数 JSON Schema",
+    "examples": "示例用法",
+    "copyToolName": "复制工具名称",
+    "danger": "危险",
+    "dangerousAction": "危险操作",
+    "filters": {
+      "category": "分类",
+      "permission": "权限级别"
+    },
+    "categories": {
+      "File": "文件",
+      "Search": "搜索",
+      "Command": "命令",
+      "Network": "网络",
+      "System": "系统",
+      "Other": "其他"
+    },
+    "permissions": {
+      "ReadOnly": "只读",
+      "WorkspaceWrite": "写入",
+      "Prompt": "提示",
+      "DangerFullAccess": "危险",
+      "Allow": "允许"
+    },
+    "tools": {
+      "read_file": {
+        "label": "读取文件",
+        "description": "读取文件内容。",
+        "examples": [
+          "读取单个文件内容",
+          "查看源代码文件",
+          "读取配置文件"
+        ],
+        "schema": {
+          "properties": {
+            "path": {
+              "description": "要读取的文件路径"
+            }
+          }
+        },
+        "parameters": {
+          "path": "要读取的文件路径"
+        }
+      },
+      "write_file": {
+        "label": "写入文件",
+        "description": "将内容写入文件。",
+        "examples": [
+          "创建新文件并写入内容",
+          "覆盖现有文件",
+          "保存生成的代码"
+        ],
+        "schema": {
+          "properties": {
+            "path": {
+              "description": "要写入的文件路径"
+            },
+            "content": {
+              "description": "要写入的文件内容"
+            }
+          }
+        },
+        "parameters": {
+          "path": "要写入的文件路径",
+          "content": "要写入的文件内容"
+        }
+      },
+      "edit_file": {
+        "label": "编辑文件",
+        "description": "编辑文件中的特定部分。",
+        "examples": [
+          "修改文件中的特定部分",
+          "替换代码片段",
+          "更新配置项"
+        ],
+        "schema": {
+          "properties": {
+            "path": {
+              "description": "要编辑的文件路径"
+            },
+            "old_text": {
+              "description": "要替换的原始文本内容"
+            },
+            "new_text": {
+              "description": "替换后的新文本内容"
+            }
+          }
+        },
+        "parameters": {
+          "path": "要编辑的文件路径",
+          "old_text": "要替换的原始文本内容",
+          "new_text": "替换后的新文本内容"
+        }
+      },
+      "glob_search": {
+        "label": "Glob 搜索",
+        "description": "使用 Glob 模式搜索文件。",
+        "examples": [
+          "查找所有 .ts 文件",
+          "搜索特定目录下的文件",
+          "按文件名模式匹配"
+        ],
+        "schema": {
+          "properties": {
+            "pattern": {
+              "description": "Glob 匹配模式，例如 **/*.ts"
+            },
+            "path": {
+              "description": "搜索目录，可选"
+            }
+          }
+        },
+        "parameters": {
+          "pattern": "Glob 匹配模式，例如 **/*.ts",
+          "path": "搜索目录，可选"
+        }
+      },
+      "grep_search": {
+        "label": "Grep 搜索",
+        "description": "在文件中搜索文本。",
+        "examples": [
+          "在文件中搜索特定文本",
+          "查找函数定义",
+          "搜索变量使用位置"
+        ],
+        "schema": {
+          "properties": {
+            "pattern": {
+              "description": "要搜索的文本或正则表达式"
+            },
+            "path": {
+              "description": "搜索目录，可选"
+            }
+          }
+        },
+        "parameters": {
+          "pattern": "要搜索的文本或正则表达式",
+          "path": "搜索目录，可选"
+        }
+      },
+      "bash": {
+        "label": "Bash",
+        "description": "执行 bash 命令。",
+        "examples": [
+          "执行 shell 命令",
+          "运行构建脚本",
+          "执行 git 操作"
+        ],
+        "schema": {
+          "properties": {
+            "command": {
+              "description": "要执行的 bash 命令"
+            }
+          }
+        },
+        "parameters": {
+          "command": "要执行的 bash 命令"
+        }
+      },
+      "PowerShell": {
+        "label": "PowerShell",
+        "description": "在 Windows 上执行 PowerShell 命令。",
+        "examples": [
+          "执行 PowerShell 命令（Windows）",
+          "管理系统配置"
+        ],
+        "schema": {
+          "properties": {
+            "command": {
+              "description": "要执行的 PowerShell 命令"
+            }
+          }
+        },
+        "parameters": {
+          "command": "要执行的 PowerShell 命令"
+        }
+      },
+      "WebFetch": {
+        "label": "网页抓取",
+        "description": "获取网页 URL 的内容。",
+        "examples": [
+          "获取网页内容",
+          "读取在线文档",
+          "获取 API 响应"
+        ],
+        "schema": {
+          "properties": {
+            "url": {
+              "description": "要获取的网页 URL"
+            }
+          }
+        },
+        "parameters": {
+          "url": "要获取的网页 URL"
+        }
+      },
+      "WebSearch": {
+        "label": "网络搜索",
+        "description": "在网络上搜索信息。",
+        "examples": [
+          "搜索技术文档",
+          "查找问题解决方案",
+          "获取最新信息"
+        ],
+        "schema": {
+          "properties": {
+            "query": {
+              "description": "搜索关键词"
+            }
+          }
+        },
+        "parameters": {
+          "query": "搜索关键词"
+        }
+      },
+      "TodoWrite": {
+        "label": "待办写入",
+        "description": "为当前会话创建或更新结构化任务列表。",
+        "examples": [
+          "创建任务列表",
+          "更新任务进度",
+          "标记任务完成状态"
+        ],
+        "schema": {
+          "properties": {
+            "todos": {
+              "description": "要管理的任务数组",
+              "items": {
+                "properties": {
+                  "activeForm": {
+                    "description": "任务的进行时动词形式，例如“正在实现登录功能”"
+                  },
+                  "content": {
+                    "description": "任务的名词形式描述，例如“实现登录功能”"
+                  },
+                  "status": {
+                    "description": "当前状态：pending、in_progress 或 completed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "todos": "任务数组，每项包含 content、activeForm 和 status"
+        }
+      }
+    }
   },
   "snippetList": {
     "loading": "加载片段中...",
@@ -113,13 +468,227 @@
     "confirmClear": "清除所有片段？",
     "newSnippet": "新建片段"
   },
+  "promptManager": {
+    "common": {
+      "technicalDetails": "技术详情"
+    },
+    "list": {
+      "title": "提示词管理",
+      "exportTitle": "导出提示词",
+      "importTitle": "导入提示词",
+      "refresh": "刷新",
+      "expertMode": "专家模式",
+      "normalMode": "普通模式",
+      "enableExpertMode": "开启专家模式",
+      "disableExpertMode": "关闭专家模式",
+      "loading": "加载提示词中...",
+      "emptyTitle": "未找到提示词",
+      "directoryLabel": "目录：{{path}}",
+      "untitledPrompt": "未命名提示词",
+      "noDescription": "暂无描述",
+      "loadFailedTitle": "提示词加载失败",
+      "loadFailedDescription": "请检查当前项目中的提示词目录和配置后重试。"
+    },
+    "accessTier": {
+      "public": "可编辑",
+      "protected": "只读 + 覆盖",
+      "private": "专家",
+      "unknown": "未知"
+    },
+    "editor": {
+      "emptyTitle": "选择一个提示词",
+      "emptyDescription": "从左侧选择提示词开始编辑。",
+      "invalidTitle": "提示词数据无效",
+      "invalidDescription": "后端返回结果中缺少 metadata 字段。",
+      "commercialNotice": "提示词编辑功能仅在商业版中可用",
+      "learnMore": "了解更多",
+      "builtInNotice": "这是一个内置系统提示词。保存时将创建项目级覆盖文件。",
+      "infoBadge": "提示",
+      "tabEditor": "编辑",
+      "tabPreview": "预览",
+      "readOnly": "只读",
+      "versionHistory": "版本历史",
+      "validatePrompt": "验证提示词",
+      "launchAgent": "启动智能体",
+      "save": "保存",
+      "createOverride": "创建覆盖",
+      "variables": "变量",
+      "noPreview": "暂无预览，请先在上方输入内容。",
+      "renderFailed": "渲染失败：{{error}}",
+      "saveSuccess": "提示词保存成功",
+      "saveFailed": "保存提示词失败",
+      "overrideProjectCreated": "已创建项目级覆盖",
+      "overrideProjectCreatedDesc": "该提示词现在将在当前项目中优先使用。",
+      "overrideFileCreated": "覆盖文件创建成功",
+      "overrideFileCreatedDesc": "{{fileName}} 已创建。",
+      "launchStarted": "智能体“{{name}}”已启动",
+      "launchFailed": "启动失败",
+      "rollbackSuccess": "已回滚到版本 {{version}}",
+      "sampleUser": "示例用户",
+      "sampleLanguage": "TypeScript",
+      "sampleProject": "IfAI 工作区",
+      "sampleCwd": "/workspace/project",
+      "sampleValue": "示例值",
+      "launchTask": "从提示词管理器运行预览任务"
+    },
+    "monaco": {
+      "loading": "正在加载编辑器...",
+      "variableDetail": "提示词变量",
+      "variableDocumentation": "提示词变量：{{variable}}",
+      "helpers": {
+        "if": "条件判断",
+        "unless": "条件否定",
+        "each": "循环遍历数组或对象",
+        "with": "切换当前上下文",
+        "eq": "等于比较",
+        "ne": "不等于比较",
+        "gt": "大于比较",
+        "lt": "小于比较",
+        "and": "逻辑与",
+        "or": "逻辑或",
+        "not": "逻辑非",
+        "concat": "字符串连接",
+        "lookup": "动态查找属性"
+      }
+    },
+    "exportDialog": {
+      "openProjectFirstTitle": "请先打开项目",
+      "openProjectFirstDescription": "导出提示词需要先打开一个项目文件夹。",
+      "title": "导出提示词",
+      "selectTitle": "选择提示词",
+      "selectDescription": "选择要导出的提示词（{{selected}} / {{total}}）",
+      "selectAll": "全选",
+      "clearSelection": "取消全选",
+      "loadingPrompts": "正在加载可导出的提示词...",
+      "packageInfoTitle": "包信息",
+      "packageInfoDescription": "填写导出包的元数据信息。",
+      "packageName": "包名称",
+      "description": "描述",
+      "author": "作者",
+      "version": "版本",
+      "saveDialogTitle": "导出提示词包",
+      "defaultFileName": "{{name}}-提示词.json",
+      "exportSummary": "将导出 {{count}} 个提示词",
+      "namePlaceholder": "例如：my-prompts",
+      "descriptionPlaceholder": "描述这个提示词包的用途和内容",
+      "authorPlaceholder": "作者名称或组织",
+      "jsonFileFilter": "JSON 文件",
+      "selectAtLeastOneError": "请至少选择一个提示词",
+      "requiredError": "请填写完整的包信息",
+      "errorTitle": "导出失败",
+      "errorDescription": "请检查所选提示词和导出包信息后重试。",
+      "next": "下一步",
+      "back": "上一步",
+      "exporting": "导出中...",
+      "export": "导出"
+    },
+    "importDialog": {
+      "openProjectFirstTitle": "请先打开项目",
+      "openProjectFirstDescription": "导入提示词需要先打开一个项目文件夹。",
+      "title": "导入提示词",
+      "openDialogTitle": "选择提示词包",
+      "fileStepTitle": "选择提示词包",
+      "fileStepDescription": "选择之前导出的提示词包文件（.json）。",
+      "dropzoneHint": "点击下方按钮选择文件",
+      "chooseFile": "选择文件",
+      "loadingFile": "加载中...",
+      "packageContents": "包含的提示词",
+      "author": "作者",
+      "version": "版本",
+      "ifaiVersion": "IfAI 版本",
+      "promptCount": "提示词数量",
+      "overwriteTitle": "覆盖已存在的提示词",
+      "overwriteDescription": "如果启用，导入时会替换同名提示词；否则会跳过已存在的提示词。",
+      "jsonFileFilter": "JSON 文件",
+      "loadPackageFailed": "无法加载包文件：{{error}}",
+      "errorTitle": "导入失败",
+      "errorDescription": "请检查提示词包文件内容和导入设置后重试。",
+      "successTitle": "导入完成",
+      "successDescription": "成功导入 {{count}} 个提示词",
+      "warningTitle": "导入完成（有警告）",
+      "imported": "已导入（{{count}}）",
+      "skipped": "已跳过（{{count}}）",
+      "warnings": "警告（{{count}}）",
+      "errors": "错误（{{count}}）",
+      "importing": "导入中...",
+      "startImport": "开始导入",
+      "done": "完成"
+    },
+    "validation": {
+      "title": "验证结果",
+      "validating": "验证中...",
+      "passed": "验证通过",
+      "failed": "验证失败",
+      "errorCount": "{{count}} 个错误",
+      "warningCount": "{{count}} 个警告",
+      "validatingPrompt": "正在验证提示词...",
+      "systemErrorType": "系统错误",
+      "systemErrorMessage": "提示词验证暂时不可用，请稍后重试。",
+      "line": "行 {{line}}",
+      "lineWithColumn": "行 {{line}}:{{column}}",
+      "noIssues": "提示词验证通过，没有发现错误或警告",
+      "editToValidate": "编辑提示词以开始验证",
+      "footer": "验证包括 YAML 格式、花括号平衡、Handlebars 语法和安全规则。"
+    },
+    "versionHistory": {
+      "title": "版本历史",
+      "compareSelected": "对比选中版本",
+      "rollbackConfirm": "确定要回滚到此版本吗？此操作将覆盖当前文件内容。",
+      "rollbackFailed": "回滚失败：{{error}}",
+      "loading": "正在加载版本历史...",
+      "loadFailed": "加载版本历史失败：{{error}}",
+      "errorTitle": "无法加载版本历史",
+      "loadFailedDescription": "当前无法读取该提示词的版本历史，请稍后重试。",
+      "emptyTitle": "暂无版本历史",
+      "emptyDescription": "该提示词尚未提交到 Git。",
+      "latest": "最新",
+      "noCommitMessage": "无提交信息",
+      "rollback": "回滚到此版本",
+      "footer": "共显示 {{count}} 个版本，最多展示最近 20 个版本"
+    },
+    "versionDiff": {
+      "loading": "正在加载版本对比...",
+      "loadFailed": "加载版本对比失败：{{error}}",
+      "errorTitle": "无法加载版本对比",
+      "loadFailedDescription": "当前无法生成所选版本的对比结果，请稍后重试。",
+      "oldVersion": "旧版本",
+      "newVersion": "新版本",
+      "addedLines": "新增行",
+      "deletedLines": "删除行"
+    },
+    "overrideDialog": {
+      "expertTitle": "专家模式编辑",
+      "protectedTitle": "创建覆盖文件",
+      "defaultTitle": "编辑确认",
+      "expertIntroPrefix": "您正在编辑私有提示词",
+      "expertModeLabel": "专家模式",
+      "expertWarningTitle": "警告",
+      "expertWarningBody": "私有提示词是系统核心组件，修改可能会影响 AI 行为。请确保您了解修改的影响。",
+      "protectedIntro": "您即将编辑受保护的提示词",
+      "overrideMechanismTitle": "覆盖机制",
+      "overrideMechanismPrefix": "系统将创建文件",
+      "overrideMechanismSuffix": "原始提示词不会被修改，您的覆盖将在当前项目中优先使用。",
+      "restoreHint": "如需恢复原始提示词，只需删除覆盖文件即可。",
+      "defaultMessage": "确认要保存对提示词的修改：",
+      "saveAsExpert": "以专家模式保存",
+      "createOverrideAndSave": "创建覆盖并保存"
+    }
+  },
   "common": {
+    "thisFile": "该文件",
     "untitled": "未命名",
     "loading": "加载中...",
     "fileSaved": "文件已保存",
     "fileSaveFailed": "保存文件失败",
     "fileOpenFailed": "打开文件失败",
+    "fileOpenFailedWithName": "打开 {{fileName}} 失败",
     "folderOpenFailed": "打开文件夹失败",
+    "protectedFileOpenMessage": "无法以文本形式打开 {{fileName}}。{{categoryLabel}}文件不支持在编辑器中打开。",
+    "protectedFileCategories": {
+      "binary": "二进制",
+      "archive": "归档",
+      "media": "媒体"
+    },
     "emptyPane": "空窗格",
     "newFile": "新建文件",
     "openFile": "打开文件...",
@@ -148,7 +717,8 @@
     "deleteFailed": "删除失败",
     "cancel": "取消",
     "confirm": "确认",
-    "close": "关闭"
+    "close": "关闭",
+    "unknown": "未知"
   },
   "tool": {
     "executed": "工具执行成功",
@@ -177,7 +747,10 @@
     "new": "新建",
     "newFile": "新建文件",
     "newFolder": "新建文件夹",
-    "refresh": "刷新"
+    "refresh": "刷新",
+    "terminalOpened": "终端已打开",
+    "fileRevealed": "已在文件管理器中显示文件",
+    "folderRevealed": "已在文件管理器中显示文件夹"
   },
   "settings": {
     "general": "通用",
@@ -203,7 +776,7 @@
     "sidebarPosition": "侧边栏位置",
     "sidebarLeft": "左侧",
     "sidebarRight": "右侧",
-    "sidebarPositionHint": "快捷键: Cmd/Ctrl+B 切换侧边栏显示/隐藏",
+    "sidebarPositionHint": "快捷键：{{shortcut}} 切换侧边栏显示/隐藏",
     "aiProviders": "若爱提供商",
     "apiKey": "API 密钥",
     "baseUrl": "基础 URL",
@@ -217,7 +790,14 @@
     "customProvider": "自定义提供商",
     "dataManagement": "数据管理",
     "localModelSettings": "本地模型",
+    "languageZhCn": "简体中文",
+    "languageEnUs": "English",
     "manageCustomProvider": "管理自定义提供商",
+    "toolClassification": "工具分类",
+    "toolClassificationSettings": "工具分类设置",
+    "skills": "技能中心",
+    "builtInProviders": "内置提供商",
+    "configured": "已配置",
     "currentActive": "当前激活",
     "notSelected": "未选择",
     "modelLabel": "模型",
@@ -237,14 +817,24 @@
     "targetFPS": "目标帧率",
     "enableGPUAcceleration": "启用 GPU 加速",
     "showPerformanceMonitor": "显示性能监控器",
-    "enableAutoDowngrade": "自动性能降级"
+    "enableAutoDowngrade": "自动性能降级",
+    "typewriterEffect": "启用打字机效果",
+    "typewriterEffectDesc": "逐字显示 AI 响应，关闭后将直接显示完整内容",
+    "sandboxMode": "沙箱模式",
+    "sandboxModeDesc": "控制破坏性操作（如 bash、删除文件）的自动审批策略",
+    "sandboxModeAuto": "自动检测",
+    "sandboxModeTauriOnly": "仅桌面应用",
+    "sandboxModeAlwaysOn": "始终启用",
+    "sandboxModeAlwaysOff": "始终禁用"
   },
   "customProviderSettings": {
     "custom": "自定义",
     "customEndpointDesc": "完全自定义端点",
+    "customEndpointPlaceholder": "https://your-endpoint.com/v1/chat/completions",
     "pleaseEnterName": "请输入提供商名称",
-    "confirmDelete": "确定要删除此提供商吗？",
+    "confirmDelete": "确定要删除提供商“{{name}}”吗？",
     "noModelsFound": "未找到任何模型。请确保 Ollama 已安装模型。",
+    "addModelsFirst": "请先编辑此提供商并至少添加一个模型名称",
     "refreshSuccess": "成功获取 {{count}} 个模型:\n{{models}}",
     "refreshFailed": "刷新失败: {{error}}\n\n请确保:\n1. Ollama 正在运行\n2. 端点地址正确 ({{baseUrl}})\n3. 已安装至少一个模型",
     "cancelEdit": "取消编辑",
@@ -255,10 +845,16 @@
     "providerName": "提供商名称",
     "apiUrl": "API 地址",
     "availableModels": "可用模型（逗号分隔）",
+    "modelsDelimitedHint": "用逗号分隔",
+    "modelsPlaceholder": "例如：gpt-4o, qwen2.5-coder",
     "statusLabel": "状态",
     "enabled": "已启用",
     "disabled": "已禁用",
     "etc": " 等",
+    "parametersTitle": "参数配置",
+    "temperature": "温度",
+    "topP": "Top-P",
+    "maxTokens": "最大 Token",
     "notConfigured": "未配置",
     "addNewProvider": "添加新提供商",
     "providerNamePlaceholder": "例如：我的 Ollama",
@@ -269,6 +865,84 @@
     "customProviderDesc": "添加 Ollama、vLLM、LocalAI 等本地或自定义端点",
     "addProvider": "添加提供商",
     "noCustomProviders": "暂无自定义提供商，点击上方按钮添加"
+  },
+  "modelCapsule": {
+    "selectModel": "选择模型",
+    "advancedSettings": "进阶模型设置",
+    "transparency": {
+      "label": "AI 透明度",
+      "minimal": "隐藏",
+      "standard": "标准",
+      "verbose": "详细",
+      "debug": "调试"
+    }
+  },
+  "modelParamsConfig": {
+    "simpleMode": "简单模式",
+    "advancedMode": "高级模式",
+    "quickPresets": "快速预设",
+    "presets": {
+      "fast": {
+        "label": "快速",
+        "description": "较低温度，适合简单任务"
+      },
+      "balanced": {
+        "label": "平衡",
+        "description": "平衡速度与质量"
+      },
+      "precise": {
+        "label": "精确",
+        "description": "更高精度，适合复杂任务"
+      }
+    },
+    "temperatureRange": {
+      "low": "精确 (0)",
+      "high": "创造 (2)"
+    },
+    "topPRange": {
+      "low": "专注 (0)",
+      "high": "多样 (1)"
+    },
+    "badge": {
+      "temperature": "温",
+      "topP": "P",
+      "maxTokens": "Max"
+    }
+  },
+  "systemPromptCard": {
+    "title": "系统提示词",
+    "sectionsCount": "{{count}} 个部分",
+    "skillsCount": "{{count}} 个技能",
+    "totalTokens": "~{{count}} {{tokens}}",
+    "inactive": "未启用",
+    "clickToLoad": "点击加载内容",
+    "truncated": "...（已截断）"
+  },
+  "bashConsoleOutput": {
+    "title": "控制台输出",
+    "empty": "暂无输出",
+    "collapse": "收起",
+    "expand": "展开",
+    "exitCode": "退出码：{{code}}"
+  },
+  "chatInput": {
+    "dropImageHint": "释放图片，AI 即刻读图",
+    "currentModel": "当前模型：{{model}}",
+    "referenceFile": "引用文件",
+    "referenceSymbol": "引用符号"
+  },
+  "fuzzyFileSearch": {
+    "title": "引用文件 (@)",
+    "noMatches": "未找到匹配文件..."
+  },
+  "taskSummary": {
+    "title": "生成完成",
+    "completedOperations": "{{completed}}/{{total}} 操作已完成",
+    "filesCreated": "生成的文件 ({{count}})",
+    "filesRead": "读取的文件 ({{count}})",
+    "commandsExecuted": "执行了 {{count}} 个命令",
+    "errors": "错误 ({{count}})",
+    "operationFailed": "操作失败"
   },
   "agent_monitor_title": "任务监控器",
   "agent_monitor_activeTasks": "{{count}} 个活动任务",
@@ -305,6 +979,7 @@
     "importSuccess": "快捷键导入成功",
     "importError": "快捷键导入失败：格式无效",
     "exportSuccess": "快捷键导出成功",
+    "exportError": "快捷键导出失败",
     "category": {
       "file": "文件操作",
       "edit": "编辑操作",
@@ -335,6 +1010,600 @@
     "toggleExplorer": "切换资源管理器",
     "tip": "提示：按 ? 键可快速打开此快捷键列表"
   },
+  "toolClassificationSettings": {
+    "summaryTitle": "工具分类系统",
+    "summaryDescription": "三层分类架构：精确匹配（Layer 1）→ 规则分类（Layer 2）→ LLM 分类（Layer 3）。可根据需要调整分类行为和显示设置。",
+    "basic": "基础设置",
+    "enable": "启用工具分类",
+    "enableDescription": "使用三层分类系统识别用户意图并选择合适的工具",
+    "showIndicator": "显示分类指示器",
+    "showIndicatorDescription": "在聊天输入框下方实时显示分类结果",
+    "behavior": "分类行为",
+    "confidenceThreshold": "置信度阈值",
+    "confidenceLoose": "50%（宽松）",
+    "confidenceStrict": "95%（严格）",
+    "confidenceDescription": "低于此阈值的分类结果将触发回退策略",
+    "fallbackStrategy": "回退策略",
+    "fallbackAlways": "始终使用回退（更保守）",
+    "fallbackOnLowConfidence": "低置信度时回退（推荐）",
+    "fallbackNever": "从不回退（最激进）",
+    "fallbackAlwaysDescription": "即使置信度很高，也会使用回退策略进行二次验证",
+    "fallbackOnLowConfidenceDescription": "仅在置信度低于阈值时使用回退策略",
+    "fallbackNeverDescription": "完全信任分类结果，不使用回退策略",
+    "performanceReference": "性能参考",
+    "layer1": "第一层",
+    "layer2": "第二层",
+    "layer3": "第三层",
+    "openTestPage": "打开测试页面（{{shortcut}}）"
+  },
+  "skillsSettings": {
+    "scanning": "正在扫描技能目录...",
+    "emptyTitle": "未发现可用技能",
+    "emptyDescription": "IfAI 会自动扫描项目根目录下 `.ifai/skills` 中的技能插件。您可以安装内置示例来快速开始体验。",
+    "installDemo": "安装内置示例技能",
+    "refresh": "刷新",
+    "viewSource": "查看源码",
+    "footerTip": "提示：激活技能后，AI 将自动获得该领域的增强指令。"
+  },
+  "commandPalette": {
+    "placeholder": "搜索文件...",
+    "placeholderThreads": "搜索会话...",
+    "placeholderAll": "搜索文件、会话... (@文件, #会话)",
+    "noResults": "未找到结果",
+    "threadType": "会话",
+    "messageCount": "{{count}} 条消息",
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
+  },
+  "threads": {
+    "now": "刚刚",
+    "minutesAgo": "{{m}}分钟前",
+    "hoursAgo": "{{h}}小时前",
+    "daysAgo": "{{d}}天前",
+    "noThreads": "暂无对话",
+    "newThread": "新建对话",
+    "new": "新对话",
+    "searchPlaceholder": "搜索对话...",
+    "clearFilters": "清除过滤",
+    "filterByTag": "按标签过滤",
+    "allTags": "所有标签",
+    "noTags": "暂无标签",
+    "filterByTagHint": "按标签筛选所有会话",
+    "manageCurrentThreadTags": "管理当前会话的标签",
+    "manageTags": "管理标签",
+    "currentThread": "当前会话",
+    "threads": "个对话",
+    "confirmDeleteTag": "确定要删除标签 \"{{tag}}\" 吗？",
+    "tagExists": "标签已存在",
+    "noActiveThread": "无活动会话",
+    "noTagsYet": "当前会话暂无标签",
+    "createTagHint": "创建标签后可以为当前会话添加标签",
+    "save": "保存",
+    "cancel": "取消",
+    "editTag": "编辑标签",
+    "deleteTag": "删除标签",
+    "newTagName": "新标签名称",
+    "create": "创建",
+    "createNewTag": "创建新标签",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "pinned": "已置顶",
+    "unpinned": "已取消置顶",
+    "addTag": "添加标签",
+    "copyTitle": "复制标题",
+    "details": "会话详情",
+    "deleteThread": "删除会话",
+    "threadId": "会话 ID",
+    "messageCount": "消息数量",
+    "messageCountValue": "{{count}} 条",
+    "createdAt": "创建时间",
+    "lastActive": "最后活跃",
+    "tags": "标签",
+    "description": "描述",
+    "confirmDeleteThread": "确定要删除会话 \"{{title}}\" 吗？"
+  },
+  "toolClassificationHistory": {
+    "empty": "暂无分类历史",
+    "total": "共 {{count}} 条记录",
+    "clear": "清空历史",
+    "clearConfirm": "确定要清空所有分类历史吗？",
+    "secondsAgo": "{{count}}秒前",
+    "minutesAgo": "{{count}}分钟前",
+    "hoursAgo": "{{count}}小时前",
+    "daysAgo": "{{count}}天前",
+    "categories": {
+      "all": "所有类别",
+      "fileOperations": "文件操作",
+      "codeGeneration": "代码生成",
+      "codeAnalysis": "代码分析",
+      "terminalCommands": "终端命令",
+      "aiChat": "AI 对话",
+      "searchOperations": "搜索操作",
+      "noToolNeeded": "无需工具"
+    },
+    "layers": {
+      "all": "所有层级",
+      "layer1": "Layer 1（精确匹配）",
+      "layer2": "Layer 2（规则分类）",
+      "layer3": "Layer 3（LLM 分类）"
+    }
+  },
+  "toolClassificationMonitor": {
+    "title": "工具分类监控",
+    "refresh": "刷新数据",
+    "totalCalls": "总调用次数",
+    "averageAccuracy": "平均准确率",
+    "averageLatency": "平均延迟",
+    "errorCount": "错误数量",
+    "layerDistribution": "层级分布",
+    "recentHistory": "最近分类记录",
+    "errorLog": "错误日志（{{count}}）",
+    "expand": "展开",
+    "collapse": "收起",
+    "noErrors": "暂无错误记录",
+    "expandHint": "点击“展开”查看错误详情",
+    "lowConfidence": "低置信度（{{confidence}}%）"
+  },
+  "toolClassificationIndicator": {
+    "thinking": "思考中...",
+    "querySimple": "简单查询",
+    "queryComplex": "复杂查询",
+    "categoryAria": "工具类别",
+    "feedbackCorrect": "分类正确",
+    "feedbackIncorrect": "分类错误"
+  },
+  "toolClassificationPanel": {
+    "tabs": {
+      "classify": "分类测试",
+      "history": "历史记录",
+      "stats": "统计信息"
+    },
+    "inputLabel": "输入要分类的文本",
+    "inputPlaceholder": "例如：读取文件、生成函数、git status...",
+    "classify": "分类",
+    "classifying": "分析中...",
+    "result": "分类结果",
+    "runBenchmark": "运行批量测试",
+    "clearHistory": "清空历史",
+    "benchmarkResults": "批量测试结果",
+    "totalClassifications": "总分类数",
+    "averageConfidence": "平均置信度",
+    "highAccuracy": "高准确率",
+    "needsTuning": "需优化",
+    "latestClassification": "最近分类",
+    "justNow": "刚刚",
+    "latestClassificationDesc": "最近一次分类时间",
+    "byCategory": "按类别统计",
+    "byLayer": "按层级统计"
+  },
+  "messageItem": {
+    "regenerate": "重新生成",
+    "agentLive": "智能体在线",
+    "thinking": "思考中：{{summary}}",
+    "contentCopied": "内容已复制",
+    "viewDiff": "查看 Diff（{{count}} 个文件）",
+    "fixActionFallback": "应用修复",
+    "ignoreFix": "忽略",
+    "applyFix": "应用修复",
+    "fixIgnored": "已忽略修复",
+    "fixApplied": "修复已应用",
+    "pendingActions": "有 {{count}} 个待处理的操作",
+    "approveAll": "全部批准",
+    "rejectAll": "全部拒绝",
+    "breakingDownTask": "正在拆解任务...",
+    "rollbackUnavailable": "回滚功能不可用",
+    "rollbackConflict": "检测到文件冲突，请单独回滚每个文件",
+    "rollbackSuccess": "已回滚 {{count}} 个文件",
+    "rollbackFailed": "回滚失败",
+    "rollbackFailedWithError": "回滚失败：{{error}}"
+  },
+  "codeAnalysisPanel": {
+    "title": "代码分析",
+    "analyzing": "分析中...",
+    "total": "总计",
+    "empty": "暂无分析结果",
+    "emptyHint": "打开文件后会自动开始分析",
+    "issueCount": "{{count}} 个问题",
+    "types": {
+      "longFunction": "长函数",
+      "complexFunction": "高复杂度",
+      "duplicateCode": "重复代码",
+      "magicNumber": "魔法数字",
+      "deepNesting": "深层嵌套"
+    },
+    "metrics": {
+      "complexity": "复杂度：{{count}}",
+      "length": "长度：{{count}} 行",
+      "nesting": "嵌套：{{count}} 层"
+    }
+  },
+  "toolApproval": {
+    "rollbackSnapshotRestored": "PIVO：文件已通过物理快照恢复",
+    "rollbackRestored": "文件已恢复",
+    "rollbackForceRestored": "文件已强制恢复",
+    "rollbackFailed": "回滚失败",
+    "rollbackFailedWithError": "回滚失败：{{error}}",
+    "commandLabel": "exec",
+    "autoApprove": {
+      "enabled": "自动批准已开启 · 工具执行中"
+    },
+    "actions": {
+      "approve": "批准执行",
+      "cancel": "取消",
+      "confirmRollback": "确认回滚",
+      "reject": "拒绝",
+      "undo": "撤销",
+      "undoPending": "撤销中..."
+    },
+    "conflict": {
+      "title": "检测到手动修改",
+      "description": "文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。"
+    },
+    "diff": {
+      "loadingContent": "正在加载内容...",
+      "preparing": "正在准备差异分析...",
+      "title": "变更分析"
+    },
+    "fileTree": {
+      "title": "文件结构"
+    },
+    "preview": {
+      "collapseView": "收起视图",
+      "dangerDescription": "该命令包含敏感操作，如删除或权限修改，执行前请仔细检查。",
+      "dangerTitle": "高风险操作警示",
+      "directoryScanning": "正在扫描目录结构...",
+      "lines": "{{count}} 行",
+      "preparingChanges": "正在准备变更预览...",
+      "queryLabel": "关键词",
+      "scopeLabel": "范围",
+      "searchTitle": "{{toolType}}预览",
+      "showAllLines": "显示全部行（{{count}}）",
+      "streaming": "流式传输",
+      "symbolDescription": "正在深度解析代码语义：{{fileName}}",
+      "symbolTitle": "{{toolType}}预览"
+    },
+    "result": {
+      "failedStatus": "失败",
+      "failedTitle": "执行失败",
+      "runningStatus": "运行中",
+      "successStatus": "成功",
+      "title": "执行结果"
+    },
+    "risk": {
+      "high": "高风险操作",
+      "low": "低风险操作",
+      "medium": "中等风险"
+    },
+    "sections": {
+      "parameters": "操作参数"
+    },
+    "status": {
+      "approved": "已批准",
+      "completed": "已完成",
+      "executing": "执行中...",
+      "executingOperation": "正在执行操作...",
+      "failed": "失败",
+      "generating": "生成中...",
+      "generatingShort": "生成中",
+      "pending": "待审批",
+      "rejected": "已拒绝",
+      "waitingOutput": "等待命令输出...",
+      "writingFile": "正在写入文件：{{path}}"
+    }
+  },
+  "aiChat": {
+    "externalFileOpenTitle": "打开外部文件",
+    "externalFileOpenDescription": "该路径位于当前工作区之外：\n{{path}}\n\n仍要打开吗？",
+    "composerApplySuccess": "已应用 {{count}} 个文件变更",
+    "composerApplyFailed": "应用失败：{{error}}",
+    "composerRejectAll": "已拒绝所有文件变更",
+    "composerRejectSummary": "{{message}}（回滚 {{rolledBack}} 个，删除 {{deleted}} 个）",
+    "composerFileApplied": "已应用：{{path}}",
+    "composerChangeMissing": "未找到文件变更：{{path}}",
+    "projectFolderNotOpen": "未打开项目文件夹",
+    "composerFileRejected": "已拒绝并回滚：{{path}}",
+    "rollbackFailed": "回滚失败：{{error}}",
+    "errorFixNone": "未发现可修复的错误",
+    "errorFixDetected": "检测到 {{count}} 个可修复错误",
+    "errorFixFailed": "错误检测失败",
+    "errorFixSent": "已将错误发送到 AI 助手",
+    "errorFixOpened": "已跳转到 {{path}}:{{line}}",
+    "unknownError": "未知错误",
+    "markdown": {
+      "expandHint": "展开查看全部",
+      "expandAll": "展开全部 ({{count}} 行)",
+      "collapse": "收起 ({{count}} 行)",
+      "streaming": "生成中..."
+    },
+    "timeline": {
+      "loading": "加载中...",
+      "user": "用户",
+      "assistant": "AI",
+      "containsCode": "包含代码",
+      "codeLines": "({{count}} 行)",
+      "loadedSummary": "已加载 {{loaded}}/{{total}} 条消息",
+      "loadFailed": "时间线加载失败，请重试。",
+      "loadTimeout": "时间线加载超时，请重试。",
+      "expand": "展开",
+      "collapse": "收起",
+      "loadMore": "加载更多...",
+      "retry": "重试",
+      "groups": {
+        "today": "今天",
+        "yesterday": "昨天",
+        "older": "更早"
+      }
+    },
+    "streamingBash": {
+      "waitingOutput": "等待输出...",
+      "running": "执行中... ({{lineCount}} 行)",
+      "completed": "已完成 ({{lineCount}} 行, {{elapsedMs}}ms)",
+      "failed": "失败 (退出码: {{exitCode}}, {{lineCount}} 行)"
+    },
+    "streamingToolArgs": {
+      "none": "无参数",
+      "generating": "生成中...",
+      "empty": "空",
+      "generatingArgs": "正在生成参数..."
+    },
+    "toolExecution": {
+      "progress": "执行进度",
+      "generatingContent": "正在生成内容...",
+      "status": {
+        "pending": "待审批",
+        "approved": "已批准",
+        "running": "执行中",
+        "completed": "已完成",
+        "failed": "失败",
+        "rejected": "已拒绝",
+        "unknown": "未知"
+      },
+      "steps": {
+        "initialize": "初始化环境",
+        "execute": "执行命令",
+        "process": "处理结果"
+      }
+    },
+    "taskCompletion": {
+      "completed": "任务已完成",
+      "generatedFiles": "已生成 {{count}} 个文件",
+      "characters": "{{count}} 字符"
+    },
+    "queueIndicator": {
+      "processing": "处理中",
+      "pending": "{{count}} 条等待"
+    },
+    "slashCommand": {
+      "navigationHint": "↑↓ 导航",
+      "enter": "Enter"
+    },
+    "tokenUsage": {
+      "breakdown": "Token 明细",
+      "systemTotal": "系统总计",
+      "tokens": "tokens"
+    },
+    "globalAgentMonitor": {
+      "switchToThread": "切换到会话: {{title}}",
+      "closeInSeconds": "{{count}} 秒后关闭",
+      "secondsElapsed": "{{count}} 秒"
+    },
+    "projectTree": {
+      "characters": "{{count}} 字符",
+      "truncatedHint": "... (已截断，点击展开查看全部)",
+      "hidePreview": "隐藏关键文件内容",
+      "showPreview": "预览关键文件内容",
+      "topology": "项目拓扑",
+      "keyFiles": "{{count}} 个关键文件",
+      "keyFilesPreview": "关键文件预览",
+      "files": "{{count}} 个文件",
+      "moreKeyFiles": "... 还有 {{count}} 个关键文件"
+    },
+    "pivoTree": {
+      "missionExecutionPlan": "任务执行计划",
+      "healing": "自愈"
+    },
+    "diffPreview": {
+      "newFile": "新建文件预览",
+      "semantic": "语义化 Diff 预览",
+      "remainingLines": "... 还有 {{count}} 行",
+      "analyzing": "智能引擎正在分析代码变更...",
+      "lineSummary": "检测到原始内容共 {{oldCount}} 行，即将覆盖为新内容（共 {{newCount}} 行）。",
+      "poweredBy": "由 PIVO 2.0 引擎驱动"
+    },
+    "toolArgsViewer": {
+      "itemsCount": "{{count}} 项",
+      "arrayCount": "[{{count}} 项]",
+      "arrayTooLarge": "数组过大，无法显示（{{count}} 项）",
+      "none": "无参数",
+      "generating": "正在生成参数...",
+      "moreParameters": "另有 {{count}} 个参数"
+    },
+    "probeSymbol": {
+      "pipeline": "符号探测流程",
+      "empty": "此文件中未检测到显著符号。"
+    },
+    "exploreProgress": {
+      "phase": {
+        "scanning": "扫描中",
+        "analyzing": "分析中",
+        "completed": "已完成"
+      },
+      "directories": "{{current}}/{{total}} 目录",
+      "files": "{{count}} 个文件",
+      "filesPerSecond": "{{count}} 文件/秒",
+      "preparing": "正在准备扫描...",
+      "scannedFiles": "扫描文件",
+      "recentScanned": "最近扫描",
+      "directoryTree": "目录结构 ({{count}})",
+      "scanningDirectory": "正在扫描目录...",
+      "scanningNow": "正在扫描",
+      "scanCompleted": "扫描完成 {{count}} 个文件",
+      "scanCompletedTotal": "扫描完成，共 {{count}} 个文件",
+      "scanCompletedDetailed": "扫描完成，共扫描 {{count}} 个文件"
+    },
+    "toolBatchApproval": {
+      "groups": {
+        "read": "读取文件",
+        "list": "列出目录",
+        "search": "搜索内容",
+        "write": "写入文件",
+        "analyze": "分析代码",
+        "other": "其他操作"
+      },
+      "actions": {
+        "read": "读取",
+        "list": "列出",
+        "search": "搜索"
+      },
+      "taskTitle": {
+        "privateRepo": "访问 ifainew-core 私有库",
+        "exploreProject": "探索项目整体结构",
+        "analyzeKeyFiles": "分析项目关键文件"
+      },
+      "status": {
+        "running": "运行中",
+        "completed": "已完成"
+      },
+      "headerSummary": "{{status}} {{groupCount}} 个操作分组（{{toolCount}} 个工具）...",
+      "expandHint": "Ctrl+O 展开",
+      "toolUses": "{{count}} 次工具调用",
+      "tokens": "tokens",
+      "done": "完成",
+      "showingDetails": "正在显示全部详情",
+      "approveAll": "批准全部执行 ({{count}})"
+    },
+    "messageRegistry": {
+      "thinking": "思考",
+      "status": "状态",
+      "exploreProject": "探索项目",
+      "scannedFiles": "扫描了 {{count}} 个文件",
+      "taskBreakdown": "任务拆解",
+      "systemMessage": "系统消息",
+      "unknownMessageType": "未知消息类型: {{role}}"
+    },
+    "commandMessages": {
+      "shared": {
+        "possibleReasons": "可能的原因",
+        "suggestions": "建议",
+        "checkApiKey": "检查 API 密钥配置",
+        "retryLater": "稍后重试",
+        "none": "无",
+        "reasons": {
+          "invalidResponseFormat": "AI 响应格式不正确",
+          "networkIssue": "网络连接存在问题",
+          "apiQuotaExceeded": "API 配额可能已不足"
+        }
+      },
+      "index": {
+        "rebuilding": "✅ **正在重建项目索引**\n\n系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。",
+        "initFailed": "❌ **索引初始化失败**\n\n错误详情：{{error}}",
+        "projectNotOpen": "❌ **未打开项目文件夹**\n\n请先打开一个项目文件夹后再使用此命令。"
+      },
+      "taskDemo": {
+        "message": "### 📋 任务拆解示例\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**提示：** 这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。\n\n任务树包含：\n- **层级结构**：主任务 → 子任务 → 子子任务\n- **状态跟踪**：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕\n- **优先级**：紧急 / 高 / 中 / 低\n- **类别**：开发 / 测试 / 文档 / 设计 / 研究\n- **工时估算**：预估小时数\n- **验收标准**：明确的完成条件\n- **依赖关系**：任务间的依赖{{saveHint}}\n\n使用控制台测试：\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
+        "saveHint": {
+          "saved": "\n\n💾 任务已保存到：`{{path}}`",
+          "memoryOnly": "\n\n⚠️ 未打开项目，演示任务仅保存在内存中。"
+        },
+        "tree": {
+          "title": "示例：实现用户登录功能",
+          "description": "这是一个示例任务拆解，展示了任务树的结构",
+          "root": {
+            "title": "实现用户登录功能",
+            "description": "完整的用户认证系统，包括登录、注册、密码重置"
+          },
+          "backend": {
+            "title": "后端 API 开发",
+            "description": "实现登录、注册、密码重置的后端接口",
+            "acceptance": {
+              "login": "POST /api/auth/login 返回 JWT token",
+              "register": "POST /api/auth/register 创建新用户",
+              "resetPassword": "POST /api/auth/reset-password 发送重置邮件"
+            },
+            "children": {
+              "databaseSchema": "设计数据库 Schema",
+              "jwtMiddleware": "实现 JWT 认证中间件",
+              "apiEndpoints": "编写 API 端点"
+            }
+          },
+          "frontend": {
+            "title": "前端登录页面",
+            "description": "实现用户登录和注册表单",
+            "acceptance": {
+              "responsive": "响应式设计，支持移动端",
+              "validation": "表单验证（邮箱格式、密码强度）",
+              "friendlyErrors": "错误提示友好",
+              "rememberMe": "记住我功能"
+            },
+            "children": {
+              "uiPrototype": "设计 UI 原型",
+              "loginForm": "实现登录表单组件",
+              "integrateApi": "集成后端 API"
+            }
+          },
+          "testing": {
+            "title": "编写测试用例",
+            "description": "为认证系统编写单元测试和集成测试"
+          },
+          "documentation": {
+            "title": "编写技术文档",
+            "description": "编写 API 文档和部署指南"
+          }
+        }
+      },
+      "taskBreakdown": {
+        "missingDescription": "❌ 请提供要拆解的任务描述\n\n**用法**：`/task:breakdown [任务描述]`\n\n**示例**：`/task:breakdown 实现用户登录功能`",
+        "failedTitle": "任务拆解失败",
+        "simplifySuggestion": "尝试简化任务描述"
+      },
+      "proposal": {
+        "missingDescription": "❌ 请提供要生成提案的需求描述\n\n**用法**：`/proposal [需求描述]`\n\n**示例**：`/proposal 实现用户登录功能`",
+        "starting": "_[正在生成 OpenSpec 提案...]_\n\n",
+        "failedTitle": "提案生成失败",
+        "simplifySuggestion": "尝试简化需求描述"
+      },
+      "taskStart": {
+        "missingTaskId": "❌ 请提供任务 ID\n\n**用法**：`/task:start <任务ID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用任务**：使用 `/task:list` 查看所有任务",
+        "tasksFileMissing": "❌ 未找到 `tasks.md` 文件\n\n请先打开一个提案中的 `tasks.md` 文件。",
+        "taskNotFound": "❌ 未找到任务：{{taskId}}\n\n**可用任务**：\n{{taskList}}",
+        "failed": "❌ 任务启动失败：{{error}}"
+      },
+      "taskList": {
+        "projectNotOpen": "❌ 未打开项目\n\n请先打开一个项目文件夹。",
+        "openFilesTitle": "当前打开的文件",
+        "tasksFileMissing": "❌ 未找到 `tasks.md` 文件{{fileList}}\n\n**解决方法**：\n1. 在文件树中找到提案目录（`.ifai/changes/xxx/`）\n2. 打开 `tasks.md` 文件\n3. 再次运行 `/task:list`",
+        "failed": "❌ 获取任务列表失败：{{error}}",
+        "report": {
+          "title": "任务统计",
+          "total": "总计",
+          "todo": "待办",
+          "inProgress": "进行中",
+          "done": "已完成",
+          "todoSection": "待办任务",
+          "inProgressSection": "进行中",
+          "doneSection": "已完成",
+          "moreDone": "... 还有 {{count}} 个已完成任务",
+          "noTasksParsed": "未解析到任何任务，请检查 `tasks.md` 文件格式。"
+        }
+      },
+      "taskComplete": {
+        "missingTaskId": "❌ 请提供任务 ID\n\n**用法**：`/task:complete <任务ID>`",
+        "success": "✅ 任务 **{{taskId}}** 已标记为完成。",
+        "failed": "❌ 操作失败：{{error}}"
+      },
+      "taskTestAll": {
+        "starting": "_[正在启动自动化测试集成流...]_",
+        "failed": "❌ 无法启动测试 Agent：{{error}}",
+        "mission": "运行全量单元测试与 E2E 测试，并汇总报告至任务控制中心"
+      }
+    },
+    "imageAttachments": {
+      "fileTooLarge": "文件过大（5MB 限制）",
+      "processingFailed": "处理失败"
+    }
+  },
   "commands": {
     "title": "系统命令",
     "scanResult": "扫描 {{count}} 项 ({{time}}ms)",
@@ -357,17 +1626,58 @@
       "**/explore** - 深度探索代码库，分析架构与逻辑",
       "**/review** - 审查当前文件的代码质量与安全建议",
       "**/test** - 自动为代码生成单元测试用例",
-      "**/doc** - 编写技术文档、README 或详细代码注释"
+      "**/doc** - 编写技术文档、README 或详细代码注释",
+      "**/index** - 手动为项目代码库重建 RAG 语义索引"
     ],
     "shortcuts_title": "⌨️ 核心快捷键",
-    "shortcuts_list": [
-      "**Cmd/Ctrl + P** - 快速搜索并打开项目文件",
-      "**Cmd/Ctrl + K** - 在编辑器中唤起内联 AI 编辑",
-      "**Cmd/Ctrl + L** - 快速切换/显示聊天面板",
-      "**Cmd/Ctrl + Alt + P** - 开启/关闭性能监控面板",
+    "shortcuts": [
+      "**{{quickOpenShortcut}}** - 快速搜索并打开项目文件",
+      "**{{inlineEditShortcut}}** - 在编辑器中唤起内联 AI 编辑",
+      "**{{toggleChatShortcut}}** - 快速切换/显示聊天面板",
+      "**{{performanceMonitorShortcut}}** - 开启/关闭性能监控面板",
       "**↑ / ↓** - 在输入框中快速唤回历史提问"
     ],
     "footer": "您可以直接对我下达指令，或使用上述斜杠命令启动特定的智能体。祝您编程愉快！"
+  },
+  "inlineAIWidget": {
+    "title": "内联助手",
+    "targetLabel": "目标",
+    "currentContext": "当前上下文",
+    "newLineHint": "{{shortcut}} 换行",
+    "processing": "处理中",
+    "readyToApply": "修改已准备好应用",
+    "applied": "修改已成功应用",
+    "accept": "接受",
+    "acceptAndClose": "接受并关闭",
+    "discard": "丢弃",
+    "stage": {
+      "plan": "规划中...",
+      "implement": "实施中...",
+      "verify": "验证中...",
+      "optimize": "优化中..."
+    }
+  },
+  "composerDiff": {
+    "rootDirectory": "根目录",
+    "empty": "没有文件变更",
+    "close": "关闭",
+    "closeTitle": "关闭",
+    "title": "代码变更预览",
+    "fileCount": "{{count}} 个文件",
+    "acceptAll": "全部接受",
+    "acceptAllTitle": "接受所有变更",
+    "rejectAll": "全部拒绝",
+    "rejectAllTitle": "拒绝所有变更",
+    "appliedBadge": "已应用",
+    "acceptFileTitle": "接受此文件变更",
+    "rejectFileTitle": "拒绝此文件变更",
+    "rejectFileRollbackTitle": "拒绝此文件变更（回滚）",
+    "selectFile": "选择一个文件查看变更",
+    "appliedSummary": "已应用：{{applied}}/{{total}}",
+    "allApplied": "所有变更已应用",
+    "original": "原始内容",
+    "modified": "新内容",
+    "emptyFile": "<空文件>"
   },
   "help": {
     "keyboardShortcuts": "键盘快捷键",
@@ -380,7 +1690,8 @@
     "reportIssue": "报告问题",
     "changelog": "更新日志",
     "community": "社区讨论",
-    "allRightsReserved": "版权所有"
+    "allRightsReserved": "版权所有",
+    "madeBy": "由 {{name}} 打造"
   },
   "layout": {
     "switcher": {
@@ -394,6 +1705,10 @@
       "customLayout": "自定义布局",
       "customLayoutDesc": "聊天面板在左侧",
       "autoSave": "设置会自动保存"
+    },
+    "modeSwitch": {
+      "vibe": "灵感",
+      "spec": "规范"
     }
   },
   "onboarding": {
@@ -442,6 +1757,7 @@
     "saveAndContinue": "保存并继续",
     "skipForNow": "稍后设置",
     "skipWarning": "您可以稍后在设置中配置",
+    "securityNote": "您的 API Key 仅会安全存储在本地，不会上传到任何服务器。",
     "openZhipuPlatform": "打开智谱 AI 平台 →",
     "otherProviders": "其他提供商",
     "otherProvidersDesc": "您也可以在设置中使用 OpenAI、DeepSeek、Kimi 或自定义提供商。"
@@ -513,6 +1829,8 @@
     "arch": "架构",
     "modelDir": "模型目录",
     "inferenceParams": "推理参数",
+    "temperature": "温度",
+    "topP": "Top P",
     "temperatureDesc": "控制随机性 (0.0 - 2.0)",
     "topPDesc": "核采样参数 (0.0 - 1.0)",
     "testFeatures": "测试功能",
@@ -599,7 +1917,39 @@
       "todoTasks": "待办任务",
       "summary": "摘要",
       "mentions": "提及",
-      "solution": "解决方案"
+      "solution": "解决方案",
+      "extractFromMessages": "从消息中重新提取笔记",
+      "startedAt": "开始时间",
+      "exportFormats": {
+        "markdown": "Markdown",
+        "json": "JSON"
+      },
+      "stats": {
+        "techConcepts": "技术概念：{{count}}",
+        "fileChanges": "文件变更：{{count}}",
+        "todoTasks": "待办任务：{{count}}"
+      },
+      "categories": {
+        "concept": "概念",
+        "pattern": "模式",
+        "algorithm": "算法",
+        "framework": "框架"
+      },
+      "priorities": {
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "fileAction": {
+        "created": "已创建",
+        "modified": "已修改",
+        "deleted": "已删除"
+      },
+      "taskStatus": {
+        "pending": "待处理",
+        "inProgress": "进行中",
+        "completed": "已完成"
+      }
     },
     "summary": {
       "title": "对话总结",
@@ -610,5 +1960,490 @@
       "export": "导出",
       "compacted": "对话已压缩"
     }
+  },
+  "proposalReview": {
+    "title": "提案审核",
+    "loading": "正在加载提案...",
+    "notFound": "未找到提案",
+    "closeWindow": "关闭",
+    "saved": "提案已保存",
+    "validated": "规范已校验",
+    "pendingReview": "待审核",
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "reject": "拒绝",
+    "approve": "批准",
+    "taskLabel": "任务 {{index}}",
+    "hours": "{{count}} 小时",
+    "tabs": {
+      "overview": "概览",
+      "tasks": "任务",
+      "specs": "规范"
+    },
+    "sections": {
+      "background": "背景",
+      "changes": "变更内容"
+    },
+    "impact": {
+      "affectedSpecs": "受影响规范",
+      "filesToChange": "待修改文件",
+      "breaking": "破坏性变更",
+      "estimated": "预估",
+      "yes": "是",
+      "no": "否"
+    },
+    "specTypes": {
+      "added": "新增",
+      "modified": "修改",
+      "removed": "移除"
+    },
+    "errors": {
+      "save": "保存失败：{{error}}",
+      "approve": "批准失败：{{error}}",
+      "reject": "拒绝失败：{{error}}"
+    }
+  },
+  "codeReviewModal": {
+    "title": "代码审查结果",
+    "issueCount": "{{count}} 个问题",
+    "viewFix": "查看修复",
+    "apply": "应用",
+    "cancel": "取消",
+    "commitAnyway": "仍然提交",
+    "forceCommit": "强制提交",
+    "ignoreIssues": "忽略问题",
+    "ignoreIssuesSuffix": "继续提交",
+    "applyAllFixes": "应用全部修复",
+    "fixSuggestion": "修复建议",
+    "currentCode": "当前代码",
+    "suggestedFix": "建议修复",
+    "description": "说明",
+    "cancelFix": "关闭",
+    "applyFix": "应用修复",
+    "committed": "更改已提交",
+    "fixAppliedSuccessfully": "修复已成功应用",
+    "fixApplied": "已应用修复：{{message}}",
+    "originalCodeFallback": "暂无原始代码",
+    "fixedCodeFallback": "暂无建议修复代码",
+    "types": {
+      "security": "安全",
+      "performance": "性能",
+      "style": "风格",
+      "error": "错误",
+      "custom": "自定义"
+    },
+    "severities": {
+      "critical": "严重",
+      "error": "错误",
+      "warning": "警告",
+      "info": "提示"
+    }
+  },
+  "taskBreakdown": {
+    "stats": {
+      "completed": "已完成：{{count}}",
+      "inProgress": "进行中：{{count}}",
+      "failed": "失败：{{count}}",
+      "total": "总计：{{count}} 个任务"
+    },
+    "actions": {
+      "viewFull": "查看完整",
+      "searchPlaceholder": "搜索任务...",
+      "expandAll": "展开全部",
+      "collapseAll": "折叠全部",
+      "exportJson": "导出 JSON",
+      "enterFullscreen": "全屏",
+      "exitFullscreen": "退出全屏",
+      "copyId": "复制 ID"
+    },
+    "labels": {
+      "taskTree": "任务树",
+      "totalEstimatedHours": "预估总工时：{{hours}}",
+      "id": "ID：{{id}}",
+      "status": "任务状态",
+      "description": "描述",
+      "taskId": "任务 ID",
+      "priority": "优先级",
+      "category": "类别",
+      "estimatedHours": "预估工时",
+      "dependencies": "依赖关系（{{count}}）",
+      "dependenciesTitle": "依赖：{{items}}",
+      "acceptanceCriteria": "验收标准",
+      "subtasks": "子任务"
+    },
+    "feedback": {
+      "copied": "已复制"
+    },
+    "status": {
+      "pending": "待办",
+      "inProgress": "进行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "priority": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急",
+      "critical": "严重"
+    },
+    "categories": {
+      "development": "开发",
+      "testing": "测试",
+      "documentation": "文档",
+      "design": "设计",
+      "research": "研究",
+      "deployment": "部署",
+      "other": "其他"
+    },
+    "units": {
+      "hoursShort": "{{count}}h",
+      "hoursLong": "{{count}} 小时"
+    }
+  },
+  "workflow": {
+    "shared": {
+      "status": {
+        "completed": "完成",
+        "failed": "失败",
+        "running": "运行中",
+        "skipped": "跳过",
+        "waiting": "等待"
+      }
+    },
+    "page": {
+      "title": "多智能体工作流",
+      "description": "自动化代码分析、审查、重构和测试。",
+      "back": "返回",
+      "running": "运行中的工作流（{{count}}）",
+      "startedAt": "开始于：{{time}}",
+      "view": "查看",
+      "targetPath": "目标路径",
+      "targetPathPlaceholder": "./src",
+      "browse": "浏览",
+      "tabs": {
+        "select": "快速工作流",
+        "templates": "工作流模板",
+        "editor": "自定义编辑器",
+        "monitor": "执行监控"
+      },
+      "idleTitle": "没有正在运行的工作流",
+      "idleDescription": "从“快速工作流”或“工作流模板”启动一个工作流。",
+      "completed": "已完成的工作流（{{count}}）",
+      "viewResults": "查看结果",
+      "nodes": {
+        "explore": "探索代码",
+        "review": "代码审查",
+        "refactor": "重构建议",
+        "quickExplore": "快速探索",
+        "security": "安全检查"
+      }
+    },
+    "monitor": {
+      "title": "工作流执行中",
+      "workflowId": "工作流 ID: {{id}}",
+      "duration": "运行时间",
+      "durationSeconds": "{{count}}秒",
+      "completedNodes": "{{completed}} / {{total}} 节点",
+      "progress": "进度",
+      "nodeResults": "节点执行结果",
+      "output": "输出：",
+      "error": "错误：",
+      "waitingForResults": "等待节点执行结果...",
+      "executionFailed": "执行失败"
+    },
+    "results": {
+      "title": "工作流执行结果",
+      "workflowId": "工作流 ID: {{id}}",
+      "export": "导出",
+      "share": "分享",
+      "retry": "重试",
+      "status": "状态",
+      "totalDuration": "总耗时",
+      "completedNodesLabel": "完成节点",
+      "failedNodesLabel": "失败节点",
+      "startedAt": "开始时间",
+      "completedAt": "完成时间",
+      "nodeDetails": "节点执行详情",
+      "output": "输出：",
+      "error": "错误：",
+      "metadata": "元数据：",
+      "exportOptions": "导出选项",
+      "exportFormats": {
+        "json": "导出为 JSON",
+        "markdown": "导出为 Markdown",
+        "pdf": "导出为 PDF"
+      },
+      "tabs": {
+        "all": "全部 ({{count}})",
+        "completed": "成功 ({{count}})",
+        "failed": "失败 ({{count}})",
+        "skipped": "跳过 ({{count}})"
+      }
+    },
+    "selector": {
+      "loading": "加载工作流...",
+      "title": "多智能体工作流",
+      "description": "选择一个工作流模板来自动化您的代码任务。",
+      "run": "运行工作流",
+      "executing": "执行中...",
+      "templateNodes": "{{count}} 节点",
+      "tabs": {
+        "quick": "快速工作流",
+        "templates": "工作流模板",
+        "custom": "自定义工作流"
+      },
+      "quick": {
+        "codeReview": {
+          "title": "代码审查",
+          "description": "自动探索、审查、测试和生成文档。"
+        },
+        "exploration": {
+          "title": "代码探索",
+          "description": "快速探索和分析项目结构。"
+        },
+        "qualityCheck": {
+          "title": "质量检查",
+          "description": "全面的代码质量检查和分析。"
+        }
+      },
+      "custom": {
+        "title": "自定义工作流",
+        "description": "创建您自己的多智能体工作流。",
+        "comingSoonDescription": "自定义工作流编辑器即将推出...",
+        "comingSoon": "即将推出"
+      }
+    },
+    "editor": {
+      "configuration": "工作流配置",
+      "nodes": "节点",
+      "connections": "连接",
+      "addNode": "添加节点",
+      "save": "保存工作流",
+      "run": "执行工作流",
+      "executing": "执行中...",
+      "defaultNodeLabel": "节点 {{index}}",
+      "fields": {
+        "id": "工作流 ID",
+        "name": "工作流名称",
+        "description": "描述",
+        "agentType": "智能体类型",
+        "nodeId": "节点 ID"
+      },
+      "placeholders": {
+        "id": "custom-workflow",
+        "name": "我的工作流",
+        "description": "描述这个工作流的作用..."
+      },
+      "empty": {
+        "nodes": "还没有节点，先添加一个开始搭建工作流。",
+        "connections": "还没有连接。"
+      },
+      "agentTypes": {
+        "explore": "探索",
+        "review": "审查",
+        "refactor": "重构",
+        "test": "测试",
+        "doc": "文档",
+        "taskBreakdown": "任务拆解",
+        "proposalGenerator": "提案生成",
+        "generalPurpose": "通用"
+      }
+    },
+    "floatingMonitor": {
+      "title": "工作流监控器",
+      "runningCount": "{{count}} 个运行中",
+      "expand": "展开",
+      "minimize": "最小化",
+      "close": "关闭",
+      "runningFallback": "工作流执行中",
+      "defaultWorkflowName": "工作流",
+      "completedNodes": "已完成 {{completed}} / {{total}} 个节点",
+      "showDetails": "显示详情",
+      "hideDetails": "隐藏详情",
+      "status": {
+        "running": "运行中",
+        "completed": "已完成",
+        "failed": "失败"
+      }
+    },
+    "inlineMonitor": {
+      "duration": {
+        "secondsShort": "{{value}}秒",
+        "millisecondsShort": "{{value}}毫秒",
+        "minutesShort": "{{value}}分钟"
+      },
+      "operations": {
+        "search": "搜索",
+        "read": "读取",
+        "write": "写入",
+        "agent": "智能体"
+      },
+      "toolSummary": {
+        "lines": "{{count}} 行",
+        "files": "{{count}} 个文件",
+        "chars": "{{count}} 个字符",
+        "replacements": "{{count}} 次替换",
+        "matches": "{{count}} 个匹配",
+        "separator": "，"
+      },
+      "toolTitles": {
+        "read": "读取",
+        "write": "写入",
+        "edit": "编辑",
+        "glob": "全局匹配",
+        "grep": "内容搜索",
+        "list": "列出",
+        "bash": "Bash"
+      },
+      "workflow": {
+        "defaultLabel": "工作流",
+        "embeddedRunningName": "{{type}}执行中",
+        "runningName": "工作流执行中",
+        "completedName": "工作流已完成",
+        "failedName": "工作流失败",
+        "initializing": "初始化..."
+      },
+      "status": {
+        "completed": "已完成",
+        "failed": "失败",
+        "running": "执行中..."
+      },
+      "node": {
+        "details": {
+          "pending": "等待执行...",
+          "streamingCompleted": "流式输出完成",
+          "streamingGenerating": "正在生成内容..."
+        }
+      },
+      "streaming": {
+        "summaryLabel": "生成总结"
+      },
+      "stepsCount": "{{count}} 步",
+      "viewModes": {
+        "switchToDag": "切换到 DAG 视图",
+        "switchToList": "切换到列表视图",
+        "dag": "DAG视图",
+        "list": "列表视图"
+      },
+      "toolDetails": {
+        "summary": "详情",
+        "input": "输入：",
+        "output": "输出："
+      },
+      "nodeStatus": {
+        "completed": "完成",
+        "failed": "✗ 失败",
+        "generating": "正在生成...",
+        "pending": "等待中",
+        "running": "运行中"
+      },
+      "toolStatus": {
+        "error": "X",
+        "success": "OK"
+      },
+      "content": {
+        "length": "内容长度：{{count}} 字符"
+      },
+      "empty": {
+        "preparing": "正在准备工作流...",
+        "waitingForNodes": "等待节点信息..."
+      },
+      "labels": {
+        "workflowId": "工作流 ID"
+      },
+      "currentNode": {
+        "executing": "正在执行：{{node}}"
+      },
+      "footer": {
+        "completed": "工作流执行完成",
+        "failed": "工作流执行失败"
+      },
+      "dagVisualizer": {
+        "empty": {
+          "title": "暂无节点数据",
+          "description": "执行工作流后将显示 DAG 可视化"
+        }
+      },
+      "dagMonitor": {
+        "workflow": {
+          "titleRunning": "工作流执行中",
+          "titleCompleted": "工作流执行完成",
+          "titleFailed": "工作流执行失败",
+          "statusRunning": "执行中...",
+          "statusCompleted": "执行完成",
+          "statusFailed": "执行失败",
+          "executionFailedGeneric": "工作流执行失败",
+          "durationLabel": "运行时间",
+          "progressLabel": "进度"
+        },
+        "summary": {
+          "runningCount": "运行中 {{count}}",
+          "completedCount": "完成 {{count}}",
+          "failedCount": "失败 {{count}}"
+        },
+        "sections": {
+          "visualization": "工作流可视化",
+          "nodes": "节点状态",
+          "timeline": "执行时间线"
+        },
+        "viewMode": {
+          "switchToReactFlow": "切换到 React Flow",
+          "switchToSvg": "切换到 SVG"
+        },
+        "timeline": {
+          "empty": "等待事件...",
+          "started": "▶ 开始",
+          "completed": "完成",
+          "progress": "进度",
+          "toolCall": "工具调用"
+        },
+        "status": {
+          "running": "运行中",
+          "completed": "完成",
+          "pending": "等待",
+          "failed": "失败",
+          "skipped": "跳过"
+        },
+        "nodeTypes": {
+          "search": "搜索",
+          "read": "读取",
+          "write": "写入",
+          "agent": "智能体",
+          "command": "命令",
+          "explore": "探索",
+          "review": "审查",
+          "refactor": "重构",
+          "test": "测试",
+          "build": "构建",
+          "deploy": "部署"
+        },
+        "nodeDetails": {
+          "nodeId": "节点 ID",
+          "status": "状态",
+          "type": "类型",
+          "startedAt": "开始时间",
+          "completedAt": "完成时间",
+          "duration": "执行时长",
+          "toolCalls": "工具调用 ({{count}})",
+          "toolFailed": "失败",
+          "toolSuccess": "成功",
+          "toolDuration": "耗时: {{count}}ms",
+          "toolOutputLength": "输出: {{count}} 字符",
+          "toolInput": "输入参数",
+          "toolOutput": "输出结果",
+          "output": "输出",
+          "error": "错误"
+        }
+      }
+    }
+  },
+  "statusbar": {
+    "ready": "就绪",
+    "noFileOpen": "未打开文件",
+    "plainText": "纯文本",
+    "tokens": "令牌",
+    "filesCount": "{{count}} 个文件"
   }
 }

@@ -6,8 +6,6 @@ import { Pane, useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { isDarkTheme } from '../../utils/theme';
 import clsx from 'clsx';
 
 interface PaneViewProps {
@@ -35,8 +33,6 @@ export const PaneView: React.FC<PaneViewProps> = ({
   const { splitPane, closePane, panes } = useLayoutStore();
   const { openedFiles, previewMode, activeFileId } = useFileStore();
   const { approvalPreview } = useEditorStore();
-  const theme = useSettingsStore(state => state.theme);
-  const dark = isDarkTheme(theme);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ x: 0, y: 0, visible: false });
 
   // Find the file associated with this pane
@@ -115,8 +111,8 @@ export const PaneView: React.FC<PaneViewProps> = ({
     display: 'flex',
     flexDirection: 'column',
     // Cleaner look: no border for single pane, highlight for active multi-pane
-    border: showActiveBorder ? '1px solid #3b82f6' : '1px solid #333',
-    borderColor: showActiveBorder ? '#3b82f6' : 'var(--border-color)',
+    border: '1px solid var(--border-color)',
+    borderColor: showActiveBorder ? 'var(--accent-soft-border)' : 'var(--border-color)',
     boxSizing: 'border-box',
     position: 'relative',
     overflow: 'hidden',
@@ -163,7 +159,7 @@ export const PaneView: React.FC<PaneViewProps> = ({
         {/* Buttons: Hidden by default, visible on hover */}
         <div className="pane-actions flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
-            className="theme-hoverable theme-text-subtle rounded p-0.5"
+            className="theme-focus-ring-accent theme-hoverable theme-text-subtle rounded p-0.5"
             onClick={(e) => {
               e.stopPropagation();
               splitPane('horizontal', pane.id);
@@ -178,7 +174,7 @@ export const PaneView: React.FC<PaneViewProps> = ({
           </button>
 
           <button
-            className="theme-hoverable theme-text-subtle rounded p-0.5"
+            className="theme-focus-ring-accent theme-hoverable theme-text-subtle rounded p-0.5"
             onClick={(e) => {
               e.stopPropagation();
               closePane(pane.id);
@@ -208,13 +204,13 @@ export const PaneView: React.FC<PaneViewProps> = ({
             style={{ top: contextMenu.y, left: contextMenu.x }}
         >
             <div
-                className="theme-hoverable flex cursor-pointer items-center px-3 py-2"
+                className="theme-focus-ring-accent theme-hoverable flex cursor-pointer items-center rounded px-3 py-2"
                 onClick={() => splitPane('horizontal', pane.id)}
             >
                 <span className="mr-2">◫</span> {t('editor.splitRight')}
             </div>
             <div
-                className="theme-hoverable flex cursor-pointer items-center px-3 py-2"
+                className="theme-focus-ring-accent theme-hoverable flex cursor-pointer items-center rounded px-3 py-2"
                 onClick={() => splitPane('vertical', pane.id)}
             >
                 <span className="mr-2">⊟</span> {t('editor.splitDown')}
@@ -223,7 +219,7 @@ export const PaneView: React.FC<PaneViewProps> = ({
                 <>
                     <div className="theme-divider my-1 h-px" />
                     <div
-                        className="flex cursor-pointer items-center px-3 py-2 text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
+                        className="theme-focus-ring-accent flex cursor-pointer items-center rounded px-3 py-2 text-[var(--danger-color)] transition-colors hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
                         onClick={() => closePane(pane.id)}
                     >
                         <span className="mr-2">✕</span> {t('editor.closePane')}

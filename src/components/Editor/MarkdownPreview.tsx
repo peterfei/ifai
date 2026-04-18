@@ -48,7 +48,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, class
           {String(children).replace(/\n$/, '')}
         </SyntaxHighlighter>
       ) : (
-        <code className={`${className} px-1.5 py-0.5 rounded text-sm font-mono theme-code-inline ${dark ? 'text-pink-300' : 'text-pink-700'}`} {...props}>
+        <code className={`${className} theme-code-inline theme-text-accent rounded px-1.5 py-0.5 text-sm font-mono`} {...props}>
           {children}
         </code>
       );
@@ -91,7 +91,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, class
       return (
         <a
           href={href}
-          className="text-blue-400 hover:text-blue-300 underline"
+          className="theme-text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
           target="_blank"
           rel="noopener noreferrer"
         >

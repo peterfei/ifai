@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { GitCommit, GitBranch, Eye, Undo } from 'lucide-react';
+import { toast } from 'sonner';
+import { useFileStore } from '../../stores/fileStore';
 
 interface PromptVersion {
   version_id: string;
@@ -24,14 +27,18 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
   onRollback,
   onClose
 }) => {
+  const { t, i18n } = useTranslation();
+  const rootPath = useFileStore(state => state.rootPath);
   const [versions, setVersions] = useState<PromptVersion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
+  const [pendingRollback, setPendingRollback] = useState<PromptVersion | null>(null);
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   useEffect(() => {
     loadVersions();
-  }, [promptPath]);
+  }, [promptPath, rootPath]);
 
   const loadVersions = async () => {
     setIsLoading(true);
@@ -39,7 +46,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
 
     try {
       const data = await invoke<PromptVersion[]>('get_prompt_versions', {
-        projectRoot: '/Users/mac/project/aieditor/ifainew',
+        projectRoot: rootPath || '',
         promptPath: promptPath,
         limit: 20
       });
@@ -74,30 +81,34 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     }
   };
 
-  const handleRollback = async (versionId: string) => {
-    if (!confirm('确定要回滚到此版本吗？此操作将覆盖当前文件内容。')) {
+  const handleRollback = async () => {
+    if (!pendingRollback) {
       return;
     }
 
     try {
+      setIsRollingBack(true);
       await invoke('rollback_prompt', {
-        projectRoot: '/Users/mac/project/aieditor/ifainew',
+        projectRoot: rootPath || '',
         promptPath: promptPath,
-        versionId: versionId
+        versionId: pendingRollback.version_id
       });
 
       if (onRollback) {
-        onRollback(versionId);
+        onRollback(pendingRollback.version_id);
       }
+      setPendingRollback(null);
     } catch (err) {
       console.error('Failed to rollback:', err);
-      alert(`回滚失败: ${err}`);
+      toast.error(t('promptManager.versionHistory.rollbackFailed', { error: String(err) }));
+    } finally {
+      setIsRollingBack(false);
     }
   };
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
-    return date.toLocaleString('zh-CN');
+    return date.toLocaleString(i18n.language);
   };
 
   const getCommitIcon = () => {
@@ -107,15 +118,22 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div
+          aria-label={t('promptManager.versionHistory.loading')}
+          className="theme-text-accent h-8 w-8 animate-spin rounded-full border-2 border-current border-b-transparent"
+        ></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
-        <p className="text-sm text-red-500">加载版本历史失败: {error}</p>
+      <div className="theme-surface-danger rounded-lg p-4">
+        <p className="theme-text-danger text-sm font-medium">{t('promptManager.versionHistory.errorTitle')}</p>
+        <p className="theme-text-muted mt-1 text-sm">{t('promptManager.versionHistory.loadFailedDescription')}</p>
+        <p className="theme-text-subtle mt-2 break-all text-xs">
+          {t('promptManager.common.technicalDetails')}: {error}
+        </p>
       </div>
     );
   }
@@ -124,8 +142,8 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     return (
       <div className="theme-text-subtle p-4 text-center text-sm">
         <GitCommit className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p>暂无版本历史</p>
-        <p className="text-xs mt-1">提示词未提交到 Git</p>
+        <p className="theme-text-muted font-medium">{t('promptManager.versionHistory.emptyTitle')}</p>
+        <p className="text-xs mt-1">{t('promptManager.versionHistory.emptyDescription')}</p>
       </div>
     );
   }
@@ -137,7 +155,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
         <div className="flex items-center gap-2">
           <GitBranch className="theme-text-subtle h-5 w-5" />
           <h3 className="theme-text text-lg font-semibold">
-            版本历史
+            {t('promptManager.versionHistory.title')}
           </h3>
         </div>
         {selectedVersions.size === 2 && (
@@ -149,7 +167,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
             className="theme-button-primary flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm"
           >
             <Eye className="w-4 h-4" />
-            对比选中版本
+            {t('promptManager.versionHistory.compareSelected')}
           </button>
         )}
       </div>
@@ -166,7 +184,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
               className={`p-4 transition-colors ${
                 'theme-border border-b theme-soft-hover'
               } ${
-                isSelected ? 'bg-blue-500/10' : ''
+                isSelected ? 'theme-selection-accent' : ''
               }`}
             >
               <div className="flex items-start gap-3">
@@ -175,7 +193,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                   type="checkbox"
                   checked={isSelected}
                   onChange={() => handleVersionSelect(version.version_id)}
-                  className="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  className="theme-checkbox-input mt-1 h-4 w-4 rounded"
                   data-testid={`version-checkbox-${index}`}
                 />
 
@@ -187,14 +205,14 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                       {version.version_id.substring(0, 7)}
                     </code>
                     {isLatest && (
-                      <span className="rounded bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500">
-                        最新
+                      <span className="theme-panel theme-border theme-text-success rounded px-2 py-0.5 text-xs font-medium">
+                        {t('promptManager.versionHistory.latest')}
                       </span>
                     )}
                   </div>
 
                   <p className="theme-text mb-1 text-sm font-medium">
-                    {version.message || '无提交信息'}
+                    {version.message || t('promptManager.versionHistory.noCommitMessage')}
                   </p>
 
                   <div className="theme-text-subtle flex items-center gap-3 text-xs">
@@ -211,9 +229,9 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                 {/* 操作按钮 */}
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleRollback(version.version_id)}
-                    className="theme-button-ghost rounded p-2 transition-colors hover:text-blue-500"
-                    title="回滚到此版本"
+                    onClick={() => setPendingRollback(version)}
+                    className="theme-button-ghost theme-soft-hover-accent rounded p-2 transition-colors"
+                    title={t('promptManager.versionHistory.rollback')}
                     data-testid={`rollback-button-${index}`}
                   >
                     <Undo className="w-4 h-4" />
@@ -227,8 +245,45 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
 
       {/* 底部信息 */}
       <div className="theme-panel-muted theme-border theme-text-subtle border-t p-3 text-center text-xs">
-        共 {versions.length} 个版本 • 最多显示最近 20 个版本
+        {t('promptManager.versionHistory.footer', { count: versions.length })}
       </div>
+
+      {pendingRollback && (
+        <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="theme-panel-elevated theme-border theme-shadow w-full max-w-md rounded-lg border">
+            <div className="theme-border border-b px-6 py-4">
+              <h4 className="theme-text text-base font-semibold">
+                {t('promptManager.versionHistory.rollback')}
+              </h4>
+            </div>
+            <div className="px-6 py-4">
+              <p className="theme-text-muted text-sm">
+                {t('promptManager.versionHistory.rollbackConfirm')}
+              </p>
+              <div className="theme-panel-muted theme-border mt-4 rounded-lg border px-3 py-2 text-xs">
+                <div className="theme-text font-mono">{pendingRollback.version_id.substring(0, 7)}</div>
+                <div className="theme-text-subtle mt-1">{formatDate(pendingRollback.timestamp)}</div>
+              </div>
+            </div>
+            <div className="theme-panel-muted theme-border flex justify-end gap-3 rounded-b-lg border-t px-6 py-4">
+              <button
+                onClick={() => setPendingRollback(null)}
+                className="theme-button-secondary rounded-md px-4 py-2 text-sm font-medium"
+                disabled={isRollingBack}
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={handleRollback}
+                className="theme-button-danger rounded-md px-4 py-2 text-sm font-medium"
+                disabled={isRollingBack}
+              >
+                {isRollingBack ? t('common.loading') : t('promptManager.versionHistory.rollback')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
