@@ -16,9 +16,9 @@ pub struct SkillInfo {
 #[tauri::command]
 pub async fn get_available_skills(
     project_root: String,
-) -> Result<Vec<SkillInfo>, String> {
+) -> Result<Vec<ifainew_core::skills::Skill>, String> {
     println!("[SkillCommand] Request received for root: {}", project_root);
-    
+
     #[cfg(feature = "commercial")]
     {
         let mut skills_path = PathBuf::from(&project_root);
@@ -39,12 +39,8 @@ pub async fn get_available_skills(
 
         println!("[SkillCommand] Successfully found {} skills", skills.len());
 
-        Ok(skills.into_iter().map(|s| SkillInfo {
-            id: s.id,
-            name: s.name,
-            description: s.description,
-            version: s.version,
-        }).collect())
+        // 返回完整的 Skill 对象，包含所有必需字段
+        Ok(skills)
     }
 
     #[cfg(not(feature = "commercial"))]

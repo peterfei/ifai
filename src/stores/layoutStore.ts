@@ -28,6 +28,9 @@ export interface LayoutState {
   sidebarWidth: number;
   sidebarActiveTab: 'explorer' | 'search' | 'snippets' | 'tasks';  // 侧边栏活动标签页
 
+  // 🔥 FIX: 新增设置面板活动标签页
+  activeSettingsTab: 'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills' | null;
+
   // 新增：布局模式
   layoutMode: 'default' | 'custom';
   editorMode: 'vibe' | 'spec';
@@ -117,6 +120,9 @@ export const useLayoutStore = create<LayoutState>()(
       sidebarPosition: 'left',
       sidebarWidth: 250,
       sidebarActiveTab: 'explorer',
+
+      // 🔥 FIX: 设置面板活动标签页初始状态
+      activeSettingsTab: null,
 
       // 新增：布局模式初始状态
       layoutMode: 'default',

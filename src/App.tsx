@@ -21,6 +21,8 @@ const CodeSmellPanel = React.lazy(() => import('./components/CodeAnalysis/CodeSm
 const RefactoringPreviewPanel = React.lazy(() => import('./components/Refactoring/RefactoringPreviewPanel').then(m => ({ default: m.RefactoringPreviewPanel })));
 // P2: TodoWrite 任务面板
 const TodoWritePanel = React.lazy(() => import('./components/TodoWrite').then(m => ({ default: m.TodoWritePanel })));
+// 技能列表坞
+const SkillsDock = React.lazy(() => import('./components/Skills/SkillsDock').then(m => ({ default: m.SkillsDock })));
 // P3: 工具浏览器
 const ToolExplorerPanel = React.lazy(() => import('./components/ToolExplorer').then(m => ({ default: m.ToolExplorerPanel })));
 // P4: 多智能体工作流
@@ -408,6 +410,15 @@ function App() {
         console.log('[App] ✅ PromptStore exposed to window.__promptStore');
       } catch (error) {
         console.error('[App] ❌ Failed to expose PromptStore:', error);
+      }
+
+      // 技能 Store
+      try {
+        const { useSkillStore } = await import('./stores/skillStore.enhanced');
+        (window as any).__skillStore = useSkillStore;
+        console.log('[App] ✅ SkillStore exposed to window.__skillStore');
+      } catch (error) {
+        console.error('[App] ❌ Failed to expose SkillStore:', error);
       }
     };
 
@@ -1122,6 +1133,9 @@ function App() {
 
         {/* 🧪 Agent 2.0 Inline Assistant Global Portal Container */}
         <div id="monaco-inline-ai-portal" className="fixed inset-0 pointer-events-none z-[280]" />
+
+        {/* 技能列表坞 - 左下角 */}
+        <Suspense fallback={null}><SkillsDock /></Suspense>
 
         {/* v0.2.9: Git Commit Button (shows when files are staged) */}
         {showCommitButton && (

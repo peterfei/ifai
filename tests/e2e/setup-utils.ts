@@ -303,6 +303,159 @@ export async function setupE2ETestEnvironment(
               }
             }
 
+            // 🎯 Mock: install_skill (技能安装)
+            if (cmd === 'install_skill') {
+              console.log(`[E2E Mock] install_skill: ${args.skillId}`);
+
+              const projectRoot = args.projectRoot;
+              if (!projectRoot) {
+                return Promise.reject(new Error('项目根路径不能为空'));
+              }
+
+              // 使用内存文件系统
+              const mockFS = w.__E2E_MOCK_FILE_SYSTEM__;
+
+              // 如果是安装示例技能，创建4个技能文件
+              if (args.skillId === 'builtin-examples' || args.source === 'builtin') {
+                const skills = [
+                  {
+                    id: 'code-review',
+                    name: '代码审查专家',
+                    content: `---
+name: code-review
+description: 专业代码审查技能
+version: 1.0.0
+tags:
+  - development
+  - quality
+dependencies: []
+---
+
+专业代码审查技能
+`
+                  },
+                  {
+                    id: 'test-generator',
+                    name: '测试生成器',
+                    content: `---
+name: test-generator
+description: 自动测试生成技能
+version: 1.0.0
+tags:
+  - development
+  - testing
+dependencies: []
+---
+
+自动测试生成技能
+`
+                  },
+                  {
+                    id: 'documentation-writer',
+                    name: '文档撰写专家',
+                    content: `---
+name: documentation-writer
+description: 文档自动生成技能
+version: 1.0.0
+tags:
+  - documentation
+  - development
+dependencies: []
+---
+
+文档自动生成技能
+`
+                  },
+                  {
+                    id: 'debugger',
+                    name: '调试专家',
+                    content: `---
+name: debugger
+description: 专业调试技能
+version: 1.0.0
+tags:
+  - debugging
+  - development
+dependencies: []
+---
+
+专业调试技能
+`
+                  },
+                ];
+
+                for (const skill of skills) {
+                  const skillPath = `${projectRoot}/.ifai/skills/${skill.id}/skill.md`;
+                  mockFS.set(skillPath, skill.content);
+                  console.log(`[E2E Mock] ✅ 创建技能文件: ${skillPath}`);
+                }
+
+                console.log(`[E2E Mock] ✅ 安装了 ${skills.length} 个示例技能`);
+                return Promise.resolve(true);
+              }
+
+              return Promise.reject(new Error(`未知技能ID: ${args.skillId}`));
+            }
+
+            // 🎯 Mock: get_available_skills (获取技能列表)
+            if (cmd === 'get_available_skills') {
+              console.log(`[E2E Mock] get_available_skills: ${args.projectRoot}`);
+
+              const projectRoot = args.projectRoot;
+              if (!projectRoot) {
+                return Promise.resolve([]);
+              }
+
+              // 使用内存文件系统
+              const mockFS = w.__E2E_MOCK_FILE_SYSTEM__;
+              const skillsPath = `${projectRoot}/.ifai/skills/`;
+
+              const skills: any[] = [];
+              mockFS.forEach((content, path) => {
+                if (path.startsWith(skillsPath) && path.endsWith('/skill.md')) {
+                  const parts = path.split('/');
+                  const skillId = parts[parts.length - 2];
+
+                  const yamlMatch = content.match(/---\n([\s\S]*?)\n---/);
+                  const systemPrompt = content.split('---')[2]?.trim() || '';
+
+                  if (yamlMatch) {
+                    const yamlContent = yamlMatch[1];
+                    const nameMatch = yamlContent.match(/name:\s*(.+)/);
+                    const descMatch = yamlContent.match(/description:\s*(.+)/);
+                    const versionMatch = yamlContent.match(/version:\s*"([^"]+)"/);
+
+                    skills.push({
+                      id: skillId,
+                      name: nameMatch?.[1]?.trim() || skillId,
+                      description: descMatch?.[1]?.trim() || '',
+                      version: versionMatch?.[1] || '1.0.0',
+                      system_prompt: systemPrompt,
+                      tags: ['development', 'testing'],
+                      dependencies: [],
+                      author: 'IfAI Team',
+                      compatibility: 'universal',
+                    });
+                  }
+                }
+              });
+
+              console.log(`[E2E Mock] ✅ 找到 ${skills.length} 个技能`);
+              return Promise.resolve(skills);
+            }
+
+            // 🎯 Mock: activate_skill (激活技能)
+            if (cmd === 'activate_skill') {
+              console.log(`[E2E Mock] activate_skill: ${args.skillId}`);
+              return Promise.resolve(true);
+            }
+
+            // 🎯 Mock: deactivate_skill (停用技能)
+            if (cmd === 'deactivate_skill') {
+              console.log(`[E2E Mock] deactivate_skill: ${args.skillId}`);
+              return Promise.resolve(true);
+            }
+
             // 🎯 Mock: should_summarize_conversation
             if (cmd === 'should_summarize_conversation') {
               const messages = args.messages || [];
@@ -545,6 +698,12 @@ export async function setupE2ETestEnvironment(
         }
         if (!w.__TAURI__.core.invoke) {
           w.__TAURI__.core.invoke = w.__TAURI_INTERNALS__.invoke;
+        }
+
+        // 🎯 E2E Mock 文件系统 (用于技能系统测试)
+        if (!w.__E2E_MOCK_FILE_SYSTEM__) {
+          w.__E2E_MOCK_FILE_SYSTEM__ = new Map();
+          console.log('[E2E Setup] ✅ Mock 文件系统已初始化');
         }
 
         // Mock __TAURI__.event.listen (plugin:event|listen)

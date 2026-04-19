@@ -52,6 +52,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
 
   const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set());
   const [showBatchActions, setShowBatchActions] = useState(false);
+  const [filteredSkills, setFilteredSkills] = useState<Skill[]>([]);
 
   useEffect(() => {
     if (availableSkills.length === 0) {
@@ -59,7 +60,12 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
     }
   }, []);
 
-  const filteredSkills = getFilteredSkills();
+  // 🔥 FIX: 当availableSkills或ui变化时，重新计算filteredSkills
+  useEffect(() => {
+    const result = getFilteredSkills();
+    setFilteredSkills(result);
+  }, [availableSkills, ui, getFilteredSkills]);
+
   const allTags = Array.from(new Set(availableSkills.flatMap(s => s.tags)));
 
   const toggleBatchSelection = (id: string) => {
@@ -84,7 +90,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
   };
 
   return (
-    <div className={cn('flex flex-col h-full bg-[#252526] text-gray-300', className)}>
+    <>
       {/* 顶部工具栏 */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
         <div className="flex items-center gap-3">
@@ -303,7 +309,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

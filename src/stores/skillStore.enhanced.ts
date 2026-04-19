@@ -66,6 +66,10 @@ interface EnhancedSkillStore {
   deactivateMultiple: (ids: string[]) => Promise<void>;
   installMultiple: (specs: Array<{ id: string; version?: string }>) => Promise<void>;
 
+  // ==================== 单个技能操作 ====================
+
+  toggleActive: (id: string) => Promise<void>;
+
   // ==================== UI 操作 ====================
 
   setSelectedSkill: (id: string | null) => void;
@@ -306,6 +310,17 @@ export const useSkillStore = create<EnhancedSkillStore>()(
       deactivateMultiple: async (ids: string[]) => {
         for (const id of ids) {
           await get().deactivateSkill(id);
+        }
+      },
+
+      // ==================== 单个技能操作 ====================
+
+      toggleActive: async (id: string) => {
+        const isActive = get().activeSkillIds.includes(id);
+        if (isActive) {
+          await get().deactivateSkill(id);
+        } else {
+          await get().activateSkill(id);
         }
       },
 

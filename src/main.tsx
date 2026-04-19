@@ -297,6 +297,7 @@ const exposeDebugStores = () => {
         if ((window as any).__E2E__ || (window as any).process?.env?.NODE_ENV === 'test') {
           (window as any).__chatStore = chat.useChatStore;
           (window as any).__conversationStore = conversation.useConversationStore; // 🔥 暴露 conversationStore
+          (window as any).__skillStore = skill.useSkillStore; // 🔥 暴露 skillStore 用于 E2E 测试
           (window as any).__pivoStore = pivo.usePivoStore;
           (window as any).__layoutStore = layout.useLayoutStore;
           (window as any).__fileStore = file.useFileStore; // 🔥 暴露 fileStore 用于 E2E 测试

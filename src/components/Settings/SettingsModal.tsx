@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM, Globe, Target } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
@@ -13,9 +13,19 @@ import { SkillsSettings } from './SkillsSettings';
 
 export const SettingsModal = () => {
   const { t, i18n } = useTranslation();
-  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
+  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition, activeSettingsTab } = useLayoutStore();
   const settings = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>('general');
+  // 🔥 FIX: 使用layoutStore的activeSettingsTab作为初始值
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>(
+    (activeSettingsTab || 'general') as any
+  );
+
+  // 🔥 FIX: 同步layoutStore的activeSettingsTab到本地state
+  useEffect(() => {
+    if (activeSettingsTab && activeSettingsTab !== activeTab) {
+      setActiveTab(activeSettingsTab as any);
+    }
+  }, [activeSettingsTab]);
 
   // 获取本地化的提供商名称
   const getProviderName = (providerId: string, fallbackName: string): string => {
@@ -51,7 +61,10 @@ export const SettingsModal = () => {
     }
   }, [isSettingsOpen, activeTab, i18n, t]);
 
-  if (!isSettingsOpen) return null;
+  // 🔥 FIX: 只在isSettingsOpen为true时才渲染模态框
+  if (!isSettingsOpen) {
+    return null;
+  }
 
   const tabs = [
     { id: 'general', label: t('settings.general'), icon: Monitor },

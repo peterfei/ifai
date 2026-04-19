@@ -17,14 +17,13 @@ import { toast } from 'sonner';
 import type { SkillEditorMode, Skill } from './Skills/types';
 
 export const SkillsSettings: React.FC = () => {
-  const {
-    availableSkills,
-    isLoading,
-    fetchSkills,
-    installSkill,
-    createSkill,
-    updateSkill,
-  } = useSkillStore();
+  // 🔥 FIX: 使用选择器确保订阅正确
+  const availableSkills = useSkillStore(state => state.availableSkills);
+  const isLoading = useSkillStore(state => state.isLoading);
+  const fetchSkills = useSkillStore(state => state.fetchSkills);
+  const installSkill = useSkillStore(state => state.installSkill);
+  const createSkill = useSkillStore(state => state.createSkill);
+  const updateSkill = useSkillStore(state => state.updateSkill);
 
   const [showInstaller, setShowInstaller] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
@@ -60,7 +59,7 @@ export const SkillsSettings: React.FC = () => {
 
       // 显示成功提示
       toast.success('示例技能安装成功！', {
-        description: '已安装日语翻译专家和PIVO核心技能'
+        description: '已安装4个实用技能：代码审查、测试生成、文档撰写、调试专家'
       });
 
       // 刷新技能列表
