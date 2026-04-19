@@ -181,18 +181,61 @@ pub async fn install_skill(
 
         println!("[SkillCommand] Japanese translator skill installed successfully");
 
-        // 创建PIVO核心技能
+        // 创建PIVO核心技能（使用JSON格式）
         let pivo_skills = vec![
-            ("pivo-implement.md", "# 技能: PIVO 实施 (Implement)\n使用 agent_write_file 或 agent_replace 执行实际的代码修改。"),
-            ("pivo-verify.md", "# 技能: PIVO 校验 (Verify)\n使用 agent_run_shell 运行测试或编译检查，验证修改的正确性。"),
-            ("pivo-heal.md", "# 技能: PIVO 自愈 (Heal)\n分析校验失败的日志，自动执行修复逻辑并重新验证。"),
+            (
+                "pivo-implement",
+                r#"{
+                    "id": "pivo-implement",
+                    "name": "PIVO 实施",
+                    "description": "使用 agent_write_file 或 agent_replace 执行实际的代码修改",
+                    "version": "1.0.0",
+                    "author": "IfAI Team",
+                    "system_prompt": "You are a PIVO implementation specialist. Use agent_write_file or agent_replace to execute actual code modifications.",
+                    "tags": ["pivo", "implementation", "code-modification"],
+                    "dependencies": [],
+                    "compatibility": "^1.0.0"
+                }"#
+            ),
+            (
+                "pivo-verify",
+                r#"{
+                    "id": "pivo-verify",
+                    "name": "PIVO 校验",
+                    "description": "使用 agent_run_shell 运行测试或编译检查，验证修改的正确性",
+                    "version": "1.0.0",
+                    "author": "IfAI Team",
+                    "system_prompt": "You are a PIVO verification specialist. Use agent_run_shell to run tests or compile checks, verifying the correctness of modifications.",
+                    "tags": ["pivo", "verification", "testing"],
+                    "dependencies": [],
+                    "compatibility": "^1.0.0"
+                }"#
+            ),
+            (
+                "pivo-heal",
+                r#"{
+                    "id": "pivo-heal",
+                    "name": "PIVO 自愈",
+                    "description": "分析校验失败的日志，自动执行修复逻辑并重新验证",
+                    "version": "1.0.0",
+                    "author": "IfAI Team",
+                    "system_prompt": "You are a PIVO healing specialist. Analyze failed verification logs, automatically execute repair logic, and re-verify.",
+                    "tags": ["pivo", "healing", "error-recovery"],
+                    "dependencies": [],
+                    "compatibility": "^1.0.0"
+                }"#
+            ),
         ];
 
-        for (name, content) in pivo_skills {
-            let skill_path = skills_path.join(name);
-            fs::write(&skill_path, content)
+        for (skill_id, skill_json) in pivo_skills {
+            let skill_dir = skills_path.join(skill_id);
+            fs::create_dir_all(&skill_dir)
+                .map_err(|e| format!("创建PIVO技能目录失败: {}", e))?;
+
+            let skill_json_path = skill_dir.join("skill.json");
+            fs::write(&skill_json_path, skill_json)
                 .map_err(|e| format!("写入PIVO技能失败: {}", e))?;
-            println!("[SkillCommand] Installed PIVO skill: {}", name);
+            println!("[SkillCommand] Installed PIVO skill: {}", skill_id);
         }
 
         println!("[SkillCommand] All builtin skills installed successfully");
