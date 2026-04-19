@@ -159,83 +159,189 @@ pub async fn install_skill(
     if skill_id == "builtin-examples" || source == Some("builtin".to_string()) {
         println!("[SkillCommand] Installing builtin example skills");
 
-        // 创建日语翻译专家技能
-        let japanese_skill_dir = skills_path.join("japanese-translator");
-        fs::create_dir_all(&japanese_skill_dir)
-            .map_err(|e| format!("创建技能目录失败: {}", e))?;
-
-        let skill_json = r#"{
-            "id": "japanese-translator",
-            "name": "日语翻译专家",
-            "description": "强制AI仅使用日语进行回复，用于验证技能注入是否生效",
-            "version": "1.0.0",
-            "author": "IfAI Team",
-            "system_prompt": "CRITICAL: From now on, you are a Japanese translation expert. Regardless of the users language or previous context, you MUST reply ONLY in Japanese. If the user asks a question, answer it in Japanese. If the user gives a command, confirm it in Japanese.",
-            "tags": ["translation", "japanese", "language"],
-            "dependencies": [],
-            "compatibility": "^1.0.0"
-        }"#;
-
-        fs::write(japanese_skill_dir.join("skill.json"), skill_json)
-            .map_err(|e| format!("写入技能文件失败: {}", e))?;
-
-        println!("[SkillCommand] Japanese translator skill installed successfully");
-
-        // 创建PIVO核心技能（使用JSON格式）
-        let pivo_skills = vec![
+        // 创建示例技能（使用标准markdown格式）
+        let example_skills = vec![
             (
-                "pivo-implement",
-                r#"{
-                    "id": "pivo-implement",
-                    "name": "PIVO 实施",
-                    "description": "使用 agent_write_file 或 agent_replace 执行实际的代码修改",
-                    "version": "1.0.0",
-                    "author": "IfAI Team",
-                    "system_prompt": "You are a PIVO implementation specialist. Use agent_write_file or agent_replace to execute actual code modifications.",
-                    "tags": ["pivo", "implementation", "code-modification"],
-                    "dependencies": [],
-                    "compatibility": "^1.0.0"
-                }"#
+                "code-review",
+                r#"---
+name: code-review
+description: 专业代码审查技能，能够分析代码质量、发现潜在问题、提供改进建议和最佳实践指导
+license: MIT
+compatibility: 通用代码审查
+metadata:
+  author: IfAI Team
+  version: "1.0.0"
+---
+
+专业代码审查技能。帮助发现代码中的问题、安全漏洞、性能瓶颈，并提供改进建议。
+
+**擅长领域**：
+- 代码质量分析和改进建议
+- 安全漏洞检测（SQL注入、XSS、CSRF等）
+- 性能优化建议
+- 代码规范和最佳实践检查
+- 架构设计和模式建议
+- 错误处理和边界条件检查
+
+**审查流程**：
+
+1. **理解上下文** - 首先理解代码的用途和业务场景
+2. **安全检查** - 检查常见安全漏洞
+3. **性能分析** - 识别性能瓶颈和优化机会
+4. **代码质量** - 评估可读性、可维护性、可测试性
+5. **最佳实践** - 对照行业最佳实践提出建议
+
+**输出格式**：
+- 🔴 严重问题（必须修复）
+- 🟡 改进建议（建议修复）
+- 🔵 优化机会（可选改进）
+- 🟢 良好实践（值得肯定）
+"#,
             ),
             (
-                "pivo-verify",
-                r#"{
-                    "id": "pivo-verify",
-                    "name": "PIVO 校验",
-                    "description": "使用 agent_run_shell 运行测试或编译检查，验证修改的正确性",
-                    "version": "1.0.0",
-                    "author": "IfAI Team",
-                    "system_prompt": "You are a PIVO verification specialist. Use agent_run_shell to run tests or compile checks, verifying the correctness of modifications.",
-                    "tags": ["pivo", "verification", "testing"],
-                    "dependencies": [],
-                    "compatibility": "^1.0.0"
-                }"#
+                "test-generator",
+                r#"---
+name: test-generator
+description: 自动生成单元测试和集成测试，支持多种测试框架和编程语言
+license: MIT
+compatibility: 支持主流测试框架
+metadata:
+  author: IfAI Team
+  version: "1.0.0"
+---
+
+自动测试生成技能。帮助创建高质量的单元测试、集成测试和端到端测试。
+
+**支持的测试类型**：
+- 单元测试（函数、类、组件级别）
+- 集成测试（API、数据库、服务间）
+- 端到端测试（用户流程、UI交互）
+- 性能测试（负载、压力测试）
+- 安全测试（渗透、漏洞扫描）
+
+**支持的框架**：
+- JavaScript: Jest, Mocha, Vitest, Cypress
+- Python: pytest, unittest, nose2
+- Rust: built-in test framework
+- Go: testing package
+- Java: JUnit, TestNG
+
+**生成流程**：
+
+1. **分析代码** - 理解函数/类的用途和边界条件
+2. **识别场景** - 正常路径、异常路径、边界情况
+3. **生成测试** - 创建清晰、可维护的测试用例
+4. **添加断言** - 验证预期行为和错误处理
+5. **Mock依赖** - 隔离外部依赖
+
+**测试质量标准**：
+- 覆盖率 > 80%
+- 清晰的测试名称和描述
+- 独立的测试用例
+- 适当的设置和清理
+"#,
             ),
             (
-                "pivo-heal",
-                r#"{
-                    "id": "pivo-heal",
-                    "name": "PIVO 自愈",
-                    "description": "分析校验失败的日志，自动执行修复逻辑并重新验证",
-                    "version": "1.0.0",
-                    "author": "IfAI Team",
-                    "system_prompt": "You are a PIVO healing specialist. Analyze failed verification logs, automatically execute repair logic, and re-verify.",
-                    "tags": ["pivo", "healing", "error-recovery"],
-                    "dependencies": [],
-                    "compatibility": "^1.0.0"
-                }"#
+                "documentation-writer",
+                r#"---
+name: documentation-writer
+description: 从代码自动生成API文档、使用手册和技术文档
+license: MIT
+compatibility: 支持多种文档格式
+metadata:
+  author: IfAI Team
+  version: "1.0.0"
+---
+
+自动文档生成技能。帮助创建清晰、完整的技术文档。
+
+**支持的文档类型**：
+- API文档（REST、GraphQL、gRPC）
+- 用户手册（安装、配置、使用）
+- 开发文档（架构、设计、贡献指南）
+- 代码注释（JSDoc、PyDoc、RustDoc）
+- README和示例
+
+**文档质量标准**：
+- 清晰简洁的语言
+- 完整的示例代码
+- 准确的类型签名
+- 使用场景和最佳实践
+- 常见问题和故障排除
+
+**生成流程**：
+
+1. **分析代码结构** - 理解模块、类、函数的职责
+2. **提取关键信息** - 参数、返回值、异常、副作用
+3. **组织内容结构** - 按逻辑层次组织文档
+4. **添加示例** - 提供实际可用的代码示例
+5. **审查完整性** - 确保覆盖所有公共API
+
+**输出格式**：
+- Markdown（GitHub、GitLab兼容）
+- OpenAPI/Swagger（REST API）
+- JSDoc（JavaScript）
+- reStructuredText（Python）
+"#,
+            ),
+            (
+                "debugger",
+                r#"---
+name: debugger
+description: 专业调试技能，帮助快速定位和修复bug
+license: MIT
+compatibility: 通用调试辅助
+metadata:
+  author: IfAI Team
+  version: "1.0.0"
+---
+
+专业调试技能。帮助快速定位问题根因并提供修复方案。
+
+**调试方法**：
+- 二分法定位问题
+- 日志分析和追踪
+- 堆栈跟踪分析
+- 内存泄漏检测
+- 性能瓶颈分析
+- 并发问题诊断
+
+**常见问题类型**：
+- 逻辑错误和边界条件
+- 空指针和类型错误
+- 异步和竞态条件
+- 内存和资源泄漏
+- 性能和优化问题
+- 配置和环境问题
+
+**调试流程**：
+
+1. **复现问题** - 确定问题的触发条件
+2. **收集信息** - 日志、错误消息、堆栈跟踪
+3. **分析根因** - 定位问题的根本原因
+4. **提出假设** - 基于证据形成假设
+5. **验证假设** - 通过测试验证假设
+6. **实施修复** - 创建最小化的修复方案
+7. **验证修复** - 确保问题解决且无副作用
+
+**调试工具建议**：
+- Chrome DevTools（前端）
+- debugger语句和断点
+- 日志记录和追踪
+- 性能分析器
+"#,
             ),
         ];
 
-        for (skill_id, skill_json) in pivo_skills {
+        for (skill_id, skill_content) in example_skills {
             let skill_dir = skills_path.join(skill_id);
             fs::create_dir_all(&skill_dir)
-                .map_err(|e| format!("创建PIVO技能目录失败: {}", e))?;
+                .map_err(|e| format!("创建技能目录失败: {}", e))?;
 
-            let skill_json_path = skill_dir.join("skill.json");
-            fs::write(&skill_json_path, skill_json)
-                .map_err(|e| format!("写入PIVO技能失败: {}", e))?;
-            println!("[SkillCommand] Installed PIVO skill: {}", skill_id);
+            let skill_md = skill_dir.join("skill.md");
+            fs::write(&skill_md, skill_content)
+                .map_err(|e| format!("写入技能文件失败: {}", e))?;
+            println!("[SkillCommand] Installed skill: {}", skill_id);
         }
 
         println!("[SkillCommand] All builtin skills installed successfully");
