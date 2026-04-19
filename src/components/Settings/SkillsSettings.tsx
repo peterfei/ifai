@@ -13,6 +13,7 @@ import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '@/stores/fileStore';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { SkillEditorMode, Skill } from './Skills/types';
 
 export const SkillsSettings: React.FC = () => {
@@ -41,14 +42,35 @@ export const SkillsSettings: React.FC = () => {
   // 安装示例技能
   const installDemo = async () => {
     const rootPath = useFileStore.getState().rootPath;
-    if (!rootPath) return;
+    if (!rootPath) {
+      toast.error('无法获取项目路径', {
+        description: '请先打开一个项目'
+      });
+      return;
+    }
 
     setIsInstallingDemo(true);
     try {
-      await invoke('init_skills_dir', { projectRoot: rootPath });
+      // 使用新的安装逻辑，安装内置示例技能
+      await invoke('install_skill', {
+        projectRoot: rootPath,
+        skillId: 'builtin-examples',
+        source: 'builtin'
+      });
+
+      // 显示成功提示
+      toast.success('示例技能安装成功！', {
+        description: '已安装日语翻译专家和PIVO核心技能'
+      });
+
+      // 刷新技能列表
       await fetchSkills();
     } catch (e) {
       console.error('Failed to install demo skills:', e);
+      // 显示错误提示
+      toast.error('安装失败', {
+        description: String(e)
+      });
     } finally {
       setIsInstallingDemo(false);
     }
@@ -58,22 +80,41 @@ export const SkillsSettings: React.FC = () => {
   const handleInstall = async (skillId: string, version?: string) => {
     try {
       await installSkill(skillId, version);
+      toast.success('技能安装成功', {
+        description: `${skillId} 已成功安装`
+      });
       setShowInstaller(false);
     } catch (error) {
       console.error('Failed to install skill:', error);
+      toast.error('技能安装失败', {
+        description: error instanceof Error ? error.message : String(error)
+      });
       throw error;
     }
   };
 
   // 处理技能保存
   const handleSaveSkill = async (skill: Omit<Skill, 'state'>) => {
-    if (editorMode.type === 'create') {
-      await createSkill(skill);
-    } else if (editorMode.type === 'edit' && selectedSkill) {
-      await updateSkill(selectedSkill.id, skill);
+    try {
+      if (editorMode.type === 'create') {
+        await createSkill(skill);
+        toast.success('技能创建成功', {
+          description: `${skill.name} 已成功创建`
+        });
+      } else if (editorMode.type === 'edit' && selectedSkill) {
+        await updateSkill(selectedSkill.id, skill);
+        toast.success('技能更新成功', {
+          description: `${skill.name} 已成功更新`
+        });
+      }
+      setShowEditor(false);
+      setSelectedSkill(undefined);
+    } catch (error) {
+      console.error('Failed to save skill:', error);
+      toast.error('保存失败', {
+        description: error instanceof Error ? error.message : String(error)
+      });
     }
-    setShowEditor(false);
-    setSelectedSkill(undefined);
   };
 
   // 处理编辑器关闭

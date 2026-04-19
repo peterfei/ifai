@@ -1,0 +1,161 @@
+{
+  "timestamp": "2026-04-19T08:38:21.203Z",
+  "summary": {
+    "total": 25,
+    "pass": 25,
+    "fail": 0,
+    "warning": 0
+  },
+  "results": [
+    {
+      "category": "前端组件",
+      "item": "SkillsManagement.tsx",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "SkillInstaller.tsx",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "SkillEditor.tsx",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "SkillDetailPanel.tsx",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "SkillSearchBar.tsx",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "SkillStateIndicator.tsx",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "types.ts",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "前端组件",
+      "item": "index.ts",
+      "status": "pass",
+      "message": "组件文件存在"
+    },
+    {
+      "category": "Store方法",
+      "item": "fetchSkills",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Store方法",
+      "item": "activateSkill",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Store方法",
+      "item": "deactivateSkill",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Store方法",
+      "item": "installSkill",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Store方法",
+      "item": "uninstallSkill",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Store方法",
+      "item": "createSkill",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Store方法",
+      "item": "updateSkill",
+      "status": "pass",
+      "message": "方法已定义"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "get_available_skills",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "init_skills_dir",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "install_skill",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "uninstall_skill",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "activate_skill",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "deactivate_skill",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "create_skill",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "Tauri命令",
+      "item": "update_skill",
+      "status": "pass",
+      "message": "命令已实现"
+    },
+    {
+      "category": "命令注册",
+      "item": "skill_commands导入",
+      "status": "pass",
+      "message": "模块已导入"
+    },
+    {
+      "category": "命令注册",
+      "item": "generate_handler",
+      "status": "pass",
+      "message": "命令已注册"
+    }
+  ]
+}

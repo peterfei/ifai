@@ -201,7 +201,7 @@ export const useSkillStore = create<EnhancedSkillStore>()(
         if (!rootPath) return;
 
         try {
-          await invoke('activate_skill', { projectId: rootPath, skillId: id });
+          await invoke('activate_skill', { projectRoot: rootPath, skillId: id });
           get().activateSkill(id);
         } catch (e) {
           set({ error: String(e) });
@@ -213,7 +213,7 @@ export const useSkillStore = create<EnhancedSkillStore>()(
         if (!rootPath) return;
 
         try {
-          await invoke('deactivate_skill', { projectId: rootPath, skillId: id });
+          await invoke('deactivate_skill', { projectRoot: rootPath, skillId: id });
           get().toggleSkill(id);
         } catch (e) {
           set({ error: String(e) });
@@ -236,7 +236,7 @@ export const useSkillStore = create<EnhancedSkillStore>()(
           if (!rootPath) throw new Error('No project root');
 
           await invoke('install_skill', {
-            projectId: rootPath,
+            projectRoot: rootPath,
             skillId: id,
             version,
             source: 'local',
@@ -274,7 +274,7 @@ export const useSkillStore = create<EnhancedSkillStore>()(
           if (!rootPath) throw new Error('No project root');
 
           await invoke('uninstall_skill', {
-            projectId: rootPath,
+            projectRoot: rootPath,
             skillId: id,
           });
 
@@ -523,13 +523,38 @@ export const useSkillStore = create<EnhancedSkillStore>()(
       // ==================== 编辑操作 ====================
 
       createSkill: async (skill: Omit<Skill, 'state'>) => {
-        // TODO: 实现技能创建
-        console.log('Creating skill:', skill);
+        try {
+          const rootPath = useFileStore.getState().rootPath;
+          if (!rootPath) throw new Error('No project root');
+
+          await invoke('create_skill', {
+            projectRoot: rootPath,
+            skill: skill,
+          });
+
+          await get().refreshSkills();
+        } catch (e) {
+          set({ error: String(e) });
+          throw e;
+        }
       },
 
       updateSkill: async (id: string, updates: Partial<Skill>) => {
-        // TODO: 实现技能更新
-        console.log('Updating skill:', id, updates);
+        try {
+          const rootPath = useFileStore.getState().rootPath;
+          if (!rootPath) throw new Error('No project root');
+
+          await invoke('update_skill', {
+            projectRoot: rootPath,
+            skillId: id,
+            updates: updates,
+          });
+
+          await get().refreshSkills();
+        } catch (e) {
+          set({ error: String(e) });
+          throw e;
+        }
       },
 
       deleteSkill: async (id: string) => {

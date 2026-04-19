@@ -17,6 +17,7 @@ import {
   Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { MarketplaceSkill } from './types';
 
 interface SkillInstallerProps {
@@ -111,6 +112,13 @@ export const SkillInstaller: React.FC<SkillInstallerProps> = ({
     setInstalling(prev => new Set(prev).add(skillId));
     try {
       await onInstall(skillId);
+      // 成功提示由父组件处理
+    } catch (error) {
+      // 错误提示也由父组件处理，但我们可以添加额外的反馈
+      const skill = mockMarketplaceSkills.find(s => s.id === skillId);
+      toast.error(`${skill?.name || skillId} 安装失败`, {
+        description: error instanceof Error ? error.message : '请稍后重试'
+      });
     } finally {
       setInstalling(prev => {
         const newSet = new Set(prev);

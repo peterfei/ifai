@@ -267,7 +267,7 @@ const exposeDebugStores = () => {
     // 使用 requestIdleCallback 确保在浏览器空闲时执行
     const runExpose = () => {
       Promise.all([
-        import('./stores/skillStore'),
+        import('./stores/skillStore.enhanced'),
         import('./stores/fileStore'),
         import('./stores/useChatStore'),
         import('./stores/conversationStore'), // 🔥 添加 conversationStore
@@ -278,7 +278,7 @@ const exposeDebugStores = () => {
         import('./stores/pivoStore')
       ]).then(([skill, file, chat, conversation, settings, layout, editor, tokens, pivo]) => {
         const stores = {
-          skillStore: skill.useSkillStore,
+          skillStore: skill.useSkillStore, // 使用增强版skillStore
           fileStore: file.useFileStore,
           chatStore: chat.useChatStore,
           conversationStore: conversation.useConversationStore, // 🔥 添加 conversationStore
