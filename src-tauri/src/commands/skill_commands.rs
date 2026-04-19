@@ -34,7 +34,7 @@ pub async fn get_available_skills(
             return Ok(vec![]);
         }
 
-        let registry = SkillRegistry::new(skills_path);
+        let mut registry = SkillRegistry::new(skills_path);
         let skills = registry.discover().map_err(|e| e.to_string())?;
 
         println!("[SkillCommand] Successfully found {} skills", skills.len());

@@ -1,0 +1,1 @@
+/Users/mac/project/aieditor/ifainew/macros/target/debug/examples/combined: /Users/mac/project/aieditor/ifainew/macros/examples/combined.rs /Users/mac/project/aieditor/ifainew/macros/src/commands.rs /Users/mac/project/aieditor/ifainew/macros/src/lib.rs /Users/mac/project/aieditor/ifainew/macros/src/skill_format.rs /Users/mac/project/aieditor/ifainew/macros/src/state_machine.rs

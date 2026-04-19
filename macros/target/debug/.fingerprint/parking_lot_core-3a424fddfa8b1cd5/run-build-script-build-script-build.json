@@ -1,0 +1,1 @@
+{"rustc":9816009563062474826,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[6545091685033313457,"build_script_build",false,12490809005756268587]],"local":[{"RerunIfChanged":{"output":"debug/build/parking_lot_core-3a424fddfa8b1cd5/output","paths":["build.rs"]}}],"rustflags":["-C","link-arg=-mmacosx-version-min=10.15"],"config":0,"compile_kind":0}
