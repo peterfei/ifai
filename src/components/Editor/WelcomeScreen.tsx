@@ -59,7 +59,7 @@ export const WelcomeScreen: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e1e1e] select-none">
+        <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e1e1e] select-none" data-testid="welcome-screen">
             <div className="mb-8 flex flex-col items-center">
                 <img src={ifaiLogo} alt="IfAI Logo" className="w-24 h-24 mb-4 opacity-80" />
                 <div className="text-2xl font-light text-gray-300">{t('editor.welcome')}</div>

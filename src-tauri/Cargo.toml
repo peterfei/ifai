@@ -65,6 +65,7 @@ tempfile = "3.17"
 git2 = { version = "0.20.3", features = ["vendored-openssl"] }
 bytes = "1.11.0"
 tokio = { version = "1.48.0", features = ["full"] }
+dashmap = "6"
 tokio-stream = "0.1"
 axum = "0.8"
 tower = "0.5"
@@ -76,6 +77,9 @@ once_cell = "1.21.3"
 uuid = { version = "1.19.0", features = ["v4"] }
 notify = "8.2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
+
+# 本地宏库（技能系统元编程）
+macros = { path = "../macros" }
 ifainew-core = { path = "../../ifainew-core/rust", optional = true }
 tauri-plugin-window-state = "2"
 handlebars = "6.3.2"
@@ -94,6 +98,10 @@ tree-sitter = "0.24.3"
 tree-sitter-rust = "0.23.0"
 tree-sitter-typescript = "0.23.0"
 tree-sitter-python = "0.23.0"
+
+# SmartScanner 极简元编程框架依赖
+rayon = "1.10"  # 并行处理
+lru = "0.12"    # LRU 缓存
 
 # llama.cpp Rust bindings for local LLM inference
 # Supports GGUF format natively (user's model: qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf)

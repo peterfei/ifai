@@ -5,6 +5,8 @@
 pub mod client;
 pub mod providers;
 pub mod sse;
+pub mod streaming;
+pub mod event_stream;
 pub mod types;
 
 #[cfg(test)]
@@ -14,4 +16,6 @@ pub use client::{ApiClient, ApiClientFactory};
 pub use providers::anthropic::AnthropicClient;
 pub use providers::{DeepSeekClient, OpenAIClient};
 pub use sse::{SseEvent, SseParser, SseError};
+pub use streaming::{EventStream, StreamWrapper, callback_stream};
+pub use event_stream::{StreamToEventStream, BatchEventStream};
 pub use types::{AiProvider, ApiError, Message, MessageRole, ModelInfo, ProviderConfig, StreamEvent, StreamRequest};

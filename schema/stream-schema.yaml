@@ -1,0 +1,193 @@
+# ═══════════════════════════════════════════════════════════
+# Stream Schema — 唯一真相源 (Single Source of Truth)
+#
+# 从此文件自动生成：
+#   - Rust:  src-tauri/src/stream_schema_generated.rs
+#   - TypeScript:  src/core/stream-schema-generated.ts
+#
+# ⚠️ 修改此文件后运行: npx tsx scripts/codegen-stream-schema.ts
+# ═══════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────
+# 1. 流阶段状态机
+# ─────────────────────────────────────────────────────
+streamPhases:
+  STREAMING:
+    loading: true
+    transitions:
+      - trigger: tool_calls_finish + non_safe_tool
+        to: AWAITING_APPROVAL
+      - trigger: stop_finish
+        to: FINISHED
+    suppress: []
+    allow:
+      - content
+      - toolCall
+      - toolDone
+
+  AWAITING_APPROVAL:
+    loading: true
+    transitions:
+      - trigger: user_approved
+        to: CONTINUING
+      - trigger: user_rejected
+        to: FINISHED
+      - trigger: timeout
+        to: FINISHED
+    suppress:
+      - emitFinished
+      - autoContinue
+    allow:
+      - phaseTransition
+      - approvalRequired
+
+  CONTINUING:
+    loading: true
+    transitions:
+      - trigger: tool_calls_finish + non_safe_tool
+        to: AWAITING_APPROVAL
+      - trigger: stop_finish
+        to: FINISHED
+    suppress:
+      - emitFinished
+    allow:
+      - content
+      - toolCall
+      - toolDone
+      - phaseTransition
+
+  FINISHED:
+    loading: false
+    transitions: []
+    suppress:
+      - all
+    allow: []
+
+# ─────────────────────────────────────────────────────
+# 2. 权限模式（Ord 枚举，ordinal 决定比较顺序）
+# ─────────────────────────────────────────────────────
+permissionModes:
+  - name: ReadOnly
+    ordinal: 0
+    autoApprove: true
+  - name: WorkspaceWrite
+    ordinal: 1
+    autoApprove: false
+  - name: DangerFullAccess
+    ordinal: 2
+    autoApprove: false
+  - name: Prompt
+    ordinal: 3
+    autoApprove: false
+  - name: Allow
+    ordinal: 4
+    autoApprove: true
+
+# ─────────────────────────────────────────────────────
+# 3. 工具权限声明（单一真相源）
+# ─────────────────────────────────────────────────────
+# runLocation: 'backend' | 'frontend' - 工具执行位置
+#   - backend: 后端执行（文件操作、bash 命令等）
+#   - frontend: 前端执行（状态管理、UI 更新等）
+toolPermissions:
+  # ReadOnly
+  - names:
+      - agent_read_file
+      - read_file
+      - agent_read_file_range
+    mode: ReadOnly
+    runLocation: backend
+  - names:
+      - agent_list_dir
+      - list_dir
+      - list_directory
+    mode: ReadOnly
+    runLocation: backend
+  - names:
+      - agent_scan_project
+      - scan_project
+      - scan_directory
+      - get_file_tree
+    mode: ReadOnly
+    runLocation: backend
+  - names:
+      - get_file_symbols
+      - agent_list_functions
+      - agent_probe_symbols
+    mode: ReadOnly
+    runLocation: backend
+  - names:
+      - agent_search
+      - grep_search
+      - glob_search
+      - search
+      - search_file_content
+    mode: ReadOnly
+    runLocation: backend
+  - names:
+      - TodoWrite
+      - todowrite
+    mode: ReadOnly
+    runLocation: frontend  # 🔥 元编程：声明前端工具
+  - names:
+      - init_rag_index
+    mode: ReadOnly
+    runLocation: backend
+
+  # WorkspaceWrite
+  - names:
+      - agent_write_file
+      - write_file
+      - agent_create_file
+    mode: WorkspaceWrite
+    runLocation: backend
+  - names:
+      - agent_replace_text
+      - edit_file
+      - agent_edit_file
+    mode: WorkspaceWrite
+    runLocation: backend
+
+  # DangerFullAccess
+  - names:
+      - agent_delete_file
+      - delete_file
+      - agent_rename_file
+      - agent_move_file
+    mode: DangerFullAccess
+    runLocation: backend
+  - names:
+      - agent_bash
+      - bash
+      - execute_command
+      - PowerShell
+    mode: DangerFullAccess
+    runLocation: backend
+
+# ─────────────────────────────────────────────────────
+# 4. 后端事件协议
+# ─────────────────────────────────────────────────────
+backendEvents:
+  - type: stream_phase
+    fields:
+      - phase: StreamPhase
+      - tool_call_id: string?
+      - loop: number?
+    emitTiming: phase_transition
+  - type: tool_approval_required
+    fields:
+      - tool_call_id: string
+      - tool_name: string
+      - arguments: string
+      - correlation_id: string
+    emitTiming: after_stream_phase_awaiting_approval
+  - type: tool_done
+    fields:
+      - tool_call_id: string
+      - tool: string
+      - result: string
+    emitTiming: after_tool_execution
+  - type: finish
+    fields:
+      - finish_reason: string
+    emitTiming: only_final_round

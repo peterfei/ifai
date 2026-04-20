@@ -139,6 +139,14 @@ export async function setupE2ETestEnvironment(
     window.__E2E_SKIP_STABILIZER__ = true;
     window.__E2E_REAL_AI_CONFIG__ = params;
 
+    // 🔥 FIX: E2E 测试环境启用所有日志，以便捕获性能监控数据
+    // 设置标志，让 logger.ts 检测到测试环境
+    window.__E2E_ENABLE_ALL_LOGS__ = true;
+
+    // 🔥 FIX: 禁用骨架屏引擎，避免 E2E 测试中元素被隐藏
+    // 骨架屏在 initial/loading 状态时会隐藏 chat-scroll-container
+    window.__ENABLE_SKELETON_ENGINE__ = false;
+
     const setupE2EHelpers = () => {
       if (window.__E2E_HELPERS_INSTALLED__) return;
       window.__E2E_HELPERS_INSTALLED__ = true;
@@ -215,7 +223,12 @@ export async function setupE2ETestEnvironment(
               if (checkTauriReady() || attempts >= maxAttempts) {
                 clearInterval(checkInterval);
                 if (attempts >= maxAttempts) {
-                  console.warn('[E2E Setup] ⚠️ Timeout waiting for real Tauri bridge');
+                  console.warn('[E2E Setup] ⚠️ Timeout waiting for real Tauri bridge, falling back to mock invoke (SSE HTTP Proxy)');
+                  // 🔥 FIX: 超时后回退创建 mock invoke
+                  // Playwright 的 Chromium 没有 Tauri IPC bridge，需要 mock invoke
+                  // 但 ai_chat mock 会通过 SSE HTTP Proxy 调用真实 AI
+                  w.__E2E_REAL_TAURI_MODE__ = false;
+                  setupE2EHelpers();
                 }
               }
             }, 100);
@@ -290,6 +303,159 @@ export async function setupE2ETestEnvironment(
               }
             }
 
+            // 🎯 Mock: install_skill (技能安装)
+            if (cmd === 'install_skill') {
+              console.log(`[E2E Mock] install_skill: ${args.skillId}`);
+
+              const projectRoot = args.projectRoot;
+              if (!projectRoot) {
+                return Promise.reject(new Error('项目根路径不能为空'));
+              }
+
+              // 使用内存文件系统
+              const mockFS = w.__E2E_MOCK_FILE_SYSTEM__;
+
+              // 如果是安装示例技能，创建4个技能文件
+              if (args.skillId === 'builtin-examples' || args.source === 'builtin') {
+                const skills = [
+                  {
+                    id: 'code-review',
+                    name: '代码审查专家',
+                    content: `---
+name: code-review
+description: 专业代码审查技能
+version: 1.0.0
+tags:
+  - development
+  - quality
+dependencies: []
+---
+
+专业代码审查技能
+`
+                  },
+                  {
+                    id: 'test-generator',
+                    name: '测试生成器',
+                    content: `---
+name: test-generator
+description: 自动测试生成技能
+version: 1.0.0
+tags:
+  - development
+  - testing
+dependencies: []
+---
+
+自动测试生成技能
+`
+                  },
+                  {
+                    id: 'documentation-writer',
+                    name: '文档撰写专家',
+                    content: `---
+name: documentation-writer
+description: 文档自动生成技能
+version: 1.0.0
+tags:
+  - documentation
+  - development
+dependencies: []
+---
+
+文档自动生成技能
+`
+                  },
+                  {
+                    id: 'debugger',
+                    name: '调试专家',
+                    content: `---
+name: debugger
+description: 专业调试技能
+version: 1.0.0
+tags:
+  - debugging
+  - development
+dependencies: []
+---
+
+专业调试技能
+`
+                  },
+                ];
+
+                for (const skill of skills) {
+                  const skillPath = `${projectRoot}/.ifai/skills/${skill.id}/skill.md`;
+                  mockFS.set(skillPath, skill.content);
+                  console.log(`[E2E Mock] ✅ 创建技能文件: ${skillPath}`);
+                }
+
+                console.log(`[E2E Mock] ✅ 安装了 ${skills.length} 个示例技能`);
+                return Promise.resolve(true);
+              }
+
+              return Promise.reject(new Error(`未知技能ID: ${args.skillId}`));
+            }
+
+            // 🎯 Mock: get_available_skills (获取技能列表)
+            if (cmd === 'get_available_skills') {
+              console.log(`[E2E Mock] get_available_skills: ${args.projectRoot}`);
+
+              const projectRoot = args.projectRoot;
+              if (!projectRoot) {
+                return Promise.resolve([]);
+              }
+
+              // 使用内存文件系统
+              const mockFS = w.__E2E_MOCK_FILE_SYSTEM__;
+              const skillsPath = `${projectRoot}/.ifai/skills/`;
+
+              const skills: any[] = [];
+              mockFS.forEach((content, path) => {
+                if (path.startsWith(skillsPath) && path.endsWith('/skill.md')) {
+                  const parts = path.split('/');
+                  const skillId = parts[parts.length - 2];
+
+                  const yamlMatch = content.match(/---\n([\s\S]*?)\n---/);
+                  const systemPrompt = content.split('---')[2]?.trim() || '';
+
+                  if (yamlMatch) {
+                    const yamlContent = yamlMatch[1];
+                    const nameMatch = yamlContent.match(/name:\s*(.+)/);
+                    const descMatch = yamlContent.match(/description:\s*(.+)/);
+                    const versionMatch = yamlContent.match(/version:\s*"([^"]+)"/);
+
+                    skills.push({
+                      id: skillId,
+                      name: nameMatch?.[1]?.trim() || skillId,
+                      description: descMatch?.[1]?.trim() || '',
+                      version: versionMatch?.[1] || '1.0.0',
+                      system_prompt: systemPrompt,
+                      tags: ['development', 'testing'],
+                      dependencies: [],
+                      author: 'IfAI Team',
+                      compatibility: 'universal',
+                    });
+                  }
+                }
+              });
+
+              console.log(`[E2E Mock] ✅ 找到 ${skills.length} 个技能`);
+              return Promise.resolve(skills);
+            }
+
+            // 🎯 Mock: activate_skill (激活技能)
+            if (cmd === 'activate_skill') {
+              console.log(`[E2E Mock] activate_skill: ${args.skillId}`);
+              return Promise.resolve(true);
+            }
+
+            // 🎯 Mock: deactivate_skill (停用技能)
+            if (cmd === 'deactivate_skill') {
+              console.log(`[E2E Mock] deactivate_skill: ${args.skillId}`);
+              return Promise.resolve(true);
+            }
+
             // 🎯 Mock: should_summarize_conversation
             if (cmd === 'should_summarize_conversation') {
               const messages = args.messages || [];
@@ -327,28 +493,184 @@ export async function setupE2ETestEnvironment(
 
               console.log(`[E2E Mock] compact_conversation: ${messages.length} messages -> keep last ${keepLastN}`);
 
-              // 实现压缩逻辑
-              const systemMessages = messages.filter((m: any) => m.role === 'system');
-              const lastMessages = messages.slice(-keepLastN);
+              // 🔥 简化压缩逻辑：直接只保留最后 N 条消息
+              const compacted = messages.slice(-keepLastN);
 
-              // 创建总结消息
-              const summaryMsg = {
-                id: `summary-${Date.now()}`,
-                role: 'system',
-                content: `CONVERSATION SUMMARY:\n\n${summary}`,
-                timestamp: Date.now()
-              };
+              console.log(`[E2E Mock] compressed: ${messages.length} -> ${compacted.length} messages`);
 
-              // 组合：系统消息 + 总结 + 最后N条消息
-              const compressed = [...systemMessages, summaryMsg, ...lastMessages];
-
-              console.log(`[E2E Mock] compressed: ${messages.length} -> ${compressed.length} messages`);
-
-              return Promise.resolve(compressed);
+              return Promise.resolve(compacted);
             }
 
-            // 🎯 Mock: ai_chat (返回模拟响应)
+            // 🎯 Mock: plugin:event|listen (Tauri event plugin)
+            if (cmd === 'plugin:event|listen') {
+              const eventName = args?.event || args?.[0];
+              console.log(`[E2E Mock] plugin:event|listen: ${eventName}`);
+              // 返回一个 mock 的 listener ID
+              const listenerId = `e2e-listener-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+              return Promise.resolve(listenerId);
+            }
+
+            // 🎯 Mock: plugin:event|unlisten
+            if (cmd === 'plugin:event|unlisten') {
+              console.log('[E2E Mock] plugin:event|unlisten');
+              return Promise.resolve();
+            }
+
+            // 🎯 Mock: ai_chat (通过 SSE HTTP Proxy 调用真实 AI 或返回模拟响应)
             if (cmd === 'ai_chat') {
+              const realAIConfig = w.__E2E_REAL_AI_CONFIG__;
+
+              if (realAIConfig?.useRealAI && realAIConfig?.realAIApiKey) {
+                // 🔥 真实 AI 模式：通过 SSE HTTP Proxy 调用
+                console.log('[E2E Mock] 🤖 ai_chat - calling real AI via HTTP Proxy...');
+
+                const eventId = args.eventId || `chat_${Date.now()}`;
+                const providerConfig = args.providerConfig || {};
+
+                // 从 providerConfig 或 E2E 配置获取 API 参数
+                const apiKey = providerConfig.api_key || realAIConfig.realAIApiKey;
+                const baseUrl = providerConfig.base_url || realAIConfig.realAIBaseUrl || 'https://open.bigmodel.cn/api/paas/v4';
+                const model = (providerConfig.models && providerConfig.models[0]) || realAIConfig.realAIModel || 'glm-4-flash';
+
+                // 后台调用 SSE HTTP Proxy
+                (async () => {
+                  try {
+                    console.log(`[E2E Mock] 🌐 Fetching SSE from HTTP Proxy (eventId: ${eventId})...`);
+                    console.log(`[E2E Mock] 🌐 apiKey: ${apiKey?.substring(0, 10)}..., model: ${model}, messages: ${(args.messages || []).length}`);
+
+                    const response = await fetch('http://localhost:3333/api/ai/chat/stream', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        messages: args.messages || [],
+                        provider_config: {
+                          name: providerConfig.name || 'zhipu',
+                          api_key: apiKey,
+                          base_url: baseUrl,
+                        },
+                        model: model,
+                        enable_tools: args.enableTools || false,
+                        stream: true,
+                      }),
+                    });
+
+                    console.log(`[E2E Mock] 🌐 SSE response: ${response.status} ${response.ok} content-type: ${response.headers.get('content-type')}`);
+
+                    if (!response.ok) {
+                      console.error(`[E2E Mock] ❌ HTTP API error: ${response.status}`);
+                      const emitFn = w.__TAURI__?.event?.emit;
+                      if (emitFn) {
+                        emitFn(`${eventId}_error`, { message: `HTTP API error: ${response.status}` });
+                      } else {
+                        console.error('[E2E Mock] ❌ No emit function available!');
+                      }
+                      return;
+                    }
+
+                    const reader = response.body?.getReader();
+                    if (!reader) {
+                      console.error('[E2E Mock] ❌ No response body reader');
+                      return;
+                    }
+
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let chunkCount = 0;
+                    let totalBytes = 0;
+
+                    // 超时保护：30 秒无数据则终止
+                    const readWithTimeout = () => {
+                      return Promise.race([
+                        reader.read(),
+                        new Promise<never>((_, reject) =>
+                          setTimeout(() => reject(new Error('SSE read timeout (30s)')), 30000)
+                        )
+                      ]);
+                    };
+
+                    while (true) {
+                      const { done, value } = await readWithTimeout();
+                      if (done) {
+                        console.log(`[E2E Mock] 🌐 SSE stream done. chunks: ${chunkCount}, bytes: ${totalBytes}`);
+                        break;
+                      }
+
+                      const text = decoder.decode(value, { stream: true });
+                      totalBytes += text.length;
+                      buffer += text;
+
+                      // 解析 SSE 事件
+                      const lines = buffer.split('\n');
+                      buffer = lines.pop() || '';
+
+                      for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                          const data = line.slice(5).trim();
+                          if (data === '[DONE]' || !data) continue;
+
+                          try {
+                            let parsed = JSON.parse(data);
+                            // 🔥 FIX: HTTP Proxy 可能双重编码 JSON（data: "...", json_data 包装）
+                            // 如果 parsed 是字符串，再解析一次
+                            if (typeof parsed === 'string') {
+                              parsed = JSON.parse(parsed);
+                            }
+                            const eventType = parsed.event_type;
+
+                            if (eventType === 'content_delta' && parsed.content_delta) {
+                              chunkCount++;
+                              if (chunkCount <= 3) {
+                                console.log(`[E2E Mock] 📝 content_delta #${chunkCount}: "${parsed.content_delta}"`);
+                              }
+                              // 发送流式内容事件（与 Tauri 后端格式一致）
+                              const emitFn = w.__TAURI__?.event?.emit;
+                              if (emitFn) {
+                                const chunk = JSON.stringify({
+                                  choices: [{
+                                    delta: { content: parsed.content_delta },
+                                    finish_reason: null
+                                  }]
+                                });
+                                emitFn(eventId, chunk);
+                              } else {
+                                console.error('[E2E Mock] ❌ No emit function for content_delta!');
+                              }
+                            } else if (eventType === 'done') {
+                              console.log(`[E2E Mock] ✅ AI streaming completed (${chunkCount} chunks, ${totalBytes} bytes)`);
+                              const emitFn = w.__TAURI__?.event?.emit;
+                              if (emitFn) emitFn(`${eventId}_finish`, {});
+                            } else if (eventType === 'error') {
+                              console.error('[E2E Mock] ❌ AI error:', parsed.error);
+                              const emitFn = w.__TAURI__?.event?.emit;
+                              if (emitFn) emitFn(`${eventId}_error`, parsed.error);
+                            }
+                          } catch (e) {
+                            // 忽略 JSON 解析错误（可能是 keepalive 等非 JSON 行）
+                          }
+                        }
+                      }
+                    }
+
+                    // 如果流正常结束但没有收到 done 事件，手动发送 finish
+                    if (chunkCount > 0) {
+                      console.log(`[E2E Mock] 🏁 Stream ended without done event, emitting finish`);
+                      const emitFn = w.__TAURI__?.event?.emit;
+                      if (emitFn) emitFn(`${eventId}_finish`, {});
+                    }
+                  } catch (error) {
+                    console.error('[E2E Mock] ❌ Real AI call failed:', error);
+                    const emitFn = w.__TAURI__?.event?.emit;
+                    if (emitFn) {
+                      emitFn(`${eventId}_error`, { message: String(error) });
+                    }
+                  }
+                })();
+
+                // 立即 resolve，让 invoke 不阻塞（流式内容通过事件发送）
+                return Promise.resolve();
+              }
+
+              // Mock 模式：返回模拟响应
               console.log(`[E2E Mock] ai_chat called - returning mock response`);
               return Promise.resolve({
                 id: `mock-${Date.now()}`,
@@ -376,6 +698,39 @@ export async function setupE2ETestEnvironment(
         }
         if (!w.__TAURI__.core.invoke) {
           w.__TAURI__.core.invoke = w.__TAURI_INTERNALS__.invoke;
+        }
+
+        // 🎯 E2E Mock 文件系统 (用于技能系统测试)
+        if (!w.__E2E_MOCK_FILE_SYSTEM__) {
+          w.__E2E_MOCK_FILE_SYSTEM__ = new Map();
+          console.log('[E2E Setup] ✅ Mock 文件系统已初始化');
+        }
+
+        // Mock __TAURI__.event.listen (plugin:event|listen)
+        // StreamingResponseController 等组件通过 window.__TAURI__.event.listen 注册事件监听
+        if (!w.__TAURI__.event) {
+          w.__TAURI__.event = {};
+        }
+        if (!w.__TAURI__.event.listen) {
+          w.__TAURI__.event.listen = async (event: string, handler: any) => {
+            console.log(`[E2E Tauri Mock] event.listen: ${event}`);
+            const listeners = w.__TAURI_EVENT_LISTENERS__ || {};
+            if (!listeners[event]) {
+              listeners[event] = [];
+            }
+            listeners[event].push(handler);
+            w.__TAURI_EVENT_LISTENERS__ = listeners;
+            return () => {
+              const idx = listeners[event]?.indexOf(handler);
+              if (idx > -1) listeners[event]?.splice(idx, 1);
+            };
+          };
+        }
+        if (!w.__TAURI__.event.emit) {
+          w.__TAURI__.event.emit = async (event: string, payload?: any) => {
+            const listeners = w.__TAURI_EVENT_LISTENERS__?.[event] || [];
+            listeners.forEach((fn: Function) => fn({ payload }));
+          };
         }
 
         console.log('[E2E Setup] ✅ Tauri bridge mock initialized for E2E environment');
@@ -548,6 +903,13 @@ export async function setupE2ETestEnvironment(
   await page.waitForFunction(() => {
     return window.__chatStore && window.__settingsStore && window.__fileStore && window.__agentStore;
   }, { timeout: 30000 });
+
+  // 3.1 等待 conversationStore 初始化（部分 E2E 测试依赖）
+  await page.waitForFunction(() => {
+    return !!(window as any).__conversationStore;
+  }, { timeout: 10000 }).catch(() => {
+    console.log('[E2E] ⚠️ __conversationStore 未初始化，跳过');
+  });
 
   // 🔥 FIX: 如果使用真实 AI，直接在 settingsStore 中设置 provider 配置
   // 这比修改 localStorage/IndexedDB 更可靠

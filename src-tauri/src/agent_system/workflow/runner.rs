@@ -1147,7 +1147,7 @@ mod tests {
         let config = RunnerConfig::default();
         assert_eq!(config.max_concurrent_nodes, 3);
         assert_eq!(config.node_timeout_secs, 300);
-        assert_eq!(config.max_retries, 2);
+        assert_eq!(config.max_retries, 5);  // 🔥 更新为新的默认值
         assert!(!config.fail_fast);
     }
 

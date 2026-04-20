@@ -64,6 +64,31 @@ export interface ArchiveInfo {
   message_count: number;
   token_count: number;
   summary_preview: string;
+  file_path?: string; // 归档文件路径
+  format?: 'json' | 'markdown'; // 归档格式
+  size?: number; // 文件大小（字节）
+}
+
+/**
+ * 归档详细内容
+ */
+export interface ArchiveDetail extends ArchiveInfo {
+  summary: string;
+  messages: Message[];
+  metadata?: {
+    version?: string;
+    originalMessageCount?: number;
+    compressionRatio?: number;
+    [key: string]: any;
+  };
+}
+
+/**
+ * 归档恢复选项
+ */
+export interface RestoreOptions {
+  mode: 'replace' | 'append'; // replace: 替换当前对话, append: 追加到当前对话
+  keepCurrent?: boolean; // 是否保留当前消息（仅在 replace 模式下有效）
 }
 
 /**

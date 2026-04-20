@@ -8,6 +8,7 @@
 use crate::core_traits::ai::{AIService, AIProviderConfig, Message};
 use crate::harness::api::{ApiClientFactory, AiProvider, StreamRequest, Message as HarnessMessage, MessageRole};
 use crate::harness::api::types::{ApiError, ToolCall as HarnessToolCall, ToolCallFunction as HarnessToolCallFunction};
+use crate::harness::api::{StreamToEventStream, EventStream, BatchEventStream};  // 🔥 方案 1: 使用 EventStream + BatchEventStream
 use crate::harness::tool::ToolRegistry;
 use crate::harness::tool::ToolRouter;
 use tauri::{AppHandle, Emitter};
@@ -15,6 +16,9 @@ use std::sync::OnceLock;
 use serde_json::json;
 use futures_util::StreamExt;
 use std::collections::HashMap;
+use dashmap::DashMap;
+use tokio::sync::oneshot;
+use std::time::Duration;
 
 /// 全局 ToolRegistry (P1)
 static GLOBAL_TOOL_REGISTRY: OnceLock<ToolRegistry> = OnceLock::new();
@@ -28,6 +32,34 @@ static GLOBAL_TOOL_ROUTER: OnceLock<ToolRouter> = OnceLock::new();
 
 fn get_global_tool_router() -> &'static ToolRouter {
     GLOBAL_TOOL_ROUTER.get_or_init(|| ToolRouter::new())
+}
+
+/// 待审批工具调用：tool_call_id → oneshot::Sender
+/// 前端审批后通过 resolve_tool_approval 发送结果到对应的 sender
+static PENDING_APPROVALS: OnceLock<DashMap<String, oneshot::Sender<ApprovalResult>>> = OnceLock::new();
+
+fn get_pending_approvals() -> &'static DashMap<String, oneshot::Sender<ApprovalResult>> {
+    PENDING_APPROVALS.get_or_init(DashMap::new)
+}
+
+/// 审批结果
+#[derive(Debug, Clone)]
+pub struct ApprovalResult {
+    pub approved: bool,
+    pub result: Option<String>,  // 执行结果（approved=true 时有值）
+}
+
+/// 供 Tauri command 调用：前端审批完成后，将结果发送给等待中的 stream_chat loop
+pub fn resolve_tool_approval(tool_call_id: &str, approved: bool, result: Option<String>) -> bool {
+    let map = get_pending_approvals();
+    if let Some((_, sender)) = map.remove(tool_call_id) {
+        let _ = sender.send(ApprovalResult { approved, result });
+        println!("[AI] ✅ Tool approval resolved: {} -> approved={}", tool_call_id, approved);
+        true
+    } else {
+        println!("[AI] ⚠️ No pending approval found for tool_call_id: {}", tool_call_id);
+        false
+    }
 }
 
 /// 单次流式轮次中收集的工具调用信息
@@ -332,32 +364,38 @@ impl AIService for HarnessAIService {
 
             // 🔥 DEBUG: 添加 stream 处理开始日志（仅一次）
             if loop_count == 1 {
-                println!("[AI] 🔊 Starting stream processing...");
+                println!("[AI] 🔊 Starting stream processing (batch_size=50)...");
             }
 
-            // 处理流式响应
-            while let Some(result) = stream.next().await {
-                event_count += 1;
-                match result {
-                    Ok(event) => {
-                        // 🔥 FIX: 移除过度日志（每个事件都打印会导致内存爆炸）
-                        // 只在每 100 个事件时打印一次
-                        if event_count % 100 == 0 {
-                            println!("[AI] 📨 Processed {} events so far...", event_count);
+            // 🔥 方案 A: 使用 BatchEventStream 批量处理（批量大小 50），大幅减少函数调用次数
+            let event_stream = StreamToEventStream::new(stream);
+            let mut batch_stream = BatchEventStream::new(Box::new(event_stream), 50);
+
+            loop {
+                match batch_stream.next_batch().await {
+                    Ok(events) => {
+                        if events.is_empty() {
+                            // 流结束
+                            break;
                         }
 
-                        match event {
+                        // 批量处理事件
+                        for event in events {
+                            event_count += 1;
+
+                            // 🔥 FIX: 移除过度日志（每个事件都打印会导致内存爆炸）
+                            // 只在每 100 个事件时打印一次
+                            if event_count % 100 == 0 {
+                                println!("[AI] 📨 Processed {} events so far...", event_count);
+                            }
+
+                            match event {
                             crate::harness::api::StreamEvent::MessageStart { .. } => {}
                             crate::harness::api::StreamEvent::TextDelta { text } => {
                                 loop_text.push_str(&text);
 
-                                // 🔥 FIX: 移除过度日志（减少内存占用）
-                                // 只在每 500 个 delta 时打印一次
-                                if global_delta_index % 500 == 0 {
-                                    println!("[AI] 📝 TextDelta: loop={}, idx={}, len={}",
-                                        loop_count, global_delta_index, text.len()
-                                    );
-                                }
+                                // 🔥 FIX: 完全移除 TextDelta 日志，避免流式输出卡顿
+                                // 参考 claw-code 的零日志策略
 
                                 // 🔥 FIX: 使用全局 delta_index，确保跨整个 continuation 流单调递增
                                 let chunk = json!({
@@ -493,18 +531,103 @@ impl AIService for HarnessAIService {
                                         }
                                     }
 
-                                    // 🔥 CRITICAL FIX: 工具执行错误时返回 JSON 格式，让 AI 知道失败
-                                    // 参考 claw-code/conversation.rs line 222-225: 将错误转为输出
-                                    let exec_result = match router.execute(&tool_name, &args) {
-                                        Ok(res) => res,
-                                        Err(e) => {
-                                            // 返回明确的 JSON 错误格式，包含 error=true 标志
-                                            serde_json::json!({
-                                                "error": true,
-                                                "success": false,
-                                                "message": format!("{}", e),
-                                                "tool_name": tool_name
-                                            }).to_string()
+                                    // 🔥 审批门控：Schema-Driven 权限检查
+                                    let exec_result = if !crate::stream_schema_generated::requires_approval(
+                                        crate::stream_schema_generated::PermissionMode::ReadOnly,
+                                        &tool_name,
+                                    ) {
+                                        // safe 工具直接执行
+                                        match router.execute(&tool_name, &args) {
+                                            Ok(res) => res,
+                                            Err(e) => {
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": format!("{}", e),
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
+                                        }
+                                    } else {
+                                        // dangerous/destructive 工具：发送审批请求给前端，等待用户审批
+                                        println!("[AI] 🔐 Tool {} requires approval, waiting for user...", tool_name);
+
+                                        // 发送 tool_approval_required 事件给前端
+                                        let approval_event = json!({
+                                            "type": "tool_approval_required",
+                                            "tool_call_id": tool_id,
+                                            "tool_name": tool_name,
+                                            "arguments": result_str,
+                                            "correlation_id": correlation_id
+                                        });
+                                        callback(approval_event.to_string());
+
+                                        // 🆕 Schema-Driven: 发射 stream_phase 事件通知前端进入审批状态
+                                        callback(json!({
+                                            "type": "stream_phase",
+                                            "phase": "AWAITING_APPROVAL",
+                                            "tool_call_id": tool_id,
+                                            "correlation_id": correlation_id
+                                        }).to_string());
+
+                                        // 创建 oneshot channel 等待前端审批
+                                        let (tx, rx) = oneshot::channel();
+                                        get_pending_approvals().insert(tool_id.clone(), tx);
+
+                                        // 等待前端审批结果（带超时 5 分钟）
+                                        match tokio::time::timeout(Duration::from_secs(300), rx).await {
+                                            Ok(Ok(approval)) if approval.approved => {
+                                                // 用户批准：执行工具
+                                                println!("[AI] ✅ Tool {} approved by user, executing...", tool_name);
+
+                                                // 🆕 Schema-Driven: 发射 stream_phase 事件通知前端恢复继续
+                                                callback(json!({
+                                                    "type": "stream_phase",
+                                                    "phase": "CONTINUING",
+                                                    "correlation_id": correlation_id
+                                                }).to_string());
+                                                match router.execute(&tool_name, &args) {
+                                                    Ok(res) => res,
+                                                    Err(e) => {
+                                                        serde_json::json!({
+                                                            "error": true,
+                                                            "success": false,
+                                                            "message": format!("{}", e),
+                                                            "tool_name": tool_name
+                                                        }).to_string()
+                                                    }
+                                                }
+                                            }
+                                            Ok(Ok(_)) => {
+                                                // 用户拒绝
+                                                println!("[AI] ❌ Tool {} rejected by user", tool_name);
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": "User rejected this tool call",
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
+                                            Ok(Err(_)) => {
+                                                // channel 被关闭（前端异常）
+                                                println!("[AI] ⚠️ Tool {} approval channel closed unexpectedly", tool_name);
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": "Approval process was interrupted",
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
+                                            Err(_) => {
+                                                // 超时
+                                                println!("[AI] ⏰ Tool {} approval timed out (5min)", tool_name);
+                                                serde_json::json!({
+                                                    "error": true,
+                                                    "success": false,
+                                                    "message": "Approval timed out after 5 minutes",
+                                                    "tool_name": tool_name
+                                                }).to_string()
+                                            }
                                         }
                                     };
 
@@ -607,18 +730,74 @@ impl AIService for HarnessAIService {
                                             }
                                         }
 
-                                        // 🔥 CRITICAL FIX: fallback 执行失败时也返回 JSON 格式
-                                        let exec = match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
-                                            Ok(res) => res,
-                                            Err(e) => {
-                                                // 返回明确的 JSON 错误格式
-                                                serde_json::json!({
-                                                    "error": true,
-                                                    "success": false,
-                                                    "message": format!("参数解析失败: {}", e),
-                                                    "tool_name": tool_name_from_map,
-                                                    "raw_input": result_str.chars().take(200).collect::<String>()  // 只保留前 200 字符
-                                                }).to_string()
+                                        // 🔥 fallback 路径审批门控（Schema-Driven）
+                                        let exec = if !crate::stream_schema_generated::requires_approval(
+                                            crate::stream_schema_generated::PermissionMode::ReadOnly,
+                                            &tool_name_from_map,
+                                        ) {
+                                            match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
+                                                Ok(res) => res,
+                                                Err(e) => {
+                                                    serde_json::json!({
+                                                        "error": true,
+                                                        "success": false,
+                                                        "message": format!("参数解析失败: {}", e),
+                                                        "tool_name": tool_name_from_map,
+                                                        "raw_input": result_str.chars().take(200).collect::<String>()
+                                                    }).to_string()
+                                                }
+                                            }
+                                        } else {
+                                            // 非安全工具：发送审批请求
+                                            println!("[AI] 🔐 Tool {} (fallback) requires approval, waiting for user...", tool_name_from_map);
+
+                                            let approval_event = json!({
+                                                "type": "tool_approval_required",
+                                                "tool_call_id": &tool_id,
+                                                "tool_name": &tool_name_from_map,
+                                                "arguments": &result_str,
+                                                "correlation_id": &correlation_id
+                                            });
+                                            callback(approval_event.to_string());
+
+                                            // 🆕 Schema-Driven: 发射 stream_phase 事件（fallback 路径）
+                                            callback(json!({
+                                                "type": "stream_phase",
+                                                "phase": "AWAITING_APPROVAL",
+                                                "tool_call_id": &tool_id,
+                                                "correlation_id": &correlation_id
+                                            }).to_string());
+
+                                            let (tx, rx) = oneshot::channel();
+                                            get_pending_approvals().insert(tool_id.clone(), tx);
+
+                                            match tokio::time::timeout(Duration::from_secs(300), rx).await {
+                                                Ok(Ok(approval)) if approval.approved => {
+                                                    println!("[AI] ✅ Tool {} (fallback) approved, executing...", tool_name_from_map);
+
+                                                    // 🆕 Schema-Driven: 发射 stream_phase 事件恢复继续
+                                                    callback(json!({
+                                                        "type": "stream_phase",
+                                                        "phase": "CONTINUING",
+                                                        "correlation_id": &correlation_id
+                                                    }).to_string());
+                                                    match get_global_tool_router().execute(&tool_name_from_map, &fallback_args) {
+                                                        Ok(res) => res,
+                                                        Err(e) => serde_json::json!({
+                                                            "error": true, "success": false,
+                                                            "message": format!("{}", e),
+                                                            "tool_name": tool_name_from_map
+                                                        }).to_string()
+                                                    }
+                                                }
+                                                _ => {
+                                                    println!("[AI] ❌ Tool {} (fallback) rejected or timed out", tool_name_from_map);
+                                                    serde_json::json!({
+                                                        "error": true, "success": false,
+                                                        "message": "User rejected or approval timed out",
+                                                        "tool_name": tool_name_from_map
+                                                    }).to_string()
+                                                }
                                             }
                                         };
 
@@ -693,9 +872,10 @@ impl AIService for HarnessAIService {
                                 has_error = true;
                             }
                         }
-                    }
+                    }  // match event
+                    }  // for event in events
                     Err(e) => {
-                        println!("[AI] ❌ Stream error: {:?}", e);
+                        println!("[AI] ❌ Batch stream error: {:?}", e);
                         has_error = true;
 
                         if !batch_buffer.is_empty() {
@@ -706,8 +886,8 @@ impl AIService for HarnessAIService {
 
                         break;
                     }
-                }
-            }
+                }  // match batch_stream.next_batch()
+            }  // loop
 
             println!("[AI] 🔚 While loop ended, event_count={}", event_count);
 

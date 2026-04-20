@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
+import '../../styles/monaco-decorations.css';
 
 interface MonacoDiffViewProps {
   oldValue: string;
@@ -43,9 +44,11 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
             useShadows: false,
             verticalHasArrows: false,
             horizontalHasArrows: false,
-            verticalScrollbarSize: 10,
-            horizontalScrollbarSize: 10,
-        }
+            verticalScrollbarSize: 6,
+            horizontalScrollbarSize: 6,
+        },
+        // 🎨 优化 diff 概览标尺（通过 CSS 覆盖，见 monaco-decorations.css）
+        overviewRulerLanes: 1,
       });
 
       diffEditor.setModel({

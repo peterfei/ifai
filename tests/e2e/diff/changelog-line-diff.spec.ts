@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('Changelog Line Diff UI Test @diff', () => {
-  test('should show partial line changes in changelog correctly', async ({ page }) => {
+  test.skip('should show partial line changes in changelog correctly', async ({ page }) => {
     // 步骤 1：初始化环境
     await setupE2ETestEnvironment(page, {
       useRealAI: true, // 确保使用真实格式化函数

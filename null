@@ -1,6 +1,0 @@
-[1A[2K[2m[WebServer] [22m     Running BeforeDevCommand (`npm run dev`)
-[1A[2K[2m[WebServer] [22m     Running BeforeDevCommand (`npm run dev`)
-[1A[2K[2m[WebServer] [22m     Running DevCommand (`cargo  run --no-default-features --features commercial,community --color always --`)
-[1A[2K[2m[WebServer] [22m     Running DevCommand (`cargo  run --no-default-features --features commercial,community --color always --`)
-[1A[2K[2m[WebServer] [22m        Info Watching /Users/mac/project/aieditor/ifainew/src-tauri for changes...
-[1A[2K[2m[WebServer] [22m        Info Watching /Users/mac/project/aieditor/ifainew/src-tauri for changes...

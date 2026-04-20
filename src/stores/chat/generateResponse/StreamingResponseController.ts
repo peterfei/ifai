@@ -16,6 +16,17 @@ import { useThreadStore } from '../../threadStore';
 // import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { ApprovalPipeline } from '../../../utils/approvalPipeline';
 import { useChatStore } from '../../useChatStore';
+import {
+  evaluateStreamEvent,
+  STREAM_RULES,
+  PHASE_LOADING,
+  PHASE_TRANSITIONS,
+  type StreamPhase,
+} from '@/core/stream-schema-generated';
+import { createLogger } from '../../../utils/logger';
+
+// 🔥 Logger instance for StreamingController
+const logger = createLogger('StreamingController');
 
 // 🔥 FIX: 动态获取 listen 函数，支持 E2E 测试环境和真实 Tauri 环境
 async function getTauriListen() {
@@ -30,7 +41,7 @@ async function getTauriListen() {
     const eventModule = await import('@tauri-apps/api/event');
     return eventModule.listen;
   } catch (e) {
-    console.error('[SC] Failed to get Tauri listen function:', e);
+    logger.error('Failed to get Tauri listen function:', e);
     throw new Error('Tauri event listen function not available');
   }
 }
@@ -44,6 +55,8 @@ interface StreamSession {
   hasReceivedChunk: boolean;
   isFinished: boolean;
   messageId?: string;
+  /** Schema-Driven: 当前流阶段，默认 STREAMING */
+  currentPhase: StreamPhase;
 }
 
 export class StreamingResponseController {
@@ -302,7 +315,7 @@ export class StreamingResponseController {
    * 启动针对特定消息的流式监听
    */
   async startListening(messageId: string, payload: BasePayload) {
-    console.log(`[SC] Stream start: ${messageId} (correlation: ${payload.correlationId})`);
+    logger.info(`Stream start: ${messageId} (correlation: ${payload.correlationId})`);
 
     const threadId = useThreadStore.getState().activeThreadId || payload.sessionId || 'default';
 
@@ -344,6 +357,7 @@ export class StreamingResponseController {
       startTime: Date.now(),
       hasReceivedChunk: false,
       isFinished: false,
+      currentPhase: 'STREAMING',
       messageId
     };
     this.activeSessions.set(payload.correlationId, session);
@@ -384,10 +398,10 @@ export class StreamingResponseController {
         let eventReceived = false;
 
         // 🔥 FIX v0.3.14: 根据场景使用不同的超时时间
-        // - 首次请求: 15秒超时（DeepSeek/OpenAI 正常响应时间）
+        // - 首次请求: 60秒超时（支持长历史消息处理）
         // - 续播请求: 30秒超时（工具调用后 LLM 需要更长时间）
         // 这是一个诊断超时，不会中断实际的流处理
-        const timeoutMs = isContinuation ? 30000 : 15000;
+        const timeoutMs = isContinuation ? 30000 : 60000;
         const eventTimeoutCheck = setTimeout(() => {
           if (!eventReceived) {
             console.warn(`[SC] Event timeout (${timeoutMs}ms) for ${eventId}${isContinuation ? ' (continuation)' : ''}`);
@@ -401,6 +415,7 @@ export class StreamingResponseController {
                   clearTimeout(eventTimeoutCheck);
                 }
                 session.lastHeartbeat = Date.now();
+
                 this.handleBackendEvent(event.payload, payload);
             });
         } catch (e) {
@@ -704,6 +719,54 @@ export class StreamingResponseController {
         } as any);
       }
 
+      // 🆕 Schema-Driven: stream_phase 事件处理（后端 continuation loop 发射）
+      else if (data.type === 'stream_phase' && data.phase) {
+        const newPhase = data.phase as StreamPhase;
+        if (session) {
+          const oldPhase = session.currentPhase;
+
+          // 🔥 Schema-Driven: 验证 phase 转换合法性
+          const allowedTransitions = PHASE_TRANSITIONS[oldPhase] || [];
+          if (!allowedTransitions.includes(newPhase)) {
+            console.warn(`[SC] ⛔ Invalid phase transition: ${oldPhase} → ${newPhase} (allowed: ${allowedTransitions.join(', ')}), ignoring`);
+            return;
+          }
+
+          session.currentPhase = newPhase;
+          console.log(`[SC] 🔄 Stream phase transition: ${oldPhase} → ${newPhase}, correlationId=${payload.correlationId}`);
+
+          // 🔥 Schema-Driven: 根据 PHASE_LOADING 更新 isLoading 状态
+          const shouldLoad = PHASE_LOADING[newPhase];
+          const chatStore = useChatStore.getState();
+          if (chatStore.isLoading !== shouldLoad) {
+            chatStore.setLoading(shouldLoad);
+          }
+
+          // 转发 phase 事件给 EventBus，UI 层可用于显示状态
+          chatEventBus.emit('chat:stream:phase', {
+            ...payload,
+            phase: newPhase,
+            previousPhase: oldPhase,
+            toolCallId: data.tool_call_id || null,
+          } as any);
+        }
+      }
+
+      // 🔐 后端工具审批请求：非 safe 工具需要用户审批后后端才执行
+      else if (data.type === 'tool_approval_required') {
+        const toolCallId = data.tool_call_id || data.toolCallId;
+        const toolName = data.tool_name || data.toolName || '';
+
+        // 发送事件通知 UI 层显示审批状态
+        chatEventBus.emit('chat:tool:approval-required', {
+          ...payload,
+          toolId: toolCallId,
+          toolName,
+          arguments: data.arguments,
+          correlationId: data.correlation_id || payload.correlationId,
+        } as any);
+      }
+
       // 情况 C: 结束标志 (高度兼容模式：finish, finish_reason, done, OpenAI 格式)
       else if (
         data.type === 'finish' ||
@@ -716,14 +779,56 @@ export class StreamingResponseController {
         const finishReason = data.finish || data.finish_reason || (data.choices && data.choices[0] && data.choices[0].finish_reason);
 
         // 🔥 DIAGNOSTIC: 打印 finish 事件详情
-        console.log(`[SC] 🏁 Finish event received: finishReason=${finishReason}, correlationId=${payload.correlationId}`);
+        const currentPhase = session?.currentPhase || 'STREAMING';
+        console.log(`[SC] 🏁 Finish event received: finishReason=${finishReason}, phase=${currentPhase}, correlationId=${payload.correlationId}`);
 
-        // 🔥 CRITICAL FIX: 在 continuation 场景下，finish_reason: "tool_calls" 不是流结束
-        // 它只是表示这一轮结束，需要继续下一轮 continuation
-        // 只有 "stop" 或 "length" 才是真正的流结束
+        // 🔥 Schema-Driven: 使用 evaluateStreamEvent 决定是否处理 finish 事件
+        // 当 phase 为 AWAITING_APPROVAL 或 CONTINUING 时，emitFinished 被 suppress
+        if (!evaluateStreamEvent(currentPhase, 'emitFinished')) {
+          console.log(`[SC] ⛔ emitFinished suppressed by STREAM_RULES (phase=${currentPhase}), continuation in progress`);
+
+          // 仍然 flush tool buffer（工具调用数据需要传递给 UI）
+          if (finishReason === 'tool_calls' || finishReason === 'tool') {
+            for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
+              if (buffered.hasName && buffered.arguments.length > 0) {
+                chatEventBus.emit('chat:tool:call', {
+                  ...payload,
+                  toolId: buffered.toolId,
+                  name: buffered.name,
+                  arguments: buffered.arguments,
+                });
+              }
+            }
+            this.toolCallBuffer.clear();
+            this.indexToBufferKey.clear();
+          }
+          return;
+        }
+
+        // finish_reason: "tool_calls" 在 STREAMING phase 下的处理
+        //（正常流程：后端 continuation loop 还会继续发送事件）
         if (finishReason === 'tool_calls' || finishReason === 'tool') {
-          console.log(`[SC] Continuation signal detected: finish_reason=${finishReason}, NOT ending stream`);
-          // 不调用 emitFinished，继续监听下一轮
+          console.log(`[SC] finish_reason=${finishReason}: flushing tool buffer (phase=${currentPhase})`);
+
+          // Flush 任何仍在缓冲中的工具调用
+          for (const [bufferKey, buffered] of this.toolCallBuffer.entries()) {
+            if (buffered.hasName && buffered.arguments.length > 0) {
+              chatEventBus.emit('chat:tool:call', {
+                ...payload,
+                toolId: buffered.toolId,
+                name: buffered.name,
+                arguments: buffered.arguments,
+              });
+            }
+          }
+          this.toolCallBuffer.clear();
+          this.indexToBufferKey.clear();
+
+          // 如果 phase 仍是 STREAMING，说明后端没有 continuation loop（无工具调用）
+          // 这种情况下需要结束流
+          if (currentPhase === 'STREAMING') {
+            this.emitFinished(payload, data.usage?.total_tokens);
+          }
           return;
         }
 
@@ -800,9 +905,9 @@ export class StreamingResponseController {
       }
     }
 
-    // DEBUG: 仅在异常时打印（大片段）
+    // 🔥 DEBUG: 仅在异常时打印（大片段）- 使用 logger 节流
     if (delta.length > 100) {
-      console.log(`[SC] emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);
+      logger.debug(`emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);
     }
 
     chatEventBus.emit('chat:stream:chunk', {
@@ -818,12 +923,12 @@ export class StreamingResponseController {
     // 🔥 FIX v0.3.12: 幂等性保护 - 防止同一个 correlationId 多次触发 finish
     const correlationId = payload.correlationId;
 
-    // 🔥 DIAGNOSTIC: 打印堆栈跟踪，追踪是哪个路径触发了 emitFinished
-    console.log(`[SC] 🔥 emitFinished called: correlationId=${correlationId}`);
-    console.log(`[SC] 🔥 Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    // 🔥 DIAGNOSTIC: 打印堆栈跟踪，追踪是哪个路径触发了 emitFinished - 使用 logger
+    logger.debug(`emitFinished called: correlationId=${correlationId}`);
+    logger.debug(`Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
 
     if (this.emittedFinish.has(correlationId)) {
-      console.warn(`[SC] Duplicate finish suppressed: ${correlationId}`);
+      logger.warn(`Duplicate finish suppressed: ${correlationId}`);
 
       // 🏆 FIX: 强制清理可能残留的 session（续播场景可能导致 session 泄漏）
       const session = this.activeSessions.get(correlationId);
@@ -1030,7 +1135,6 @@ export class StreamingResponseController {
             editorMode: (window as any).__IFAI_EDITOR_MODE__ || "standard",
             isSessionTrusted: false,
             toolName: toolName,
-            isSandbox: true,
             userMessageHasAutoApprove: (msg as any).autoApproveTools || false
           },
           () => {

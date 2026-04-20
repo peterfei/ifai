@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Monitor, Type, Cpu, Settings, Keyboard, Zap, Database, Cpu as LocalLLM, Globe, Target } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
@@ -13,9 +13,19 @@ import { SkillsSettings } from './SkillsSettings';
 
 export const SettingsModal = () => {
   const { t, i18n } = useTranslation();
-  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
+  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition, activeSettingsTab } = useLayoutStore();
   const settings = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>('general');
+  // 🔥 FIX: 使用layoutStore的activeSettingsTab作为初始值
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>(
+    (activeSettingsTab || 'general') as any
+  );
+
+  // 🔥 FIX: 同步layoutStore的activeSettingsTab到本地state
+  useEffect(() => {
+    if (activeSettingsTab && activeSettingsTab !== activeTab) {
+      setActiveTab(activeSettingsTab as any);
+    }
+  }, [activeSettingsTab]);
 
   // 获取本地化的提供商名称
   const getProviderName = (providerId: string, fallbackName: string): string => {
@@ -51,7 +61,10 @@ export const SettingsModal = () => {
     }
   }, [isSettingsOpen, activeTab, i18n, t]);
 
-  if (!isSettingsOpen) return null;
+  // 🔥 FIX: 只在isSettingsOpen为true时才渲染模态框
+  if (!isSettingsOpen) {
+    return null;
+  }
 
   const tabs = [
     { id: 'general', label: t('settings.general'), icon: Monitor },
@@ -416,6 +429,31 @@ export const SettingsModal = () => {
                       data-testid="auto-approve-checkbox"
                       className="ml-4 h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+
+                  {/* Sandbox Mode */}
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-300">
+                        沙箱模式
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">
+                        控制破坏性操作（如 bash、删除文件）的自动审批策略
+                      </p>
+                    </div>
+                    <select
+                      value={(settings as any).sandboxMode || 'auto'}
+                      onChange={(e) => settings.updateSettings({
+                        sandboxMode: e.target.value as any
+                      })}
+                      data-testid="sandbox-mode-select"
+                      className="ml-4 bg-[#3c3c3c] border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="auto">自动检测</option>
+                      <option value="tauri-only">仅桌面应用</option>
+                      <option value="always-on">始终启用</option>
+                      <option value="always-off">始终禁用</option>
+                    </select>
                   </div>
                 </div>
               </div>

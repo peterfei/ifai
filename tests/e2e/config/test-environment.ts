@@ -71,9 +71,9 @@ const DEFAULT_CONFIG: TestEnvironmentConfig = {
   recordVideo: false,
   screenshot: 'only-on-failure',
   timeouts: {
-    test: 60 * 1000,
+    test: 180 * 1000,  // 🔥 FIX: 增加到180秒（3分钟），支持长历史AI响应
     navigation: 30 * 1000,
-    action: 15 * 1000,
+    action: 120 * 1000,  // 🔥 FIX: 增加到120秒，支持长历史AI响应
     expectation: 10 * 1000,
   },
   retries: 0,

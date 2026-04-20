@@ -118,7 +118,7 @@ export const useThreadStore = create<ThreadStore>()(
 
       syncState: (newState) => set((state) => ({ ...state, ...newState })),
 
-      createThread: (async (options: ThreadOptions = {}) => {
+      createThread: ((options: ThreadOptions = {}) => {
         const state = get();
         const threadCount = Object.values(state.threads).filter(t => t.status !== 'deleted').length;
 

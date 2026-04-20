@@ -20,7 +20,7 @@ pub mod ai {
         
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         #[serde(rename_all = "lowercase")]
-        pub enum AIProtocol { #[default] Openai, Anthropic, Gemini }
+        pub enum AIProtocol { #[default] OpenAI, Anthropic, Gemini }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
         pub struct ImageUrl { pub url: String }
@@ -81,6 +81,7 @@ pub mod ai {
             #[serde(default)] pub base_url: String,
             #[serde(default)] pub models: Vec<String>,
             #[serde(default)] pub protocol: AIProtocol,
+            #[serde(default)] pub enabled: bool,
         }
 
         // 🔥 新增：性能指标

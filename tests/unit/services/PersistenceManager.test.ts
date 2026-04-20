@@ -22,14 +22,14 @@ describe('PersistenceManager (TDD)', () => {
     it('should route keys starting with "ifai-history" to IndexedDB', async () => {
         const { get, set } = await import('idb-keyval');
         const testKey = 'ifai-history-session-1';
-        const testValue = { messages: [] };
+        const testValue = 'raw-string-value';
 
         await manager.setItem(testKey, testValue);
-        expect(set).toHaveBeenCalledWith(testKey, JSON.stringify(testValue));
+        expect(set).toHaveBeenCalledWith(testKey, testValue);
 
-        vi.mocked(get).mockResolvedValue(JSON.stringify(testValue));
+        vi.mocked(get).mockResolvedValue(testValue);
         const result = await manager.getItem(testKey);
-        expect(result).toEqual(testValue);
+        expect(result).toBe(testValue);
     });
 
     it('should route light config keys to LocalStorage', async () => {
@@ -37,7 +37,7 @@ describe('PersistenceManager (TDD)', () => {
         const testValue = 'dark';
 
         await manager.setItem(testKey, testValue);
-        expect(localStorage.getItem(testKey)).toBe(JSON.stringify(testValue));
+        expect(localStorage.getItem(testKey)).toBe(testValue);
 
         const result = await manager.getItem(testKey);
         expect(result).toBe(testValue);
@@ -45,10 +45,16 @@ describe('PersistenceManager (TDD)', () => {
 
     it('should handle complex objects correctly in LocalStorage fallback', async () => {
         const testKey = 'ui-state';
-        const testValue = { sidebarWidth: 250, open: true };
+        // PersistenceManager.setItem now takes string values (StateStorage interface)
+        // The caller (e.g., Zustand) is responsible for JSON serialization
+        const testValue = JSON.stringify({ sidebarWidth: 250, open: true });
 
         await manager.setItem(testKey, testValue);
         const result = await manager.getItem(testKey);
-        expect(result).toEqual(testValue);
+        expect(result).toBe(testValue);
+
+        // Verify round-trip
+        const parsed = JSON.parse(result as string);
+        expect(parsed).toEqual({ sidebarWidth: 250, open: true });
     });
 });

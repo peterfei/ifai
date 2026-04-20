@@ -36,9 +36,8 @@ impl ZhipuClient {
 
         use std::time::Duration;
         let http = HttpClient::builder()
-            .timeout(Duration::from_secs(300))
             .connect_timeout(Duration::from_secs(30))
-            .read_timeout(Duration::from_secs(300))
+            .read_timeout(Duration::from_secs(600))
             .build()
             .expect("Failed to create HTTP client");
 

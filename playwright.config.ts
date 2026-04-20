@@ -29,16 +29,53 @@ export default defineConfig({
     'tests/e2e/**/*.spec.ts'
   ],
 
-  // 排除模板测试文件及已知环境/Mock不稳定的测试 (2026-02-20 回归忽略)
+  // 排除模板、版本归档、依赖真实AI、过时/不稳定的测试 (2026-04-14 更新)
   testIgnore: [
+    // ---- 模板文件 ----
     '**/templates/**',
+
+    // ---- 版本归档目录 (过时) ----
+    'tests/e2e/v0.2.9/**',
+    'tests/e2e/v0.3.0/**',
+    'tests/e2e/v0.3.1/**',
+    'tests/e2e/v0_3_3/**',
+    'tests/e2e/v0.3.3/**',
+
+    // ---- 依赖真实 AI/LLM 后端 ----
     'tests/e2e/agent_tools_regression.spec.ts',
     'tests/e2e/agent-file-reading/**',
     'tests/e2e/agent/**',
     'tests/e2e/approval-policy-p0.spec.ts',
+    'tests/e2e/chat-store/agent-high-fidelity-v2.spec.ts',
+    'tests/e2e/chat-store/agent-tool-fidelity.spec.ts',
+    'tests/e2e/chat-store/full-pipeline-orchestration.spec.ts',
+    'tests/e2e/chat-store/orchestrator-intent.spec.ts',
+    'tests/e2e/chat-store/persistence-transaction.spec.ts',
+    'tests/e2e/chat-store/streaming-signal-fidelity.spec.ts',
+    'tests/e2e/composer-real-ai.spec.ts',
+    'tests/e2e/composer-real-filesystem.spec.ts',
+    'tests/e2e/debug-full-pipeline.spec.ts',
+    'tests/e2e/integration/commercial-inline-full-chain.spec.ts',
+    'tests/e2e/integration/real-llm-clean-flow.spec.ts',
+    'tests/e2e/integration/tauri-commercial-real-llm.spec.ts',
+    'tests/e2e/regression/agent-real-llm-scenario.spec.ts',
+    'tests/e2e/regression/agent-zhipu-real-llm.spec.ts',
+    'tests/e2e/regression/empty-bubble-real-llm.spec.ts',
+    'tests/e2e/regression/message-disconnect-real-llm-simple.spec.ts',
+    'tests/e2e/regression/real-ai-char-array.spec.ts',
+    'tests/e2e/regression/user-message-display-real-llm.spec.ts',
+    'tests/e2e/section5/auto-compression-real.spec.ts',
+    'tests/e2e/ui/test-thread-title-real-llm.spec.ts',
+    'tests/e2e/vibe_mode_auto_approve.spec.ts',
+    'tests/e2e/workflow/workflow-real-backend-verification.spec.ts',
+    'tests/e2e/workflow/workflow-real-llm-flow.spec.ts',
+    'tests/e2e/workflow/workflow-real-llm-monitor.spec.ts',
+    'tests/e2e/workflow/workflow-refresh-persistence-real.spec.ts',
+    'tests/e2e/workflow/workflow-streaming-sse-real.spec.ts',
+
+    // ---- 过时/不稳定/复杂 mock ----
     'tests/e2e/composer-accept-reject-cycle.spec.ts',
     'tests/e2e/composer-conflict-detection.spec.ts',
-    'tests/e2e/composer-real-ai.spec.ts',
     'tests/e2e/diff/diff-summary-accuracy.spec.ts',
     'tests/e2e/dual_mode_*.spec.ts',
     'tests/e2e/editor/tab-context-menu.spec.ts',
@@ -54,12 +91,57 @@ export default defineConfig({
     'tests/e2e/ui/image_*.spec.ts',
     'tests/e2e/ui/repro-styling-issue.spec.ts',
     'tests/e2e/ui/sidebar_optimization.spec.ts',
-    'tests/e2e/v0_3_3/accuracy-validation.spec.ts',
-    'tests/e2e/v0_3_3/performance-benchmarks.spec.ts',
-    'tests/e2e/v0.2.9/terminal-loop.spec.ts',
-    'tests/e2e/v0.3.0/multimodal_*.spec.ts',
-    'tests/e2e/v0.3.1/timeline-view.spec.ts',
-    'tests/e2e/v0.3.3/tool_classification.spec.ts',
+
+    // ---- 诊断/调试类 (非回归测试) ----
+    'tests/e2e/debug-event-id.spec.ts',
+    'tests/e2e/debug-rollback-ui.spec.ts',
+    'tests/e2e/debug-tool-display.spec.ts',
+    'tests/e2e/workflow/workflow-debug-events.spec.ts',
+    'tests/e2e/workflow/workflow-diagnostic*.spec.ts',
+    'tests/e2e/workflow/workflow-streaming-diagnostic.spec.ts',
+    'tests/e2e/workflow/workflow-timing-diagnostic.spec.ts',
+    'tests/e2e/workflow/workflow-ui-render-debug.spec.ts',
+    'tests/e2e/stream-ordering/debug-events.spec.ts',
+
+    // ---- 压力/性能测试 (需要专门环境) ----
+    'tests/e2e/chat/stress-test.spec.ts',
+    'tests/e2e/chat/scroll-performance.spec.ts',
+    'tests/e2e/performance_stress.spec.ts',
+    'tests/e2e/performance/file-read-performance.spec.ts',
+    'tests/e2e/tools/bash-tool-perf.spec.ts',
+
+    // ---- TDD RED 测试 (功能尚未实现) ----
+    'tests/e2e/section2/access-control.spec.ts',
+    'tests/e2e/section3/p3-tool-system-ui.spec.ts',
+    'tests/e2e/section4/import-export.spec.ts',
+    'tests/e2e/section5/conversation-summary.spec.ts',
+    'tests/e2e/section5/auto-compression.spec.ts',
+    'tests/e2e/section5/validation.spec.ts',
+    'tests/e2e/workflow/workflow-streaming-red-green.spec.ts',
+
+    // ---- 依赖智谱 API (需要有效 ZHIPU_API_KEY) ----
+    'tests/e2e/regression/zhipu-api-error-display.spec.ts',
+    'tests/e2e/regression/zhipu-tool-choice-param.spec.ts',
+    'tests/e2e/reproduction/zhipu-write-failure.spec.ts',
+    'tests/e2e/regression/agent-zhipu-dedup-test.spec.ts',
+    'tests/e2e/regression/agent-zhipu-real-scenario-debug.spec.ts',
+    'tests/e2e/regression/agent-zhipu-streaming-format-test.spec.ts',
+    'tests/e2e/regression/agent-zhipu-tools-debug.spec.ts',
+    'tests/e2e/regression/agent-zhipu-tool-check.spec.ts',
+    'tests/e2e/regression/agent-zhipu-api-format-test.spec.ts',
+    'tests/e2e/regression/agent-zhipu-approval-redirect.spec.ts',
+    'tests/e2e/regression/zhipu-todowrite-functionality.spec.ts',
+
+    // ---- 依赖真实 AI/LLM 后端 (第二轮排除) ----
+    'tests/e2e/regression/file-tree-refresh-after-write.spec.ts',
+    'tests/e2e/regression/task-continuation-after-todowrite.spec.ts',
+    'tests/e2e/p2-todowrite.spec.ts',
+
+    // ---- 诊断/调试类 (非回归测试) ----
+    'tests/e2e/stream-ordering/direct-controller.spec.ts',
+    'tests/e2e/streaming/snapshot-comparison.spec.ts',
+    'tests/e2e/reproduction/typewriter-effect.spec.ts',
+    'tests/e2e/reproduction/pivo-tree-rendering.spec.ts',
   ],
 
   // 完全并行执行测试
@@ -170,8 +252,8 @@ export default defineConfig({
     // 服务器启动超时
     timeout: 120 * 1000, // 120秒
     // 日志输出
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdout: process.env.TAURI_DEV === 'true' ? 'inherit' : 'pipe',
+    stderr: process.env.TAURI_DEV === 'true' ? 'inherit' : 'pipe',
   },
 
   // 测试元数据

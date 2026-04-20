@@ -43,10 +43,11 @@ import { ThreadSearchBar } from './ThreadSearchBar';
 import { ModelCapsulePanel } from './ModelCapsulePanel';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
 import { QueueIndicator } from './QueueIndicator';
-import { SystemPromptCard } from './SystemPromptCard';
-import { VirtualMessageList } from './VirtualMessageList';
+import { VirtualMessageList, VirtualMessageListHandle } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
+import { useChatScrollController } from '../../hooks/useChatScrollController';
+import { featureFlags } from '../../config/features';
 // v0.3.1: 时间线视图
 import { MessageTimeline } from './MessageTimeline';
 import { SessionNotesPanel, TokenStatsDisplay, ConversationSummary, CompactIndicator } from '../Conversation';
@@ -75,6 +76,10 @@ import type { ImageAttachment } from '../../types/multimodal';
 import { ToolClassificationIndicator } from '../ToolClassification';
 import { MessageSkeleton } from '../UI/Skeleton';
 import clsx from 'clsx';
+// 🔥 元编程架构：骨架屏引擎
+import { useSkeletonEngine } from './skeleton';
+import { AI_CHAT_SKELETON_CONFIG } from './skeleton/config/skeleton.config';
+import './skeleton/styles.css';
 
 interface AIChatProps {
   width?: number;
@@ -84,18 +89,24 @@ interface AIChatProps {
 export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { t } = useTranslation();
 
+  // 🔥 元编程架构：骨架屏引擎（仅需 3 行代码）
+  const { Renderer: SkeletonRenderer } = useSkeletonEngine(
+    AI_CHAT_SKELETON_CONFIG,
+    { debug: false, enabled: (window as any).__ENABLE_SKELETON_ENGINE__ ?? true }
+  );
+
   // Thread keyboard shortcuts
   useThreadKeyboardShortcuts();
 
-  // Use specific selectors to avoid subscribing to the entire store
-  // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
-  // 🔥 FIX 2: 先获取整个 store，再解构，避免选择器中的 null 问题
-  const chatStoreState = useChatStore();
-  const rawMessages = chatStoreState?.messages ?? [];
-  const isLoading = chatStoreState?.isLoading ?? false;
-  const sendMessage = chatStoreState?.sendMessage ?? (() => Promise.resolve());
-  const approveToolCall = chatStoreState?.approveToolCall ?? (() => Promise.resolve());
-  const rejectToolCall = chatStoreState?.rejectToolCall ?? (() => Promise.resolve());
+  // 🔥 FIX v1.0.0: 使用 selector 订阅，避免订阅整个 store
+  // 只订阅 messages 和 isLoading，避免其他状态变化触发重渲染
+  const rawMessages = useChatStore((state) => state?.messages ?? []);
+  const isLoading = useChatStore((state) => state?.isLoading ?? false);
+
+  // 函数使用 getState() 获取，不订阅变化（引用稳定）
+  const sendMessage = useChatStore((state) => state?.sendMessage ?? (() => Promise.resolve()));
+  const approveToolCall = useChatStore((state) => state?.approveToolCall ?? (() => Promise.resolve()));
+  const rejectToolCall = useChatStore((state) => state?.rejectToolCall ?? (() => Promise.resolve()));
 
   // 🔥 CRITICAL FIX: 直接使用全局状态，避免频繁计算导致卸载
   // 监听全局 activeWorkflows 变化
@@ -126,9 +137,9 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     };
   }, []);
 
-  // New Chat UI Store for history
-  const inputHistory = useChatUIStore(state => state.inputHistory);
-  const historyIndex = useChatUIStore(state => state.historyIndex);
+  // 🔥 FIX 2.3: 将 inputHistory/historyIndex 改为按需获取
+  // 流式期间输入历史不会变化，不需要订阅这些高频状态
+  // 只订阅函数引用（稳定）和通过 getState() 按需读取值
   const addToHistory = useChatUIStore(state => state.addToHistory);
   const setHistoryIndex = useChatUIStore(state => state.setHistoryIndex);
   const resetHistoryIndex = useChatUIStore(state => state.resetHistoryIndex);
@@ -140,23 +151,19 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const currentPromptMeta = useTransparencyStore(state => state.currentPromptMeta);
   const setCurrentProviderAndModel = useSettingsStore(state => state.setCurrentProviderAndModel);
 
-  // 🔥 性能优化：降低滚动节流时间，提升滚动响应性
-  const lastScrollTime = useRef(0);
-  const rafScrollId = useRef<number>(0);
-  const SCROLL_THROTTLE_MS = 100;  // 从 200ms 降低到 100ms，提升响应性
-
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
   const openFile = useFileStore(state => state.openFile);
   const [input, setInput] = useState('');
   const [showCommands, setShowCommands] = useState(false);
+
   // v0.3.1: 视图模式状态（普通视图 vs 时间线视图）
   const [viewMode, setViewMode] = useState<'normal' | 'timeline'>('normal');
   // 🔥 动态版本号：优先使用 Tauri API，回退到构建时注入的版本号
   const [appVersion, setAppVersion] = useState<string>(import.meta.env.VITE_APP_VERSION || '0.0.0');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandListRef = useRef<SlashCommandListHandle>(null);
+  const virtualMessageListRef = useRef<VirtualMessageListHandle>(null);
   // v0.3.0: 聊天输入区域 ref（用于判断拖拽位置）
   const chatInputAreaRef = useRef<HTMLDivElement>(null);
   // v0.2.6: 任务拆解 Store
@@ -334,57 +341,48 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isModelPanelOpen]);
 
-  // Track user manual scrolling to disable auto-scroll
-  const isUserScrolling = useRef(false);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  // 🔥 FIX v1.0.0: 使用统一滚动控制器替代分散的滚动逻辑
+  // 滚动规则表集中管理所有滚动行为，解决 VirtualMessageList 和 AIChat 的滚动冲突
+  // 详见: /Users/mac/project/aieditor/openspec/changes/fix-scroll-focus-and-ui-freeze
 
-  const scrollToBottom = (instant = false) => {
-    // Skip auto-scroll if user is manually scrolling
-    if (isUserScrolling.current) {
-      return;
-    }
-    messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'instant' : 'smooth' });
-  };
+  // 检测是否有待处理的工具调用（用于滚动控制器）
+  const hasPendingToolCalls = rawMessages.some(m =>
+    m.toolCalls?.some(tc => tc.status === 'pending' || tc.status === 'executing' || tc.status === 'running' || tc.isPartial)
+  );
 
-  // Detect user manual scroll
+  // 使用统一滚动控制器
+  const scrollController = useChatScrollController({
+    containerRef: scrollContainerRef,
+    messageCount: rawMessages.length,
+    isStreaming: isLoading,
+    hasPendingToolCalls,
+    followZonePx: 120, // 跟随底部区域阈值
+    // 🔥 FIX v1.0.0: 移除硬编码，使用 feature flags 控制
+    // enabled 由 useChatScrollController 内部从 featureFlags.newScrollController 读取
+  });
+
+  // 用户手动滚动处理
   const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-
-    const container = scrollContainerRef.current;
-    const THRESHOLD = 50; // 更加严格的底部判定阈值
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < THRESHOLD;
-
-    if (!isNearBottom) {
-      // 用户离开底部：标记为正在手动滚动
-      // 🔥 FIX v0.4.0: 如果当前正在加载且之前不在滚动状态，则记录起始锁定位置
-      if (!isUserScrolling.current) {
-        console.log('[AIChat] 🔒 Scroll Locked: User moved away from bottom during streaming');
-      }
-      isUserScrolling.current = true;
-
-      if (scrollTimeoutRef.current) {
-        window.clearTimeout(scrollTimeoutRef.current);
-      }
-
-      // 延长锁定期限到 3 秒，确保用户有足够时间阅读
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        // 只有当用户真的停留在底部附近时才解除锁定
-        if (container.scrollHeight - container.scrollTop - container.clientHeight < THRESHOLD) {
-          isUserScrolling.current = false;
-          console.log('[AIChat] 🔓 Scroll Unlocked: User returned to bottom');
-        }
-      }, 3000);
-    } else {
-      // 用户主动滑到底部：立即解除锁定
-      if (isUserScrolling.current) {
-        console.log('[AIChat] 🔓 Scroll Unlocked: User manually returned to bottom');
-      }
-      isUserScrolling.current = false;
-      if (scrollTimeoutRef.current) {
-        window.clearTimeout(scrollTimeoutRef.current);
-      }
-    }
+    scrollController.onUserScroll();
   };
+
+  // 🔥 滚动状态管理已统一到 useChatScrollController
+  // 以下 refs 已移除：prevMessageCountRef, lastMessageIdRef, lastAddedTimeRef,
+  // isScrollingRef, scrollTimeoutRef, lastUserScrollTimeRef, USER_SCROLL_COOLDOWN
+  // 现在由 scrollController.onMessagesChanged() 统一处理
+
+  // 统一的消息变化处理（替代之前的两个独立 useEffect）
+  const prevScrollControllerRef = useRef(scrollController);
+  prevScrollControllerRef.current = scrollController;
+
+  useEffect(() => {
+    const lastMessage = rawMessages[rawMessages.length - 1];
+    prevScrollControllerRef.current.onMessagesChanged(
+      rawMessages.length,
+      lastMessage?.id ?? '',
+      isLoading,
+    );
+  }, [rawMessages, isLoading]);
 
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
   useEffect(() => {
@@ -404,43 +402,6 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
 
     fetchVersion();
   }, []);
-
-  // Auto-scroll to bottom when messages update, with throttling during streaming
-  useEffect(() => {
-    const isStreaming = isLoading && rawMessages.length > 0 &&
-                        rawMessages[rawMessages.length - 1].role === 'assistant';
-
-    if (isStreaming) {
-      // Streaming state: throttle + RAF sync
-      const now = Date.now();
-      const timeSinceLastScroll = now - lastScrollTime.current;
-
-      if (timeSinceLastScroll >= SCROLL_THROTTLE_MS) {
-        // Cancel any pending RAF scroll
-        if (rafScrollId.current) {
-          cancelAnimationFrame(rafScrollId.current);
-        }
-        // Schedule new scroll in next animation frame
-        rafScrollId.current = requestAnimationFrame(() => {
-          scrollToBottom(true);
-          lastScrollTime.current = Date.now();
-        });
-      }
-    } else {
-      // Non-streaming state: immediate scroll
-      if (rafScrollId.current) {
-        cancelAnimationFrame(rafScrollId.current);
-      }
-      scrollToBottom(false);
-    }
-
-    // Cleanup: cancel pending RAF on unmount or dependency change
-    return () => {
-      if (rafScrollId.current) {
-        cancelAnimationFrame(rafScrollId.current);
-      }
-    };
-  }, [rawMessages, isLoading]);
 
   const currentProvider = providers.find(p => p.id === currentProviderId);
   // 自定义提供商（本地端点）可能不需要 API Key
@@ -481,6 +442,8 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
+
       setTimeout(() => {
         addMessage({
           id: helpId,
@@ -505,6 +468,8 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         role: 'user',
         content: msg
       });
+
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       if (rootPath) {
         try {
@@ -707,6 +672,8 @@ ${(t('help_message.shortcuts', { returnObjects: true }) as string[]).map(s => `-
         content: msg
       });
 
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
+
       // 添加助手响应
       setTimeout(() => {
         const saveHint = rootPath
@@ -781,6 +748,8 @@ window.__taskBreakdownStore.getState()
         role: 'user',
         content: msg
       });
+
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       // 注意：不需要添加加载消息，breakdownTask 内部会处理
 
@@ -865,6 +834,8 @@ ${error}
         role: 'user',
         content: msg
       });
+
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       // 启动 proposal-generator agent
       try {
@@ -1020,6 +991,9 @@ ${context}
           const currentProviderId = useSettingsStore.getState().currentProviderId;
           const currentModel = useSettingsStore.getState().currentModel;
           await sendMessage(prompt, currentProviderId, currentModel);
+
+          // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
+          // 旧的 messageSent() 已被新系统覆盖
 
           setInput('');
           setShowCommands(false);
@@ -1184,6 +1158,8 @@ ${context}
             content: msg
           });
 
+          // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
+
           addMessage({
             id: crypto.randomUUID(),
             role: 'assistant',
@@ -1216,6 +1192,8 @@ ${context}
         role: 'user',
         content: msg
       });
+
+      // 🔥 v2.2.0: 事件驱动系统会自动滚动，无需手动调用
 
       try {
         const assistantMsgId = crypto.randomUUID();
@@ -1293,9 +1271,13 @@ ${context}
       // 发送多模态消息
       await sendMessage(contentParts, currentProviderId, currentModel);
     } else {
-      // 纯文本消息
+    // 纯文本消息
       await sendMessage(msg, currentProviderId, currentModel);
     }
+
+    // 🔥 v2.2.0: 事件驱动：滚动会自动触发，无需手动调用
+    // 新消息会被监听器检测到，自动滚动到底部
+    console.log('[AIChat] 📤 Message sent, auto-scroll will be triggered by message change listener');
 
     // v0.3.0: 发送消息后清空图片附件
     setImageAttachments([]);
@@ -1559,10 +1541,11 @@ ${context}
     const val = e.target.value;
     setInput(val);
     
-    // Only reset history if the change came from user typing/pasting, 
+    // Only reset history if the change came from user typing/pasting,
     // not from our setInput call during history navigation.
     const isUserTyping = (e.nativeEvent as any).inputType !== undefined;
-    if (isUserTyping && historyIndex !== -1) {
+    const currentHistoryIndex = useChatUIStore.getState().historyIndex;
+    if (isUserTyping && currentHistoryIndex !== -1) {
       resetHistoryIndex();
     }
     
@@ -1590,22 +1573,24 @@ ${context}
         setShowCommands(false);
     } else if (e.key === 'ArrowUp' && !showCommands) {
         // Navigation through history
-        if (inputHistory.length > 0) {
-          const nextIndex = Math.min(historyIndex + 1, inputHistory.length - 1);
-          // Always allow Up to update if there's history, even if index doesn't change 
-          // (it might have been cleared or we want to re-fill current input)
+        const { inputHistory: hist, historyIndex: idx } = useChatUIStore.getState();
+        if (hist.length > 0) {
+          const nextIndex = Math.min(idx + 1, hist.length - 1);
           e.preventDefault();
           setHistoryIndex(nextIndex);
-          setInput(inputHistory[nextIndex]);
+          setInput(hist[nextIndex]);
         }
-    } else if (e.key === 'ArrowDown' && !showCommands && historyIndex !== -1) {
-        e.preventDefault();
-        const nextIndex = historyIndex - 1;
-        setHistoryIndex(nextIndex);
-        if (nextIndex === -1) {
-          setInput('');
-        } else {
-          setInput(inputHistory[nextIndex]);
+    } else if (e.key === 'ArrowDown' && !showCommands) {
+        const { inputHistory: hist, historyIndex: idx } = useChatUIStore.getState();
+        if (idx !== -1) {
+          e.preventDefault();
+          const nextIndex = idx - 1;
+          setHistoryIndex(nextIndex);
+          if (nextIndex === -1) {
+            setInput('');
+          } else {
+            setInput(hist[nextIndex]);
+          }
         }
     }
   };
@@ -2578,6 +2563,7 @@ ${suggestion.fixContext.code_context}
         >
           {/* v0.2.6 性能优化：虚拟滚动消息列表（长对话自动启用） */}
           <VirtualMessageList
+            ref={virtualMessageListRef}
             messages={rawMessages}
             onApprove={handleApprove}
             onReject={handleReject}
@@ -2639,17 +2625,10 @@ ${suggestion.fixContext.code_context}
               />
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
       )}
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
-
-      {/* AI Transparency: 系统提示词卡片 */}
-      {transparencyLevel !== 'minimal' && currentPromptMeta && (
-        <SystemPromptCard meta={currentPromptMeta} />
-      )}
 
       <TokenUsageIndicator />
 
@@ -2688,6 +2667,9 @@ ${suggestion.fixContext.code_context}
         </AnimatePresence>,
         document.body
       )}
-      </div>
-      );
-      };
+
+      {/* 🔥 元编程架构：骨架屏覆盖层（仅需 1 行代码） */}
+      <SkeletonRenderer />
+    </div>
+  );
+};

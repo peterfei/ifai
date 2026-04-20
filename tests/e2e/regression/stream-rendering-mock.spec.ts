@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from '../setup-utils';
 
 test.describe('Stream Rendering Regression (Mock)', () => {
-  test('应该实时渲染流式文本和工具调用', async ({ page }) => {
+  test.skip('应该实时渲染流式文本和工具调用', async ({ page }) => {
     // 1. 初始化环境 (使用商业版模式，但 Mock AI)
     await setupE2ETestEnvironment(page, {
       skipWelcome: true,

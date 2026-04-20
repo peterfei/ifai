@@ -2,38 +2,55 @@
  * BatchRenderer 测试
  */
 
-import { BatchRenderer, ChatMessageRenderer } from '../BatchRenderer';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock requestAnimationFrame and window.setTimeout
+beforeEach(() => {
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    return window.setTimeout(() => cb(Date.now()), 16) as unknown as number;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    window.clearTimeout(id);
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('BatchRenderer', () => {
-  it('应该批量累积文本并按需刷新', () => {
-    const flushSpy = jest.fn();
+  it('应该批量累积文本并按需刷新', async () => {
+    const { BatchRenderer } = await import('../BatchRenderer');
+
+    const flushSpy = vi.fn();
 
     class TestRenderer extends BatchRenderer {
-      constructor(private onFlushSpy: jest.Mock) {
-        super();
-      }
-
       protected onFlush(text: string): void {
-        this.onFlushSpy(text);
+        flushSpy(text);
       }
     }
 
-    const renderer = new TestRenderer(flushSpy);
+    const renderer = new TestRenderer();
 
     // 添加文本（不会立即刷新）
     renderer.append('Hello');
     renderer.append(' World');
 
-    // 此时应该还没有刷新
+    // 此时应该还没有刷新（RAF 还未触发）
     expect(flushSpy).not.toHaveBeenCalled();
 
-    // 等待 RAF
-    jest.advanceTimersByTime(16);
+    // 等待 RAF (~16ms)
+    await new Promise(resolve => setTimeout(resolve, 50));
     expect(flushSpy).toHaveBeenCalledWith('Hello World');
+
+    renderer.destroy();
   });
 
-  it('应该在遇到标点符号时立即刷新', () => {
-    const flushSpy = jest.fn();
+  it('应该在遇到标点符号时立即刷新', async () => {
+    const { BatchRenderer } = await import('../BatchRenderer');
+
+    const flushSpy = vi.fn();
 
     class TestRenderer extends BatchRenderer {
       protected onFlush(text: string): void {
@@ -45,13 +62,17 @@ describe('BatchRenderer', () => {
     renderer.append('你好');
     renderer.append('。');
 
-    // 遇到标点应该立即刷新
+    // 遇到标点后 scheduleFlush，等待一帧
+    await new Promise(resolve => setTimeout(resolve, 50));
     expect(flushSpy).toHaveBeenCalledWith('你好。');
+
+    renderer.destroy();
   });
 
-  it('应该在超时后强制刷新', () => {
-    jest.useFakeTimers();
-    const flushSpy = jest.fn();
+  it('应该在超时后强制刷新', async () => {
+    const { BatchRenderer } = await import('../BatchRenderer');
+
+    const flushSpy = vi.fn();
 
     class TestRenderer extends BatchRenderer {
       protected onFlush(text: string): void {
@@ -63,14 +84,16 @@ describe('BatchRenderer', () => {
     renderer.append('Hello');
 
     // 模拟 50ms 超时
-    jest.advanceTimersByTime(50);
+    await new Promise(resolve => setTimeout(resolve, 60));
     expect(flushSpy).toHaveBeenCalledWith('Hello');
 
-    jest.useRealTimers();
+    renderer.destroy();
   });
 
-  it('工具调用应该立即刷新', () => {
-    const flushSpy = jest.fn();
+  it('工具调用应该立即刷新', async () => {
+    const { BatchRenderer } = await import('../BatchRenderer');
+
+    const flushSpy = vi.fn();
 
     class TestRenderer extends BatchRenderer {
       protected onFlush(text: string): void {
@@ -83,11 +106,14 @@ describe('BatchRenderer', () => {
 
     // 工具调用应该立即刷新
     expect(flushSpy).toHaveBeenCalledWith('执行命令');
+
+    renderer.destroy();
   });
 
-  it('应该正确清理定时器', () => {
-    jest.useFakeTimers();
-    const flushSpy = jest.fn();
+  it('应该正确清理定时器', async () => {
+    const { BatchRenderer } = await import('../BatchRenderer');
+
+    const flushSpy = vi.fn();
 
     class TestRenderer extends BatchRenderer {
       protected onFlush(text: string): void {
@@ -102,17 +128,17 @@ describe('BatchRenderer', () => {
     renderer.destroy();
 
     // 等待 RAF
-    jest.advanceTimersByTime(16);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     // 不应该调用 flush（因为已销毁）
     expect(flushSpy).not.toHaveBeenCalled();
-
-    jest.useRealTimers();
   });
 });
 
 describe('ChatMessageRenderer', () => {
-  it('应该正确更新消息状态', () => {
+  it('应该正确更新消息状态', async () => {
+    const { ChatMessageRenderer } = await import('../BatchRenderer');
+
     const messages = new Map<string, string>();
     const updateState = (id: string, text: string) => {
       messages.set(id, text);
@@ -124,8 +150,10 @@ describe('ChatMessageRenderer', () => {
     renderer.append(' World');
 
     // 触发刷新
-    jest.advanceTimersByTime(16);
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(messages.get('msg-1')).toBe('Hello World');
+
+    renderer.destroy();
   });
 });

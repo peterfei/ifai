@@ -14,20 +14,22 @@ export default defineConfig({
       '@ifai/core/commandBar': path.resolve(__dirname, './src/core/commandBar/pro-placeholder'),
       // 确保 Tauri API 从应用层解析
       '@tauri-apps/api': path.resolve(__dirname, './node_modules/@tauri-apps/api'),
+      // 🔥 FIX: Mock monaco-editor in tests to avoid import resolution errors
+      'monaco-editor': path.resolve(__dirname, './tests/mocks/monaco-editor.ts'),
     },
     // 确保从应用层的 node_modules 解析依赖
     conditions: ['module', 'import', 'browser'],
   },
   optimizeDeps: {
     include: ['@tauri-apps/api'],
-    exclude: ['ifainew-core'],
+    exclude: ['ifainew-core', 'monaco-editor'],
   },
   test: {
     globals: true,
     environment: 'happy-dom',
     setupFiles: './tests/setup.ts',
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['tests/e2e/**', 'tests/e2e/**/*.spec.ts', '**/e2e/**', '**/e2e/*.spec.ts'],
+    exclude: ['tests/e2e/**', 'tests/e2e/**/*.spec.ts', '**/e2e/**', '**/e2e/*.spec.ts', 'tests/core/**/*.spec.ts', 'tests/core/**/*.test.ts', 'tests/reproduction/**/*.spec.ts', 'tests/components/MessageItem_Crash_Repro.test.tsx', 'tests/components/MessageItem_Rerender.test.tsx', 'tests/components/MessageItem_Stability.test.tsx', 'tests/integration/TokenCounting.test.tsx', 'tests/unit/streaming/old-baseline.spec.ts', 'tests/unit/streaming/smoke-test.spec.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

@@ -27,6 +27,7 @@ import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
 import { debounce } from 'lodash-es';
 import { Skeleton } from '../UI/Skeleton';
+import { EditorSkeleton } from './EditorSkeleton';
 import { AgentDecorationProvider } from './AgentDecorationProvider';
 import { InlineDiffZone } from './InlineDiffZone';
 import { InlineAIWidget } from '../InlineEdit/InlineAIWidget';
@@ -149,7 +150,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
   // 🔥 文件大小缓存 refs - 必须在组件顶层声明
   const fileSizeRef = useRef(0);
-  const lastFilePath = useRef(file?.path);
+  const lastFilePath = useRef<string | undefined>(undefined);
 
   // 🔥 Token count ref - 必须在组件顶层声明
   const updateTokenCountRef = useRef<((text: string) => void) | null>(null);
@@ -196,6 +197,12 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   }, [file?.id, file?.content]); // 🔥 只依赖 file 值，不依赖函数
 
   const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
+    console.log('[MonacoEditor] ✅ Monaco Editor 已挂载', {
+      paneId,
+      fileId: fileRef.current?.id,
+      fileName: fileRef.current?.name,
+    });
+
     // 存储编辑器实例
     setEditorInstance(paneId, editor);
     editorRef.current = editor; // 🔥 同时存储到 ref
@@ -973,22 +980,27 @@ ${textBefore}[CURSOR]${textAfter}
   }
 
   // 🔥 工业级加载反馈：当文件已选中但内容尚未加载完成时，展示骨架屏
-  if (!file.content && !file.isDirty) {
-    return (
-      <div className="flex flex-col h-full p-6 space-y-4 bg-[#1e1e1e]" data-testid="editor-skeleton">
-        <Skeleton className="h-6 w-1/3 bg-gray-800/50" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-full bg-gray-800/30" />
-          <Skeleton className="h-4 w-5/6 bg-gray-800/30" />
-          <Skeleton className="h-4 w-4/5 bg-gray-800/30" />
-          <Skeleton className="h-4 w-full bg-gray-800/30" />
-        </div>
-        <div className="pt-4 space-y-2">
-          <Skeleton className="h-4 w-3/4 bg-gray-800/30" />
-          <Skeleton className="h-4 w-2/3 bg-gray-800/30" />
-        </div>
-      </div>
-    );
+  // 条件：文件存在 + 内容为空或未定义
+  // 🔥 注意：移除 !file.isDirty 条件，因为 dirty 文件也可能内容为空
+  const shouldShowSkeleton = file &&
+    (!file.content || file.content === '' || file.content === undefined || file.content === null);
+
+  if (shouldShowSkeleton) {
+    return <EditorSkeleton />;
+  }
+
+  // 🔥 双重保险：确保只有在有真实内容时才渲染 Monaco Editor
+  // 防止 Monaco Editor 在 content 为空时显示 "Loading..." 占位符
+  const hasValidContent = file && file.content && file.content.length > 0;
+
+  if (!hasValidContent) {
+    console.log('[MonacoEditor] ⚠️ 没有有效内容，显示骨架屏（安全网）', {
+      fileId: file?.id,
+      hasContent: !!file?.content,
+      contentLength: file?.content?.length || 0,
+      isDirty: file?.isDirty,
+    });
+    return <EditorSkeleton />;
   }
 
   return (
@@ -1004,6 +1016,7 @@ ${textBefore}[CURSOR]${textAfter}
         onChange={handleChange}
         onMount={handleEditorDidMount}
         options={getOptimizedOptions()}
+        loading={<div></div>} // 🔥 禁用默认的 loading 状态
       />
 
       {/* 🧪 Agent 2.0 Inline Assistant Portal */}

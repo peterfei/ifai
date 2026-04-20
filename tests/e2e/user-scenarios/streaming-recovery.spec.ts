@@ -47,6 +47,7 @@ test.describe('流式响应与输入框恢复问题还原', () => {
   });
 
   test('问题还原：询问"你是谁"后验证完整响应和输入框恢复', async ({ page }) => {
+    const chatInput = page.locator('[data-testid="chat-input"]');
     console.log('[测试] 开始还原"你是谁"问题');
 
     // ========================================
@@ -159,6 +160,7 @@ test.describe('流式响应与输入框恢复问题还原', () => {
     // ========================================
     console.log('[步骤5] 验证输入框可用');
 
+    await page.waitForSelector('textarea', { timeout: 15000 });
     await expect(chatInput).toBeVisible();
     await expect(chatInput).toBeEnabled();
     console.log('[步骤5] ✅ 输入框可见且可用');

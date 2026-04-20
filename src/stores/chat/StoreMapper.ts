@@ -10,8 +10,14 @@ import { chatEventBus } from './eventBus/ChatEventBus';
 import { useChatStore } from '../useChatStore';
 import { useSettingsStore } from '../settingsStore';
 import { shouldAutoApprove as checkAutoApprove } from '../../utils/approvalPolicy';
+import { toolApprovalRegistry } from '../../core/approval/ToolApprovalRegistry';
 import { contentSegmentManager } from './generateResponse/ContentSegmentManager';
+import { TOOL_PERMISSIONS } from '../../core/stream-schema-generated';
 import { toast } from 'sonner';
+import { createLogger } from '../../utils/logger';
+
+// 🔥 Logger instance for StoreMapper
+const logger = createLogger('StoreMapper');
 
 export const initStoreMapper = () => {
     // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
@@ -113,11 +119,11 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:stream:chunk', (payload: any) => {
         const { delta, correlationId, deltaIndex } = payload;
 
-        // 🔥 DEBUG: 只在异常情况或每 50 个 delta 打印一次
+        // 🔥 DEBUG: 只在异常情况或每 50 个 delta 打印一次 - 使用 logger
         const shouldLog = deltaIndex === undefined || deltaIndex < 0 || deltaIndex % 50 === 0;
 
         if (shouldLog) {
-            console.log('[StoreMapper] 📨 chat:stream:chunk received:', {
+            logger.debug('chat:stream:chunk received:', {
                 correlationId,
                 deltaIndex,
                 deltaLength: delta?.length || 0,
@@ -125,9 +131,9 @@ export const initStoreMapper = () => {
             });
         }
 
-        // 🔥 DEBUG: 检查 delta 是否包含路径混乱的迹象
+        // 🔥 DEBUG: 检查 delta 是否包含路径混乱的迹象 - 使用 logger
         if (delta && delta.includes('/') && delta.length > 50) {
-            console.log('[StoreMapper] 🔍 Chunk with path detected:', delta);
+            logger.debug('Chunk with path detected:', delta);
         }
 
         // 🔥 序号校验：如果有序号，记录并检查顺序
@@ -135,20 +141,30 @@ export const initStoreMapper = () => {
             const lastIdx = streamIndexTracker.get(correlationId) ?? -1;
             streamIndexTracker.set(correlationId, deltaIndex);
 
-            // 检测乱序 - 只在乱序时打印警告
+            // 检测乱序 - 只在乱序时打印警告 - 使用 logger
             if (deltaIndex !== lastIdx + 1) {
-                console.warn(`[StoreMapper] ⚠️ Out-of-order delta detected: expected ${lastIdx + 1}, got ${deltaIndex}`);
+                logger.warn(`Out-of-order delta detected: expected ${lastIdx + 1}, got ${deltaIndex}`);
             }
         }
-        
+
         // 🏆 FIX: 物理自愈 - 如果 chunk 到了但 Manager 还没初始化（可能由于 start 事件丢失），手动补全
         if (!contentSegmentManager.isStreamActive(correlationId)) {
-            console.warn(`[StoreMapper] 🛡️ Stream ${correlationId} not active in Manager, triggering auto-start`);
+            logger.warn(`Stream ${correlationId} not active in Manager, triggering auto-start`);
             contentSegmentManager.onStreamStart(correlationId);
         }
 
-        // 🏆 FIX: 即使使用了 SegmentManager，也必须实时同步顶层 content
-        // 这是最基础的打字机效果保障，防止分段渲染逻辑失效导致空白
+        // 🔥 FIX v1.0.0: 优化性能 - 通知 ContentSegmentManager（不触发 chat:segment:updated 事件）
+        // ContentSegmentManager.onContentChunk 会触发 chat:segment:updated 事件，导致第二次 setState
+        // 我们直接调用内部的 _onContentChunk（如果存在），避免事件触发
+        // 如果不存在，则使用原方法并接受性能损失
+        if ((contentSegmentManager as any)._onContentChunkWithoutEmit) {
+            (contentSegmentManager as any)._onContentChunkWithoutEmit(delta, correlationId);
+        } else {
+            contentSegmentManager.onContentChunk(delta, correlationId);
+        }
+
+        // 🏆 FIX v1.0.0: 合并两次 setState 为一次 - 同时更新 content 和 segments
+        // 这避免了每个 delta 触发两次 setState（一次 content，一次 segments）
         useChatStore.setState((state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) {
@@ -160,16 +176,23 @@ export const initStoreMapper = () => {
 
             const newMessages = [...state.messages];
             const targetMsg = { ...newMessages[messageIndex], isStreaming: true };
+
+            // 更新 content
             const oldContent = targetMsg.content || '';
             targetMsg.content = oldContent + delta;
-            newMessages[messageIndex] = targetMsg;
 
+            // 🔥 FIX v1.0.0: 同时更新 segments（从 ContentSegmentManager 获取最新状态）
+            // 这样避免了 chat:segment:updated 事件触发第二次 setState
+            const csmSegments = contentSegmentManager.getSegments(correlationId);
+            if (csmSegments && csmSegments.length > 0) {
+                // 深拷贝 segments 以确保 React 检测到变化
+                targetMsg.segments = csmSegments.map((s: any) => ({ ...s }));
+            }
+
+            newMessages[messageIndex] = targetMsg;
 
             return { messages: newMessages, isLoading: true };
         });
-
-        // 通知 ContentSegmentManager
-        contentSegmentManager.onContentChunk(delta, correlationId);
     });
 
     // 5. 映射流式结束 → 完成、清理、同步
@@ -253,6 +276,13 @@ export const initStoreMapper = () => {
             segmentType: segment.type,
             segmentOrder: segment.order
         });
+
+        // 🔥 FIX v0.3.3: 跳过 tool segments（已在 chat:tool:call 中处理）
+        // 避免重复 setState 导致渲染不同步
+        if (segment.type === 'tool') {
+            console.log('[StoreMapper] ⏭️ Skipping tool segment (already handled by chat:tool:call)');
+            return;
+        }
 
         const updater = (state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
@@ -1127,7 +1157,9 @@ export const initStoreMapper = () => {
     chatEventBus.on('chat:tool:call', (payload) => {
       const { correlationId, toolId, name, arguments: args } = payload;
 
-      console.log('[StoreMapper] 🔧 Tool call event received:', { correlationId, toolId, name });
+      // 🔥 DIAG: 检查 TOOL_PERMISSIONS 门控
+      const toolPerm = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
+      const skipAutoApprove = toolPerm !== undefined && toolPerm !== 'ReadOnly';
 
       // 🏆 NEW: 物理合并 - 通知 ContentSegmentManager
       contentSegmentManager.onToolCall({
@@ -1202,25 +1234,10 @@ export const initStoreMapper = () => {
         // 私有库使用: { function: { name, arguments } }  arguments 是字符串
         if (existingToolIndex === -1) {
             // 🏆 NEW: 分配 batchId 以支持工具折叠显示
-            const aggregatableTools = [
-                'agent_scan_project', 
-                'agent_list_dir', 
-                'agent_read_file', 
-                'agent_write_file', 
-                'agent_create_file',
-                'agent_delete_file', 
-                'agent_rename_file',
-                'agent_move_file',
-                'agent_replace_content',
-                'agent_replace_text',
-                'agent_search', 
-                'list_dir', 
-                'read_file'
-            ];
             const lowerToolName = name.toLowerCase();
             let batchId: string | undefined = undefined;
 
-            if (aggregatableTools.some(t => lowerToolName.includes(t))) {
+            if (toolApprovalRegistry.isAggregatable(name)) {
                 const lastToolCall = targetMsg.toolCalls.length > 0 ? targetMsg.toolCalls[targetMsg.toolCalls.length - 1] : null;
 
                 // 🏆 FIX: 简化batchId复用逻辑
@@ -1234,7 +1251,9 @@ export const initStoreMapper = () => {
                 }
             }
 
-            targetMsg.toolCalls.push({
+            // 🔥 FIX: 使用扩展运算符创建新数组，确保 React.memo 能检测到 toolCalls 变化
+            // 不能用 push()，因为 push 修改原数组引用，React.memo 的引用比较无法检测到变化
+            const newToolCall = {
                 id: toolId,
                 type: 'function',
                 // 🔥 UI 组件兼容字段（args 必须是对象）
@@ -1244,42 +1263,69 @@ export const initStoreMapper = () => {
                 function: { name, arguments: args || '' },
                 // 🔥 FIX: 设置初始状态为 pending
                 status: 'pending',
+                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮立即显示
+                // （之前默认为 true，导致批准按钮不显示）
+                isPartial: false,
                 // 🏆 NEW: 添加 batchId 支持工具折叠
                 batchId
-            });
-            console.log('[StoreMapper] 🔧 Added new tool call:', name, 'batchId:', batchId);
+            };
+            targetMsg.toolCalls = [...targetMsg.toolCalls, newToolCall];
+            console.log('[StoreMapper] 🔧 Added new tool call:', name, 'status: pending, isPartial: false');
         } else {
+            // 🔥 FIX: 创建新的 toolCalls 数组，确保 React.memo 能检测到变化
+            const updatedToolCalls = [...targetMsg.toolCalls];
+            const existingTC = { ...updatedToolCalls[existingToolIndex] };
+
             if (name !== 'Unknown Tool') {
-                targetMsg.toolCalls[existingToolIndex].tool = name;
-                targetMsg.toolCalls[existingToolIndex].function.name = name;
+                existingTC.tool = name;
+                existingTC.function.name = name;
             }
             // 🔥 合并参数对象而不是字符串拼接
-            const existingArgs = targetMsg.toolCalls[existingToolIndex].args || {};
+            const existingArgs = existingTC.args || {};
             if ((parsedArgs as any)._raw) {
               // 如果是新参数是原始字符串，更新 function.arguments
-              targetMsg.toolCalls[existingToolIndex].function.arguments = args || ''; // args 已经是累积的
-              
+              existingTC.function.arguments = args || ''; // args 已经是累积的
+
               // 尝试重新解析完整的 arguments
               try {
-                const fullArgsStr = targetMsg.toolCalls[existingToolIndex].function.arguments;
+                const fullArgsStr = existingTC.function.arguments;
                 try {
-                  targetMsg.toolCalls[existingToolIndex].args = JSON.parse(fullArgsStr);
+                  existingTC.args = JSON.parse(fullArgsStr);
                 } catch (e) {
                   // 🏆 FIX: 使用部分提取逻辑，恢复流式渲染
-                  targetMsg.toolCalls[existingToolIndex].args = extractPartialJSON(fullArgsStr);
+                  existingTC.args = extractPartialJSON(fullArgsStr);
                 }
               } catch (e) {
                 // 极端错误处理
-                targetMsg.toolCalls[existingToolIndex].args = { _raw: targetMsg.toolCalls[existingToolIndex].function.arguments };
+                existingTC.args = { _raw: existingTC.function.arguments };
               }
             } else {
               // 如果是新参数是对象，合并到现有参数
-              targetMsg.toolCalls[existingToolIndex].args = {
+              existingTC.args = {
                 ...existingArgs,
                 ...parsedArgs
               };
             }
+
+            // 🔥 FIX v0.3.2: 更新 tool call 时明确设置 isPartial: false（防御性编程）
+            // 首次创建时已设置，这里确保更新时保持该值，防止未来代码变动导致问题
+            existingTC.isPartial = false;
+
+            updatedToolCalls[existingToolIndex] = existingTC;
+            targetMsg.toolCalls = updatedToolCalls;
             console.log('[StoreMapper] 🔧 Updated existing tool call:', name);
+        }
+
+        // 🔥 FIX v0.3.3: 同步更新 segments，确保 segments 和 toolCalls 在同一个 setState 中更新
+        // 这样可以避免 MessageItem 渲染时 segments 有值但 toolCalls 还没更新的问题
+        const csmSegments = contentSegmentManager.getSegments(correlationId);
+        if (csmSegments && csmSegments.length > 0) {
+            // 深拷贝 segments 以确保 React 检测到变化
+            targetMsg.segments = csmSegments.map((s: any) => ({ ...s }));
+            console.log('[StoreMapper] 🔧 Synced segments with toolCalls:', {
+                segmentCount: targetMsg.segments.length,
+                toolCallCount: targetMsg.toolCalls.length
+            });
         }
 
         newMessages[messageIndex] = targetMsg;
@@ -1300,21 +1346,30 @@ export const initStoreMapper = () => {
       // 🏆 FIX: 自动审批逻辑（仅在工具首次创建时触发，避免重复批准）
       // 只有当是新创建的工具时才执行自动批准
       if (existingToolIndex === -1) {
-        // 延迟执行以确保 UI 先渲染
-        setTimeout(async () => {
-        try {
-          const settings = useSettingsStore.getState();
-          const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
+        // 🔥 Schema-Driven 门控：非 ReadOnly 工具由后端审批
+        // 后端 requires_approval(ReadOnly, tool) 会判断是否需要用户审批
+        // 前端自动审批只应对 ReadOnly（后端 autoApprove=true）的工具生效
+        // 否则前端 100ms 自动审批会与后端 tool_approval_required 竞态
+        const toolPermission = TOOL_PERMISSIONS[name] || TOOL_PERMISSIONS[name.toLowerCase()];
+        const needsBackendApproval = toolPermission !== undefined && toolPermission !== 'ReadOnly';
 
-          // 检查是否应该自动审批
-          const shouldAutoApprove = checkAutoApprove({
-            settings,
-            editorMode: editorMode as any,
-            isSessionTrusted: false,  // TODO: 实现会话信任逻辑
-            toolName: name,
-            isSandbox: true,
-            userMessageHasAutoApprove: false
-          });
+        if (needsBackendApproval) {
+          console.log(`[StoreMapper] 🔐 Tool "${name}" requires backend approval (permission=${toolPermission}), skipping auto-approve`);
+        } else {
+          // 延迟执行以确保 UI 先渲染
+          setTimeout(async () => {
+          try {
+            const settings = useSettingsStore.getState();
+            const editorMode = (window as any).__IFAI_EDITOR_MODE__ || 'standard';
+
+            // 检查是否应该自动审批
+            const shouldAutoApprove = checkAutoApprove({
+              settings,
+              editorMode: editorMode as any,
+              isSessionTrusted: false,  // TODO: 实现会话信任逻辑
+              toolName: name,
+              userMessageHasAutoApprove: false
+            });
 
           console.log('[StoreMapper] 🤖 Auto-approve check:', {
             toolName: name,
@@ -1344,7 +1399,35 @@ export const initStoreMapper = () => {
           console.error('[StoreMapper] ❌ Auto-approve failed:', error);
         }
         }, 100);
+        } // end else: non-backend-approval tools
       }
+    });
+
+    // 3.5 🔐 后端审批请求处理：确保 toolCall 状态为 pending
+    // 当后端发送 tool_approval_required 时，确保对应 toolCall 状态正确
+    // （防止前端自动审批已将状态改为 approved 的竞态条件）
+    chatEventBus.on('chat:tool:approval-required' as any, (payload: any) => {
+      const { toolId, toolName } = payload;
+
+      // 确保 toolCall 状态为 pending（覆盖前端自动审批的竞态）
+      const updater = (state: any) => {
+        const updatedMessages = state.messages.map((msg: any) => {
+          if (msg.toolCalls && msg.toolCalls.length > 0) {
+            const updatedToolCalls = msg.toolCalls.map((tc: any) => {
+              if (tc.id === toolId && tc.status !== 'pending') {
+                console.log(`[StoreMapper] 🔧 Resetting toolCall status: ${tc.status} → pending (tool=${toolName})`);
+                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮显示
+                return { ...tc, status: 'pending', isPartial: false };
+              }
+              return tc;
+            });
+            return { ...msg, toolCalls: updatedToolCalls };
+          }
+          return msg;
+        });
+        return { messages: updatedMessages };
+      };
+      useChatStore.setState(updater as any);
     });
 
     // 4. 映射工具执行结果
@@ -1512,17 +1595,27 @@ export const initStoreMapper = () => {
 
     // 6. 映射错误
     chatEventBus.on('chat:error', (payload: any) => {
-      const { correlationId, error } = payload;
+      const { correlationId, error, code, message: payloadMessage } = payload;
+
+      // 🔥 FIX: ToolCallManager 对需要审批的工具发出 chat:error（code=APPROVAL_REQUIRED），
+      // 这不是真正的错误，跳过错误处理，避免将消息状态设为 error
+      if (code === 'APPROVAL_REQUIRED') {
+        console.log('[StoreMapper] ⏭️ Skipping APPROVAL_REQUIRED error (tool needs manual approval)');
+        return;
+      }
+
       console.error('[StoreMapper] ❌ Chat error received:', { correlationId, error });
 
-      // 提取错误消息
+      // 提取错误消息（优先从 error 字段，其次从 payload.message）
       let errorMessage: string;
       if (typeof error === 'object' && error !== null && error.message) {
         errorMessage = error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
+      } else if (typeof payloadMessage === 'string' && payloadMessage.length > 0) {
+        errorMessage = payloadMessage;
       } else {
-        errorMessage = JSON.stringify(error);
+        errorMessage = error != null ? JSON.stringify(error) : 'Unknown error';
       }
 
       // 🔥 FIX: 尝试提取内层的 error.message（对于智谱等 API 返回的 JSON 字符串）
@@ -1551,7 +1644,7 @@ export const initStoreMapper = () => {
         return msg;
       };
 
-      errorMessage = extractInnerErrorMessage(errorMessage);
+      errorMessage = extractInnerErrorMessage(errorMessage || 'Unknown error');
 
       // 🔥 FIX: 显示 toast 错误提示（只显示内层 error.message）
       toast.error(errorMessage);

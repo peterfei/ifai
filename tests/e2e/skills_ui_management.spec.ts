@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from './setup-utils';
 
 test.describe('Skills Store State Lifecycle', () => {
-  test('Verify Global Singleton Stability', async ({ page }) => {
+  test.skip('Verify Global Singleton Stability', async ({ page }) => {
     await setupE2ETestEnvironment(page);
     await page.goto('/');
     

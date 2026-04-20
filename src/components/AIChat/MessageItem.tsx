@@ -21,6 +21,7 @@ const TypewriterText: React.FC<{
         baseCPS: 40,
         fastCPS: 120,
         threshold: 300,
+        throttleMs: 50, // 🔥 FIX 2.1: 节流 50ms，将 React 状态更新从 ~60fps 降到 ~20fps
     });
     // useTypewriter 在 enabled=false 时自动跳到末尾，displayText === content
     return <>{children(displayText)}</>;
@@ -121,6 +122,10 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     if (prevProps.message.content !== nextProps.message.content) {
         return false;
     }
+    // 🔥 FIX v0.3.4: 必须比较 segments，否则 tool segment 新增时不会触发 UI 更新
+    if ((prevProps.message as any).segments !== (nextProps.message as any).segments) {
+        return false;
+    }
     // 🔥 FIX: 必须比较 contentSegments，否则流式工具调用不会触发 UI 更新
     if ((prevProps.message.contentSegments?.length || 0) !== (nextProps.message.contentSegments?.length || 0)) {
         return false;
@@ -217,6 +222,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // FIXED: Use state instead of ref to ensure re-render when streaming state changes
     // v0.2.6: 优化流式检测逻辑，结合外部 props 和内部内容增长
     const [isActivelyStreaming, setIsActivelyStreaming] = useState(false);
+    // 🔥 FIX: 使用 ref 跟踪 isActivelyStreaming，避免依赖循环导致无限渲染
+    const isActivelyStreamingRef = useRef(isActivelyStreaming);
+    isActivelyStreamingRef.current = isActivelyStreaming;
     // v0.2.9: Track ignored actions for E2E testing
     const [ignoredActions, setIgnoredActions] = useState<Set<number>>(new Set());
     // 强制使用外部传进来的 isStreaming 作为主要判定依据
@@ -344,7 +352,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
         const hasCompletedToolCallsOnly = message.toolCalls && message.toolCalls.length > 0 &&
             message.toolCalls.every(tc => tc.status === 'completed' || tc.status === 'failed');
         // 如果所有工具调用都完成了，立即停止流式状态
-        if (hasCompletedToolCallsOnly && isActivelyStreaming) {
+        if (hasCompletedToolCallsOnly && isActivelyStreamingRef.current) {
             setIsActivelyStreaming(false);
             if (streamingTimeoutRef.current) {
                 clearTimeout(streamingTimeoutRef.current);
@@ -382,11 +390,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             console.log('[MessageItem] Rendering message with toolCalls:', message.id, message.toolCalls.length);
         }
     }, [message.toolCalls, message.id]);
+
     // Debug: Log when isStreaming changes
     React.useEffect(() => {
         // 🔥 FIX: When streaming stops, immediately clear activelyStreaming state
         // This prevents the "生成中..." indicator from staying forever
-        if (!isStreaming && isActivelyStreaming) {
+        if (!isStreaming && isActivelyStreamingRef.current) {
             console.log('[MessageItem] 🏁 Streaming stopped, clearing activelyStreaming state');
             setIsActivelyStreaming(false);
             if (streamingTimeoutRef.current) {
@@ -394,7 +403,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 streamingTimeoutRef.current = undefined;
             }
         }
-    }, [isStreaming, message.id, isActivelyStreaming]);
+    }, [isStreaming, message.id]);
     // Count pending tool calls for batch actions
     const pendingCount = React.useMemo(() => {
         if (!message.toolCalls) return 0;
@@ -509,10 +518,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const isVibeMode = (window as any).__IFAI_EDITOR_MODE__ === 'vibe';
     const isRedundantIntro = React.useMemo(() => {
         if (!isVibeMode || isUser || !hasToolCalls) return false;
+        // 🔥 FIX v0.3.5: 有 pending 工具调用时绝不能隐藏气泡（用户需要看到审批按钮）
+        if (pendingCount > 0) return false;
         const text = typeof displayContent === 'string' ? displayContent.trim() : '';
         // 🚀 激进模式：只要包含聚合卡片，默认就隐藏助理的普通说明文字，除非包含代码块
         return !text.includes('```');
-    }, [isVibeMode, isUser, hasToolCalls, displayContent]);
+    }, [isVibeMode, isUser, hasToolCalls, displayContent, pendingCount]);
 
     // 🏆 v0.4.1: 探索模式判定 (基于是否包含进度/树元数据)
     const isExploreMessage = !!(message as any).exploreProgress;
@@ -528,6 +539,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             isRedundantIntro ||
                             (message.role === 'tool' && isExploreMessage) ||
                             (message.role === 'tool' && hasProjectScanData);
+    // 🔥 FIX v0.3.5: 有 pending 工具调用时强制显示气泡（审批按钮不能被隐藏）
+    const effectiveShouldHideBubble = pendingCount > 0 ? false : shouldHideBubble;
 
     // 🔥 FIX v0.4.0: 智能内容预处理 - 提取思考内容
     const { thinkingText, contentWithoutThinking } = React.useMemo(() => {
@@ -840,7 +853,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             data-testid={`message-${message.id}`}
             data-role={message.role} // 🔥 FIX: 添加 role 属性用于 E2E 测试
         >
-            <div className={`flex items-start gap-3 w-full ${!shouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
+            <div className={`flex items-start gap-3 w-full ${!effectiveShouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
                 {/* A. 头像区 - 始终显示 */}
                 <div className="shrink-0 mt-0.5">
                     {isUser ? (
@@ -861,7 +874,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 {/* B. 内容区 - 统一布局 */}
                 <div className="flex-1 min-w-0 text-inherit relative">
                     {/* B1. 悬浮工具栏 (仅在非用户气泡模式下显示) */}
-                    {!isUser && !shouldHideBubble && (
+                    {!isUser && !effectiveShouldHideBubble && (
                         <div className="absolute -top-10 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#2d2d2d] border border-white/10 rounded-md p-1 shadow-xl z-10">
                             <button onClick={handleCopy} className="p-1 hover:bg-white/5 rounded text-gray-400" title="Copy">
                                 <Copy size={12} />
@@ -951,7 +964,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     {displayContent.slice(-500)}
                                 </div>
                             </div>
-                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
+                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (() => {
+                            // 🔥 FIX: 同 mergedSegments 路径，只对最后一个 text part 传递 isStreaming
+                            const lastTextPartIdx = (() => {
+                                for (let i = message.multiModalContent.length - 1; i >= 0; i--) {
+                                    if (message.multiModalContent[i].type === 'text') return i;
+                                }
+                                return -1;
+                            })();
+                            return (
                             <div className="space-y-2">
                                 {message.multiModalContent.map((part, index) => {
                                     // 🔥 FIX: 跳过无效的 part 对象
@@ -968,7 +989,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             console.warn('[MessageItem] Text part has non-string content:', textContent);
                                             return null;
                                         }
-                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, effectivelyStreaming);
+                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, index === lastTextPartIdx ? effectivelyStreaming : false);
                                     }
 
                                     // 🔥 FIX: 确保 image_url 对象有效
@@ -979,10 +1000,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
                                     }
 
-                                    return renderContentPart(part, index, effectivelyStreaming);
+                                    return renderContentPart(part, index, index === lastTextPartIdx ? effectivelyStreaming : false);
                                 })}
                             </div>
-                        ) : mergedSegments && mergedSegments.length > 0 ? (
+                            );
+                        })() : mergedSegments && mergedSegments.length > 0 ? (() => {
+                            // 🔥 FIX: 只对最后一个 text segment 传递 isStreaming=true
+                            // 根因：continuation 场景下，消息中有多个 text segment（pre-tool + post-tool），
+                            // 如果对所有 text segment 都传 effectivelyStreaming=true，
+                            // 每个 MarkdownRenderer 都会显示"生成中..."脉冲，造成视觉干扰
+                            const lastTextSegIdx = (() => {
+                                for (let i = mergedSegments.length - 1; i >= 0; i--) {
+                                    if (mergedSegments[i].type === 'text') return i;
+                                }
+                                return -1;
+                            })();
+                            return (
                             <div className="space-y-3">
                                 {mergedSegments.map((segment: any, index: number) => {
                                     // 🔥 FIX: 验证 segment 对象有效性
@@ -1017,7 +1050,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
                                         const stableKey = segment.order ?? segment.timestamp ?? index;
-                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, effectivelyStreaming);
+                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, index === lastTextSegIdx ? effectivelyStreaming : false);
 
                                         return (
                                             <div
@@ -1070,7 +1103,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
 
                                         const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
-                                        if (!toolCall) return null;
+                                        if (!toolCall) {
+                                            console.warn('[MessageItem] ⚠️ Tool segment has no matching toolCall', {
+                                                segmentToolCallId: segment.toolCallId,
+                                                segmentToolName: segment.toolName,
+                                                availableToolCallIds: message.toolCalls?.map(tc => tc.id),
+                                                toolCallsCount: message.toolCalls?.length
+                                            });
+                                            return null;
+                                        }
 
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'in-tool';
@@ -1097,8 +1138,47 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     }
                                     return null;
                                 })}
+
+                                {/* 🔥 FIX: 补偿渲染 — 当 segments 中缺少 tool segment 但 message.toolCalls 有 pending 工具时
+                                    *  场景：AI 先输出文本（创建 text segment），然后调用工具，但 tool segment 未及时创建或被过滤
+                                    *  此时 mergedSegments 非空（有 text），不会走 fallback 路径，ToolApproval 不渲染
+                                    *  刷新后 segments 可能被重建，所以能显示 — 这解释了"刷新后才出现"的现象
+                                    */}
+                                {(() => {
+                                    if (!message.toolCalls || message.toolCalls.length === 0) return null;
+
+                                    // 收集 segments 中已有的 toolCallId
+                                    const renderedToolIds = new Set(
+                                        mergedSegments
+                                            .filter((s: any) => s.type === 'tool' && s.toolCallId)
+                                            .map((s: any) => s.toolCallId)
+                                    );
+
+                                    // 找出 segments 中没有对应 tool segment 的 pending toolCalls
+                                    const orphanedPendingCalls = message.toolCalls.filter((tc: any) =>
+                                        tc.status === 'pending' && !renderedToolIds.has(tc.id) && !tc.isPartial
+                                    );
+
+                                    if (orphanedPendingCalls.length === 0) return null;
+
+                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`, {
+                                        orphanedIds: orphanedPendingCalls.map((tc: any) => tc.id)
+                                    });
+
+                                    return orphanedPendingCalls.map((toolCall: any) => (
+                                        <ToolApproval
+                                            key={`orphan-${toolCall.id}`}
+                                            toolCall={toolCall}
+                                            onApprove={() => onApprove(message.id, toolCall.id)}
+                                            onReject={() => onReject(message.id, toolCall.id)}
+                                            isLatestBashTool={isLatestBashTool(toolCall.id)}
+                                            message={message}
+                                        />
+                                    ));
+                                })()}
                             </div>
-                        ) : (
+                            );
+                        })() : (
                             /* 🔥 FIX: Fallback 渲染也必须遵循 Action-First 逻辑并支持聚合 */
                             <div className="space-y-3">
                                 {(() => {

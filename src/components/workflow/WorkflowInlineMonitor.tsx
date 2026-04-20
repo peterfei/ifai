@@ -738,8 +738,8 @@ export function WorkflowInlineMonitor({
   embedded = false,
   onComplete
 }: WorkflowInlineMonitorProps) {
-  // 🔥 DEBUG: 添加组件挂载日志
-  console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId, 'embedded:', embedded);
+  // 🔥 FIX: 移除高频组件调用日志
+  // console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId, 'embedded:', embedded);
 
   // 🔥 内嵌模式：使用传入的参数，不从全局状态获取
   const actualWorkflowId = embedded && correlationId ? correlationId : workflowId;
@@ -1542,15 +1542,15 @@ export function WorkflowInlineMonitor({
     ? '工作流失败'
     : workflow.name;
 
-  // 🔥 DEBUG: 添加更多日志
-  console.log('[WorkflowInlineMonitor] 🎨 Rendering:', {
-    workflowId,
-    displayName,
-    status: workflow.status,
-    nodesCount: workflow.nodes?.length || 0,
-    nodes: workflow.nodes?.map(n => ({ id: n.id, label: n.label, status: n.status })),
-    isExpanded  // 🔥 DEBUG: 输出展开状态
-  });
+  // 🔥 FIX: 移除高频渲染日志，避免控制台刷屏
+  // console.log('[WorkflowInlineMonitor] 🎨 Rendering:', {
+  //   workflowId,
+  //   displayName,
+  //   status: workflow.status,
+  //   nodesCount: workflow.nodes?.length || 0,
+  //   nodes: workflow.nodes?.map(n => ({ id: n.id, label: n.label, status: n.status })),
+  //   isExpanded  // 🔥 DEBUG: 输出展开状态
+  // });
 
   return (
     <>
@@ -1884,8 +1884,8 @@ export function WorkflowInlineMonitor({
 
 // 🔥 CRITICAL FIX: 使用 React.memo 防止不必要的重新渲染
 const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContainer() {
-  // 🔥 DEBUG: 添加组件挂载日志
-  console.log('[WorkflowInlineMonitorContainer] 🔧 Component function called');
+  // 🔥 FIX: 移除高频组件调用日志
+  // console.log('[WorkflowInlineMonitorContainer] 🔧 Component function called');
 
   const [activeWorkflows, setActiveWorkflows] = useState<string[]>(() => {
     // 🔥 CRITICAL FIX: 初始化时从全局状态获取
@@ -1902,16 +1902,16 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
   // 🔥 CRITICAL FIX: 使用 ref 跟踪 activeWorkflows 是否已初始化，防止无限循环
   const activeWorkflowsInitRef = useRef(false);
 
-  // 🔥 DEBUG: 添加状态日志
-  console.log('[WorkflowInlineMonitorContainer] 📊 State:', {
-    isInitialized,
-    activeWorkflowsCount: activeWorkflows.length,
-    activeWorkflows,
-    globalActiveWorkflows: Array.from(globalActiveWorkflows),
-    chatEventBusAvailable: !!getChatEventBus(),
-    globalContainerListenersSetUp,
-    listenersSetUpRef: listenersSetUpRef.current
-  });
+  // 🔥 FIX: 移除高频状态日志，避免控制台刷屏
+  // console.log('[WorkflowInlineMonitorContainer] 📊 State:', {
+  //   isInitialized,
+  //   activeWorkflowsCount: activeWorkflows.length,
+  //   activeWorkflows,
+  //   globalActiveWorkflows: Array.from(globalActiveWorkflows),
+  //   chatEventBusAvailable: !!getChatEventBus(),
+  //   globalContainerListenersSetUp,
+  //   listenersSetUpRef: listenersSetUpRef.current
+  // });
 
   // 🔥 CRITICAL FIX: 将监听器设置逻辑移到 useLayoutEffect 中
   // 确保在每次渲染时检查并设置监听器
@@ -2137,18 +2137,19 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     return null;
   }
 
-  // 🔥 DEBUG: 添加调试日志
-  console.log('[WorkflowInlineMonitorContainer] 🎨 Rendering:', {
-    activeWorkflows,
-    activeWorkflowsCount: activeWorkflows.length,
-    globalActiveWorkflows: Array.from(globalActiveWorkflows),
-    activeThreadId,
-    threadIsolationEnabled: !!activeThreadId
-  });
+  // 🔥 FIX: 移除高频渲染日志，避免控制台刷屏
+  // console.log('[WorkflowInlineMonitorContainer] 🎨 Rendering:', {
+  //   activeWorkflows,
+  //   activeWorkflowsCount: activeWorkflows.length,
+  //   globalActiveWorkflows: Array.from(globalActiveWorkflows),
+  //   activeThreadId,
+  //   threadIsolationEnabled: !!activeThreadId
+  // });
 
   // 🔥 FIX: 如果没有活跃的工作流，返回 null
   if (activeWorkflows.length === 0) {
-    console.log('[WorkflowInlineMonitorContainer] ⚠️ No active workflows, returning null');
+    // 🔥 FIX: 移除高频警告日志，避免控制台刷屏
+    // console.log('[WorkflowInlineMonitorContainer] ⚠️ No active workflows, returning null');
     return null;
   }
 
@@ -2157,25 +2158,28 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
     const workflowState = globalWorkflowStates.get(workflowId);
     const belongsToCurrentThread = !activeThreadId || !workflowState?.sessionId || workflowState.sessionId === activeThreadId;
 
-    console.log('[WorkflowInlineMonitorContainer] 🏷️ Filtering workflow:', {
-      workflowId,
-      workflowSessionId: workflowState?.sessionId,
-      activeThreadId,
-      belongsToCurrentThread
-    });
+    // 🔥 FIX: 移除高频过滤日志
+    // console.log('[WorkflowInlineMonitorContainer] 🏷️ Filtering workflow:', {
+    //   workflowId,
+    //   workflowSessionId: workflowState?.sessionId,
+    //   activeThreadId,
+    //   belongsToCurrentThread
+    // });
 
     return belongsToCurrentThread;
   });
 
-  console.log('[WorkflowInlineMonitorContainer] 📊 Filtered workflows:', {
-    total: activeWorkflows.length,
-    filtered: filteredWorkflows.length,
-    filteredIds: filteredWorkflows
-  });
+  // 🔥 FIX: 移除高频过滤结果日志
+  // console.log('[WorkflowInlineMonitorContainer] 📊 Filtered workflows:', {
+  //   total: activeWorkflows.length,
+  //   filtered: filteredWorkflows.length,
+  //   filteredIds: filteredWorkflows
+  // });
 
   // 🔥 FIX: 如果过滤后没有活跃的工作流，返回 null
   if (filteredWorkflows.length === 0) {
-    console.log('[WorkflowInlineMonitorContainer] ⚠️ No workflows for current thread, returning null');
+    // 🔥 FIX: 移除高频警告日志，避免控制台刷屏
+    // console.log('[WorkflowInlineMonitorContainer] ⚠️ No workflows for current thread, returning null');
     return null;
   }
 

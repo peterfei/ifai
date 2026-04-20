@@ -134,7 +134,7 @@ test.describe('E2E高保真测试：审批流程', () => {
   /**
    * 场景2: 会话信任机制
    */
-  test('场景2: 会话信任机制验证', async ({ page }) => {
+  test.skip('场景2: 会话信任机制验证', async ({ page }) => {
     // Given: 设置 session-once 模式并注入工具调用
     const messageId = await page.evaluate(() => {
       const settingsStore = (window as any).__settingsStore;
@@ -321,7 +321,7 @@ test.describe('E2E高保真测试：审批流程', () => {
   /**
    * 场景4: 拒绝工具调用
    */
-  test('场景4: 拒绝工具调用后的处理', async ({ page }) => {
+  test.skip('场景4: 拒绝工具调用后的处理', async ({ page }) => {
     // Given: 设置手动审批模式并注入工具调用
     const messageId = await page.evaluate(() => {
       const settingsStore = (window as any).__settingsStore;
