@@ -99,6 +99,20 @@ pub fn requires_approval(active_mode: PermissionMode, tool_name: &str) -> bool {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Frontend Tool Detection（由 toolPermissions[].runLocation 自动生成）
+// ═══════════════════════════════════════════════════════════
+
+/// 🆕 元编程：判断工具是否在前端执行（零硬编码，纯查表）
+pub fn is_frontend_tool(tool_name: &str) -> bool {
+    let normalized = tool_name.replace("agent_", "");
+    match normalized.as_str() {
+        "TodoWrite"
+        | "todowrite" => true,
+        _ => false,
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // Backend Event Emit Timing（由 backendEvents[].emitTiming 自动生成）
 // ═══════════════════════════════════════════════════════════
 

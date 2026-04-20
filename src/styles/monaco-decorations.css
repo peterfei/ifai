@@ -25,3 +25,12 @@
 .agent-activity-finished-gutter {
     border-left: 2px solid rgba(16, 185, 129, 0.4);
 }
+
+/* 🎨 优化 Monaco Diff View 的概览标尺宽度（那个粗的滚动条） */
+.monaco-diff-editor .diffViewport {
+    width: 3px !important;
+}
+
+.monaco-diff-editor .diffOverview {
+    width: 3px !important;
+}

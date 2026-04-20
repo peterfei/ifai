@@ -86,6 +86,9 @@ permissionModes:
 # ─────────────────────────────────────────────────────
 # 3. 工具权限声明（单一真相源）
 # ─────────────────────────────────────────────────────
+# runLocation: 'backend' | 'frontend' - 工具执行位置
+#   - backend: 后端执行（文件操作、bash 命令等）
+#   - frontend: 前端执行（状态管理、UI 更新等）
 toolPermissions:
   # ReadOnly
   - names:
@@ -93,22 +96,26 @@ toolPermissions:
       - read_file
       - agent_read_file_range
     mode: ReadOnly
+    runLocation: backend
   - names:
       - agent_list_dir
       - list_dir
       - list_directory
     mode: ReadOnly
+    runLocation: backend
   - names:
       - agent_scan_project
       - scan_project
       - scan_directory
       - get_file_tree
     mode: ReadOnly
+    runLocation: backend
   - names:
       - get_file_symbols
       - agent_list_functions
       - agent_probe_symbols
     mode: ReadOnly
+    runLocation: backend
   - names:
       - agent_search
       - grep_search
@@ -116,13 +123,16 @@ toolPermissions:
       - search
       - search_file_content
     mode: ReadOnly
+    runLocation: backend
   - names:
       - TodoWrite
       - todowrite
     mode: ReadOnly
+    runLocation: frontend  # 🔥 元编程：声明前端工具
   - names:
       - init_rag_index
     mode: ReadOnly
+    runLocation: backend
 
   # WorkspaceWrite
   - names:
@@ -130,11 +140,13 @@ toolPermissions:
       - write_file
       - agent_create_file
     mode: WorkspaceWrite
+    runLocation: backend
   - names:
       - agent_replace_text
       - edit_file
       - agent_edit_file
     mode: WorkspaceWrite
+    runLocation: backend
 
   # DangerFullAccess
   - names:
@@ -143,12 +155,14 @@ toolPermissions:
       - agent_rename_file
       - agent_move_file
     mode: DangerFullAccess
+    runLocation: backend
   - names:
       - agent_bash
       - bash
       - execute_command
       - PowerShell
     mode: DangerFullAccess
+    runLocation: backend
 
 # ─────────────────────────────────────────────────────
 # 4. 后端事件协议
