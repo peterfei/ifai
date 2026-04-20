@@ -233,18 +233,20 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
 
   return (
     <div
-      className="theme-panel-muted theme-border grid h-[var(--titlebar-height)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b px-3 text-[color:var(--text-primary)] select-none transition-colors"
+      className="app-titlebar theme-panel-muted theme-border grid h-[var(--titlebar-height)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b px-3 text-[color:var(--text-primary)] select-none transition-colors"
+      data-tauri-drag-region
       onMouseDown={handleTitlebarMouseDown}
     >
       <div className={clsx('flex min-w-0 items-center gap-2', isMac && 'pl-[var(--traffic-lights-offset)]')}>
         <div className="theme-text-muted mr-2 shrink-0 text-[12px] font-semibold tracking-[0.04em] uppercase">IfAI</div>
 
         <div className="relative" ref={menuRef}>
-          <button className={menuButtonClass} onClick={handleMenuToggle}>
+          <button className={menuButtonClass} onClick={handleMenuToggle} data-no-drag="true">
             {t('menu.file')} <ChevronDown size={14} className="ml-1" />
           </button>
           {isMenuOpen && (
             <div
+              data-no-drag="true"
               className="theme-panel-elevated theme-border theme-shadow absolute top-full left-0 z-50 mt-1 w-56 rounded border py-1"
             >
               <div className={menuItemClass} onClick={handleNewFile}>
@@ -294,6 +296,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
               ? 'theme-selection-accent'
               : iconButtonBaseClass
           )}
+          data-no-drag="true"
           onClick={toggleSidebar}
           title={`${t('titlebar.toggleSidebar')} (${sidebarShortcut})`}
         >
@@ -307,12 +310,13 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
               ? 'theme-selection-accent'
               : iconButtonBaseClass
           )}
+          data-no-drag="true"
           onClick={() => setCodeAnalysisOpen(!isCodeAnalysisOpen)}
           title={t('titlebar.codeAnalysis')}
         >
           <Shield size={16} />
         </button>
-        <button className={iconButtonBaseClass} onClick={toggleSettings} title={t('chat.settings')}>
+        <button className={iconButtonBaseClass} data-no-drag="true" onClick={toggleSettings} title={t('chat.settings')}>
           <Settings size={16} />
         </button>
         <button
@@ -322,6 +326,7 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
               ? 'theme-selection-accent'
               : iconButtonBaseClass
           )}
+          data-no-drag="true"
           onClick={onToggleTerminal}
           title={`${t('terminal.title')} (${terminalShortcut})`}
         >
@@ -334,12 +339,13 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
               ? 'theme-selection-accent'
               : iconButtonBaseClass
           )}
+          data-no-drag="true"
           onClick={onToggleChat}
           title={`${t('chat.title')} (${chatShortcut})`}
         >
           <MessageSquare size={16} />
         </button>
-        <button className={iconButtonBaseClass} onClick={handleThemeToggle} title={t('titlebar.toggleTheme')}>
+        <button className={iconButtonBaseClass} data-no-drag="true" onClick={handleThemeToggle} title={t('titlebar.toggleTheme')}>
           {theme === 'vs-dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>

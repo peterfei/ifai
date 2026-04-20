@@ -177,6 +177,15 @@ const readFileProbe = async (path: string): Promise<Uint8Array> => {
   }
 };
 
+const tryReadFileProbe = async (path: string): Promise<Uint8Array | null> => {
+  try {
+    return await readFileProbe(path);
+  } catch (error) {
+    console.warn('[fileSystem] Skipping binary probe and falling back to text read:', path, error);
+    return null;
+  }
+};
+
 export const detectProtectedEditorFileCategory = (
   path: string,
   sampleBytes?: Uint8Array
@@ -230,7 +239,11 @@ export const assertCanOpenFileAsText = async (path: string): Promise<void> => {
     throw new ProtectedEditorFileOpenError(normalizedPath, knownCategory);
   }
 
-  const sampleBytes = await readFileProbe(normalizedPath);
+  const sampleBytes = await tryReadFileProbe(normalizedPath);
+  if (!sampleBytes) {
+    return;
+  }
+
   const sampledCategory = detectProtectedEditorFileCategory(normalizedPath, sampleBytes);
 
   if (sampledCategory) {

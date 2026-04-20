@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const mockFsOpen = vi.fn();
+
 const mockI18nT = vi.fn((key: string, options?: Record<string, unknown>) => {
   switch (key) {
     case 'common.thisFile':
@@ -27,7 +29,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   writeTextFile: vi.fn(),
   rename: vi.fn(),
   remove: vi.fn(),
-  open: vi.fn(),
+  open: (...args: unknown[]) => mockFsOpen(...args),
 }));
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -73,6 +75,7 @@ vi.mock('../../../src/i18n/config', () => ({
 }));
 
 import {
+  assertCanOpenFileAsText,
   detectProtectedEditorFileCategory,
   getFileOpenErrorMessage,
   getProtectedEditorFileMessage,
@@ -100,6 +103,12 @@ describe('fileSystem editor protection', () => {
     expect(getProtectedEditorFileMessage('/tmp/image.png', 'media')).toBe(
       'localized-protected-open:image.png:localized-media'
     );
+  });
+
+  it('does not block plain text files when byte probing is unavailable', async () => {
+    mockFsOpen.mockRejectedValueOnce(new Error('fs open not allowed'));
+
+    await expect(assertCanOpenFileAsText('/tmp/readme.md')).resolves.toBeUndefined();
   });
 
   it('builds the generic file-open failure message through i18n', () => {

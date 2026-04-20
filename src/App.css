@@ -195,6 +195,35 @@ samp,
   font-family: var(--font-ui);
 }
 
+.app-titlebar {
+  app-region: drag;
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app-titlebar :where(button, input, select, textarea, a, [role='button'], [data-no-drag='true']) {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+.app-titlebar,
+.app-titlebar *,
+.pane-header,
+.theme-button-primary,
+.theme-button-success,
+.theme-button-danger,
+.theme-button-secondary,
+.theme-button-ghost,
+.theme-badge-accent,
+.theme-badge-info,
+.theme-badge-success,
+.theme-badge-warning,
+.theme-badge-danger {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .theme-panel {
   background: var(--bg-primary);
   color: var(--text-primary);
