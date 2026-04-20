@@ -6,10 +6,10 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SkillsSettings } from '../SkillsSettings';
-import { SkillsManagement } from '../Skills/SkillsManagement';
-import { SkillInstaller } from '../Skills/SkillInstaller';
-import { SkillEditor } from '../Skills/SkillEditor';
+import { SkillsSettings } from '../../SkillsSettings';
+import { SkillsManagement } from '../SkillsManagement';
+import { SkillInstaller } from '../SkillInstaller';
+import { SkillEditor } from '../SkillEditor';
 import { useSkillStore } from '@/stores/skillStore.enhanced';
 
 // Mock the Tauri API

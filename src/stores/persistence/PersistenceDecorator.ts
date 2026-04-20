@@ -290,8 +290,9 @@ export function persist<T extends (...args: any[]) => any>(
       const result = originalMethod.apply(this, args);
 
       // 2. 提取线程ID（从 Zustand store 的 get 方法或直接从 this）
-      const threadId = this.currentThreadId ??
-                       this.getState?.()?.currentThreadId;
+      // 🔧 FIX: 安全地访问 this，避免在测试环境中出现 undefined 错误
+      const threadId = (this && typeof this === 'object' ? this.currentThreadId : null) ??
+                       (this && typeof this.getState === 'function' ? this.getState?.()?.currentThreadId : null);
 
       if (!threadId) {
         // 无线程ID，跳过持久化
