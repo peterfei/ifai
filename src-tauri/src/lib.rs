@@ -1811,6 +1811,12 @@ pub fn run() {
             // v0.5.0 新增：技能系统
             commands::skill_commands::get_available_skills,
             commands::skill_commands::init_skills_dir,
+            commands::skill_commands::install_skill,
+            commands::skill_commands::uninstall_skill,
+            commands::skill_commands::activate_skill,
+            commands::skill_commands::deactivate_skill,
+            commands::skill_commands::create_skill,
+            commands::skill_commands::update_skill,
             // v0.2.8 新增：原子文件操作
             commands::atomic_commands::atomic_write_start,
             commands::atomic_commands::atomic_write_add_operation,

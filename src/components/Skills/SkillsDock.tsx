@@ -17,10 +17,12 @@ import {
   Tag,
   Save,
   XCircle,
+  ShoppingBag,
 } from 'lucide-react';
 import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { cn } from '@/lib/utils';
 import type { Skill } from '../Settings/Skills/types';
+import { SkillMarket } from './SkillMarket';
 
 export const SkillsDock: React.FC = () => {
   const {
@@ -38,6 +40,7 @@ export const SkillsDock: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showMarketplace, setShowMarketplace] = useState(false);
   const [searchQuery, setSearchQueryLocal] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
 
@@ -49,6 +52,7 @@ export const SkillsDock: React.FC = () => {
     version: '1.0.0',
     tags: [] as string[],
     system_prompt: '',
+    dependencies: [] as string[],
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -118,6 +122,7 @@ export const SkillsDock: React.FC = () => {
         version: '1.0.0',
         tags: [],
         system_prompt: '',
+        dependencies: [],
       });
       await fetchSkills();
     } catch (error) {
@@ -260,6 +265,11 @@ export const SkillsDock: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  // 技能市场
+  if (showMarketplace) {
+    return <SkillMarket onClose={() => setShowMarketplace(false)} />;
   }
 
   // 创建技能表单
@@ -414,6 +424,13 @@ export const SkillsDock: React.FC = () => {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowMarketplace(true)}
+            className="p-1 rounded hover:bg-gray-700 text-purple-400"
+            title="技能市场"
+          >
+            <ShoppingBag size={14} />
+          </button>
           <button
             onClick={() => setShowCreateForm(true)}
             className="p-1 rounded hover:bg-gray-700 text-gray-400"

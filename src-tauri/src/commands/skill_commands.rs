@@ -16,7 +16,7 @@ pub struct SkillInfo {
 #[tauri::command]
 pub async fn get_available_skills(
     project_root: String,
-) -> Result<Vec<ifainew_core::skills::Skill>, String> {
+) -> Result<Vec<serde_json::Value>, String> {
     println!("[SkillCommand] Request received for root: {}", project_root);
 
     #[cfg(feature = "commercial")]
@@ -39,8 +39,13 @@ pub async fn get_available_skills(
 
         println!("[SkillCommand] Successfully found {} skills", skills.len());
 
-        // 返回完整的 Skill 对象，包含所有必需字段
-        Ok(skills)
+        // 转换为 JSON Value 以避免依赖问题
+        let skills_json: Result<Vec<serde_json::Value>, _> = skills
+            .into_iter()
+            .map(|skill| serde_json::to_value(skill).map_err(|e| e.to_string()))
+            .collect();
+
+        skills_json
     }
 
     #[cfg(not(feature = "commercial"))]
@@ -136,6 +141,7 @@ pub async fn install_skill(
     skill_id: String,
     version: Option<String>,
     source: Option<String>,
+    skill_data: Option<serde_json::Value>,
 ) -> Result<bool, String> {
     println!("[SkillCommand] Installing skill: {} (version: {:?}, source: {:?})",
              skill_id, version, source);
@@ -148,8 +154,111 @@ pub async fn install_skill(
     fs::create_dir_all(&skills_path)
         .map_err(|e| format!("创建技能目录失败: {}", e))?;
 
-    // 从内置技能库复制技能文件
-    let builtin_skills_path = skills_path.join("__builtin__");
+    // 检查是否从技能市场安装（传递了 skill_data）
+    if let Some(data) = skill_data {
+        println!("[SkillCommand] Installing skill from marketplace data");
+
+        let skill_dir = skills_path.join(&skill_id);
+        fs::create_dir_all(&skill_dir)
+            .map_err(|e| format!("创建技能目录失败: {}", e))?;
+
+        // 构建 Markdown 格式的技能文件
+        let name = data.get("displayName")
+            .or(data.get("name"))
+            .and_then(|v| v.as_str())
+            .unwrap_or(&skill_id);
+
+        let description = data.get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("暂无描述");
+
+        let long_description = data.get("longDescription")
+            .or(data.get("description"))
+            .and_then(|v| v.as_str())
+            .unwrap_or(description);
+
+        let version_str = data.get("version")
+            .and_then(|v| v.as_str())
+            .or(version.as_deref())
+            .unwrap_or("1.0.0");
+
+        let author = data.get("author")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+
+        let system_prompt = data.get("systemPrompt")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let tags = data.get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_else(|| String::new());
+
+        // 构建 Markdown 内容
+        let markdown_content = format!(r#"---
+name: {}
+id: {}
+description: {}
+license: MIT
+compatibility: 通用
+metadata:
+  author: {}
+  version: "{}"
+  tags: {}
+---
+
+{}
+
+## System Prompt
+
+{}
+"#,
+            name,
+            skill_id,
+            description,
+            author,
+            version_str,
+            tags,
+            long_description,
+            system_prompt
+        );
+
+        // 写入 skill.md 文件
+        let skill_md = skill_dir.join("skill.md");
+        fs::write(&skill_md, markdown_content)
+            .map_err(|e| format!("写入技能文件失败: {}", e))?;
+
+        // 同时生成 skill.json 以便兼容性
+        let skill_json = serde_json::json!({
+            "id": skill_id,
+            "name": name,
+            "description": description,
+            "system_prompt": system_prompt,
+            "version": version_str,
+            "author": author,
+            "tags": data.get("tags").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            }),
+            "dependencies": [],
+            "compatibility": null
+        });
+
+        let skill_json_path = skill_dir.join("skill.json");
+        fs::write(&skill_json_path, serde_json::to_string_pretty(&skill_json).unwrap())
+            .map_err(|e| format!("写入skill.json失败: {}", e))?;
+
+        println!("[SkillCommand] Skill {} installed successfully from marketplace", skill_id);
+        return Ok(true);
+    }
 
     // 检查是否是安装内置示例技能
     if skill_id == "builtin-examples" || source == Some("builtin".to_string()) {
@@ -504,6 +613,7 @@ pub async fn install_skill(
     _skill_id: String,
     _version: Option<String>,
     _source: Option<String>,
+    _skill_data: Option<serde_json::Value>,
 ) -> Result<bool, String> {
     Err("技能安装功能仅在商业版中可用".to_string())
 }

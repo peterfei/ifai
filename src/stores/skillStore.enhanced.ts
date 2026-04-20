@@ -206,7 +206,13 @@ export const useSkillStore = create<EnhancedSkillStore>()(
 
         try {
           await invoke('activate_skill', { projectRoot: rootPath, skillId: id });
-          get().activateSkill(id);
+          // 更新本地状态：添加到激活列表
+          const { activeSkillIds } = get();
+          if (!activeSkillIds.includes(id)) {
+            const next = [...activeSkillIds, id];
+            set({ activeSkillIds: next });
+            syncToGlobal(next);
+          }
         } catch (e) {
           set({ error: String(e) });
         }
@@ -218,7 +224,11 @@ export const useSkillStore = create<EnhancedSkillStore>()(
 
         try {
           await invoke('deactivate_skill', { projectRoot: rootPath, skillId: id });
-          get().toggleSkill(id);
+          // 更新本地状态：从激活列表中移除
+          const { activeSkillIds } = get();
+          const next = activeSkillIds.filter(sid => sid !== id);
+          set({ activeSkillIds: next });
+          syncToGlobal(next);
         } catch (e) {
           set({ error: String(e) });
         }
