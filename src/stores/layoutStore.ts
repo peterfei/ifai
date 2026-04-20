@@ -21,6 +21,7 @@ export interface LayoutState {
   isToolExplorerOpen: boolean; // P3: 工具浏览器
   isWorkflowsOpen: boolean; // P4: 多智能体工作流
   isSkillsPanelOpen: boolean; // 技能面板
+  isSkillMarketOpen: boolean; // 技能市场
   chatWidth: number;
 
   // v0.2.6 新增：侧边栏状态
@@ -52,6 +53,8 @@ export interface LayoutState {
   toggleWorkflows: () => void; // P4: 多智能体工作流
   setSkillsPanelOpen: (isOpen: boolean) => void; // 技能面板
   toggleSkillsPanel: () => void; // 技能面板
+  setSkillMarketOpen: (isOpen: boolean) => void; // 技能市场
+  toggleSkillMarket: () => void; // 技能市场
   setCommandPaletteOpen: (isOpen: boolean) => void;
   toggleCommandPalette: () => void;
   setTerminalOpen: (isOpen: boolean) => void;
@@ -117,6 +120,7 @@ export const useLayoutStore = create<LayoutState>()(
       isToolExplorerOpen: false, // P3: 工具浏览器
       isWorkflowsOpen: false, // P4: 多智能体工作流
       isSkillsPanelOpen: false, // 技能面板
+      isSkillMarketOpen: false, // 技能市场
       chatWidth: 384,
 
       // v0.2.6 新增：侧边栏初始状态
@@ -171,6 +175,8 @@ export const useLayoutStore = create<LayoutState>()(
       toggleWorkflows: () => set((state) => ({ isWorkflowsOpen: !state.isWorkflowsOpen })), // P4: 多智能体工作流
       setSkillsPanelOpen: (isOpen) => set({ isSkillsPanelOpen: isOpen }), // 技能面板
       toggleSkillsPanel: () => set((state) => ({ isSkillsPanelOpen: !state.isSkillsPanelOpen })), // 技能面板
+      setSkillMarketOpen: (isOpen) => set({ isSkillMarketOpen: isOpen }), // 技能市场
+      toggleSkillMarket: () => set((state) => ({ isSkillMarketOpen: !state.isSkillMarketOpen })), // 技能市场
       setCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
       setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -444,6 +450,8 @@ export const useLayoutStore = create<LayoutState>()(
         isWorkflowsOpen: state.isWorkflowsOpen,
         // 技能面板
         isSkillsPanelOpen: state.isSkillsPanelOpen,
+        // 技能市场
+        isSkillMarketOpen: state.isSkillMarketOpen,
         editorMode: state.editorMode,
       }),
 

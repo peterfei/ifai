@@ -10,7 +10,6 @@ import { useFileStore } from '@/stores/fileStore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { invoke } from '@tauri-apps/api/core';
-import { SkillMarket } from './SkillMarket';
 import type { Skill } from '../Settings/Skills/types';
 
 export const SkillsPanel: React.FC = () => {
@@ -18,8 +17,10 @@ export const SkillsPanel: React.FC = () => {
   const [installing, setInstalling] = useState<string | null>(null);
   const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [activating, setActivating] = useState<string | null>(null);
-  const [isMarketOpen, setIsMarketOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
 
   const {
     availableSkills,
@@ -36,7 +37,7 @@ export const SkillsPanel: React.FC = () => {
     ui,
   } = useSkillStore();
 
-  const { setSkillsPanelOpen } = useLayoutStore();
+  const { setSkillsPanelOpen, setSkillMarketOpen } = useLayoutStore();
   const rootPath = useFileStore(state => state.rootPath);
 
   // 初始化时加载技能
@@ -177,7 +178,7 @@ export const SkillsPanel: React.FC = () => {
           <div className="flex items-center gap-1">
             {/* 技能市场按钮 */}
             <button
-              onClick={() => setIsMarketOpen(true)}
+              onClick={() => setSkillMarketOpen(true)}
               className={cn(
                 'p-1 rounded transition-colors',
                 'text-purple-400 hover:text-purple-300 hover:bg-gray-800'
@@ -188,9 +189,13 @@ export const SkillsPanel: React.FC = () => {
             </button>
             {/* 搜索按钮 */}
             <button
+              onClick={() => {
+                setShowSearch(!showSearch);
+                setShowFilter(false);
+              }}
               className={cn(
                 'p-1 rounded transition-colors',
-                'text-gray-500 hover:text-white hover:bg-gray-800'
+                showSearch ? 'text-blue-400 bg-gray-800' : 'text-gray-500 hover:text-white hover:bg-gray-800'
               )}
               title="搜索技能"
             >
@@ -198,9 +203,13 @@ export const SkillsPanel: React.FC = () => {
             </button>
             {/* 筛选按钮 */}
             <button
+              onClick={() => {
+                setShowFilter(!showFilter);
+                setShowSearch(false);
+              }}
               className={cn(
                 'p-1 rounded transition-colors',
-                'text-gray-500 hover:text-white hover:bg-gray-800'
+                showFilter ? 'text-blue-400 bg-gray-800' : 'text-gray-500 hover:text-white hover:bg-gray-800'
               )}
               title="筛选技能"
             >
@@ -208,6 +217,90 @@ export const SkillsPanel: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* 搜索框 */}
+        {showSearch && (
+          <div className="px-4 py-2 border-b border-gray-700 bg-gray-900/20">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input
+                type="text"
+                value={localSearchQuery}
+                onChange={(e) => {
+                  setLocalSearchQuery(e.target.value);
+                  setSearchQuery(e.target.value);
+                }}
+                placeholder="搜索技能..."
+                className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-blue-500"
+              />
+              {localSearchQuery && (
+                <button
+                  onClick={() => {
+                    setLocalSearchQuery('');
+                    setSearchQuery('');
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-700 text-gray-400"
+                  title="清空搜索"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 筛选选项 */}
+        {showFilter && (
+          <div className="px-4 py-2 border-b border-gray-700 bg-gray-900/20">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400">状态：</span>
+              <button
+                onClick={() => setStateFilter('all')}
+                className={cn(
+                  'px-2 py-1 rounded text-xs transition-colors',
+                  ui.stateFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                )}
+              >
+                全部
+              </button>
+              <button
+                onClick={() => setStateFilter('active')}
+                className={cn(
+                  'px-2 py-1 rounded text-xs transition-colors',
+                  ui.stateFilter === 'active'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                )}
+              >
+                已激活
+              </button>
+              <button
+                onClick={() => setStateFilter('installed')}
+                className={cn(
+                  'px-2 py-1 rounded text-xs transition-colors',
+                  ui.stateFilter === 'installed'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                )}
+              >
+                已安装
+              </button>
+              <button
+                onClick={() => setStateFilter('inactive')}
+                className={cn(
+                  'px-2 py-1 rounded text-xs transition-colors',
+                  ui.stateFilter === 'inactive'
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                )}
+              >
+                未激活
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 技能列表 */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -317,11 +410,6 @@ export const SkillsPanel: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* 技能市场弹窗 */}
-        {isMarketOpen && (
-          <SkillMarket onClose={() => setIsMarketOpen(false)} />
-        )}
       </div>
 
       {/* 右侧：技能详情面板 */}
