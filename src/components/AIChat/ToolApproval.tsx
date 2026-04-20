@@ -272,6 +272,7 @@ const areToolApprovalPropsEqual = (prevProps: ToolApprovalProps, nextProps: Tool
     return (
         prevProps.toolCall.id === nextProps.toolCall.id &&
         prevProps.toolCall.status === nextProps.toolCall.status &&
+        prevProps.toolCall.isPartial === nextProps.toolCall.isPartial &&
         prevProps.toolCall.result === nextProps.toolCall.result &&
         prevProps.isLatestBashTool === nextProps.isLatestBashTool &&
         prevProps.message?.id === nextProps.message?.id
@@ -565,26 +566,43 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             tool: toolCall.tool,
             hasResult: !!toolCall.result,
             resultLength: toolCall.result?.length || 0,
-            resultPreview: toolCall.result?.substring(0, 50) || 'N/A'
+            resultPreview: toolCall.result?.substring(0, 100) || 'N/A'
         });
 
         try {
             const parsed = JSON.parse(toolCall.result);
-            // 检查 output 字段
+            console.log('[ToolApproval] 🔍 Parsed result keys:', Object.keys(parsed));
+
+            // 情况 1: 检查 parsed.output 字段（旧格式）
             if (parsed.output && typeof parsed.output === 'object') {
                 if (parsed.output.structure || parsed.output.key_files) {
-                    console.log('[ToolApproval] ✅ scanData computed successfully (path 1)');
+                    console.log('[ToolApproval] ✅ scanData computed successfully (path 1: parsed.output)');
                     return parsed.output;
                 }
             }
-            // 情况 3: output 是对象
-            else if (parsed.output && typeof parsed.output === 'object') {
-                if (parsed.output.structure || parsed.output.key_files) {
-                    console.log('[ToolApproval] ✅ scanData computed successfully (path 2)');
-                    return parsed.output;
-                }
+
+            // 情况 2: 直接检查 parsed 顶层（新格式：{ structure, key_files, stats, cache_stats }）
+            if (parsed.structure || parsed.key_files) {
+                console.log('[ToolApproval] ✅ scanData computed successfully (path 2: parsed top-level)', {
+                    hasStructure: !!parsed.structure,
+                    hasKeyFiles: !!parsed.key_files,
+                    structureKeys: parsed.structure ? Object.keys(parsed.structure).length : 0,
+                    keyFilesKeys: parsed.key_files ? Object.keys(parsed.key_files).length : 0
+                });
+                return {
+                    structure: parsed.structure,
+                    key_files: parsed.key_files,
+                    stats: parsed.stats,
+                    cache_stats: parsed.cache_stats
+                };
             }
-            console.log('[ToolApproval] ⚠️ scanData parse found no structure/key_files');
+
+            console.log('[ToolApproval] ⚠️ scanData parse found no structure/key_files', {
+                parsedKeys: Object.keys(parsed),
+                hasOutput: !!parsed.output,
+                hasStructure: !!parsed.structure,
+                hasKeyFiles: !!parsed.key_files
+            });
         } catch (e) {
             console.log('[ToolApproval] ❌ scanData parse error:', e);
         }
@@ -785,9 +803,30 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {/* Full Diff View (Only when completed) */}
                         {!isPartial && newContent && (
                             <div className="relative mt-4 group/diff">
-                                <div className="flex items-center gap-2 mb-2 ml-1">
-                                    <div className="w-1 h-3 bg-blue-500 rounded-full" />
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Changes Analysis</span>
+                                {/* 🎨 优化后的标题栏 */}
+                                <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-gradient-to-r from-gray-800/50 to-gray-900/50 border border-gray-700/30">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                                            <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Changes Analysis</span>
+                                        </div>
+                                        {/* 📊 变更统计 */}
+                                        {oldContent && newContent && (
+                                            <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-gray-900/50 border border-gray-700/30">
+                                                <span className="text-[10px] text-green-400 font-mono">+{newContent.split('\n').length}</span>
+                                                <span className="text-[9px] text-gray-600">|</span>
+                                                <span className="text-[10px] text-red-400 font-mono">-{oldContent.split('\n').length}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* 🔧 操作按钮组 */}
+                                    <div className="flex items-center gap-1.5">
+                                        {filePath && (
+                                            <span className="text-[9px] text-gray-500 font-mono max-w-[150px] truncate" title={filePath}>
+                                                {filePath.split('/').pop()}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 {(() => {
                                     const contentLength = newContent.length;
@@ -807,14 +846,23 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     const canShowDiff = oldContent !== null && newContent && typeof oldContent === 'string' && typeof newContent === 'string';
 
                                     return (
-                                        <div className="rounded-xl border border-gray-700/40 overflow-hidden shadow-inner bg-[#0d1117]">
+                                        <div className="rounded-xl border border-gray-700/40 overflow-hidden shadow-xl bg-[#0d1117] relative">
+                                            {/* 🎨 顶部装饰条 */}
+                                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 opacity-50" />
+
                                             {canShowDiff ? (
-                                                <MonacoDiffView
-                                                    oldValue={oldContent}
-                                                    newValue={newContent}
-                                                    language={lang}
-                                                    height="300px"
-                                                />
+                                                <div className="relative">
+                                                    {/* 📊 行数提示 */}
+                                                    <div className="absolute top-2 right-2 z-10 px-2 py-1 rounded bg-black/60 border border-gray-700/50 text-[9px] text-gray-400 font-mono">
+                                                        {newContent.split('\n').length} lines
+                                                    </div>
+                                                    <MonacoDiffView
+                                                        oldValue={oldContent}
+                                                        newValue={newContent}
+                                                        language={lang}
+                                                        height="300px"
+                                                    />
+                                                </div>
                                             ) : (
                                                 <div className="p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
                                                     <div className="text-[11px] text-gray-500 font-mono mb-3 uppercase tracking-widest animate-pulse">

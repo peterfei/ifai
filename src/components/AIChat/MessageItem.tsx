@@ -122,6 +122,10 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     if (prevProps.message.content !== nextProps.message.content) {
         return false;
     }
+    // 🔥 FIX v0.3.4: 必须比较 segments，否则 tool segment 新增时不会触发 UI 更新
+    if ((prevProps.message as any).segments !== (nextProps.message as any).segments) {
+        return false;
+    }
     // 🔥 FIX: 必须比较 contentSegments，否则流式工具调用不会触发 UI 更新
     if ((prevProps.message.contentSegments?.length || 0) !== (nextProps.message.contentSegments?.length || 0)) {
         return false;
@@ -514,10 +518,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const isVibeMode = (window as any).__IFAI_EDITOR_MODE__ === 'vibe';
     const isRedundantIntro = React.useMemo(() => {
         if (!isVibeMode || isUser || !hasToolCalls) return false;
+        // 🔥 FIX v0.3.5: 有 pending 工具调用时绝不能隐藏气泡（用户需要看到审批按钮）
+        if (pendingCount > 0) return false;
         const text = typeof displayContent === 'string' ? displayContent.trim() : '';
         // 🚀 激进模式：只要包含聚合卡片，默认就隐藏助理的普通说明文字，除非包含代码块
         return !text.includes('```');
-    }, [isVibeMode, isUser, hasToolCalls, displayContent]);
+    }, [isVibeMode, isUser, hasToolCalls, displayContent, pendingCount]);
 
     // 🏆 v0.4.1: 探索模式判定 (基于是否包含进度/树元数据)
     const isExploreMessage = !!(message as any).exploreProgress;
@@ -533,6 +539,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             isRedundantIntro ||
                             (message.role === 'tool' && isExploreMessage) ||
                             (message.role === 'tool' && hasProjectScanData);
+    // 🔥 FIX v0.3.5: 有 pending 工具调用时强制显示气泡（审批按钮不能被隐藏）
+    const effectiveShouldHideBubble = pendingCount > 0 ? false : shouldHideBubble;
 
     // 🔥 FIX v0.4.0: 智能内容预处理 - 提取思考内容
     const { thinkingText, contentWithoutThinking } = React.useMemo(() => {
@@ -845,7 +853,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             data-testid={`message-${message.id}`}
             data-role={message.role} // 🔥 FIX: 添加 role 属性用于 E2E 测试
         >
-            <div className={`flex items-start gap-3 w-full ${!shouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
+            <div className={`flex items-start gap-3 w-full ${!effectiveShouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
                 {/* A. 头像区 - 始终显示 */}
                 <div className="shrink-0 mt-0.5">
                     {isUser ? (
@@ -866,7 +874,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 {/* B. 内容区 - 统一布局 */}
                 <div className="flex-1 min-w-0 text-inherit relative">
                     {/* B1. 悬浮工具栏 (仅在非用户气泡模式下显示) */}
-                    {!isUser && !shouldHideBubble && (
+                    {!isUser && !effectiveShouldHideBubble && (
                         <div className="absolute -top-10 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#2d2d2d] border border-white/10 rounded-md p-1 shadow-xl z-10">
                             <button onClick={handleCopy} className="p-1 hover:bg-white/5 rounded text-gray-400" title="Copy">
                                 <Copy size={12} />
@@ -1075,7 +1083,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
 
                                         const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
-                                        if (!toolCall) return null;
+                                        if (!toolCall) {
+                                            console.warn('[MessageItem] ⚠️ Tool segment has no matching toolCall', {
+                                                segmentToolCallId: segment.toolCallId,
+                                                segmentToolName: segment.toolName,
+                                                availableToolCallIds: message.toolCalls?.map(tc => tc.id),
+                                                toolCallsCount: message.toolCalls?.length
+                                            });
+                                            return null;
+                                        }
 
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'in-tool';
@@ -1125,7 +1141,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                     if (orphanedPendingCalls.length === 0) return null;
 
-                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`);
+                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`, {
+                                        orphanedIds: orphanedPendingCalls.map((tc: any) => tc.id)
+                                    });
 
                                     return orphanedPendingCalls.map((toolCall: any) => (
                                         <ToolApproval

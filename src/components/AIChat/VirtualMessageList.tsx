@@ -1,12 +1,13 @@
 /**
- * 虚拟滚动消息列表 - v0.3.0 高性能优化
+ * 虚拟滚动消息列表 - v0.4.0
  * 使用 @tanstack/react-virtual 实现高性能长列表渲染
  * 仅渲染可见区域的消息，大幅提升长对话性能
  *
- * 🔥 v0.3.0 性能优化：
- * - 使用 useRef + useMemo 缓存过滤结果，避免每次渲染都遍历 10,000+ 条消息
- * - 使用稳定的引用比较，只在 messages 真正变化时重新计算
- * - 性能提升：从 ~1000ms 降低到 ~50ms（10,000 条消息场景）
+ * v0.4.0: 移除 useStableMessages 的缓存机制
+ * - 之前的手动缓存（useRef + useMemo）在 Zustand persist / React batching 场景下
+ *   导致 hasPendingToolCalls 等派生状态不同步，审批按钮不显示
+ * - filter(m => m.role !== 'tool') 是 O(n) 简单属性检查，10,000 条消息 < 1ms
+ * - 正确性 > 微优化，由 React 自身的 useMemo 调度保证一致性
  */
 
 import React, { useRef, useEffect, useImperativeHandle, forwardRef, useMemo, useCallback } from 'react';
@@ -15,103 +16,28 @@ import { useChatStore } from '../../stores/useChatStore';
 import { MessageItem } from './MessageItem';
 import { calculateDistanceToBottom, ScrollConstants } from '../../hooks/useChatScrollController';
 import { StreamingMessageSkeleton } from './skeleton';
-import { createLogger } from '../../utils/logger';
-
-// 🔥 Logger instance for VirtualMessageList
-const logger = createLogger('Other'); // Use 'Other' category for UI components
 
 /**
- * 🔥 性能优化：使用稳定的消息引用比较
- * 避免每次流式更新都重新过滤整个数组
+ * 从 messages 中过滤出可见消息并计算 hasPendingToolCalls
+ *
+ * 直接订阅 store 确保 Zustand 更新时一定重新计算。
+ * 不使用 useRef 缓存——React 的渲染模型本身就是缓存，
+ * 只有 effectiveMessages 引用变化时 useMemo 才会重算。
  */
 function useStableMessages(messages: any[]) {
-  const prevMessagesRef = useRef<any[]>([]);
-  const visibleMessagesRef = useRef<any[]>([]);
-  const hasPendingToolCallsRef = useRef<boolean>(false);
+  const storeMessages = useChatStore((state) => state.messages);
+  // 优先使用 store 数据（单一数据源），但 store 为空时回退到 prop
+  const effectiveMessages = (storeMessages && storeMessages.length > 0) ? storeMessages : messages;
 
-  // 🔥 检查 messages 是否真的变化了（不只是引用变化）
-  const messagesChanged = useMemo(() => {
-    if (messages.length !== prevMessagesRef.current.length) {
-      return true; // 数量变化，必须重新计算
-    }
-
-    // 检查最后一条消息是否变化（流式更新时通常只有最后一条变化）
-    const lastMsg = messages[messages.length - 1];
-    const prevLastMsg = prevMessagesRef.current[prevMessagesRef.current.length - 1];
-
-    if (!lastMsg || !prevLastMsg) {
-      return true; // 边界情况，重新计算
-    }
-
-    // 如果只有最后一条消息的内容或流式状态变化，不需要重新过滤
-    const onlyLastMessageChanged =
-      lastMsg.id === prevLastMsg.id &&
-      messages.every((msg, idx) => {
-        if (idx === messages.length - 1) return true; // 跳过最后一条
-        const prevMsg = prevMessagesRef.current[idx];
-        return msg.id === prevMsg.id &&
-               msg.content === prevMsg.content &&
-               msg.role === prevMsg.role;
-      });
-
-    if (onlyLastMessageChanged) {
-      return false; // 只有最后一条变化，不需要重新过滤
-    }
-
-    return true; // 其他消息也变化了，需要重新计算
-  }, [messages]);
-
-  // 🔥 只在 messages 真正变化时重新计算
-  const stableData = useMemo(() => {
-    // 🐛 FIX: 如果最后一条消息正在流式更新，总是重新计算
-    // 这确保了流式更新时 UI 能够正确更新
-    const lastMsg = messages[messages.length - 1];
-    const isLastMessageStreaming = lastMsg?.isStreaming === true || lastMsg?.status === 'streaming';
-
-    if (!messagesChanged && visibleMessagesRef.current.length > 0 && !isLastMessageStreaming) {
-      // 没有变化且不在流式更新，返回缓存的结果
-      logger.debug('[useStableMessages] ✅ 缓存命中，跳过过滤', {
-        messageCount: messages.length,
-        visibleCount: visibleMessagesRef.current.length,
-      });
-      return {
-        visibleMessages: visibleMessagesRef.current,
-        hasPendingToolCalls: hasPendingToolCallsRef.current,
-      };
-    }
-
-    // 🔥 重新计算（在必要时执行）
-    const startTime = performance.now();
-    const filtered = messages.filter(m => m.role !== 'tool');
-    const hasPending = messages.some(m =>
-      m.toolCalls?.some(tc => tc.status === 'pending' || tc.isPartial)
+  const { visibleMessages, hasPendingToolCalls } = useMemo(() => {
+    const filtered = effectiveMessages.filter((m: any) => m.role !== 'tool');
+    const hasPending = effectiveMessages.some((m: any) =>
+      m.toolCalls?.some((tc: any) => tc.status === 'pending' || tc.isPartial)
     );
-    const endTime = performance.now();
+    return { visibleMessages: filtered, hasPendingToolCalls: hasPending };
+  }, [effectiveMessages]);
 
-    // 🔥 性能日志
-    if (messagesChanged || isLastMessageStreaming) {
-      logger.info('[useStableMessages] 🔄 重新计算过滤结果', {
-        messageCount: messages.length,
-        visibleCount: filtered.length,
-        filteredOut: messages.length - filtered.length,
-        hasPendingToolCalls: hasPending,
-        reason: messagesChanged ? 'messagesChanged' : 'isLastMessageStreaming',
-        duration: `${(endTime - startTime).toFixed(2)}ms`,
-      });
-    }
-
-    // 更新缓存
-    prevMessagesRef.current = messages;
-    visibleMessagesRef.current = filtered;
-    hasPendingToolCallsRef.current = hasPending;
-
-    return {
-      visibleMessages: filtered,
-      hasPendingToolCalls: hasPending,
-    };
-  }, [messages, messagesChanged]);
-
-  return stableData;
+  return { visibleMessages, hasPendingToolCalls };
 }
 
 export interface VirtualMessageListHandle {
@@ -157,20 +83,6 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
       (lastMessage.content && lastMessage.content.length > 0)
     );
   }, [lastMessage]);
-
-  // 🔥 DEBUG: 打印骨架屏显示逻辑 - 使用 logger（生产环境禁用）
-  if (isLoading && visibleMessages.length > 0) {
-    logger.debug('[StreamingSkeleton] 调试信息:', {
-      isLoading,
-      messageCount: visibleMessages.length,
-      lastMessageId: lastMessage?.id,
-      lastMessageRole: lastMessage?.role,
-      lastMessageIsStreaming: lastMessage?.isStreaming,
-      lastMessageContentLength: lastMessage?.content?.length || 0,
-      hasStreamingContent,
-      shouldShowSkeleton: isLoading && visibleMessages.length > 0 && !hasStreamingContent,
-    });
-  }
 
   // 🔥 计算虚拟化项数量：只有在加载中但没有实际内容时才显示骨架屏
   const virtualItemCount = useMemo(() => {
@@ -321,7 +233,9 @@ export const VirtualMessageList = forwardRef<VirtualMessageListHandle, VirtualMe
                 onReject={onReject}
                 onOpenFile={onOpenFile}
                 onOpenComposer={onOpenComposer}
-                isStreaming={false}
+                // 🔥 FIX v0.3.5: 使用消息自身的 isStreaming，与短列表路径保持一致
+                // 之前硬编码 false，导致虚拟滚动模式下工具审批状态不触发渲染
+                isStreaming={message.isStreaming || false}
               />
             </div>
           );

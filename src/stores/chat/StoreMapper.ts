@@ -277,6 +277,13 @@ export const initStoreMapper = () => {
             segmentOrder: segment.order
         });
 
+        // 🔥 FIX v0.3.3: 跳过 tool segments（已在 chat:tool:call 中处理）
+        // 避免重复 setState 导致渲染不同步
+        if (segment.type === 'tool') {
+            console.log('[StoreMapper] ⏭️ Skipping tool segment (already handled by chat:tool:call)');
+            return;
+        }
+
         const updater = (state: any) => {
             const messageIndex = state.messages.findIndex((m: any) => m.id === correlationId);
             if (messageIndex === -1) return state;
@@ -1256,11 +1263,14 @@ export const initStoreMapper = () => {
                 function: { name, arguments: args || '' },
                 // 🔥 FIX: 设置初始状态为 pending
                 status: 'pending',
+                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮立即显示
+                // （之前默认为 true，导致批准按钮不显示）
+                isPartial: false,
                 // 🏆 NEW: 添加 batchId 支持工具折叠
                 batchId
             };
             targetMsg.toolCalls = [...targetMsg.toolCalls, newToolCall];
-            console.log('[StoreMapper] 🔧 Added new tool call:', name, 'batchId:', batchId);
+            console.log('[StoreMapper] 🔧 Added new tool call:', name, 'status: pending, isPartial: false');
         } else {
             // 🔥 FIX: 创建新的 toolCalls 数组，确保 React.memo 能检测到变化
             const updatedToolCalls = [...targetMsg.toolCalls];
@@ -1296,9 +1306,26 @@ export const initStoreMapper = () => {
                 ...parsedArgs
               };
             }
+
+            // 🔥 FIX v0.3.2: 更新 tool call 时明确设置 isPartial: false（防御性编程）
+            // 首次创建时已设置，这里确保更新时保持该值，防止未来代码变动导致问题
+            existingTC.isPartial = false;
+
             updatedToolCalls[existingToolIndex] = existingTC;
             targetMsg.toolCalls = updatedToolCalls;
             console.log('[StoreMapper] 🔧 Updated existing tool call:', name);
+        }
+
+        // 🔥 FIX v0.3.3: 同步更新 segments，确保 segments 和 toolCalls 在同一个 setState 中更新
+        // 这样可以避免 MessageItem 渲染时 segments 有值但 toolCalls 还没更新的问题
+        const csmSegments = contentSegmentManager.getSegments(correlationId);
+        if (csmSegments && csmSegments.length > 0) {
+            // 深拷贝 segments 以确保 React 检测到变化
+            targetMsg.segments = csmSegments.map((s: any) => ({ ...s }));
+            console.log('[StoreMapper] 🔧 Synced segments with toolCalls:', {
+                segmentCount: targetMsg.segments.length,
+                toolCallCount: targetMsg.toolCalls.length
+            });
         }
 
         newMessages[messageIndex] = targetMsg;
@@ -1389,7 +1416,8 @@ export const initStoreMapper = () => {
             const updatedToolCalls = msg.toolCalls.map((tc: any) => {
               if (tc.id === toolId && tc.status !== 'pending') {
                 console.log(`[StoreMapper] 🔧 Resetting toolCall status: ${tc.status} → pending (tool=${toolName})`);
-                return { ...tc, status: 'pending', isPartial: undefined };
+                // 🔥 FIX v0.3.1: 设置 isPartial 为 false，确保批准按钮显示
+                return { ...tc, status: 'pending', isPartial: false };
               }
               return tc;
             });
@@ -1567,17 +1595,27 @@ export const initStoreMapper = () => {
 
     // 6. 映射错误
     chatEventBus.on('chat:error', (payload: any) => {
-      const { correlationId, error } = payload;
+      const { correlationId, error, code, message: payloadMessage } = payload;
+
+      // 🔥 FIX: ToolCallManager 对需要审批的工具发出 chat:error（code=APPROVAL_REQUIRED），
+      // 这不是真正的错误，跳过错误处理，避免将消息状态设为 error
+      if (code === 'APPROVAL_REQUIRED') {
+        console.log('[StoreMapper] ⏭️ Skipping APPROVAL_REQUIRED error (tool needs manual approval)');
+        return;
+      }
+
       console.error('[StoreMapper] ❌ Chat error received:', { correlationId, error });
 
-      // 提取错误消息
+      // 提取错误消息（优先从 error 字段，其次从 payload.message）
       let errorMessage: string;
       if (typeof error === 'object' && error !== null && error.message) {
         errorMessage = error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
+      } else if (typeof payloadMessage === 'string' && payloadMessage.length > 0) {
+        errorMessage = payloadMessage;
       } else {
-        errorMessage = JSON.stringify(error);
+        errorMessage = error != null ? JSON.stringify(error) : 'Unknown error';
       }
 
       // 🔥 FIX: 尝试提取内层的 error.message（对于智谱等 API 返回的 JSON 字符串）
@@ -1606,7 +1644,7 @@ export const initStoreMapper = () => {
         return msg;
       };
 
-      errorMessage = extractInnerErrorMessage(errorMessage);
+      errorMessage = extractInnerErrorMessage(errorMessage || 'Unknown error');
 
       // 🔥 FIX: 显示 toast 错误提示（只显示内层 error.message）
       toast.error(errorMessage);
