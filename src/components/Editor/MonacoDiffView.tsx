@@ -47,10 +47,8 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
             verticalScrollbarSize: 6,
             horizontalScrollbarSize: 6,
         },
-        // 🎨 优化 diff 概览标尺（那个粗的滚动条）
+        // 🎨 优化 diff 概览标尺（通过 CSS 覆盖，见 monaco-decorations.css）
         overviewRulerLanes: 1,
-        overviewRulerWidth: 3, // 从默认的 ~30px 减少到 3px
-        hideMarginInOverviewRuler: true,
       });
 
       diffEditor.setModel({

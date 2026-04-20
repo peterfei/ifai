@@ -43,7 +43,6 @@ import { ThreadSearchBar } from './ThreadSearchBar';
 import { ModelCapsulePanel } from './ModelCapsulePanel';
 import { TokenUsageIndicator } from './TokenUsageIndicator';
 import { QueueIndicator } from './QueueIndicator';
-import { SystemPromptCard } from './SystemPromptCard';
 import { VirtualMessageList, VirtualMessageListHandle } from './VirtualMessageList';
 import { WorkflowInlineMonitorContainer, globalActiveWorkflows, globalActiveWorkflowsListeners } from '../workflow/WorkflowInlineMonitor';
 import { ChatInputArea } from './ChatInputArea';
@@ -2630,11 +2629,6 @@ ${suggestion.fixContext.code_context}
       )}
 
       {/* v0.2.6 新增：Token 使用量指示器 */}
-
-      {/* AI Transparency: 系统提示词卡片 */}
-      {transparencyLevel !== 'minimal' && currentPromptMeta && (
-        <SystemPromptCard meta={currentPromptMeta} />
-      )}
 
       <TokenUsageIndicator />
 
