@@ -4,11 +4,12 @@ import { motion } from 'framer-motion';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
 import { openDirectory, readDirectory } from '../../utils/fileSystem';
-import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2, ListChecks, Wrench } from 'lucide-react';
+import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2, ListChecks, Wrench, Puzzle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
 import { SnippetManager } from '../SnippetManager/SnippetManager';
 import { TaskMonitor } from '../TaskMonitor/TaskMonitor';
+import { SkillsPanel } from '../Skills/SkillsPanel';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -25,6 +26,8 @@ export const Sidebar = () => {
     togglePromptManager,
     isToolExplorerOpen,
     toggleToolExplorer,
+    isSkillsPanelOpen,
+    toggleSkillsPanel,
     sidebarWidth,
   } = useLayoutStore();
 
@@ -165,6 +168,31 @@ export const Sidebar = () => {
             )}
           </button>
 
+          {/* Skills Icon */}
+          <button
+            data-testid="skills-panel-button"
+            className={clsx(
+              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              isSkillsPanelOpen ? "text-purple-400" : "text-gray-500 hover:text-gray-300"
+            )}
+            onClick={() => {
+              toggleSkillsPanel();
+              if (isPromptManagerOpen) togglePromptManager();
+              if (isToolExplorerOpen) toggleToolExplorer();
+            }}
+            title="技能"
+          >
+            <Puzzle size={20} className="relative z-10" />
+            {isSkillsPanelOpen && (
+              <motion.div
+                layoutId="activity-active-pill"
+                data-testid="activity-active-pill"
+                className="absolute inset-0 bg-purple-600/20 rounded-full border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+              />
+            )}
+          </button>
+
           {/* Prompts / Settings Icon */}
           <button
             data-testid="prompt-manager-button"
@@ -199,7 +227,7 @@ export const Sidebar = () => {
       </div>
 
       {/* Side Panel Content */}
-      {!isPromptManagerOpen && (
+      {!isPromptManagerOpen && !isSkillsPanelOpen && (
         <div className="flex flex-col h-full bg-gray-900 border-l border-white/5" style={{ width: `${sidebarWidth}px` }}>
           {sidebarActiveTab === 'explorer' ? (
             <React.Fragment>
@@ -230,6 +258,13 @@ export const Sidebar = () => {
               <TaskMonitor showSummary={true} />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Skills Panel Content */}
+      {isSkillsPanelOpen && (
+        <div className="flex flex-col h-full bg-gray-900 border-l border-white/5" style={{ width: `${sidebarWidth}px` }}>
+          <SkillsPanel />
         </div>
       )}
     </div>

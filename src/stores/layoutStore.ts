@@ -20,6 +20,7 @@ export interface LayoutState {
   isPromptManagerOpen: boolean;
   isToolExplorerOpen: boolean; // P3: 工具浏览器
   isWorkflowsOpen: boolean; // P4: 多智能体工作流
+  isSkillsPanelOpen: boolean; // 技能面板
   chatWidth: number;
 
   // v0.2.6 新增：侧边栏状态
@@ -49,6 +50,8 @@ export interface LayoutState {
   toggleToolExplorer: () => void; // P3: 工具浏览器
   setWorkflowsOpen: (isOpen: boolean) => void; // P4: 多智能体工作流
   toggleWorkflows: () => void; // P4: 多智能体工作流
+  setSkillsPanelOpen: (isOpen: boolean) => void; // 技能面板
+  toggleSkillsPanel: () => void; // 技能面板
   setCommandPaletteOpen: (isOpen: boolean) => void;
   toggleCommandPalette: () => void;
   setTerminalOpen: (isOpen: boolean) => void;
@@ -113,6 +116,7 @@ export const useLayoutStore = create<LayoutState>()(
       isPromptManagerOpen: false,
       isToolExplorerOpen: false, // P3: 工具浏览器
       isWorkflowsOpen: false, // P4: 多智能体工作流
+      isSkillsPanelOpen: false, // 技能面板
       chatWidth: 384,
 
       // v0.2.6 新增：侧边栏初始状态
@@ -165,6 +169,8 @@ export const useLayoutStore = create<LayoutState>()(
       toggleToolExplorer: () => set((state) => ({ isToolExplorerOpen: !state.isToolExplorerOpen })), // P3: 工具浏览器
       setWorkflowsOpen: (isOpen) => set({ isWorkflowsOpen: isOpen }), // P4: 多智能体工作流
       toggleWorkflows: () => set((state) => ({ isWorkflowsOpen: !state.isWorkflowsOpen })), // P4: 多智能体工作流
+      setSkillsPanelOpen: (isOpen) => set({ isSkillsPanelOpen: isOpen }), // 技能面板
+      toggleSkillsPanel: () => set((state) => ({ isSkillsPanelOpen: !state.isSkillsPanelOpen })), // 技能面板
       setCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
       setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -436,6 +442,8 @@ export const useLayoutStore = create<LayoutState>()(
         isToolExplorerOpen: state.isToolExplorerOpen,
         // P4: 持久化多智能体工作流状态
         isWorkflowsOpen: state.isWorkflowsOpen,
+        // 技能面板
+        isSkillsPanelOpen: state.isSkillsPanelOpen,
         editorMode: state.editorMode,
       }),
 
