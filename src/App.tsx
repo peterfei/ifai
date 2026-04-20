@@ -39,6 +39,7 @@ import { ApprovalToolbar } from './components/AIChat/ApprovalToolbar';
 
 import { TerminalPanel } from './components/Terminal/TerminalPanel';
 import { PromptManager } from './components/PromptManager/PromptManager';
+import { SkillsPanel } from './components/Skills/SkillsPanel';
 import { StorageQuotaBanner } from './components/Storage/StorageQuotaBanner';
 
 
@@ -142,6 +143,7 @@ function App() {
     chatWidth,
     setChatWidth,
     isPromptManagerOpen,
+    isSkillsPanelOpen,
     isToolExplorerOpen, // P3: 工具浏览器
     toggleToolExplorer, // P3: 工具浏览器
     isWorkflowsOpen, // P4: 多智能体工作流
@@ -993,7 +995,9 @@ function App() {
           <ApprovalToolbar />
           <div className="flex-1 relative overflow-hidden">
 
-            {isPromptManagerOpen ? (
+            {isSkillsPanelOpen ? (
+              <SkillsPanel />
+            ) : isPromptManagerOpen ? (
               <PromptManager />
             ) : isToolExplorerOpen ? (
               <Suspense fallback={<ModalSkeleton />}>

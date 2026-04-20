@@ -9,7 +9,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
 import { SnippetManager } from '../SnippetManager/SnippetManager';
 import { TaskMonitor } from '../TaskMonitor/TaskMonitor';
-import { SkillsPanel } from '../Skills/SkillsPanel';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useLayoutStore } from '../../stores/layoutStore';
@@ -227,7 +226,7 @@ export const Sidebar = () => {
       </div>
 
       {/* Side Panel Content */}
-      {!isPromptManagerOpen && !isSkillsPanelOpen && (
+      {!isPromptManagerOpen && !isSkillsPanelOpen && !isToolExplorerOpen && (
         <div className="flex flex-col h-full bg-gray-900 border-l border-white/5" style={{ width: `${sidebarWidth}px` }}>
           {sidebarActiveTab === 'explorer' ? (
             <React.Fragment>
@@ -261,12 +260,6 @@ export const Sidebar = () => {
         </div>
       )}
 
-      {/* Skills Panel Content */}
-      {isSkillsPanelOpen && (
-        <div className="flex flex-col h-full bg-gray-900 border-l border-white/5" style={{ width: `${sidebarWidth}px` }}>
-          <SkillsPanel />
-        </div>
-      )}
     </div>
   );
 };
