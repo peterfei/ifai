@@ -964,7 +964,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     {displayContent.slice(-500)}
                                 </div>
                             </div>
-                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
+                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (() => {
+                            // 🔥 FIX: 同 mergedSegments 路径，只对最后一个 text part 传递 isStreaming
+                            const lastTextPartIdx = (() => {
+                                for (let i = message.multiModalContent.length - 1; i >= 0; i--) {
+                                    if (message.multiModalContent[i].type === 'text') return i;
+                                }
+                                return -1;
+                            })();
+                            return (
                             <div className="space-y-2">
                                 {message.multiModalContent.map((part, index) => {
                                     // 🔥 FIX: 跳过无效的 part 对象
@@ -981,7 +989,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             console.warn('[MessageItem] Text part has non-string content:', textContent);
                                             return null;
                                         }
-                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, effectivelyStreaming);
+                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, index === lastTextPartIdx ? effectivelyStreaming : false);
                                     }
 
                                     // 🔥 FIX: 确保 image_url 对象有效
@@ -992,10 +1000,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
                                     }
 
-                                    return renderContentPart(part, index, effectivelyStreaming);
+                                    return renderContentPart(part, index, index === lastTextPartIdx ? effectivelyStreaming : false);
                                 })}
                             </div>
-                        ) : mergedSegments && mergedSegments.length > 0 ? (
+                            );
+                        })() : mergedSegments && mergedSegments.length > 0 ? (() => {
+                            // 🔥 FIX: 只对最后一个 text segment 传递 isStreaming=true
+                            // 根因：continuation 场景下，消息中有多个 text segment（pre-tool + post-tool），
+                            // 如果对所有 text segment 都传 effectivelyStreaming=true，
+                            // 每个 MarkdownRenderer 都会显示"生成中..."脉冲，造成视觉干扰
+                            const lastTextSegIdx = (() => {
+                                for (let i = mergedSegments.length - 1; i >= 0; i--) {
+                                    if (mergedSegments[i].type === 'text') return i;
+                                }
+                                return -1;
+                            })();
+                            return (
                             <div className="space-y-3">
                                 {mergedSegments.map((segment: any, index: number) => {
                                     // 🔥 FIX: 验证 segment 对象有效性
@@ -1030,7 +1050,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
                                         const stableKey = segment.order ?? segment.timestamp ?? index;
-                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, effectivelyStreaming);
+                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, index === lastTextSegIdx ? effectivelyStreaming : false);
 
                                         return (
                                             <div
@@ -1157,7 +1177,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     ));
                                 })()}
                             </div>
-                        ) : (
+                            );
+                        })() : (
                             /* 🔥 FIX: Fallback 渲染也必须遵循 Action-First 逻辑并支持聚合 */
                             <div className="space-y-3">
                                 {(() => {
