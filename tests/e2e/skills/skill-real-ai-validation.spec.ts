@@ -587,4 +587,84 @@ systemPrompt: |
 
     console.log('✅ 场景6通过：技能系统在多轮对话中保持功能正常');
   });
+
+  /**
+   * 🟢 场景7：验证空状态显示
+   */
+  test('场景7：当没有技能时应该显示空状态提示', async ({ page }) => {
+    console.log('\n🧪 [真实AI] 开始测试空状态显示');
+
+    // 1. 设置搜索条件使没有匹配的技能
+    await page.evaluate(async () => {
+      const skillStore = (window as any).__skillStore;
+
+      // 设置一个不存在的搜索关键词，确保过滤后没有技能
+      skillStore.getState().setSearchQuery('this-skill-does-not-exist-xyz123');
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+    });
+
+    await page.waitForTimeout(1000);
+
+    // 2. 验证过滤后没有匹配的技能
+    const skillsState = await page.evaluate(() => {
+      const state = (window as any).__skillStore.getState();
+      const filteredSkills = state.getFilteredSkills ? state.getFilteredSkills() : state.availableSkills;
+      return {
+        totalAvailable: state.availableSkills.length,
+        filteredCount: filteredSkills.length,
+        activeCount: state.activeSkillIds.length,
+        searchQuery: state.ui.searchQuery,
+      };
+    });
+
+    console.log('📊 技能状态:', skillsState);
+    expect(skillsState.searchQuery).toBe('this-skill-does-not-exist-xyz123');
+    expect(skillsState.filteredCount).toBe(0);
+
+    // 3. 打开技能面板
+    const skillsPanelButton = page.locator('button[data-testid="skills-panel-button"]');
+    await skillsPanelButton.click();
+    await page.waitForTimeout(500);
+
+    // 4. 验证空状态消息显示和统计信息
+    const emptyStateCheck = await page.evaluate(() => {
+      const bodyText = document.body.textContent || '';
+
+      // 查找技能面板中的空状态提示
+      const hasEmptyMessage = bodyText.includes('未找到匹配的技能') ||
+                              bodyText.includes('未找到匹配') ||
+                              bodyText.includes('没有匹配');
+
+      // 查找统计信息
+      const statsMatch = bodyText.match(/激活:\s*(\d+)/);
+      const totalMatch = bodyText.match(/总计:\s*(\d+)/);
+      const displayMatch = bodyText.match(/显示:\s*(\d+)/);
+
+      return {
+        hasEmptyMessage,
+        activeCount: statsMatch ? parseInt(statsMatch[1]) : -1,
+        totalCount: totalMatch ? parseInt(totalMatch[1]) : -1,
+        displayCount: displayMatch ? parseInt(displayMatch[1]) : -1,
+        bodyText: bodyText.substring(0, 500), // 用于调试
+      };
+    });
+
+    console.log('📋 空状态检查:', emptyStateCheck);
+
+    // 验证显示"未找到匹配的技能"或类似消息
+    expect(emptyStateCheck.hasEmptyMessage).toBe(true);
+
+    // 验证显示数量为 0
+    expect(emptyStateCheck.displayCount).toBe(0);
+
+    // 5. 清理搜索条件
+    await page.evaluate(async () => {
+      const skillStore = (window as any).__skillStore;
+      skillStore.getState().setSearchQuery('');
+      await new Promise(resolve => setTimeout(resolve, 300));
+    });
+
+    console.log('✅ 场景7通过：空状态显示正常');
+  });
 });

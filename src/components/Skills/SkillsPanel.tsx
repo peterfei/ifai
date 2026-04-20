@@ -2,7 +2,7 @@
  * 技能面板 - 侧边栏技能管理界面
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Puzzle, Star, Tag, Check, Loader2, Search, Filter, X, ChevronLeft, Eye, Download, Trash2, BookOpen, Users, Award, Clock, ShoppingCart } from 'lucide-react';
 import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { useLayoutStore } from '@/stores/layoutStore';
@@ -19,6 +19,7 @@ export const SkillsPanel: React.FC = () => {
   const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [activating, setActivating] = useState<string | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const {
     availableSkills,
@@ -37,6 +38,14 @@ export const SkillsPanel: React.FC = () => {
 
   const { setSkillsPanelOpen } = useLayoutStore();
   const rootPath = useFileStore(state => state.rootPath);
+
+  // 初始化时加载技能
+  useEffect(() => {
+    if (!isInitialized && rootPath) {
+      fetchSkills();
+      setIsInitialized(true);
+    }
+  }, [rootPath, isInitialized, fetchSkills]);
 
   // 过滤技能
   const filteredSkills = useMemo(() => {
@@ -446,12 +455,19 @@ export const SkillsPanel: React.FC = () => {
       {/* 底部统计 */}
       <div className="px-4 py-2 border-t border-gray-700 bg-gray-900/40">
         <div className="flex items-center justify-between text-[10px] text-gray-500">
-          <span>
-            激活: {activeSkillIds.length}
-          </span>
-          <span>
-            总计: {availableSkills.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <span>
+              激活: {activeSkillIds.length}
+            </span>
+            <span>
+              总计: {availableSkills.length}
+            </span>
+            {(ui.searchQuery || ui.selectedTags.length > 0 || ui.stateFilter !== 'all') && (
+              <span className="text-blue-400">
+                显示: {filteredSkills.length}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
