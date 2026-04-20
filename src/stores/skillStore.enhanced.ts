@@ -204,6 +204,9 @@ export const useSkillStore = create<EnhancedSkillStore>()(
         const rootPath = useFileStore.getState().rootPath;
         if (!rootPath) return;
 
+        // 🔥 设置loading状态
+        set({ isLoading: true });
+
         try {
           await invoke('activate_skill', { projectRoot: rootPath, skillId: id });
           // 更新本地状态：添加到激活列表
@@ -215,12 +218,18 @@ export const useSkillStore = create<EnhancedSkillStore>()(
           }
         } catch (e) {
           set({ error: String(e) });
+        } finally {
+          // 🔥 清除loading状态
+          set({ isLoading: false });
         }
       },
 
       deactivateSkill: async (id: string) => {
         const rootPath = useFileStore.getState().rootPath;
         if (!rootPath) return;
+
+        // 🔥 设置loading状态
+        set({ isLoading: true });
 
         try {
           await invoke('deactivate_skill', { projectRoot: rootPath, skillId: id });
@@ -231,6 +240,9 @@ export const useSkillStore = create<EnhancedSkillStore>()(
           syncToGlobal(next);
         } catch (e) {
           set({ error: String(e) });
+        } finally {
+          // 🔥 清除loading状态
+          set({ isLoading: false });
         }
       },
 

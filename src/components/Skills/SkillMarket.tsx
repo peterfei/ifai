@@ -19,12 +19,15 @@ import {
   Code,
   Award,
   Package,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { builtinSkills, skillsByCategory, featuredSkills } from './builtinSkills';
 import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { useFileStore } from '@/stores/fileStore';
 import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
 
 interface BuiltinSkill {
   id: string;
@@ -53,6 +56,7 @@ export const SkillMarket: React.FC<{
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<BuiltinSkill | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [uninstalling, setUninstalling] = useState<string | null>(null);
   const [installedSkills, setInstalledSkills] = useState<Set<string>>(new Set());
 
   const { availableSkills } = useSkillStore();
@@ -98,12 +102,13 @@ export const SkillMarket: React.FC<{
   // 安装技能
   const handleInstall = async (skill: BuiltinSkill) => {
     if (!rootPath) {
-      alert('请先打开一个项目');
+      toast.error('请先打开一个项目');
       return;
     }
 
     setInstalling(skill.id);
     try {
+      toast.loading(`正在安装技能: ${skill.displayName}...`, { id: `install-${skill.id}` });
       await invoke('install_skill', {
         projectRoot: rootPath,
         skillId: skill.id,
@@ -116,11 +121,49 @@ export const SkillMarket: React.FC<{
       const { fetchSkills } = useSkillStore.getState();
       await fetchSkills();
 
-      alert(`✅ "${skill.displayName}" 安装成功！`);
+      toast.success(`✅ "${skill.displayName}" 安装成功！`, { id: `install-${skill.id}` });
     } catch (error: any) {
-      alert(`❌ 安装失败: ${error.message || error}`);
+      toast.error(`❌ 安装失败: ${error.message || error}`, { id: `install-${skill.id}` });
     } finally {
       setInstalling(null);
+    }
+  };
+
+  // 卸载技能
+  const handleUninstall = async (skill: BuiltinSkill) => {
+    if (!rootPath) {
+      toast.error('请先打开一个项目');
+      return;
+    }
+
+    // 确认对话框
+    const confirmed = confirm(`确定要卸载 "${skill.displayName}" 技能吗？`);
+    if (!confirmed) return;
+
+    setUninstalling(skill.id);
+    try {
+      toast.loading(`正在卸载技能: ${skill.displayName}...`, { id: `uninstall-${skill.id}` });
+      await invoke('uninstall_skill', {
+        projectRoot: rootPath,
+        skillId: skill.id,
+      });
+
+      // 更新已安装列表
+      setInstalledSkills(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(skill.id);
+        return newSet;
+      });
+
+      // 刷新本地技能列表
+      const { fetchSkills } = useSkillStore.getState();
+      await fetchSkills();
+
+      toast.success(`✅ "${skill.displayName}" 已卸载`, { id: `uninstall-${skill.id}` });
+    } catch (error: any) {
+      toast.error(`❌ 卸载失败: ${error.message || error}`, { id: `uninstall-${skill.id}` });
+    } finally {
+      setUninstalling(null);
     }
   };
 
@@ -271,7 +314,7 @@ export const SkillMarket: React.FC<{
             ) : (
               <button
                 onClick={() => handleInstall(selectedSkill)}
-                disabled={installing !== null}
+                disabled={installing !== null || uninstalling !== null}
                 className={cn(
                   'flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-all',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
@@ -279,7 +322,7 @@ export const SkillMarket: React.FC<{
               >
                 {installing === selectedSkill.id ? (
                   <>
-                    <Clock size={16} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                     安装中...
                   </>
                 ) : (
@@ -287,6 +330,23 @@ export const SkillMarket: React.FC<{
                     <Download size={16} />
                     安装到项目
                   </>
+                )}
+              </button>
+            )}
+            {isInstalled && (
+              <button
+                onClick={() => handleUninstall(selectedSkill)}
+                disabled={installing !== null || uninstalling !== null}
+                className={cn(
+                  'flex items-center justify-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+                title="卸载技能"
+              >
+                {uninstalling === selectedSkill.id ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
                 )}
               </button>
             )}

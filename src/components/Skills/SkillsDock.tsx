@@ -18,11 +18,16 @@ import {
   Save,
   XCircle,
   ShoppingBag,
+  Loader2,
+  Trash2,
 } from 'lucide-react';
 import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { cn } from '@/lib/utils';
 import type { Skill } from '../Settings/Skills/types';
 import { SkillMarket } from './SkillMarket';
+import { toast } from 'sonner';
+import { useFileStore } from '@/stores/fileStore';
+import { invoke } from '@tauri-apps/api/core';
 
 export const SkillsDock: React.FC = () => {
   const {
@@ -31,11 +36,14 @@ export const SkillsDock: React.FC = () => {
     isLoading,
     fetchSkills,
     getFilteredSkills,
-    toggleActive,
+    activateSkill,
+    deactivateSkill,
     createSkill,
     setSearchQuery,
     setSelectedTags,
   } = useSkillStore();
+
+  const rootPath = useFileStore(state => state.rootPath);
 
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -43,6 +51,8 @@ export const SkillsDock: React.FC = () => {
   const [showMarketplace, setShowMarketplace] = useState(false);
   const [searchQuery, setSearchQueryLocal] = useState('');
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
+  const [activatingSkillId, setActivatingSkillId] = useState<string | null>(null);
+  const [uninstallingSkillId, setUninstallingSkillId] = useState<string | null>(null);
 
   // 新技能表单
   const [newSkill, setNewSkill] = useState({
@@ -95,9 +105,75 @@ export const SkillsDock: React.FC = () => {
   }, [availableSkills, searchQuery, selectedTagFilter]);
 
   // 处理激活/停用
-  const handleToggleActive = (e: React.MouseEvent, skillId: string) => {
+  const handleToggleActive = async (e: React.MouseEvent, skillId: string) => {
     e.stopPropagation();
-    toggleActive(skillId);
+
+    const isActive = activeSkillIds.includes(skillId);
+    const skill = availableSkills.find(s => s.id === skillId);
+
+    if (!skill) return;
+
+    // 设置加载状态
+    setActivatingSkillId(skillId);
+
+    try {
+      if (isActive) {
+        // 停用技能
+        toast.loading(`正在停用技能: ${skill.name}...`, { id: `skill-${skillId}` });
+        await deactivateSkill(skillId);
+        toast.success(`技能 "${skill.name}" 已停用`, { id: `skill-${skillId}` });
+      } else {
+        // 激活技能
+        toast.loading(`正在激活技能: ${skill.name}...`, { id: `skill-${skillId}` });
+        await activateSkill(skillId);
+        toast.success(`技能 "${skill.name}" 已激活`, { id: `skill-${skillId}` });
+      }
+    } catch (error) {
+      toast.error(`操作失败: ${error}`, { id: `skill-${skillId}` });
+    } finally {
+      setActivatingSkillId(null);
+    }
+  };
+
+  // 处理卸载技能
+  const handleUninstall = async (e: React.MouseEvent, skillId: string) => {
+    e.stopPropagation();
+
+    const skill = availableSkills.find(s => s.id === skillId);
+    if (!skill) return;
+
+    if (!rootPath) {
+      toast.error('请先打开一个项目');
+      return;
+    }
+
+    // 确认对话框
+    const confirmed = confirm(`确定要卸载 "${skill.name}" 技能吗？`);
+    if (!confirmed) return;
+
+    // 如果技能是激活状态，先停用
+    if (activeSkillIds.includes(skillId)) {
+      await deactivateSkill(skillId);
+    }
+
+    setUninstallingSkillId(skillId);
+
+    try {
+      toast.loading(`正在卸载技能: ${skill.name}...`, { id: `uninstall-${skillId}` });
+      await invoke('uninstall_skill', {
+        projectRoot: rootPath,
+        skillId: skillId,
+      });
+
+      // 刷新技能列表
+      await fetchSkills();
+
+      toast.success(`技能 "${skill.name}" 已卸载`, { id: `uninstall-${skillId}` });
+    } catch (error) {
+      toast.error(`卸载失败: ${error}`, { id: `uninstall-${skillId}` });
+    } finally {
+      setUninstallingSkillId(null);
+    }
   };
 
   // 查看详情
@@ -540,18 +616,44 @@ export const SkillsDock: React.FC = () => {
                     </div>
                     <p className="text-xs text-gray-400 line-clamp-2">{skill.description}</p>
                   </div>
-                  <button
-                    onClick={(e) => handleToggleActive(e, skill.id)}
-                    className={cn(
-                      'p-1.5 rounded transition-all opacity-0 group-hover:opacity-100',
-                      isActive
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : 'bg-green-600 hover:bg-green-700 text-white'
-                    )}
-                    title={isActive ? '停用' : '激活'}
-                  >
-                    {isActive ? <EyeOff size={12} /> : <Eye size={12} />}
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => handleUninstall(e, skill.id)}
+                      disabled={uninstallingSkillId === skill.id || activatingSkillId === skill.id}
+                      className={cn(
+                        'p-1.5 rounded transition-all opacity-0 group-hover:opacity-100',
+                        'disabled:opacity-50 disabled:cursor-not-allowed',
+                        'bg-gray-600 hover:bg-gray-700 text-white'
+                      )}
+                      title="卸载技能"
+                    >
+                      {uninstallingSkillId === skill.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={12} />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => handleToggleActive(e, skill.id)}
+                      disabled={activatingSkillId === skill.id || uninstallingSkillId === skill.id}
+                      className={cn(
+                        'p-1.5 rounded transition-all opacity-0 group-hover:opacity-100',
+                        'disabled:opacity-50 disabled:cursor-not-allowed',
+                        isActive
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                      )}
+                      title={isActive ? '停用' : '激活'}
+                    >
+                      {activatingSkillId === skill.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : isActive ? (
+                        <EyeOff size={12} />
+                      ) : (
+                        <Eye size={12} />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex gap-1">
