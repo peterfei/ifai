@@ -62,13 +62,27 @@ export class ContextSelector {
     selected.sort((a, b) => a.index - b.index);
 
     // 6. 最终清理：移除无效的工具消息
-    return selected.map(s => s.message).filter(msg => {
+    const finalMessages = selected.map(s => s.message).filter(msg => {
       if (msg.role === 'tool' && (!msg.tool_call_id || msg.tool_call_id.trim() === '')) {
         console.warn('[ContextSelector] Dropping tool message with missing tool_call_id');
         return false;
       }
       return true;
     });
+
+    // 7. 防御性检查：确保至少保留最后一条 user 消息
+    // 场景：user 消息 score(100) 低于 tool(450) 和 assistant+toolCalls(500)，
+    // 在 maxMessages 限制下可能被完全挤掉，导致发给 LLM 的历史中没有用户输入
+    const hasUserMessage = finalMessages.some(msg => msg.role === 'user');
+    if (!hasUserMessage) {
+      const lastUserMsg = [...messages].reverse().find(msg => msg.role === 'user');
+      if (lastUserMsg) {
+        console.warn('[ContextSelector] No user message in selected context, recovering last user message');
+        finalMessages.push(lastUserMsg);
+      }
+    }
+
+    return finalMessages;
   }
 
   private calculateBaseScore(msg: Message): number {
