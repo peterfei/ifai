@@ -1,6 +1,20 @@
-import React, { useMemo, useState } from 'react';
-import { AlertCircle, Eye, Plus, Save, Trash2, X } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+/**
+ * 技能编辑器
+ * Phase 7: 完整 UI 重构
+ */
+
+import React, { useState } from 'react';
+import {
+  X,
+  Save,
+  Eye,
+  Code,
+  FileText,
+  Plus,
+  Trash2,
+  Check,
+  AlertCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Skill, SkillEditorMode, SkillValidationError } from './types';
 
@@ -12,20 +26,6 @@ interface SkillEditorProps {
   className?: string;
 }
 
-type EditableSkill = Omit<Skill, 'state'>;
-
-const createInitialState = (skill?: Skill): EditableSkill => ({
-  id: skill?.id ?? '',
-  name: skill?.name ?? '',
-  description: skill?.description ?? '',
-  system_prompt: skill?.system_prompt ?? '',
-  version: skill?.version ?? '1.0.0',
-  author: skill?.author ?? '',
-  tags: skill?.tags ?? [],
-  dependencies: skill?.dependencies ?? [],
-  compatibility: skill?.compatibility ?? '',
-});
-
 export const SkillEditor: React.FC<SkillEditorProps> = ({
   mode,
   skill,
@@ -33,81 +33,62 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
   onCancel,
   className,
 }) => {
-  const { t } = useTranslation();
-  const isViewMode = mode.type === 'view';
-  const [formData, setFormData] = useState<EditableSkill>(createInitialState(skill));
+  const [formData, setFormData] = useState<Partial<Skill>>(
+    skill || {
+      id: '',
+      name: '',
+      description: '',
+      system_prompt: '',
+      version: '1.0.0',
+      author: '',
+      tags: [],
+      dependencies: [],
+      compatibility: '',
+    }
+  );
+
   const [errors, setErrors] = useState<SkillValidationError[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [newDependency, setNewDependency] = useState('');
 
-  const heading = useMemo(() => {
-    if (mode.type === 'create') {
-      return {
-        title: t('skillEditor.createTitle'),
-        subtitle: t('skillEditor.createSubtitle'),
-      };
-    }
-    if (mode.type === 'edit') {
-      return {
-        title: t('skillEditor.editTitle'),
-        subtitle: t('skillEditor.editSubtitle', { name: skill?.name ?? '' }),
-      };
-    }
-    return {
-      title: t('skillEditor.viewTitle'),
-      subtitle: t('skillEditor.viewSubtitle'),
-    };
-  }, [mode.type, skill?.name, t]);
-
-  const validate = () => {
+  const validateForm = (): boolean => {
     const validationErrors: SkillValidationError[] = [];
 
-    if (!formData.id.trim()) {
-      validationErrors.push({ field: 'id', message: t('skillEditor.validation.id') });
+    if (!formData.id?.trim()) {
+      validationErrors.push({ field: 'id', message: '技能 ID 不能为空' });
     }
-    if (!formData.name.trim()) {
-      validationErrors.push({ field: 'name', message: t('skillEditor.validation.name') });
+
+    if (!formData.name?.trim()) {
+      validationErrors.push({ field: 'name', message: '技能名称不能为空' });
     }
-    if (!formData.description.trim()) {
-      validationErrors.push({
-        field: 'description',
-        message: t('skillEditor.validation.description'),
-      });
+
+    if (!formData.description?.trim()) {
+      validationErrors.push({ field: 'description', message: '技能描述不能为空' });
     }
-    if (!formData.system_prompt.trim()) {
-      validationErrors.push({
-        field: 'system_prompt',
-        message: t('skillEditor.validation.systemPrompt'),
-      });
+
+    if (!formData.system_prompt?.trim()) {
+      validationErrors.push({ field: 'system_prompt', message: '系统提示词不能为空' });
     }
-    if (!formData.version.trim()) {
-      validationErrors.push({ field: 'version', message: t('skillEditor.validation.version') });
+
+    if (!formData.version?.trim()) {
+      validationErrors.push({ field: 'version', message: '版本号不能为空' });
     }
 
     setErrors(validationErrors);
     return validationErrors.length === 0;
   };
 
-  const getFieldError = (field: keyof EditableSkill) => {
-    return errors.find(error => error.field === field)?.message;
-  };
-
   const handleSave = async () => {
-    if (!validate()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsSaving(true);
     try {
-      await onSave(formData);
+      await onSave(formData as Omit<Skill, 'state'>);
     } catch (error) {
       setErrors([
-        {
-          field: 'system_prompt',
-          message: error instanceof Error ? error.message : String(error),
-        },
+        { field: 'system_prompt', message: String(error) },
       ]);
     } finally {
       setIsSaving(false);
@@ -115,234 +96,141 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
   };
 
   const addTag = () => {
-    const value = newTag.trim();
-    if (!value || formData.tags.includes(value)) {
-      return;
+    if (newTag && !formData.tags?.includes(newTag)) {
+      setFormData({
+        ...formData,
+        tags: [...(formData.tags || []), newTag],
+      });
+      setNewTag('');
     }
-    setFormData(current => ({ ...current, tags: [...current.tags, value] }));
-    setNewTag('');
   };
 
   const removeTag = (tag: string) => {
-    setFormData(current => ({
-      ...current,
-      tags: current.tags.filter(item => item !== tag),
-    }));
+    setFormData({
+      ...formData,
+      tags: formData.tags?.filter(t => t !== tag) || [],
+    });
   };
 
   const addDependency = () => {
-    const value = newDependency.trim();
-    if (!value || formData.dependencies.includes(value)) {
-      return;
+    if (newDependency && !formData.dependencies?.includes(newDependency)) {
+      setFormData({
+        ...formData,
+        dependencies: [...(formData.dependencies || []), newDependency],
+      });
+      setNewDependency('');
     }
-    setFormData(current => ({
-      ...current,
-      dependencies: [...current.dependencies, value],
-    }));
-    setNewDependency('');
   };
 
-  const removeDependency = (dependency: string) => {
-    setFormData(current => ({
-      ...current,
-      dependencies: current.dependencies.filter(item => item !== dependency),
-    }));
+  const removeDependency = (dep: string) => {
+    setFormData({
+      ...formData,
+      dependencies: formData.dependencies?.filter(d => d !== dep) || [],
+    });
+  };
+
+  const getFieldError = (field: keyof Skill) => {
+    return errors.find(e => e.field === field)?.message;
   };
 
   return (
-    <div className={cn('theme-backdrop fixed inset-0 z-50 flex items-center justify-center p-4', className)}>
-      <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border">
-        <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-6 py-4">
+    <div className={cn('fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4', className)}>
+      <div className="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* 头部 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div>
-            <h2 className="theme-text text-lg font-semibold">{heading.title}</h2>
-            <p className="theme-text-subtle mt-1 text-sm">{heading.subtitle}</p>
+            <h2 className="text-xl font-bold text-white">
+              {mode.type === 'create' ? '创建技能' : mode.type === 'edit' ? '编辑技能' : '查看技能'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {mode.type === 'create' && '创建新的 AI 技能插件'}
+              {mode.type === 'edit' && `编辑技能: ${skill?.name}`}
+              {mode.type === 'view' && '查看技能详情'}
+            </p>
           </div>
-
           <div className="flex items-center gap-2">
-            {!isViewMode && (
+            {mode.type !== 'view' && (
               <button
-                type="button"
-                onClick={() => setShowPreview(current => !current)}
+                onClick={() => setShowPreview(!showPreview)}
                 className={cn(
-                  'theme-focus-ring-accent inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium',
-                  showPreview ? 'theme-button-primary' : 'theme-button-secondary'
+                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all',
+                  showPreview
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
                 )}
               >
-                <Eye size={14} />
-                {showPreview ? t('skillEditor.editTab') : t('skillEditor.previewTab')}
+                <Eye size={16} />
+                {showPreview ? '编辑' : '预览'}
               </button>
             )}
             <button
-              type="button"
               onClick={onCancel}
-              className="theme-button-ghost theme-focus-ring-accent rounded-md p-2"
-              title={t('skillEditor.close')}
-              aria-label={t('skillEditor.close')}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
             >
-              <X size={18} />
+              <X size={20} className="text-gray-400" />
             </button>
           </div>
         </div>
 
+        {/* 内容 */}
         <div className="flex-1 overflow-y-auto p-6">
           {showPreview ? (
-            <PreviewPanel skill={formData} />
+            <PreviewMode skill={formData as Skill} />
           ) : (
-            <div className="space-y-6">
-              <section className="space-y-4">
-                <h3 className="theme-text-muted text-xs font-semibold uppercase tracking-[0.1em]">
-                  {t('skillEditor.sections.basic')}
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    label={t('skillEditor.fields.id')}
-                    value={formData.id}
-                    onChange={value => setFormData(current => ({ ...current, id: value }))}
-                    disabled={isViewMode}
-                  error={getFieldError('id')}
-                    placeholder={t('skillEditor.placeholders.id')}
-                    description={t('skillEditor.fields.idHint')}
-                  />
-                  <FormField
-                    label={t('skillEditor.fields.name')}
-                    value={formData.name}
-                    onChange={value => setFormData(current => ({ ...current, name: value }))}
-                    disabled={isViewMode}
-                  error={getFieldError('name')}
-                    placeholder={t('skillEditor.placeholders.name')}
-                  />
-                </div>
-                <FormField
-                  label={t('skillEditor.fields.description')}
-                  value={formData.description}
-                  onChange={value =>
-                    setFormData(current => ({ ...current, description: value }))
-                  }
-                  disabled={isViewMode}
-                  error={getFieldError('description')}
-                  placeholder={t('skillEditor.placeholders.description')}
-                  textarea
-                  rows={4}
-                />
-              </section>
-
-              <section className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="theme-text-muted text-xs font-semibold uppercase tracking-[0.1em]">
-                    {t('skillEditor.fields.systemPrompt')}
-                  </h3>
-                  <span className="theme-text-subtle text-xs">
-                    {t('skillEditor.characterCount', { count: formData.system_prompt.length })}
-                  </span>
-                </div>
-                <FormField
-                  value={formData.system_prompt}
-                  onChange={value =>
-                    setFormData(current => ({ ...current, system_prompt: value }))
-                  }
-                  disabled={isViewMode}
-                  error={getFieldError('system_prompt')}
-                  placeholder={t('skillEditor.placeholders.systemPrompt')}
-                  textarea
-                  rows={10}
-                  monospace
-                />
-              </section>
-
-              <section className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  label={t('skillEditor.fields.version')}
-                  value={formData.version}
-                  onChange={value =>
-                    setFormData(current => ({ ...current, version: value }))
-                  }
-                  disabled={isViewMode}
-                  error={getFieldError('version')}
-                  placeholder={t('skillEditor.placeholders.version')}
-                  description={t('skillEditor.fields.versionHint')}
-                />
-                <FormField
-                  label={t('skillEditor.fields.author')}
-                  value={formData.author || ''}
-                  onChange={value =>
-                    setFormData(current => ({ ...current, author: value }))
-                  }
-                  disabled={isViewMode}
-                  placeholder={t('skillEditor.placeholders.author')}
-                />
-              </section>
-
-              <TagSection
-                label={t('skillEditor.fields.tags')}
-                values={formData.tags}
-                newValue={newTag}
-                onNewValueChange={setNewTag}
-                onAdd={addTag}
-                onRemove={removeTag}
-                inputPlaceholder={t('skillEditor.fields.tagsPlaceholder')}
-                disabled={isViewMode}
-              />
-
-              <TagSection
-                label={t('skillEditor.fields.dependencies')}
-                values={formData.dependencies}
-                newValue={newDependency}
-                onNewValueChange={setNewDependency}
-                onAdd={addDependency}
-                onRemove={removeDependency}
-                inputPlaceholder={t('skillEditor.fields.dependenciesPlaceholder')}
-                disabled={isViewMode}
-                monospace
-              />
-
-              <FormField
-                label={t('skillEditor.fields.compatibility')}
-                value={formData.compatibility || ''}
-                onChange={value =>
-                  setFormData(current => ({ ...current, compatibility: value }))
-                }
-                disabled={isViewMode}
-                placeholder={t('skillEditor.placeholders.compatibility')}
-                description={t('skillEditor.fields.compatibilityHint')}
-              />
-            </div>
+            <EditMode
+              formData={formData}
+              setFormData={setFormData}
+              mode={mode}
+              errors={errors}
+              getFieldError={getFieldError}
+              newTag={newTag}
+              setNewTag={setNewTag}
+              addTag={addTag}
+              removeTag={removeTag}
+              newDependency={newDependency}
+              setNewDependency={setNewDependency}
+              addDependency={addDependency}
+              removeDependency={removeDependency}
+            />
           )}
         </div>
 
-        {!isViewMode && (
-          <div className="theme-panel-muted theme-border flex items-center justify-between border-t px-6 py-4">
-            <div className="theme-text-subtle flex items-center gap-2 text-sm">
+        {/* 底部操作栏 */}
+        {mode.type !== 'view' && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-800 bg-gray-950">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
               {errors.length > 0 && (
                 <>
-                  <AlertCircle size={16} className="theme-text-danger" />
-                  <span>{t('skillEditor.errorsSummary', { count: errors.length })}</span>
+                  <AlertCircle size={16} className="text-red-500" />
+                  <span>请修正 {errors.length} 个错误</span>
                 </>
               )}
             </div>
-
             <div className="flex items-center gap-3">
               <button
-                type="button"
                 onClick={onCancel}
-                className="theme-button-secondary theme-focus-ring-accent rounded-md px-4 py-2 text-sm font-medium"
+                className="px-6 py-2.5 rounded-lg text-sm font-medium bg-gray-800 hover:bg-gray-700 text-gray-400 border border-gray-700 transition-all"
               >
-                {t('skillEditor.cancel')}
+                取消
               </button>
               <button
-                type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="theme-button-primary theme-focus-ring-accent inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className={cn(
+                  'flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all',
+                  'bg-blue-600 hover:bg-blue-700 text-white',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
               >
                 {isSaving ? (
                   <>
-                    <Save size={14} className="animate-pulse" />
-                    {t('skillEditor.saving')}
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    保存中...
                   </>
                 ) : (
                   <>
-                    <Save size={14} />
-                    {t('skillEditor.save')}
+                    <Save size={16} />
+                    保存
                   </>
                 )}
               </button>
@@ -354,60 +242,259 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
   );
 };
 
-const PreviewPanel: React.FC<{ skill: EditableSkill }> = ({ skill }) => {
-  const { t } = useTranslation();
+// ==================== 编辑模式 ====================
+
+interface EditModeProps {
+  formData: Partial<Skill>;
+  setFormData: (data: Partial<Skill>) => void;
+  mode: SkillEditorMode;
+  errors: SkillValidationError[];
+  getFieldError: (field: keyof Skill) => string | undefined;
+  newTag: string;
+  setNewTag: (tag: string) => void;
+  addTag: () => void;
+  removeTag: (tag: string) => void;
+  newDependency: string;
+  setNewDependency: (dep: string) => void;
+  addDependency: () => void;
+  removeDependency: (dep: string) => void;
+}
+
+const EditMode: React.FC<EditModeProps> = ({
+  formData,
+  setFormData,
+  mode,
+  errors,
+  getFieldError,
+  newTag,
+  setNewTag,
+  addTag,
+  removeTag,
+  newDependency,
+  setNewDependency,
+  addDependency,
+  removeDependency,
+}) => {
+  const disabled = mode.type === 'view';
 
   return (
-    <div className="space-y-5">
-      <section className="theme-panel-muted theme-border rounded-lg border p-4">
-        <h3 className="theme-text text-lg font-semibold">{skill.name || t('skillEditor.previewFallbackName')}</h3>
-        <p className="theme-text-subtle mt-2 text-sm leading-relaxed">
-          {skill.description || t('skillEditor.previewFallbackDescription')}
-        </p>
-        <div className="theme-text-subtle mt-3 flex flex-wrap items-center gap-3 text-xs">
-          <span>ID: {skill.id || '-'}</span>
+    <div className="space-y-6">
+      {/* 基本信息 */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium text-gray-400">基本信息</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            label="技能 ID"
+            value={formData.id}
+            onChange={(v) => setFormData({ ...formData, id: v })}
+            disabled={disabled}
+            error={getFieldError('id')}
+            placeholder="my-skill"
+            description="唯一标识符，只能包含小写字母、数字和连字符"
+          />
+          <FormField
+            label="技能名称"
+            value={formData.name}
+            onChange={(v) => setFormData({ ...formData, name: v })}
+            disabled={disabled}
+            error={getFieldError('name')}
+            placeholder="我的技能"
+          />
+        </div>
+        <FormField
+          label="描述"
+          value={formData.description}
+          onChange={(v) => setFormData({ ...formData, description: v })}
+          disabled={disabled}
+          error={getFieldError('description')}
+          placeholder="简要描述这个技能的功能"
+          textarea
+        />
+      </div>
+
+      {/* 系统提示词 */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-400">系统提示词</h3>
+          <span className="text-xs text-gray-500">
+            {formData.system_prompt?.length || 0} / 10000 字符
+          </span>
+        </div>
+        <FormField
+          value={formData.system_prompt}
+          onChange={(v) => setFormData({ ...formData, system_prompt: v })}
+          disabled={disabled}
+          error={getFieldError('system_prompt')}
+          placeholder="You are a helpful assistant..."
+          textarea
+          rows={8}
+          monospace
+        />
+      </div>
+
+      {/* 版本和作者 */}
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          label="版本"
+          value={formData.version}
+          onChange={(v) => setFormData({ ...formData, version: v })}
+          disabled={disabled}
+          error={getFieldError('version')}
+          placeholder="1.0.0"
+          description="遵循语义化版本规范 (semver)"
+        />
+        <FormField
+          label="作者"
+          value={formData.author || ''}
+          onChange={(v) => setFormData({ ...formData, author: v })}
+          disabled={disabled}
+          placeholder="Your Name"
+        />
+      </div>
+
+      {/* 标签 */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-gray-400">标签</h3>
+        <div className="flex flex-wrap gap-2">
+          {formData.tags?.map(tag => (
+            <span
+              key={tag}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-800 text-sm text-gray-300 border border-gray-700"
+            >
+              {tag}
+              {!disabled && (
+                <button
+                  onClick={() => removeTag(tag)}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+        {!disabled && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addTag()}
+              placeholder="添加标签..."
+              className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={addTag}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 依赖 */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-gray-400">依赖技能</h3>
+        <div className="space-y-2">
+          {formData.dependencies?.map(dep => (
+            <div
+              key={dep}
+              className="flex items-center justify-between p-3 bg-gray-950 rounded-lg border border-gray-800"
+            >
+              <span className="text-sm text-gray-300">{dep}</span>
+              {!disabled && (
+                <button
+                  onClick={() => removeDependency(dep)}
+                  className="text-gray-500 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        {!disabled && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newDependency}
+              onChange={(e) => setNewDependency(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addDependency()}
+              placeholder="添加依赖技能 ID..."
+              className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={addDependency}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 兼容性 */}
+      <FormField
+        label="兼容性表达式"
+        value={formData.compatibility || ''}
+        onChange={(v) => setFormData({ ...formData, compatibility: v })}
+        disabled={disabled}
+        placeholder="^1.0.0 || >=2.0.0"
+        description="使用 semver 表达式指定兼容版本"
+      />
+    </div>
+  );
+};
+
+// ==================== 预览模式 ====================
+
+const PreviewMode: React.FC<{ skill: Partial<Skill> }> = ({ skill }) => {
+  return (
+    <div className="space-y-6">
+      <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
+        <h3 className="text-lg font-bold text-white mb-2">{skill.name}</h3>
+        <p className="text-sm text-gray-400 mb-4">{skill.description}</p>
+        <div className="flex items-center gap-3 text-xs text-gray-500">
+          <span>ID: {skill.id}</span>
           <span>•</span>
-          <span>{t('skillEditor.previewVersion', { version: skill.version || '-' })}</span>
+          <span>版本: {skill.version}</span>
           {skill.author && (
             <>
               <span>•</span>
-              <span>{t('skillEditor.previewAuthor', { author: skill.author })}</span>
+              <span>作者: {skill.author}</span>
             </>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="space-y-3">
-        <h4 className="theme-text-muted text-xs font-semibold uppercase tracking-[0.1em]">
-          {t('skillEditor.fields.systemPrompt')}
-        </h4>
-        <div className="theme-code-surface theme-border overflow-auto rounded-lg border p-4">
-          <pre className="theme-text-muted whitespace-pre-wrap text-xs leading-relaxed">
-            {skill.system_prompt}
-          </pre>
-        </div>
-      </section>
+      <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
+        <h4 className="text-sm font-medium text-gray-400 mb-2">系统提示词</h4>
+        <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+          {skill.system_prompt}
+        </pre>
+      </div>
 
-      {skill.tags.length > 0 && (
-        <section className="space-y-3">
-          <h4 className="theme-text-muted text-xs font-semibold uppercase tracking-[0.1em]">
-            {t('skillEditor.fields.tags')}
-          </h4>
+      {(skill.tags?.length || 0) > 0 && (
+        <div>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">标签</h4>
           <div className="flex flex-wrap gap-2">
-            {skill.tags.map(tag => (
+            {skill.tags?.map(tag => (
               <span
                 key={tag}
-                className="theme-panel-muted theme-border theme-text-subtle rounded-full border px-2.5 py-1 text-xs"
+                className="px-3 py-1.5 rounded-full bg-gray-800 text-sm text-gray-300 border border-gray-700"
               >
                 {tag}
               </span>
             ))}
           </div>
-        </section>
+        </div>
       )}
     </div>
   );
 };
+
+// ==================== 表单字段组件 ====================
 
 interface FormFieldProps {
   label?: string;
@@ -432,124 +519,56 @@ const FormField: React.FC<FormFieldProps> = ({
   description,
   textarea,
   rows = 3,
-  monospace = false,
+  monospace,
 }) => {
-  const baseClassName = cn(
-    'theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-md border px-3 py-2 text-sm',
-    monospace && 'font-mono',
-    error && 'theme-border-danger',
-    disabled && 'cursor-not-allowed opacity-50'
-  );
-
   return (
     <div className="space-y-1.5">
-      {label && <label className="theme-text-muted block text-sm font-medium">{label}</label>}
-      {textarea ? (
-        <textarea
-          value={value}
-          onChange={event => onChange(event.target.value)}
-          disabled={disabled}
-          placeholder={placeholder}
-          rows={rows}
-          className={cn(baseClassName, 'resize-y')}
-        />
-      ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={event => onChange(event.target.value)}
-          disabled={disabled}
-          placeholder={placeholder}
-          className={baseClassName}
-        />
+      {label && (
+        <label className="block text-sm font-medium text-gray-400">
+          {label}
+        </label>
       )}
-      {error ? (
-        <p className="theme-text-danger text-xs">{error}</p>
-      ) : description ? (
-        <p className="theme-text-subtle text-xs">{description}</p>
-      ) : null}
-    </div>
-  );
-};
-
-interface TagSectionProps {
-  label: string;
-  values: string[];
-  newValue: string;
-  onNewValueChange: (value: string) => void;
-  onAdd: () => void;
-  onRemove: (value: string) => void;
-  inputPlaceholder: string;
-  disabled: boolean;
-  monospace?: boolean;
-}
-
-const TagSection: React.FC<TagSectionProps> = ({
-  label,
-  values,
-  newValue,
-  onNewValueChange,
-  onAdd,
-  onRemove,
-  inputPlaceholder,
-  disabled,
-  monospace = false,
-}) => {
-  const { t } = useTranslation();
-
-  return (
-    <section className="space-y-3">
-      <h3 className="theme-text-muted text-xs font-semibold uppercase tracking-[0.1em]">
-        {label}
-      </h3>
-      <div className="flex flex-wrap gap-2">
-        {values.map(value => (
-          <span
-            key={value}
-            className="theme-panel-muted theme-border theme-text rounded-full border px-3 py-1 text-xs"
-          >
-            <span className={cn(monospace && 'font-mono')}>{value}</span>
-            {!disabled && (
-              <button
-                type="button"
-                onClick={() => onRemove(value)}
-                className="theme-button-ghost ml-2 rounded-full p-0.5"
-                aria-label={t('skillEditor.removeItem')}
-              >
-                <Trash2 size={10} />
-              </button>
-            )}
-          </span>
-        ))}
-      </div>
-      {!disabled && (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newValue}
-            onChange={event => onNewValueChange(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                onAdd();
-              }
-            }}
-            placeholder={inputPlaceholder}
+      <div>
+        {textarea ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            placeholder={placeholder}
+            rows={rows}
             className={cn(
-              'theme-input-surface theme-border theme-text theme-focus-accent flex-1 rounded-md border px-3 py-2 text-sm',
-              monospace && 'font-mono'
+              'w-full px-3 py-2 bg-gray-900 border rounded-lg text-sm placeholder-gray-500 focus:outline-none transition-all',
+              monospace ? 'font-mono' : 'font-sans',
+              error
+                ? 'border-red-500 focus:border-red-500'
+                : 'border-gray-700 focus:border-blue-500',
+              disabled && 'opacity-50 cursor-not-allowed'
             )}
           />
-          <button
-            type="button"
-            onClick={onAdd}
-            className="theme-button-secondary theme-focus-ring-accent inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
-          >
-            <Plus size={14} />
-            {t('skillEditor.add')}
-          </button>
-        </div>
+        ) : (
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={cn(
+              'w-full px-3 py-2 bg-gray-900 border rounded-lg text-sm placeholder-gray-500 focus:outline-none transition-all',
+              monospace ? 'font-mono' : 'font-sans',
+              error
+                ? 'border-red-500 focus:border-red-500'
+                : 'border-gray-700 focus:border-blue-500',
+              disabled && 'opacity-50 cursor-not-allowed'
+            )}
+          />
+        )}
+      </div>
+      {error && (
+        <p className="text-xs text-red-400">{error}</p>
       )}
-    </section>
+      {description && !error && (
+        <p className="text-xs text-gray-500">{description}</p>
+      )}
+    </div>
   );
 };

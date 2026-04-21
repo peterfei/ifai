@@ -4,11 +4,9 @@ import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { FilePlus, FolderOpen, MessageSquare } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { openDirectory } from '../../utils/fileSystem';
-import { openFileFromPath } from '../../utils/fileActions';
+import { openDirectory, readFileContent } from '../../utils/fileSystem';
 import { open } from '@tauri-apps/plugin-dialog';
 import ifaiLogo from '../../../imgs/ifai.png';
-import { formatKeybinding } from '../../utils/keyboard';
 
 export const WelcomeScreen: React.FC = () => {
     const { t } = useTranslation();
@@ -36,10 +34,19 @@ export const WelcomeScreen: React.FC = () => {
                 multiple: false,
             });
             if (selected && typeof selected === 'string') {
-                await openFileFromPath(selected, {
-                    id: uuidv4(),
+                const content = await readFileContent(selected);
+                const newFileId = uuidv4();
+                openFile({
+                    id: newFileId,
+                    path: selected,
                     name: selected.split('/').pop() || 'Untitled',
+                    content: content,
+                    isDirty: false,
+                    language: 'plaintext', // Simplification, ideally detect language
                 });
+                if (activePaneId) {
+                    assignFileToPane(activePaneId, newFileId);
+                }
             }
         } catch (e) {
             console.error(e);
@@ -52,38 +59,38 @@ export const WelcomeScreen: React.FC = () => {
     };
 
     return (
-        <div className="theme-panel theme-text-subtle flex h-full select-none flex-col items-center justify-center transition-colors" data-testid="welcome-screen">
+        <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-[#1e1e1e] select-none" data-testid="welcome-screen">
             <div className="mb-8 flex flex-col items-center">
                 <img src={ifaiLogo} alt="IfAI Logo" className="w-24 h-24 mb-4 opacity-80" />
-                <div className="theme-text text-2xl font-light">{t('editor.welcome')}</div>
+                <div className="text-2xl font-light text-gray-300">{t('editor.welcome')}</div>
             </div>
 
             <div className="flex flex-col space-y-2 w-64">
-                <button onClick={handleNewFile} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <FilePlus size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
+                <button onClick={handleNewFile} className="flex items-center text-left text-sm hover:text-blue-400 group transition-colors">
+                    <FilePlus size={18} className="mr-3 text-gray-500 group-hover:text-blue-400" />
                     {t('common.newFile') || 'New File'}
                 </button>
-                <button onClick={handleOpenFile} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <FolderOpen size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
+                <button onClick={handleOpenFile} className="flex items-center text-left text-sm hover:text-blue-400 group transition-colors">
+                    <FolderOpen size={18} className="mr-3 text-gray-500 group-hover:text-blue-400" />
                     {t('common.openFile') || 'Open File...'}
                 </button>
-                <button onClick={handleOpenFolder} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <FolderOpen size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
+                <button onClick={handleOpenFolder} className="flex items-center text-left text-sm hover:text-blue-400 group transition-colors">
+                    <FolderOpen size={18} className="mr-3 text-gray-500 group-hover:text-blue-400" />
                     {t('common.openFolder') || 'Open Folder...'}
                 </button>
-                <button onClick={toggleChat} className="theme-button-ghost flex items-center rounded px-2 py-1 text-left text-sm group transition-colors">
-                    <MessageSquare size={18} className="theme-text-subtle mr-3 transition-colors group-hover:text-[var(--accent-color)]" />
+                <button onClick={toggleChat} className="flex items-center text-left text-sm hover:text-blue-400 group transition-colors">
+                    <MessageSquare size={18} className="mr-3 text-gray-500 group-hover:text-blue-400" />
                     {t('common.toggleChat') || 'Toggle AI Chat'}
                 </button>
             </div>
 
-            <div className="theme-text-subtle mt-8 text-xs">
+            <div className="mt-8 text-xs text-gray-600">
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 max-w-md">
-                    <span>{t('editor.shortcuts.showCommands')}</span> <span>{formatKeybinding('Mod+Shift+p')}</span>
-                    <span>{t('editor.shortcuts.goToFile')}</span> <span>{formatKeybinding('Mod+p')}</span>
-                    <span>{t('editor.shortcuts.findInFiles')}</span> <span>{formatKeybinding('Mod+Shift+f')}</span>
-                    <span>{t('editor.shortcuts.toggleChat')}</span> <span>{formatKeybinding('Mod+l')}</span>
-                    <span>{t('editor.shortcuts.inlineEdit')}</span> <span>{formatKeybinding('Mod+k')}</span>
+                    <span>{t('editor.shortcuts.showCommands')}</span> <span>Cmd+Shift+P</span>
+                    <span>{t('editor.shortcuts.goToFile')}</span> <span>Cmd+P</span>
+                    <span>{t('editor.shortcuts.findInFiles')}</span> <span>Cmd+Shift+F</span>
+                    <span>{t('editor.shortcuts.toggleChat')}</span> <span>Cmd+L</span>
+                    <span>{t('editor.shortcuts.inlineEdit')}</span> <span>Cmd+K</span>
                 </div>
             </div>
         </div>

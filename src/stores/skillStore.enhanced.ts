@@ -77,7 +77,6 @@ interface EnhancedSkillStore {
   setSelectedTags: (tags: string[]) => void;
   setStateFilter: (filter: SkillsUIState['stateFilter']) => void;
   setSortBy: (sortBy: SkillsUIState['sortBy']) => void;
-  setSortOrder: (sortOrder: SkillsUIState['sortOrder']) => void;
   setViewMode: (mode: SkillsUIState['viewMode']) => void;
   toggleDetails: () => void;
   openEditor: (skill?: Skill) => void;
@@ -373,10 +372,6 @@ export const useSkillStore = create<EnhancedSkillStore>()(
 
       setSortBy: (sortBy) => {
         set({ ui: { ...get().ui, sortBy } });
-      },
-
-      setSortOrder: (sortOrder) => {
-        set({ ui: { ...get().ui, sortOrder } });
       },
 
       setViewMode: (mode) => {

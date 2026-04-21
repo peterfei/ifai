@@ -59,9 +59,18 @@ function generateTypeScript(): string {
   // ── TOOL_PERMISSIONS ──
   // 扁平化：每个 tool name → mode，包含 agent_ 前缀剥离的归一化名
   const toolMap: Record<string, string> = {};
+  // 🆕 元编程：收集前端工具列表
+  const frontendTools = new Set<string>();
+
   for (const entry of toolPermissions) {
     for (const name of entry.names) {
       toolMap[name] = entry.mode;
+      // 🆕 收集前端工具
+      if (entry.runLocation === 'frontend') {
+        frontendTools.add(name);
+        const normalized = name.replace(/^agent_/, '');
+        if (normalized !== name) frontendTools.add(normalized);
+      }
       // 归一化：剥离 agent_ 前缀
       const normalized = name.replace(/^agent_/, '');
       if (normalized !== name) {
@@ -71,6 +80,11 @@ function generateTypeScript(): string {
   }
   const toolEntries = Object.entries(toolMap)
     .map(([name, mode]) => `  '${name}': '${mode}'`)
+    .join(',\n');
+
+  // 🆕 元编程：生成前端工具集合
+  const frontendToolsList = Array.from(frontendTools)
+    .map(name => `  '${name}'`)
     .join(',\n');
 
   return `// stream-schema-generated.ts — 由 codegen-stream-schema.ts 从 stream-schema.yaml 自动生成
@@ -100,6 +114,18 @@ ${transitionsEntries},
 export const TOOL_PERMISSIONS: Record<string, PermissionMode> = {
 ${toolEntries},
 };
+
+// 🆕 元编程：前端工具集合（由 runLocation: frontend 自动生成）
+export const FRONTEND_TOOLS = new Set<string>([
+${frontendToolsList}
+]);
+
+// 🆕 元编程：前端工具判断函数（零硬编码，纯查表）
+export function isFrontendTool(toolName: string): boolean {
+  // 归一化：剥离 agent_ 前缀
+  const normalized = toolName.replace(/^agent_/, '');
+  return FRONTEND_TOOLS.has(toolName) || FRONTEND_TOOLS.has(normalized);
+}
 
 // ═══════════════════════════════════════════════════════════
 // 通用规则求值函数 — 3 行查表，零 if/else
@@ -140,9 +166,18 @@ function generateRust(): string {
   // ── required_permission_for ──
   // 按模式分组工具名，归一化 + 去重
   const toolsByMode: Record<string, string[]> = {};
+  // 🆕 元编程：收集前端工具列表（Rust）
+  const rustFrontendTools: string[] = [];
+
   for (const entry of toolPermissions) {
     if (!toolsByMode[entry.mode]) toolsByMode[entry.mode] = [];
     for (const name of entry.names) {
+      // 🆕 收集前端工具
+      if (entry.runLocation === 'frontend') {
+        rustFrontendTools.push(`"${name}"`);
+        const normalized = name.replace(/^agent_/, '');
+        if (normalized !== name) rustFrontendTools.push(`"${normalized}"`);
+      }
       const normalized = name.replace(/^agent_/, '');
       if (!toolsByMode[entry.mode].includes(normalized)) {
         toolsByMode[entry.mode].push(normalized);
@@ -156,6 +191,12 @@ function generateRust(): string {
     const patterns = tools.map(t => `"${t}"`).join('\n            | ');
     return `        ${patterns}\n            => PermissionMode::${mode},`;
   }).filter(Boolean).join('\n');
+
+  // 🆕 元编程：生成前端工具判断函数（Rust）
+  // 需要生成完整的 match arm： "tool1" | "tool2" => true,
+  const frontendToolMatchArm = rustFrontendTools.length > 0
+    ? `        ${rustFrontendTools.join('\n        | ')} => true,`
+    : '';
 
   // ── is_loading ──
   const loadingTruePhases = phaseNames.filter(p => streamPhases[p].loading);
@@ -233,6 +274,19 @@ ${matchArms}
 pub fn requires_approval(active_mode: PermissionMode, tool_name: &str) -> bool {
     let required = required_permission_for(tool_name);
     active_mode < required
+}
+
+// ═══════════════════════════════════════════════════════════
+// Frontend Tool Detection（由 toolPermissions[].runLocation 自动生成）
+// ═══════════════════════════════════════════════════════════
+
+/// 🆕 元编程：判断工具是否在前端执行（零硬编码，纯查表）
+pub fn is_frontend_tool(tool_name: &str) -> bool {
+    let normalized = tool_name.replace("agent_", "");
+    match normalized.as_str() {
+${frontendToolMatchArm}
+        _ => false,
+    }
 }
 
 // ═══════════════════════════════════════════════════════════

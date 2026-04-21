@@ -3,25 +3,25 @@ import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { DiffPreview } from './DiffPreview';
 import { useTypewriter } from '../../hooks/useTypewriter';
 import React, { useState, useLayoutEffect, useMemo, useRef } from 'react';
-import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Check, X, Terminal, FilePlus, Eye, FolderOpen, Search, Trash2, ChevronDown, ChevronUp, File, Folder, FileCheck, CheckCircle, XCircle, RotateCcw, Loader2, AlertTriangle, Shield, ShieldAlert, ShieldCheck, ExternalLink } from 'lucide-react';
 import { ToolCall, useChatStore } from '../../stores/useChatStore';
-import { useEditorStore } from '../../stores/editorStore';
+import { useFileStore } from '../../stores/fileStore';
 import { useTranslation } from 'react-i18next';
 import { readFileContent } from '../../utils/fileSystem';
 import { MonacoDiffView } from '../Editor/MonacoDiffView';
 import { getToolLabel, getToolColor } from 'ifainew-core';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useLayoutStore } from '../../stores/layoutStore';
-import { formatToolResultToMarkdown } from '../../utils/toolResultFormatter';
+import { formatToolResultToMarkdown, FormattedToolResult, extractToolSummary } from '../../utils/toolResultFormatter';
+import { ToolArgsViewer, CompactToolArgsViewer } from './ToolArgsViewer';
 import { StreamingToolArgsViewer } from './StreamingToolArgsViewer';
-import { ToolExecutionIndicator } from './ToolExecutionIndicator';
+import { ToolExecutionIndicator, StreamingContentLoader } from './ToolExecutionIndicator';
 import ReactMarkdown from 'react-markdown';
 import { BashConsoleOutput } from './BashConsoleOutput';
 import { StreamingBashOutput } from './StreamingBashOutput';
 import { ProbeSymbolView } from './ProbeSymbolView';
 import { toast } from 'sonner';
 import { toolApprovalRegistry, RiskLevel } from '../../core/approval/ToolApprovalRegistry';
-import { openFileFromPath } from '../../utils/fileActions';
 
 /**
  * 🏆 将 agent_scan_project 的结构转换为 PivoProjectTree 所需的嵌套结构
@@ -122,10 +122,6 @@ const TypewriterCodeBlock: React.FC <{
     isExpanded: boolean;
     onToggleExpand: () => void;
 }> = ({ code, isPartial, language, fileName, isExpanded, onToggleExpand }) => {
-    const { t } = useTranslation();
-    const tt = (key: string, defaultValue: string, options?: Record<string, any>) =>
-        t(`toolApproval.${key}`, { defaultValue, ...(options ?? {}) });
-
     // 🔥 FIX: 使用 enableTypewriterEffect 设置来控制是否启用打字机效果
     const enableTypewriter = useSettingsStore((s) => s.enableTypewriterEffect);
 
@@ -144,19 +140,19 @@ const TypewriterCodeBlock: React.FC <{
     const shouldCollapse = code.split('\n').length > PREVIEW_LINES;
 
     return (
-        <div className="group/typewriter relative rounded-xl border theme-border theme-code-surface theme-shadow overflow-hidden transition-all duration-300 hover:border-[var(--accent-soft-border)]">
+        <div className="group/typewriter relative rounded-xl border border-gray-700/40 bg-[#0d1117] shadow-2xl overflow-hidden transition-all duration-300 hover:border-blue-500/30">
             {/* Glossy Header */}
-            <div className="flex items-center justify-between px-4 py-2 theme-panel-muted border-b theme-border">
+            <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700/30">
                 <div className="flex items-center gap-2.5">
                     <div className="flex gap-1.5 mr-1">
-                        <div className="w-2.5 h-2.5 rounded-full bg-[var(--danger-color)] shadow-inner" />
-                        <div className="w-2.5 h-2.5 rounded-full bg-[var(--warning-color)] shadow-inner" />
-                        <div className="w-2.5 h-2.5 rounded-full bg-[var(--success-color)] shadow-inner" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] shadow-inner" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] shadow-inner" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f] shadow-inner" />
                     </div>
-                    <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest px-2 py-0.5 theme-panel rounded border theme-border">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 py-0.5 bg-gray-800 rounded border border-gray-700/50">
                         {language}
                     </span>
-                    <span className="text-[11px] theme-text-subtle font-mono truncate max-w-[150px]">
+                    <span className="text-[11px] text-gray-400 font-mono truncate max-w-[150px]">
                         {fileName}
                     </span>
                 </div>
@@ -164,41 +160,34 @@ const TypewriterCodeBlock: React.FC <{
                     {isPartial && (
                         <div className="flex items-center gap-1.5">
                             <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent-soft-border)] opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent-color)]"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                             </span>
-                            <span className="text-[10px] font-bold text-[var(--accent-color)] animate-pulse uppercase">
-                                {tt('preview.streaming', 'Streaming')}
-                            </span>
+                            <span className="text-[10px] font-bold text-blue-400 animate-pulse uppercase">Streaming</span>
                         </div>
                     )}
-                    <span className="text-[10px] theme-text-subtle font-mono">
-                        {tt('preview.lines', '{{count}} lines', { count: lines.length })}
-                    </span>
+                    <span className="text-[10px] text-gray-500 font-mono">{lines.length} lines</span>
                 </div>
             </div>
 
             {/* Code Content with Dynamic Typewriter Cursor */}
             <div
-                className="relative max-h-80 overflow-auto scrollbar-thin scrollbar-thumb-[var(--border-strong)]"
+                className="relative max-h-80 overflow-auto scrollbar-thin scrollbar-thumb-gray-700"
                 onClick={isTyping ? skip : undefined}
                 style={isTyping ? { cursor: 'pointer' } : undefined}
             >
-                <pre className="p-4 text-[12px] leading-6 theme-text-muted font-mono whitespace-pre-wrap break-all">
+                <pre className="p-4 text-[12px] leading-6 text-gray-300 font-mono whitespace-pre-wrap break-all">
                     <code>
                         {displayLines.join('\n')}
                         {isPartial && (
-                            <span className="inline-block w-2 h-4 bg-[var(--accent-color)] ml-1 shadow-[0_0_8px_var(--accent-soft-border)] animate-bounce" />
+                            <span className="inline-block w-2 h-4 bg-blue-500 ml-1 shadow-[0_0_8px_rgba(59,130,246,0.8)] animate-bounce" />
                         )}
                     </code>
                 </pre>
                 
                 {/* Streaming Overlay Gradient */}
                 {isPartial && (
-                    <div
-                        className="absolute inset-0 pointer-events-none animate-pulse"
-                        style={{ background: 'linear-gradient(to bottom, transparent 0%, transparent 65%, var(--accent-soft-bg) 100%)' }}
-                    />
+                    <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-transparent to-blue-500/5 animate-pulse" />
                 )}
             </div>
 
@@ -206,11 +195,9 @@ const TypewriterCodeBlock: React.FC <{
             {shouldCollapse && (
                 <button
                     onClick={onToggleExpand}
-                    className="w-full py-1.5 theme-panel-muted theme-hoverable border-t theme-border text-[10px] font-bold theme-text-subtle hover:text-[var(--accent-color)] uppercase tracking-widest transition-all"
+                    className="w-full py-1.5 bg-gray-800/30 hover:bg-gray-800/60 border-t border-gray-700/30 text-[10px] font-bold text-gray-500 hover:text-blue-400 uppercase tracking-widest transition-all"
                 >
-                    {isExpanded
-                        ? tt('preview.collapseView', 'Collapse View')
-                        : tt('preview.showAllLines', 'Show All Lines ({{count}})', { count: lines.length })}
+                    {isExpanded ? 'Collapse View' : `Show All Lines (${lines.length})`}
                 </button>
             )}
         </div>
@@ -219,9 +206,6 @@ const TypewriterCodeBlock: React.FC <{
 
 // Helper to organize paths into a tree structure for better visualization (Point 3)
 const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
-    const { t } = useTranslation();
-    const tt = (key: string, defaultValue: string, options?: Record<string, any>) =>
-        t(`toolApproval.${key}`, { defaultValue, ...(options ?? {}) });
     const [isExpanded, setIsExpanded] = useState(true);
     
     const tree = React.useMemo(() => {
@@ -242,17 +226,17 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     const renderNode = (node: any, name: string, depth: number) => (
         <div key={name} style={{ paddingLeft: depth > 0 ? 12 : 0 }}>
             {name && (
-                <div className="flex items-center gap-1.5 text-[11px] theme-text-muted py-0.5">
-                    <FolderOpen size={10} className="theme-text-warning opacity-70" />
+                <div className="flex items-center gap-1.5 text-[11px] text-gray-400 py-0.5">
+                    <FolderOpen size={10} className="text-yellow-500/70" />
                     <span className="font-medium">{name}</span>
                 </div>
             )}
-            <div className={name ? "border-l theme-border ml-1.5 pl-2" : ""}>
+            <div className={name ? "border-l border-gray-700/50 ml-1.5 pl-2" : ""}>
                 {Object.keys(node.nodes).map(dir => renderNode(node.nodes[dir], dir, depth + 1))}
                 {node.files.map((file: string) => (
-                    <div key={file} className="flex items-center gap-1.5 text-[11px] theme-text-muted py-0.5 group">
-                        <File size={10} className="theme-text-accent opacity-70" />
-                        <span className="truncate group-hover:text-[var(--accent-color)] transition-colors cursor-default">{file}</span>
+                    <div key={file} className="flex items-center gap-1.5 text-[11px] text-gray-300 py-0.5 group">
+                        <File size={10} className="text-blue-400/70" />
+                        <span className="truncate group-hover:text-blue-300 transition-colors cursor-default">{file}</span>
                     </div>
                 ))}
             </div>
@@ -260,12 +244,10 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     );
 
     return (
-        <div className="theme-panel-muted rounded-lg border theme-border p-2.5">
+        <div className="bg-gray-900/40 rounded-lg border border-gray-700/30 p-2.5">
             <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">
-                    {tt('fileTree.title', '文件结构')}
-                </span>
-                <button onClick={() => setIsExpanded(!isExpanded)} className="theme-button-ghost theme-text-subtle">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">文件结构</span>
+                <button onClick={() => setIsExpanded(!isExpanded)} className="text-gray-500 hover:text-gray-300">
                     {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 </button>
             </div>
@@ -290,6 +272,7 @@ const areToolApprovalPropsEqual = (prevProps: ToolApprovalProps, nextProps: Tool
     return (
         prevProps.toolCall.id === nextProps.toolCall.id &&
         prevProps.toolCall.status === nextProps.toolCall.status &&
+        prevProps.toolCall.isPartial === nextProps.toolCall.isPartial &&
         prevProps.toolCall.result === nextProps.toolCall.result &&
         prevProps.isLatestBashTool === nextProps.isLatestBashTool &&
         prevProps.message?.id === nextProps.message?.id
@@ -302,8 +285,6 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
     const previewData = approvalItem?.previewData;
 
     const { t } = useTranslation();
-    const tt = (key: string, defaultValue: string, options?: Record<string, any>) =>
-        t(`toolApproval.${key}`, { defaultValue, ...(options ?? {}) });
     const settings = useSettingsStore();
     const { editorMode } = useLayoutStore();
     const chatStore = useChatStore();
@@ -355,7 +336,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             const success = await executor.undo();
             if (success) {
               useApprovalStore.getState().updateStatus(toolCall.id, 'undone');
-              toast.success(t('toolApproval.rollbackSnapshotRestored'));
+              toast.success('PIVO: 文件已通过物理快照恢复');
               return;
             }
           }
@@ -389,13 +370,13 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         }
 
         if (result.success) {
-          toast.success(t('toolApproval.rollbackRestored'));
+          toast.success('文件已恢复');
         } else {
-          toast.error(result.error || t('toolApproval.rollbackFailed'));
+          toast.error(result.error || '回滚失败');
         }
       } catch (e) {
         console.error('[Rollback] Error:', e);
-        toast.error(t('toolApproval.rollbackFailedWithError', { error: String(e) }));
+        toast.error('回滚失败: ' + String(e));
       } finally {
         setIsRollingBack(false);
       }
@@ -420,13 +401,13 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         }
 
         if (result.success) {
-          toast.success(t('toolApproval.rollbackForceRestored'));
+          toast.success('文件已强制恢复');
         } else {
-          toast.error(result.error || t('toolApproval.rollbackFailed'));
+          toast.error(result.error || '回滚失败');
         }
       } catch (e) {
         console.error('[Rollback] Error:', e);
-        toast.error(t('toolApproval.rollbackFailedWithError', { error: String(e) }));
+        toast.error('回滚失败: ' + String(e));
       }
     };
 
@@ -516,32 +497,16 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         const TERMINAL_STATES = ['completed', 'failed', 'rejected'];
         if (TERMINAL_STATES.includes(toolCall.status)) {
             switch (toolCall.status) {
-                case 'completed': return tt('status.completed', '已完成');
-                case 'failed': return tt('status.failed', '失败');
-                case 'rejected': return tt('status.rejected', '已拒绝');
+                case 'completed': return '已完成';
+                case 'failed': return '失败';
+                case 'rejected': return '已拒绝';
                 default: return toolCall.status;
             }
         }
-        if (isPartial) return tt('status.generating', '生成中...');
+        if (isPartial) return '生成中...';
         switch (toolCall.status) {
-            case 'approved': return tt('status.approved', '已批准');
-            default: return tt('status.pending', '待审批');
-        }
-    };
-
-    const getStatusBadgeClass = () => {
-        if (isPartial) return 'theme-badge-accent';
-        switch (toolCall.status) {
-            case 'completed':
-                return 'theme-badge-success';
-            case 'failed':
-                return 'theme-badge-danger';
-            case 'approved':
-                return 'theme-badge-info';
-            case 'rejected':
-                return 'theme-panel-muted theme-text-subtle border-[var(--border-color)]';
-            default:
-                return 'theme-badge-warning';
+            case 'approved': return '已批准';
+            default: return '待审批';
         }
     };
 
@@ -565,7 +530,6 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
     const filePath = getToolArg('rel_path') || getToolArg('path', '');
     const newContent = getToolArg('content', '');
-    const fileActionLabel = toolCall.tool?.includes('write') ? t('tool.fileWritten') : t('tool.fileRead');
 
     // 🔥 风险评估逻辑
     const riskLevel = useMemo(() => {
@@ -602,26 +566,43 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             tool: toolCall.tool,
             hasResult: !!toolCall.result,
             resultLength: toolCall.result?.length || 0,
-            resultPreview: toolCall.result?.substring(0, 50) || 'N/A'
+            resultPreview: toolCall.result?.substring(0, 100) || 'N/A'
         });
 
         try {
             const parsed = JSON.parse(toolCall.result);
-            // 检查 output 字段
+            console.log('[ToolApproval] 🔍 Parsed result keys:', Object.keys(parsed));
+
+            // 情况 1: 检查 parsed.output 字段（旧格式）
             if (parsed.output && typeof parsed.output === 'object') {
                 if (parsed.output.structure || parsed.output.key_files) {
-                    console.log('[ToolApproval] ✅ scanData computed successfully (path 1)');
+                    console.log('[ToolApproval] ✅ scanData computed successfully (path 1: parsed.output)');
                     return parsed.output;
                 }
             }
-            // 情况 3: output 是对象
-            else if (parsed.output && typeof parsed.output === 'object') {
-                if (parsed.output.structure || parsed.output.key_files) {
-                    console.log('[ToolApproval] ✅ scanData computed successfully (path 2)');
-                    return parsed.output;
-                }
+
+            // 情况 2: 直接检查 parsed 顶层（新格式：{ structure, key_files, stats, cache_stats }）
+            if (parsed.structure || parsed.key_files) {
+                console.log('[ToolApproval] ✅ scanData computed successfully (path 2: parsed top-level)', {
+                    hasStructure: !!parsed.structure,
+                    hasKeyFiles: !!parsed.key_files,
+                    structureKeys: parsed.structure ? Object.keys(parsed.structure).length : 0,
+                    keyFilesKeys: parsed.key_files ? Object.keys(parsed.key_files).length : 0
+                });
+                return {
+                    structure: parsed.structure,
+                    key_files: parsed.key_files,
+                    stats: parsed.stats,
+                    cache_stats: parsed.cache_stats
+                };
             }
-            console.log('[ToolApproval] ⚠️ scanData parse found no structure/key_files');
+
+            console.log('[ToolApproval] ⚠️ scanData parse found no structure/key_files', {
+                parsedKeys: Object.keys(parsed),
+                hasOutput: !!parsed.output,
+                hasStructure: !!parsed.structure,
+                hasKeyFiles: !!parsed.key_files
+            });
         } catch (e) {
             console.log('[ToolApproval] ❌ scanData parse error:', e);
         }
@@ -648,67 +629,32 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         switch (level) {
             case 'high':
                 return {
-                    icon: <ShieldAlert size={14} className="theme-text-danger" />,
-                    headerStyle: { background: 'linear-gradient(90deg, var(--danger-soft-bg) 0%, transparent 72%)' },
-                    border: 'border-[var(--danger-soft-border)]',
-                    label: tt('risk.high', '高风险操作'),
-                    badgeClass: 'theme-surface-danger'
+                    icon: <ShieldAlert size={14} className="text-red-400" />,
+                    bg: 'from-red-950/40 to-transparent',
+                    border: 'border-red-500/30',
+                    label: '高风险操作',
+                    textColor: 'text-red-400'
                 };
             case 'low':
                 return {
-                    icon: <ShieldCheck size={14} className="theme-text-success" />,
-                    headerStyle: { background: 'linear-gradient(90deg, var(--success-soft-bg) 0%, transparent 72%)' },
-                    border: 'border-[var(--success-soft-border)]',
-                    label: tt('risk.low', '低风险操作'),
-                    badgeClass: 'theme-surface-success'
+                    icon: <ShieldCheck size={14} className="text-green-400" />,
+                    bg: 'from-green-950/20 to-transparent',
+                    border: 'border-green-500/20',
+                    label: '低风险操作',
+                    textColor: 'text-green-400'
                 };
             default:
                 return {
-                    icon: <Shield size={14} className="theme-text-warning" />,
-                    headerStyle: { background: 'linear-gradient(90deg, var(--warning-soft-bg) 0%, transparent 72%)' },
-                    border: 'border-[var(--warning-soft-border)]',
-                    label: tt('risk.medium', '中等风险'),
-                    badgeClass: 'theme-surface-warning'
+                    icon: <Shield size={14} className="text-amber-400" />,
+                    bg: 'from-amber-950/20 to-transparent',
+                    border: 'border-amber-500/20',
+                    label: '中等风险',
+                    textColor: 'text-amber-400'
                 };
         }
     };
 
     const riskVisuals = getRiskVisuals(riskLevel);
-    const statusBadgeClass = getStatusBadgeClass();
-    const resultState = toolCall.status === 'failed'
-        ? 'failed'
-        : (toolCall.result || toolCall.status === 'completed')
-            ? 'success'
-            : 'running';
-    const resultVisuals = resultState === 'failed'
-        ? {
-            barClass: 'bg-[var(--danger-color)]',
-            badgeClass: 'theme-badge-danger',
-            containerClass: 'bg-[var(--danger-soft-bg)] border-[var(--danger-soft-border)]',
-            title: tt('result.failedTitle', '执行失败'),
-            statusLabel: tt('result.failedStatus', '失败'),
-            iconWrapperClass: 'bg-[var(--danger-soft-bg)]',
-            iconClass: 'theme-text-danger',
-        }
-        : resultState === 'success'
-            ? {
-                barClass: 'bg-[var(--success-color)]',
-                badgeClass: 'theme-badge-success',
-                containerClass: 'bg-[var(--success-soft-bg)] border-[var(--success-soft-border)]',
-                title: tt('result.title', '执行结果'),
-                statusLabel: tt('result.successStatus', '成功'),
-                iconWrapperClass: 'bg-[var(--success-soft-bg)]',
-                iconClass: 'theme-text-success',
-            }
-            : {
-                barClass: 'bg-[var(--accent-color)]',
-                badgeClass: 'theme-badge-info',
-                containerClass: 'bg-[var(--accent-soft-bg)] border-[var(--accent-soft-border)]',
-                title: tt('result.title', '执行结果'),
-                statusLabel: tt('result.runningStatus', '运行中'),
-                iconWrapperClass: 'bg-[var(--accent-soft-bg)]',
-                iconClass: 'theme-text-accent',
-            };
 
     // 路径摘要逻辑
     const formatFilePath = (path: string) => {
@@ -751,62 +697,52 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             }
             }, [isWriteFile, filePath, isPartial, oldContent, toolCall.result]);
 
-    const handleOpenPreview = async (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-
-        if (!filePath) {
-            return;
-        }
-
-        const opened = await openFileFromPath(filePath, {
-            id: filePath,
-            name: filePath.split('/').pop() || filePath,
-            language: detectLanguage(filePath),
-        });
-
-        if (!opened) {
-            return;
-        }
-
-        useEditorStore.getState().setApprovalPreview({
-            isVisible: true,
-            filePath,
-            oldContent: oldContent || '',
-            newContent,
-            toolCallId: toolCall.id,
-        });
-    };
-
     return (
-        <div data-testid="file-approval-dialog" data-test-id="tool-approval-card" className={`group/tool mt-4 mb-4 rounded-2xl border ${riskVisuals.border} theme-panel-elevated backdrop-blur-sm theme-shadow overflow-hidden w-full transition-all duration-300 hover:shadow-[var(--app-shadow)]`}>
+        <div data-testid="file-approval-dialog" data-test-id="tool-approval-card" className={`group/tool mt-4 mb-4 rounded-2xl border ${riskVisuals.border} bg-[#1e1e1e]/80 backdrop-blur-sm shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden w-full transition-all duration-300 hover:shadow-blue-500/5`}>
                         {/* Elegant Header (Point 2) */}
-                        <div className="flex items-center justify-between px-5 py-3 border-b theme-border" style={riskVisuals.headerStyle}>
+                        <div className={`flex items-center justify-between px-5 py-3 bg-gradient-to-r ${riskVisuals.bg} border-b border-gray-700/30`}>
                             <div className="flex items-center gap-3 pr-12"> {/* Added pr-12 to avoid copy button overlap */}
-                                <div className={`flex items-center justify-center w-8 h-8 rounded-xl ${getToolColor(toolCall.tool)} bg-opacity-10 border border-current opacity-80 shadow-[0_10px_24px_var(--backdrop-strong)]`}>
+                                <div className={`flex items-center justify-center w-8 h-8 rounded-xl ${getToolColor(toolCall.tool)} bg-opacity-10 border border-current opacity-80 shadow-lg shadow-black/20`}>
                                     {getIcon()}
                                 </div>
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                        <span data-testid="tool-name" className="text-[13px] font-bold theme-text tracking-tight leading-tight">
+                                        <span data-testid="tool-name" className="text-[13px] font-bold text-gray-100 tracking-tight leading-tight">
                                             {getToolLabel(toolCall.tool)}
                                         </span>
-                                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md ${riskVisuals.badgeClass}`}>
+                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-800/30 border border-gray-700/50">
                                             {riskVisuals.icon}
-                                            <span className="text-[9px] font-bold uppercase tracking-tighter">
+                                            <span className={`text-[9px] font-bold uppercase tracking-tighter ${riskVisuals.textColor}`}>
                                                 {riskVisuals.label}
                                             </span>
                                         </div>
                                     </div>
                                     {filePath ? (
                                         <div className="flex items-center gap-2 group/path">
-                                            <span data-testid="file-path" className="text-[10px] theme-text-subtle font-mono font-medium truncate max-w-[220px]" title={filePath}>
-                                                {fileActionLabel} <span className="theme-text font-bold">{formatFilePath(filePath)}</span>
+                                            <span data-testid="file-path" className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
+                                                {toolCall.tool?.includes('write') ? '写入' : '访问'} <span className="text-gray-300 font-bold">{formatFilePath(filePath)}</span>
                                             </span>
                                             {isWriteFile && !isPartial && (
                                                 <button
-                                                    onClick={handleOpenPreview}
-                                                    className="theme-soft-hover-accent theme-text-subtle rounded p-1 transition-all opacity-0 group-hover/path:opacity-100 hover:text-[var(--accent-color)]"
-                                                    title={t('promptManager.editor.tabPreview')}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        useFileStore.getState().openFile({
+                                                            id: filePath,
+                                                            path: filePath,
+                                                            name: filePath.split('/').pop() || '',
+                                                            content: newContent,
+                                                            isDirty: false,
+                                                            language: detectLanguage(filePath),
+                                                            previewDiff: {
+                                                                oldContent: oldContent || '',
+                                                                newContent: newContent,
+                                                                toolCallId: toolCall.id
+                                                            }
+                                                        });
+                                                        toast.info('已开启编辑器内联预览');
+                                                    }}
+                                                    className="p-1 rounded bg-gray-800 hover:bg-blue-500/20 text-gray-500 hover:text-blue-400 transition-all opacity-0 group-hover/path:opacity-100"
+                                                    title="在主编辑器中预览变更"
                                                 >
                                                     <ExternalLink size={10} />
                                                 </button>
@@ -814,15 +750,22 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                         </div>
                                     ) : (
                                         getToolArg('command') && (
-                                            <span className="text-[10px] theme-text-subtle font-mono truncate max-w-[220px]">
-                                                {tt('commandLabel', 'exec')}: {getToolArg('command')}
+                                            <span className="text-[10px] text-gray-500 font-mono truncate max-w-[220px]">
+                                                exec: {getToolArg('command')}
                                             </span>
                                         )
                                     )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div data-testid="status-badge" className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${statusBadgeClass}`}>
+                                <div data-testid="status-badge" className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                                    isPartial ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]' :
+                                    toolCall.status === 'completed' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                                    toolCall.status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                    toolCall.status === 'approved' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                    toolCall.status === 'rejected' ? 'bg-gray-500/10 text-gray-400 border-gray-500/20' :
+                                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}>
                                     {getStatusLabel()}
                                 </div>
                             </div>
@@ -834,7 +777,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     <div className="space-y-4 overflow-hidden">
                         {/* ✅ 流式参数显示 - write_file 也显示参数 */}
                         {isPartial && (
-                            <div data-testid="tool-params" className="theme-code-surface p-4 rounded-xl border theme-border shadow-inner">
+                            <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
                                 <StreamingToolArgsViewer
                                     args={typeof toolCall.args === 'string' ? {} : (toolCall.args || {})}
                                     isStreaming={isPartial}
@@ -860,22 +803,37 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {/* Full Diff View (Only when completed) */}
                         {!isPartial && newContent && (
                             <div className="relative mt-4 group/diff">
-                                <div className="flex items-center gap-2 mb-2 ml-1">
-                                    <div className="w-1 h-3 bg-[var(--accent-color)] rounded-full" />
-                                    <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">
-                                        {tt('diff.title', 'Changes Analysis')}
-                                    </span>
+                                {/* 🎨 优化后的标题栏 */}
+                                <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-lg bg-gradient-to-r from-gray-800/50 to-gray-900/50 border border-gray-700/30">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                                            <span className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Changes Analysis</span>
+                                        </div>
+                                        {/* 📊 变更统计 */}
+                                        {oldContent && newContent && (
+                                            <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-gray-900/50 border border-gray-700/30">
+                                                <span className="text-[10px] text-green-400 font-mono">+{newContent.split('\n').length}</span>
+                                                <span className="text-[9px] text-gray-600">|</span>
+                                                <span className="text-[10px] text-red-400 font-mono">-{oldContent.split('\n').length}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* 🔧 操作按钮组 */}
+                                    <div className="flex items-center gap-1.5">
+                                        {filePath && (
+                                            <span className="text-[9px] text-gray-500 font-mono max-w-[150px] truncate" title={filePath}>
+                                                {filePath.split('/').pop()}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 {(() => {
                                     const contentLength = newContent.length;
                                     if (contentLength > MAX_DIFF_SIZE) {
                                         return (
-                                            <div className="p-4 rounded-xl border border-[var(--warning-soft-border)] bg-[var(--warning-soft-bg)] text-[11px] theme-text-warning leading-relaxed italic">
-                                                {tt(
-                                                    'diff.largeFileSkipped',
-                                                    'Diff view skipped due to large file size ({{size}} KB). Content preserved in editor.',
-                                                    { size: (contentLength / 1024).toFixed(1) }
-                                                )}
+                                            <div className="p-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-[11px] text-yellow-200/80 leading-relaxed italic">
+                                                Diff view skipped due to large file size ({ (contentLength/1024).toFixed(1) } KB). Content preserved in editor.
                                             </div>
                                         );
                                     }
@@ -888,24 +846,31 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     const canShowDiff = oldContent !== null && newContent && typeof oldContent === 'string' && typeof newContent === 'string';
 
                                     return (
-                                        <div className="rounded-xl border theme-border overflow-hidden shadow-inner theme-code-surface">
+                                        <div className="rounded-xl border border-gray-700/40 overflow-hidden shadow-xl bg-[#0d1117] relative">
+                                            {/* 🎨 顶部装饰条 */}
+                                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 opacity-50" />
+
                                             {canShowDiff ? (
-                                                <MonacoDiffView
-                                                    oldValue={oldContent}
-                                                    newValue={newContent}
-                                                    language={lang}
-                                                    height="300px"
-                                                />
+                                                <div className="relative">
+                                                    {/* 📊 行数提示 */}
+                                                    <div className="absolute top-2 right-2 z-10 px-2 py-1 rounded bg-black/60 border border-gray-700/50 text-[9px] text-gray-400 font-mono">
+                                                        {newContent.split('\n').length} lines
+                                                    </div>
+                                                    <MonacoDiffView
+                                                        oldValue={oldContent}
+                                                        newValue={newContent}
+                                                        language={lang}
+                                                        height="300px"
+                                                    />
+                                                </div>
                                             ) : (
                                                 <div className="p-8 text-center min-h-[200px] flex flex-col items-center justify-center">
-                                                    <div className="text-[11px] theme-text-subtle font-mono mb-3 uppercase tracking-widest animate-pulse">
-                                                        {isWriteFile
-                                                            ? tt('diff.preparing', 'Preparing Diff Analysis...')
-                                                            : tt('diff.loadingContent', 'Loading Content...')}
+                                                    <div className="text-[11px] text-gray-500 font-mono mb-3 uppercase tracking-widest animate-pulse">
+                                                        {isWriteFile ? 'Preparing Diff Analysis...' : 'Loading Content...'}
                                                     </div>
                                                     {newContent && typeof newContent === 'string' && (
                                                         <div className="w-full max-w-md">
-                                                            <pre className="text-[10px] theme-text-muted text-left theme-panel p-4 rounded border theme-border max-h-40 overflow-auto scrollbar-hide">
+                                                            <pre className="text-[10px] text-gray-400 text-left bg-black/20 p-4 rounded border border-gray-800/50 max-h-40 overflow-auto scrollbar-hide">
                                                                 {newContent.substring(0, 500)}{newContent.length > 500 ? '...' : ''}
                                                             </pre>
                                                         </div>
@@ -923,19 +888,15 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     <div className="space-y-3">
                         {/* 工具类型标题 */}
                         <div className="flex items-center gap-2">
-                            <div className="w-1 h-4 bg-[var(--accent-color)] rounded-full" />
-                            <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">
-                                {tt('sections.parameters', '操作参数')}
-                            </span>
+                            <div className="w-1 h-4 bg-blue-500 rounded-full" />
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">操作参数</span>
                             {isPartial && (
                                 <div className="flex items-center gap-1.5 ml-auto">
                                     <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent-soft-border)] opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--accent-color)]"></span>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                                     </span>
-                                    <span className="text-[10px] font-bold text-[var(--accent-color)] animate-pulse uppercase">
-                                        {tt('status.generatingShort', '生成中')}
-                                    </span>
+                                    <span className="text-[10px] font-bold text-blue-400 animate-pulse uppercase">生成中</span>
                                 </div>
                             )}
                         </div>
@@ -950,7 +911,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         )}
 
                         {/* 工具参数可视化 */}
-                        <div data-testid="tool-params" className="theme-code-surface p-4 rounded-xl border theme-border shadow-inner">
+                        <div data-testid="tool-params" className="bg-gradient-to-br from-gray-900/60 to-gray-900/40 p-4 rounded-xl border border-gray-700/30 shadow-inner">
                             <StreamingToolArgsViewer
                                 args={typeof toolCall.args === 'string' ? {} : (toolCall.args || {})}
                                 isStreaming={isPartial}
@@ -967,44 +928,38 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             />
                         ) : toolCall.tool === 'agent_write_file' && !isPartial && (
                             // 🏆 降级保护：如果预览没出来，显示个占位或提示
-                            <div className="mt-3 p-3 theme-panel border theme-border rounded-xl">
-                                <div className="text-[10px] theme-text-subtle italic">
-                                    {tt('preview.preparingChanges', '正在准备变更预览...')}
-                                </div>
+                            <div className="mt-3 p-3 bg-gray-800/50 border border-gray-700/30 rounded-xl">
+                                <div className="text-[10px] text-gray-500 italic">正在准备变更预览...</div>
                             </div>
                         )}
 
                         {/* 🔥 PIVO 2.0: 目录列表预览 */}
                         {toolCall.tool === 'agent_list_dir' && (
-                            <div className="mt-3 p-3 theme-surface-info rounded-xl flex items-center gap-3">
-                                <FolderOpen className="theme-text-info" size={16} />
-                                <div className="text-[11px] italic">{tt('preview.directoryScanning', '正在扫描目录结构...')}</div>
+                            <div className="mt-3 p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-center gap-3">
+                                <FolderOpen className="text-blue-400" size={16} />
+                                <div className="text-[11px] text-blue-300/80 italic">正在扫描目录结构...</div>
                             </div>
                         )}
 
                         {/* 🔥 PIVO 2.0: 搜索意图预览 */}
                         {previewData && (toolCall.tool === 'agent_search' || toolCall.tool === 'search_semantic') && (
-                            <div className="mt-3 overflow-hidden rounded-xl theme-surface-info">
-                                <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--info-soft-border)]">
-                                    <Search size={14} className="theme-text-info" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest theme-text-info">
-                                        {tt('preview.searchTitle', '{{toolType}}预览', { toolType: previewData.toolType })}
+                            <div className="mt-3 overflow-hidden rounded-xl border border-blue-500/20 bg-blue-500/5">
+                                <div className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border-b border-blue-500/10">
+                                    <Search size={14} className="text-blue-400" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-blue-300">
+                                        {previewData.toolType}预览
                                     </span>
                                 </div>
                                 <div className="p-3">
                                     <div className="flex items-center gap-2 mb-1.5">
-                                        <span className="text-[10px] theme-text-subtle uppercase">
-                                            {tt('preview.queryLabel', '关键词')}:
-                                        </span>
-                                        <code className="theme-code-inline theme-text-accent text-[11px] font-mono px-1.5 py-0.5 rounded">
+                                        <span className="text-[10px] text-gray-500 uppercase">关键词:</span>
+                                        <code className="text-[11px] text-blue-300 font-mono bg-blue-900/30 px-1.5 py-0.5 rounded">
                                             {previewData.query}
                                         </code>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] theme-text-subtle uppercase">
-                                            {tt('preview.scopeLabel', '范围')}:
-                                        </span>
-                                        <span className="text-[11px] theme-text-muted font-mono">{previewData.scope}</span>
+                                        <span className="text-[10px] text-gray-500 uppercase">范围:</span>
+                                        <span className="text-[11px] text-gray-300 font-mono">{previewData.scope}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1012,30 +967,22 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
                         {/* 🔥 PIVO 2.0: 符号分析预览 */}
                         {previewData && (toolCall.tool === 'get_file_symbols' || toolCall.tool === 'agent_list_functions') && (
-                            <div className="mt-3 p-3 theme-surface-accent rounded-xl flex items-start gap-3">
-                                <Search className="theme-text-accent shrink-0" size={16} />
+                            <div className="mt-3 p-3 bg-indigo-500/5 border border-indigo-500/20 rounded-xl flex items-start gap-3">
+                                <Search className="text-indigo-400 shrink-0" size={16} />
                                 <div>
-                                    <div className="text-[10px] font-bold theme-text-accent uppercase">
-                                        {tt('preview.symbolTitle', '{{toolType}}预览', { toolType: previewData.toolType })}
-                                    </div>
-                                    <div className="text-[11px] mt-0.5 italic">
-                                        {tt('preview.symbolDescription', '正在深度解析代码语义: {{fileName}}', { fileName: previewData.fileName })}
-                                    </div>
+                                    <div className="text-[10px] font-bold text-indigo-300 uppercase">{previewData.toolType}预览</div>
+                                    <div className="text-[11px] text-indigo-400/80 mt-0.5 italic">正在深度解析代码语义: {previewData.fileName}</div>
                                 </div>
                             </div>
                         )}
 
                         {/* 🔥 PIVO 2.0: Bash 风险预警 */}
                         {previewData && toolCall.tool === 'bash' && previewData.isDestructive && (
-                            <div className="mt-3 p-3 theme-surface-danger rounded-xl flex items-start gap-3">
-                                <AlertTriangle className="theme-text-danger shrink-0" size={16} />
+                            <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
+                                <AlertTriangle className="text-red-400 shrink-0" size={16} />
                                 <div>
-                                    <div className="text-[10px] font-bold theme-text-danger uppercase">
-                                        {tt('preview.dangerTitle', '高风险操作警示')}
-                                    </div>
-                                    <div className="text-[11px] mt-0.5">
-                                        {tt('preview.dangerDescription', '该命令包含敏感操作（如删除或权限修改），执行前请仔细检查。')}
-                                    </div>
+                                    <div className="text-[10px] font-bold text-red-300 uppercase">高风险操作警示</div>
+                                    <div className="text-[11px] text-red-400/80 mt-0.5">该命令包含敏感操作（如删除或权限修改），执行前请仔细检查。</div>
                                 </div>
                             </div>
                         )}
@@ -1046,28 +993,28 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
             {/* Actions (Approve/Reject) */}
             {isPending && !isPartial && (
-                <div className="flex border-t theme-border">
+                <div className="flex border-t border-gray-700/30">
                     {!settings.agentAutoApprove ? (
                         <>
                             <button
                                 data-testid="approve-button"
                                 onClick={() => onApprove(toolCall.id)}
-                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest theme-text-success hover:bg-[var(--success-soft-bg)] flex items-center justify-center gap-2 border-r theme-border transition-all duration-200"
+                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r border-gray-700/30 transition-all duration-200"
                             >
-                                <Check size={14} /> {tt('actions.approve', '批准执行')}
+                                <Check size={14} /> 批准执行
                             </button>
                             <button
                                 data-testid="reject-button"
                                 onClick={() => onReject(toolCall.id)}
-                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest theme-text-danger hover:bg-[var(--danger-soft-bg)] flex items-center justify-center gap-2 transition-all duration-200"
+                                className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-2 transition-all duration-200"
                             >
-                                <X size={14} /> {tt('actions.reject', '拒绝')}
+                                <X size={14} /> 拒绝
                             </button>
                         </>
                     ) : (
-                        <div className="w-full px-5 py-3 theme-surface-info flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[var(--info-color)] animate-pulse" />
-                            {tt('autoApprove.enabled', '自动批准已开启 · 工具执行中')}
+                        <div className="w-full px-5 py-3 bg-blue-500/5 flex items-center gap-2 text-[10px] font-bold text-blue-400/80 uppercase tracking-widest">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                            自动批准已开启 · 工具执行中
                         </div>
                     )}
                 </div>
@@ -1078,24 +1025,24 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
              toolCall.tool === 'agent_write_file' &&
              hasRollbackData &&
              hasRollbackFeature && (
-                <div className="flex border-t theme-border">
+                <div className="flex border-t border-gray-700/30">
                     <button
                         onClick={handleUndo}
                         disabled={isRollingBack}
                         className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest
-                                   theme-text-warning hover:bg-[var(--warning-soft-bg)]
+                                   text-amber-400 hover:bg-amber-500/10
                                    disabled:opacity-50 disabled:cursor-not-allowed
                                    flex items-center justify-center gap-2 transition-all duration-200"
                     >
                         {isRollingBack ? (
                             <>
                                 <Loader2 size={14} className="animate-spin" />
-                                {tt('actions.undoPending', '撤销中...')}
+                                撤销中...
                             </>
                         ) : (
                             <>
                                 <RotateCcw size={14} />
-                                {tt('actions.undo', '撤销')}
+                                撤销
                             </>
                         )}
                     </button>
@@ -1104,29 +1051,29 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
 
             {/* 🔥 冲突确认对话框 */}
             {showConflictDialog && (
-                <div className="theme-backdrop fixed inset-0 z-[200] flex items-center justify-center">
-                    <div className="theme-panel-elevated w-[400px] rounded-lg border theme-border theme-shadow">
-                        <div className="p-4 border-b theme-border">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
+                    <div className="bg-[#252526] w-[400px] rounded-lg border border-gray-700 shadow-xl">
+                        <div className="p-4 border-b border-gray-700">
                             <h2 className="text-lg font-medium flex items-center gap-2">
-                                <AlertTriangle className="theme-text-warning" size={18} />
-                                {tt('conflict.title', '检测到手动修改')}
+                                <AlertTriangle className="text-amber-400" size={18} />
+                                检测到手动修改
                             </h2>
                         </div>
-                        <div className="p-6 text-sm theme-text-muted">
-                            {tt('conflict.description', '文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。')}
+                        <div className="p-6 text-sm text-gray-300">
+                            文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。
                         </div>
-                        <div className="p-4 border-t theme-border flex justify-end gap-3">
+                        <div className="p-4 border-t border-gray-700 flex justify-end gap-3">
                             <button
                                 onClick={() => setShowConflictDialog(false)}
-                                className="px-4 py-2 theme-button-secondary text-sm rounded transition-colors"
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
                             >
-                                {tt('actions.cancel', '取消')}
+                                取消
                             </button>
                             <button
                                 onClick={handleConfirmRollback}
-                                className="px-4 py-2 theme-button-danger text-sm rounded font-bold transition-colors"
+                                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded font-bold transition-colors"
                             >
-                                {tt('actions.confirmRollback', '确认回滚')}
+                                确认回滚
                             </button>
                         </div>
                     </div>
@@ -1144,7 +1091,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             workingDir={workingDir || undefined}
                             timeoutMs={30000}
                             throttleLines={5}
-                            className="theme-border"
+                            className="border-gray-700"
                         />
                     </div>
                 );
@@ -1155,20 +1102,20 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 const bashCommand = getToolArg('command', '');
                 return (
                     <div className="px-5 pb-4">
-                        <div className="border theme-border rounded-lg overflow-hidden theme-code-surface">
-                            <div className="flex items-center justify-between px-3 py-2 theme-panel-muted border-b theme-border">
+                        <div className="border border-gray-700 rounded-lg overflow-hidden bg-[#1e1e1e]">
+                            <div className="flex items-center justify-between px-3 py-2 bg-[#252526] border-b border-gray-700">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Terminal size={14} className="theme-text-subtle shrink-0" />
-                                    <code className="text-xs theme-text-muted truncate font-mono">{bashCommand}</code>
+                                    <Terminal size={14} className="text-gray-400 shrink-0" />
+                                    <code className="text-xs text-gray-300 truncate font-mono">{bashCommand}</code>
                                 </div>
-                                <div className="flex items-center gap-2 theme-text-warning">
-                                    <div className="w-2 h-2 bg-[var(--warning-color)] rounded-full animate-pulse" />
-                                    <span className="text-xs">{tt('status.executing', '执行中...')}</span>
+                                <div className="flex items-center gap-2 text-yellow-400">
+                                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                                    <span className="text-xs">执行中...</span>
                                 </div>
                             </div>
-                            <div className="p-3 font-mono text-xs theme-text-subtle flex items-center gap-2">
-                                <div className="w-2 h-4 bg-[var(--warning-soft-border)] animate-pulse" />
-                                <span className="italic">{tt('status.waitingOutput', '等待命令输出...')}</span>
+                            <div className="p-3 font-mono text-xs text-gray-500 flex items-center gap-2">
+                                <div className="w-2 h-4 bg-yellow-500/50 animate-pulse" />
+                                <span className="italic">等待命令输出...</span>
                             </div>
                         </div>
                     </div>
@@ -1180,9 +1127,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 <div className="px-5 pb-4">
                     <ToolExecutionIndicator
                         status="running"
-                        message={isWriteFile
-                            ? tt('status.writingFile', '正在写入文件: {{path}}', { path: filePath })
-                            : tt('status.executingOperation', '正在执行操作...')}
+                        message={isWriteFile ? `正在写入文件: ${filePath}` : '正在执行操作...'}
                     />
                 </div>
             )}
@@ -1192,24 +1137,39 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 <div className="px-5 pb-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                            <div className={`w-1 h-4 rounded-full ${resultVisuals.barClass}`} />
-                            <span className="text-[10px] font-bold theme-text-subtle uppercase tracking-widest">
-                                {resultVisuals.title}
+                            <div className={`w-1 h-4 rounded-full ${
+                                toolCall.status === "failed" ? "bg-red-500" :
+                                toolCall.result || toolCall.status === "completed" ? "bg-green-500" : "bg-gray-500"
+                            }`} />
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                                {toolCall.status === "failed" ? "执行失败" : "执行结果"}
                             </span>
                         </div>
-                        <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${resultVisuals.badgeClass}`}>
-                            {resultVisuals.statusLabel}
+                        <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
+                            toolCall.status === "failed"
+                                ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                : toolCall.result || toolCall.status === "completed"
+                                ? "bg-green-500/10 text-green-400 border-green-500/20"
+                                : "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                        }`}>
+                            {toolCall.status === "failed" ? "失败" : toolCall.result || toolCall.status === "completed" ? "成功" : "运行中"}
                         </div>
                     </div>
 
-                    <div className={`p-4 rounded-xl border overflow-hidden ${resultVisuals.containerClass}`}>
+                    <div className={`p-4 rounded-xl border overflow-hidden ${
+                        toolCall.status === "failed"
+                            ? "bg-gradient-to-br from-red-500/5 to-red-500/10 border-red-500/20"
+                            : toolCall.result || toolCall.status === "completed"
+                            ? "bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20"
+                            : "bg-gradient-to-br from-gray-500/5 to-gray-500/10 border-gray-500/20"
+                    }`}>
                         {(toolCall.result || toolCall.status === "completed") && toolCall.status !== "failed" && (
                             <div className="flex items-center justify-center mb-3">
                                 <div className="relative">
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${resultVisuals.iconWrapperClass}`}>
-                                        <CheckCircle className={`w-6 h-6 ${resultVisuals.iconClass}`} />
+                                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                                        <CheckCircle className="w-6 h-6 text-green-400" />
                                     </div>
-                                    <div className="absolute inset-0 w-12 h-12 rounded-full bg-[var(--success-soft-bg)] animate-ping" />
+                                    <div className="absolute inset-0 w-12 h-12 rounded-full bg-green-400/20 animate-ping" />
                                 </div>
                             </div>
                         )}
@@ -1217,8 +1177,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {toolCall.status === "failed" && (
                             <div className="flex items-center justify-center mb-3">
                                 <div className="relative">
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${resultVisuals.iconWrapperClass}`}>
-                                        <XCircle className={`w-6 h-6 ${resultVisuals.iconClass}`} />
+                                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                                        <XCircle className="w-6 h-6 text-red-400" />
                                     </div>
                                 </div>
                             </div>
@@ -1259,20 +1219,20 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 return (
                                     <ReactMarkdown
                                         components={{
-                                            h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold theme-text mb-2" />,
-                                            h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold theme-text-muted mb-2 mt-3" />,
-                                            h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold theme-text-subtle mb-1" />,
-                                            p: ({node, ...props}) => <p {...props} className="text-xs theme-text-muted mb-2 last:mb-0" />,
-                                            ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 theme-text-muted space-y-1" />,
-                                            ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 theme-text-muted space-y-1" />,
-                                            li: ({node, ...props}) => <li {...props} className="ml-2 theme-text-muted" />,
-                                            strong: ({node, ...props}) => <strong {...props} className="font-bold theme-text" />,
-                                            em: ({node, ...props}) => <em {...props} className="italic theme-text-muted" />,
+                                            h1: ({node, ...props}) => <h1 {...props} className="text-base font-bold text-gray-200 mb-2" />,
+                                            h2: ({node, ...props}) => <h2 {...props} className="text-sm font-bold text-gray-300 mb-2 mt-3" />,
+                                            h3: ({node, ...props}) => <h3 {...props} className="text-xs font-bold text-gray-400 mb-1" />,
+                                            p: ({node, ...props}) => <p {...props} className="text-xs text-gray-300 mb-2 last:mb-0" />,
+                                            ul: ({node, ...props}) => <ul {...props} className="list-disc list-inside mb-2 text-gray-300 space-y-1" />,
+                                            ol: ({node, ...props}) => <ol {...props} className="list-decimal list-inside mb-2 text-gray-300 space-y-1" />,
+                                            li: ({node, ...props}) => <li {...props} className="ml-2 text-gray-300" />,
+                                            strong: ({node, ...props}) => <strong {...props} className="font-bold text-gray-200" />,
+                                            em: ({node, ...props}) => <em {...props} className="italic text-gray-300" />,
                                             code({ node, inline, ...rest }: any) {
-                                                if (inline) return <code {...rest} className="px-1.5 py-0.5 theme-code-inline theme-text rounded text-[10px] font-mono" />;
-                                                return <code {...rest} className="block theme-code-surface p-2 rounded text-[10px] theme-text-muted font-mono overflow-x-auto" />;
+                                                if (inline) return <code {...rest} className="px-1.5 py-0.5 bg-gray-800 text-green-400 rounded text-[10px] font-mono" />;
+                                                return <code {...rest} className="block bg-gray-900 p-2 rounded text-[10px] text-gray-300 font-mono overflow-x-auto" />;
                                             },
-                                            pre: ({node, ...props}) => <pre {...props} className="theme-code-surface p-3 rounded-lg overflow-x-auto mb-2 border theme-border" />,
+                                            pre: ({node, ...props}) => <pre {...props} className="bg-gray-900 p-3 rounded-lg overflow-x-auto mb-2 border border-gray-700" />,
                                         }}
                                     >
                                         {formatToolResultToMarkdown(toolCall.result, toolCall)}

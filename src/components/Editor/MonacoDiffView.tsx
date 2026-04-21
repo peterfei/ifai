@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
-import { getMonacoTheme } from '../../utils/theme';
+import '../../styles/monaco-decorations.css';
 
 interface MonacoDiffViewProps {
   oldValue: string;
@@ -32,7 +32,7 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
         readOnly: true,
         renderSideBySide: true,
         automaticLayout: true,
-        theme: getMonacoTheme(theme as 'vs-dark' | 'light'),
+        theme: theme,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         lineNumbers: 'on',
@@ -44,9 +44,11 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
             useShadows: false,
             verticalHasArrows: false,
             horizontalHasArrows: false,
-            verticalScrollbarSize: 10,
-            horizontalScrollbarSize: 10,
-        }
+            verticalScrollbarSize: 6,
+            horizontalScrollbarSize: 6,
+        },
+        // 🎨 优化 diff 概览标尺（通过 CSS 覆盖，见 monaco-decorations.css）
+        overviewRulerLanes: 1,
       });
 
       diffEditor.setModel({
@@ -97,7 +99,7 @@ export const MonacoDiffView: React.FC<MonacoDiffViewProps> = ({
   return (
     <div 
       ref={containerRef} 
-      style={{ height, width: '100%', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }} 
+      style={{ height, width: '100%', borderRadius: '4px', overflow: 'hidden', border: '1px solid #333' }} 
     />
   );
 };

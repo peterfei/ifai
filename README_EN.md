@@ -1,5 +1,23 @@
 # IfAI — A Mature AI Native Harness 🚀
 
+### 🌟 v0.4.2 Highlights: Skill Center Refactor & Streaming Performance Optimization
+- **Skill Center Phase 7 UI Refactor**: Fullscreen layout with split-panel details, search & filter, grid/list view, batch operations, skill editor (create/edit/view/preview), stats display `Skills(3/12)`.
+- **Streaming Performance Optimization**: BatchEventStream batch event processing, high-frequency log cleanup (log I/O reduced from ~15% to <1%), VirtualMessageList 10k-message cache optimization.
+- **Tool Call Race Condition Fix**: Force sync buffer before finish event handling, resolving approval component not showing.
+- **E2E Performance Test Framework v2.0**: Metaprogramming-driven ScenarioBuilder DSL, supporting 10,000 message stress test and long history real AI response test.
+- **Conversation Archive Engine**: Multi-format archiving, browsing, detail viewing, and restore functionality.
+- **Agent Prompt Unified Loader**: SmartScanner framework, AgentType prompt unified management.
+- **10 Bug Fixes**: Streaming indicator dedup, MonacoDiffView/MonacoEditor fixes, skill system install/stats fixes, skeleton screen/cache/compatibility fixes.
+- **Test Fixes**: Vitest 132/0 failed, E2E 409+/0 failed, SkillsIntegration 27/27 rewritten.
+
+### 🌟 v0.4.1 Highlights: Multi-Agent Collaboration & Message Stability
+- **Multi-Agent Collaboration System (P0-P4)**: ~7,130 lines of code, 79 test cases, complete DAG workflow engine, agent communication protocol, collaboration visualization, tab isolation.
+- **Workflow Engine**: Rust backend DAG workflow engine with topological sort scheduling, parallel execution, and conditional branches.
+- **Message Queue System**: Dual queue + priority scheduling for normal and workflow messages.
+- **Tab Message Isolation**: Fixed message cross-talk during thread switching.
+- **Workflow Inline Monitor**: Real-time workflow node execution visualization.
+- **Message Persistence Fixes**: Fixed IndexedDB version conflicts and persist rehydrate overwriting memory messages.
+
 ### 🌟 v0.4.0 Highlights: Prompt Ecosystem, Multi-Agent Architecture & Conversation Management
 - **Prompt Management System**: Layered transparency strategy (80%/15%/5%), version control, Monaco Editor integration
 - **Multi-Agent System**: Community edition unlocked! Explore/Review/TaskBreakdown/ProposalGenerator/Refactor Agents
@@ -64,6 +82,8 @@ As a mature AI Native Harness, IfAI provides:
 
 ### 📈 Project Status
 
+- **✅ v0.4.2** - Apr 21, 2026 (Skill Center Refactor & Streaming Performance Optimization)
+- **✅ v0.4.1** - Apr 2026 (Multi-Agent Collaboration & Message Stability)
 - **✅ v0.4.0** - Apr 08, 2026 (Prompt Ecosystem, Multi-Agent Architecture & Conversation Management — Mature Harness)
 - **✅ v0.3.12** - Event-Driven Architecture & Streaming Order
 - **✅ v0.3.9** - Physical Fidelity & Cognitive Upgrade

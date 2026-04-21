@@ -6,7 +6,6 @@ const CommandPalette = React.lazy(() => import('./components/CommandPalette/Comm
 const CommandBar = React.lazy(() => import('./components/CommandBar').then(m => ({ default: m.CommandBar })));
 const SettingsModal = React.lazy(() => import('./components/Settings/SettingsModal').then(m => ({ default: m.SettingsModal })));
 const KeyboardShortcutsModal = React.lazy(() => import('./components/Help/KeyboardShortcutsModal').then(m => ({ default: m.KeyboardShortcutsModal })));
-const AboutModal = React.lazy(() => import('./components/Help/AboutModal').then(m => ({ default: m.AboutModal })));
 const GlobalAgentMonitor = React.lazy(() => import('./components/AIChat/GlobalAgentMonitor').then(m => ({ default: m.GlobalAgentMonitor })));
 const PerformancePanel = React.lazy(() => import('./components/DevTools/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
 const CacheStatsPanel = React.lazy(() => import('./components/PerformanceMonitor/CacheStatsPanel').then(m => ({ default: m.CacheStatsPanel })));
@@ -23,6 +22,7 @@ const RefactoringPreviewPanel = React.lazy(() => import('./components/Refactorin
 // P2: TodoWrite 任务面板
 const TodoWritePanel = React.lazy(() => import('./components/TodoWrite').then(m => ({ default: m.TodoWritePanel })));
 // 技能列表坞
+const SkillsDock = React.lazy(() => import('./components/Skills/SkillsDock').then(m => ({ default: m.SkillsDock })));
 // P3: 工具浏览器
 const ToolExplorerPanel = React.lazy(() => import('./components/ToolExplorer').then(m => ({ default: m.ToolExplorerPanel })));
 // P4: 多智能体工作流
@@ -86,7 +86,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useChatStore } from './stores/chat/CoreStoreProxy';
 import { useSettingsStore } from './stores/settingsStore';
 import { useSnippetStore } from './stores/snippetStore';
-import { applyThemeToDocument, getSonnerTheme, isDarkTheme } from './utils/theme';
 
 // v0.3.0: 暴露 i18n 到 window 对象供 E2E 测试使用
 // 在模块加载时立即暴露，确保在测试运行时可用
@@ -97,13 +96,11 @@ console.log('[App] i18n exposed at module load, language:', i18nInstance.languag
 /** TodoWrite 面板三态包装器（full/collapsed/hidden） */
 function TodoWritePanelWrapper() {
   const panelState = useTodoWriteStore((s) => s.panelState);
-  const theme = useSettingsStore((state) => state.theme);
-  const dark = isDarkTheme(theme);
   if (panelState === 'hidden') return null;
   return (
-    <div className={clsx('theme-border overflow-hidden border-l transition-all duration-300 ease-in-out', dark ? 'theme-panel' : 'theme-panel', 
+    <div className={`border-l border-gray-700 transition-all duration-300 ease-in-out overflow-hidden ${
       panelState === 'collapsed' ? 'w-10' : 'w-96'
-    )}>
+    }`}>
       <Suspense fallback={null}>
         <TodoWritePanel onClose={() => useTodoWriteStore.getState().setPanelState('hidden')} />
       </Suspense>
@@ -136,8 +133,6 @@ function App() {
 
   const { t } = useTranslation();
   const { activeFileId, openedFiles, setFileDirty, fetchGitStatuses } = useFileStore();
-  const theme = useSettingsStore((state) => state.theme);
-  const dark = isDarkTheme(theme);
 
   const {
     isChatOpen,
@@ -191,17 +186,11 @@ function App() {
   const [isResizingSidebar, setIsResizingSidebar] = React.useState(false);
   const [showCacheStats, setShowCacheStats] = useState(false);
 
-  const isKeyboardShortcutsOpen = useHelpStore((state) => state.isKeyboardShortcutsOpen);
-  const closeKeyboardShortcuts = useHelpStore((state) => state.closeKeyboardShortcuts);
-  const isAboutOpen = useHelpStore((state) => state.isAboutOpen);
-  const closeAbout = useHelpStore((state) => state.closeAbout);
+  // Keyboard shortcuts modal state
+  const { isKeyboardShortcutsOpen, closeKeyboardShortcuts } = useHelpStore();
 
   // Onboarding state
   const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'download' | 'apikey' | null>(null);
-
-  useEffect(() => {
-    applyThemeToDocument(theme);
-  }, [theme]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -947,14 +936,16 @@ function App() {
       <div 
 
         className={clsx(
-          'app-shell theme-panel flex h-screen flex-col overflow-hidden transition-all duration-300'
+
+          "flex flex-col h-screen text-white overflow-hidden transition-all duration-1000",
+
+          editorMode === 'vibe' ? "bg-[#1e1e1e]" : "bg-[#0f172a]"
+
         )}
 
         data-layout={layoutMode}
 
         data-editor-mode={editorMode}
-
-        data-theme={theme}
 
       >
 
@@ -970,7 +961,7 @@ function App() {
         )}
         {isSidebarOpen && sidebarPosition === 'left' && (
           <div
-            className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent-soft-border)]"
+            className="cursor-col-resize hover:bg-blue-500/50 transition-colors w-1 bg-transparent"
             onMouseDown={(e) => {
               setIsResizingSidebar(true);
               const startX = e.clientX;
@@ -1001,7 +992,7 @@ function App() {
           <AIChat width={chatWidth} onResizeStart={() => setIsResizingChat(true)} />
         )}
 
-        <div className="theme-panel flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
           <TabBar />
           <ApprovalToolbar />
           <div className="flex-1 relative overflow-hidden">
@@ -1028,7 +1019,7 @@ function App() {
             )}
           </div>
           {isTerminalOpen && (
-            <div className="theme-border relative h-64 border-t">
+            <div className="h-64 border-t border-gray-700 relative">
               <TerminalPanel onClose={toggleTerminal} />
             </div>
           )}
@@ -1040,14 +1031,14 @@ function App() {
 
         {/* v0.3.0: 代码分析面板 */}
         {useCodeSmellStore((state) => state.isPanelOpen) && (
-          <div className="theme-border w-96 border-l">
+          <div className="w-96 border-l border-gray-700">
             <CodeSmellPanel onClose={() => useCodeSmellStore.getState().setPanelOpen(false)} />
           </div>
         )}
 
         {/* v0.3.0: 重构预览面板 */}
         {useRefactoringStore((state) => state.isPreviewOpen) && (
-          <div className="theme-border w-[500px] border-l">
+          <div className="w-[500px] border-l border-gray-700">
             <RefactoringPreviewPanel onClose={() => useRefactoringStore.getState().clearPreview()} />
           </div>
         )}
@@ -1059,7 +1050,7 @@ function App() {
         {isSidebarOpen && sidebarPosition === 'right' && (
           <>
             <div
-              className="theme-divider w-1 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent-soft-border)]"
+              className="cursor-col-resize hover:bg-blue-500/50 transition-colors w-1 bg-transparent"
               onMouseDown={(e) => {
                 setIsResizingSidebar(true);
                 const startX = e.clientX;
@@ -1090,18 +1081,10 @@ function App() {
         <Suspense fallback={null}><CommandPalette onSelect={handleSelectFileFromPalette} /></Suspense>
         <Suspense fallback={null}><CommandBar /></Suspense>
         <Suspense fallback={<ModalSkeleton />}><SettingsModal /></Suspense>
-        <Suspense fallback={null}>
-          <KeyboardShortcutsModal
-            isOpen={isKeyboardShortcutsOpen}
-            onClose={closeKeyboardShortcuts}
-          />
-        </Suspense>
-        <Suspense fallback={null}>
-          <AboutModal
-            isOpen={isAboutOpen}
-            onClose={closeAbout}
-          />
-        </Suspense>
+        <KeyboardShortcutsModal
+          isOpen={isKeyboardShortcutsOpen}
+          onClose={closeKeyboardShortcuts}
+        />
         {/* 🏆 PIVO 3.0: 工作流内嵌监控器 - 在聊天消息流中显示（集成在 AIChat 组件内） */}
         {useSettingsStore((state) => state.showPerformanceMonitor) && (
           <PerformancePanel
@@ -1114,7 +1097,7 @@ function App() {
         {useDebugStore((state) => state.isToolClassificationTestOpen) && <ToolClassificationTestPage />}
 
         <div data-testid="toast-container">
-          <Toaster position="bottom-right" theme={getSonnerTheme(theme)} />
+          <Toaster position="bottom-right" theme="dark" />
         </div>
 
         {/* Onboarding */}
@@ -1163,13 +1146,14 @@ function App() {
         <div id="monaco-inline-ai-portal" className="fixed inset-0 pointer-events-none z-[280]" />
 
         {/* 技能列表坞 - 左下角 (已隐藏，使用侧边栏技能面板代替) */}
+        {/* <Suspense fallback={null}><SkillsDock /></Suspense> */}
 
         {/* v0.2.9: Git Commit Button (shows when files are staged) */}
         {showCommitButton && (
           <div className="fixed bottom-20 right-8 z-[200]">
             <button
               onClick={handleCommitClick}
-              className="theme-button-primary theme-shadow flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-lg transition-all"
               data-testid="commit-button"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

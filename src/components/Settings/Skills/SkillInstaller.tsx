@@ -1,21 +1,24 @@
-import React, { useMemo, useState } from 'react';
-import { Download, FolderOpen, Globe, Search, Star, Users, X } from 'lucide-react';
-import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
-import { getBuiltinSkills } from '../../Skills/builtinSkills';
-import { formatCompactNumber } from '../../Skills/skillUi';
+/**
+ * 技能安装器
+ * Phase 7: 完整 UI 重构
+ */
 
-interface InstallerSkill {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  downloads: number;
-  rating: number;
-  source: 'official' | 'community';
-  tags: string[];
-}
+import React, { useState } from 'react';
+import {
+  X,
+  Download,
+  Search,
+  Globe,
+  FolderOpen,
+  Check,
+  AlertCircle,
+  Star,
+  Users,
+  Package,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import type { MarketplaceSkill } from './types';
 
 interface SkillInstallerProps {
   onClose: () => void;
@@ -28,204 +31,285 @@ export const SkillInstaller: React.FC<SkillInstallerProps> = ({
   onInstall,
   className,
 }) => {
-  const { t, i18n } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'official' | 'community'>('all');
-  const [installingIds, setInstallingIds] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [installing, setInstalling] = useState<Set<string>>(new Set());
 
-  const marketplaceSkills = useMemo<InstallerSkill[]>(
-    () =>
-      getBuiltinSkills(t)
-        .slice(0, 6)
-        .map((skill, index) => ({
-          id: skill.id,
-          name: skill.displayName,
-          description: skill.description,
-          version: skill.version,
-          downloads: skill.downloads,
-          rating: skill.rating,
-          source: index % 2 === 0 ? 'official' : 'community',
-          tags: skill.tags,
-        })),
-    [t, i18n.language]
-  );
-
-  const categories = [
-    { value: 'all' as const, label: t('skillInstaller.categories.all') },
-    { value: 'official' as const, label: t('skillInstaller.categories.official') },
-    { value: 'community' as const, label: t('skillInstaller.categories.community') },
+  // 模拟市场技能数据
+  const mockMarketplaceSkills: MarketplaceSkill[] = [
+    {
+      id: 'code-reviewer',
+      name: '代码审查专家',
+      description: '专业的代码审查技能，能够分析代码质量、发现潜在问题和提供改进建议',
+      version: '2.1.0',
+      author: 'IfAI Team',
+      downloads: 12500,
+      rating: 4.8,
+      tags: ['development', 'code-review', 'quality'],
+      source: 'official',
+    },
+    {
+      id: 'test-generator',
+      name: '测试用例生成器',
+      description: '自动生成单元测试和集成测试，支持多种测试框架和编程语言',
+      version: '1.5.0',
+      author: 'IfAI Community',
+      downloads: 8900,
+      rating: 4.6,
+      tags: ['testing', 'development', 'automation'],
+      source: 'community',
+    },
+    {
+      id: 'doc-writer',
+      name: '文档生成助手',
+      description: '从代码自动生成 API 文档、使用手册和技术文档',
+      version: '1.2.0',
+      author: 'IfAI Team',
+      downloads: 6700,
+      rating: 4.7,
+      tags: ['documentation', 'development', 'writing'],
+      source: 'official',
+    },
+    {
+      id: 'performance-optimizer',
+      name: '性能优化顾问',
+      description: '分析代码性能瓶颈，提供优化建议和最佳实践',
+      version: '1.0.0',
+      author: 'IfAI Community',
+      downloads: 5400,
+      rating: 4.5,
+      tags: ['performance', 'optimization', 'development'],
+      source: 'community',
+    },
+    {
+      id: 'security-scanner',
+      name: '安全扫描器',
+      description: '检测代码中的安全漏洞和潜在风险，提供修复建议',
+      version: '1.3.0',
+      author: 'IfAI Team',
+      downloads: 9800,
+      rating: 4.9,
+      tags: ['security', 'development', 'scan'],
+      source: 'official',
+    },
   ];
 
-  const filteredSkills = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+  const categories = [
+    { value: 'all', label: '全部', icon: Package },
+    { value: 'official', label: '官方', icon: Star },
+    { value: 'community', label: '社区', icon: Users },
+  ];
 
-    return marketplaceSkills.filter(skill => {
-      const matchesCategory = selectedCategory === 'all' || skill.source === selectedCategory;
-      const matchesSearch =
-        query.length === 0 ||
-        skill.name.toLowerCase().includes(query) ||
-        skill.description.toLowerCase().includes(query) ||
-        skill.tags.some(tag => tag.toLowerCase().includes(query));
+  const filteredSkills = mockMarketplaceSkills.filter(skill => {
+    const matchesSearch = skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        skill.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' ||
+                             skill.source === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
-      return matchesCategory && matchesSearch;
-    });
-  }, [marketplaceSkills, searchQuery, selectedCategory]);
-
-  const handleInstall = async (skill: InstallerSkill) => {
-    setInstallingIds(current => [...current, skill.id]);
+  const handleInstall = async (skillId: string) => {
+    setInstalling(prev => new Set(prev).add(skillId));
     try {
-      await onInstall(skill.id, skill.version);
+      await onInstall(skillId);
+      // 成功提示由父组件处理
     } catch (error) {
-      toast.error(
-        t('skillInstaller.installFailed', {
-          name: skill.name,
-          error: error instanceof Error ? error.message : t('skillInstaller.unknownError'),
-        })
-      );
+      // 错误提示也由父组件处理，但我们可以添加额外的反馈
+      const skill = mockMarketplaceSkills.find(s => s.id === skillId);
+      toast.error(`${skill?.name || skillId} 安装失败`, {
+        description: error instanceof Error ? error.message : '请稍后重试'
+      });
     } finally {
-      setInstallingIds(current => current.filter(id => id !== skill.id));
+      setInstalling(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(skillId);
+        return newSet;
+      });
     }
   };
 
   return (
-    <div className={cn('theme-backdrop fixed inset-0 z-50 flex items-center justify-center p-4', className)}>
-      <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border">
-        <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-6 py-4">
+    <div className={cn('fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4', className)}>
+      <div className="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+        {/* 头部 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="theme-surface-accent flex h-10 w-10 items-center justify-center rounded-lg">
-              <Download size={18} />
+            <div className="p-2 bg-blue-600 rounded-lg">
+              <Download size={20} className="text-white" />
             </div>
             <div>
-              <h2 className="theme-text text-lg font-semibold">{t('skillInstaller.title')}</h2>
-              <p className="theme-text-subtle mt-1 text-sm">{t('skillInstaller.subtitle')}</p>
+              <h2 className="text-xl font-bold text-white">技能市场</h2>
+              <p className="text-sm text-gray-500 mt-1">浏览和安装社区技能</p>
             </div>
           </div>
           <button
-            type="button"
             onClick={onClose}
-            className="theme-button-ghost theme-focus-ring-accent rounded-md p-2"
-            title={t('skillInstaller.close')}
-            aria-label={t('skillInstaller.close')}
+            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
           >
-            <X size={18} />
+            <X size={20} className="text-gray-400" />
           </button>
         </div>
 
-        <div className="theme-panel-muted theme-border space-y-4 border-b px-6 py-5">
+        {/* 搜索和分类 */}
+        <div className="p-6 border-b border-gray-800 space-y-4">
+          {/* 搜索框 */}
           <div className="relative">
-            <Search className="theme-text-subtle pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               type="text"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={t('skillInstaller.searchPlaceholder')}
-              className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-md border py-3 pl-10 pr-4 text-sm"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索技能..."
+              className="w-full pl-10 pr-4 py-3 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {categories.map(category => (
-              <button
-                key={category.value}
-                type="button"
-                onClick={() => setSelectedCategory(category.value)}
-                className={cn(
-                  'theme-focus-ring-accent rounded-md px-4 py-2 text-sm font-medium',
-                  selectedCategory === category.value ? 'theme-button-primary' : 'theme-button-secondary'
-                )}
-              >
-                {category.label}
-              </button>
-            ))}
+          {/* 分类标签 */}
+          <div className="flex items-center gap-2">
+            {categories.map(category => {
+              const Icon = category.icon;
+              return (
+                <button
+                  key={category.value}
+                  onClick={() => setSelectedCategory(category.value)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                    selectedCategory === category.value
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  )}
+                >
+                  <Icon size={16} />
+                  {category.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* 技能列表 */}
+        <div className="flex-1 overflow-y-auto p-6">
           {filteredSkills.length === 0 ? (
-            <div className="theme-text-subtle flex flex-col items-center justify-center py-16 text-center">
-              <Search size={28} className="opacity-50" />
-              <div className="theme-text mt-4 text-sm font-medium">{t('skillInstaller.emptyTitle')}</div>
-              <div className="mt-1 text-xs">{t('skillInstaller.emptyDescription')}</div>
+            <div className="flex flex-col items-center justify-center py-12">
+              <AlertCircle size={48} className="text-gray-600 mb-4" />
+              <p className="text-gray-400">未找到匹配的技能</p>
+              <p className="text-xs text-gray-500 mt-2">尝试调整搜索关键词</p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {filteredSkills.map(skill => {
-                const isInstalling = installingIds.includes(skill.id);
-
-                return (
-                  <div
-                    key={skill.id}
-                    className="theme-panel-muted theme-border flex flex-col rounded-lg border"
-                  >
-                    <div className="theme-border border-b p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="theme-text truncate text-base font-semibold">{skill.name}</h3>
-                            {skill.source === 'official' && (
-                              <span className="theme-badge-accent rounded-full px-2 py-0.5 text-[10px] font-medium">
-                                {t('skillInstaller.categories.official')}
-                              </span>
-                            )}
-                          </div>
-                          <p className="theme-text-subtle mt-2 text-sm leading-relaxed">
-                            {skill.description}
-                          </p>
-                        </div>
-                        <span className="theme-badge-warning inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium">
-                          <Star size={10} />
-                          {skill.rating.toFixed(1)}
-                        </span>
-                      </div>
-                      <div className="theme-text-subtle mt-3 flex flex-wrap items-center gap-3 text-xs">
-                        <span>{t('skillInstaller.version', { version: skill.version })}</span>
-                        <span>{t('skillInstaller.downloads', { value: formatCompactNumber(skill.downloads, i18n.language) })}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-1 flex-col justify-between p-4">
-                      <div className="mb-4 flex flex-wrap gap-2">
-                        {skill.tags.map(tag => (
-                          <span
-                            key={tag}
-                            className="theme-panel theme-border theme-text-subtle rounded-full border px-2.5 py-1 text-xs"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleInstall(skill)}
-                        disabled={isInstalling}
-                        className="theme-button-primary theme-focus-ring-accent inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
-                      >
-                        {isInstalling ? <Users size={14} className="animate-pulse" /> : <Download size={14} />}
-                        {isInstalling ? t('skillInstaller.installing') : t('skillInstaller.install')}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredSkills.map(skill => (
+                <MarketplaceSkillCard
+                  key={skill.id}
+                  skill={skill}
+                  isInstalling={installing.has(skill.id)}
+                  onInstall={() => handleInstall(skill.id)}
+                />
+              ))}
             </div>
           )}
         </div>
 
-        <div className="theme-panel-muted theme-border theme-text-subtle flex items-center justify-between border-t px-6 py-4 text-sm">
-          <div className="flex items-center gap-4">
-            <button type="button" className="theme-button-ghost theme-focus-ring-accent inline-flex items-center gap-2 rounded-md px-2 py-1">
-              <Globe size={14} />
-              {t('skillInstaller.browseAll')}
+        {/* 底部链接 */}
+        <div className="p-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between">
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            <button className="flex items-center gap-2 hover:text-white transition-colors">
+              <Globe size={16} />
+              浏览全部技能库
             </button>
-            <button type="button" className="theme-button-ghost theme-focus-ring-accent inline-flex items-center gap-2 rounded-md px-2 py-1">
-              <FolderOpen size={14} />
-              {t('skillInstaller.installFromFile')}
+            <button className="flex items-center gap-2 hover:text-white transition-colors">
+              <FolderOpen size={16} />
+              从本地文件安装
             </button>
           </div>
-          <div className="text-xs">
-            {t('skillInstaller.availableCount', { count: filteredSkills.length })}
+          <div className="text-xs text-gray-600">
+            共 {filteredSkills.length} 个技能可用
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== 市场技能卡片 ====================
+
+interface MarketplaceSkillCardProps {
+  skill: MarketplaceSkill;
+  isInstalling: boolean;
+  onInstall: () => void;
+}
+
+const MarketplaceSkillCard: React.FC<MarketplaceSkillCardProps> = ({
+  skill,
+  isInstalling,
+  onInstall,
+}) => {
+  return (
+    <div className="bg-gray-950 rounded-lg border border-gray-800 hover:border-gray-700 transition-all overflow-hidden">
+      {/* 头部 */}
+      <div className="p-4 border-b border-gray-800">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-lg font-bold text-white">{skill.name}</h3>
+              {skill.source === 'official' && (
+                <span className="px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 text-xs font-medium border border-blue-500/50">
+                  官方
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-400 line-clamp-2">{skill.description}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Star size={16} className="text-yellow-500 fill-yellow-500" />
+            <span className="text-sm font-medium text-white">{skill.rating}</span>
+          </div>
+        </div>
+
+        {/* 元信息 */}
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <span>版本 {skill.version}</span>
+          <span>•</span>
+          <span>{skill.author}</span>
+          <span>•</span>
+          <span>{(skill.downloads / 1000).toFixed(1)}k 下载</span>
+        </div>
+      </div>
+
+      {/* 标签 */}
+      <div className="px-4 py-3 flex flex-wrap gap-1.5">
+        {skill.tags.map(tag => (
+          <span
+            key={tag}
+            className="px-2 py-1 rounded bg-gray-800 text-xs text-gray-400 border border-gray-700"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+
+      {/* 操作按钮 */}
+      <div className="p-4 border-t border-gray-800">
+        <button
+          onClick={onInstall}
+          disabled={isInstalling}
+          className={cn(
+            'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all',
+            'bg-blue-600 hover:bg-blue-700 text-white',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+        >
+          {isInstalling ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              安装中...
+            </>
+          ) : (
+            <>
+              <Download size={16} />
+              安装技能
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

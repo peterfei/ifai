@@ -150,7 +150,26 @@ export const useChatStore = create<ChatStore>()(
             }
 
             // 🏆 物理对齐：使用同一个 correlationId 启动生成
-            await get().generateResponse(get().messages, providerId || 'openai', modelName || 'gpt-4o', result.correlationId);
+            // 🔥 FIX: 使用 result.context（由 SendMessageOrchestrator 正确构建，包含新 user 消息）
+            // 而非 get().messages（可能被 persist 中间件的 merge 函数用旧数据覆盖）
+            // 根因：zustand persist merge 执行 { ...currentState, ...persistedState }，
+            // persistedState.messages 会覆盖 currentState.messages，导致新创建的 user 消息丢失
+            let historyForGeneration = result.context && result.context.length > 0
+              ? result.context
+              : get().messages;
+
+            // 🔥 FIX: 防御性检查 — 确保 historyForGeneration 中至少有一条 user 消息
+            // 场景：persist hydration 丢失 user 消息 或 contextSelector 评分导致 user 消息被丢弃
+            const hasUserInHistory = historyForGeneration.some((m: any) => m.role === 'user');
+            if (!hasUserInHistory) {
+              console.warn('[ChatStore] ⚠️ No user message in historyForGeneration! Recovering from content parameter');
+              historyForGeneration = [
+                ...historyForGeneration,
+                { role: 'user', content: content as string }
+              ];
+            }
+
+            await get().generateResponse(historyForGeneration, providerId || 'openai', modelName || 'gpt-4o', result.correlationId);
             return result;
         } catch (e) {
             console.error('[ChatStore] Send failed:', e);
@@ -500,6 +519,27 @@ export const useChatStore = create<ChatStore>()(
                     return true;
                 });
 
+              // 🔥 FIX: 防御性检查 — 确保至少有一条 user 消息
+              // 场景：前端工具（TodoWrite）执行后产生 role:'tool' 消息，
+              // 后端 continuation loop 结束后用户发新消息，如果 sanitizedMessages 中
+              // 意外丢失了 user 消息（去重/过滤逻辑边界情况），从原始 history 中恢复
+              const hasUserMessage = sanitizedMessages.some(m => m.role === 'user');
+              if (!hasUserMessage) {
+                console.warn('[ChatStore] ⚠️ No user message in sanitizedMessages! Attempting recovery...');
+                console.warn('[ChatStore] ⚠️ History roles:', history.map(m => m.role));
+                console.warn('[ChatStore] ⚠️ Sanitized roles:', sanitizedMessages.map(m => m.role));
+                const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
+                if (lastUserMsg) {
+                  sanitizedMessages.push({
+                    role: 'user',
+                    content: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : JSON.stringify(lastUserMsg.content),
+                  });
+                  console.log('[ChatStore] ✅ Recovered user message from history');
+                } else {
+                  console.error('[ChatStore] ❌ No user message found in history either!');
+                }
+              }
+
               console.log('[ChatStore] 🚀 About to invoke ai_chat with eventId:', `chat_${correlationId}`);
               console.log('[ChatStore] 🚀 Message count:', sanitizedMessages.length);
               console.log('[ChatStore] 🚀 Is continuation:', !!existingCorrelationId);
@@ -569,21 +609,36 @@ export const useChatStore = create<ChatStore>()(
         messages: state.messages,
         currentThreadId: state.currentThreadId,
       }),
-      // 🔥 FIX: persist hydrate 时保护已有 messages 不被空数据覆盖
-      // 场景：localStorage 中 messages 为空（首次或上次未正确保存），
-      // 但内存中已有消息（来自 IndexedDB restore），此时应保留内存消息
+      // 🔥 FIX: persist merge 时保护内存中的 messages 不被旧数据覆盖
+      // 根因：{ ...currentState, ...persistedState } 让 persistedState.messages 总是覆盖 currentState.messages
+      // 场景：StoreMapper 通过 chat:message:sent 刚添加了新 user/assistant 消息（34条），
+      // 但 persist 中间件触发 merge，用 localStorage 中旧数据（19条）覆盖，导致 user 消息丢失
       merge: (persistedState: any, currentState: any) => {
         const merged = { ...currentState, ...persistedState };
-        // 如果 persistedState 有 messages 字段且为空数组，但 currentState 有消息，保留 currentState 的
+        const currentMsgs = currentState.messages;
+        const persistedMsgs = persistedState.messages;
+
+        // 内存中消息比 localStorage 多 → 保留内存版本（StoreMapper 刚更新过）
         if (
-          Array.isArray(persistedState.messages) &&
-          persistedState.messages.length === 0 &&
-          Array.isArray(currentState.messages) &&
-          currentState.messages.length > 0
+          Array.isArray(currentMsgs) &&
+          Array.isArray(persistedMsgs) &&
+          currentMsgs.length > persistedMsgs.length
         ) {
-          merged.messages = currentState.messages;
+          merged.messages = currentMsgs;
           console.log(
-            `[ChatStore] 🛡️ Persist merge: 保留 ${currentState.messages.length} 条内存消息，忽略 localStorage 空数据`
+            `[ChatStore] 🛡️ Persist merge: 保留 ${currentMsgs.length} 条内存消息，忽略 localStorage ${persistedMsgs.length} 条旧数据`
+          );
+        }
+        // localStorage 为空但内存有消息 → 保留内存版本（首次加载或 IndexedDB restore）
+        else if (
+          Array.isArray(persistedMsgs) &&
+          persistedMsgs.length === 0 &&
+          Array.isArray(currentMsgs) &&
+          currentMsgs.length > 0
+        ) {
+          merged.messages = currentMsgs;
+          console.log(
+            `[ChatStore] 🛡️ Persist merge: 保留 ${currentMsgs.length} 条内存消息，忽略 localStorage 空数据`
           );
         }
         return merged;

@@ -44,7 +44,6 @@ import { PivoTreeList } from './PivoTreeList';
 import { usePivoStore } from '../../stores/pivoStore';
 import { MarkdownRenderer, SimpleMarkdownRenderer } from './MarkdownRenderer';
 import styles from './MessageItem.module.css';
-import { isDarkTheme } from '../../utils/theme';
 /**
  * 将平铺的文件列表转换为 PivoProjectTree 所需的嵌套对象结构
  * @param files 文件路径数组
@@ -73,10 +72,10 @@ function filesToStructure(files: string[]): any {
  * 工业级消息样式常量
  */
 const STYLES = {
-    userBubble: 'max-w-[85%] rounded-2xl p-4 bg-[var(--accent-color)] text-white shadow-lg ml-auto',
-    assistantBubble: 'w-full rounded-2xl p-4 theme-panel-muted theme-text theme-border border shadow-sm relative group',
-    agentBubble: 'w-full rounded-2xl p-4 border shadow-sm relative group bg-[var(--accent-soft-bg)] text-[var(--text-primary)] border-[var(--accent-soft-border)]',
-    timestamp: 'theme-text-subtle text-[10px] mt-1'
+    userBubble: 'max-w-[85%] rounded-2xl p-4 bg-blue-600 text-white shadow-lg ml-auto',
+    assistantBubble: 'w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm relative group',
+    agentBubble: 'w-full rounded-2xl p-4 bg-[#1e1e1e] text-blue-100 border border-blue-900/30 shadow-sm relative group',
+    timestamp: 'text-[10px] text-gray-500 mt-1'
 };
 /**
  * 检测内容是否是任务拆解 JSON
@@ -121,6 +120,10 @@ const arePropsEqual = (prevProps: MessageItemProps, nextProps: MessageItemProps)
     }
     // Re-render if message content changes
     if (prevProps.message.content !== nextProps.message.content) {
+        return false;
+    }
+    // 🔥 FIX v0.3.4: 必须比较 segments，否则 tool segment 新增时不会触发 UI 更新
+    if ((prevProps.message as any).segments !== (nextProps.message as any).segments) {
         return false;
     }
     // 🔥 FIX: 必须比较 contentSegments，否则流式工具调用不会触发 UI 更新
@@ -189,8 +192,6 @@ const areMessageItemPropsEqual = (prevProps: MessageItemProps, nextProps: Messag
 
 export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFile, onOpenComposer, isStreaming }: MessageItemProps) => {
     const { t } = useTranslation();
-    const theme = useSettingsStore(state => state.theme);
-    const dark = isDarkTheme(theme);
     const isUser = message.role === 'user';
     const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
 
@@ -467,39 +468,35 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const handleUndoAll = async () => {
         const store = useChatStore.getState() as any;
         if (!store.rollbackMessageToolCalls) {
-            toast.error(t('messageItem.rollbackUnavailable'));
+            toast.error('回滚功能不可用');
             return;
         }
         try {
             const result = await store.rollbackMessageToolCalls(message.id, false);
             if (result?.hasConflict) {
-                toast.error(t('messageItem.rollbackConflict'));
+                toast.error('检测到文件冲突，请单独回滚每个文件');
                 return;
             }
             if (result?.success) {
-                toast.success(t('messageItem.rollbackSuccess', { count: result.count || 0 }));
+                toast.success(`已回滚 ${result.count || 0} 个文件`);
             } else {
-                toast.error(result?.error || t('messageItem.rollbackFailed'));
+                toast.error(result?.error || '回滚失败');
             }
         } catch (e) {
             console.error('[Rollback] Error:', e);
-            toast.error(t('messageItem.rollbackFailedWithError', { error: String(e) }));
+            toast.error('回滚失败: ' + String(e));
         }
     };
     const handleCopy = () => {
         navigator.clipboard.writeText(displayContent);
-        toast.success(t('common.copiedToClipboard'));
+        toast.success(t('common.copied') || 'Copied to clipboard');
     };
     // Determine bubble style
     const isAgent = !!(message as any).agentId;
     const isInlineTask = !!(message as any).isInlineTask;
     const bubbleClass = isInlineTask 
-        ? 'theme-panel-muted theme-border border theme-text-subtle italic py-1.5 px-3 rounded-lg text-[11px]'
-        : (isUser
-            ? STYLES.userBubble
-            : (isAgent
-                ? 'w-full rounded-2xl p-4 border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] text-[var(--text-primary)] shadow-sm relative group'
-                : 'w-full rounded-2xl p-4 theme-panel-muted theme-text theme-border border shadow-sm relative group'));
+        ? "bg-gray-800/40 border border-white/5 text-white/40 italic py-1.5 px-3 rounded-lg text-[11px]" 
+        : (isUser ? STYLES.userBubble : (isAgent ? STYLES.agentBubble : STYLES.assistantBubble));
     // 🔥 FIX v0.3.9.3: 更加稳健的内容检测逻辑，支持字符串和数组
     const hasVisibleContent = React.useMemo(() => {
         if (!message.content) return false;
@@ -521,10 +518,12 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const isVibeMode = (window as any).__IFAI_EDITOR_MODE__ === 'vibe';
     const isRedundantIntro = React.useMemo(() => {
         if (!isVibeMode || isUser || !hasToolCalls) return false;
+        // 🔥 FIX v0.3.5: 有 pending 工具调用时绝不能隐藏气泡（用户需要看到审批按钮）
+        if (pendingCount > 0) return false;
         const text = typeof displayContent === 'string' ? displayContent.trim() : '';
         // 🚀 激进模式：只要包含聚合卡片，默认就隐藏助理的普通说明文字，除非包含代码块
         return !text.includes('```');
-    }, [isVibeMode, isUser, hasToolCalls, displayContent]);
+    }, [isVibeMode, isUser, hasToolCalls, displayContent, pendingCount]);
 
     // 🏆 v0.4.1: 探索模式判定 (基于是否包含进度/树元数据)
     const isExploreMessage = !!(message as any).exploreProgress;
@@ -540,6 +539,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             isRedundantIntro ||
                             (message.role === 'tool' && isExploreMessage) ||
                             (message.role === 'tool' && hasProjectScanData);
+    // 🔥 FIX v0.3.5: 有 pending 工具调用时强制显示气泡（审批按钮不能被隐藏）
+    const effectiveShouldHideBubble = pendingCount > 0 ? false : shouldHideBubble;
 
     // 🔥 FIX v0.4.0: 智能内容预处理 - 提取思考内容
     const { thinkingText, contentWithoutThinking } = React.useMemo(() => {
@@ -595,9 +596,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     // 🔥 FIX v0.4.0: 工业级骨架屏占位，防止 CLS (布局抖动)
     const renderSkeleton = () => (
         <div className="space-y-3 py-2 animate-pulse w-full max-w-[280px]">
-            <div className="h-2.5 bg-[var(--accent-soft-bg)] rounded-full w-full opacity-60"></div>
-            <div className="h-2.5 bg-[var(--accent-soft-bg)] rounded-full w-[90%] opacity-40"></div>
-            <div className="h-2.5 bg-[var(--accent-soft-bg)] rounded-full w-[70%] opacity-20"></div>
+            <div className="h-2.5 bg-blue-500/10 rounded-full w-full opacity-60"></div>
+            <div className="h-2.5 bg-blue-500/10 rounded-full w-[90%] opacity-40"></div>
+            <div className="h-2.5 bg-blue-500/10 rounded-full w-[70%] opacity-20"></div>
         </div>
     );
 
@@ -838,13 +839,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             );
         } else if (part.type === 'image_url' && part.image_url?.url) {
             return (
-                <div key={index} className="my-2 max-w-xs border theme-border rounded overflow-hidden theme-panel">
-                    <img src={part.image_url.url} alt={t('aiChat.messageRegistry.generatedImage')} className="w-full h-auto" />
+                <div key={index} className="my-2 max-w-xs border border-gray-600 rounded overflow-hidden">
+                    <img src={part.image_url.url} alt="AI generated image" className="w-full h-auto" />
                 </div>
             );
         }
         return null;
-    }, [toggleBlock, processScanResult, t]);
+    }, [toggleBlock, processScanResult]);
     // 统一渲染逻辑 (v0.4.1: 去分支化重构，杜绝 Hook 冲突)
     return (
         <div
@@ -852,20 +853,20 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
             data-testid={`message-${message.id}`}
             data-role={message.role} // 🔥 FIX: 添加 role 属性用于 E2E 测试
         >
-            <div className={`flex items-start gap-3 w-full ${!shouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
+            <div className={`flex items-start gap-3 w-full ${!effectiveShouldHideBubble ? styles.bubble + ' ' + (isUser ? styles.user : styles.assistant) + ' ' + styles.industrial : ''}`}>
                 {/* A. 头像区 - 始终显示 */}
                 <div className="shrink-0 mt-0.5">
                     {isUser ? (
-                        <div className="w-5 h-5 rounded-md bg-[var(--accent-color)] flex items-center justify-center shadow-lg text-white">
+                        <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center shadow-lg text-white">
                             <User size={12} />
                         </div>
                     ) : isAgent ? (
-                        <div className="w-5 h-5 rounded-md bg-[var(--accent-soft-bg)] flex items-center justify-center border border-[var(--accent-soft-border)] shadow-sm text-[var(--accent-color)]">
+                        <div className="w-5 h-5 rounded-md bg-indigo-900 flex items-center justify-center border border-indigo-500/30 shadow-lg text-indigo-400">
                             <Bot size={12} />
                         </div>
                     ) : (
-                        <div className="w-5 h-5 rounded-md overflow-hidden border theme-border theme-panel flex items-center justify-center">
-                            <img src={ifaiLogo} alt="" aria-hidden="true" className="w-3.5 h-3.5 opacity-80" />
+                        <div className="w-5 h-5 rounded-md overflow-hidden border border-white/5 bg-black/40 flex items-center justify-center">
+                            <img src={ifaiLogo} alt="AI" className="w-3.5 h-3.5 opacity-80" />
                         </div>
                     )}
                 </div>
@@ -873,24 +874,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                 {/* B. 内容区 - 统一布局 */}
                 <div className="flex-1 min-w-0 text-inherit relative">
                     {/* B1. 悬浮工具栏 (仅在非用户气泡模式下显示) */}
-                    {!isUser && !shouldHideBubble && (
-                        <div className="pointer-events-none mb-0 flex justify-end overflow-hidden opacity-0 transition-[max-height,opacity,margin] duration-150 max-h-0 group-hover:mb-2 group-hover:max-h-10 group-hover:opacity-100">
-                            <div className="pointer-events-auto flex items-center gap-1 theme-panel-elevated theme-border rounded-md border p-1 theme-shadow">
-                                <button onClick={handleCopy} className="p-1 rounded theme-button-ghost theme-text-subtle" title={t('common.copy')}>
-                                    <Copy size={12} />
-                                </button>
-                                <button className="p-1 rounded theme-button-ghost theme-text-subtle" title={t('messageItem.regenerate')}>
-                                    <RotateCcw size={12} />
-                                </button>
-                            </div>
+                    {!isUser && !effectiveShouldHideBubble && (
+                        <div className="absolute -top-10 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#2d2d2d] border border-white/10 rounded-md p-1 shadow-xl z-10">
+                            <button onClick={handleCopy} className="p-1 hover:bg-white/5 rounded text-gray-400" title="Copy">
+                                <Copy size={12} />
+                            </button>
+                            <button className="p-1 hover:bg-white/5 rounded text-gray-400" title="Regenerate">
+                                <RotateCcw size={12} />
+                            </button>
                         </div>
                     )}
 
                     {/* B2. 状态标签 */}
                     {isAgent && (
                         <div className="flex items-center gap-1.5 mb-2">
-                            <span className="theme-badge-info rounded border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest">
-                                {t('messageItem.agentLive')}
+                            <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                Agent Live
                             </span>
                         </div>
                     )}
@@ -900,22 +899,18 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         <div className="mb-3">
                             <button 
                                 onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-                                className="flex items-center gap-2 text-[10px] font-bold theme-text-subtle hover:text-[var(--accent-color)] transition-colors uppercase tracking-widest group/think"
+                                className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-blue-400 transition-colors uppercase tracking-widest group/think"
                             >
                                 <div className={`transition-transform duration-200 ${isThinkingExpanded ? 'rotate-180' : ''}`}>
                                     <ChevronDown size={10} />
                                 </div>
-                                <span>
-                                    {t('messageItem.thinking', {
-                                        summary: `${thinkingText.substring(0, 30)}${thinkingText.length > 30 ? '...' : ''}`,
-                                    })}
-                                </span>
+                                <span>Thinking: {thinkingText.substring(0, 30)}{thinkingText.length > 30 ? '...' : ''}</span>
                                 {effectivelyStreaming && !isThinkingExpanded && (
-                                    <div className="w-1 h-1 bg-[var(--accent-color)] rounded-full animate-ping" />
+                                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
                                 )}
                             </button>
                             {isThinkingExpanded && (
-                                <div className="mt-2 p-3 theme-panel border theme-border rounded-lg text-xs theme-text-subtle leading-relaxed italic animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="mt-2 p-3 bg-white/[0.03] border border-white/5 rounded-lg text-xs text-gray-400 leading-relaxed italic animate-in fade-in slide-in-from-top-1 duration-200">
                                     {thinkingText}
                                 </div>
                             )}
@@ -943,14 +938,14 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                         {/* Batch Review Panel */}
                         {pendingCount > 1 && (
-                            <div className="mb-3 p-2 rounded border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] flex items-center justify-between">
-                                <div className="text-xs font-medium text-[var(--accent-color)]">{t('messageItem.pendingActions', { count: pendingCount })}</div>
+                            <div className="mb-3 p-2 bg-blue-900/20 rounded border border-blue-700/50 flex items-center justify-between">
+                                <div className="text-xs font-medium text-blue-300">有 {pendingCount} 个待处理的操作</div>
                                 <div className="flex gap-2">
-                                    <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 theme-button-success text-[10px] rounded transition-colors">
-                                        <CheckCheck size={12} /> {t('messageItem.approveAll')}
+                                    <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] rounded transition-colors">
+                                        <CheckCheck size={12} /> 全部批准
                                     </button>
-                                    <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 theme-button-danger text-[10px] rounded transition-colors">
-                                        <XCircle size={12} /> {t('messageItem.rejectAll')}
+                                    <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors">
+                                        <XCircle size={12} /> 全部拒绝
                                     </button>
                                 </div>
                             </div>
@@ -961,15 +956,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <TaskBreakdownViewer breakdown={taskBreakdown} mode="inline" allowModeSwitch={true} />
                         ) : isStreamingTaskBreakdown ? (
                             <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-sm theme-text-subtle">
-                                    <div className="w-2 h-2 bg-[var(--accent-color)] rounded-full animate-pulse" />
-                                    <span>{t('messageItem.breakingDownTask')}</span>
+                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                                    <span>正在拆解任务...</span>
                                 </div>
-                                <div className="text-xs theme-text-subtle font-mono max-h-32 overflow-y-auto theme-panel rounded border theme-border p-2">
+                                <div className="text-xs text-gray-500 font-mono max-h-32 overflow-y-auto bg-[#1e1e1e] rounded border border-gray-700 p-2">
                                     {displayContent.slice(-500)}
                                 </div>
                             </div>
-                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (
+                        ) : message.multiModalContent && message.multiModalContent.length > 0 ? (() => {
+                            // 🔥 FIX: 同 mergedSegments 路径，只对最后一个 text part 传递 isStreaming
+                            const lastTextPartIdx = (() => {
+                                for (let i = message.multiModalContent.length - 1; i >= 0; i--) {
+                                    if (message.multiModalContent[i].type === 'text') return i;
+                                }
+                                return -1;
+                            })();
+                            return (
                             <div className="space-y-2">
                                 {message.multiModalContent.map((part, index) => {
                                     // 🔥 FIX: 跳过无效的 part 对象
@@ -986,7 +989,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                             console.warn('[MessageItem] Text part has non-string content:', textContent);
                                             return null;
                                         }
-                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, effectivelyStreaming);
+                                        return renderContentPart({ ...part, text: String(part.text || '') }, index, index === lastTextPartIdx ? effectivelyStreaming : false);
                                     }
 
                                     // 🔥 FIX: 确保 image_url 对象有效
@@ -997,10 +1000,22 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
                                     }
 
-                                    return renderContentPart(part, index, effectivelyStreaming);
+                                    return renderContentPart(part, index, index === lastTextPartIdx ? effectivelyStreaming : false);
                                 })}
                             </div>
-                        ) : mergedSegments && mergedSegments.length > 0 ? (
+                            );
+                        })() : mergedSegments && mergedSegments.length > 0 ? (() => {
+                            // 🔥 FIX: 只对最后一个 text segment 传递 isStreaming=true
+                            // 根因：continuation 场景下，消息中有多个 text segment（pre-tool + post-tool），
+                            // 如果对所有 text segment 都传 effectivelyStreaming=true，
+                            // 每个 MarkdownRenderer 都会显示"生成中..."脉冲，造成视觉干扰
+                            const lastTextSegIdx = (() => {
+                                for (let i = mergedSegments.length - 1; i >= 0; i--) {
+                                    if (mergedSegments[i].type === 'text') return i;
+                                }
+                                return -1;
+                            })();
+                            return (
                             <div className="space-y-3">
                                 {mergedSegments.map((segment: any, index: number) => {
                                     // 🔥 FIX: 验证 segment 对象有效性
@@ -1035,7 +1050,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'pre-tool';
                                         const stableKey = segment.order ?? segment.timestamp ?? index;
-                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, effectivelyStreaming);
+                                        const renderedContent = renderContentPart({ type: 'text', text: content }, stableKey, index === lastTextSegIdx ? effectivelyStreaming : false);
 
                                         return (
                                             <div
@@ -1088,7 +1103,15 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                         }
 
                                         const toolCall = message.toolCalls?.find(tc => tc.id === segment.toolCallId);
-                                        if (!toolCall) return null;
+                                        if (!toolCall) {
+                                            console.warn('[MessageItem] ⚠️ Tool segment has no matching toolCall', {
+                                                segmentToolCallId: segment.toolCallId,
+                                                segmentToolName: segment.toolName,
+                                                availableToolCallIds: message.toolCalls?.map(tc => tc.id),
+                                                toolCallsCount: message.toolCalls?.length
+                                            });
+                                            return null;
+                                        }
 
                                         // 🏆 新增：添加 phase 和 test 属性用于调试和 E2E 测试
                                         const segmentPhase = segment.phase || 'in-tool';
@@ -1138,7 +1161,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                                     if (orphanedPendingCalls.length === 0) return null;
 
-                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`);
+                                    console.log(`[MessageItem] 🔧 Compensating ${orphanedPendingCalls.length} orphaned pending toolCalls not in segments`, {
+                                        orphanedIds: orphanedPendingCalls.map((tc: any) => tc.id)
+                                    });
 
                                     return orphanedPendingCalls.map((toolCall: any) => (
                                         <ToolApproval
@@ -1152,7 +1177,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     ));
                                 })()}
                             </div>
-                        ) : (
+                            );
+                        })() : (
                             /* 🔥 FIX: Fallback 渲染也必须遵循 Action-First 逻辑并支持聚合 */
                             <div className="space-y-3">
                                 {(() => {
@@ -1230,7 +1256,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     onOpenFile={onOpenFile} 
                                     onCopyContent={(content) => { 
                                         navigator.clipboard.writeText(content); 
-                                        toast.success(t('messageItem.contentCopied'));
+                                        toast.success('内容已复制'); 
                                     }} 
                                 />
                             </div>
@@ -1239,13 +1265,9 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         {/* Composer Diff Button */}
                         {hasFileChanges && onOpenComposer && !effectivelyStreaming && (
                             <div className="mt-3">
-                                <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 theme-button-primary text-sm font-medium rounded-lg transition-colors">
+                                <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <FileCode size={16} />
-                                    <span>
-                                        {t('messageItem.viewDiff', {
-                                            count: (message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length,
-                                        })}
-                                    </span>
+                                    <span>查看 Diff ({(message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length} 个文件)</span>
                                 </button>
                             </div>
                         )}
@@ -1257,23 +1279,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     if (action.type === 'patch') {
                                         const isIgnored = ignoredActions.has(actionIndex);
                                         return (
-                                            <div key={`action-${actionIndex}`} className={`p-3 rounded border ${isIgnored ? 'theme-panel border theme-border' : 'bg-[var(--success-soft-bg)] border-[var(--success-soft-border)]'}`}>
+                                            <div key={`action-${actionIndex}`} className={`p-3 rounded border ${isIgnored ? 'bg-gray-900/20 border-gray-700/50' : 'bg-green-900/20 border-green-700/50'}`}>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            <FileCode size={14} className={isIgnored ? 'theme-text-subtle' : 'text-[var(--success-color)]'} />
-                                                            <span className="text-xs font-medium truncate theme-text">{action.filePath || t('messageItem.fixActionFallback')}</span>
+                                                            <FileCode size={14} className={isIgnored ? 'text-gray-400' : 'text-green-400'} />
+                                                            <span className="text-xs font-medium truncate">{action.filePath || 'Apply Fix'}</span>
                                                         </div>
                                                         {!isIgnored && action.patch && (
-                                                            <div className="text-xs theme-text-subtle font-mono max-h-20 overflow-y-auto theme-panel rounded p-2 border theme-border">
+                                                            <div className="text-xs text-gray-400 font-mono max-h-20 overflow-y-auto bg-[#1e1e1e] rounded p-2">
                                                                 {action.patch.substring(0, 200)}
                                                             </div>
                                                         )}
                                                     </div>
                                                     {!isIgnored && (
                                                         <div className="flex gap-2">
-                                                            <button onClick={() => { setIgnoredActions(prev => new Set(prev).add(actionIndex)); toast.info(t('messageItem.fixIgnored')); }} className="px-3 py-1.5 theme-button-secondary text-xs font-medium rounded">{t('messageItem.ignoreFix')}</button>
-                                                            <button onClick={() => toast.success(t('messageItem.fixApplied'))} className="px-3 py-1.5 theme-button-success text-xs font-medium rounded">{t('messageItem.applyFix')}</button>
+                                                            <button onClick={() => { setIgnoredActions(prev => new Set(prev).add(actionIndex)); toast.info('Fix ignored'); }} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs font-medium rounded">Ignore</button>
+                                                            <button onClick={() => toast.success('Fix applied')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded">Apply Fix</button>
                                                         </div>
                                                     )}
                                                 </div>

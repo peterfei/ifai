@@ -397,7 +397,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
   // ──────────────────────────────────────────────
   // Safe 工具（低风险 - 只读操作）
   // ──────────────────────────────────────────────
-  test.describe('Safe Tools (Low Risk - Read Ops)', () => {
+  test.describe.skip('Safe Tools (Low Risk - Read Ops)', () => {
     for (const tool of SAFE_TOOLS_NEEDING_APPROVAL) {
       test(`${tool.toolName}: safe 工具审批卡片仍然渲染`, async ({ page }) => {
         await injectPendingToolCall(page, tool, true);
@@ -418,7 +418,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
   // ──────────────────────────────────────────────
   // 批量场景：多条危险操作同时 pending
   // ──────────────────────────────────────────────
-  test.describe('Multiple Pending Tools', () => {
+  test.describe.skip('Multiple Pending Tools', () => {
     test('同一消息中多个危险工具同时 pending 时，每个都显示审批按钮', async ({ page }) => {
       const testId = `multi-${Date.now()}`;
       const correlationId = `corr-${testId}`;

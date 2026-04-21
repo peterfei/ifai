@@ -35,6 +35,7 @@ SSE (Server-Sent Events) E2E 测试是一种端到端测试方法，通过 HTTP 
 - ✅ 长时间运行任务的进度监控
 - ✅ 多步骤流程的事件验证
 - ✅ 实时状态更新测试
+- ✅ AI Chat 流式响应测试（`/api/ai/chat/stream`）
 
 ---
 
@@ -114,9 +115,45 @@ SSE (Server-Sent Events) E2E 测试是一种端到端测试方法，通过 HTTP 
 **关键端点**：
 
 ```rust
-POST /api/workflow/execute  // 执行工作流
-GET  /api/workflow/progress  // SSE 事件流
-POST /api/health            // 健康检查
+POST /api/workflow/execute     // 执行工作流
+GET  /api/workflow/progress     // SSE 事件流
+POST /api/health               // 健康检查
+POST /api/ai/chat              // AI 聊天（非流式，未实现）
+POST /api/ai/chat/stream       // AI 聊天（SSE 流式）✨
+```
+
+#### AI Chat 端点详情
+
+**POST /api/ai/chat/stream**
+
+功能：提供 AI 聊天的 SSE 流式响应
+
+请求格式：
+```json
+{
+  "messages": [
+    {"role": "user", "content": "你好"}
+  ],
+  "provider_config": {
+    "name": "deepseek",
+    "api_key": "sk-xxx",
+    "base_url": "https://api.deepseek.com"
+  },
+  "model": "deepseek-chat",
+  "enable_tools": false
+}
+```
+
+SSE 响应事件：
+```json
+// 内容增量事件
+{"event_type":"content_delta","content_delta":"你好","tool_call":null,"error":null,"finish_reason":null}
+
+// 完成事件
+{"event_type":"done","content_delta":null,"tool_call":null,"error":null,"finish_reason":"stop"}
+
+// 错误事件
+{"event_type":"error","content_delta":null,"tool_call":null,"error":{"code":"AI_ERROR","message":"..."},"finish_reason":null}
 ```
 
 **启动条件**：

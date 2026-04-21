@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { FileTree } from '../FileTree/FileTree';
 import { useFileStore } from '../../stores/fileStore';
 import { openDirectory, readDirectory } from '../../utils/fileSystem';
-import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2, ListChecks, Wrench } from 'lucide-react';
+import { FolderOpen, Files, Search as SearchIcon, Cpu, Lock, Code2, ListChecks, Wrench, Puzzle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SearchPanel } from '../Search/SearchPanel';
 import { SnippetManager } from '../SnippetManager/SnippetManager';
@@ -26,6 +26,7 @@ export const Sidebar = () => {
     isToolExplorerOpen,
     toggleToolExplorer,
     isSkillsPanelOpen,
+    toggleSkillsPanel,
     sidebarWidth,
   } = useLayoutStore();
 
@@ -34,7 +35,7 @@ export const Sidebar = () => {
     if (rootPath && !fileTree) {
       const loadRoot = async () => {
         try {
-          const name = rootPath.split('/').pop() || String(t('sidebar.projectFallback'));
+          const name = rootPath.split('/').pop() || 'Project';
           const children = await readDirectory(rootPath);
           const newTree = {
             id: uuidv4(),
@@ -78,7 +79,7 @@ export const Sidebar = () => {
       };
       loadRoot();
     }
-  }, [rootPath, fileTree, setFileTree, setExpandedNodes, t]);
+  }, [rootPath, fileTree, setFileTree, setExpandedNodes]);
 
   const handleOpenFolder = async () => {
     try {
@@ -102,15 +103,12 @@ export const Sidebar = () => {
   };
 
   return (
-    <div className={clsx(
-      'theme-panel-muted theme-border relative flex h-full flex-shrink-0 border-r transition-colors'
-    )}>
-      <div className="relative z-20 flex w-[58px] flex-col items-center py-3">
+    <div className="flex h-full border-r border-gray-700 bg-gray-900 flex-shrink-0 relative">
+      {/* Activity Bar - Industrial Floating Capsule Design */}
+      <div className="w-[64px] flex flex-col items-center py-4 bg-transparent relative z-20">
         <div 
           data-testid="activity-bar-capsule"
-          className={clsx(
-            'theme-panel-muted theme-border absolute inset-y-3 left-2 right-2 flex flex-col items-center gap-3 rounded-2xl border py-3'
-          )}
+          className="absolute inset-y-4 left-2 right-2 rounded-full bg-[#1e1e1e]/60 backdrop-blur-xl border border-white/5 shadow-2xl flex flex-col items-center py-4 gap-4"
         >
           {[
             { id: 'explorer', icon: Files, title: t('sidebar.explorer') },
@@ -124,10 +122,8 @@ export const Sidebar = () => {
               <button
                 key={tab.id}
                 className={clsx(
-                  'group relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200',
-                  isActive
-                    ? 'text-[var(--accent-color)]'
-                    : 'theme-text-subtle hover:text-[var(--text-primary)]'
+                  "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+                  isActive ? "text-white" : "text-gray-500 hover:text-gray-300"
                 )}
                 onClick={() => {
                   setSidebarActiveTab(tab.id as any);
@@ -135,12 +131,12 @@ export const Sidebar = () => {
                 }}
                 title={String(tab.title)}
               >
-                <Icon size={18} className="relative z-10" />
+                <Icon size={20} className="relative z-10" />
                 {isActive && (
                   <motion.div
                     layoutId="activity-active-pill"
                     data-testid="activity-active-pill"
-                    className="theme-active-pill absolute inset-0 rounded-xl"
+                    className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                   />
                 )}
@@ -154,20 +150,43 @@ export const Sidebar = () => {
           <button
             data-testid="tool-explorer-button"
             className={clsx(
-              'group relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200',
-              isToolExplorerOpen
-                ? 'text-[var(--accent-color)]'
-                : 'theme-text-subtle hover:text-[var(--text-primary)]'
+              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              isToolExplorerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
             )}
             onClick={() => toggleToolExplorer()}
-            title={String(t('sidebar.tools'))}
+            title={String(t('sidebar.tools') || 'Tools')}
           >
-            <Wrench size={18} className="relative z-10" />
+            <Wrench size={20} className="relative z-10" />
             {isToolExplorerOpen && (
               <motion.div
                 layoutId="activity-active-pill"
                 data-testid="activity-active-pill"
-                className="theme-active-pill absolute inset-0 rounded-xl"
+                className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+                transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+              />
+            )}
+          </button>
+
+          {/* Skills Icon */}
+          <button
+            data-testid="skills-panel-button"
+            className={clsx(
+              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              isSkillsPanelOpen ? "text-purple-400" : "text-gray-500 hover:text-gray-300"
+            )}
+            onClick={() => {
+              toggleSkillsPanel();
+              if (isPromptManagerOpen) togglePromptManager();
+              if (isToolExplorerOpen) toggleToolExplorer();
+            }}
+            title="技能"
+          >
+            <Puzzle size={20} className="relative z-10" />
+            {isSkillsPanelOpen && (
+              <motion.div
+                layoutId="activity-active-pill"
+                data-testid="activity-active-pill"
+                className="absolute inset-0 bg-purple-600/20 rounded-full border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -177,22 +196,20 @@ export const Sidebar = () => {
           <button
             data-testid="prompt-manager-button"
             className={clsx(
-              'group relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200',
-              isPromptManagerOpen
-                ? 'text-[var(--accent-color)]'
-                : 'theme-text-subtle hover:text-[var(--text-primary)]'
+              "relative p-2.5 rounded-full transition-all duration-300 group active:scale-90",
+              isPromptManagerOpen ? "text-blue-400" : "text-gray-500 hover:text-gray-300"
             )}
             onClick={() => {
               togglePromptManager();
               if (isToolExplorerOpen) toggleToolExplorer();
             }}
-            title={!IS_COMMERCIAL ? String(t('sidebar.promptsCommunityReadOnly')) : String(t('sidebar.prompts'))}
+            title={`${String(t('sidebar.prompts'))}${!IS_COMMERCIAL ? ' (Community - Read Only)' : ''}`}
           >
             <div className="relative z-10">
-              <Cpu size={18} />
+              <Cpu size={20} />
               {!IS_COMMERCIAL && (
-                <div className="theme-surface-warning absolute -top-1 -right-1 rounded-full p-0.5 shadow-sm">
-                  <Lock size={6} className="theme-text-warning" />
+                <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5 border border-[#1e1e1e]">
+                  <Lock size={6} className="text-white" />
                 </div>
               )}
             </div>
@@ -200,7 +217,7 @@ export const Sidebar = () => {
               <motion.div
                 layoutId="activity-active-pill"
                 data-testid="activity-active-pill"
-                className="theme-active-pill absolute inset-0 rounded-xl"
+                className="absolute inset-0 bg-blue-600/20 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
                 transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
               />
             )}
@@ -210,24 +227,14 @@ export const Sidebar = () => {
 
       {/* Side Panel Content */}
       {!isPromptManagerOpen && !isSkillsPanelOpen && !isToolExplorerOpen && (
-        <div
-          className={clsx(
-            'theme-panel theme-border flex h-full flex-col border-l transition-colors'
-          )}
-          style={{ width: `${sidebarWidth}px` }}
-        >
+        <div className="flex flex-col h-full bg-gray-900 border-l border-white/5" style={{ width: `${sidebarWidth}px` }}>
           {sidebarActiveTab === 'explorer' ? (
             <React.Fragment>
-              <div
-                className={clsx(
-                  'theme-panel theme-border flex h-9 items-center justify-between border-b px-4'
-                )}
-                data-testid="sidebar-panel-header"
-              >
-                <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-[0.1em]">{String(t('sidebar.explorer'))}</span>
+              <div className="flex items-center justify-between px-4 h-9 border-b border-white/5 bg-gray-900/40 backdrop-blur-md" data-testid="sidebar-panel-header">
+                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.1em]">{String(t('sidebar.explorer'))}</span>
                 <button
                   onClick={handleOpenFolder}
-                  className="theme-hoverable theme-text-subtle rounded-md p-1 transition-colors"
+                  className="p-1 text-gray-500 hover:text-white hover:bg-gray-800 rounded-md transition-colors"
                   title={String(t('editor.openFolder'))}
                 >
                   <FolderOpen size={14} />
@@ -252,6 +259,7 @@ export const Sidebar = () => {
           )}
         </div>
       )}
+
     </div>
   );
 };

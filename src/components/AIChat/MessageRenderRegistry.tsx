@@ -8,7 +8,6 @@
  */
 
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import type { Message, ContentPart, ContentSegment } from '../../stores/useChatStore';
 import {
   MessageKind,
@@ -59,7 +58,7 @@ export const UserMessageRenderer: MessageRendererComponent = ({ message, context
   const content = typeof message.content === 'string' ? message.content : '';
 
   return (
-    <div className="max-w-[85%] rounded-2xl p-4 bg-[var(--accent-color)] text-white shadow-lg ml-auto">
+    <div className="max-w-[85%] rounded-2xl p-4 bg-blue-600 text-white shadow-lg ml-auto">
       <div className="whitespace-pre-wrap break-words">{content}</div>
     </div>
   );
@@ -69,19 +68,18 @@ export const UserMessageRenderer: MessageRendererComponent = ({ message, context
  * 助手文本消息渲染器
  */
 export const AssistantTextRenderer: MessageRendererComponent = ({ message, context, isStreaming }) => {
-  const { t } = useTranslation();
   const { thinkingText, contentWithoutThinking } = extractThinkingContent(message);
 
   // 这里需要导入实际的 MarkdownRenderer 组件
   // 为了简化，暂时使用简单的文本渲染
   return (
-    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
+    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
       {thinkingText && (
-        <div className="theme-text-subtle mb-3 text-xs italic">
-          {t('aiChat.messageRegistry.thinking')}: {thinkingText}
+        <div className="mb-3 text-xs text-gray-500 italic">
+          Thinking: {thinkingText}
         </div>
       )}
-      <div className="theme-text whitespace-pre-wrap break-words">{contentWithoutThinking}</div>
+      <div className="whitespace-pre-wrap break-words">{contentWithoutThinking}</div>
     </div>
   );
 };
@@ -90,31 +88,30 @@ export const AssistantTextRenderer: MessageRendererComponent = ({ message, conte
  * 助手工具消息渲染器
  */
 export const AssistantToolRenderer: MessageRendererComponent = ({ message, context, onApprove, onReject }) => {
-  const { t } = useTranslation();
   const { thinkingText, contentWithoutThinking } = extractThinkingContent(message);
 
   return (
-    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
+    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
       {thinkingText && (
-        <div className="theme-text-subtle mb-3 text-xs italic">
-          {t('aiChat.messageRegistry.thinking')}: {thinkingText}
+        <div className="mb-3 text-xs text-gray-500 italic">
+          Thinking: {thinkingText}
         </div>
       )}
 
       {/* 工具调用渲染 */}
       {message.toolCalls && message.toolCalls.map((toolCall) => (
-        <div key={toolCall.id} className="theme-code-surface theme-border mb-2 rounded border p-2">
-          <div className="theme-text-muted text-xs font-mono">
+        <div key={toolCall.id} className="mb-2 p-2 bg-[#1e1e1e] rounded border border-gray-700">
+          <div className="text-xs font-mono text-gray-400">
             {toolCall.function?.name || (toolCall as any).toolName || 'unknown'}
           </div>
-          <div className="theme-text-subtle mt-1 text-xs">
-            {t('aiChat.messageRegistry.status')}: {toolCall.status || t('aiChat.toolExecution.status.unknown')}
+          <div className="text-xs text-gray-500 mt-1">
+            Status: {toolCall.status || 'unknown'}
           </div>
         </div>
       ))}
 
       {contentWithoutThinking && (
-        <div className="theme-text mt-2 whitespace-pre-wrap break-words">{contentWithoutThinking}</div>
+        <div className="whitespace-pre-wrap break-words mt-2">{contentWithoutThinking}</div>
       )}
     </div>
   );
@@ -124,15 +121,14 @@ export const AssistantToolRenderer: MessageRendererComponent = ({ message, conte
  * 探索消息渲染器
  */
 export const ExploreMessageRenderer: MessageRendererComponent = ({ message, context }) => {
-  const { t } = useTranslation();
   const exploreProgress = (message as any).exploreProgress;
 
   return (
-    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
-      <div className="theme-text-muted mb-2 text-sm font-medium">{t('aiChat.messageRegistry.exploreProject')}</div>
+    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
+      <div className="text-sm font-medium text-gray-400 mb-2">探索项目</div>
       {exploreProgress && (
-        <div className="theme-text-subtle text-xs">
-          {t('aiChat.messageRegistry.scannedFiles', { count: exploreProgress.fileCount || 0 })}
+        <div className="text-xs text-gray-500">
+          扫描了 {exploreProgress.fileCount || 0} 个文件
         </div>
       )}
     </div>
@@ -143,11 +139,10 @@ export const ExploreMessageRenderer: MessageRendererComponent = ({ message, cont
  * 任务拆解消息渲染器
  */
 export const TaskBreakdownRenderer: MessageRendererComponent = ({ message, context }) => {
-  const { t } = useTranslation();
   // 这里需要导入 TaskBreakdownViewer 组件
   return (
-    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
-      <div className="theme-text-muted text-sm">{t('aiChat.messageRegistry.taskBreakdown')}</div>
+    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
+      <div className="text-sm text-gray-400">任务拆解</div>
     </div>
   );
 };
@@ -156,15 +151,14 @@ export const TaskBreakdownRenderer: MessageRendererComponent = ({ message, conte
  * 多模态消息渲染器
  */
 export const MultimodalMessageRenderer: MessageRendererComponent = ({ message, context, isStreaming }) => {
-  const { t } = useTranslation();
   const parts = message.multiModalContent || [];
 
   return (
-    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 shadow-sm">
+    <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
       {parts.map((part, index) => {
         if (part.type === 'text') {
           return (
-            <div key={index} className="theme-text whitespace-pre-wrap break-words">
+            <div key={index} className="whitespace-pre-wrap break-words">
               {part.text}
             </div>
           );
@@ -174,7 +168,7 @@ export const MultimodalMessageRenderer: MessageRendererComponent = ({ message, c
             <img
               key={index}
               src={part.image_url?.url}
-              alt={t('aiChat.messageRegistry.uploadedImage')}
+              alt="Uploaded"
               className="max-w-full h-auto rounded"
             />
           );
@@ -189,12 +183,11 @@ export const MultimodalMessageRenderer: MessageRendererComponent = ({ message, c
  * 系统消息渲染器
  */
 export const SystemMessageRenderer: MessageRendererComponent = ({ message }) => {
-  const { t } = useTranslation();
   const content = typeof message.content === 'string' ? message.content : '';
 
   return (
-    <div className="w-full rounded-lg border border-[var(--warning-soft-border)] bg-[var(--warning-soft-bg)] p-3 text-sm text-[var(--warning-color)]">
-      <div className="mb-1 font-medium">{t('aiChat.messageRegistry.systemMessage')}</div>
+    <div className="w-full rounded-lg p-3 bg-yellow-900/20 border border-yellow-700/50 text-yellow-200 text-sm">
+      <div className="font-medium mb-1">系统消息</div>
       <div className="whitespace-pre-wrap break-words">{content}</div>
     </div>
   );
@@ -212,13 +205,12 @@ export const ToolMessageRenderer: MessageRendererComponent = ({ message }) => {
  * 未知类型渲染器
  */
 export const UnknownMessageRenderer: MessageRendererComponent = ({ message }) => {
-  const { t } = useTranslation();
   const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
   return (
-    <div className="theme-panel-muted theme-border w-full rounded-2xl border p-4 text-sm">
-      <div className="theme-text-subtle mb-2">{t('aiChat.messageRegistry.unknownMessageType', { role: message.role })}</div>
-      <div className="theme-text whitespace-pre-wrap break-words">{content}</div>
+    <div className="w-full rounded-2xl p-4 bg-gray-800/50 border border-gray-700 text-gray-400 text-sm">
+      <div className="mb-2 text-gray-500">未知消息类型: {message.role}</div>
+      <div className="whitespace-pre-wrap break-words">{content}</div>
     </div>
   );
 };

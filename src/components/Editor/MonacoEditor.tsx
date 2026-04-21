@@ -27,14 +27,13 @@ import { estimateTokens } from '../../utils/tokenCounter';
 import * as monaco from 'monaco-editor';
 import { debounce } from 'lodash-es';
 import { Skeleton } from '../UI/Skeleton';
+import { EditorSkeleton } from './EditorSkeleton';
 import { AgentDecorationProvider } from './AgentDecorationProvider';
 import { InlineDiffZone } from './InlineDiffZone';
 import { InlineAIWidget } from '../InlineEdit/InlineAIWidget';
-import { openFileFromPath } from '../../utils/fileActions';
 import '../../styles/monaco-decorations.css';
 import { toast } from 'sonner';
 import { PivoStage } from '../../stores/types';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // ============================================================================
 // Windows 平台检测 - 用于性能优化
@@ -106,17 +105,13 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   // 🔥 修复无限循环：使用 ref 存储编辑器实例，避免依赖 getEditorInstance
   // ⚠️ 必须在所有 useEffect 之前声明所有 hooks
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const decorationProviderRef = useRef<AgentDecorationProvider | null>(null);
   const diffZoneRef = useRef<InlineDiffZone | null>(null);
   const contentWidgetRef = useRef<monaco.editor.IContentWidget | null>(null);
-  const layoutTimeoutsRef = useRef<number[]>([]);
 
   // 组件卸载时的资源释放逻辑
   useEffect(() => {
     return () => {
-      layoutTimeoutsRef.current.forEach(window.clearTimeout);
-      layoutTimeoutsRef.current = [];
       const editor = editorRef.current;
       if (editor) {
         if (contentWidgetRef.current) {
@@ -129,36 +124,6 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
       decorationProviderRef.current = null;
       diffZoneRef.current = null;
     };
-  }, []);
-
-  const scheduleEditorLayout = useCallback(() => {
-    const relayout = () => {
-      const editor = editorRef.current;
-      const container = editorContainerRef.current;
-      if (!editor || !container) {
-        return;
-      }
-
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      if (width <= 0 || height <= 0) {
-        return;
-      }
-
-      monaco.editor.remeasureFonts();
-      editor.layout({ width, height });
-      editor.render(true);
-      if (contentWidgetRef.current) {
-        editor.layoutContentWidget(contentWidgetRef.current);
-      }
-    };
-
-    layoutTimeoutsRef.current.forEach(window.clearTimeout);
-    layoutTimeoutsRef.current = [];
-
-    window.requestAnimationFrame(relayout);
-    layoutTimeoutsRef.current.push(window.setTimeout(relayout, 80));
-    layoutTimeoutsRef.current.push(window.setTimeout(relayout, 220));
   }, []);
 
   // 🔥 内联补全防抖 refs - 必须在组件顶层声明
@@ -185,7 +150,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
   // 🔥 文件大小缓存 refs - 必须在组件顶层声明
   const fileSizeRef = useRef(0);
-  const lastFilePath = useRef(file?.path);
+  const lastFilePath = useRef<string | undefined>(undefined);
 
   // 🔥 Token count ref - 必须在组件顶层声明
   const updateTokenCountRef = useRef<((text: string) => void) | null>(null);
@@ -232,6 +197,12 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   }, [file?.id, file?.content]); // 🔥 只依赖 file 值，不依赖函数
 
   const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
+    console.log('[MonacoEditor] ✅ Monaco Editor 已挂载', {
+      paneId,
+      fileId: fileRef.current?.id,
+      fileName: fileRef.current?.name,
+    });
+
     // 存储编辑器实例
     setEditorInstance(paneId, editor);
     editorRef.current = editor; // 🔥 同时存储到 ref
@@ -483,16 +454,39 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         try {
           console.log('[MonacoEditor] Cross-file definition jump:', definition);
 
+          // 读取目标文件内容
+          const { readFileContent } = await import('../../utils/fileSystem');
+          const content = await readFileContent(definition.filePath);
+
+          // 提取文件名和语言
           const fileName = definition.filePath.split('/').pop() || 'unknown';
-          const opened = await openFileFromPath(definition.filePath, {
-            initialLine: definition.line,
+          const language = (window as any).__detectLanguageFromPath?.(definition.filePath) ||
+            monaco.languages.getEncodedLanguageId?.(definition.filePath) ||
+            'plaintext';
+
+          // 打开文件（使用 fileStore）
+          const { useFileStore } = await import('../../stores/fileStore');
+          const { openFile, setActiveFile } = useFileStore.getState();
+
+          const fileId = openFile({
+            id: `file-${definition.filePath}-${Date.now()}`,
+            path: definition.filePath,
+            name: fileName,
+            content: content,
+            isDirty: false,
+            language: language,
+            initialLine: definition.line, // 设置初始行号
           });
 
-          if (opened) {
-            toast.success(`Opened ${fileName}:${definition.line}`);
-          }
+          // 激活文件
+          setActiveFile(fileId);
+
+          // 显示提示
+          const { toast } = await import('sonner');
+          toast.success(`Opened ${fileName}:${definition.line}`);
         } catch (e) {
           console.error('[MonacoEditor] Failed to open definition file:', e);
+          const { toast } = await import('sonner');
           toast.error(`Failed to open definition: ${String(e)}`);
         }
       }
@@ -927,47 +921,6 @@ ${textBefore}[CURSOR]${textAfter}
     }
   }, [isInlineEditVisible]);
 
-  useEffect(() => {
-    const container = editorContainerRef.current;
-    const handleWindowResize = () => {
-      scheduleEditorLayout();
-    };
-
-    const resizeObserver = container
-      ? new ResizeObserver(() => {
-          scheduleEditorLayout();
-        })
-      : null;
-
-    if (container && resizeObserver) {
-      resizeObserver.observe(container);
-    }
-
-    let unlistenResize: (() => void) | undefined;
-    void getCurrentWindow().onResized(() => {
-      scheduleEditorLayout();
-    }).then((cleanup) => {
-      unlistenResize = cleanup;
-    }).catch((error) => {
-      console.warn('[MonacoEditor] Failed to subscribe window resize:', error);
-    });
-
-    window.addEventListener('resize', handleWindowResize);
-    scheduleEditorLayout();
-
-    return () => {
-      window.removeEventListener('resize', handleWindowResize);
-      resizeObserver?.disconnect();
-      unlistenResize?.();
-      layoutTimeoutsRef.current.forEach(window.clearTimeout);
-      layoutTimeoutsRef.current = [];
-    };
-  }, [scheduleEditorLayout]);
-
-  useEffect(() => {
-    scheduleEditorLayout();
-  }, [scheduleEditorLayout, paneId, file?.id, theme]);
-
   // 🔥 v0.3.7: 监听修改代码的变化，自动展开内联 Diff 区域
   useEffect(() => {
     // 🚀 阶段+内容双驱动：进入实施阶段或已有内容时，立即展开
@@ -1027,30 +980,31 @@ ${textBefore}[CURSOR]${textAfter}
   }
 
   // 🔥 工业级加载反馈：当文件已选中但内容尚未加载完成时，展示骨架屏
-  if (!file.content && !file.isDirty) {
-    return (
-      <div className="theme-panel flex flex-col h-full p-6 space-y-4" data-testid="editor-skeleton">
-        <Skeleton className="h-6 w-1/3" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-4/5" />
-          <Skeleton className="h-4 w-full" />
-        </div>
-        <div className="pt-4 space-y-2">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-2/3" />
-        </div>
-      </div>
-    );
+  // 条件：文件存在 + 内容为空或未定义
+  // 🔥 注意：移除 !file.isDirty 条件，因为 dirty 文件也可能内容为空
+  const shouldShowSkeleton = file &&
+    (!file.content || file.content === '' || file.content === undefined || file.content === null);
+
+  if (shouldShowSkeleton) {
+    return <EditorSkeleton />;
+  }
+
+  // 🔥 双重保险：确保只有在有真实内容时才渲染 Monaco Editor
+  // 防止 Monaco Editor 在 content 为空时显示 "Loading..." 占位符
+  const hasValidContent = file && file.content && file.content.length > 0;
+
+  if (!hasValidContent) {
+    console.log('[MonacoEditor] ⚠️ 没有有效内容，显示骨架屏（安全网）', {
+      fileId: file?.id,
+      hasContent: !!file?.content,
+      contentLength: file?.content?.length || 0,
+      isDirty: file?.isDirty,
+    });
+    return <EditorSkeleton />;
   }
 
   return (
-    <div
-      ref={editorContainerRef}
-      className="theme-panel flex-1 flex flex-col h-full w-full relative overflow-hidden"
-      data-testid="monaco-editor-container"
-    >
+    <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-[#1e1e1e]" data-testid="monaco-editor-container">
       <Editor
         height="100%"
         path={file?.path || `untitled-${paneId}-${file?.id}`} // Guarantee uniqueness
@@ -1062,7 +1016,7 @@ ${textBefore}[CURSOR]${textAfter}
         onChange={handleChange}
         onMount={handleEditorDidMount}
         options={getOptimizedOptions()}
-        loading={<div />}
+        loading={<div></div>} // 🔥 禁用默认的 loading 状态
       />
 
       {/* 🧪 Agent 2.0 Inline Assistant Portal */}

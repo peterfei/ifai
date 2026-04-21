@@ -14,13 +14,15 @@ export default defineConfig({
       '@ifai/core/commandBar': path.resolve(__dirname, './src/core/commandBar/pro-placeholder'),
       // 确保 Tauri API 从应用层解析
       '@tauri-apps/api': path.resolve(__dirname, './node_modules/@tauri-apps/api'),
+      // 🔥 FIX: Mock monaco-editor in tests to avoid import resolution errors
+      'monaco-editor': path.resolve(__dirname, './tests/mocks/monaco-editor.ts'),
     },
     // 确保从应用层的 node_modules 解析依赖
     conditions: ['module', 'import', 'browser'],
   },
   optimizeDeps: {
     include: ['@tauri-apps/api'],
-    exclude: ['ifainew-core'],
+    exclude: ['ifainew-core', 'monaco-editor'],
   },
   test: {
     globals: true,

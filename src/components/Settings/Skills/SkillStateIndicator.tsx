@@ -1,16 +1,11 @@
+/**
+ * 技能状态可视化组件
+ * Phase 7: 完整 UI 重构
+ */
+
 import React from 'react';
-import {
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Download,
-  PauseCircle,
-  XCircle,
-  Zap,
-} from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { CheckCircle, XCircle, Clock, Download, Zap, PauseCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getSkillStateBadgeClass, getSkillStateLabel } from '../../Skills/skillUi';
 import type { SkillState } from './types';
 
 interface SkillStateIndicatorProps {
@@ -21,36 +16,6 @@ interface SkillStateIndicatorProps {
   className?: string;
 }
 
-const sizeClasses = {
-  sm: 'h-4 w-4',
-  md: 'h-5 w-5',
-  lg: 'h-6 w-6',
-};
-
-const textSizeClasses = {
-  sm: 'text-xs',
-  md: 'text-sm',
-  lg: 'text-base',
-};
-
-const getStateIcon = (type: SkillState['type']) => {
-  switch (type) {
-    case 'Active':
-      return Zap;
-    case 'Installed':
-      return CheckCircle;
-    case 'NotInstalled':
-      return Download;
-    case 'Installing':
-    case 'Uninstalling':
-      return Clock;
-    case 'Inactive':
-      return PauseCircle;
-    case 'Error':
-      return XCircle;
-  }
-};
-
 export const SkillStateIndicator: React.FC<SkillStateIndicatorProps> = ({
   state,
   size = 'md',
@@ -58,44 +23,138 @@ export const SkillStateIndicator: React.FC<SkillStateIndicatorProps> = ({
   showProgress = false,
   className,
 }) => {
-  const { t } = useTranslation();
-  const Icon = getStateIcon(state.type);
-  const badgeClass = getSkillStateBadgeClass(state.type);
+  const sizeClasses = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-6 h-6',
+  };
+
+  const textSizeClasses = {
+    sm: 'text-xs',
+    md: 'text-sm',
+    lg: 'text-base',
+  };
+
+  const getStateConfig = () => {
+    switch (state.type) {
+      case 'Active':
+        return {
+          icon: Zap,
+          color: 'text-green-500',
+          bgColor: 'bg-green-500/10',
+          borderColor: 'border-green-500/50',
+          label: '激活',
+          description: '技能已激活并正在使用',
+        };
+
+      case 'Installed':
+        return {
+          icon: CheckCircle,
+          color: 'text-blue-500',
+          bgColor: 'bg-blue-500/10',
+          borderColor: 'border-blue-500/50',
+          label: '已安装',
+          description: '技能已安装但未激活',
+        };
+
+      case 'NotInstalled':
+        return {
+          icon: Download,
+          color: 'text-gray-500',
+          bgColor: 'bg-gray-500/10',
+          borderColor: 'border-gray-500/50',
+          label: '未安装',
+          description: '技能未安装',
+        };
+
+      case 'Installing':
+        return {
+          icon: Clock,
+          color: 'text-yellow-500',
+          bgColor: 'bg-yellow-500/10',
+          borderColor: 'border-yellow-500/50',
+          label: '安装中',
+          description: `正在安装 (${state.progress}%)`,
+        };
+
+      case 'Inactive':
+        return {
+          icon: PauseCircle,
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-400/10',
+          borderColor: 'border-gray-400/50',
+          label: '未激活',
+          description: '技能已安装但未激活',
+        };
+
+      case 'Uninstalling':
+        return {
+          icon: Download,
+          color: 'text-orange-500',
+          bgColor: 'bg-orange-500/10',
+          borderColor: 'border-orange-500/50',
+          label: '卸载中',
+          description: '正在卸载技能',
+        };
+
+      case 'Error':
+        return {
+          icon: XCircle,
+          color: 'text-red-500',
+          bgColor: 'bg-red-500/10',
+          borderColor: 'border-red-500/50',
+          label: '错误',
+          description: state.message || '技能错误',
+        };
+    }
+  };
+
+  const config = getStateConfig();
+  const Icon = config.icon;
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
+      {/* 状态图标 */}
       <div
         className={cn(
           'flex items-center justify-center rounded-full border',
           sizeClasses[size],
-          badgeClass
+          config.bgColor,
+          config.borderColor
         )}
-        title={getSkillStateLabel(t, state.type)}
+        title={config.description}
       >
-        <Icon size={size === 'sm' ? 12 : size === 'md' ? 14 : 16} />
+        <Icon className={cn(sizeClasses[size], config.color)} strokeWidth={2} />
       </div>
 
+      {/* 状态标签 */}
       {showLabel && (
-        <span className={cn('font-medium', textSizeClasses[size])}>
-          {getSkillStateLabel(t, state.type)}
+        <span className={cn('font-medium', config.color, textSizeClasses[size])}>
+          {config.label}
         </span>
       )}
 
+      {/* 进度条（仅安装中显示） */}
       {showProgress && state.type === 'Installing' && (
-        <div className="theme-panel-muted theme-border h-1.5 w-24 overflow-hidden rounded-full border">
-          <div
-            className="theme-badge-warning h-full transition-all duration-300"
-            style={{ width: `${state.progress}%` }}
-          />
+        <div className="flex-1 max-w-[100px]">
+          <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-yellow-500 transition-all duration-300"
+              style={{ width: `${state.progress}%` }}
+            />
+          </div>
         </div>
       )}
 
+      {/* 错误提示 */}
       {state.type === 'Error' && (
-        <AlertTriangle className="theme-text-danger" size={size === 'sm' ? 12 : 14} />
+        <AlertTriangle className="text-red-500" size={size === 'sm' ? 14 : 16} />
       )}
     </div>
   );
 };
+
+// ==================== 状态机可视化 ====================
 
 interface StateTransitionDiagramProps {
   currentState: SkillState;
@@ -108,38 +167,44 @@ export const StateTransitionDiagram: React.FC<StateTransitionDiagramProps> = ({
   onStateClick,
   className,
 }) => {
-  const { t } = useTranslation();
-  const states: Array<{ state: SkillState; available: boolean }> = [
-    { state: { type: 'NotInstalled' }, available: false },
-    { state: { type: 'Installing', progress: 0 }, available: false },
-    { state: { type: 'Installed', version: '1.0.0' }, available: true },
-    { state: { type: 'Active' }, available: true },
-    { state: { type: 'Inactive' }, available: true },
-    { state: { type: 'Error', message: '' }, available: false },
+  const states: Array<{ state: SkillState; label: string; available: boolean }> = [
+    { state: { type: 'NotInstalled' }, label: '未安装', available: false },
+    { state: { type: 'Installing', progress: 0 }, label: '安装中', available: false },
+    { state: { type: 'Installed', version: '1.0.0' }, label: '已安装', available: true },
+    { state: { type: 'Active' }, label: '激活', available: true },
+    { state: { type: 'Inactive' }, label: '未激活', available: true },
+    { state: { type: 'Error', message: '' }, label: '错误', available: false },
   ];
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      {states.map((item, index) => (
-        <React.Fragment key={item.state.type}>
+      {states.map((s, index) => (
+        <React.Fragment key={s.label}>
           <button
-            type="button"
-            onClick={() => item.available && onStateClick?.(item.state)}
-            disabled={!item.available}
+            onClick={() => s.available && onStateClick?.(s.state)}
+            disabled={!s.available}
             className={cn(
-              'theme-focus-ring-accent rounded-md px-3 py-1.5 text-xs font-medium',
-              currentState.type === item.state.type ? 'theme-button-primary' : 'theme-button-secondary',
-              !item.available && 'cursor-not-allowed opacity-50'
+              'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all',
+              s.available
+                ? 'hover:border-blue-500 cursor-pointer'
+                : 'opacity-50 cursor-not-allowed',
+              currentState.type === s.state.type
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-gray-800 text-gray-400 border-gray-700'
             )}
           >
-            {getSkillStateLabel(t, item.state.type)}
+            {s.label}
           </button>
-          {index < states.length - 1 && <div className="theme-divider h-px w-6" />}
+          {index < states.length - 1 && (
+            <div className="w-8 h-0.5 bg-gray-700" />
+          )}
         </React.Fragment>
       ))}
     </div>
   );
 };
+
+// ==================== 状态统计卡片 ====================
 
 interface StateStatsCardProps {
   stats: {
@@ -152,27 +217,24 @@ interface StateStatsCardProps {
 }
 
 export const StateStatsCard: React.FC<StateStatsCardProps> = ({ stats, className }) => {
-  const { t } = useTranslation();
   const items = [
-    { key: 'total', value: stats.total, icon: Download, tone: 'theme-text-subtle' },
-    { key: 'active', value: stats.active, icon: Zap, tone: 'theme-text-accent' },
-    { key: 'installed', value: stats.installed, icon: CheckCircle, tone: 'theme-text-success' },
-    { key: 'error', value: stats.error, icon: AlertTriangle, tone: 'theme-text-danger' },
+    { label: '总计', value: stats.total, icon: Download, color: 'text-gray-400' },
+    { label: '激活', value: stats.active, icon: Zap, color: 'text-green-500' },
+    { label: '已安装', value: stats.installed, icon: CheckCircle, color: 'text-blue-500' },
+    { label: '错误', value: stats.error, icon: AlertTriangle, color: 'text-red-500' },
   ];
 
   return (
-    <div className={cn('grid gap-3 sm:grid-cols-2 xl:grid-cols-4', className)}>
+    <div className={cn('grid grid-cols-4 gap-4', className)}>
       {items.map(item => (
         <div
-          key={item.key}
-          className="theme-panel-muted theme-border flex items-center gap-3 rounded-lg border p-4"
+          key={item.label}
+          className="flex items-center gap-3 p-4 bg-gray-900 rounded-lg border border-gray-800"
         >
-          <item.icon className={item.tone} size={18} />
+          <item.icon className={item.color} size={20} />
           <div>
-            <div className="theme-text text-xl font-semibold">{item.value}</div>
-            <div className="theme-text-subtle text-xs">
-              {t(`skillsManagement.stats.${item.key}`)}
-            </div>
+            <div className="text-2xl font-bold text-white">{item.value}</div>
+            <div className="text-xs text-gray-500">{item.label}</div>
           </div>
         </div>
       ))}

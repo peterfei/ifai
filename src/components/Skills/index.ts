@@ -1,2 +1,3 @@
+export { SkillsDock } from './SkillsDock';
 export { SkillMarket } from './SkillMarket';
-export { getBuiltinSkills, getFeaturedBuiltinSkills } from './builtinSkills';
+export { builtinSkills, skillsByCategory, featuredSkills } from './builtinSkills';

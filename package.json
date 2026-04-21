@@ -1,7 +1,7 @@
 {
   "name": "ifai",
   "description": "若爱 (IfAI) - 基于 Tauri 2.0 构建的跨平台 AI 代码编辑器 | A cross-platform AI code editor built with Tauri 2.0",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "author": {
     "name": "peterfei",
     "email": "peterfeispace@gmail.com",
@@ -73,9 +73,9 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.13.16",
-    "@tauri-apps/api": "~2.9.0",
-    "@tauri-apps/plugin-dialog": "2.5.0",
-    "@tauri-apps/plugin-fs": "2.4.5",
+    "@tauri-apps/api": "2.10.1",
+    "@tauri-apps/plugin-dialog": "2.7.0",
+    "@tauri-apps/plugin-fs": "2.5.0",
     "@tauri-apps/plugin-opener": "2.5.3",
     "@tauri-apps/plugin-os": "2.3.2",
     "@tauri-apps/plugin-shell": "2.3.4",
@@ -120,7 +120,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
-    "@tauri-apps/cli": "~2.9.0",
+    "@tauri-apps/cli": "2.10.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
@@ -138,6 +138,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "yaml": "^2.8.3"
   }
 }

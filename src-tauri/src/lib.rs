@@ -1303,175 +1303,48 @@ async fn approve_tool_call(
     println!("[Agent] Tool: {} with args: {}", tool_name, tool_args);
     println!("[Agent] Project root: {:?}", project_root);
 
-    // 🏆 根据工具名称执行相应的工具
-    let result = match tool_name.as_str() {
-        "agent_execute_command" | "bash" => {
-            // 解析命令参数
-            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
-                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+    // 🆕 元编程：使用生成的函数判断是否前端工具（零硬编码）
+    use crate::stream_schema_generated::is_frontend_tool;
 
-            let command = args_json.get("command")
-                .and_then(|v| v.as_str())
-                .ok_or("Missing 'command' parameter")?;
+    if is_frontend_tool(&tool_name) {
+        // 🎯 前端工具：返回成功状态，无需后端执行
+        println!("[Agent] ✅ Frontend tool detected, skipping backend execution");
+        return Ok(serde_json::json!({
+            "status": "success",
+            "output": "Tool executed on frontend"
+        }));
+    }
 
-            println!("[Agent] Executing command: {}", command);
+    // 🏆 Schema-Driven 架构：使用 ToolRouter 统一处理所有后端工具
+    let router = harness::tool::ToolRouter::new();
 
-            // 🏆 调用 bash 命令执行
-            use commands::bash_commands::execute_bash_command;
+    // 设置项目根目录
+    if let Some(root) = &project_root {
+        router.set_project_root(root.clone());
+    }
 
-            let bash_result = execute_bash_command(
-                command.to_string(),
-                project_root.clone(), // 使用项目根目录作为工作目录
-                Some(30000), // 30秒超时
-                None,        // 无额外环境变量
-            ).await.map_err(|e| format!("Failed to execute command: {}", e))?;
+    // 解析参数
+    let args_json: serde_json::Value = serde_json::from_str(&tool_args)
+        .map_err(|e| format!("Failed to parse tool args: {}", e))?;
 
-            serde_json::json!({
-                "status": "success",
-                "output": bash_result.stdout,
-                "stderr": bash_result.stderr,
-                "exit_code": bash_result.exit_code,
-                "success": bash_result.success
-            })
-        }
-        "agent_scan_project" => {
-            // 解析参数
-            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
-                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+    // 🎯 使用 ToolRouter 执行工具
+    let result = router.execute(&tool_name, &args_json)
+        .map_err(|e| format!("Tool execution failed: {:?}", e))?;
 
-            let rel_path = args_json.get("rel_path")
-                .and_then(|v| v.as_str())
-                .unwrap_or(".");
-            let max_depth = args_json.get("max_depth")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(2) as usize;
+    Ok(serde_json::json!({
+        "status": "success",
+        "output": result
+    }))
+}
 
-            println!("[Agent] Scanning project: path={}, depth={}", rel_path, max_depth);
-
-            // 🏆 调用项目扫描
-            let root = project_root.ok_or("Missing project_root for agent_scan_project")?;
-
-            use commands::core_wrappers::agent_scan_project;
-            let scan_result_str = agent_scan_project(root, rel_path.to_string(), Some(max_depth)).await
-                .map_err(|e| format!("Failed to scan project: {}", e))?;
-
-            // 🔧 优化：输出扫描结果的摘要信息
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&scan_result_str) {
-                if let Some(stats) = parsed.get("stats") {
-                    println!("[Agent] ✅ Scan complete: files={}, dirs={}",
-                        stats.get("totalFiles").and_then(|v| v.as_u64()).unwrap_or(0),
-                        stats.get("totalDirectories").and_then(|v| v.as_u64()).unwrap_or(0)
-                    );
-                }
-            }
-
-            // 返回扫描结果（已经是 JSON 字符串）
-            serde_json::json!({
-                "status": "success",
-                "output": scan_result_str
-            })
-        }
-        "agent_read_file" => {
-            // 解析参数
-            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
-                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
-
-            let rel_path = args_json.get("rel_path")
-                .and_then(|v| v.as_str())
-                .ok_or("Missing 'rel_path' parameter")?;
-
-            println!("[Agent] Reading file: {}", rel_path);
-
-            // 🏆 调用文件读取
-            let root = project_root.ok_or("Missing project_root for agent_read_file")?;
-
-            use commands::core_wrappers::agent_read_file;
-            let file_content = agent_read_file(root, rel_path.to_string()).await
-                .map_err(|e| {
-                    println!("[Agent] ❌ File read failed: {}", e);
-                    format!("Failed to read file: {}", e)
-                })?;
-
-            println!("[Agent] ✅ File read success, content length: {} chars", file_content.len());
-
-            let result = serde_json::json!({
-                "status": "success",
-                "output": file_content
-            });
-
-            // 🔧 优化：对于大文件，只输出摘要而非完整内容
-            const MAX_LOG_LENGTH: usize = 500;
-            let result_str = serde_json::to_string(&result).unwrap_or_default();
-            if result_str.len() > MAX_LOG_LENGTH {
-                let preview: String = result_str.chars().take(MAX_LOG_LENGTH).collect();
-                println!("[Agent] 📤 Returning result: {}... (total {} bytes, truncated for log)", preview, result_str.len());
-            } else {
-                println!("[Agent] 📤 Returning result: {}", result_str);
-            }
-            result
-        }
-        "agent_list_dir" => {
-            // 解析参数
-            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
-                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
-
-            let rel_path = args_json.get("rel_path")
-                .and_then(|v| v.as_str())
-                .unwrap_or(".");
-
-            println!("[Agent] Listing directory: {}", rel_path);
-
-            // 🏆 调用目录列表
-            let root = project_root.ok_or("Missing project_root for agent_list_dir")?;
-
-            use commands::core_wrappers::agent_list_dir;
-            let entries = agent_list_dir(root, rel_path.to_string()).await
-                .map_err(|e| format!("Failed to list directory: {}", e))?;
-
-            serde_json::json!({
-                "status": "success",
-                "output": serde_json::to_string(&entries).unwrap_or_else(|_| "[]".to_string())
-            })
-        }
-        "agent_write_file" => {
-            // 解析参数
-            let args_json: serde_json::Value = serde_json::from_str(&tool_args)
-                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
-
-            let rel_path = args_json.get("rel_path")
-                .and_then(|v| v.as_str())
-                .ok_or("Missing 'rel_path' parameter")?;
-            let content = args_json.get("content")
-                .and_then(|v| v.as_str())
-                .ok_or("Missing 'content' parameter")?;
-
-            println!("[Agent] Writing file: {}", rel_path);
-
-            // 🏆 调用文件写入
-            let root = project_root.ok_or("Missing project_root for agent_write_file")?;
-
-            use commands::core_wrappers::agent_write_file;
-            agent_write_file(root, rel_path.to_string(), content.to_string()).await
-                .map_err(|e| format!("Failed to write file: {}", e))?;
-
-            serde_json::json!({
-                "status": "success",
-                "output": format!("File written: {}", rel_path)
-            })
-        }
-        // 前端状态管理工具，无需后端执行
-        "TodoWrite" | "todo_write" => {
-            serde_json::json!({
-                "status": "success",
-                "output": "Task list updated"
-            })
-        }
-        _ => {
-            return Err(format!("Unknown tool: {}", tool_name));
-        }
-    };
-
-    Ok(result)
+/// 前端审批完成后回调：将审批结果发送给等待中的 stream_chat loop
+#[tauri::command]
+fn resolve_tool_approval(
+    tool_call_id: String,
+    approved: bool,
+    result: Option<String>,
+) -> Result<bool, String> {
+    Ok(crate::harness_ai_service::resolve_tool_approval(&tool_call_id, approved, result))
 }
 
 /// 前端审批完成后回调：将审批结果发送给等待中的 stream_chat loop

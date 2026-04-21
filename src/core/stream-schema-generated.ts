@@ -76,6 +76,19 @@ export const TOOL_PERMISSIONS: Record<string, PermissionMode> = {
   'PowerShell': 'DangerFullAccess',
 };
 
+// 🆕 元编程：前端工具集合（由 runLocation: frontend 自动生成）
+export const FRONTEND_TOOLS = new Set<string>([
+  'TodoWrite',
+  'todowrite'
+]);
+
+// 🆕 元编程：前端工具判断函数（零硬编码，纯查表）
+export function isFrontendTool(toolName: string): boolean {
+  // 归一化：剥离 agent_ 前缀
+  const normalized = toolName.replace(/^agent_/, '');
+  return FRONTEND_TOOLS.has(toolName) || FRONTEND_TOOLS.has(normalized);
+}
+
 // ═══════════════════════════════════════════════════════════
 // 通用规则求值函数 — 3 行查表，零 if/else
 // ═══════════════════════════════════════════════════════════
