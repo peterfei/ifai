@@ -181,7 +181,7 @@ const getTourSteps = (t: (key: string) => string): any[] => {
     },
     // 步骤 4: 布局切换器（定位到布局切换按钮）
     {
-      target: '[data-testid="layout-switcher"]',
+      target: document.querySelector('[data-testid="layout-switcher"]') ? '[data-testid="layout-switcher"]' : 'body',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
       disableBeacon: false,
@@ -212,8 +212,8 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       // 目标元素选择器（只检查静态元素）
       const targets = [
         'body',
-        '[data-testid="layout-switcher"]'
-      ];
+        document.querySelector('[data-testid="layout-switcher"]') ? '[data-testid="layout-switcher"]' : null,
+      ].filter(Boolean) as string[];
 
       // 轮询检测目标元素是否存在
       let checkInterval: NodeJS.Timeout | null = null;
