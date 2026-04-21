@@ -116,6 +116,12 @@ const PROTECTED_EDITOR_FILE_EXTENSIONS: Record<ProtectedEditorFileCategory, Set<
   ]),
 };
 
+const PROTECTED_EDITOR_FILE_BASENAMES = new Set([
+  '.ds_store',
+  'thumbs.db',
+  'desktop.ini',
+]);
+
 const PROTECTED_EDITOR_CATEGORY_LABEL_KEYS: Record<ProtectedEditorFileCategory, string> = {
   binary: 'common.protectedFileCategories.binary',
   archive: 'common.protectedFileCategories.archive',
@@ -127,6 +133,11 @@ const SUSPICIOUS_BINARY_BYTE_RATIO = 0.3;
 
 const isSuspiciousBinaryByte = (byte: number): boolean =>
   byte === 0x00 || byte === 0xff || byte <= 0x08 || (byte >= 0x0e && byte <= 0x1f) || byte === 0x7f;
+
+const isProtectedEditorSystemMetadataFile = (path: string): boolean => {
+  const fileName = getFileName(path).toLowerCase();
+  return PROTECTED_EDITOR_FILE_BASENAMES.has(fileName) || fileName.startsWith('._');
+};
 
 const getProtectedEditorFileCategoryByExtension = (path: string): ProtectedEditorFileCategory | null => {
   const extension = getFileExtension(path).toLowerCase();
@@ -193,6 +204,7 @@ export const detectProtectedEditorFileCategory = (
   const normalizedPath = normalizePath(path);
 
   return (
+    (isProtectedEditorSystemMetadataFile(normalizedPath) ? 'binary' : null) ??
     getProtectedEditorFileCategoryByExtension(normalizedPath) ??
     (sampleBytes ? getProtectedEditorFileCategoryByBytes(sampleBytes) : null)
   );
@@ -304,7 +316,12 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
       return [];
     }
 
-    const nodes: FileNode[] = entries.map((entry: any) => {
+    const nodes: FileNode[] = entries
+      .filter((entry: any) => {
+        const entryName = entry?.name;
+        return !entryName || !isProtectedEditorSystemMetadataFile(entryName);
+      })
+      .map((entry: any) => {
         return {
             id: uuidv4(), // Client-side ID
             name: entry.name || 'unknown',
@@ -312,7 +329,7 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
             kind: (entry.isDirectory ? 'directory' : 'file') as 'file' | 'directory',
             children: undefined // Lazy load
         };
-    });
+      });
 
     // Sort and cache the result
     const sortedNodes = nodes.sort(sortFiles);

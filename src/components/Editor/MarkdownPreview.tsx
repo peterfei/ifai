@@ -164,7 +164,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, class
   ], []);
 
   return (
-    <div className={`markdown-preview ${className}`}>
+    <div className={`markdown-preview allow-select ${className}`}>
       <div className={`max-w-none ${dark ? 'prose prose-invert' : 'prose prose-slate'}`}>
         <ReactMarkdown
           components={components}

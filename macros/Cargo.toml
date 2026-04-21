@@ -1,0 +1,37 @@
+[package]
+name = "macros"
+version = "0.1.0"
+edition = "2021"
+authors = ["ifai-community"]
+description = "元编程宏库 - 用于 IfAI 技能系统的代码生成"
+license = "MIT"
+repository = "https://github.com/ifai/ifainew"
+keywords = ["macros", "metaprogramming", "code-generation", "skills"]
+categories = ["development-tools", "rust-patterns"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+serde_yaml = "0.9"
+semver = "1.0"
+
+[dev-dependencies]
+trybuild = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = "0.4"
+semver = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1.0", features = ["full"] }
+
+[features]
+default = []
+# 启用额外的调试输出
+debug = []

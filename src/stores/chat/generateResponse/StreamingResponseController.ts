@@ -23,6 +23,10 @@ import {
   PHASE_TRANSITIONS,
   type StreamPhase,
 } from '@/core/stream-schema-generated';
+import { createLogger } from '../../../utils/logger';
+
+// 🔥 Logger instance for StreamingController
+const logger = createLogger('StreamingController');
 
 // 🔥 FIX: 动态获取 listen 函数，支持 E2E 测试环境和真实 Tauri 环境
 async function getTauriListen() {
@@ -37,7 +41,7 @@ async function getTauriListen() {
     const eventModule = await import('@tauri-apps/api/event');
     return eventModule.listen;
   } catch (e) {
-    console.error('[SC] Failed to get Tauri listen function:', e);
+    logger.error('Failed to get Tauri listen function:', e);
     throw new Error('Tauri event listen function not available');
   }
 }
@@ -311,7 +315,7 @@ export class StreamingResponseController {
    * 启动针对特定消息的流式监听
    */
   async startListening(messageId: string, payload: BasePayload) {
-    console.log(`[SC] Stream start: ${messageId} (correlation: ${payload.correlationId})`);
+    logger.info(`Stream start: ${messageId} (correlation: ${payload.correlationId})`);
 
     const threadId = useThreadStore.getState().activeThreadId || payload.sessionId || 'default';
 
@@ -394,10 +398,10 @@ export class StreamingResponseController {
         let eventReceived = false;
 
         // 🔥 FIX v0.3.14: 根据场景使用不同的超时时间
-        // - 首次请求: 15秒超时（DeepSeek/OpenAI 正常响应时间）
+        // - 首次请求: 60秒超时（支持长历史消息处理）
         // - 续播请求: 30秒超时（工具调用后 LLM 需要更长时间）
         // 这是一个诊断超时，不会中断实际的流处理
-        const timeoutMs = isContinuation ? 30000 : 15000;
+        const timeoutMs = isContinuation ? 30000 : 60000;
         const eventTimeoutCheck = setTimeout(() => {
           if (!eventReceived) {
             console.warn(`[SC] Event timeout (${timeoutMs}ms) for ${eventId}${isContinuation ? ' (continuation)' : ''}`);
@@ -901,9 +905,9 @@ export class StreamingResponseController {
       }
     }
 
-    // DEBUG: 仅在异常时打印（大片段）
+    // 🔥 DEBUG: 仅在异常时打印（大片段）- 使用 logger 节流
     if (delta.length > 100) {
-      console.log(`[SC] emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);
+      logger.debug(`emitChunk: deltaIndex=${deltaIndex}, deltaLength=${delta.length}, preview="${delta.slice(0, 30)}"`);
     }
 
     chatEventBus.emit('chat:stream:chunk', {
@@ -919,12 +923,12 @@ export class StreamingResponseController {
     // 🔥 FIX v0.3.12: 幂等性保护 - 防止同一个 correlationId 多次触发 finish
     const correlationId = payload.correlationId;
 
-    // 🔥 DIAGNOSTIC: 打印堆栈跟踪，追踪是哪个路径触发了 emitFinished
-    console.log(`[SC] 🔥 emitFinished called: correlationId=${correlationId}`);
-    console.log(`[SC] 🔥 Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
+    // 🔥 DIAGNOSTIC: 打印堆栈跟踪，追踪是哪个路径触发了 emitFinished - 使用 logger
+    logger.debug(`emitFinished called: correlationId=${correlationId}`);
+    logger.debug(`Call stack:`, new Error().stack?.split('\n').slice(1, 6).join('\n'));
 
     if (this.emittedFinish.has(correlationId)) {
-      console.warn(`[SC] Duplicate finish suppressed: ${correlationId}`);
+      logger.warn(`Duplicate finish suppressed: ${correlationId}`);
 
       // 🏆 FIX: 强制清理可能残留的 session（续播场景可能导致 session 泄漏）
       const session = this.activeSessions.get(correlationId);

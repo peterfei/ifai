@@ -20,6 +20,8 @@ export interface LayoutState {
   isPromptManagerOpen: boolean;
   isToolExplorerOpen: boolean; // P3: 工具浏览器
   isWorkflowsOpen: boolean; // P4: 多智能体工作流
+  isSkillsPanelOpen: boolean; // 技能面板
+  isSkillMarketOpen: boolean; // 技能市场
   chatWidth: number;
 
   // v0.2.6 新增：侧边栏状态
@@ -27,6 +29,9 @@ export interface LayoutState {
   sidebarPosition: 'left' | 'right';
   sidebarWidth: number;
   sidebarActiveTab: 'explorer' | 'search' | 'snippets' | 'tasks';  // 侧边栏活动标签页
+
+  // 🔥 FIX: 新增设置面板活动标签页
+  activeSettingsTab: 'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills' | null;
 
   // 新增：布局模式
   layoutMode: 'default' | 'custom';
@@ -46,6 +51,10 @@ export interface LayoutState {
   toggleToolExplorer: () => void; // P3: 工具浏览器
   setWorkflowsOpen: (isOpen: boolean) => void; // P4: 多智能体工作流
   toggleWorkflows: () => void; // P4: 多智能体工作流
+  setSkillsPanelOpen: (isOpen: boolean) => void; // 技能面板
+  toggleSkillsPanel: () => void; // 技能面板
+  setSkillMarketOpen: (isOpen: boolean) => void; // 技能市场
+  toggleSkillMarket: () => void; // 技能市场
   setCommandPaletteOpen: (isOpen: boolean) => void;
   toggleCommandPalette: () => void;
   setTerminalOpen: (isOpen: boolean) => void;
@@ -110,6 +119,8 @@ export const useLayoutStore = create<LayoutState>()(
       isPromptManagerOpen: false,
       isToolExplorerOpen: false, // P3: 工具浏览器
       isWorkflowsOpen: false, // P4: 多智能体工作流
+      isSkillsPanelOpen: false, // 技能面板
+      isSkillMarketOpen: false, // 技能市场
       chatWidth: 384,
 
       // v0.2.6 新增：侧边栏初始状态
@@ -117,6 +128,9 @@ export const useLayoutStore = create<LayoutState>()(
       sidebarPosition: 'left',
       sidebarWidth: 250,
       sidebarActiveTab: 'explorer',
+
+      // 🔥 FIX: 设置面板活动标签页初始状态
+      activeSettingsTab: null,
 
       // 新增：布局模式初始状态
       layoutMode: 'default',
@@ -159,6 +173,10 @@ export const useLayoutStore = create<LayoutState>()(
       toggleToolExplorer: () => set((state) => ({ isToolExplorerOpen: !state.isToolExplorerOpen })), // P3: 工具浏览器
       setWorkflowsOpen: (isOpen) => set({ isWorkflowsOpen: isOpen }), // P4: 多智能体工作流
       toggleWorkflows: () => set((state) => ({ isWorkflowsOpen: !state.isWorkflowsOpen })), // P4: 多智能体工作流
+      setSkillsPanelOpen: (isOpen) => set({ isSkillsPanelOpen: isOpen }), // 技能面板
+      toggleSkillsPanel: () => set((state) => ({ isSkillsPanelOpen: !state.isSkillsPanelOpen })), // 技能面板
+      setSkillMarketOpen: (isOpen) => set({ isSkillMarketOpen: isOpen }), // 技能市场
+      toggleSkillMarket: () => set((state) => ({ isSkillMarketOpen: !state.isSkillMarketOpen })), // 技能市场
       setCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
       toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
       setTerminalOpen: (isOpen) => set({ isTerminalOpen: isOpen }),
@@ -430,6 +448,10 @@ export const useLayoutStore = create<LayoutState>()(
         isToolExplorerOpen: state.isToolExplorerOpen,
         // P4: 持久化多智能体工作流状态
         isWorkflowsOpen: state.isWorkflowsOpen,
+        // 技能面板
+        isSkillsPanelOpen: state.isSkillsPanelOpen,
+        // 技能市场
+        isSkillMarketOpen: state.isSkillMarketOpen,
         editorMode: state.editorMode,
       }),
 

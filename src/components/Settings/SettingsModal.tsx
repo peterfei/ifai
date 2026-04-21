@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Monitor, Type, Cpu, Keyboard, Zap, Database, Cpu as LocalLLM, Globe, Target } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
@@ -14,9 +14,11 @@ import { formatKeybinding } from '../../utils/keyboard';
 
 export const SettingsModal = () => {
   const { t, i18n } = useTranslation();
-  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition } = useLayoutStore();
+  const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition, activeSettingsTab } = useLayoutStore();
   const settings = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>(
+    (activeSettingsTab || 'general') as 'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'
+  );
   const fieldLabelClass = 'settings-modal-label theme-text-muted mb-1 block text-sm font-medium';
   const fieldHintClass = 'settings-modal-value theme-text-subtle mt-1 text-xs';
   const fieldInputClass = 'settings-modal-input theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm';
@@ -33,6 +35,12 @@ export const SettingsModal = () => {
   const providerToggleThumbClass = 'theme-toggle-thumb inline-block h-4 w-4 rounded-full';
   const providerSummaryClass = 'theme-text-subtle text-xs leading-5';
   const toggleSidebarShortcut = formatKeybinding('Mod+b');
+
+  useEffect(() => {
+    if (activeSettingsTab && activeSettingsTab !== activeTab) {
+      setActiveTab(activeSettingsTab as typeof activeTab);
+    }
+  }, [activeSettingsTab, activeTab]);
 
   // 获取本地化的提供商名称
   const getProviderName = (providerId: string, fallbackName: string): string => {

@@ -596,7 +596,7 @@ export function FormattedToolResult({ result }: { result: any }) {
   const markdown = formatToolResultToMarkdown(result);
 
   return (
-    <div className="formatted-tool-result theme-text">
+    <div className="formatted-tool-result theme-text allow-select">
       <ReactMarkdown
         components={{
           h1: ({node, ...props}) => <h1 {...props} className="theme-text mb-2 text-lg font-bold" />,

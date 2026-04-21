@@ -10,6 +10,8 @@ import type {
   SessionNotesData,
   TokenStats,
   ArchiveInfo,
+  ArchiveDetail,
+  RestoreOptions,
   SummaryConfig,
   Message,
   CompactResult
@@ -133,6 +135,16 @@ interface ConversationStore {
    * 获取归档列表
    */
   loadArchives: () => Promise<void>;
+
+  /**
+   * 加载归档详细内容
+   */
+  loadArchiveDetail: (archiveId: string) => Promise<ArchiveDetail | null>;
+
+  /**
+   * 恢复归档到对话
+   */
+  restoreArchive: (archiveId: string, options?: RestoreOptions) => Promise<boolean>;
 
   /**
    * 清除错误
@@ -519,16 +531,43 @@ export const useConversationStore = create<ConversationStore>()(
     },
 
     /**
-     * 压缩对话
+     * 压缩对话（集成多格式归档）
+     *
+     * 🔥 元编程：自动归档原始对话到多种格式
+     * - JSON: 机器可读，用于 API 查询
+     * - Markdown: 人类可读，用于 Git 和 LLM 输入
      */
     compactConversation: async (messages: Message[], summary: string, keepLastN = 10) => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
+
+        // 🔥 1. 先压缩对话
         const compacted = await invoke<Message[]>('compact_conversation', {
           messages,
           summary,
-          keepLastN
+          keep_last_n: keepLastN
         });
+
+        // 🔥 2. 异步归档原始对话（不阻塞压缩流程）
+        try {
+          const projectRoot = await invoke<string>('get_project_root', {});
+          const { conversationArchiveService } = await import('../core/archive/ConversationArchiveService');
+
+          conversationArchiveService.archiveConversation(messages, summary, projectRoot, {
+            formats: ['json', 'markdown'],
+            pretty: true,
+            metadata: {
+              version: '1.0.0',
+              originalMessageCount: messages.length
+            }
+          }).catch(err => {
+            console.error('[ArchiveService] Archive failed:', err);
+          });
+        } catch (archiveError) {
+          // 归档失败不影响压缩结果
+          console.warn('[ConversationStore] Archive service error (non-blocking):', archiveError);
+        }
+
         return {
           original_count: messages.length,
           compressed_count: compacted.length,
@@ -564,6 +603,60 @@ export const useConversationStore = create<ConversationStore>()(
           error: error instanceof Error ? error.message : String(error),
           isLoading: false
         });
+      }
+    },
+
+    /**
+     * 加载归档详细内容
+     */
+    loadArchiveDetail: async (archiveId: string) => {
+      set({ isLoading: true, error: null });
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const projectRoot = await invoke<string>('get_project_root', {});
+
+        // 调用后端加载归档详情
+        const detail = await invoke<any>('load_conversation_archive', {
+          projectRoot,
+          archiveId
+        });
+
+        set({ isLoading: false });
+        return detail as ArchiveDetail;
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : String(error),
+          isLoading: false
+        });
+        return null;
+      }
+    },
+
+    /**
+     * 恢复归档到对话
+     */
+    restoreArchive: async (archiveId: string, options: RestoreOptions = { mode: 'replace' }) => {
+      set({ isLoading: true, error: null });
+      try {
+        // 1. 加载归档详细内容
+        const detail = await get().loadArchiveDetail(archiveId);
+
+        if (!detail) {
+          throw new Error('Failed to load archive detail');
+        }
+
+        // 2. 根据选项恢复消息
+        // 注意：这里需要访问 chatStore，所以需要在调用处处理
+        // 此方法只负责加载归档内容，实际的恢复逻辑由调用方处理
+
+        set({ isLoading: false });
+        return true;
+      } catch (error) {
+        set({
+          error: error instanceof Error ? error.message : String(error),
+          isLoading: false
+        });
+        return false;
       }
     },
 

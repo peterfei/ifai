@@ -1243,7 +1243,462 @@
     "disabled": "已停用",
     "toggleSkill": "切换技能 {{name}}",
     "openProjectFirst": "请先打开一个项目文件夹，再安装示例技能。",
-    "loadFailed": "加载技能失败：{{error}}"
+    "loadFailed": "加载技能失败：{{error}}",
+    "retry": "重试"
+  },
+  "skillShared": {
+    "state": {
+      "active": "已激活",
+      "installed": "已安装",
+      "notInstalled": "未安装",
+      "installing": "安装中",
+      "inactive": "未激活",
+      "uninstalling": "卸载中",
+      "error": "错误"
+    },
+    "filters": {
+      "all": "全部",
+      "active": "已激活",
+      "installed": "已安装",
+      "inactive": "未激活",
+      "error": "错误"
+    },
+    "sort": {
+      "name": "名称",
+      "version": "版本",
+      "status": "状态",
+      "author": "作者"
+    }
+  },
+  "skillsPanel": {
+    "title": "技能",
+    "summary": "{{active}} 个激活 / 共 {{total}} 个",
+    "openMarket": "打开技能市场",
+    "searchPlaceholder": "搜索技能...",
+    "filter": "筛选",
+    "clearFilters": "清除筛选",
+    "loading": "正在加载技能...",
+    "emptyTitle": "未找到匹配的技能",
+    "emptyDescription": "请尝试其他关键词或状态筛选。",
+    "footer": {
+      "active": "激活：{{count}}",
+      "total": "总计：{{count}}",
+      "filtered": "显示：{{count}}"
+    },
+    "processing": "处理中...",
+    "activate": "激活技能",
+    "deactivate": "停用技能",
+    "uninstall": "卸载技能",
+    "author": "作者：{{author}}",
+    "tags": "标签",
+    "noTags": "暂无标签",
+    "dependencies": "依赖",
+    "noDependencies": "无依赖",
+    "systemPrompt": "系统提示词",
+    "emptySelectionTitle": "选择一个技能",
+    "emptySelectionDescription": "从左侧列表中选择技能，查看详情并执行操作。",
+    "confirmUninstall": "确定要卸载“{{name}}”吗？",
+    "toasts": {
+      "activating": "正在激活 {{name}}...",
+      "activated": "已激活 {{name}}",
+      "deactivating": "正在停用 {{name}}...",
+      "deactivated": "已停用 {{name}}",
+      "uninstalling": "正在卸载 {{name}}...",
+      "uninstalled": "已卸载 {{name}}",
+      "actionFailed": "操作失败：{{error}}",
+      "uninstallFailed": "卸载失败：{{error}}",
+      "openProjectFirst": "请先打开一个项目。",
+      "unknownError": "未知错误"
+    }
+  },
+  "skillMarket": {
+    "title": "技能市场",
+    "countSummary": "共 {{count}} 个内置技能",
+    "close": "关闭技能市场",
+    "back": "返回列表",
+    "searchPlaceholder": "搜索技能...",
+    "featuredBadge": "精选",
+    "installed": "已安装",
+    "installing": "安装中...",
+    "installToProject": "安装到项目",
+    "uninstall": "卸载技能",
+    "confirmUninstall": "确定要卸载“{{name}}”吗？",
+    "version": "版本 {{version}}",
+    "author": "作者：{{author}}",
+    "downloads": "{{value}} 次下载",
+    "rating": "评分 {{value}}",
+    "size": "大小 {{value}}",
+    "tags": "标签",
+    "dependencies": "依赖",
+    "noDependencies": "无依赖",
+    "requirements": "使用要求",
+    "examples": "使用场景",
+    "systemPromptPreview": "系统提示词预览",
+    "previewHint": "安装后可查看完整提示词。",
+    "welcomeTitle": "欢迎来到技能市场",
+    "welcomeDescription": "浏览内置技能目录，并按需将技能安装到当前项目中。",
+    "featuredCount": "{{count}} 个精选",
+    "totalCount": "{{count}} 个技能",
+    "emptyTitle": "未找到匹配的技能",
+    "emptyDescription": "请尝试其他搜索词或分类。",
+    "categories": {
+      "all": "全部",
+      "featured": "精选",
+      "development": "开发",
+      "testing": "测试",
+      "documentation": "文档",
+      "pivo": "PIVO"
+    },
+    "toasts": {
+      "openProjectFirst": "请先打开一个项目。",
+      "installing": "正在安装 {{name}}...",
+      "installed": "已安装 {{name}}",
+      "installFailed": "安装失败：{{error}}",
+      "uninstalling": "正在卸载 {{name}}...",
+      "uninstalled": "已卸载 {{name}}",
+      "uninstallFailed": "卸载失败：{{error}}",
+      "unknownError": "未知错误"
+    }
+  },
+  "skillCatalog": {
+    "common": {
+      "ifaiTeam": "IfAI 团队"
+    },
+    "tags": {
+      "codeReview": "代码审查",
+      "quality": "质量",
+      "security": "安全",
+      "performance": "性能",
+      "testing": "测试",
+      "automation": "自动化",
+      "ciCd": "CI/CD",
+      "documentation": "文档",
+      "api": "API",
+      "openapi": "OpenAPI",
+      "swagger": "Swagger",
+      "debugging": "调试",
+      "troubleshooting": "排障",
+      "errorFixing": "错误修复",
+      "pivo": "PIVO",
+      "diagnostics": "诊断",
+      "recovery": "恢复",
+      "delivery": "交付",
+      "implementation": "实现",
+      "verification": "验证",
+      "refactor": "重构",
+      "architecture": "架构",
+      "maintainability": "可维护性",
+      "profiling": "分析",
+      "optimization": "优化",
+      "audit": "审计",
+      "compliance": "合规",
+      "guides": "指南",
+      "knowledgeBase": "知识库",
+      "docker": "Docker",
+      "kubernetes": "Kubernetes",
+      "devops": "DevOps",
+      "container": "容器"
+    },
+    "skills": {
+      "code-review-pro": {
+        "name": "代码审查专家 Pro",
+        "description": "深度代码审查，重点关注正确性、可维护性、安全性与性能。",
+        "longDescription": "以资深工程师视角审查代码改动，优先指出高风险问题，再补充结构和质量建议。",
+        "systemPrompt": "你是一名资深代码审查工程师。请按严重程度输出问题、影响、证据和修复建议。",
+        "examples": [
+          "审查 React 组件中的状态管理问题",
+          "排查 API 处理流程里的安全回归",
+          "检查一次重构是否引入了测试缺口"
+        ]
+      },
+      "test-generator-ai": {
+        "name": "AI 测试生成器",
+        "description": "根据真实代码路径与边界条件生成单元测试和集成测试。",
+        "longDescription": "围绕行为、错误路径与回归场景生成实用测试，覆盖前端与后端常见栈。",
+        "systemPrompt": "你是一名测试工程师。请输出聚焦行为、断言明确、覆盖边界场景的测试代码。",
+        "examples": [
+          "为 React Hook 生成 Vitest 测试",
+          "为 Express 接口编写集成测试",
+          "为工具函数补齐异常路径测试"
+        ]
+      },
+      "api-doc-writer": {
+        "name": "API 文档助手",
+        "description": "生成结构化 API 文档，覆盖请求、响应和错误说明。",
+        "longDescription": "将路由契约和代码实现整理成简洁、可交付、便于维护的接口文档。",
+        "systemPrompt": "你是一名技术文档作者。请输出准确的 API 文档，包括端点、参数、示例和错误说明。",
+        "examples": [
+          "整理一组 REST API 的接口说明",
+          "总结请求与响应字段定义",
+          "为 OpenAPI 文档准备接口草稿"
+        ]
+      },
+      "bug-hunter": {
+        "name": "Bug 猎手",
+        "description": "快速定位缺陷并给出最小可行修复方案。",
+        "longDescription": "结合日志、堆栈和代码路径识别最可能的根因，并提供低风险补丁建议。",
+        "systemPrompt": "你是一名调试专家。请定位最可能的根因，并给出最小且可靠的修复方案。",
+        "examples": [
+          "根据生产堆栈追踪定位崩溃原因",
+          "排查状态同步类问题",
+          "解释后台任务偶发失败的根因"
+        ]
+      },
+      "pivo-healer": {
+        "name": "PIVO 修复官",
+        "description": "稳定异常流程，并用清晰诊断指导恢复。",
+        "longDescription": "聚焦故障流程中的关键断点，输出恢复顺序、风险点和验证步骤。",
+        "systemPrompt": "你是一名恢复专家。请诊断失败点、稳定流程，并输出先验证后恢复的计划。",
+        "examples": [
+          "排查失败的 proposal workflow",
+          "恢复损坏的持久化链路",
+          "稳定跨服务交接中的异常流程"
+        ]
+      },
+      "pivo-implementer": {
+        "name": "PIVO 实施官",
+        "description": "把已批准方案转成可执行步骤和交付清单。",
+        "longDescription": "将范围明确的需求拆成执行顺序、检查点和可落地的验收标准。",
+        "systemPrompt": "你是一名实施负责人。请把方案拆成可执行步骤，明确顺序、依赖和验收标准。",
+        "examples": [
+          "把设计方案转成实施任务清单",
+          "规划多文件功能开发顺序",
+          "补齐一项工作流改造的验收标准"
+        ]
+      },
+      "pivo-verifier": {
+        "name": "PIVO 验证官",
+        "description": "检查执行结果是否符合计划，并在发布前标出缺口。",
+        "longDescription": "对照范围和验收标准复盘已完成工作，识别遗漏验证与偏差。",
+        "systemPrompt": "你是一名验证负责人。请对照计划检查执行结果，并要求明确的验证证据。",
+        "examples": [
+          "核对已完成功能是否符合规格",
+          "在合并前做一次发布准备检查",
+          "审查验收标准是否被完整覆盖"
+        ]
+      },
+      "code-refactor": {
+        "name": "代码重构专家",
+        "description": "在不改变行为的前提下重整结构并提升可维护性。",
+        "longDescription": "优化命名、分层、重复代码和模块边界，以渐进方式改善结构质量。",
+        "systemPrompt": "你是一名重构专家。请在保持行为不变的前提下改进结构，并说明需要验证的风险点。",
+        "examples": [
+          "拆分超大的组件或模块",
+          "消除服务层中的重复逻辑",
+          "整理 store 接口但保持原有行为"
+        ]
+      },
+      "performance-optimizer": {
+        "name": "性能优化顾问",
+        "description": "发现性能瓶颈，并给出高收益的运行时优化建议。",
+        "longDescription": "聚焦慢路径、重复渲染、昂贵查询和浪费型 I/O，输出务实的优化方案。",
+        "systemPrompt": "你是一名性能工程师。请识别主要瓶颈，评估收益，并给出最低风险的优化方案。",
+        "examples": [
+          "减少 React 重复渲染",
+          "优化慢接口的查询路径",
+          "排查桌面应用启动耗时"
+        ]
+      },
+      "security-auditor": {
+        "name": "安全审计助手",
+        "description": "审查代码路径中的安全弱点和不安全假设。",
+        "longDescription": "检查输入处理、信任边界、凭证使用和运行时防护，输出可执行的安全修复建议。",
+        "systemPrompt": "你是一名安全审计工程师。请识别真实攻击面，说明严重性，并给出具体缓解方案。",
+        "examples": [
+          "审计文件系统访问控制",
+          "检查配置流程中的密钥处理",
+          "复核 API 输入校验策略"
+        ]
+      },
+      "tech-writer": {
+        "name": "技术写作助手",
+        "description": "撰写简洁的技术指南、交接说明和用户参考文档。",
+        "longDescription": "帮助团队输出结构清晰、可复用、便于长期维护的工程文档。",
+        "systemPrompt": "你是一名技术作者。请输出结构清晰、范围明确、假设透明的技术文档。",
+        "examples": [
+          "编写本地开发环境搭建指南",
+          "整理一次发布说明摘要",
+          "沉淀内部工程流程文档"
+        ]
+      },
+      "docker-expert": {
+        "name": "Docker 容器专家",
+        "description": "优化 Docker、Compose 与容器交付流程。",
+        "longDescription": "围绕镜像体积、安全性、可复现性和部署便利性改进容器构建与运行配置。",
+        "systemPrompt": "你是一名容器专家。请结合部署约束，给出实用的 Docker 与编排优化建议。",
+        "requirements": [
+          "建议具备基础 Docker 使用经验"
+        ],
+        "examples": [
+          "优化生产 Dockerfile",
+          "配置本地开发用 docker-compose",
+          "整理 Kubernetes 部署建议"
+        ]
+      }
+    }
+  },
+  "archivePanel": {
+    "title": "对话归档",
+    "detailTitle": "归档详情",
+    "close": "关闭归档面板",
+    "back": "返回归档列表",
+    "errorTitle": "加载归档失败",
+    "errorDescription": "{{error}}",
+    "summaryTitle": "对话总结",
+    "restore": "恢复此归档",
+    "loading": "加载归档中...",
+    "emptyTitle": "暂无归档",
+    "emptyDescription": "对话压缩后会自动创建归档。",
+    "messageCount": "{{value}} 条消息",
+    "tokens": "{{value}} 个 tokens",
+    "meta": {
+      "time": "时间",
+      "messages": "消息数",
+      "tokens": "Token 数",
+      "format": "格式",
+      "size": "大小"
+    }
+  },
+  "skillsManagement": {
+    "title": "技能中心",
+    "subtitle": "统一管理 AI 技能插件与安装流程。",
+    "refresh": "刷新",
+    "grid": "网格",
+    "list": "列表",
+    "gridAria": "网格视图",
+    "listAria": "列表视图",
+    "openInstaller": "打开技能市场",
+    "searchPlaceholder": "搜索技能名称、ID 或描述...",
+    "clearSearch": "清空搜索",
+    "filter": "筛选",
+    "resultsSummary": "{{resultCount}} / {{totalCount}} 个技能",
+    "filterState": "状态：",
+    "sortLabel": "排序：",
+    "sortOrderAsc": "升序",
+    "sortOrderDesc": "降序",
+    "filterTags": "标签：",
+    "showLessTags": "收起",
+    "showMoreTags": "+{{count}} 个",
+    "clearAllFilters": "清除所有筛选",
+    "popularTags": "热门标签",
+    "batchSelected": "已选择 {{count}} 个技能",
+    "batchActivate": "批量激活",
+    "clearSelection": "取消选择",
+    "loading": "正在加载技能...",
+    "loadFailedTitle": "加载失败",
+    "retry": "重试",
+    "emptyTitle": "未找到技能",
+    "emptyDescription": "安装内置示例技能来快速开始。",
+    "emptyFilteredDescription": "请尝试调整当前搜索或筛选条件。",
+    "installExamples": "安装示例技能",
+    "deactivate": "停用",
+    "activate": "激活",
+    "install": "安装",
+    "stats": {
+      "total": "总计",
+      "active": "激活",
+      "installed": "已安装",
+      "error": "错误"
+    }
+  },
+  "skillInstaller": {
+    "title": "技能市场",
+    "subtitle": "浏览和安装社区技能",
+    "close": "关闭安装器",
+    "searchPlaceholder": "搜索技能...",
+    "emptyTitle": "未找到匹配的技能",
+    "emptyDescription": "请尝试其他关键词或分类。",
+    "version": "版本 {{version}}",
+    "downloads": "{{value}} 次下载",
+    "installing": "安装中...",
+    "install": "安装技能",
+    "browseAll": "浏览全部技能库",
+    "installFromFile": "从本地文件安装",
+    "availableCount": "共 {{count}} 个技能可用",
+    "installFailed": "{{name}} 安装失败：{{error}}",
+    "unknownError": "未知错误",
+    "categories": {
+      "all": "全部",
+      "official": "官方",
+      "community": "社区"
+    }
+  },
+  "skillDetail": {
+    "installing": "安装中...",
+    "install": "安装",
+    "deactivate": "停用",
+    "activate": "激活",
+    "uninstall": "卸载",
+    "source": "源码",
+    "basicInfo": "基本信息",
+    "skillId": "技能 ID",
+    "author": "作者",
+    "unknownAuthor": "未知",
+    "compatibility": "兼容性",
+    "systemPrompt": "系统提示词",
+    "tags": "标签",
+    "noTags": "暂无标签",
+    "dependencies": "依赖",
+    "noDependencies": "无依赖",
+    "sourceFiles": "源文件",
+    "open": "打开"
+  },
+  "skillEditor": {
+    "createTitle": "创建技能",
+    "createSubtitle": "创建新的 AI 技能插件",
+    "editTitle": "编辑技能",
+    "editSubtitle": "正在编辑 {{name}}",
+    "viewTitle": "查看技能",
+    "viewSubtitle": "查看技能详情",
+    "editTab": "编辑",
+    "previewTab": "预览",
+    "close": "关闭编辑器",
+    "sections": {
+      "basic": "基本信息"
+    },
+    "fields": {
+      "id": "技能 ID",
+      "idHint": "仅允许小写字母、数字和连字符。",
+      "name": "技能名称",
+      "description": "描述",
+      "systemPrompt": "系统提示词",
+      "version": "版本",
+      "versionHint": "建议遵循语义化版本规范。",
+      "author": "作者",
+      "tags": "标签",
+      "tagsPlaceholder": "添加标签...",
+      "dependencies": "依赖技能",
+      "dependenciesPlaceholder": "添加依赖技能 ID...",
+      "compatibility": "兼容性表达式",
+      "compatibilityHint": "使用 semver 表达式描述兼容版本。"
+    },
+    "placeholders": {
+      "id": "my-skill",
+      "name": "我的技能",
+      "description": "简要描述这个技能的功能",
+      "systemPrompt": "You are a helpful assistant...",
+      "version": "1.0.0",
+      "author": "Your Name",
+      "compatibility": "^1.0.0 || >=2.0.0"
+    },
+    "characterCount": "{{count}} 个字符",
+    "validation": {
+      "id": "技能 ID 不能为空",
+      "name": "技能名称不能为空",
+      "description": "描述不能为空",
+      "systemPrompt": "系统提示词不能为空",
+      "version": "版本号不能为空"
+    },
+    "errorsSummary": "请修正 {{count}} 个错误",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中...",
+    "previewFallbackName": "未命名技能",
+    "previewFallbackDescription": "请为这个技能补充简要说明。",
+    "previewVersion": "版本 {{version}}",
+    "previewAuthor": "作者 {{author}}",
+    "add": "添加",
+    "removeItem": "移除项"
   },
   "commandPalette": {
     "placeholder": "搜索文件...",
@@ -2678,7 +3133,7 @@
     "ready": "就绪",
     "noFileOpen": "未打开文件",
     "plainText": "纯文本",
-    "tokens": "令牌",
+    "tokens": "Token",
     "filesCount": "{{count}} 个文件"
   }
 }

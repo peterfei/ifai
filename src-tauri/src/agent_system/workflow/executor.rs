@@ -35,7 +35,8 @@ pub(crate) fn default_provider_config() -> crate::core_traits::ai::AIProviderCon
         api_key: String::new(),
         base_url: String::new(),
         models: Vec::new(),
-        protocol: crate::core_traits::ai::AIProtocol::Openai,
+        protocol: crate::core_traits::ai::AIProtocol::OpenAI,
+        enabled: false,
     }
 }
 
@@ -415,189 +416,27 @@ impl AgentNodeExecutor {
     }
 
     /// 构建系统提示词
+    /// 🔥 构建系统提示词（重构后：使用统一加载器）
     fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
-        let base_prompt = match node.agent_type {
-            AgentType::Explore => {
-                format!(r#"你是一个高效的代码探索智能体。你可以访问实际文件系统。
+        use crate::agent_system::workflow::prompt_loader::{AgentPromptLoader, PromptContext};
 
-**项目信息**：
-- 项目根目录：{}
-- 目标路径：{}
+        println!("[WorkflowExecutor] 🔍 Loading {} prompt via AgentPromptLoader...",
+            format!("{:?}", node.agent_type).to_lowercase());
 
-**可用工具**（按优先级排序）：
-1. `agent_scan_project(rel_path, max_depth)` - **优先使用**，一次获取完整目录结构
-   - rel_path: 要扫描的相对路径
-   - max_depth: 最大扫描深度（默认3）
-2. `agent_read_file(rel_path)` - 读取文件内容
-   - rel_path: 要读取的文件相对路径
+        // 🔥 使用统一加载器
+        let mut variables = ctx.variables.clone();
+        if let Some(target) = &node.config.target {
+            variables.insert("target_path".to_string(), target.clone());
+        }
 
-**工具使用策略**（性能优化）：
-1. ✅ 第一步：使用 `agent_scan_project` 一次获取完整结构
-2. ✅ 第二步：根据结构，**批量并行读取**关键文件（如 package.json, README.md, 主要源码）
-3. ❌ 避免使用 `agent_list_dir`（scan_project 已包含完整信息）
-4. ❌ 避免多次扫描相同路径
-
-**性能提示**：
-- 工具调用是**并行的**，可以一次性发起多个 `agent_read_file` 调用
-- 例如：扫描后立即读取 3-5 个关键文件，而不是一个一个读取
-- 优先读取配置文件、入口文件、核心模块
-
-**你的任务**（一次性完成，不要分多次）：
-1. 使用 `agent_scan_project` 扫描路径："{}"（深度建议 2-3）
-2. **在同一个响应中立即调用** `agent_read_file` 读取关键文件：
-   - 配置文件：package.json, Cargo.toml, pom.xml, build.gradle 等
-   - 文档：README.md, CONTRIBUTING.md
-   - 入口文件：index.js, main.rs, app.py 等
-   - 核心模块：lib/, src/ 下的主要文件
-3. 快速分析并输出结构化报告
-
-**⚠️ 性能关键**：
-- 必须在**第一次工具调用**时同时返回所有需要的 `agent_read_file` 调用
-- 不要先 scan 再等第二次迭代才读取文件
-- 一次性完成所有工具调用，然后输出结果
-
-**输出格式**（简洁实用）：
-- 📊 **项目概述**（1-2句话）
-- 🛠️ **技术栈**（列出框架、语言、工具）
-- 📁 **关键目录**（3-5个最重要的）
-- 🔑 **关键文件**（已读取的文件摘要）
-- 🏗️ **架构特点**（3-5点）
-
-**重要**：
-- 快速完成，不需要过度分析
-- 只读取真正必要的文件
-- 输出简洁明了，避免冗长"#,
-                    ctx.project_root,
-                    ctx.task_description,
-                    ctx.task_description
-                )
-            }
-            AgentType::Review => {
-                format!(r#"你是一个专业的代码审查智能体。
-
-**项目信息**：
-- 项目根目录：{}
-- 审查目标：{}
-
-你的任务是：
-1. **提供审查建议**：基于项目类型，提供针对性的代码审查清单和建议
-2. **常见问题检查**：列出该类型项目常见的代码问题和注意事项
-3. **最佳实践**：建议适用的编码标准和最佳实践
-4. **安全性检查**：提醒应该注意的安全问题
-5. **性能优化**：建议性能优化的方向
-
-输出格式：
-- ✅ **应该优先检查的文件/模块**
-- ⚠️ **需要特别注意的问题**
-- 💡 **改进建议**
-- 🔒 **安全注意事项**
-
-注意：提供针对该项目的实用审查指南，而不是"模拟"审查过程。"#,
-                    ctx.project_root,
-                    ctx.task_description
-                )
-            }
-            AgentType::Refactor => {
-                format!(r#"你是一个专业的代码重构顾问。
-
-**项目信息**：
-- 项目根目录：{}
-- 重构目标：{}
-
-你的任务是：
-1. **重构建议**：基于项目类型，提供针对性的重构建议和方向
-2. **架构优化**：建议如何改进代码组织和模块化
-3. **代码质量提升**：提供提高代码可读性和可维护性的具体建议
-4. **性能优化**：建议性能优化的机会和方法
-5. **技术债务**：提醒可能存在的技术债务及解决方案
-
-输出格式：
-- 🏗️ **架构优化建议**
-- 📦 **模块化改进方案**
-- ⚡ **性能优化机会**
-- 🧹 **代码清理建议**
-- 📋 **重构优先级清单**
-
-注意：提供实用的重构指南和最佳实践，而不是"模拟"重构过程。"#,
-                    ctx.project_root,
-                    ctx.task_description
-                )
-            }
-            AgentType::Test => {
-                r#"你是一个专业的测试智能体。你的任务是：
-
-1. 分析测试覆盖率和测试策略
-2. 识别未测试的关键功能
-3. 提供测试用例建议
-4. 改进现有测试的质量
-
-请关注：
-- 单元测试
-- 集成测试
-- 边界条件测试
-- 错误处理测试
-
-请输出测试建议和示例测试代码。"#.to_string()
-            }
-            AgentType::Doc => {
-                r#"你是一个专业的文档生成智能体。你的任务是：
-
-1. 分析代码并生成清晰的文档
-2. 编写 API 文档和使用说明
-3. 创建代码示例和教程
-4. 改善现有文档的质量
-
-请确保文档：
-- 准确且完整
-- 易于理解
-- 包含实用示例
-- 遵循文档最佳实践
-
-请输出结构化的文档内容。"#.to_string()
-            }
-            AgentType::TaskBreakdown => {
-                r#"你是一个专业的任务分解智能体。你的任务是：
-
-1. 将复杂任务分解为可管理的子任务
-2. 定义任务的依赖关系
-3. 估算任务的复杂度和工作量
-4. 提供任务执行的优先级建议
-
-请确保任务分解：
-- 具体且可执行
-- 逻辑清晰
-- 依赖关系明确
-- 考虑了风险和不确定性
-
-请输出结构化的任务列表和执行计划。"#.to_string()
-            }
-            AgentType::ProposalGenerator => {
-                r#"你是一个专业的提案生成智能体。你的任务是：
-
-1. 分析需求并生成技术提案
-2. 设计实施方案和架构
-3. 评估风险和资源需求
-4. 提供时间表和里程碑
-
-请确保提案：
-- 全面且可行
-- 考虑了技术选型
-- 包含风险评估
-- 有清晰的交付物
-
-请输出结构化的技术提案。"#.to_string()
-            }
-            AgentType::GeneralPurpose => {
-                r#"你是一个专业的通用智能体。你的任务是：
-
-1. 理解用户的需求
-2. 提供准确、有用的信息
-3. 帮助解决问题
-4. 给出切实可行的建议
-
-请使用清晰、友好的语言，提供高质量的回应。"#.to_string()
-            }
+        let prompt_context = PromptContext {
+            project_root: ctx.project_root.clone(),
+            task_description: ctx.task_description.clone(),
+            variables,
         };
+
+        let loader = AgentPromptLoader::new(&ctx.project_root);
+        let base_prompt = loader.load_for(&node.agent_type, &prompt_context);
 
         // 添加项目上下文
         let full_prompt = format!(

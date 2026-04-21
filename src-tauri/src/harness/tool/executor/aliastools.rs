@@ -237,6 +237,7 @@ impl AliasExecutor {
     /// 处理 agent_scan_project 工具调用
     ///
     /// 扫描项目结构，返回文件树和关键文件
+    /// v0.5.0: 使用 SmartScanner 极简元编程框架
     fn handle_agent_scan_project(&self, input: &Value) -> Result<String, ToolError> {
         let rel_path = input
             .get("rel_path")
@@ -250,143 +251,20 @@ impl AliasExecutor {
 
         let full_path = self.resolve_path(rel_path)?;
 
-        // 忽略的目录
-        let ignore_dirs = vec![
-            "node_modules", "target", "dist", "build", ".git",
-            "vendor", "env", "venv", "__pycache__",
-            ".next", ".nuxt", "coverage",
-        ];
+        // 🆕 使用 SmartScanner 极简元编程框架
+        use crate::scanners::ExploreScanner;
 
-        // 忽略的文件
-        let ignore_files = vec![
-            ".DS_Store", "Thumbs.db", "*.lock", "*.pyc",
-        ];
+        // 尝试从配置文件加载，失败则使用默认配置
+        let scanner = ExploreScanner::from_config_file("config/agents/explore.yml")
+            .unwrap_or_else(|_| ExploreScanner::new());
 
-        // 扫描目录
-        let mut structure = Map::new();
-        let mut key_files = Vec::new();
-
-        self.scan_dir_recursive(
-            &full_path,
-            "",
-            0,
-            max_depth,
-            &ignore_dirs,
-            &ignore_files,
-            &mut structure,
-            &mut key_files,
-        ).map_err(|e| ToolError::Execution(format!("Scan failed: {}", e)))?;
+        // 执行扫描
+        let result = scanner.scan_with_cache(&full_path)
+            .map_err(|e| ToolError::Execution(format!("Scan failed: {}", e)))?;
 
         // 返回格式化结果
-        Ok(json!({
-            "structure": structure,
-            "key_files": key_files
-        }).to_string())
-    }
-
-    /// 递归扫描目录
-    fn scan_dir_recursive(
-        &self,
-        base_path: &Path,
-        rel_path: &str,
-        current_depth: usize,
-        max_depth: usize,
-        ignore_dirs: &[&str],
-        ignore_files: &[&str],
-        structure: &mut Map<String, Value>,
-        key_files: &mut Vec<String>,
-    ) -> Result<(), std::io::Error> {
-        if current_depth >= max_depth {
-            return Ok(());
-        }
-
-        let full_path = base_path.join(rel_path);
-
-        if !full_path.is_dir() {
-            return Ok(());
-        }
-
-        let mut entries = Vec::new();
-
-        for entry in fs::read_dir(&full_path)? {
-            let entry = entry?;
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy().to_string();
-
-            // 跳过忽略的目录和文件
-            if ignore_dirs.contains(&name_str.as_str()) {
-                continue;
-            }
-            if ignore_files.iter().any(|f| name_str.ends_with(f)) {
-                continue;
-            }
-
-            let entry_path = entry.path();
-            let new_rel_path = if rel_path.is_empty() {
-                name_str.clone()
-            } else {
-                format!("{}/{}", rel_path, name_str)
-            };
-
-            if entry_path.is_dir() {
-                // 递归扫描子目录
-                let mut subdir = Map::new();
-                self.scan_dir_recursive(
-                    base_path,
-                    &new_rel_path,
-                    current_depth + 1,
-                    max_depth,
-                    ignore_dirs,
-                    ignore_files,
-                    &mut subdir,
-                    key_files,
-                )?;
-
-                entries.push((name_str, Value::Object(subdir)));
-            } else {
-                // 收集关键文件
-                if self.is_key_file(&name_str) {
-                    key_files.push(new_rel_path.clone());
-                }
-
-                entries.push((name_str, Value::String("file".to_string())));
-            }
-        }
-
-        // 排序并构建结构
-        entries.sort_by(|a, b| a.0.cmp(&b.0));
-
-        // 目录优先
-        entries.sort_by(|a, b| {
-            let a_is_dir = matches!(&a.1, Value::Object(_));
-            let b_is_dir = matches!(&b.1, Value::Object(_));
-            b_is_dir.cmp(&a_is_dir)
-                .then_with(|| a.0.cmp(&b.0))
-        });
-
-        for (name, value) in entries {
-            structure.insert(name, value);
-        }
-
-        Ok(())
-    }
-
-    /// 判断是否为关键文件
-    fn is_key_file(&self, filename: &str) -> bool {
-        let key_extensions = vec![
-            "rs", "go", "py", "js", "ts", "tsx", "jsx",
-            "java", "cpp", "c", "h", "cs", "php", "rb",
-            "vue", "svelte", "astro",
-            "toml", "yaml", "yml", "json", "xml",
-            "md", "txt", "dockerfile",
-        ];
-
-        if let Some(ext) = filename.rsplit('.').next() {
-            key_extensions.contains(&ext)
-        } else {
-            // 无扩展名的文件（如 Dockerfile, Makefile）
-            matches!(filename, "Dockerfile" | "Makefile" | "Cargo.toml" | "go.mod" | "package.json")
-        }
+        Ok(result.to_json()
+            .map_err(|e| ToolError::Execution(format!("JSON serialization failed: {}", e)))?)
     }
 }
 

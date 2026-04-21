@@ -292,3 +292,254 @@ impl Default for TaskIndexEntry {
         }
     }
 }
+
+// ============================================================================
+// 任务输出到 OpenSpec 提案（Phase 1: JSON → Markdown 转换）
+// ============================================================================
+
+/// 🔥 统一任务结构（借鉴 TodoWrite 设计）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnifiedTask {
+    pub id: String,
+    pub content: String,           // 主内容（简化 title + description）
+    #[serde(rename(serialize = "activeForm", deserialize = "activeForm"))]
+    pub active_form: String,       // 进度描述（借鉴 TodoWrite）
+    pub status: TaskStatus,        // 统一状态值
+    pub dependencies: Vec<String>,
+    pub meta: Option<TaskMeta>,
+    pub children: Vec<UnifiedTask>,
+}
+
+/// 任务状态
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskStatus {
+    Pending,
+    #[serde(rename = "in_progress")]
+    InProgress,
+    Completed,
+}
+
+/// 任务元数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskMeta {
+    pub priority: Option<String>,
+    pub category: Option<String>,
+    pub hours: Option<u32>,
+    pub acceptance: Vec<String>,
+}
+
+/// 提案引用
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProposalReference {
+    #[serde(alias = "proposalId")]
+    pub proposal_id: String,
+    #[serde(alias = "proposalTitle")]
+    pub proposal_title: String,
+}
+
+/// 🔥 将任务分解结果追加到 OpenSpec 提案
+#[tauri::command]
+pub async fn append_task_breakdown_to_proposal(
+    project_root: String,
+    proposal_id: String,
+    todos: Vec<UnifiedTask>,
+    proposal_reference: ProposalReference,
+) -> Result<(), String> {
+    println!("[TaskBreakdown] 📝 Appending tasks to proposal: {}", proposal_id);
+
+    // 1. 构建提案路径
+    let proposal_dir = Path::new(&project_root)
+        .join(".ifai")
+        .join("openspec")
+        .join("proposals")
+        .join(&proposal_id);
+
+    if !proposal_dir.exists() {
+        return Err(format!("Proposal directory not found: {:?}", proposal_dir));
+    }
+
+    let tasks_path = proposal_dir.join("tasks.md");
+
+    // 2. 转换任务树为 Markdown
+    let markdown = convert_unified_tasks_to_markdown(&todos, &proposal_reference);
+
+    // 3. 追加到文件（保留现有内容）
+    let existing_content = if tasks_path.exists() {
+        fs::read_to_string(&tasks_path)
+            .map_err(|e| format!("Failed to read existing tasks.md: {}", e))?
+    } else {
+        String::new()
+    };
+
+    let new_content = format!("{}\n{}", existing_content, markdown);
+
+    // 4. 写入文件
+    fs::write(&tasks_path, new_content)
+        .map_err(|e| format!("Failed to write tasks.md: {}", e))?;
+
+    println!("[TaskBreakdown] ✅ Tasks appended to: {:?}", tasks_path);
+    Ok(())
+}
+
+/// 🔥 转换统一任务为 Markdown 格式
+fn convert_unified_tasks_to_markdown(
+    tasks: &[UnifiedTask],
+    proposal_ref: &ProposalReference,
+) -> String {
+    let mut md = String::new();
+
+    // 标题
+    md.push_str("# 任务列表\n\n");
+
+    // 提案引用
+    md.push_str(&format!("**提案**: `{}`\n", proposal_ref.proposal_id));
+    md.push_str(&format!("**标题**: {}\n", proposal_ref.proposal_title));
+    md.push_str("\n");
+
+    // 遍历任务
+    for task in tasks {
+        md.push_str(&convert_task_to_markdown(task, 0));
+    }
+
+    md
+}
+
+/// 递归转换单个任务
+fn convert_task_to_markdown(task: &UnifiedTask, level: usize) -> String {
+    let mut md = String::new();
+    let indent = "  ".repeat(level);
+
+    // 标题（根据层级使用 H2/H3/H4）
+    let heading = "#".repeat(2 + level.min(2));
+    md.push_str(&format!("{}{} {}: {}\n\n", indent, heading, task.id, task.content));
+
+    // 状态图标和进度
+    let status_icon = match task.status {
+        TaskStatus::Pending => "⏳",
+        TaskStatus::InProgress => "🔄",
+        TaskStatus::Completed => "✅",
+    };
+    md.push_str(&format!("{}- **状态**: {} {:?}\n", indent, status_icon, task.status));
+    md.push_str(&format!("{}- **进度**: {} 👈\n", indent, task.active_form));
+
+    // 元数据
+    if let Some(meta) = &task.meta {
+        if let Some(priority) = &meta.priority {
+            md.push_str(&format!("{}- **优先级**: {}\n", indent, priority));
+        }
+        if let Some(category) = &meta.category {
+            md.push_str(&format!("{}- **类别**: {}\n", indent, category));
+        }
+        if let Some(hours) = meta.hours {
+            md.push_str(&format!("{}- **估算**: {} 小时\n", indent, hours));
+        }
+        if !meta.acceptance.is_empty() {
+            md.push_str(&format!("{}- **验收标准**:\n", indent));
+            for criteria in &meta.acceptance {
+                md.push_str(&format!("{}  - {}\n", indent, criteria));
+            }
+        }
+    }
+
+    md.push_str("\n");
+
+    // 子任务
+    for child in &task.children {
+        md.push_str(&convert_task_to_markdown(child, level + 1));
+    }
+
+    md
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_unified_tasks_to_markdown() {
+        let tasks = vec![
+            UnifiedTask {
+                id: "root-1".to_string(),
+                content: "实现用户认证系统".to_string(),
+                active_form: "实现用户认证系统中...".to_string(),
+                status: TaskStatus::Pending,
+                dependencies: vec![],
+                meta: Some(TaskMeta {
+                    priority: Some("high".to_string()),
+                    category: Some("development".to_string()),
+                    hours: Some(0),
+                    acceptance: vec!["用户可以登录".to_string(), "用户可以注册".to_string()],
+                }),
+                children: vec![
+                    UnifiedTask {
+                        id: "task-1".to_string(),
+                        content: "设计数据库结构".to_string(),
+                        active_form: "设计数据库结构中...".to_string(),
+                        status: TaskStatus::Pending,
+                        dependencies: vec![],
+                        meta: Some(TaskMeta {
+                            priority: Some("high".to_string()),
+                            category: Some("development".to_string()),
+                            hours: Some(2),
+                            acceptance: vec!["用户表已创建".to_string()],
+                        }),
+                        children: vec![],
+                    },
+                ],
+            },
+        ];
+
+        let proposal_ref = ProposalReference {
+            proposal_id: "add-user-authentication".to_string(),
+            proposal_title: "实现用户认证系统".to_string(),
+        };
+
+        let markdown = convert_unified_tasks_to_markdown(&tasks, &proposal_ref);
+
+        // 验证 Markdown 包含关键内容
+        assert!(markdown.contains("# 任务列表"));
+        assert!(markdown.contains("**提案**: `add-user-authentication`"));
+        assert!(markdown.contains("## root-1: 实现用户认证系统"));
+        assert!(markdown.contains("### task-1: 设计数据库结构"));
+        assert!(markdown.contains("⏳"));
+        assert!(markdown.contains("👈"));
+        assert!(markdown.contains("**优先级**: high"));
+        assert!(markdown.contains("**估算**: 2 小时"));
+    }
+
+    #[test]
+    fn test_task_status_serialization() {
+        // 测试 TaskStatus 序列化
+        let status = TaskStatus::InProgress;
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("in_progress"));
+
+        // 测试反序列化
+        let deserialized: TaskStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, TaskStatus::InProgress);
+    }
+
+    #[test]
+    fn test_unified_task_with_active_form() {
+        let task = UnifiedTask {
+            id: "test-1".to_string(),
+            content: "测试任务".to_string(),
+            active_form: "测试任务进行中...".to_string(),
+            status: TaskStatus::InProgress,
+            dependencies: vec![],
+            meta: None,
+            children: vec![],
+        };
+
+        // 测试序列化
+        let json = serde_json::to_string(&task).unwrap();
+        assert!(json.contains("activeForm"));
+
+        // 测试反序列化
+        let deserialized: UnifiedTask = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "test-1");
+        assert_eq!(deserialized.content, "测试任务");
+        assert_eq!(deserialized.active_form, "测试任务进行中...");
+    }
+}

@@ -10,7 +10,10 @@ export const getCurrentWindow = () => ({
   close: async () => console.log('[Mock] Window closed'),
   minimize: async () => console.log('[Mock] Window minimized'),
   maximize: async () => console.log('[Mock] Window maximized'),
+  toggleMaximize: async () => console.log('[Mock] Window toggle maximized'),
   unmaximize: async () => console.log('[Mock] Window unmaximized'),
+  startDragging: async () => console.log('[Mock] Window start dragging'),
+  isFullscreen: async () => false,
   isFocused: async () => true,
   isMaximized: async () => false,
   isMinimized: async () => false,
@@ -30,10 +33,12 @@ export const getCurrentWindow = () => ({
   setTitle: async () => {},
   setResizable: async () => {},
   setSkipTaskbar: async () => {},
-  onFocusChanged: () => {},
+  onFocusChanged: async () => () => {},
+  onResized: async () => () => {},
+  onMoved: async () => () => {},
   onResizeRequested: () => {},
   onCloseRequested: () => {},
-  onScaleChanged: () => {},
+  onScaleChanged: async () => () => {},
 });
 
 export function getAllWindows() {

@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { AppTheme, getMonacoBaseTheme, isDarkTheme } from '../../utils/theme';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // Configure monaco-editor to use local files
 import { loader } from '@monaco-editor/react';
@@ -100,8 +101,10 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
 }) => {
   const { t } = useTranslation();
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const completionProviderRef = useRef<monaco.IDisposable | null>(null);
+  const layoutTimeoutsRef = useRef<number[]>([]);
   const theme = useSettingsStore(state => state.theme);
   const dark = isDarkTheme(theme);
   const monacoThemeName = dark ? 'handlebars-theme-dark' : 'handlebars-theme-light';
@@ -109,6 +112,33 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
   const applyHandlebarsTheme = useCallback((monacoInstance: Monaco) => {
     monacoInstance.editor.defineTheme(monacoThemeName, createHandlebarsTheme(theme));
   }, [monacoThemeName, theme]);
+
+  const scheduleEditorLayout = useCallback(() => {
+    const relayout = () => {
+      const editor = editorRef.current;
+      const container = containerRef.current;
+      if (!editor || !container) {
+        return;
+      }
+
+      const width = container.clientWidth;
+      const heightValue = container.clientHeight;
+      if (width <= 0 || heightValue <= 0) {
+        return;
+      }
+
+      monaco.editor.remeasureFonts();
+      editor.layout({ width, height: heightValue });
+      editor.render(true);
+    };
+
+    layoutTimeoutsRef.current.forEach(window.clearTimeout);
+    layoutTimeoutsRef.current = [];
+
+    window.requestAnimationFrame(relayout);
+    layoutTimeoutsRef.current.push(window.setTimeout(relayout, 80));
+    layoutTimeoutsRef.current.push(window.setTimeout(relayout, 220));
+  }, []);
 
   /**
    * 设置 Handlebars 语言配置
@@ -313,6 +343,8 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
   useEffect(() => {
     return () => {
       completionProviderRef.current?.dispose();
+      layoutTimeoutsRef.current.forEach(window.clearTimeout);
+      layoutTimeoutsRef.current = [];
     };
   }, []);
 
@@ -323,8 +355,49 @@ export const PromptMonacoEditor: React.FC<PromptMonacoEditorProps> = ({
     }
   }, [monacoThemeName, applyHandlebarsTheme]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    const handleWindowResize = () => {
+      scheduleEditorLayout();
+    };
+
+    const resizeObserver = container
+      ? new ResizeObserver(() => {
+          scheduleEditorLayout();
+        })
+      : null;
+
+    if (container && resizeObserver) {
+      resizeObserver.observe(container);
+    }
+
+    let unlistenResize: (() => void) | undefined;
+    void getCurrentWindow().onResized(() => {
+      scheduleEditorLayout();
+    }).then((cleanup) => {
+      unlistenResize = cleanup;
+    }).catch((error) => {
+      console.warn('[PromptMonacoEditor] Failed to subscribe window resize:', error);
+    });
+
+    window.addEventListener('resize', handleWindowResize);
+    scheduleEditorLayout();
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      resizeObserver?.disconnect();
+      unlistenResize?.();
+      layoutTimeoutsRef.current.forEach(window.clearTimeout);
+      layoutTimeoutsRef.current = [];
+    };
+  }, [scheduleEditorLayout]);
+
+  useEffect(() => {
+    scheduleEditorLayout();
+  }, [scheduleEditorLayout, theme, height]);
+
   return (
-    <div className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full">
       <Editor
         height={height}
         language="handlebars"

@@ -182,7 +182,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   };
 
   return (
-    <div className={styles.markdownContent}>
+    <div className={`${styles.markdownContent} allow-select`}>
       <ReactMarkdown
         children={getDisplayContent()}
         components={markdownComponents}
@@ -286,7 +286,7 @@ export const SimpleMarkdownRenderer: React.FC<{ content: string }> = ({ content 
   };
 
   return (
-    <div className={`${styles.markdownContent} markdown-body`}>
+    <div className={`${styles.markdownContent} markdown-body allow-select`}>
       <ReactMarkdown
         children={content}
         components={markdownComponents}

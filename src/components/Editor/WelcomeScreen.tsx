@@ -52,7 +52,7 @@ export const WelcomeScreen: React.FC = () => {
     };
 
     return (
-        <div className="theme-panel theme-text-subtle flex h-full select-none flex-col items-center justify-center transition-colors">
+        <div className="theme-panel theme-text-subtle flex h-full select-none flex-col items-center justify-center transition-colors" data-testid="welcome-screen">
             <div className="mb-8 flex flex-col items-center">
                 <img src={ifaiLogo} alt="IfAI Logo" className="w-24 h-24 mb-4 opacity-80" />
                 <div className="theme-text text-2xl font-light">{t('editor.welcome')}</div>

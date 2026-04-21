@@ -25,6 +25,7 @@ export const Sidebar = () => {
     togglePromptManager,
     isToolExplorerOpen,
     toggleToolExplorer,
+    isSkillsPanelOpen,
     sidebarWidth,
   } = useLayoutStore();
 
@@ -208,7 +209,7 @@ export const Sidebar = () => {
       </div>
 
       {/* Side Panel Content */}
-      {!isPromptManagerOpen && (
+      {!isPromptManagerOpen && !isSkillsPanelOpen && !isToolExplorerOpen && (
         <div
           className={clsx(
             'theme-panel theme-border flex h-full flex-col border-l transition-colors'

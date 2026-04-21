@@ -1336,7 +1336,462 @@
     "disabled": "Disabled",
     "toggleSkill": "Toggle skill {{name}}",
     "openProjectFirst": "Open a project folder before installing demo skills.",
-    "loadFailed": "Failed to load skills: {{error}}"
+    "loadFailed": "Failed to load skills: {{error}}",
+    "retry": "Retry"
+  },
+  "skillShared": {
+    "state": {
+      "active": "Active",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "installing": "Installing",
+      "inactive": "Inactive",
+      "uninstalling": "Uninstalling",
+      "error": "Error"
+    },
+    "filters": {
+      "all": "All",
+      "active": "Active",
+      "installed": "Installed",
+      "inactive": "Inactive",
+      "error": "Error"
+    },
+    "sort": {
+      "name": "Name",
+      "version": "Version",
+      "status": "Status",
+      "author": "Author"
+    }
+  },
+  "skillsPanel": {
+    "title": "Skills",
+    "summary": "{{active}} active / {{total}} total",
+    "openMarket": "Open skill market",
+    "searchPlaceholder": "Search skills...",
+    "filter": "Filter",
+    "clearFilters": "Clear filters",
+    "loading": "Loading skills...",
+    "emptyTitle": "No matching skills",
+    "emptyDescription": "Try a different keyword or state filter.",
+    "footer": {
+      "active": "Active: {{count}}",
+      "total": "Total: {{count}}",
+      "filtered": "Showing: {{count}}"
+    },
+    "processing": "Processing...",
+    "activate": "Activate skill",
+    "deactivate": "Deactivate skill",
+    "uninstall": "Uninstall skill",
+    "author": "Author: {{author}}",
+    "tags": "Tags",
+    "noTags": "No tags",
+    "dependencies": "Dependencies",
+    "noDependencies": "No dependencies",
+    "systemPrompt": "System Prompt",
+    "emptySelectionTitle": "Select a skill",
+    "emptySelectionDescription": "Choose a skill from the list to inspect details and actions.",
+    "confirmUninstall": "Uninstall \"{{name}}\"?",
+    "toasts": {
+      "activating": "Activating {{name}}...",
+      "activated": "{{name}} activated",
+      "deactivating": "Deactivating {{name}}...",
+      "deactivated": "{{name}} deactivated",
+      "uninstalling": "Uninstalling {{name}}...",
+      "uninstalled": "{{name}} uninstalled",
+      "actionFailed": "Action failed: {{error}}",
+      "uninstallFailed": "Uninstall failed: {{error}}",
+      "openProjectFirst": "Open a project folder first.",
+      "unknownError": "Unknown error"
+    }
+  },
+  "skillMarket": {
+    "title": "Skill Market",
+    "countSummary": "{{count}} built-in skills",
+    "close": "Close skill market",
+    "back": "Back to list",
+    "searchPlaceholder": "Search skills...",
+    "featuredBadge": "Featured",
+    "installed": "Installed",
+    "installing": "Installing...",
+    "installToProject": "Install to project",
+    "uninstall": "Uninstall skill",
+    "confirmUninstall": "Uninstall \"{{name}}\"?",
+    "version": "Version {{version}}",
+    "author": "Author: {{author}}",
+    "downloads": "{{value}} downloads",
+    "rating": "Rating {{value}}",
+    "size": "Size {{value}}",
+    "tags": "Tags",
+    "dependencies": "Dependencies",
+    "noDependencies": "No dependencies",
+    "requirements": "Requirements",
+    "examples": "Use cases",
+    "systemPromptPreview": "System Prompt Preview",
+    "previewHint": "The full prompt is available after installation.",
+    "welcomeTitle": "Welcome to Skill Market",
+    "welcomeDescription": "Browse curated built-in skills and install them into the current project when you need them.",
+    "featuredCount": "{{count}} featured",
+    "totalCount": "{{count}} skills",
+    "emptyTitle": "No matching skills",
+    "emptyDescription": "Try a different search term or category.",
+    "categories": {
+      "all": "All",
+      "featured": "Featured",
+      "development": "Development",
+      "testing": "Testing",
+      "documentation": "Documentation",
+      "pivo": "PIVO"
+    },
+    "toasts": {
+      "openProjectFirst": "Open a project folder first.",
+      "installing": "Installing {{name}}...",
+      "installed": "{{name}} installed",
+      "installFailed": "Install failed: {{error}}",
+      "uninstalling": "Uninstalling {{name}}...",
+      "uninstalled": "{{name}} uninstalled",
+      "uninstallFailed": "Uninstall failed: {{error}}",
+      "unknownError": "Unknown error"
+    }
+  },
+  "skillCatalog": {
+    "common": {
+      "ifaiTeam": "IfAI Team"
+    },
+    "tags": {
+      "codeReview": "Code Review",
+      "quality": "Quality",
+      "security": "Security",
+      "performance": "Performance",
+      "testing": "Testing",
+      "automation": "Automation",
+      "ciCd": "CI/CD",
+      "documentation": "Documentation",
+      "api": "API",
+      "openapi": "OpenAPI",
+      "swagger": "Swagger",
+      "debugging": "Debugging",
+      "troubleshooting": "Troubleshooting",
+      "errorFixing": "Error Fixing",
+      "pivo": "PIVO",
+      "diagnostics": "Diagnostics",
+      "recovery": "Recovery",
+      "delivery": "Delivery",
+      "implementation": "Implementation",
+      "verification": "Verification",
+      "refactor": "Refactor",
+      "architecture": "Architecture",
+      "maintainability": "Maintainability",
+      "profiling": "Profiling",
+      "optimization": "Optimization",
+      "audit": "Audit",
+      "compliance": "Compliance",
+      "guides": "Guides",
+      "knowledgeBase": "Knowledge Base",
+      "docker": "Docker",
+      "kubernetes": "Kubernetes",
+      "devops": "DevOps",
+      "container": "Containers"
+    },
+    "skills": {
+      "code-review-pro": {
+        "name": "Code Review Pro",
+        "description": "Deep code review focused on correctness, maintainability, security, and performance.",
+        "longDescription": "Reviews code changes with a senior engineering mindset, prioritizes risk, and explains concrete regressions before optional improvements.",
+        "systemPrompt": "Act as a senior code reviewer. Return prioritized findings with impact, evidence, and specific fixes.",
+        "examples": [
+          "Review a React component for state bugs and rendering issues",
+          "Audit an API handler for security regressions",
+          "Check a refactor for maintainability and test gaps"
+        ]
+      },
+      "test-generator-ai": {
+        "name": "AI Test Generator",
+        "description": "Generates unit and integration tests from real code paths and edge cases.",
+        "longDescription": "Builds practical tests that cover behavior, failures, and regression scenarios across common web and backend stacks.",
+        "systemPrompt": "Act as a test engineer. Produce focused unit and integration tests with clear setup, assertions, and edge cases.",
+        "examples": [
+          "Generate Vitest tests for a React hook",
+          "Write integration tests for an Express endpoint",
+          "Cover error handling paths in a utility module"
+        ]
+      },
+      "api-doc-writer": {
+        "name": "API Doc Writer",
+        "description": "Produces structured API documentation with request, response, and error details.",
+        "longDescription": "Turns code and route contracts into concise API references with examples that teams can ship and maintain.",
+        "systemPrompt": "Act as a technical documentation writer. Produce accurate API docs with endpoints, parameters, examples, and error notes.",
+        "examples": [
+          "Document a REST API route group",
+          "Summarize request and response payloads",
+          "Prepare OpenAPI-ready endpoint notes"
+        ]
+      },
+      "bug-hunter": {
+        "name": "Bug Hunter",
+        "description": "Diagnoses defects quickly and proposes narrowly scoped fixes.",
+        "longDescription": "Reads logs, stack traces, and code paths to identify the most probable root cause and recommend a minimal safe patch.",
+        "systemPrompt": "Act as a debugging specialist. Find the likely root cause, explain it clearly, and propose the smallest reliable fix.",
+        "examples": [
+          "Trace a crash from a production stack trace",
+          "Pinpoint a state synchronization bug",
+          "Explain why a background task intermittently fails"
+        ]
+      },
+      "pivo-healer": {
+        "name": "PIVO Healer",
+        "description": "Stabilizes broken flows and guides recovery with clear diagnostics.",
+        "longDescription": "Focuses on degraded systems, identifies the highest-priority breakpoints, and recommends a recovery plan with validation steps.",
+        "systemPrompt": "Act as a recovery specialist. Diagnose failure points, stabilize the flow, and propose a verification-first recovery plan.",
+        "examples": [
+          "Triage a failing proposal workflow",
+          "Recover from a broken persistence chain",
+          "Stabilize a flaky cross-service handoff"
+        ]
+      },
+      "pivo-implementer": {
+        "name": "PIVO Implementer",
+        "description": "Turns approved plans into concrete execution steps and deliverables.",
+        "longDescription": "Translates scoped requirements into implementation sequencing, checkpoints, and production-ready acceptance criteria.",
+        "systemPrompt": "Act as an implementation lead. Break work into executable steps, make the sequence explicit, and surface dependencies early.",
+        "examples": [
+          "Convert a design proposal into implementation tasks",
+          "Sequence a multi-file feature delivery",
+          "Define acceptance criteria for a workflow change"
+        ]
+      },
+      "pivo-verifier": {
+        "name": "PIVO Verifier",
+        "description": "Checks whether execution matches the plan and flags gaps before release.",
+        "longDescription": "Reviews completed work against scope, catches missing verification, and documents the delta between intended and actual outcomes.",
+        "systemPrompt": "Act as a verification lead. Compare execution to the plan, identify gaps, and require concrete validation evidence.",
+        "examples": [
+          "Verify a finished feature against a spec",
+          "Check release readiness before merge",
+          "Audit acceptance criteria coverage"
+        ]
+      },
+      "code-refactor": {
+        "name": "Code Refactor",
+        "description": "Restructures code without changing behavior and preserves maintainability.",
+        "longDescription": "Improves naming, layering, duplication, and module boundaries while protecting behavior with safe incremental changes.",
+        "systemPrompt": "Act as a refactoring specialist. Improve structure and readability while preserving behavior and calling out validation needs.",
+        "examples": [
+          "Split a large component into focused modules",
+          "Remove duplication in service code",
+          "Reshape a store API without changing behavior"
+        ]
+      },
+      "performance-optimizer": {
+        "name": "Performance Optimizer",
+        "description": "Finds bottlenecks and recommends high-impact runtime improvements.",
+        "longDescription": "Targets slow paths, unnecessary renders, expensive queries, and wasteful I/O with pragmatic performance fixes.",
+        "systemPrompt": "Act as a performance engineer. Identify the main bottleneck, estimate impact, and propose the lowest-risk optimization.",
+        "examples": [
+          "Reduce React re-render churn",
+          "Optimize a slow API query path",
+          "Investigate startup latency in a desktop app"
+        ]
+      },
+      "security-auditor": {
+        "name": "Security Auditor",
+        "description": "Reviews code paths for security weaknesses and unsafe assumptions.",
+        "longDescription": "Checks input handling, trust boundaries, credential usage, and operational safeguards to surface practical security risks.",
+        "systemPrompt": "Act as a security auditor. Identify realistic attack surfaces, explain severity, and propose concrete mitigations.",
+        "examples": [
+          "Audit file-system access controls",
+          "Check secret handling in configuration flows",
+          "Review input validation in API endpoints"
+        ]
+      },
+      "tech-writer": {
+        "name": "Tech Writer",
+        "description": "Creates concise technical guides, handoff notes, and user-facing references.",
+        "longDescription": "Helps teams ship clear engineering documentation that is structured, reusable, and easy to maintain across releases.",
+        "systemPrompt": "Act as a technical writer. Produce concise, structured documentation with clear steps, scope, and assumptions.",
+        "examples": [
+          "Write a setup guide for a local toolchain",
+          "Prepare a release note summary",
+          "Document an internal workflow for other engineers"
+        ]
+      },
+      "docker-expert": {
+        "name": "Docker Expert",
+        "description": "Improves Docker, Compose, and container delivery workflows.",
+        "longDescription": "Designs container builds and runtime configuration with attention to image size, security, repeatability, and deployability.",
+        "systemPrompt": "Act as a container specialist. Recommend practical Docker and orchestration improvements with deployment constraints in mind.",
+        "requirements": [
+          "Basic Docker knowledge is recommended"
+        ],
+        "examples": [
+          "Refine a production Dockerfile",
+          "Set up docker-compose for local development",
+          "Prepare Kubernetes deployment guidance"
+        ]
+      }
+    }
+  },
+  "archivePanel": {
+    "title": "Conversation Archive",
+    "detailTitle": "Archive Details",
+    "close": "Close archive panel",
+    "back": "Back to archive list",
+    "errorTitle": "Failed to load archives",
+    "errorDescription": "{{error}}",
+    "summaryTitle": "Conversation Summary",
+    "restore": "Restore archive",
+    "loading": "Loading archives...",
+    "emptyTitle": "No archives yet",
+    "emptyDescription": "Archives are created automatically after conversation compression.",
+    "messageCount": "{{value}} messages",
+    "tokens": "{{value}} tokens",
+    "meta": {
+      "time": "Time",
+      "messages": "Messages",
+      "tokens": "Tokens",
+      "format": "Format",
+      "size": "Size"
+    }
+  },
+  "skillsManagement": {
+    "title": "Skills Center",
+    "subtitle": "Manage AI skill plugins with a consistent project-wide workflow.",
+    "refresh": "Refresh",
+    "grid": "Grid",
+    "list": "List",
+    "gridAria": "Grid view",
+    "listAria": "List view",
+    "openInstaller": "Open skill market",
+    "searchPlaceholder": "Search by skill name, ID, or description...",
+    "clearSearch": "Clear search",
+    "filter": "Filter",
+    "resultsSummary": "{{resultCount}} / {{totalCount}} skills",
+    "filterState": "State:",
+    "sortLabel": "Sort:",
+    "sortOrderAsc": "Ascending",
+    "sortOrderDesc": "Descending",
+    "filterTags": "Tags:",
+    "showLessTags": "Show less",
+    "showMoreTags": "+{{count}} more",
+    "clearAllFilters": "Clear all filters",
+    "popularTags": "Popular tags",
+    "batchSelected": "{{count}} skills selected",
+    "batchActivate": "Activate selected",
+    "clearSelection": "Clear selection",
+    "loading": "Loading skills...",
+    "loadFailedTitle": "Failed to load skills",
+    "retry": "Retry",
+    "emptyTitle": "No skills found",
+    "emptyDescription": "Install built-in sample skills to get started quickly.",
+    "emptyFilteredDescription": "Adjust the current search or filter settings.",
+    "installExamples": "Install sample skills",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "install": "Install",
+    "stats": {
+      "total": "Total",
+      "active": "Active",
+      "installed": "Installed",
+      "error": "Errors"
+    }
+  },
+  "skillInstaller": {
+    "title": "Skill Market",
+    "subtitle": "Browse curated skills and install them into the current project.",
+    "close": "Close installer",
+    "searchPlaceholder": "Search skills...",
+    "emptyTitle": "No matching skills",
+    "emptyDescription": "Try another keyword or category.",
+    "version": "Version {{version}}",
+    "downloads": "{{value}} downloads",
+    "installing": "Installing...",
+    "install": "Install skill",
+    "browseAll": "Browse full catalog",
+    "installFromFile": "Install from local file",
+    "availableCount": "{{count}} skills available",
+    "installFailed": "Failed to install {{name}}: {{error}}",
+    "unknownError": "Unknown error",
+    "categories": {
+      "all": "All",
+      "official": "Official",
+      "community": "Community"
+    }
+  },
+  "skillDetail": {
+    "installing": "Installing...",
+    "install": "Install",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "uninstall": "Uninstall",
+    "source": "Source",
+    "basicInfo": "Basic Info",
+    "skillId": "Skill ID",
+    "author": "Author",
+    "unknownAuthor": "Unknown",
+    "compatibility": "Compatibility",
+    "systemPrompt": "System Prompt",
+    "tags": "Tags",
+    "noTags": "No tags",
+    "dependencies": "Dependencies",
+    "noDependencies": "No dependencies",
+    "sourceFiles": "Source Files",
+    "open": "Open"
+  },
+  "skillEditor": {
+    "createTitle": "Create Skill",
+    "createSubtitle": "Create a new AI skill plugin.",
+    "editTitle": "Edit Skill",
+    "editSubtitle": "Editing {{name}}",
+    "viewTitle": "View Skill",
+    "viewSubtitle": "Read skill details without editing.",
+    "editTab": "Edit",
+    "previewTab": "Preview",
+    "close": "Close editor",
+    "sections": {
+      "basic": "Basic Info"
+    },
+    "fields": {
+      "id": "Skill ID",
+      "idHint": "Use lowercase letters, numbers, and hyphens only.",
+      "name": "Skill Name",
+      "description": "Description",
+      "systemPrompt": "System Prompt",
+      "version": "Version",
+      "versionHint": "Use semantic versioning when possible.",
+      "author": "Author",
+      "tags": "Tags",
+      "tagsPlaceholder": "Add a tag...",
+      "dependencies": "Dependencies",
+      "dependenciesPlaceholder": "Add a dependency ID...",
+      "compatibility": "Compatibility",
+      "compatibilityHint": "Describe compatible app versions with a semver expression."
+    },
+    "placeholders": {
+      "id": "my-skill",
+      "name": "My skill",
+      "description": "Describe what this skill does",
+      "systemPrompt": "You are a helpful assistant...",
+      "version": "1.0.0",
+      "author": "Your Name",
+      "compatibility": "^1.0.0 || >=2.0.0"
+    },
+    "characterCount": "{{count}} characters",
+    "validation": {
+      "id": "Skill ID is required",
+      "name": "Skill name is required",
+      "description": "Description is required",
+      "systemPrompt": "System Prompt is required",
+      "version": "Version is required"
+    },
+    "errorsSummary": "Please fix {{count}} errors",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "previewFallbackName": "Untitled skill",
+    "previewFallbackDescription": "Add a short summary for this skill.",
+    "previewVersion": "Version {{version}}",
+    "previewAuthor": "Author {{author}}",
+    "add": "Add",
+    "removeItem": "Remove item"
   },
   "commandPalette": {
     "placeholder": "Search files...",

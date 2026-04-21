@@ -564,38 +564,68 @@ fn create_quick_code_review_workflow(target_path: &str) -> Workflow {
 
 fn create_quick_exploration_workflow(target_path: &str) -> Workflow {
     let mut workflow = Workflow::new("quick-exploration", "快速探索")
-        .with_description("快速探索代码结构并生成总结（并行探索版本）");
+        .with_description("全面探索代码结构并生成总结（PIVO 策略）");
 
-    // 🏆 并行探索 + 顺序总结：两个探索节点并行执行，然后总结节点综合结果
+    // 🔥 FIX: 方案1 - 单次扫描 + 综合分析
+    // 符合 PIVO 策略：一次全景扫描，然后深入分析
     use crate::agent_system::workflow::types::AgentConfig;
 
     workflow
-        // 探索节点1：分析项目结构
-        .add_node(WorkflowNode::new("explore_structure", AgentType::Explore)
-            .with_label("探索结构")
+        // 🔥 单一探索节点：全面探索项目
+        .add_node(WorkflowNode::new("explore", AgentType::Explore)
+            .with_label("探索项目")
             .with_config(AgentConfig {
                 target: Some(target_path.to_string()),
-                task_description: Some("分析项目的目录结构和文件组织方式".to_string()),
+                task_description: Some("全面探索项目，执行 PIVO 两阶段扫描：
+
+**Phase 1: 全景扫描**
+- 使用 agent_scan_project 获取项目全局拓扑
+- 扫描深度：3-5 层
+- 识别关键目录、文件类型、技术栈
+
+**Phase 2: 深入分析**
+使用 agent_batch_read 批量读取关键文件：
+1. **项目结构**：目录组织、模块划分
+2. **依赖关系**：外部依赖、模块连接
+3. **关键文件**：
+   - 配置：package.json, tsconfig.json, vite.config.ts 等
+   - 入口：main.tsx, App.tsx, index.ts 等
+   - 核心：lib/, src/, components/ 等
+
+**输出要求**：
+- 使用结构化报告格式
+- 包含：项目概述、技术栈、目录结构、依赖关系、关键发现
+- 简洁明了，避免冗长".to_string()),
                 ..Default::default()
             }))
-        // 探索节点2：分析依赖关系
-        .add_node(WorkflowNode::new("explore_deps", AgentType::Explore)
-            .with_label("探索依赖")
-            .with_config(AgentConfig {
-                target: Some(target_path.to_string()),
-                task_description: Some("分析项目的依赖关系和模块之间的连接".to_string()),
-                ..Default::default()
-            }))
-        // 总结节点：综合两个探索节点的结果
+        // 总结节点：生成最终报告
         .add_node(WorkflowNode::new("summarize", AgentType::Doc)
             .with_label("生成总结")
             .with_config(AgentConfig {
-                task_description: Some("综合前面的探索结果，生成一份完整的代码结构总结，包括：\n1. 项目整体架构\n2. 主要模块和功能\n3. 依赖关系图\n4. 关键发现和改进建议\n\n请用清晰的格式（如 Markdown）输出总结。".to_string()),
+                task_description: Some("基于探索结果，生成完整的代码结构总结报告：
+
+**报告格式**：
+## 📊 项目概述
+- 项目类型、主要功能、技术栈
+
+## 🏗️ 架构分析
+- 目录结构和组织方式
+- 模块划分和职责
+
+## 🔗 依赖关系
+- 外部依赖和版本
+- 模块间的连接和依赖
+
+## 🔑 关键发现
+- 架构亮点
+- 潜在问题
+- 改进建议
+
+使用 Markdown 格式，清晰易读。".to_string()),
                 ..Default::default()
             }))
-        // 两个探索节点都完成后才执行总结
-        .add_edge(WorkflowEdge::new("explore_structure", "summarize"))
-        .add_edge(WorkflowEdge::new("explore_deps", "summarize"));
+        // 探索完成后执行总结
+        .add_edge(WorkflowEdge::new("explore", "summarize"));
 
     workflow.variables.insert("target_path".to_string(), target_path.to_string());
 

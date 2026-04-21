@@ -81,6 +81,9 @@ import { ConfirmDialog } from '../UI/ConfirmDialog';
 import clsx from 'clsx';
 import { isDarkTheme } from '../../utils/theme';
 import { formatKeybinding } from '../../utils/keyboard';
+import { useSkeletonEngine } from './skeleton';
+import { AI_CHAT_SKELETON_CONFIG } from './skeleton/config/skeleton.config';
+import './skeleton/styles.css';
 
 interface AIChatProps {
   width?: number;
@@ -99,6 +102,10 @@ interface PendingExternalOpenRequest {
 
 export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
   const { t } = useTranslation();
+  const { Renderer: SkeletonRenderer } = useSkeletonEngine(
+    AI_CHAT_SKELETON_CONFIG,
+    { debug: false, enabled: (window as any).__ENABLE_SKELETON_ENGINE__ ?? true }
+  );
 
   // Thread keyboard shortcuts
   useThreadKeyboardShortcuts();
@@ -371,10 +378,14 @@ export const AIChat = ({ width, onResizeStart }: AIChatProps) => {
     scrollController.onUserScroll();
   };
 
-  // 自动滚动到底部（消息更新时触发）
+  // 使用统一入口处理消息变化，避免流式和新增消息的滚动逻辑分散。
   useEffect(() => {
-    // 新消息追加或流式更新时，尝试跟随底部
-    scrollController.followBottom(isLoading);
+    const lastMessage = rawMessages[rawMessages.length - 1];
+    scrollController.onMessagesChanged(
+      rawMessages.length,
+      lastMessage?.id ?? '',
+      isLoading,
+    );
   }, [rawMessages, isLoading, scrollController]);
 
   // 🔥 修复版本显示硬编码:在组件挂载时获取版本号
@@ -2714,6 +2725,7 @@ ${suggestion.fixContext.code_context}
         </AnimatePresence>,
         document.body
       )}
+      <SkeletonRenderer />
       </div>
       );
       };

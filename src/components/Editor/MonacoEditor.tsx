@@ -34,6 +34,7 @@ import { openFileFromPath } from '../../utils/fileActions';
 import '../../styles/monaco-decorations.css';
 import { toast } from 'sonner';
 import { PivoStage } from '../../stores/types';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // ============================================================================
 // Windows 平台检测 - 用于性能优化
@@ -105,13 +106,17 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
   // 🔥 修复无限循环：使用 ref 存储编辑器实例，避免依赖 getEditorInstance
   // ⚠️ 必须在所有 useEffect 之前声明所有 hooks
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const decorationProviderRef = useRef<AgentDecorationProvider | null>(null);
   const diffZoneRef = useRef<InlineDiffZone | null>(null);
   const contentWidgetRef = useRef<monaco.editor.IContentWidget | null>(null);
+  const layoutTimeoutsRef = useRef<number[]>([]);
 
   // 组件卸载时的资源释放逻辑
   useEffect(() => {
     return () => {
+      layoutTimeoutsRef.current.forEach(window.clearTimeout);
+      layoutTimeoutsRef.current = [];
       const editor = editorRef.current;
       if (editor) {
         if (contentWidgetRef.current) {
@@ -124,6 +129,36 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
       decorationProviderRef.current = null;
       diffZoneRef.current = null;
     };
+  }, []);
+
+  const scheduleEditorLayout = useCallback(() => {
+    const relayout = () => {
+      const editor = editorRef.current;
+      const container = editorContainerRef.current;
+      if (!editor || !container) {
+        return;
+      }
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+
+      monaco.editor.remeasureFonts();
+      editor.layout({ width, height });
+      editor.render(true);
+      if (contentWidgetRef.current) {
+        editor.layoutContentWidget(contentWidgetRef.current);
+      }
+    };
+
+    layoutTimeoutsRef.current.forEach(window.clearTimeout);
+    layoutTimeoutsRef.current = [];
+
+    window.requestAnimationFrame(relayout);
+    layoutTimeoutsRef.current.push(window.setTimeout(relayout, 80));
+    layoutTimeoutsRef.current.push(window.setTimeout(relayout, 220));
   }, []);
 
   // 🔥 内联补全防抖 refs - 必须在组件顶层声明
@@ -892,6 +927,47 @@ ${textBefore}[CURSOR]${textAfter}
     }
   }, [isInlineEditVisible]);
 
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    const handleWindowResize = () => {
+      scheduleEditorLayout();
+    };
+
+    const resizeObserver = container
+      ? new ResizeObserver(() => {
+          scheduleEditorLayout();
+        })
+      : null;
+
+    if (container && resizeObserver) {
+      resizeObserver.observe(container);
+    }
+
+    let unlistenResize: (() => void) | undefined;
+    void getCurrentWindow().onResized(() => {
+      scheduleEditorLayout();
+    }).then((cleanup) => {
+      unlistenResize = cleanup;
+    }).catch((error) => {
+      console.warn('[MonacoEditor] Failed to subscribe window resize:', error);
+    });
+
+    window.addEventListener('resize', handleWindowResize);
+    scheduleEditorLayout();
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      resizeObserver?.disconnect();
+      unlistenResize?.();
+      layoutTimeoutsRef.current.forEach(window.clearTimeout);
+      layoutTimeoutsRef.current = [];
+    };
+  }, [scheduleEditorLayout]);
+
+  useEffect(() => {
+    scheduleEditorLayout();
+  }, [scheduleEditorLayout, paneId, file?.id, theme]);
+
   // 🔥 v0.3.7: 监听修改代码的变化，自动展开内联 Diff 区域
   useEffect(() => {
     // 🚀 阶段+内容双驱动：进入实施阶段或已有内容时，立即展开
@@ -970,7 +1046,11 @@ ${textBefore}[CURSOR]${textAfter}
   }
 
   return (
-    <div className="theme-panel flex-1 flex flex-col h-full w-full relative overflow-hidden" data-testid="monaco-editor-container">
+    <div
+      ref={editorContainerRef}
+      className="theme-panel flex-1 flex flex-col h-full w-full relative overflow-hidden"
+      data-testid="monaco-editor-container"
+    >
       <Editor
         height="100%"
         path={file?.path || `untitled-${paneId}-${file?.id}`} // Guarantee uniqueness
@@ -982,6 +1062,7 @@ ${textBefore}[CURSOR]${textAfter}
         onChange={handleChange}
         onMount={handleEditorDidMount}
         options={getOptimizedOptions()}
+        loading={<div />}
       />
 
       {/* 🧪 Agent 2.0 Inline Assistant Portal */}

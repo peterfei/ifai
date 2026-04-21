@@ -57,7 +57,18 @@ if (typeof window !== 'undefined' && (import.meta.env.VITE_TEST_ENV === 'e2e' ||
   const hasRealBridge = checkRealTauriBridge();
 
   // 如果没有检测到真实 bridge，设置 mock
-  if (!hasRealBridge) {
+  // 🔥 FIX: 如果 setup-utils.ts 已经设置了完整的 E2E mock（包含 ai_chat SSE 逻辑），不要覆盖
+  // 检测 setup-utils mock：可能是直接的 E2E Mock invoke，也可能是 find_references interceptor 包装
+  const existingInvoke = (window as any).__TAURI_INTERNALS__?.invoke;
+  const existingInvokeStr = existingInvoke?.toString() || '';
+  const hasSetupUtilsMock = existingInvokeStr.includes('find_references') ||  // interceptor 包装
+                            (existingInvokeStr.includes('E2E Mock') && existingInvokeStr.includes('ai_chat'));  // 直接 mock
+
+  if (hasSetupUtilsMock) {
+    console.log('[PIVO3-Mock] ✅ setup-utils E2E mock already installed, skipping PIVO3-Mock override');
+  }
+
+  if (!hasRealBridge && !hasSetupUtilsMock) {
     console.log('[PIVO3-Mock] 🎭 No real Tauri bridge found after polling, setting up mock...');
 
     const invoke = async (cmd: string, args?: any) => {
@@ -256,19 +267,21 @@ const exposeDebugStores = () => {
     // 使用 requestIdleCallback 确保在浏览器空闲时执行
     const runExpose = () => {
       Promise.all([
-        import('./stores/skillStore'),
+        import('./stores/skillStore.enhanced'),
         import('./stores/fileStore'),
         import('./stores/useChatStore'),
+        import('./stores/conversationStore'), // 🔥 添加 conversationStore
         import('./stores/settingsStore'),
         import('./stores/layoutStore'),
         import('./stores/editorStore'),
         import('./utils/tokenCounter'),
         import('./stores/pivoStore')
-      ]).then(([skill, file, chat, settings, layout, editor, tokens, pivo]) => {
+      ]).then(([skill, file, chat, conversation, settings, layout, editor, tokens, pivo]) => {
         const stores = {
-          skillStore: skill.useSkillStore,
+          skillStore: skill.useSkillStore, // 使用增强版skillStore
           fileStore: file.useFileStore,
           chatStore: chat.useChatStore,
+          conversationStore: conversation.useConversationStore, // 🔥 添加 conversationStore
           settingsStore: settings.useSettingsStore,
           layoutStore: layout.useLayoutStore,
           editorStore: editor.useEditorStore,
@@ -283,8 +296,11 @@ const exposeDebugStores = () => {
         // 🔥 为 E2E 测试直接暴露
         if ((window as any).__E2E__ || (window as any).process?.env?.NODE_ENV === 'test') {
           (window as any).__chatStore = chat.useChatStore;
+          (window as any).__conversationStore = conversation.useConversationStore; // 🔥 暴露 conversationStore
+          (window as any).__skillStore = skill.useSkillStore; // 🔥 暴露 skillStore 用于 E2E 测试
           (window as any).__pivoStore = pivo.usePivoStore;
-          (window as any).__layoutStore = layout.useLayoutStore; // P3: 暴露 layoutStore
+          (window as any).__layoutStore = layout.useLayoutStore;
+          (window as any).__fileStore = file.useFileStore; // 🔥 暴露 fileStore 用于 E2E 测试
         }
 
         console.log('[Main] 🛠️  Core Stores and Utils exposed to window.__DEBUG__ (Idle)');

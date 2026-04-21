@@ -64,11 +64,20 @@ export const SkillsSettings: React.FC = () => {
             {/* Content Container */}
             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
                 {error && (
-                    <div className="theme-surface-danger flex items-start gap-2 rounded-lg p-3">
-                        <AlertCircle size={16} className="theme-text-danger mt-0.5 flex-shrink-0" />
-                        <p className="theme-text text-sm">
-                            {t('skillsSettings.loadFailed', { error })}
-                        </p>
+                    <div className="theme-surface-danger flex items-start justify-between gap-3 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle size={16} className="theme-text-danger mt-0.5 flex-shrink-0" />
+                            <p className="theme-text text-sm">
+                                {t('skillsSettings.loadFailed', { error })}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => fetchSkills()}
+                            className="theme-button-secondary theme-focus-ring-accent rounded px-3 py-1 text-xs"
+                        >
+                            {t('skillsSettings.retry')}
+                        </button>
                     </div>
                 )}
 

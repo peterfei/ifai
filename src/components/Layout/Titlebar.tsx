@@ -47,14 +47,26 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
   const chatShortcut = formatKeybinding('Mod+l');
 
   const handleTitlebarMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('button, input, select, textarea, a, [role="button"], [data-no-drag="true"]')) {
+    if (event.button !== 0) {
       return;
     }
 
-    void getCurrentWindow().startDragging().catch((error) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button, input, select, textarea, a, summary, [role="button"], [role="menuitem"], [contenteditable="true"], [data-no-drag="true"]')) {
+      return;
+    }
+
+    event.preventDefault();
+    const appWindow = getCurrentWindow();
+
+    if (event.detail === 2) {
+      void appWindow.toggleMaximize().catch((error) => {
+        console.warn('[Titlebar] Failed to toggle maximize:', error);
+      });
+      return;
+    }
+
+    void appWindow.startDragging().catch((error) => {
       console.warn('[Titlebar] Failed to start dragging:', error);
     });
   };
@@ -233,12 +245,18 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
 
   return (
     <div
-      className="app-titlebar theme-panel-muted theme-border grid h-[var(--titlebar-height)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b px-3 text-[color:var(--text-primary)] select-none transition-colors"
-      data-tauri-drag-region
+      className="app-titlebar theme-panel-muted theme-border grid h-[var(--titlebar-height)] grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center border-b px-3 text-[color:var(--text-primary)] select-none transition-colors"
       onMouseDown={handleTitlebarMouseDown}
     >
-      <div className={clsx('flex min-w-0 items-center gap-2', isMac && 'pl-[var(--traffic-lights-offset)]')}>
-        <div className="theme-text-muted mr-2 shrink-0 text-[12px] font-semibold tracking-[0.04em] uppercase">IfAI</div>
+      <div
+        className={clsx(
+          'flex min-w-0 items-center gap-2',
+          isMac && 'pl-[var(--traffic-lights-offset)]'
+        )}
+      >
+        <div className="theme-text-muted mr-2 flex h-full shrink-0 items-center text-[12px] font-semibold tracking-[0.04em] uppercase">
+          IfAI
+        </div>
 
         <div className="relative" ref={menuRef}>
           <button className={menuButtonClass} onClick={handleMenuToggle} data-no-drag="true">
@@ -283,9 +301,13 @@ export const Titlebar = ({ onToggleChat, isChatOpen, onToggleTerminal, isTermina
         <HelpMenu className="ml-2" />
       </div>
 
+      <div className="h-full min-w-6" aria-hidden="true" />
+
       <div className="justify-self-center" data-no-drag="true">
         <ModeSwitch />
       </div>
+
+      <div className="h-full min-w-6" aria-hidden="true" />
 
       <div className="flex items-center justify-self-end space-x-2" data-no-drag="true">
         <LayoutSwitcher />

@@ -468,18 +468,18 @@ export const CommandBar = () => {
             {result.outputType === 'html' ? (
               // 商业版可能错误地将 Markdown 标为 html，如果检测到 Markdown 标记则使用渲染器
               (result.message.includes('###') || result.message.includes('**')) ? (
-                <div className="command-bar-markdown">
+                <div className="command-bar-markdown allow-select">
                   <SimpleMarkdownRenderer content={result.message} />
                 </div>
               ) : (
-                <div dangerouslySetInnerHTML={{ __html: result.message }} />
+                <div className="allow-select" dangerouslySetInnerHTML={{ __html: result.message }} />
               )
             ) : (result.outputType === 'markdown' || result.message.includes('###') || result.message.includes('**')) ? (
-              <div className="command-bar-markdown">
+              <div className="command-bar-markdown allow-select">
                 <SimpleMarkdownRenderer content={result.message} />
               </div>
             ) : (
-              <div className="command-bar-message">{result.message}</div>
+              <div className="command-bar-message allow-select">{result.message}</div>
             )}
           </div>
         )}

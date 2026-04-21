@@ -1,0 +1,145 @@
+/**
+ * 骨架屏样式
+ *
+ * 元编程架构：CSS 动画和样式定义
+ */
+
+/* 容器样式 */
+.skeleton-container {
+  z-index: 50;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.skeleton-overlay {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 🔥 关键：inline 模式样式（单消息气泡骨架屏） */
+.skeleton-inline {
+  position: relative;
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+}
+
+/* 基础块样式 */
+.skeleton-block {
+  background-color: #374151;
+}
+
+/* Flex 容器样式 */
+.skeleton-flex {
+  width: 100%;
+}
+
+/* 文本样式 */
+.skeleton-text {
+  width: 100%;
+}
+
+/* 微光动画 */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+/* 淡入动画 */
+@keyframes skeleton-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.skeleton-fade-out {
+  animation: skeleton-fade-out 0.3s ease-in-out forwards;
+}
+
+@keyframes skeleton-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 🔥 关键：根据骨架屏状态控制内容显示 */
+/* 当骨架屏激活时（initial 或 loading），隐藏实际内容（全屏覆盖） */
+[data-skeleton-phase="initial"] [data-testid="chat-scroll-container"],
+[data-skeleton-phase="loading"] [data-testid="chat-scroll-container"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 当骨架屏激活时，隐藏输入框 */
+[data-skeleton-phase="initial"] [data-testid="chat-input-container"],
+[data-skeleton-phase="loading"] [data-testid="chat-input-container"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 🔥 关键：streaming 阶段不隐藏现有内容，只显示单消息气泡骨架屏 */
+[data-skeleton-phase="streaming"] [data-testid="chat-scroll-container"],
+[data-skeleton-phase="streaming"] [data-testid="chat-input-container"] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 当骨架屏完成或出错时，确保内容可见 */
+[data-skeleton-phase="ready"] [data-testid="chat-scroll-container"],
+[data-skeleton-phase="error"] [data-testid="chat-scroll-container"],
+[data-skeleton-phase="ready"] [data-testid="chat-input-container"],
+[data-skeleton-phase="error"] [data-testid="chat-input-container"] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* 响应式调整 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::before {
+    animation: none;
+  }
+}

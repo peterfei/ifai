@@ -195,16 +195,47 @@ samp,
   font-family: var(--font-ui);
 }
 
+.app-shell,
+.app-shell * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .app-titlebar {
-  app-region: drag;
-  -webkit-app-region: drag;
   -webkit-user-select: none;
   user-select: none;
 }
 
 .app-titlebar :where(button, input, select, textarea, a, [role='button'], [data-no-drag='true']) {
-  app-region: no-drag;
-  -webkit-app-region: no-drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.app-shell :where(
+  input,
+  textarea,
+  select,
+  option,
+  [contenteditable='true'],
+  [data-allow-select='true'],
+  [data-allow-select='true'] *,
+  .allow-select,
+  .allow-select *,
+  .monaco-editor,
+  .monaco-editor *,
+  .xterm,
+  .xterm *,
+  .markdown-preview,
+  .markdown-preview *,
+  .formatted-tool-result,
+  .formatted-tool-result *,
+  pre,
+  pre *,
+  code,
+  code *
+) {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .app-titlebar,
@@ -286,6 +317,10 @@ samp,
 
 .theme-border {
   border-color: var(--border-color);
+}
+
+.theme-border-danger {
+  border-color: var(--danger-soft-border);
 }
 
 .theme-border-strong {

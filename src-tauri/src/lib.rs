@@ -32,6 +32,8 @@ mod multimodal; // v0.3.0 新增：多模态功能
 pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
 mod tool_classification; // v0.3.3 新增：工具分类系统
 mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实后端访问）
+mod meta; // v0.5.0 新增：极简元编程框架 (SmartScanner)
+mod scanners; // v0.5.0 新增：扫描器实现
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
@@ -1577,7 +1579,7 @@ pub fn run() {
         };
         
         app.manage(AppState {
-            ai_service: ai,
+            ai_service: ai.clone(),
             rag_service: rag,
             agent_service: agent,
             task_store: crate::harness::task::TaskStore::new(),
@@ -1635,9 +1637,13 @@ pub fn run() {
             if std::env::var("ENABLE_HTTP_API").ok().as_deref() == Some("true") {
                 println!("[HttpAPI] 🔥 HTTP API enabled via ENABLE_HTTP_API=true");
 
+                // 获取 ai_service 的克隆
+                let ai_service_clone = ai.clone();
+
                 async_runtime::spawn(async move {
                     println!("[HttpAPI] 🚀 About to create HTTP API server...");
-                    let mut http_server = crate::http_api::HttpApiServer::from_env();
+                    let mut http_server = crate::http_api::HttpApiServer::from_env()
+                        .with_ai_service(ai_service_clone);
                     println!("[HttpAPI] ✅ HTTP API server created");
 
                     println!("[HttpAPI] ⚠️ HTTP API server starting in background...");
@@ -1772,6 +1778,7 @@ pub fn run() {
             commands::task_commands::load_task_breakdown,
             commands::task_commands::list_task_breakdowns,
             commands::task_commands::delete_task_breakdown,
+            commands::task_commands::append_task_breakdown_to_proposal,  // 🔥 Phase 1: 任务输出到提案
             // v0.2.6 新增：OpenSpec 集成
             openspec::detector::detect_openspec_cli,
             commands::proposal_commands::save_proposal,
@@ -1813,6 +1820,12 @@ pub fn run() {
             // v0.5.0 新增：技能系统
             commands::skill_commands::get_available_skills,
             commands::skill_commands::init_skills_dir,
+            commands::skill_commands::install_skill,
+            commands::skill_commands::uninstall_skill,
+            commands::skill_commands::activate_skill,
+            commands::skill_commands::deactivate_skill,
+            commands::skill_commands::create_skill,
+            commands::skill_commands::update_skill,
             // v0.2.8 新增：原子文件操作
             commands::atomic_commands::atomic_write_start,
             commands::atomic_commands::atomic_write_add_operation,
@@ -1846,7 +1859,11 @@ pub fn run() {
             commands::conversation_commands::compact_conversation,
             commands::conversation_commands::get_conversation_archives,
             commands::conversation_commands::get_token_stats,
+            // ⚠️  [DEPRECATED] 已废弃：使用前端多格式归档引擎替代 (f357f2f)
+            // 此命令将在未来版本中移除
             commands::conversation_commands::save_conversation_archive,
+            // 归档浏览和恢复
+            commands::conversation_commands::load_conversation_archive,
             // P5: 会话笔记系统
             commands::session_notes_commands::create_session_notes,
             commands::session_notes_commands::extract_notes_from_messages,

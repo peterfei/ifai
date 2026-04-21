@@ -1,0 +1,284 @@
+# IfAI 技能系统元配置
+# 这是技能系统的"单一真相来源"
+# 版本: 2.0
+
+[meta]
+version = "2.0"
+schema_version = "1.0"
+last_updated = "2026-04-19"
+
+# ============================================================================
+# 状态机定义
+# ============================================================================
+[state_machine]
+initial = "NotInstalled"
+
+[[state_machine.states]]
+name = "NotInstalled"
+transitions = ["Installing"]
+
+[[state_machine.states]]
+name = "Installing"
+transitions = ["Installed", "Error"]
+on_enter = "log_install_start"
+on_exit = "cleanup_temp_files"
+
+[[state_machine.states]]
+name = "Installed"
+transitions = ["Active", "Uninstalling"]
+
+[[state_machine.states]]
+name = "Active"
+transitions = ["Installed", "Error"]
+on_enter = "sync_to_global"
+
+[[state_machine.states]]
+name = "Uninstalling"
+transitions = ["NotInstalled"]
+on_exit = "remove_installation_files"
+
+[[state_machine.states]]
+name = "Error"
+transitions = ["NotInstalled"]
+on_enter = "log_error"
+
+# ============================================================================
+# 命令定义
+# ============================================================================
+[commands]
+
+[[commands.install]]
+name = "skill_install"
+description = "安装技能"
+input = ["skill_id", "version", "source"]
+output = "InstalledSkill"
+permission = "ReadWrite"
+method = "install"
+events = ["InstallStart", "InstallProgress", "InstallComplete"]
+
+[[commands.uninstall]]
+name = "skill_uninstall"
+description = "卸载技能"
+input = ["skill_id"]
+output = "()"
+permission = "ReadWrite"
+method = "uninstall"
+events = ["UninstallStart", "UninstallComplete"]
+
+[[commands.update]]
+name = "skill_update"
+description = "更新技能"
+input = ["skill_id"]
+output = "InstalledSkill"
+permission = "ReadWrite"
+method = "update"
+events = ["UpdateStart", "UpdateProgress", "UpdateComplete"]
+
+[[commands.activate]]
+name = "skill_activate"
+description = "激活技能"
+input = ["skill_id"]
+output = "()"
+permission = "ReadWrite"
+method = "activate"
+events = ["SkillActivated"]
+
+[[commands.deactivate]]
+name = "skill_deactivate"
+description = "停用技能"
+input = ["skill_id"]
+output = "()"
+permission = "ReadWrite"
+method = "deactivate"
+events = ["SkillDeactivated"]
+
+[[commands.search]]
+name = "skill_search"
+description = "搜索远程技能"
+input = ["query", "registry_url", "category", "tags"]
+output = "SkillInfo"
+permission = "ReadOnly"
+method = "search"
+
+[[commands.list_installed]]
+name = "skill_list_installed"
+description = "列出已安装技能"
+input = []
+output = "InstalledSkill"
+permission = "ReadOnly"
+method = "list_installed"
+
+[[commands.list_available]]
+name = "skill_list_available"
+description = "列出可用技能"
+input = ["registry_url"]
+output = "SkillInfo"
+permission = "ReadOnly"
+method = "list_available"
+
+[[commands.check_updates]]
+name = "skill_check_updates"
+description = "检查技能更新"
+input = ["registry_url"]
+output = "UpdateInfo"
+permission = "ReadOnly"
+method = "check_updates"
+
+[[commands.add_registry]]
+name = "skill_add_registry"
+description = "添加技能注册表"
+input = ["url"]
+output = "()"
+permission = "ReadWrite"
+method = "add_registry"
+
+[[commands.remove_registry]]
+name = "skill_remove_registry"
+description = "移除技能注册表"
+input = ["url"]
+output = "()"
+permission = "ReadWrite"
+method = "remove_registry"
+
+[[commands.load_local_directory]]
+name = "skill_load_local_directory"
+description = "从本地目录加载技能"
+input = ["path"]
+output = "Skill"
+permission = "ReadWrite"
+method = "load_local_directory"
+
+# ============================================================================
+# API 定义
+# ============================================================================
+[api]
+base_url = "https://skills.ifai.dev/api/v1"
+openapi_spec = "https://skills.ifai.dev/openapi.json"
+timeout_secs = 30
+retry_count = 3
+
+[api.endpoints]
+list_skills = { path = "/skills", method = "GET" }
+get_skill = { path = "/skills/{id}", method = "GET" }
+download_skill = { path = "/skills/{id}/download", method = "GET" }
+search_skills = { path = "/skills/search", method = "GET" }
+get_versions = { path = "/skills/{id}/versions", method = "GET" }
+
+# ============================================================================
+# UI Schema（简化版）
+# ============================================================================
+[ui]
+# 列表视图配置
+[ui.list]
+columns = ["name", "status", "actions"]
+filters = ["status", "category", "tags"]
+sort = ["name", "downloads", "rating", "updated"]
+page_size = 12
+page_size_options = [12, 24, 48, 96]
+
+# 详情视图配置
+[ui.detail]
+sections = ["metadata", "content", "dependencies", "versions"]
+actions = ["install", "uninstall", "activate", "deactivate"]
+
+# 设置视图配置
+[ui.settings]
+sections = ["active", "installed", "registries", "local_sources"]
+
+# 技能卡片配置
+[ui.components.skill_card]
+size = "medium"
+show_status = true
+show_actions = true
+
+# ============================================================================
+# 技能源配置
+# ============================================================================
+[sources]
+# 技能源优先级（从高到低）
+priority = ["project", "global", "bundled"]
+
+[[sources.project]]
+type = "local"
+path = ".ifai/skills/"
+priority = 3
+
+[[sources.global]]
+type = "local"
+path = "~/.ifai/skills/"
+priority = 2
+
+[[sources.bundled]]
+type = "bundled"
+path = "resources/skills/"
+priority = 1
+
+# ============================================================================
+# 技能格式配置
+# ============================================================================
+[formats]
+# 支持的技能文件格式
+[[formats.supported]]
+extension = "md"
+content_type = "text/markdown"
+parser = "markdown"
+priority = 1
+
+[[formats.supported]]
+extension = "json"
+content_type = "application/json"
+parser = "json"
+priority = 2
+
+[[formats.supported]]
+extension = "yaml"
+content_type = "application/x-yaml"
+parser = "yaml"
+priority = 3
+
+# 向后兼容
+[formats.legacy]
+extension = "json"
+version = "1.0"
+auto_migrate = true
+
+# ============================================================================
+# 性能配置
+# ============================================================================
+[performance]
+# 并发下载限制
+max_concurrent_downloads = 3
+
+# 缓存配置
+[performance.cache]
+enabled = true
+ttl_seconds = 3600
+max_size_mb = 100
+
+# 虚拟化配置
+[performance.virtualization]
+item_height_grid = 280
+item_height_list = 72
+overscan_count = 3
+threshold = 100
+
+# ============================================================================
+# 安全配置
+# ============================================================================
+[security]
+# 下载校验
+[security.download]
+verify_checksum = true
+require_signature = false
+max_file_size_mb = 10
+
+# 沙箱配置
+[security.sandbox]
+enabled = true
+allowed_paths = []
+max_prompt_length = 10000
+
+# 审计日志
+[security.audit]
+enabled = true
+log_file = ".ifai/skills/audit.log"

@@ -10,12 +10,21 @@
 import { chatEventBus } from '../eventBus/ChatEventBus';
 import { threadPersistence } from '../../persistence/threadPersistence';
 import { getThreadMessages, setThreadMessages } from '../../useChatStore';
+import { createLogger } from '../../../utils/logger';
+
+// 🔥 Logger instance for PersistenceManager
+const logger = createLogger('PersistenceManager');
 
 /**
  * 持久化管理器配置
  */
 const PERSISTENCE_CONFIG = {
-  STREAM_THROTTLE_MS: 200, // 流式响应持久化节流 (200ms)
+  STREAM_THROTTLE_MS: 2000, // 🔥 FIX: 流式响应节流从 200ms 增加到 2000ms (2秒)
+                           // 原因：每个 chunk 都持久化导致 UI 冻结
+                           // 2秒内只持久化一次，大幅减少 IndexedDB 写入
+  DISABLE_STREAMING_PERSIST: true, // 🔥 FIX: 完全禁用流式期间持久化
+                                  // 原因：流式输出时频繁持久化是 UI 卡顿的根本原因
+                                  // 策略：只在流式结束时保存一次，确保数据安全
 };
 
 export class PersistenceManager {
@@ -32,11 +41,18 @@ export class PersistenceManager {
    * 持久化自愈：处理因崩溃导致的断链状态
    */
   private async recoverSessions() {
-    console.log('[PersistenceManager] 🛡️ Running persistence self-healing check...');
+    // 🔥 FIX: 在 E2E 测试环境中禁用自动恢复
+    // E2E 测试会主动创建和管理消息状态，不需要自动修复
+    if (typeof window !== 'undefined' && (window as any).__E2E__) {
+      logger.info('[E2E] Skipping persistence self-healing in test environment');
+      return;
+    }
+
+    logger.info('Running persistence self-healing check...');
     try {
       const { useThreadStore } = await import('../../threadStore');
       const threads = useThreadStore.getState().threads;
-      
+
       for (const threadId of Object.keys(threads)) {
         const messages = getThreadMessages(threadId);
         let hasFixed = false;
@@ -51,13 +67,13 @@ export class PersistenceManager {
         });
 
         if (hasFixed) {
-          console.warn(`[PersistenceManager] ⚠️ Recovered interrupted session: ${threadId}`);
+          logger.warn(`Recovered interrupted session: ${threadId}`);
           setThreadMessages(threadId, fixedMessages as any);
           await this.persistFullSession(threadId);
         }
       }
     } catch (error) {
-      console.error('[PersistenceManager] ❌ Self-healing failed:', error);
+      logger.error('Self-healing failed:', error);
     }
   }
 
@@ -65,11 +81,19 @@ export class PersistenceManager {
    * 初始化：将存储层挂载到神经系统
    */
   private init() {
-    console.log('[PersistenceManager] 🧠 Memory system online, subscribing to EventBus...');
+    logger.info('Memory system online, subscribing to EventBus...');
+
+    // 🔥 FIX: 打印流式持久化策略
+    if (PERSISTENCE_CONFIG.DISABLE_STREAMING_PERSIST) {
+      logger.info('Streaming persistence DISABLED for performance');
+      logger.info('   (will persist once on stream:finished)');
+    } else {
+      logger.info(`Streaming persistence enabled (throttle: ${PERSISTENCE_CONFIG.STREAM_THROTTLE_MS}ms)`);
+    }
 
     // 1. 发送瞬间即刻落盘 (物理保险丝 1: 发送不断链)
     chatEventBus.on('chat:message:sent', async (payload) => {
-      console.log(`[PersistenceManager] 💾 Transactional commit for message: ${payload.messageId}`);
+      logger.debug(`Transactional commit for message: ${payload.messageId}`);
       await this.persistFullSession(payload.sessionId);
     });
 
@@ -81,6 +105,7 @@ export class PersistenceManager {
     // 3. 错误或结束时强制同步最终状态
     chatEventBus.on('chat:stream:finished', async (payload) => {
       this.clearThrottleTimer();
+      logger.info(`Final persist for session: ${payload.sessionId || payload.correlationId}`);
       await this.persistFullSession(payload.sessionId);
     });
 
@@ -94,9 +119,16 @@ export class PersistenceManager {
    * 节流持久化：平衡性能与数据安全性
    */
   private throttledPersist(sessionId: string) {
+    // 🔥 FIX: 如果启用了禁用流式持久化，直接跳过
+    if (PERSISTENCE_CONFIG.DISABLE_STREAMING_PERSIST) {
+      // 完全跳过流式期间的持久化
+      // 只在 chat:stream:finished 时保存一次
+      return;
+    }
+
     const now = Date.now();
-    
-    // 如果距离上次持久化不足 200ms，则仅设置定时器兜底
+
+    // 如果距离上次持久化不足 2000ms，则仅设置定时器兜底
     if (now - this.lastStreamPersistTime < PERSISTENCE_CONFIG.STREAM_THROTTLE_MS) {
       if (!this.streamThrottleTimer) {
         this.streamThrottleTimer = setTimeout(() => {
@@ -129,7 +161,7 @@ export class PersistenceManager {
         }
       }
     } catch (error) {
-      console.error(`[PersistenceManager] ❌ Persistence failure for ${sessionId}:`, error);
+      logger.error(`Persistence failure for ${sessionId}:`, error);
     }
   }
 
