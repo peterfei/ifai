@@ -46,7 +46,7 @@ describe('v0.3.5 Regression Proof: Slash Commands & TCS', () => {
 
   it('SHOULD trigger SlashCommandList when user types /', async () => {
     render(<ChatInputArea isLoading={false} />);
-    const textarea = screen.getByPlaceholderText(/问问 IfAI/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i) as HTMLTextAreaElement;
     
     // 模拟输入 /
     fireEvent.change(textarea, { target: { value: '/' } });

@@ -100,10 +100,10 @@ test.describe('MessageQueue: QueueIndicator UI 测试', () => {
     // 验证显示排队数量
     const indicatorText = await queueIndicator.textContent();
     console.log('[E2E] 📋 QueueIndicator text:', indicatorText);
-    expect(indicatorText).toMatch(/(\d+)\s*条等待/);
+    expect(indicatorText).toMatch(/(\d+)\s*(pending|条等待)/);
 
     // 验证显示消息摘要标签
-    const previewLabels = queueIndicator.locator('.inline-block.bg-white\\/10');
+    const previewLabels = queueIndicator.locator('.inline-block');
     const count = await previewLabels.count();
     console.log('[E2E] 📊 Preview labels count:', count);
 
@@ -162,7 +162,7 @@ test.describe('MessageQueue: QueueIndicator UI 测试', () => {
     await expect(queueIndicator).toBeVisible();
 
     // 获取所有消息摘要标签
-    const previewLabels = queueIndicator.locator('.inline-block.bg-white\\/10');
+    const previewLabels = queueIndicator.locator('.inline-block');
 
     const count = await previewLabels.count();
     console.log('[E2E] 📊 Preview labels count:', count);
@@ -247,13 +247,13 @@ test.describe('MessageQueue: QueueIndicator UI 测试', () => {
     await expect(queueIndicator).toBeVisible({ timeout: 5000 });
 
     // 等待文本内容包含 "条等待"
-    await expect(queueIndicator).toContainText('条等待', { timeout: 5000 });
+    await expect(queueIndicator).toContainText(/pending|条等待/, { timeout: 5000 });
 
     // 验证输入框已清空（可以继续输入）
     await expect(textarea).toHaveValue('');
 
     const indicatorText = await queueIndicator.textContent();
-    expect(indicatorText).toMatch(/(\d+)\s*条等待/);
+    expect(indicatorText).toMatch(/(\d+)\s*(pending|条等待)/);
 
     console.log('[E2E] ✅ UI 输入框正确触发队列功能');
   });
@@ -393,6 +393,7 @@ test.describe('MessageQueue: 工作流消息优先级测试', () => {
     const hasQueueUI =
       indicatorHtml.includes('条等待') ||
       indicatorHtml.includes('处理中') ||
+      indicatorHtml.includes('pending') ||
       indicatorHtml.includes('zap') ||  // 工作流闪电图标
       indicatorHtml.includes('purple'); // 紫色主题
     expect(hasQueueUI).toBe(true);

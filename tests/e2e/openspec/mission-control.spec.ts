@@ -25,24 +25,24 @@ test.describe('Mission Control E2E', () => {
     await expect(header).toBeVisible();
 
     // 3. Verify initial view is List View (look for Search input placeholder)
-    const searchInput = page.locator('input[placeholder="快速过滤..."]');
-    await expect(searchInput).toBeVisible();
+    const searchInput = page.locator('input[placeholder="Quick filter..."]');
+    await expect(searchInput).toBeVisible({ timeout: 5000 });
 
     // 4. Toggle to Timeline View
-    const timelineBtn = page.locator('button[title="Timeline View"]');
+    const timelineBtn = page.locator('button[title="Timeline view"], button[title="Timeline View"]');
     if (await timelineBtn.count() === 0) {
-        // Fallback if title is not set as expected: use icon-based selector or index
-        await page.locator('button >> svg').nth(5).click(); // Approximate index
+        // Fallback: click by visible text
+        await page.locator('button:has-text("Timeline")').click();
     } else {
-        await timelineBtn.click();
+        await timelineBtn.first().click();
     }
 
     // 5. Verify Timeline View content
     // In timeline view, search input should be gone
     await expect(searchInput).not.toBeVisible();
-    
-    // Check for timeline specific text
-    const emptyTimelineText = page.locator('text=No activity recorded yet');
+
+    // Check for timeline specific text (may vary by i18n)
+    const emptyTimelineText = page.locator('text=No activity recorded yet').or(page.locator('text=No task history'));
     await expect(emptyTimelineText).toBeVisible();
   });
 

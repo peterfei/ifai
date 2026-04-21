@@ -5,6 +5,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { PerformancePanel } from '../PerformancePanel';
 
+// Mock react-i18next to return the key as-is (simulates default fallback)
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const map: Record<string, string> = {
+        'performancePanel.title': 'Performance Monitor',
+        'performancePanel.expand': 'Expand performance monitor',
+        'performancePanel.minimize': 'Minimize performance monitor',
+        'performancePanel.metrics.fps': 'FPS',
+        'performancePanel.metrics.memory': 'Memory',
+        'performancePanel.metrics.tokens': 'Tokens',
+        'common.close': 'Close',
+      };
+      return map[key] || key;
+    },
+    i18n: { language: 'en' },
+  }),
+}));
+
 // Mock Recharts since it renders SVG and can be complex to test in JSDOM
 // We mock it to just render children or simple divs
 vi.mock('recharts', () => ({
@@ -52,10 +71,10 @@ describe('PerformancePanel', () => {
 
     // Should be minimized (header gone, only icon remains)
     expect(screen.queryByText('Performance Monitor')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Expand Performance Panel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand performance monitor' })).toBeInTheDocument();
 
     // Click to expand
-    fireEvent.click(screen.getByRole('button', { name: 'Expand Performance Panel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand performance monitor' }));
     expect(screen.getByText('Performance Monitor')).toBeInTheDocument();
   });
 

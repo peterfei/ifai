@@ -154,7 +154,7 @@ test.describe('流式生成指示器去重', () => {
 
       // 统计"生成中..."文本出现次数
       const fullText = document.body.innerText;
-      const streamingCount = (fullText.match(/生成中[.．.]{0,3}/g) || []).length;
+      const streamingCount = (fullText.match(/生成中[.．.]{0,3}|Generating[.．.]{0,3}|thinking[.．.]{0,3}/gi) || []).length;
 
       return {
         streamingIndicatorCount: streamingIndicators.length,
@@ -228,7 +228,7 @@ test.describe('流式生成指示器去重', () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const fullText = document.body.innerText;
-      const streamingCount = (fullText.match(/生成中[.．.]{0,3}/g) || []).length;
+      const streamingCount = (fullText.match(/生成中[.．.]{0,3}|Generating[.．.]{0,3}|thinking[.．.]{0,3}/gi) || []).length;
 
       return {
         streamingCount,
@@ -330,7 +330,7 @@ test.describe('流式生成指示器去重', () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const fullText = document.body.innerText;
-      const streamingCount = (fullText.match(/生成中[.．.]{0,3}/g) || []).length;
+      const streamingCount = (fullText.match(/生成中[.．.]{0,3}|Generating[.．.]{0,3}|thinking[.．.]{0,3}/gi) || []).length;
 
       return {
         streamingCount,
@@ -411,7 +411,7 @@ test.describe('流式生成指示器去重', () => {
       const fullText = document.body.innerText;
       // 在 hasActiveToolCalls 场景下，effectivelyStreaming=true
       // 但只有一个 text segment，所以应该显示"生成中..."
-      const streamingCount = (fullText.match(/生成中[.．.]{0,3}/g) || []).length;
+      const streamingCount = (fullText.match(/生成中[.．.]{0,3}|Generating[.．.]{0,3}|thinking[.．.]{0,3}/gi) || []).length;
 
       return {
         streamingCount,

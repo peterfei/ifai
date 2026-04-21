@@ -9,6 +9,25 @@ import { render, screen } from '@testing-library/react';
 import { WorkflowDAGVisualizer } from '../WorkflowDAGVisualizer';
 import type { DAGNode, DAGEdge } from '../WorkflowDAGMonitor';
 
+// Mock react-i18next to return the key as fallback
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const map: Record<string, string> = {
+        'workflow.inlineMonitor.dagMonitor.status.pending': 'Waiting',
+        'workflow.inlineMonitor.dagMonitor.status.running': 'Running',
+        'workflow.inlineMonitor.dagMonitor.status.completed': 'Completed',
+        'workflow.inlineMonitor.dagMonitor.status.failed': 'Failed',
+        'workflow.inlineMonitor.dagMonitor.status.skipped': 'Skipped',
+        'workflow.inlineMonitor.dagVisualizer.empty.title': 'No DAG nodes yet',
+        'workflow.inlineMonitor.dagVisualizer.empty.description': 'Run the workflow to display the DAG visualization.',
+      };
+      return map[key] || key;
+    },
+    i18n: { language: 'en' },
+  }),
+}));
+
 describe('WorkflowDAGVisualizer - 基础渲染', () => {
   // 创建测试数据
   const mockNodes: DAGNode[] = [
@@ -118,9 +137,12 @@ describe('WorkflowDAGVisualizer - 基础渲染', () => {
     expect(completedNode).toBeInTheDocument();
     expect(completedNode?.className).toContain('completed');
 
-    // 验证节点包含状态符号（极简设计使用通用符号而非英文缩写）
-    expect(runningNode?.textContent).toContain('↻'); // 运行中符号
-    expect(completedNode?.textContent).toContain('✓'); // 完成符号
+    // 验证节点包含状态图标（组件使用 Lucide SVG 图标，通过 aria-label 标识状态）
+    // running 状态使用 Loader2 图标，completed 状态使用 CheckCircle2 图标
+    const runningStatusIcon = runningNode?.querySelector('[aria-label="Running"]');
+    expect(runningStatusIcon).toBeInTheDocument();
+    const completedStatusIcon = completedNode?.querySelector('[aria-label="Completed"]');
+    expect(completedStatusIcon).toBeInTheDocument();
   });
 
   it('应该处理空节点数组', () => {
@@ -135,7 +157,7 @@ describe('WorkflowDAGVisualizer - 基础渲染', () => {
     // 应该显示空状态提示
     const emptyState = screen.getByTestId('dag-empty-state');
     expect(emptyState).toBeInTheDocument();
-    expect(emptyState).toHaveTextContent(/暂无节点/i);
+    expect(emptyState).toHaveTextContent(/No DAG nodes|暂无节点/);
   });
 
   it('应该支持节点点击事件', () => {

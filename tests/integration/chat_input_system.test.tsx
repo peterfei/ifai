@@ -42,13 +42,13 @@ describe('ChatInputArea High-Fidelity Integration', () => {
   it('SHOULD trigger fuzzy search when user types @', async () => {
     render(<ChatInputArea isLoading={false} />);
     
-    const textarea = screen.getByPlaceholderText(/问问 IfAI/i);
+    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i);
     
     // 模拟用户输入 @
     fireEvent.change(textarea, { target: { value: '@' } });
     
     // 预期：弹出搜索面板
-    const searchPanel = await screen.findByText(/引用文件/i);
+    const searchPanel = await screen.findByTestId('file-mention-panel');
     expect(searchPanel).toBeDefined();
     
     // 预期：显示匹配的文件
@@ -58,7 +58,7 @@ describe('ChatInputArea High-Fidelity Integration', () => {
 
   it('SHOULD insert file reference when a result is selected', async () => {
     render(<ChatInputArea isLoading={false} />);
-    const textarea = screen.getByPlaceholderText(/问问 IfAI/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i) as HTMLTextAreaElement;
     
     fireEvent.change(textarea, { target: { value: '请帮我解释下 @ma' } });
     
@@ -69,22 +69,22 @@ describe('ChatInputArea High-Fidelity Integration', () => {
     expect(textarea.value).toContain('[#main.tsx](src/main.tsx)');
     
     // 预期：搜索面板关闭
-    expect(screen.queryByText(/引用文件/i)).toBeNull();
+    expect(screen.queryByTestId('file-mention-panel')).toBeNull();
   });
 
   it('SHOULD maintain high-tech button states (Send Button Glow)', async () => {
     render(<ChatInputArea isLoading={false} />);
     const sendButton = screen.getByTestId('chat-send-button');
-    const textarea = screen.getByPlaceholderText(/问问 IfAI/i);
+    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i);
     
-    // 初始状态：按钮应该是灰色的
-    expect(sendButton.className).toContain('bg-gray-800');
-    
+    // 初始状态：按钮应该是禁用样式
+    expect(sendButton.className).toContain('theme-button-secondary');
+
     // 输入内容
     fireEvent.change(textarea, { target: { value: 'Hello' } });
-    
-    // 预期：按钮变为蓝色并带有辉光
-    expect(sendButton.className).toContain('bg-blue-600');
-    expect(sendButton.className).toContain('shadow-');
+
+    // 预期：按钮变为激活样式并带有辉光
+    expect(sendButton.className).toContain('theme-button-primary');
+    expect(sendButton.className).toContain('theme-glow-accent');
   });
 });

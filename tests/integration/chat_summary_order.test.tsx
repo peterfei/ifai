@@ -25,7 +25,9 @@ vi.mock('../../src/stores/useChatStore', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'zh' } }),
+  initReactI18next: { init: vi.fn(), type: '3rdParty' },
+  Trans: ({ children }: any) => children,
 }));
 
 // Mock TaskSummary to check its position

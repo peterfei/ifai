@@ -3,11 +3,16 @@
  * 验证ToolArgsViewer、StreamingToolArgsViewer和ToolExecutionIndicator组件功能
  */
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { ToolArgsViewer, CompactToolArgsViewer } from '../../src/components/AIChat/ToolArgsViewer';
 import { StreamingToolArgsViewer } from '../../src/components/AIChat/StreamingToolArgsViewer';
 import { ToolExecutionIndicator } from '../../src/components/AIChat/ToolExecutionIndicator';
+
+// Mock react-i18next: t() returns the key as-is
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 
 describe('Tool Args UI Optimization', () => {
   test('should render simple arguments correctly', () => {
@@ -48,7 +53,7 @@ describe('Tool Args UI Optimization', () => {
     const { container } = render(<ToolArgsViewer args={args} />);
 
     expect(container.textContent).toContain('paths');
-    expect(container.textContent).toContain('[3 items]');
+    expect(container.textContent).toContain('aiChat.toolArgsViewer.arrayCount');
   });
 
   test('should render partial state with loading indicator', () => {
@@ -59,13 +64,13 @@ describe('Tool Args UI Optimization', () => {
 
     const { container } = render(<ToolArgsViewer args={args} isPartial={true} />);
 
-    expect(container.textContent).toContain('正在生成参数');
+    expect(container.textContent).toContain('aiChat.toolArgsViewer.generating');
   });
 
   test('should render empty args', () => {
     const { container } = render(<ToolArgsViewer args={{}} />);
 
-    expect(container.textContent).toContain('无参数');
+    expect(container.textContent).toContain('aiChat.toolArgsViewer.none');
   });
 });
 
@@ -92,7 +97,7 @@ describe('Compact Tool Args Viewer', () => {
 
     const { container } = render(<CompactToolArgsViewer args={args} />);
 
-    expect(container.textContent).toContain('+1 more parameters');
+    expect(container.textContent).toContain('aiChat.toolArgsViewer.moreParameters');
   });
 });
 
@@ -100,7 +105,7 @@ describe('Tool Execution Indicator', () => {
   test('should render pending status', () => {
     const { container } = render(<ToolExecutionIndicator status="pending" />);
 
-    expect(container.textContent).toContain('待审批');
+    expect(container.textContent).toContain('aiChat.toolExecution.status.pending');
   });
 
   test('should render running status with animation', () => {
@@ -108,20 +113,20 @@ describe('Tool Execution Indicator', () => {
       <ToolExecutionIndicator status="running" message="正在执行..." />
     );
 
-    expect(container.textContent).toContain('执行中');
+    expect(container.textContent).toContain('aiChat.toolExecution.status.running');
     expect(container.textContent).toContain('正在执行...');
   });
 
   test('should render completed status', () => {
     const { container } = render(<ToolExecutionIndicator status="completed" />);
 
-    expect(container.textContent).toContain('已完成');
+    expect(container.textContent).toContain('aiChat.toolExecution.status.completed');
   });
 
   test('should render failed status', () => {
     const { container } = render(<ToolExecutionIndicator status="failed" />);
 
-    expect(container.textContent).toContain('失败');
+    expect(container.textContent).toContain('aiChat.toolExecution.status.failed');
   });
 
   test('should render progress bar when progress provided', () => {
@@ -130,7 +135,7 @@ describe('Tool Execution Indicator', () => {
     );
 
     expect(container.textContent).toContain('50%');
-    expect(container.textContent).toContain('执行进度');
+    expect(container.textContent).toContain('aiChat.toolExecution.progress');
   });
 
   test('should render compact mode', () => {
@@ -148,7 +153,7 @@ describe('Streaming Tool Args Viewer', () => {
       <StreamingToolArgsViewer args={{}} isStreaming={false} />
     );
 
-    expect(container.textContent).toContain('无参数');
+    expect(container.textContent).toContain('aiChat.streamingToolArgs.none');
   });
 
   test('should render checkbox-style parameters', () => {
@@ -194,8 +199,8 @@ describe('Streaming Tool Args Viewer', () => {
       <StreamingToolArgsViewer args={args} isStreaming={false} />
     );
 
-    // 应该有绿色背景的checkbox
-    const checkbox = container.querySelector('.bg-green-500\\/20');
+    // 应该有成功样式的checkbox
+    const checkbox = container.querySelector('.theme-surface-success');
     expect(checkbox).toBeTruthy();
   });
 
@@ -217,6 +222,6 @@ describe('Streaming Tool Args Viewer', () => {
       <StreamingToolArgsViewer args={{}} isStreaming={true} />
     );
 
-    expect(container.textContent).toContain('正在生成参数...');
+    expect(container.textContent).toContain('aiChat.streamingToolArgs.generatingArgs');
   });
 });

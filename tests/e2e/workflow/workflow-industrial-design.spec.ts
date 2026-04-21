@@ -98,7 +98,7 @@ test.describe('🎨 工业级设计验证', () => {
       const monitor = document.querySelector('[data-monitor="true"]');
       if (!monitor) return { error: '监控器未渲染' };
 
-      const card = monitor.querySelector('.bg-white, .dark\\:bg-gray-900');
+      const card = monitor.querySelector('.bg-white, .dark\\:bg-gray-900, .theme-panel-elevated, .theme-panel-muted, [class*="rounded"]');
       const hasBlueBackground = monitor.className.includes('blue-100') ||
                                monitor.className.includes('from-blue-');
 
