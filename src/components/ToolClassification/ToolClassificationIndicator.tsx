@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Zap, Loader2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toolClassificationService } from '@/services/toolClassificationService';
 import { getToolCategoryDisplayInfo, getLayerDisplayInfo } from '@/types/toolClassification';
 import type { ClassificationResult, ClassificationLayer } from '@/types/toolClassification';
@@ -31,13 +32,13 @@ interface ToolClassificationIndicatorProps {
 function getLayerIcon(layer: ClassificationLayer): string {
   switch (layer) {
     case 'layer1':
-      return '🎯'; // 精确匹配
+      return 'L1';
     case 'layer2':
-      return '🤔'; // 规则分类
+      return 'L2';
     case 'layer3':
-      return '🧠'; // LLM 分类
+      return 'L3';
     default:
-      return '❓';
+      return '?';
   }
 }
 
@@ -70,6 +71,7 @@ interface FeedbackButtonsProps {
 }
 
 const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegative, disabled }) => {
+  const { t } = useTranslation();
   const [feedbackGiven, setFeedbackGiven] = useState<'positive' | 'negative' | null>(null);
 
   const handlePositive = () => {
@@ -87,17 +89,17 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
   };
 
   return (
-    <div className="flex items-center gap-1 ml-2 border-l border-gray-700 pl-2">
+    <div className="theme-border ml-2 flex items-center gap-1 border-l pl-2">
       <button
         onClick={handlePositive}
         data-testid="feedback-correct"
         disabled={disabled || feedbackGiven === 'positive'}
         className={`p-1 rounded transition-colors ${
           feedbackGiven === 'positive'
-            ? 'bg-green-600 text-white'
-            : 'text-gray-500 hover:text-green-400 hover:bg-gray-800'
+            ? 'theme-badge-success'
+            : 'theme-text-subtle hover:text-[var(--success-color)] hover:bg-[var(--hover-bg)]'
         }`}
-        title="分类正确"
+        title={t('toolClassificationIndicator.feedbackCorrect')}
       >
         <ThumbsUp className="w-3.5 h-3.5" />
       </button>
@@ -107,10 +109,10 @@ const FeedbackButtons: React.FC<FeedbackButtonsProps> = ({ onPositive, onNegativ
         disabled={disabled || feedbackGiven === 'negative'}
         className={`p-1 rounded transition-colors ${
           feedbackGiven === 'negative'
-            ? 'bg-red-600 text-white'
-            : 'text-gray-500 hover:text-red-400 hover:bg-gray-800'
+            ? 'theme-badge-danger'
+            : 'theme-text-subtle hover:text-[var(--danger-color)] hover:bg-[var(--hover-bg)]'
         }`}
-        title="分类错误"
+        title={t('toolClassificationIndicator.feedbackIncorrect')}
       >
         <ThumbsDown className="w-3.5 h-3.5" />
       </button>
@@ -128,6 +130,7 @@ export const ToolClassificationIndicator: React.FC<ToolClassificationIndicatorPr
   debounceMs = 300,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const [result, setResult] = useState<ClassificationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [latency, setLatency] = useState<number>(0);
@@ -203,9 +206,9 @@ export const ToolClassificationIndicator: React.FC<ToolClassificationIndicatorPr
     >
       {/* 加载状态 */}
       {isLoading && (
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-500 italic">
+        <div className="theme-text-subtle flex items-center gap-1.5 text-[10px] italic">
           <Loader2 className="w-2.5 h-2.5 animate-spin" />
-          <span>Thinking...</span>
+          <span>{t('toolClassificationIndicator.thinking')}</span>
         </div>
       )}
 
@@ -229,10 +232,10 @@ export const ToolClassificationIndicator: React.FC<ToolClassificationIndicatorPr
           <ClassificationBadge result={result} compact showConfidence={false} />
 
           {/* 性能指标：合并显示 */}
-          <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500/80">
+          <div className="theme-text-subtle flex items-center gap-2 text-[10px] font-bold">
             <span>{(result.confidence * 100).toFixed(0)}%</span>
             {latency > 0 && (
-              <span className={latency > 100 ? 'text-red-500/60' : 'text-gray-500/60'}>
+              <span className={latency > 100 ? 'theme-text-danger' : 'theme-text-subtle'}>
                 {latency.toFixed(0)}ms
               </span>
             )}

@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ProgressBarColor } from './types';
 
 // ============================================================================
@@ -46,15 +47,14 @@ export interface TaskProgressBarProps {
 // ============================================================================
 
 const COLOR_MAP: Record<ProgressBarColor, string> = {
-  blue: '#569cd6',
-  green: '#4ec9b0',
-  orange: '#dcdcaa',
-  red: '#f14c4c',
-  gray: '#858585',
+  blue: 'var(--accent-color)',
+  green: 'var(--success-color)',
+  orange: 'var(--warning-color)',
+  red: 'var(--danger-color)',
+  gray: 'var(--text-subtle)',
 };
 
-const BG_COLOR = '#2d2d2d';
-const TRACK_COLOR = '#3c3c3c';
+const TRACK_COLOR = 'var(--bg-tertiary)';
 
 // ============================================================================
 // Component
@@ -69,8 +69,9 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
   color = 'blue',
   animated = true,
   className = '',
-  ariaLabel = 'Progress bar',
+  ariaLabel,
 }) => {
+  const { t } = useTranslation();
   // Calculate percentage
   const percentage = total !== undefined
     ? Math.min(100, Math.max(0, Math.round((value / total) * 100)))
@@ -86,6 +87,7 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
   };
 
   const currentColor = COLOR_MAP[getColor()];
+  const resolvedAriaLabel = ariaLabel || t('taskMonitor.card.progressBar');
 
   return (
     <div className={`task-progress-bar ${className}`}>
@@ -102,7 +104,7 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={total || 100}
-        aria-label={ariaLabel}
+        aria-label={resolvedAriaLabel}
       >
         {/* Progress fill */}
         <div
@@ -123,12 +125,12 @@ export const TaskProgressBar: React.FC<TaskProgressBarProps> = ({
       {(showPercentage || showProgressText) && (
         <div className="task-progress-text" style={{ marginTop: '4px' }}>
           {showProgressText && total !== undefined && (
-            <span className="text-[11px] text-[#858585] font-mono mr-2">
+            <span className="theme-text-subtle mr-2 text-[11px] font-mono">
               {value}/{total}
             </span>
           )}
           {showPercentage && (
-            <span className="text-[11px] text-[#cccccc] font-mono">
+            <span className="theme-text text-[11px] font-mono">
               {percentage}%
             </span>
           )}
@@ -277,7 +279,7 @@ export const SegmentedProgress: React.FC<SegmentedProgressProps> = ({
             segment.label && (
               <div
                 key={index}
-                className="text-[10px] text-[#858585]"
+                className="theme-text-subtle text-[10px]"
                 style={{ flex: segment.value }}
               >
                 {segment.label}

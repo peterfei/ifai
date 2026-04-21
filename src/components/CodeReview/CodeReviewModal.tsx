@@ -8,8 +8,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle, Shield, Zap, FileCode, CheckCircle, XCircle, Eye, Download } from 'lucide-react';
+import { X, AlertTriangle, Shield, Zap, FileCode, CheckCircle, XCircle, Eye, Lightbulb } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 // ============================================================================
 // 类型定义
@@ -114,17 +116,17 @@ interface CodeReviewModalProps {
 function getIssueIcon(type: ReviewIssueType) {
   switch (type) {
     case 'security':
-      return <Shield className="text-red-500" size={18} />;
+      return <Shield className="text-[var(--danger-color)]" size={18} />;
     case 'performance':
-      return <Zap className="text-yellow-500" size={18} />;
+      return <Zap className="text-[var(--warning-color)]" size={18} />;
     case 'style':
-      return <FileCode className="text-blue-500" size={18} />;
+      return <FileCode className="text-[var(--accent-color)]" size={18} />;
     case 'error':
-      return <XCircle className="text-red-600" size={18} />;
+      return <XCircle className="text-[var(--danger-color)]" size={18} />;
     case 'custom':
-      return <AlertTriangle className="text-orange-500" size={18} />;
+      return <AlertTriangle className="text-[var(--warning-color)]" size={18} />;
     default:
-      return <AlertTriangle className="text-gray-500" size={18} />;
+      return <AlertTriangle className="theme-text-subtle" size={18} />;
   }
 }
 
@@ -134,36 +136,20 @@ function getIssueIcon(type: ReviewIssueType) {
 function getSeverityClass(severity: ReviewSeverity): string {
   switch (severity) {
     case 'critical':
-      return 'bg-red-600 text-white';
+      return 'bg-[var(--danger-soft-bg)] text-[var(--danger-color)] ring-1 ring-inset ring-[var(--danger-soft-border)]';
     case 'error':
-      return 'bg-red-500 text-white';
+      return 'bg-[var(--danger-soft-bg)] text-[var(--danger-color)] ring-1 ring-inset ring-[var(--danger-soft-border)]';
     case 'warning':
-      return 'bg-yellow-500 text-white';
+      return 'bg-[var(--warning-soft-bg)] text-[var(--warning-color)] ring-1 ring-inset ring-[var(--warning-soft-border)]';
     case 'info':
-      return 'bg-blue-500 text-white';
+      return 'bg-[var(--accent-soft-bg)] text-[var(--accent-color)] ring-1 ring-inset ring-[var(--accent-soft-border)]';
     default:
-      return 'bg-gray-500 text-white';
+      return 'theme-panel-elevated theme-text-subtle ring-1 ring-inset ring-[var(--border-color)]';
   }
 }
 
-/**
- * 获取问题类型名称
- */
-function getTypeName(type: ReviewIssueType): string {
-  switch (type) {
-    case 'security':
-      return 'Security';
-    case 'performance':
-      return 'Performance';
-    case 'style':
-      return 'Style';
-    case 'error':
-      return 'Error';
-    case 'custom':
-      return 'Custom';
-    default:
-      return 'Other';
-  }
+function getSeverityLabel(t: TFunction, severity: ReviewSeverity): string {
+  return t(`codeReviewModal.severities.${severity}`);
 }
 
 /**
@@ -249,6 +235,7 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
   onViewFix,
   onApplyFix,
 }) => {
+  const { t } = useTranslation();
   const [selectedIssue, setSelectedIssue] = useState<ReviewIssue | null>(null);
   const [showFixModal, setShowFixModal] = useState(false);
   const [showCommitConfirmation, setShowCommitConfirmation] = useState(false);
@@ -291,7 +278,7 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
   const handleApplyFix = (issue: ReviewIssue) => {
     if (onApplyFix) {
       onApplyFix(issue);
-      toast.success(`已应用修复: ${issue.message}`);
+      toast.success(t('codeReviewModal.fixApplied', { message: issue.message }));
     }
   };
 
@@ -309,14 +296,14 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
   const handleConfirmForceCommit = () => {
     if (onIgnoreAndCommit) {
       onIgnoreAndCommit();
-      toast.success('已提交');
+      toast.success(t('codeReviewModal.committed'));
 
       // Create visible success element for E2E tests
       const successDiv = document.createElement('div');
       successDiv.className = 'toast toast-success';
       successDiv.setAttribute('data-testid', 'toast-success');
-      successDiv.textContent = '已提交';
-      successDiv.style.cssText = 'position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+      successDiv.textContent = t('codeReviewModal.committed');
+      successDiv.style.cssText = 'position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: var(--success-color); color: #ffffff; border: 1px solid var(--success-soft-border); padding: 12px 24px; border-radius: 8px;';
       document.body.appendChild(successDiv);
 
       // Auto-remove after 3 seconds
@@ -326,7 +313,7 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
 
       // Dispatch event for E2E tests
       window.dispatchEvent(new CustomEvent('commit-success', {
-        detail: { message: '已提交' }
+        detail: { message: t('codeReviewModal.committed') }
       }));
 
       onClose();
@@ -354,28 +341,28 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
     <>
       {/* 主审查模态框 */}
       <div
-        className="fixed inset-0 z-[220] flex items-center justify-center bg-black bg-opacity-60"
+        className="theme-backdrop-strong fixed inset-0 z-[220] flex items-center justify-center"
         data-testid="review-modal"
       >
-        <div className="w-[90vw] max-w-4xl max-h-[80vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+        <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-[90vw] max-w-4xl flex-col rounded-lg border">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="theme-border flex items-center justify-between border-b p-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="text-yellow-500" size={20} />
-              <h2 className="text-lg font-semibold text-white">代码审查结果</h2>
-              <span className="text-sm text-gray-400">({reviewResult.issues.length} 个问题)</span>
+              <AlertTriangle className="text-[var(--warning-color)]" size={20} />
+              <h2 className="theme-text text-lg font-semibold">{t('codeReviewModal.title')}</h2>
+              <span className="theme-text-subtle text-sm">({t('codeReviewModal.issueCount', { count: reviewResult.issues.length })})</span>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="theme-button-ghost rounded p-1"
             >
               <X size={20} />
             </button>
           </div>
 
           {/* Summary */}
-          <div className="p-4 bg-[#1e1e1e] border-b border-gray-700">
-            <p className="text-sm text-gray-300">{reviewResult.summary}</p>
+          <div className="theme-panel-muted theme-border border-b p-4">
+            <p className="theme-text-muted text-sm">{reviewResult.summary}</p>
           </div>
 
           {/* Issues List */}
@@ -383,10 +370,10 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
             {Array.from(groupedIssues.entries()).map(([type, issues]) => (
               <div key={type} className="space-y-2">
                 {/* Type Header */}
-                <div className="flex items-center gap-2 text-sm font-semibold text-gray-300">
+                <div className="theme-text-muted flex items-center gap-2 text-sm font-semibold">
                   {getIssueIcon(type)}
-                  <span>{getTypeName(type)}</span>
-                  <span className="text-gray-500">({issues.length})</span>
+                  <span>{t(`codeReviewModal.types.${type}`)}</span>
+                  <span className="theme-text-subtle">({issues.length})</span>
                 </div>
 
                 {/* Issues */}
@@ -396,53 +383,56 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
                     return (
                       <div
                         key={issue.id}
-                        className="bg-[#1e1e1e] border border-gray-700 rounded-lg p-3 hover:border-gray-600 transition-colors"
+                        className="theme-panel-muted theme-border rounded-lg border p-3 transition-colors hover:border-[var(--border-strong)]"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-xs px-2 py-0.5 rounded ${getSeverityClass(issue.severity)}`}>
-                                {issue.severity}
+                              <span className={`rounded px-2 py-0.5 text-xs font-medium ${getSeverityClass(issue.severity)}`}>
+                                {getSeverityLabel(t, issue.severity)}
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className="theme-text-subtle text-xs">
                                 {issue.file}:{issue.line}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-200">{issue.message}</p>
+                            <p className="theme-text text-sm">{issue.message}</p>
                             {issue.suggestion && (
-                              <p className="text-xs text-gray-400 mt-1">💡 {issue.suggestion}</p>
+                              <div className="theme-text-muted mt-2 flex items-start gap-2 text-xs">
+                                <Lightbulb className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[var(--warning-color)]" />
+                                <p>{issue.suggestion}</p>
+                              </div>
                             )}
                             {/* Show code snippet for E2E testing (REV-E2E-06) */}
                             {codeSnippet && (
-                              <pre className="mt-2 text-xs bg-[#0d0d0d] p-2 rounded overflow-x-auto text-gray-300 font-mono">
+                              <pre className="theme-code-surface theme-border mt-2 overflow-x-auto rounded border p-2 text-xs font-mono">
                                 {codeSnippet}
                               </pre>
                             )}
                           </div>
 
-                        <div className="flex items-center gap-1">
-                          {issue.hasFix && (
-                            <>
-                              <button
-                                onClick={() => handleViewFix(issue)}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-blue-400 hover:bg-white/5 rounded transition-colors"
-                                data-testid="view-fix-button"
-                              >
-                                <Eye size={14} />
-                                <span>View Fix</span>
-                              </button>
-                              <button
-                                onClick={() => handleApplyFix(issue)}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-green-400 hover:bg-white/5 rounded transition-colors"
-                              >
-                                <CheckCircle size={14} />
-                                <span>Apply</span>
-                              </button>
-                            </>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {issue.hasFix && (
+                              <>
+                                <button
+                                  onClick={() => handleViewFix(issue)}
+                                  className="theme-button-ghost flex items-center gap-1 rounded px-2 py-1 text-xs hover:text-[var(--accent-color)]"
+                                  data-testid="view-fix-button"
+                                >
+                                  <Eye size={14} />
+                                  <span>{t('codeReviewModal.viewFix')}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleApplyFix(issue)}
+                                  className="theme-button-ghost flex items-center gap-1 rounded px-2 py-1 text-xs hover:text-[var(--success-color)]"
+                                >
+                                  <CheckCircle size={14} />
+                                  <span>{t('codeReviewModal.apply')}</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -451,23 +441,23 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg flex justify-between items-center">
+          <div className="theme-panel-muted theme-border flex items-center justify-between gap-2 rounded-b-lg border-t p-4">
             {showCommitConfirmation ? (
               <>
                 <button
                   onClick={handleCancelForceCommit}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+                  className="theme-button-secondary rounded px-4 py-2 text-sm"
                 >
-                  取消
+                  {t('codeReviewModal.cancel')}
                 </button>
                 <div className="flex gap-2">
                   <button
                     onClick={handleConfirmForceCommit}
-                    className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                    className="theme-button-danger rounded px-4 py-2 text-sm"
                     data-testid="commit-anyway-button"
                   >
-                    Commit Anyway
-                    <span className="ml-1 text-xs opacity-80">(强制提交)</span>
+                    {t('codeReviewModal.commitAnyway')}
+                    <span className="ml-1 text-xs opacity-80">({t('codeReviewModal.forceCommit')})</span>
                   </button>
                 </div>
               </>
@@ -475,26 +465,26 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
               <>
                 <button
                   onClick={handleIgnoreAndCommit}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+                  className="theme-button-ghost rounded px-4 py-2 text-sm"
                   data-testid="ignore-issues-button"
                 >
-                  Ignore Issues
-                  <span className="ml-1 text-xs opacity-60">(忽略问题)</span>
+                  {t('codeReviewModal.ignoreIssues')}
+                  <span className="ml-1 text-xs opacity-60">({t('codeReviewModal.ignoreIssuesSuffix')})</span>
                 </button>
 
                 <div className="flex gap-2">
                   <button
                     onClick={onClose}
-                    className="px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
+                    className="theme-button-secondary rounded px-4 py-2 text-sm"
                   >
-                    取消
+                    {t('codeReviewModal.cancel')}
                   </button>
                   {hasFixableIssues && onApplyAllFixes && (
                     <button
                       onClick={handleApplyAllFixes}
-                      className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                      className="theme-button-primary rounded px-4 py-2 text-sm"
                     >
-                      应用所有修复
+                      {t('codeReviewModal.applyAllFixes')}
                     </button>
                   )}
                 </div>
@@ -507,16 +497,16 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
       {/* 修复预览模态框 */}
       {showFixModal && selectedIssue && (
         <div
-          className="fixed inset-0 z-[230] flex items-center justify-center bg-black bg-opacity-60"
+          className="theme-backdrop-strong fixed inset-0 z-[230] flex items-center justify-center"
           data-testid="fix-suggestion-modal"
         >
-          <div className="w-[90vw] max-w-3xl max-h-[80vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+          <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-[90vw] max-w-3xl flex-col rounded-lg border">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">Fix Suggestion (修复建议)</h3>
+            <div className="theme-border flex items-center justify-between border-b p-4">
+              <h3 className="theme-text text-lg font-semibold">{t('codeReviewModal.fixSuggestion')}</h3>
               <button
                 onClick={() => setShowFixModal(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="theme-button-ghost rounded p-1"
               >
                 <X size={20} />
               </button>
@@ -526,36 +516,36 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
             <div className="flex-1 overflow-auto p-4 space-y-4">
               {/* Current Code */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">Current (当前代码)</h4>
-                <pre className="bg-[#1e1e1e] p-3 rounded text-sm text-gray-300 overflow-x-auto">
-                  <code>{selectedIssue.originalCode || '// Original code will be shown here'}</code>
+                <h4 className="theme-text-muted mb-2 text-sm font-semibold">{t('codeReviewModal.currentCode')}</h4>
+                <pre className="theme-code-surface theme-border theme-text overflow-x-auto rounded border p-3 text-sm">
+                  <code>{selectedIssue.originalCode || t('codeReviewModal.originalCodeFallback')}</code>
                 </pre>
               </div>
 
               {/* Suggested Fix */}
               <div>
-                <h4 className="text-sm font-semibold text-green-300 mb-2">Suggested (建议修复)</h4>
-                <pre className="bg-[#1e1e1e] p-3 rounded text-sm text-green-300 overflow-x-auto">
-                  <code>{selectedIssue.fixCode || '// Fixed code will be shown here'}</code>
+                <h4 className="mb-2 text-sm font-semibold text-[var(--success-color)]">{t('codeReviewModal.suggestedFix')}</h4>
+                <pre className="theme-code-surface theme-border overflow-x-auto rounded border p-3 text-sm text-[var(--success-color)]">
+                  <code>{selectedIssue.fixCode || t('codeReviewModal.fixedCodeFallback')}</code>
                 </pre>
               </div>
 
               {/* Description */}
               {selectedIssue.suggestion && (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-300 mb-2">Description (说明)</h4>
-                  <p className="text-sm text-gray-300">{selectedIssue.suggestion}</p>
+                  <h4 className="theme-text-muted mb-2 text-sm font-semibold">{t('codeReviewModal.description')}</h4>
+                  <p className="theme-text-muted text-sm">{selectedIssue.suggestion}</p>
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg flex justify-end gap-2">
+            <div className="theme-panel-muted theme-border flex justify-end gap-2 rounded-b-lg border-t p-4">
               <button
                 onClick={() => setShowFixModal(false)}
-                className="px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
+                className="theme-button-secondary rounded px-4 py-2 text-sm"
               >
-                Cancel (取消)
+                {t('codeReviewModal.cancelFix')}
               </button>
               <button
                 onClick={() => {
@@ -637,16 +627,16 @@ export const CodeReviewModal: React.FC<CodeReviewModalProps> = ({
 
                     mockFS.set(actualFilePath, fixedCode);
                     console.log('[E2E v0.2.9] Fix applied to:', actualFilePath);
-                    toast.success('Fix applied successfully');
+                    toast.success(t('codeReviewModal.fixAppliedSuccessfully'));
                   } else {
                     handleApplyFix(selectedIssue);
                   }
                   setShowFixModal(false);
                 }}
-                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                className="theme-button-primary rounded px-4 py-2 text-sm"
                 data-testid="apply-fix-button"
               >
-                Apply Fix (应用修复)
+                {t('codeReviewModal.applyFix')}
               </button>
             </div>
           </div>

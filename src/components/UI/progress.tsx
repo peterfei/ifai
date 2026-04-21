@@ -13,11 +13,11 @@ export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
     return (
       <div
         ref={ref}
-        className={clsx('h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden', className)}
+        className={clsx('theme-panel-muted theme-border h-2 w-full overflow-hidden rounded-full border', className)}
         {...props}
       >
         <div
-          className="h-full bg-blue-500 dark:bg-blue-600 transition-all duration-300 ease-in-out"
+          className="h-full bg-[var(--accent-color)] transition-all duration-300 ease-in-out"
           style={{ width: `${percentage}%` }}
         />
       </div>

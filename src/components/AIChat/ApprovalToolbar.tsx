@@ -6,10 +6,12 @@ import { useApprovalStore } from '../../core/approval/store/useApprovalStore';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { RiskPolicy } from '../../core/approval/policies/RiskPolicy';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 const riskPolicy = new RiskPolicy();
 
 export const ApprovalToolbar: React.FC = () => {
+  const { t } = useTranslation();
   const { approvalPreview, closeApprovalPreview } = useEditorStore();
   const { isVisible, filePath, toolCallId } = approvalPreview;
   const { editorMode } = useLayoutStore();
@@ -33,9 +35,9 @@ export const ApprovalToolbar: React.FC = () => {
       
       if (message) {
         chatStore.approveToolCall(message.id, toolCallId);
-        toast.success('已批准变更');
+        toast.success(t('approvalToolbar.approved'));
       } else {
-        toast.error('无法定位原始消息');
+        toast.error(t('approvalToolbar.messageNotFound'));
       }
     }
     closeApprovalPreview();
@@ -50,9 +52,9 @@ export const ApprovalToolbar: React.FC = () => {
 
       if (message) {
         chatStore.rejectToolCall(message.id, toolCallId);
-        toast.error('已拒绝变更');
+        toast.error(t('approvalToolbar.rejected'));
       } else {
-        toast.error('无法定位原始消息');
+        toast.error(t('approvalToolbar.messageNotFound'));
       }
     }
     closeApprovalPreview();
@@ -60,9 +62,9 @@ export const ApprovalToolbar: React.FC = () => {
 
   const getRiskColor = () => {
     switch (riskLevel) {
-      case 'high': return 'bg-red-500/20 border-red-500/50 text-red-400';
-      case 'low': return 'bg-green-500/20 border-green-500/50 text-green-400';
-      default: return 'bg-amber-500/20 border-amber-500/50 text-amber-400';
+      case 'high': return 'bg-[var(--danger-soft-bg)] border-[var(--danger-soft-border)] text-[var(--danger-color)]';
+      case 'low': return 'bg-[var(--success-soft-bg)] border-[var(--success-soft-border)] text-[var(--success-color)]';
+      default: return 'bg-[var(--warning-soft-bg)] border-[var(--warning-soft-border)] text-[var(--warning-color)]';
     }
   };
 
@@ -79,7 +81,7 @@ export const ApprovalToolbar: React.FC = () => {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider">
           {getRiskIcon()}
-          正在预览 AI 变更
+          {t('approvalToolbar.previewing')}
         </div>
         <div className="h-4 w-[1px] bg-current opacity-20 mx-1" />
         <div className="text-xs font-mono opacity-90 truncate max-w-[300px]">
@@ -90,20 +92,20 @@ export const ApprovalToolbar: React.FC = () => {
       <div className="flex items-center gap-2">
         <button
           onClick={handleReject}
-          className="flex items-center gap-1.5 px-3 py-1 rounded bg-black/20 hover:bg-red-500/30 text-xs font-bold transition-all border border-transparent hover:border-red-500/50"
+          className="theme-button-secondary flex items-center gap-1.5 rounded border border-[var(--danger-soft-border)] px-3 py-1 text-xs font-bold transition-all hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
         >
-          <X size={14} /> 拒绝
+          <X size={14} /> {t('approvalToolbar.reject')}
         </button>
         <button
           onClick={handleApprove}
-          className="flex items-center gap-1.5 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg transition-all"
+          className="theme-button-primary theme-glow-accent flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold transition-all"
         >
-          <Check size={14} /> 接受修改
+          <Check size={14} /> {t('approvalToolbar.accept')}
         </button>
         <button
           onClick={closeApprovalPreview}
-          className="p-1 hover:bg-white/10 rounded transition-colors ml-2"
-          title="关闭预览"
+          className="theme-button-ghost ml-2 rounded p-1 transition-colors"
+          title={t('approvalToolbar.close')}
         >
           <X size={14} className="opacity-50" />
         </button>

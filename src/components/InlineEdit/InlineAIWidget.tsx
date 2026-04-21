@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, CornerDownLeft, Loader2, Zap, ShieldCheck, Search, CheckCircle2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { PivoStage } from '../../stores/types';
 import { GhostTaskList, GhostTask } from './GhostTaskList';
 import { FilePortal } from './FilePortal';
+import { formatKeybinding } from '../../utils/keyboard';
 
 interface InlineAIWidgetProps {
   onClose: () => void;
@@ -28,7 +30,10 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
   selectedText = '',
   currentFilePath = ''
 }) => {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
+  const acceptShortcutLabel = formatKeybinding('Mod+Enter');
+  const newLineShortcutLabel = formatKeybinding('Shift+Enter');
 
   // 初始化输入框：如果有选中代码，预填充
   useEffect(() => {
@@ -41,7 +46,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
     }
   }, [selectedText, stage]);
 
-  // 快捷键处理：Cmd+Enter 接受修改
+  // 快捷键处理：Mod+Enter 接受修改
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (stage !== 'idle' && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -56,20 +61,20 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
   // PIVO 进度条颜色映射
   const getStageColor = (s: PivoStage) => {
     switch (s) {
-      case 'plan': return 'bg-blue-500';
-      case 'implement': return 'bg-purple-500';
-      case 'verify': return 'bg-emerald-500';
-      case 'optimize': return 'bg-amber-500';
-      default: return 'bg-gray-600';
+      case 'plan': return 'bg-[var(--accent-color)]';
+      case 'implement': return 'bg-[var(--info-color)]';
+      case 'verify': return 'bg-[var(--success-color)]';
+      case 'optimize': return 'bg-[var(--warning-color)]';
+      default: return 'bg-[var(--border-strong)]';
     }
   };
 
   const getStageLabel = (s: PivoStage) => {
     switch (s) {
-      case 'plan': return '🔍 规划中...';
-      case 'implement': return '✍️ 实施中...';
-      case 'verify': return '🧪 验证中...';
-      case 'optimize': return '🛡️ 优化中...';
+      case 'plan': return t('inlineAIWidget.stage.plan');
+      case 'implement': return t('inlineAIWidget.stage.implement');
+      case 'verify': return t('inlineAIWidget.stage.verify');
+      case 'optimize': return t('inlineAIWidget.stage.optimize');
       default: return '';
     }
   };
@@ -79,15 +84,15 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
       initial={{ opacity: 0, y: -10, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -10, scale: 0.98 }}
-      className="inline-ai-widget relative overflow-hidden min-w-[480px] max-w-[600px] rounded-xl border border-white/10 bg-[#1e1e1e]/80 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-white/5"
+      className="inline-ai-widget theme-panel-elevated theme-border theme-shadow relative min-w-[480px] max-w-[600px] overflow-hidden rounded-xl border backdrop-blur-xl"
     >
-      {/* PIVO 进度线 */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden bg-white/5">
+      <div className="theme-panel-muted absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
         <motion.div 
           initial={{ x: '-100%' }}
           animate={{ x: (stage === 'idle' && !isLoading) ? '-100%' : '0%' }}
           transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-          className={`h-full w-full ${getStageColor(stage)} shadow-[0_0_8px_rgba(0,0,0,0.5)]`}
+          className={`h-full w-full ${getStageColor(stage)}`}
+          style={{ boxShadow: '0 0 10px var(--accent-soft-border)' }}
         />
       </div>
 
@@ -95,18 +100,18 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className={`p-1 rounded-md ${stage === 'idle' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/70'}`}>
+            <div className={`p-1 rounded-md ${stage === 'idle' ? 'theme-badge-accent' : 'theme-panel-muted theme-text-muted'}`}>
               <Sparkles size={14} className={isLoading ? "animate-pulse" : ""} />
             </div>
-            <span className="text-[11px] font-bold text-white/40 uppercase tracking-widest">
-              {stage !== 'idle' ? getStageLabel(stage) : 'Inline Assistant'}
+            <span className="theme-text-subtle text-[11px] font-bold uppercase tracking-widest">
+              {stage !== 'idle' ? getStageLabel(stage) : t('inlineAIWidget.title')}
             </span>
             
             {/* 🔥 显示当前操作文件 */}
             {currentFilePath && (
-              <div className="flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded bg-white/5 border border-white/5">
-                <span className="text-[9px] text-white/30">Target:</span>
-                <span className="text-[9px] text-blue-400/60 font-mono truncate max-w-[120px]">
+              <div className="theme-panel-muted theme-border flex items-center gap-1 ml-2 rounded border px-1.5 py-0.5">
+                <span className="theme-text-subtle text-[9px]">{t('inlineAIWidget.targetLabel')}:</span>
+                <span className="theme-text-accent max-w-[120px] truncate text-[9px] font-mono">
                   {currentFilePath.split('/').pop()}
                 </span>
               </div>
@@ -114,7 +119,7 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="text-white/30 hover:text-white/80 hover:bg-white/5 p-1 rounded-md transition-all"
+            className="theme-button-ghost rounded-md p-1 transition-all"
           >
             <X size={14} />
           </button>
@@ -122,12 +127,12 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
 
         {/* 选中的代码预览 (仅在空闲且有选中时显示) */}
         {selectedText && stage === 'idle' && (
-          <div className="mb-3 p-2 rounded-lg bg-black/40 border border-white/5 overflow-hidden">
-            <div className="flex items-center gap-1.5 mb-1 text-[9px] text-white/20 font-bold uppercase tracking-tighter">
+          <div className="theme-code-surface theme-border mb-3 overflow-hidden rounded-lg border p-2">
+            <div className="theme-text-subtle mb-1 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-tighter">
               <Search size={10} />
-              Current Context
+              {t('inlineAIWidget.currentContext')}
             </div>
-            <pre className="text-[10px] text-white/50 font-mono leading-relaxed truncate whitespace-pre">
+            <pre className="theme-text-muted truncate whitespace-pre text-[10px] font-mono leading-relaxed">
               {selectedText.length > 200 ? selectedText.substring(0, 200) + '...' : selectedText}
             </pre>
           </div>
@@ -142,8 +147,8 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
             onChange={(e) => setInputValue(e.target.value)}
             disabled={isLoading}
             data-testid="inline-ai-input"
-            className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2.5 text-sm text-white/90 placeholder:text-white/20 outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none overflow-hidden"
-            placeholder="Optimize this, add comments, or ask questions..."
+            className="theme-input-surface theme-border theme-focus-accent theme-text w-full resize-none overflow-hidden rounded-lg border px-3 py-2.5 text-sm transition-all"
+            placeholder={t('inlineAIWidget.placeholder')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -155,10 +160,10 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
           />
           
           <div className="absolute right-2 bottom-2 flex items-center gap-2">
-            <span className="text-[10px] text-white/20 font-medium hidden group-focus-within:block animate-in fade-in duration-300">
-              Shift + Enter for new line
+            <span className="theme-text-subtle hidden text-[10px] font-medium animate-in fade-in duration-300 group-focus-within:block">
+              {t('inlineAIWidget.newLineHint', { shortcut: newLineShortcutLabel })}
             </span>
-            <div className="p-1.5 rounded-md bg-white/5 text-white/20 border border-white/5">
+            <div className="theme-panel-muted theme-border theme-text-subtle rounded-md border p-1.5">
               <CornerDownLeft size={12} />
             </div>
           </div>
@@ -174,19 +179,19 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between"
+              className="theme-border mt-3 flex items-center justify-between border-t pt-3"
             >
-              <div className="flex items-center gap-2 text-[10px] text-emerald-400/80 font-medium">
+              <div className="theme-text-success flex items-center gap-2 text-[10px] font-medium">
                 <CheckCircle2 size={12} />
-                Changes applied successfully
+                {t('inlineAIWidget.applied')}
               </div>
               <div className="flex items-center gap-2">
                 <button 
                   onClick={onClose}
-                  className="px-3 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition-all border border-emerald-500/20 flex items-center gap-1.5"
+                  className="theme-button-success flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-bold transition-all"
                 >
                   <Zap size={12} />
-                  Accept & Close
+                  {t('inlineAIWidget.acceptAndClose')}
                 </button>
               </div>
             </motion.div>
@@ -203,41 +208,41 @@ export const InlineAIWidget: React.FC<InlineAIWidgetProps> = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-3"
+              className="theme-border mt-3 flex items-center justify-between gap-3 border-t pt-3"
             >
               {isLoading ? (
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-blue-500/10 text-[10px] font-bold text-blue-400">
+                  <div className="theme-badge-accent flex items-center gap-2 rounded-full px-2 py-1 text-[10px] font-bold">
                     <Loader2 size={10} className="animate-spin" />
-                    Processing
+                    {t('inlineAIWidget.processing')}
                   </div>
-                  <div className="h-1 flex-1 bg-white/5 rounded-full overflow-hidden">
+                  <div className="theme-panel-muted h-1 flex-1 overflow-hidden rounded-full">
                     <motion.div 
                       animate={{ x: ['-100%', '100%'] }}
                       transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                      className="h-full w-1/3 bg-blue-500/40 rounded-full"
+                      className="h-full w-1/3 rounded-full bg-[var(--accent-soft-border)]"
                     />
                   </div>
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 text-[10px] text-white/30 font-medium">
+                  <div className="theme-text-subtle flex items-center gap-2 text-[10px] font-medium">
                     <Zap size={10} />
-                    Changes ready to apply
+                    {t('inlineAIWidget.readyToApply')}
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={onClose}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-red-500/10 text-white/50 hover:text-red-400 text-xs font-bold transition-all border border-white/5"
+                      className="theme-button-secondary rounded-lg border border-[var(--danger-soft-border)] px-3 py-1.5 text-xs font-bold transition-all hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
                     >
-                      Discard
+                      {t('inlineAIWidget.discard')}
                     </button>
                     <button 
                       onClick={() => onSubmit('__ACCEPT_ALL__')}
-                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-1.5"
+                      className="theme-button-primary theme-glow-accent flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
                     >
                       <CheckCircle2 size={12} />
-                      Accept <span className="opacity-50 text-[10px]">⌘↵</span>
+                      {t('inlineAIWidget.accept')} <span className="opacity-50 text-[10px]">{acceptShortcutLabel}</span>
                     </button>
                   </div>
                 </>

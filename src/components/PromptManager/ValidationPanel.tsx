@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { AlertCircle, AlertTriangle, Info, X, CheckCircle } from 'lucide-react';
 
@@ -39,6 +40,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
   onClose,
   onValidationComplete,
 }) => {
+  const { t } = useTranslation();
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -61,8 +63,8 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
         setResult({
           is_valid: false,
           errors: [{
-            error_type: 'system',
-            message: String(err),
+            error_type: t('promptManager.validation.systemErrorType'),
+            message: t('promptManager.validation.systemErrorMessage'),
             line: null,
             column: null,
             severity: 'Error',
@@ -77,7 +79,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
     // 防抖：500ms 后执行验证
     const timeoutId = setTimeout(validate, 500);
     return () => clearTimeout(timeoutId);
-  }, [content, isVisible, onValidationComplete]);
+  }, [content, isVisible, onValidationComplete, t]);
 
   if (!isVisible) return null;
 
@@ -86,48 +88,48 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
   const isValid = result?.is_valid ?? false;
 
   return (
-    <div className="border-t dark:border-gray-700 bg-white dark:bg-gray-800">
+    <div className="theme-panel theme-border border-t">
       {/* 头部 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b dark:border-gray-700">
+      <div className="theme-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-700 dark:text-gray-200">验证结果</h3>
+          <h3 className="theme-text font-semibold">{t('promptManager.validation.title')}</h3>
 
           {isValidating ? (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              <span>验证中...</span>
+            <div className="theme-text-subtle flex items-center gap-2 text-sm">
+              <div className="theme-text-accent h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent"></div>
+              <span>{t('promptManager.validation.validating')}</span>
             </div>
           ) : isValid ? (
-            <div className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+            <div className="theme-badge-success flex items-center gap-1 rounded-full px-2 py-0.5 text-sm">
               <CheckCircle size={16} />
-              <span>验证通过</span>
+              <span>{t('promptManager.validation.passed')}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
+            <div className="theme-badge-danger flex items-center gap-1 rounded-full px-2 py-0.5 text-sm">
               <AlertCircle size={16} />
-              <span>验证失败</span>
+              <span>{t('promptManager.validation.failed')}</span>
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-3">
           {/* 统计 */}
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="theme-text-subtle text-sm">
             {errorCount > 0 && (
-              <span className="text-red-600 dark:text-red-400 mr-2">
-                {errorCount} 错误
+              <span className="theme-text-danger mr-2">
+                {t('promptManager.validation.errorCount', { count: errorCount })}
               </span>
             )}
             {warningCount > 0 && (
-              <span className="text-yellow-600 dark:text-yellow-400">
-                {warningCount} 警告
+              <span className="theme-text-warning">
+                {t('promptManager.validation.warningCount', { count: warningCount })}
               </span>
             )}
           </div>
 
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="theme-button-ghost rounded p-1 transition-colors"
           >
             <X size={18} />
           </button>
@@ -137,9 +139,9 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
       {/* 结果列表 */}
       <div className="max-h-64 overflow-y-auto p-2 space-y-2 custom-scrollbar">
         {isValidating && (
-          <div className="flex items-center justify-center py-8 text-gray-500">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mr-3"></div>
-            <span>正在验证提示词...</span>
+          <div className="theme-text-subtle flex items-center justify-center py-8">
+            <div className="theme-text-accent mr-3 h-6 w-6 animate-spin rounded-full border-2 border-current border-b-transparent"></div>
+            <span>{t('promptManager.validation.validatingPrompt')}</span>
           </div>
         )}
 
@@ -149,22 +151,23 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
             {result.errors.map((error, idx) => (
               <div
                 key={`error-${idx}`}
-                className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+                className="theme-surface-danger flex items-start gap-3 rounded-lg p-3"
               >
-                <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={16} />
+                <AlertCircle className="theme-text-danger mt-0.5 flex-shrink-0" size={16} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200">
+                    <span className="theme-panel theme-border theme-text-danger rounded border px-2 py-0.5 font-mono text-xs">
                       {error.error_type}
                     </span>
                     {error.line && (
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        行 {error.line}
-                        {error.column && `:${error.column}`}
+                      <span className="theme-text-subtle text-xs">
+                        {error.column
+                          ? t('promptManager.validation.lineWithColumn', { line: error.line, column: error.column })
+                          : t('promptManager.validation.line', { line: error.line })}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-red-700 dark:text-red-300">{error.message}</p>
+                  <p className="theme-text text-sm">{error.message}</p>
                 </div>
               </div>
             ))}
@@ -173,48 +176,49 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({
             {result.warnings.map((warning, idx) => (
               <div
                 key={`warning-${idx}`}
-                className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+                className="theme-surface-warning flex items-start gap-3 rounded-lg p-3"
               >
-                <AlertTriangle className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" size={16} />
+                <AlertTriangle className="theme-text-warning mt-0.5 flex-shrink-0" size={16} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200">
+                    <span className="theme-panel theme-border theme-text-warning rounded border px-2 py-0.5 font-mono text-xs">
                       {warning.error_type}
                     </span>
                     {warning.line && (
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        行 {warning.line}
-                        {warning.column && `:${warning.column}`}
+                      <span className="theme-text-subtle text-xs">
+                        {warning.column
+                          ? t('promptManager.validation.lineWithColumn', { line: warning.line, column: warning.column })
+                          : t('promptManager.validation.line', { line: warning.line })}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-300">{warning.message}</p>
+                  <p className="theme-text text-sm">{warning.message}</p>
                 </div>
               </div>
             ))}
 
             {/* 无错误无警告 */}
             {result.errors.length === 0 && result.warnings.length === 0 && (
-              <div className="flex items-center justify-center py-8 text-green-600 dark:text-green-400">
-                <CheckCircle size={24} className="mr-2" />
-                <span>提示词验证通过，没有发现错误或警告</span>
+              <div className="theme-surface-success flex items-center justify-center gap-2 rounded-lg py-8">
+                <CheckCircle size={24} className="theme-text-success mr-2" />
+                <span className="theme-text">{t('promptManager.validation.noIssues')}</span>
               </div>
             )}
           </>
         )}
 
         {!isValidating && !result && (
-          <div className="flex items-center justify-center py-8 text-gray-500">
+          <div className="theme-text-subtle flex items-center justify-center py-8">
             <Info size={24} className="mr-2" />
-            <span>编辑提示词以开始验证</span>
+            <span>{t('promptManager.validation.editToValidate')}</span>
           </div>
         )}
       </div>
 
       {/* 底部说明 */}
-      <div className="px-4 py-2 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          验证包括：YAML 格式、花括号平衡、Handlebars 语法、安全检查
+      <div className="theme-panel-muted theme-border border-t px-4 py-2">
+        <p className="theme-text-subtle text-xs">
+          {t('promptManager.validation.footer')}
         </p>
       </div>
     </div>

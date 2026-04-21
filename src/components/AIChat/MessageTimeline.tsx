@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/useChatStore';
 import { TimelineUserBubble } from './TimelineUserBubble';
 import { TimelineAIBubble } from './TimelineAIBubble';
@@ -19,8 +20,7 @@ import { TimelineProgress } from './TimelineProgress';
 import { TimelineBubbleSkeleton } from './TimelineBubbleSkeleton';
 import { TimelineRetryButton } from './TimelineRetryButton';
 import { TimelineLoadMore } from './TimelineLoadMore';
-import { TimelineLoader, TimelineEvent, TimelineGroup } from './TimelineLoader';
-import type { Message } from 'ifainew-core';
+import { TimelineLoader, TimelineGroup } from './TimelineLoader';
 
 interface MessageTimelineProps {
   onBubbleClick?: (messageId: string) => void;
@@ -33,6 +33,7 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
   batchSize = 10,
   timeoutMs = 5000
 }) => {
+  const { t } = useTranslation();
   const messages = useChatStore((state) => state.messages);
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -85,13 +86,13 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
         totalCount: result.totalCount,
         loading: false,
         hasMore: result.hasMore,
-        error: result.error || null  // 从result中获取error（如果有）
+        error: result.errorKey ? t('aiChat.timeline.loadTimeout') : null,
       });
-    } catch (error) {
+    } catch {
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : '加载失败'
+        error: t('aiChat.timeline.loadFailed'),
       }));
     }
   };
@@ -111,16 +112,16 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
         totalCount: result.totalCount,
         loading: false,
         hasMore: result.hasMore,
-        error: result.error || null  // 从result中获取error（如果有）
+        error: result.errorKey ? t('aiChat.timeline.loadTimeout') : null,
       });
-    } catch (error) {
+    } catch {
       setState(prev => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : '加载失败'
+        error: t('aiChat.timeline.loadFailed'),
       }));
     }
-  }, [state.loading, state.hasMore]);
+  }, [state.loading, state.hasMore, t]);
 
   // 重试加载
   const retry = useCallback(() => {
@@ -152,7 +153,7 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
   if (state.groups.length === 0 && state.loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-400">加载中...</div>
+        <div className="theme-text-subtle">{t('common.loading')}</div>
       </div>
     );
   }
@@ -160,7 +161,7 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
   return (
     <div
       ref={timelineRef}
-      className="flex flex-col h-full bg-[#1e1e1e] overflow-y-auto"
+      className="flex flex-col h-full theme-panel overflow-y-auto"
       onScroll={handleScroll}
       data-testid="timeline-view"
     >
@@ -173,26 +174,18 @@ export const MessageTimeline: React.FC<MessageTimelineProps> = ({
 
       {/* 时间线分组 */}
       {state.groups.map((group) => {
-        // 生成英文 data-testid 以匹配测试期望
-        const getTestId = (label: string): string => {
-          const labelMap: Record<string, string> = {
-            '今天': 'today',
-            '昨天': 'yesterday',
-            '更早': 'older'
-          };
-          return `timeline-group-${labelMap[label] || label}`;
-        };
+        const groupLabel = t(`aiChat.timeline.groups.${group.key}`);
 
         return (
           <div
-            key={group.label}
-            className="border-b border-gray-700/50"
-            data-testid={getTestId(group.label)}
+            key={group.key}
+            className="border-b theme-border"
+            data-testid={`timeline-group-${group.key}`}
           >
             {/* 分组标签 */}
-            <div className="px-4 py-2 bg-[#252526] sticky top-0 z-10">
-              <span className="text-xs text-gray-400 font-medium">
-                {group.label}
+            <div className="px-4 py-2 theme-panel-muted sticky top-0 z-10 border-b theme-border">
+              <span className="text-xs theme-text-subtle font-medium">
+                {groupLabel}
               </span>
             </div>
 

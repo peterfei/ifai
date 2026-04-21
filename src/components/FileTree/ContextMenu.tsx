@@ -27,8 +27,8 @@ import {
 } from '../../utils/fileSystem';
 import { toast } from 'sonner';
 import { platform } from '@tauri-apps/plugin-os';
-import { ask } from '@tauri-apps/plugin-dialog';
 import { FileNode, WorkspaceRoot } from '../../stores/types';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 
 interface ContextMenuProps {
   x: number;
@@ -42,13 +42,14 @@ interface ContextMenuProps {
 }
 
 interface InputDialogProps {
+  variant: 'rename' | 'file' | 'folder';
   title: string;
   defaultValue: string;
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }
 
-const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfirm, onCancel }) => {
+const InputDialog: React.FC<InputDialogProps> = ({ variant, title, defaultValue, onConfirm, onCancel }) => {
   const { t } = useTranslation();
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,22 +77,21 @@ const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfir
     }
   };
 
-  // Determine icon and subtitle based on title
   const getDialogIcon = () => {
-    if (title.includes('Rename') || title.includes('name')) {
-      return <Edit3 size={20} className="text-blue-400" />;
+    if (variant === 'rename') {
+      return <Edit3 size={20} className="theme-text-info" />;
     }
-    if (title.includes('File')) {
-      return <FilePlus size={20} className="text-green-400" />;
+    if (variant === 'file') {
+      return <FilePlus size={20} className="theme-text-success" />;
     }
-    if (title.includes('Folder')) {
-      return <FolderPlus size={20} className="text-yellow-400" />;
+    if (variant === 'folder') {
+      return <FolderPlus size={20} className="theme-text-warning" />;
     }
-    return <FileText size={20} className="text-gray-400" />;
+    return <FileText size={20} className="theme-text-subtle" />;
   };
 
   const getDialogSubtitle = () => {
-    if (title.includes('Rename') || title.includes('name')) {
+    if (variant === 'rename') {
       return t('dialog.enterNewName');
     }
     return t('dialog.enterName');
@@ -99,30 +99,27 @@ const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfir
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200"
+      className="theme-backdrop-strong fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onCancel}
     >
       <div
-        className="bg-[#252526] border border-gray-600/50 rounded-xl shadow-2xl p-6 min-w-[400px] max-w-[500px] animate-in zoom-in-95 duration-200"
+        className="theme-panel-elevated theme-border theme-shadow min-w-[400px] max-w-[500px] rounded-xl border p-6 animate-in zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
-        style={{
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3)'
-        }}
       >
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
-          <div className="p-2 bg-gray-800/50 rounded-lg">
+          <div className="theme-panel-muted theme-border rounded-lg border p-2">
             {getDialogIcon()}
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white">{title}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h3 className="theme-text text-lg font-semibold">{title}</h3>
+            <p className="theme-text-subtle mt-0.5 text-xs">
               {getDialogSubtitle()}
             </p>
           </div>
           <button
             onClick={onCancel}
-            className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+            className="theme-button-ghost rounded-lg p-1.5"
             aria-label={t('common.close')}
           >
             <X size={18} />
@@ -138,11 +135,11 @@ const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfir
               value={value}
               onChange={e => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+              className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-lg border px-4 py-3 pr-24 transition-colors placeholder:theme-text-subtle"
               placeholder={title}
             />
             {/* Character count indicator */}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-600">
+            <div className="theme-text-subtle absolute right-3 top-1/2 -translate-y-1/2 text-xs">
               {t('dialog.characterCount', { count: value.length })}
             </div>
           </div>
@@ -152,14 +149,14 @@ const InputDialog: React.FC<InputDialogProps> = ({ title, defaultValue, onConfir
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2.5 text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-all duration-150"
+              className="theme-button-secondary rounded-lg px-5 py-2.5 text-sm font-medium"
             >
               {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={!value.trim()}
-              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-all duration-150 shadow-lg shadow-blue-600/20 disabled:shadow-none"
+              className="theme-button-primary rounded-lg px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t('common.confirm')}
             </button>
@@ -192,10 +189,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   })();
   const { selectedNodeIds, fileTree } = useFileStore();
   const [inputDialog, setInputDialog] = useState<{
+    variant: 'rename' | 'file' | 'folder';
     title: string;
     defaultValue: string;
     onConfirm: (value: string) => void;
   } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<
+    | { kind: 'removeRoot'; root: WorkspaceRoot }
+    | { kind: 'deleteNodes'; description: string; targetNodes: FileNode[] }
+    | null
+  >(null);
 
   // Close menu on click outside (but not when input dialog is open)
   useEffect(() => {
@@ -239,24 +242,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const isRootMenu = !!root;
   const handleRemoveFolder = async () => {
     if (root && onRemoveFolder) {
-      // 确认删除
-      const confirmMessage = `Remove folder "${root.name}" from workspace?`;
-      let confirmed = false;
-      try {
-        confirmed = await ask(confirmMessage, {
-          title: 'Remove Folder',
-          kind: 'warning',
-          okLabel: 'Remove',
-          cancelLabel: 'Cancel'
-        });
-      } catch (e) {
-        confirmed = window.confirm(confirmMessage);
-      }
-
-      if (confirmed) {
-        onRemoveFolder(root.id);
-        onClose();
-      }
+      setConfirmDialog({ kind: 'removeRoot', root });
+      onClose();
     }
   };
 
@@ -299,7 +286,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       console.log('[ContextMenu] Opening terminal at:', dirPath);
       await openInTerminal(dirPath);
       console.log('[ContextMenu] Terminal opened successfully');
-      toast.success('Terminal opened');
+      toast.success(t('contextMenu.terminalOpened'));
       onClose();
     } catch (error) {
       console.error('[ContextMenu] Failed to open terminal:', error);
@@ -312,7 +299,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       console.log('[ContextMenu] Revealing file in manager:', node.path);
       await revealInFileManager(node.path);
       console.log('[ContextMenu] File revealed successfully');
-      toast.success('File revealed');
+      toast.success(t('contextMenu.fileRevealed'));
       onClose();
     } catch (error) {
       console.error('[ContextMenu] Failed to reveal file:', error);
@@ -322,6 +309,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   const handleNewFile = () => {
     setInputDialog({
+      variant: 'file',
       title: t('common.enterFileName'),
       defaultValue: '',
       onConfirm: async (name) => {
@@ -346,6 +334,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   const handleNewFolder = () => {
     setInputDialog({
+      variant: 'folder',
       title: t('common.enterFolderName'),
       defaultValue: '',
       onConfirm: async (name) => {
@@ -371,6 +360,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   const handleRename = () => {
     console.log('[ContextMenu] Rename requested for:', node.name, 'at path:', node.path);
     setInputDialog({
+      variant: 'rename',
       title: t('common.renameTo'),
       defaultValue: node.name,
       onConfirm: async (newName) => {
@@ -426,37 +416,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
     // Close the menu first
     onClose();
-
-    // Use Tauri's native dialog if available, fallback to window.confirm
-    let confirmed = false;
-    try {
-      confirmed = await ask(confirmMessage, {
-        title: t('common.delete'),
-        kind: 'warning',
-        okLabel: t('common.confirm'),
-        cancelLabel: t('common.cancel')
-      });
-    } catch (e) {
-      console.warn('Native dialog failed, falling back to window.confirm', e);
-      confirmed = window.confirm(confirmMessage);
-    }
-
-    if (confirmed) {
-      try {
-        // Delete all target nodes in parallel
-        await Promise.all(targetNodes.map(n => deleteFile(n.path)));
-        
-        console.log('[ContextMenu] Bulk delete successful, refreshing file tree...');
-        toast.success(t('common.deletedSuccessfully'));
-        await onRefresh();
-        console.log('[ContextMenu] File tree refreshed');
-      } catch (error) {
-        console.error('[ContextMenu] Bulk delete failed:', error);
-        toast.error(`${t('common.deleteFailed')}: ${String(error)}`);
-      }
-    } else {
-      console.log('[ContextMenu] Delete cancelled');
-    }
+    setConfirmDialog({
+      kind: 'deleteNodes',
+      description: confirmMessage,
+      targetNodes,
+    });
   };
 
   const handleRefresh = () => {
@@ -500,8 +464,52 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 
   return (
     <>
+      <ConfirmDialog
+        open={confirmDialog !== null}
+        title={
+          confirmDialog?.kind === 'removeRoot'
+            ? t('fileTree.removeFolder')
+            : t('common.delete')
+        }
+        description={
+          confirmDialog?.kind === 'removeRoot'
+            ? t('fileTree.removeFolderConfirm', { name: confirmDialog.root.name })
+            : confirmDialog?.description || ''
+        }
+        confirmLabel={
+          confirmDialog?.kind === 'removeRoot'
+            ? t('fileTree.removeFolder')
+            : t('common.delete')
+        }
+        cancelLabel={t('common.cancel')}
+        tone="danger"
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={async () => {
+          if (!confirmDialog) {
+            return;
+          }
+
+          if (confirmDialog.kind === 'removeRoot') {
+            onRemoveFolder?.(confirmDialog.root.id);
+            setConfirmDialog(null);
+            return;
+          }
+
+          try {
+            await Promise.all(confirmDialog.targetNodes.map((targetNode) => deleteFile(targetNode.path)));
+            toast.success(t('common.deletedSuccessfully'));
+            await onRefresh();
+          } catch (error) {
+            console.error('[ContextMenu] Bulk delete failed:', error);
+            toast.error(`${t('common.deleteFailed')}: ${String(error)}`);
+          } finally {
+            setConfirmDialog(null);
+          }
+        }}
+      />
       {inputDialog && (
         <InputDialog
+          variant={inputDialog.variant}
           title={inputDialog.title}
           defaultValue={inputDialog.defaultValue}
           onConfirm={inputDialog.onConfirm}
@@ -510,26 +518,26 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       )}
       <div
         ref={menuRef}
-        className="fixed bg-gray-800 border border-gray-700 rounded shadow-xl z-50 py-1 min-w-48"
+        className="theme-panel-elevated theme-border theme-shadow fixed z-50 min-w-48 rounded-lg border py-1"
         style={{ left: pos.left, top: pos.top }}
       >
         {isRootMenu ? (
           // v0.3.0: 根目录菜单
           <>
-            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
-              Workspace
+            <div className="theme-text-subtle px-3 py-1 text-xs uppercase tracking-wider">
+              {t('fileTree.workspace')}
             </div>
             {root && (
               <>
                 <MenuItem
                   icon={<Terminal size={14} />}
-                  label="Open in Terminal"
+                  label={t('contextMenu.openInTerminal')}
                   onClick={async () => {
                     try {
                       await openInTerminal(root.path);
-                      toast.success('Terminal opened');
+                      toast.success(t('contextMenu.terminalOpened'));
                     } catch (e) {
-                      toast.error('Failed to open terminal');
+                      toast.error(t('common.openTerminalFailed'));
                     }
                     onClose();
                   }}
@@ -540,19 +548,19 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                   onClick={async () => {
                     try {
                       await revealInFileManager(root.path);
-                      toast.success('Folder revealed');
+                      toast.success(t('contextMenu.folderRevealed'));
                     } catch (e) {
-                      toast.error('Failed to reveal folder');
+                      toast.error(t('common.openFileManagerFailed'));
                     }
                     onClose();
                   }}
                 />
-                <div className="my-1 border-t border-gray-700" />
+                <div className="theme-border my-1 border-t" />
                 <MenuItem
                   icon={<Trash2 size={14} />}
-                  label="Remove Folder"
+                  label={t('fileTree.removeFolder')}
                   onClick={handleRemoveFolder}
-                  className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
+                  className="theme-text-danger hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
                   data-testid="context-menu-item-remove"
                 />
               </>
@@ -562,45 +570,45 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           // 原有的文件节点菜单
           <>
             {/* Copy Section */}
-            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+            <div className="theme-text-subtle px-3 py-1 text-xs uppercase tracking-wider">
               {t('contextMenu.copy')}
             </div>
             <MenuItem icon={<Copy size={14} />} label={t('contextMenu.copyPath')} onClick={handleCopyPath} />
             <MenuItem icon={<Copy size={14} />} label={t('contextMenu.copyRelativePath')} onClick={handleCopyRelativePath} />
             <MenuItem icon={<FileText size={14} />} label={t('contextMenu.copyName')} onClick={handleCopyName} />
 
-            <div className="my-1 border-t border-gray-700" />
+            <div className="theme-border my-1 border-t" />
 
             {/* External Applications Section */}
-            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+            <div className="theme-text-subtle px-3 py-1 text-xs uppercase tracking-wider">
               {t('contextMenu.external')}
             </div>
             <MenuItem icon={<Terminal size={14} />} label={t('contextMenu.openInTerminal')} onClick={handleOpenInTerminal} />
             <MenuItem icon={<ExternalLink size={14} />} label={getRevealLabel()} onClick={handleRevealInFileManager} />
 
-            <div className="my-1 border-t border-gray-700" />
+            <div className="theme-border my-1 border-t" />
 
             {/* Create Section */}
-            <div className="px-3 py-1 text-xs text-gray-500 uppercase tracking-wider">
+            <div className="theme-text-subtle px-3 py-1 text-xs uppercase tracking-wider">
               {t('contextMenu.new')}
             </div>
             <MenuItem icon={<FilePlus size={14} />} label={t('contextMenu.newFile')} onClick={handleNewFile} />
             <MenuItem icon={<FolderPlus size={14} />} label={t('contextMenu.newFolder')} onClick={handleNewFolder} />
 
-            <div className="my-1 border-t border-gray-700" />
+            <div className="theme-border my-1 border-t" />
 
             {/* File Operations Section */}
             <MenuItem icon={<Edit3 size={14} />} label={t('common.rename')} onClick={handleRename} />
             <MenuItem icon={<RefreshCw size={14} />} label={t('contextMenu.refresh')} onClick={handleRefresh} />
 
-            <div className="my-1 border-t border-gray-700" />
+            <div className="theme-border my-1 border-t" />
 
             {/* Delete Section */}
             <MenuItem
               icon={<Trash2 size={14} />}
               label={t('common.delete')}
               onClick={handleDelete}
-              className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
+              className="theme-text-danger hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
             />
           </>
         )}
@@ -620,14 +628,14 @@ interface MenuItemProps {
 const MenuItem: React.FC<MenuItemProps> = ({ icon, label, onClick, className = '', shortcut }) => {
   return (
     <div
-      className={`px-3 py-1.5 text-sm flex items-center justify-between cursor-pointer text-gray-300 hover:bg-gray-700 hover:text-white ${className}`}
+      className={`theme-text-muted theme-hoverable mx-1 flex cursor-pointer items-center justify-between rounded-md px-3 py-1.5 text-sm ${className}`}
       onClick={onClick}
     >
       <div className="flex items-center gap-2">
-        {icon && <span className="text-gray-400">{icon}</span>}
+        {icon && <span className="theme-text-subtle">{icon}</span>}
         <span>{label}</span>
       </div>
-      {shortcut && <span className="text-xs text-gray-500">{shortcut}</span>}
+      {shortcut && <span className="theme-text-subtle text-xs">{shortcut}</span>}
     </div>
   );
 };

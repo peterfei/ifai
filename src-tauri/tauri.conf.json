@@ -15,7 +15,14 @@
         "title": "IfAI",
         "width": 1200,
         "height": 800,
-        "visible": true
+        "visible": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "acceptFirstMouse": true,
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 16
+        }
       }
     ],
     "security": {

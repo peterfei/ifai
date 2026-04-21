@@ -736,7 +736,7 @@ ${textBefore}[CURSOR]${textAfter}
     }
   };
 
-  const theme = useEditorStore(state => state.theme);
+  const theme = useSettingsStore(state => state.theme);
   // Select only specific settings to avoid unnecessary re-renders
   const showMinimap = useSettingsStore(state => state.showMinimap);
   const fontSize = useSettingsStore(state => state.fontSize);

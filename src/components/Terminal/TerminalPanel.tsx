@@ -10,6 +10,8 @@ import { useLayoutStore } from '../../stores/layoutStore';
 import { X, Bug } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores/useChatStore';
+import clsx from 'clsx';
+import { isDarkTheme } from '../../utils/theme';
 
 interface TerminalPanelProps {
   onClose: () => void;
@@ -52,6 +54,8 @@ export const TerminalPanel = ({ onClose }: TerminalPanelProps) => {
   // Get settings and stores
   const currentProviderId = useSettingsStore(state => state.currentProviderId);
   const currentModel = useSettingsStore(state => state.currentModel);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   // 🔥 FIX: 安全的 null 检查，防止 chatStore 未初始化时出错
   const sendMessage = useChatStore(state => state?.sendMessage ?? (() => Promise.resolve()));
   const toggleChat = useLayoutStore(state => state.toggleChat);
@@ -91,13 +95,7 @@ export const TerminalPanel = ({ onClose }: TerminalPanelProps) => {
     }
 
     // 构建错误修复提示
-    const debugPrompt = `请帮我修复以下错误：
-
-\`\`\`
-${lastError}
-\`\`\`
-
-请分析错误原因并提供修复建议。`;
+    const debugPrompt = t('terminal.debugPrompt', { error: lastError });
 
     // 发送到 AI 聊天
     sendMessage(debugPrompt, currentProviderId, currentModel);
@@ -105,32 +103,36 @@ ${lastError}
 
   useEffect(() => {
     if (terminalRef.current) {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const token = (name: string, fallback: string) =>
+        rootStyles.getPropertyValue(name).trim() || fallback;
+
       const terminal = new Terminal({
         cursorBlink: true,
-        fontFamily: 'MesloLGS NF, Menlo, Monaco, "Courier New", monospace',
-        fontSize: 15,
+        fontFamily: token('--font-mono', 'Menlo, Monaco, monospace'),
+        fontSize: 13,
         theme: {
-          background: '#1e1e1e',
-          foreground: '#cccccc',
-          cursor: '#cccccc',
-          selectionBackground: '#5f78ee',
-          // ANSI colors from VSCode Dark+ theme
-          black: '#000000',
-          red: '#cd3131',
-          green: '#0d810d',
-          yellow: '#e5e510',
-          blue: '#2472c8',
-          magenta: '#bc3fbc',
-          cyan: '#0598bc',
-          white: '#e5e5e5',
-          brightBlack: '#666666',
-          brightRed: '#f14c4c',
-          brightGreen: '#17a317',
-          brightYellow: '#f5f543',
-          brightBlue: '#3b8eed',
-          brightMagenta: '#d670d6',
-          brightCyan: '#07b6e9',
-          brightWhite: '#ffffff',
+          background: token('--bg-strong', dark ? '#12161c' : '#f5f7fa'),
+          foreground: token('--text-secondary', dark ? '#c4ccd6' : '#405065'),
+          cursor: token('--text-primary', dark ? '#eef2f6' : '#192434'),
+          selectionBackground: token('--accent-soft-bg', dark ? 'rgba(75, 137, 255, 0.15)' : 'rgba(47, 111, 235, 0.1)'),
+          selectionInactiveBackground: token('--hover-soft', 'rgba(255,255,255,0.06)'),
+          black: token('--bg-primary', dark ? '#17191c' : '#f5f7fa'),
+          red: token('--danger-color', dark ? '#d16969' : '#c24b4b'),
+          green: token('--success-color', dark ? '#5ea16e' : '#3f8a56'),
+          yellow: token('--warning-color', dark ? '#c6933f' : '#a56f1c'),
+          blue: token('--accent-color', dark ? '#4b89ff' : '#2f6feb'),
+          magenta: token('--info-color', dark ? '#6c9cff' : '#2f6feb'),
+          cyan: token('--info-color', dark ? '#6c9cff' : '#2f6feb'),
+          white: token('--text-secondary', dark ? '#c4ccd6' : '#405065'),
+          brightBlack: token('--text-subtle', dark ? '#748091' : '#748091'),
+          brightRed: token('--danger-color', dark ? '#d16969' : '#c24b4b'),
+          brightGreen: token('--success-color', dark ? '#5ea16e' : '#3f8a56'),
+          brightYellow: token('--warning-color', dark ? '#c6933f' : '#a56f1c'),
+          brightBlue: token('--accent-color', dark ? '#4b89ff' : '#2f6feb'),
+          brightMagenta: token('--info-color', dark ? '#6c9cff' : '#2f6feb'),
+          brightCyan: token('--info-color', dark ? '#6c9cff' : '#2f6feb'),
+          brightWhite: token('--text-primary', dark ? '#eef2f6' : '#192434'),
         },
       });
 
@@ -168,7 +170,7 @@ ${lastError}
           });
           const unlistenExit = await listen<number>(`pty-exit-${newPtyId}`, (event) => {
             console.log(`PTY ${event.payload} exited`);
-            terminal.write('\n\n[Process exited]\n');
+            terminal.write(`\n\n[${t('terminal.processExited')}]\n`);
             // Optionally close terminal or disable input
             unlistenOutput();
             unlistenExit();
@@ -176,7 +178,7 @@ ${lastError}
           });
           const unlistenError = await listen<string>(`pty-error-${newPtyId}`, (event) => {
             console.error(`PTY error ${newPtyId}:`, event.payload);
-            terminal.write(`\n\n[PTY Error: ${event.payload}]\n`);
+            terminal.write(`\n\n[${t('terminal.ptyError', { error: event.payload })}]\n`);
             unlistenOutput();
             unlistenExit();
             unlistenError();
@@ -195,7 +197,7 @@ ${lastError}
           });
 
         } catch (e) {
-          terminal.write(`\nFailed to create terminal: ${String(e)}\n`);
+          terminal.write(`\n${t('terminal.createFailed', { error: String(e) })}\n`);
           console.error("Failed to create terminal:", e);
         }
       };
@@ -210,7 +212,7 @@ ${lastError}
         terminal.dispose();
       };
     }
-  }, [rootPath]);
+  }, [rootPath, dark, t]);
 
   // Resize observer to fit terminal when container size changes
   useEffect(() => {
@@ -255,25 +257,25 @@ ${lastError}
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e]">
-      <div className="flex items-center justify-between p-2 border-b border-gray-700">
+    <div className="theme-panel flex h-full flex-col transition-colors">
+      <div className="theme-border flex items-center justify-between border-b p-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-300">{t('terminal.title')}</span>
+          <span className="theme-text-muted text-sm">{t('terminal.title')}</span>
           {hasError && (
             <button
               onClick={handleDebugWithAI}
-              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded transition-colors terminal-fix-hint"
+              className="theme-button-primary terminal-fix-hint flex items-center gap-1 rounded px-2 py-1 text-xs"
               data-testid="debug-with-ai-button"
             >
               <Bug size={12} />
-              <span>Debug with AI</span>
+              <span>{t('terminal.debugWithAI')}</span>
               {lastError && extractErrorCode(lastError) && (
                 <span className="ml-1 opacity-75">({extractErrorCode(lastError)})</span>
               )}
             </button>
           )}
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-white">
+        <button onClick={onClose} className="theme-button-ghost rounded p-1" title={t('common.close')}>
           <X size={16} />
         </button>
       </div>
@@ -281,4 +283,3 @@ ${lastError}
     </div>
   );
 };
-

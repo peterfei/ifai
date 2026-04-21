@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface TimelineRetryButtonProps {
   message: string;
@@ -17,6 +18,8 @@ export const TimelineRetryButton: React.FC<TimelineRetryButtonProps> = ({
   onRetry,
   'data-testid': dataTestId
 }) => {
+  const { t } = useTranslation();
+
   return (
     <div
       className="flex flex-col items-center justify-center p-4 gap-2"
@@ -24,7 +27,7 @@ export const TimelineRetryButton: React.FC<TimelineRetryButtonProps> = ({
     >
       {/* 错误消息 */}
       <span
-        className="text-xs text-red-400"
+        className="text-xs theme-text-danger"
         data-testid="timeline-error-message"
       >
         {message}
@@ -33,20 +36,9 @@ export const TimelineRetryButton: React.FC<TimelineRetryButtonProps> = ({
       {/* 重试按钮 */}
       <button
         onClick={onRetry}
-        className="
-          px-4
-          py-2
-          bg-blue-600
-          hover:bg-blue-700
-          text-white
-          text-sm
-          rounded-lg
-          transition-colors
-          duration-150
-          shadow-md
-        "
+        className="px-4 py-2 theme-button-primary text-sm rounded-lg transition-colors duration-150 theme-shadow"
       >
-        重试
+        {t('aiChat.timeline.retry')}
       </button>
     </div>
   );

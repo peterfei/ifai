@@ -4,8 +4,9 @@
  */
 
 import React from 'react';
-import { CheckCircle, FileText, FolderOpen, Eye, Copy, RotateCcw } from 'lucide-react';
+import { CheckCircle, FolderOpen } from 'lucide-react';
 import { Message } from '../../stores/useChatStore';
+import { useTranslation } from 'react-i18next';
 
 interface TaskCompletionBannerProps {
   message: Message;
@@ -103,6 +104,7 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
   onOpenFile,
   onCopyContent,
 }) => {
+  const { t } = useTranslation();
   const info = extractCompletionInfo(message);
 
   // 如果不成功，或者没有生成文件且不是复杂任务，则不显示
@@ -112,10 +114,10 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
 
   return (
     <div className="mt-2 mb-1 px-1 animate-in fade-in slide-in-from-bottom-1 duration-500">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        <div className="flex items-center gap-1.5 py-0.5 px-1.5 rounded bg-green-500/5 border border-green-500/10">
-          <CheckCircle className="w-3 h-3 text-green-500/70" />
-          <span className="text-green-500/80 font-medium">任务已完成</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] theme-text-subtle">
+        <div className="theme-badge-success flex items-center gap-1.5 rounded px-1.5 py-0.5">
+          <CheckCircle className="h-3 w-3" />
+          <span className="font-medium">{t('aiChat.taskCompletion.completed')}</span>
         </div>
 
         {info.hasFiles && (
@@ -123,7 +125,7 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
             <span className="opacity-50">|</span>
             <span className="flex items-center gap-1">
               <FolderOpen size={10} className="opacity-70" />
-              已生成 {info.fileCount} 个文件:
+              {t('aiChat.taskCompletion.generatedFiles', { count: info.fileCount })}
             </span>
             <div className="flex flex-wrap gap-2">
               {message.toolCalls
@@ -146,7 +148,7 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
                   <button
                     key={idx}
                     onClick={() => onOpenFile?.(file)}
-                    className="hover:text-blue-400 hover:underline transition-colors font-mono truncate max-w-[120px]"
+                    className="theme-text-accent max-w-[120px] truncate font-mono transition-colors hover:text-[var(--accent-hover)] hover:underline"
                   >
                     {file.split('/').pop()}
                   </button>
@@ -159,12 +161,12 @@ export const TaskCompletionBanner: React.FC<TaskCompletionBannerProps> = ({
         {info.hasContent && (
           <div className="flex items-center gap-2">
             <span className="opacity-50">|</span>
-            <span>{info.contentLength} 字符</span>
+            <span>{t('aiChat.taskCompletion.characters', { count: info.contentLength })}</span>
             <button
               onClick={() => onCopyContent?.(typeof message.content === 'string' ? message.content : '')}
-              className="text-blue-500/60 hover:text-blue-400 transition-colors"
+              className="theme-text-accent transition-colors hover:text-[var(--accent-hover)]"
             >
-              复制
+              {t('common.copy')}
             </button>
           </div>
         )}

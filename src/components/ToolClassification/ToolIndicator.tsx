@@ -5,9 +5,11 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useToolClassificationStore } from '@/stores/toolClassificationStore';
+import { useTranslation } from 'react-i18next';
 import { toolClassificationService } from '@/services/toolClassificationService';
 import ClassificationBadge from './ClassificationBadge';
+import { getToolCategoryDisplayInfo } from '@/types/toolClassification';
+import { ToolCategoryIcon } from './ToolCategoryIcon';
 
 interface ToolIndicatorProps {
   /** 用户输入 */
@@ -32,13 +34,12 @@ export const ToolIndicator: React.FC<ToolIndicatorProps> = ({
   className = '',
   onClassified,
 }) => {
+  const { t } = useTranslation();
   const [localResult, setLocalResult] = useState<
     import('@/types/toolClassification').ClassificationResult | null
   >(null);
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-
-  const { currentResult, isClassifying } = useToolClassificationStore();
 
   // 防抖分类
   useEffect(() => {
@@ -96,16 +97,16 @@ export const ToolIndicator: React.FC<ToolIndicatorProps> = ({
 
       {/* 加载状态 */}
       {isDebouncing && !localResult && (
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
-          <span>分析中...</span>
+        <div className="theme-text-subtle flex items-center gap-2 text-xs">
+          <div className="theme-border h-3 w-3 animate-spin rounded-full border border-t-transparent" />
+          <span>{t('toolClassificationIndicator.thinking')}</span>
         </div>
       )}
 
       {/* 延迟显示 */}
       {localResult && (
-        <span className="text-xs text-gray-400">
-          {input.length > 20 ? '复杂' : '简单'}查询
+        <span className="theme-text-subtle text-xs">
+          {input.length > 20 ? t('toolClassificationIndicator.queryComplex') : t('toolClassificationIndicator.querySimple')}
         </span>
       )}
     </div>
@@ -118,6 +119,7 @@ export const ToolIndicator: React.FC<ToolIndicatorProps> = ({
 export const MiniToolIndicator: React.FC<
   Omit<ToolIndicatorProps, 'className'> & { size?: 'sm' | 'md' | 'lg' }
 > = ({ input, enabled = true, debounceMs = 500, size = 'md', onClassified }) => {
+  const { t } = useTranslation();
   const [localResult, setLocalResult] = useState<
     import('@/types/toolClassification').ClassificationResult | null
   >(null);
@@ -158,28 +160,18 @@ export const MiniToolIndicator: React.FC<
 
   if (isDebouncing && !localResult) {
     return (
-      <div className={`${sizeClasses[size]} flex items-center justify-center text-gray-400`}>
-        <div className="w-full h-full border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+      <div className={`${sizeClasses[size]} theme-text-subtle flex items-center justify-center`}>
+        <div className="theme-border h-full w-full animate-spin rounded-full border-2 border-t-transparent" />
       </div>
     );
   }
 
   if (localResult) {
-    const categoryInfo = localResult.category
-      ? {
-          file_operations: { icon: '📁' },
-          code_generation: { icon: '✨' },
-          code_analysis: { icon: '🔍' },
-          terminal_commands: { icon: '⚡' },
-          ai_chat: { icon: '💬' },
-          search_operations: { icon: '🔎' },
-          no_tool_needed: { icon: '💭' },
-        }[localResult.category]
-      : { icon: '❓' };
+    const categoryInfo = getToolCategoryDisplayInfo(localResult.category);
 
     return (
-      <span className={sizeClasses[size]} role="img" aria-label="Tool category">
-        {categoryInfo.icon}
+      <span className={`${sizeClasses[size]} theme-text-muted inline-flex items-center justify-center font-semibold`} aria-label={t('toolClassificationIndicator.categoryAria')}>
+        <ToolCategoryIcon icon={categoryInfo.icon} className={size === 'sm' ? 'h-4 w-4' : size === 'lg' ? 'h-5 w-5' : 'h-[18px] w-[18px]'} />
       </span>
     );
   }

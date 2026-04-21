@@ -27,12 +27,12 @@
 }
 
 .tool-list::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
+  background: var(--border-color);
   border-radius: 4px;
 }
 
 .tool-list::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: var(--text-subtle);
 }
 
 /* 对话框动画 */
@@ -85,7 +85,7 @@
 
 /* 过滤按钮激活状态 */
 .tool-filters button.active {
-  background-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border-color: hsl(var(--primary));
+  background-color: var(--selected-bg);
+  color: var(--accent-color);
+  border-color: var(--accent-soft-border);
 }

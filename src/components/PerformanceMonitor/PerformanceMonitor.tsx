@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { PerformanceMonitor as PerfMonitorUtils } from '../../utils/performance';
 import styles from './PerformanceMonitor.module.css';
 
 export const PerformanceMonitor: React.FC = () => {
+  const { t } = useTranslation();
   const { showPerformanceMonitor } = useSettingsStore();
   const [fps, setFps] = useState(0);
   const [avgFps, setAvgFps] = useState(0);
@@ -44,18 +46,26 @@ export const PerformanceMonitor: React.FC = () => {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <span>Performance</span>
-        <button onClick={() => setIsVisible(false)} className={styles.closeBtn}>×</button>
+        <span>{t('performanceMonitor.title')}</span>
+        <button
+          type="button"
+          onClick={() => setIsVisible(false)}
+          className={styles.closeBtn}
+          aria-label={t('common.close')}
+          title={t('common.close')}
+        >
+          ×
+        </button>
       </div>
       <div className={styles.content}>
         <div className={styles.item}>
-          <span className={styles.label}>FPS</span>
+          <span className={styles.label}>{t('performanceMonitor.fps')}</span>
           <span className={`${styles.value} ${fps < 30 ? styles.low : fps < 55 ? styles.medium : styles.high}`}>
             {fps}
           </span>
         </div>
         <div className={styles.item}>
-          <span className={styles.label}>Avg FPS</span>
+          <span className={styles.label}>{t('performanceMonitor.avgFps')}</span>
           <span className={styles.value}>{avgFps}</span>
         </div>
         {/* Memory and other stats could be added here */}

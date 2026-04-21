@@ -71,21 +71,21 @@ const DemoSection: React.FC<DemoSectionProps> = ({
     <div className={`demo-section mb-6 ${className}`}>
       {/* Section header */}
       <div
-        className="flex items-center justify-between py-3 px-4 bg-[#252526] border border-[#3c3c3c] rounded cursor-pointer hover:border-[#555] transition-colors"
+        className="theme-panel-muted theme-border theme-hoverable flex items-center justify-between rounded border px-4 py-3 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-2">
           {icon}
-          <h2 className="text-[14px] font-semibold text-[#cccccc]">{title}</h2>
+          <h2 className="theme-text text-[14px] font-semibold">{title}</h2>
         </div>
         {description && (
-          <span className="text-[11px] text-[#858585]">{description}</span>
+          <span className="theme-text-subtle text-[11px]">{description}</span>
         )}
         <div className="ml-auto">
           {expanded ? (
-            <Pause size={14} className="text-[#858585]" />
+            <Pause size={14} className="theme-text-subtle" />
           ) : (
-            <Play size={14} className="text-[#858585]" />
+            <Play size={14} className="theme-text-subtle" />
           )}
         </div>
       </div>
@@ -325,14 +325,14 @@ export const TaskMonitorDemo: React.FC = () => {
   };
 
   return (
-    <div className="task-monitor-demo p-6 space-y-6 bg-[#1e1e1e] min-h-screen">
+    <div className="task-monitor-demo theme-panel min-h-screen space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-[#cccccc] mb-2">
+          <h1 className="theme-text mb-2 text-2xl font-bold">
             TaskMonitor 工业级任务监控系统
           </h1>
-          <p className="text-[12px] text-[#858585]">
+          <p className="theme-text-subtle text-[12px]">
             完整功能演示 - 所有组件、模式和交互
           </p>
         </div>
@@ -341,8 +341,8 @@ export const TaskMonitorDemo: React.FC = () => {
             onClick={() => setAutoUpdate(!autoUpdate)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded transition-colors ${
               autoUpdate
-                ? 'bg-[#4ec9b0] text-white'
-                : 'bg-[#3c3c3c] text-[#858585] hover:text-[#cccccc]'
+                ? 'theme-button-success'
+                : 'theme-button-secondary theme-text-subtle'
             }`}
           >
             {autoUpdate ? <Pause size={12} /> : <Play size={12} />}
@@ -350,7 +350,7 @@ export const TaskMonitorDemo: React.FC = () => {
           </button>
           <button
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#569cd6] text-white text-[11px] rounded hover:bg-[#569cd680] transition-colors"
+            className="theme-button-primary flex items-center gap-1.5 rounded px-3 py-1.5 text-[11px]"
           >
             <RotateCcw size={12} />
             重置演示
@@ -361,7 +361,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 1: Main TaskMonitor */}
       <DemoSection
         title="TaskMonitor - 主监控视图"
-        icon={<Layers size={16} className="text-[#569cd6]" />}
+        icon={<Layers size={16} className="theme-text-info" />}
         description="完整的任务监控界面，包含筛选、过滤和汇总"
       >
         <TaskMonitor
@@ -375,7 +375,7 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 2: TaskStats */}
       <DemoSection
         title="TaskStats - 统计图表"
-        icon={<BarChart3 size={16} className="text-[#4ec9b0]" />}
+        icon={<BarChart3 size={16} className="theme-text-success" />}
         description="任务执行统计和性能指标"
       >
         <TaskStats
@@ -389,12 +389,12 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 3: TaskTimeline */}
       <DemoSection
         title="TaskTimeline - 执行时间线"
-        icon={<Clock size={16} className="text-[#dcdcaa]" />}
+        icon={<Clock size={16} className="theme-text-warning" />}
         description="任务执行历史和时间线视图"
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">按类别分组</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">按类别分组</h4>
             <TaskTimeline
               tasks={useTaskStore.getState().getAllTasks()}
               groupBy="category"
@@ -404,7 +404,7 @@ export const TaskMonitorDemo: React.FC = () => {
             />
           </div>
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">按状态分组</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">按状态分组</h4>
             <TaskTimeline
               tasks={useTaskStore.getState().getAllTasks()}
               groupBy="status"
@@ -419,12 +419,12 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 4: TaskCard Variants */}
       <DemoSection
         title="TaskCard - 卡片变体"
-        icon={<FileText size={16} className="text-[#ce9178]" />}
+        icon={<FileText size={16} className="text-orange-400" />}
         description="不同显示模式的任务卡片"
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">Compact 模式</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">Compact 模式</h4>
             {demoTasks.slice(0, 2).map(id => {
               const task = useTaskStore.getState().getTask(id);
               return task ? (
@@ -433,7 +433,7 @@ export const TaskMonitorDemo: React.FC = () => {
             })}
           </div>
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">Normal 模式</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">Normal 模式</h4>
             {demoTasks.slice(0, 2).map(id => {
               const task = useTaskStore.getState().getTask(id);
               return task ? (
@@ -442,7 +442,7 @@ export const TaskMonitorDemo: React.FC = () => {
             })}
           </div>
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">Detailed 模式</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">Detailed 模式</h4>
             {demoTasks.slice(0, 2).map(id => {
               const task = useTaskStore.getState().getTask(id);
               return task ? (
@@ -456,28 +456,28 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 5: Progress Bars */}
       <DemoSection
         title="ProgressBar - 进度条"
-        icon={<Settings size={16} className="text-[#569cd6]" />}
+        icon={<Settings size={16} className="theme-text-info" />}
         description="各种进度条样式和动画"
       >
         <div className="space-y-6">
           {/* Linear progress bars */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-3">线性进度条</h4>
+            <h4 className="theme-text-subtle mb-3 text-[11px]">线性进度条</h4>
             <div className="space-y-3">
               <div>
-                <span className="text-[10px] text-[#858585]">蓝色 (默认)</span>
+                <span className="theme-text-subtle text-[10px]">蓝色 (默认)</span>
                 <TaskProgressBar value={45} total={100} showPercentage height={6} />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">绿色 (完成)</span>
+                <span className="theme-text-subtle text-[10px]">绿色 (完成)</span>
                 <TaskProgressBar value={100} total={100} showPercentage height={6} color="green" />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">红色 (失败)</span>
+                <span className="theme-text-subtle text-[10px]">红色 (失败)</span>
                 <TaskProgressBar value={30} total={100} showPercentage height={6} color="red" />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">橙色 (警告)</span>
+                <span className="theme-text-subtle text-[10px]">橙色 (警告)</span>
                 <TaskProgressBar value={60} total={100} showPercentage height={6} color="orange" />
               </div>
             </div>
@@ -485,7 +485,7 @@ export const TaskMonitorDemo: React.FC = () => {
 
           {/* Circular progress */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-3">环形进度</h4>
+            <h4 className="theme-text-subtle mb-3 text-[11px]">环形进度</h4>
             <div className="flex gap-6">
               <CircularProgress value={45} size={60} strokeWidth={4} color="blue" />
               <CircularProgress value={75} size={60} strokeWidth={4} color="green" />
@@ -496,7 +496,7 @@ export const TaskMonitorDemo: React.FC = () => {
 
           {/* Segmented progress */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-3">分段进度</h4>
+            <h4 className="theme-text-subtle mb-3 text-[11px]">分段进度</h4>
             <div className="space-y-3">
               <SegmentedProgress
                 segments={[
@@ -526,13 +526,13 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 6: Status Badges */}
       <DemoSection
         title="TaskStatusBadge - 状态徽章"
-        icon={<Settings size={16} className="text-[#4ec9b0]" />}
+        icon={<Settings size={16} className="theme-text-success" />}
         description="所有状态和尺寸的徽章"
       >
         <div className="space-y-4">
           {/* All statuses */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">所有状态</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">所有状态</h4>
             <div className="flex flex-wrap gap-2">
               <TaskStatusBadge status={TaskStatus.PENDING} size="sm" />
               <TaskStatusBadge status={TaskStatus.RUNNING} size="sm" />
@@ -545,18 +545,18 @@ export const TaskMonitorDemo: React.FC = () => {
 
           {/* All sizes */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">所有尺寸</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">所有尺寸</h4>
             <div className="flex items-center gap-4">
               <div>
-                <span className="text-[10px] text-[#858585]">Small</span>
+                <span className="theme-text-subtle text-[10px]">Small</span>
                 <TaskStatusBadge status={TaskStatus.RUNNING} size="sm" />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">Medium</span>
+                <span className="theme-text-subtle text-[10px]">Medium</span>
                 <TaskStatusBadge status={TaskStatus.RUNNING} size="md" />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">Large</span>
+                <span className="theme-text-subtle text-[10px]">Large</span>
                 <TaskStatusBadge status={TaskStatus.RUNNING} size="lg" />
               </div>
             </div>
@@ -564,7 +564,7 @@ export const TaskMonitorDemo: React.FC = () => {
 
           {/* With/without icons */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">带图标/不带图标</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">带图标/不带图标</h4>
             <div className="flex flex-wrap gap-2">
               <TaskStatusBadge status={TaskStatus.RUNNING} showIcon />
               <TaskStatusBadge status={TaskStatus.RUNNING} showIcon={false} />
@@ -575,7 +575,7 @@ export const TaskMonitorDemo: React.FC = () => {
 
           {/* Animated */}
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">动画效果</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">动画效果</h4>
             <div className="flex flex-wrap gap-2">
               <TaskStatusBadge status={TaskStatus.RUNNING} animated />
               <TaskStatusBadge status={TaskStatus.RUNNING} animated={false} />
@@ -587,12 +587,12 @@ export const TaskMonitorDemo: React.FC = () => {
       {/* Section 7: Log Components */}
       <DemoSection
         title="日志组件"
-        icon={<FileText size={16} className="text-[#dcdcaa]" />}
+        icon={<FileText size={16} className="theme-text-warning" />}
         description="TaskLogStream 和 TaskLogCompact"
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">TaskLogStream - 完整功能</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">TaskLogStream - 完整功能</h4>
             <TaskLogStream
               logs={useTaskStore.getState().getTask(demoTasks[1])?.logs || []}
               showSearch={true}
@@ -604,17 +604,17 @@ export const TaskMonitorDemo: React.FC = () => {
             />
           </div>
           <div>
-            <h4 className="text-[11px] text-[#858585] mb-2">TaskLogCompact - 紧凑模式</h4>
+            <h4 className="theme-text-subtle mb-2 text-[11px]">TaskLogCompact - 紧凑模式</h4>
             <div className="space-y-3">
               <div>
-                <span className="text-[10px] text-[#858585]">默认样式</span>
+                <span className="theme-text-subtle text-[10px]">默认样式</span>
                 <TaskLogCompact
                   logs={useTaskStore.getState().getTask(demoTasks[1])?.logs || []}
                   maxLines={3}
                 />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">带时间戳</span>
+                <span className="theme-text-subtle text-[10px]">带时间戳</span>
                 <TaskLogCompact
                   logs={useTaskStore.getState().getTask(demoTasks[1])?.logs || []}
                   maxLines={3}
@@ -622,7 +622,7 @@ export const TaskMonitorDemo: React.FC = () => {
                 />
               </div>
               <div>
-                <span className="text-[10px] text-[#858585]">Subtle 主题</span>
+                <span className="theme-text-subtle text-[10px]">Subtle 主题</span>
                 <TaskLogCompact
                   logs={useTaskStore.getState().getTask(demoTasks[1])?.logs || []}
                   maxLines={3}
@@ -635,11 +635,11 @@ export const TaskMonitorDemo: React.FC = () => {
       </DemoSection>
 
       {/* Footer */}
-      <div className="mt-8 pt-6 border-t border-[#3c3c3c] text-center">
-        <p className="text-[11px] text-[#858585]">
+      <div className="theme-border mt-8 border-t pt-6 text-center">
+        <p className="theme-text-subtle text-[11px]">
           TaskMonitor 工业级任务监控系统 - Phase 3 完成
         </p>
-        <p className="text-[10px] text-[#858585] mt-1">
+        <p className="theme-text-subtle mt-1 text-[10px]">
           包含 8 个核心组件 + 2 个可视化组件 + 完整的状态管理系统
         </p>
       </div>

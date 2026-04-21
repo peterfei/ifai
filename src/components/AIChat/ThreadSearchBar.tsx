@@ -96,24 +96,24 @@ export const ThreadSearchBar: React.FC = () => {
 
   return (
     <>
-    <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 border-b border-gray-800">
+    <div className="flex items-center gap-2 px-3 py-2 theme-panel-muted border-b theme-border">
       {/* Search input */}
-      <div className="flex-1 flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-700 focus-within:border-blue-500 transition-colors">
-        <Search size={16} className="text-gray-500 flex-shrink-0" />
+      <div className="flex-1 flex items-center gap-2 theme-input-surface rounded-lg px-3 py-1.5 border theme-border focus-within:border-[var(--accent-color)] transition-colors">
+        <Search size={16} className="theme-text-subtle flex-shrink-0" />
         <input
           type="text"
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           placeholder={t('threads.searchPlaceholder', '搜索对话...')}
-          className="flex-1 bg-transparent border-none outline-none text-sm text-gray-200 placeholder-gray-500"
+          className="flex-1 border-none bg-transparent text-sm theme-text outline-none placeholder:text-[var(--text-subtle)]"
         />
         {hasFilters && (
           <button
             onClick={handleClear}
-            className="p-0.5 hover:bg-gray-700 rounded transition-colors"
+            className="p-0.5 rounded transition-colors theme-button-ghost"
             title={t('threads.clearFilters', '清除过滤')}
           >
-            <X size={14} className="text-gray-500" />
+            <X size={14} className="theme-text-subtle" />
           </button>
         )}
       </div>
@@ -125,8 +125,8 @@ export const ThreadSearchBar: React.FC = () => {
           className={`
             flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors
             ${tagFilter
-              ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
-              : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'
+              ? 'bg-[var(--selected-bg)] text-[var(--text-primary)] border-[var(--accent-soft-border)]'
+              : 'theme-button-secondary theme-text-subtle'
             }
           `}
           title={t('threads.filterByTag', '按标签过滤')}
@@ -136,14 +136,17 @@ export const ThreadSearchBar: React.FC = () => {
         </button>
 
         {showTagDropdown && (
-          <div className="absolute top-full right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="absolute top-full right-0 mt-1 w-48 theme-panel-elevated border theme-border rounded-lg theme-shadow z-50 overflow-hidden">
             <div className="max-h-64 overflow-y-auto">
               {/* All tags option */}
               <button
                 onClick={() => handleTagSelect(null)}
                 className={`
-                  w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors
-                  ${!tagFilter ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300'}
+                  w-full px-3 py-2 text-left text-sm transition-colors
+                  ${!tagFilter
+                    ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]'
+                    : 'theme-text-muted theme-hoverable'
+                  }
                 `}
               >
                 {t('threads.allTags', '所有标签')}
@@ -151,11 +154,11 @@ export const ThreadSearchBar: React.FC = () => {
 
               {/* Tag options */}
               {allTags.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                <div className="px-3 py-4 text-sm theme-text-subtle text-center">
                   {t('threads.noTags', '暂无标签')}
                 </div>
               ) : (
-                <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-700">
+                <div className="px-3 py-2 text-xs theme-text-subtle border-b theme-border">
                   {t('threads.filterByTagHint', '按标签筛选所有会话')}
                 </div>
               )}
@@ -165,8 +168,11 @@ export const ThreadSearchBar: React.FC = () => {
                   key={tag}
                   onClick={() => handleTagSelect(tag)}
                   className={`
-                    w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors
-                    ${tagFilter === tag ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300'}
+                    w-full px-3 py-2 text-left text-sm transition-colors
+                    ${tagFilter === tag
+                      ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]'
+                      : 'theme-text-muted theme-hoverable'
+                    }
                   `}
                 >
                   {tag}
@@ -174,19 +180,19 @@ export const ThreadSearchBar: React.FC = () => {
               ))}
 
               {/* Tag manager link */}
-              <div className="border-t border-gray-700 mt-1 pt-1">
+              <div className="border-t theme-border mt-1 pt-1">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowTagDropdown(false);
                     openTagManager();
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                  className="theme-soft-hover-accent theme-text flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
                   title={t('threads.manageCurrentThreadTags', '管理当前会话的标签')}
                 >
-                  <Settings size={12} />
+                  <Settings size={12} className="theme-text-accent" />
                   <span>{t('threads.manageTags', '管理标签')}</span>
-                  <span className="text-xs text-gray-500 ml-auto">
+                  <span className="text-xs theme-text-subtle ml-auto">
                     {t('threads.currentThread', '当前会话')}
                   </span>
                 </button>
@@ -198,7 +204,7 @@ export const ThreadSearchBar: React.FC = () => {
 
       {/* Results count */}
       {hasFilters && (
-        <span className="text-xs text-gray-500 whitespace-nowrap">
+        <span className="text-xs theme-text-subtle whitespace-nowrap">
           {Object.values(threads).filter(t => t.status === 'active').length} {t('threads.threads', '个对话')}
         </span>
       )}

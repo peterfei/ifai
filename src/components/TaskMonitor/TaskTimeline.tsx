@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useTaskStore } from '../../stores/taskStore';
 import { CheckCircle2, Clock, PlayCircle, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { enUS, zhCN } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { TaskStatus, TaskMetadata } from './types';
 
@@ -15,7 +16,7 @@ export interface TaskTimelineProps {
 
 export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
   const tasks = useTaskStore(state => state.tasks);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // Memoize the sorted array
   const sortedTasks = useMemo(() => {
@@ -23,43 +24,46 @@ export const TaskTimeline: React.FC<TaskTimelineProps> = () => {
   }, [tasks]);
 
   if (sortedTasks.length === 0) {
-    return <div className="p-8 text-center text-gray-500 text-xs">{t('taskTimeline.noActivity')}</div>;
+    return <div className="theme-text-subtle p-8 text-center text-xs">{t('taskTimeline.noActivity')}</div>;
   }
 
   return (
     <div className="relative p-4">
       {/* Vertical Line */}
-      <div className="absolute left-7 top-0 bottom-0 w-px bg-gray-700/50" />
+      <div className="theme-divider absolute bottom-0 left-7 top-0 w-px opacity-60" />
 
       <div className="space-y-6">
         {sortedTasks.map((task) => (
           <div key={task.id} className="relative flex gap-4 group">
             {/* Icon Column */}
-            <div className="z-10 bg-[#1e1e1e] rounded-full p-1 ring-4 ring-[#1e1e1e]">
+            <div className="theme-panel z-10 rounded-full p-1 ring-4 ring-[var(--bg-primary)]">
               {task.status === TaskStatus.SUCCESS ? (
-                <CheckCircle2 size={16} className="text-green-500" />
+                <CheckCircle2 size={16} className="theme-text-success" />
               ) : task.status === TaskStatus.RUNNING ? (
-                <PlayCircle size={16} className="text-blue-500 animate-pulse" />
+                <PlayCircle size={16} className="theme-text-accent animate-pulse" />
               ) : task.status === TaskStatus.FAILED ? (
-                <XCircle size={16} className="text-red-500" />
+                <XCircle size={16} className="theme-text-danger" />
               ) : (
-                <Clock size={16} className="text-gray-500" />
+                <Clock size={16} className="theme-text-subtle" />
               )}
             </div>
 
             {/* Content Column */}
-            <div className="flex-1 min-w-0 bg-[#252526] rounded-lg border border-gray-700/50 p-3 hover:border-gray-600 transition-colors shadow-sm">
+            <div className="theme-panel-muted theme-border flex-1 min-w-0 rounded-lg border p-3 shadow-sm transition-colors hover:border-[var(--border-strong)]">
               <div className="flex justify-between items-start mb-1">
-                <h4 className="text-xs font-semibold text-gray-200 truncate">{task.title}</h4>
-                <span className="text-[10px] text-gray-500 shrink-0">
-                  {formatDistanceToNow(task.createdAt, { addSuffix: true })}
+                <h4 className="theme-text truncate text-xs font-semibold">{task.title}</h4>
+                <span className="theme-text-subtle shrink-0 text-[10px]">
+                  {formatDistanceToNow(task.createdAt, {
+                    addSuffix: true,
+                    locale: i18n.language.startsWith('zh') ? zhCN : enUS,
+                  })}
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 line-clamp-2">{task.description}</p>
+              <p className="theme-text-subtle line-clamp-2 text-[11px]">{task.description}</p>
               
               {task.logs && task.logs.length > 0 && (
-                <div className="mt-2 bg-black/40 rounded p-2 font-mono text-[9px] text-gray-400 overflow-hidden">
-                  <div className="opacity-70 italic mb-1 border-b border-gray-800 pb-1">Recent Log:</div>
+                <div className="theme-input-surface theme-border theme-text-subtle mt-2 overflow-hidden rounded border p-2 font-mono text-[9px]">
+                  <div className="theme-border mb-1 border-b pb-1 italic opacity-70">{t('taskTimeline.recentLog')}</div>
                   {task.logs.slice(-1)[0].message}
                 </div>
               )}

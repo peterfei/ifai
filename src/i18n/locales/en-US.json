@@ -2,7 +2,25 @@
   "titlebar": {
     "toggleSidebar": "Toggle Sidebar",
     "codeAnalysis": "Code Analysis (Detect Code Smells)",
-    "toggleTheme": "Toggle Theme"
+    "toggleTheme": "Toggle Theme",
+    "createWindowFailed": "Failed to create new window",
+    "folderAdded": "Added folder: {{name}}",
+    "folderAddFailed": "Failed to add folder: {{error}}",
+    "workspaceSaved": "Workspace saved to: {{path}}",
+    "workspaceSaveFailed": "Failed to save workspace: {{error}}",
+    "workspaceLoaded": "Workspace loaded: {{count}} folder(s)",
+    "workspaceOpenFailed": "Failed to open workspace: {{error}}"
+  },
+  "errorBoundary": {
+    "title": "The app crashed",
+    "description": "Sorry, the app hit an error. Try the following steps:",
+    "reset": "Reset app",
+    "details": "Error details (development mode)",
+    "steps": {
+      "reset": "Click the button below to reset the app",
+      "refresh": "Refresh the page if the problem continues",
+      "console": "Check the console for detailed error information"
+    }
   },
   "menu": {
     "file": "File",
@@ -16,13 +34,32 @@
     "saveWorkspaceAs": "Save Workspace As...",
     "openWorkspace": "Open Workspace..."
   },
+  "approvalToolbar": {
+    "previewing": "Previewing AI Changes",
+    "reject": "Reject",
+    "accept": "Accept Changes",
+    "close": "Close Preview",
+    "approved": "Changes approved",
+    "rejected": "Changes rejected",
+    "messageNotFound": "Unable to locate the source message"
+  },
+  "diffEditorModal": {
+    "title": "Code Change Preview",
+    "addedLines": "+{{count}} lines",
+    "deletedLines": "-{{count}} lines",
+    "reject": "Reject",
+    "accept": "Accept Changes",
+    "applied": "Code changes applied"
+  },
   "sidebar": {
     "explorer": "Explorer",
     "search": "Search",
     "snippets": "Snippet Manager",
     "tasks": "Mission Control",
     "tools": "Tool Explorer",
-    "prompts": "Prompts"
+    "prompts": "Prompts",
+    "promptsCommunityReadOnly": "Prompts (Community - Read Only)",
+    "projectFallback": "Project"
   },
   "editor": {
     "welcome": "IfAI Editor",
@@ -44,6 +81,7 @@
     "inlineWidget": {
         "title": "AI Edit",
         "placeholder": "Edit with IfAI (e.g. 'Add comments')...",
+        "processing": "IfAI is processing...",
         "submit": "Submit",
         "cancel": "Cancel",
         "prompt": {
@@ -58,9 +96,15 @@
             "directive5": "NO SIDE EFFECTS: Maintain the integrity of the rest of the file. If using tools to write, ensure zero collateral damage to unrelated code areas."
         }
     },
+    "inlineDiff": {
+      "title": "AI Drafted Code Suggestion",
+      "hint": "Esc to dismiss • Cmd+K to apply"
+    },
 
     "splitPane": "Split Pane",
     "closePane": "Close Pane",
+    "closeOtherTabs": "Close Others",
+    "closeAllTabs": "Close All",
     "splitRight": "Split Right",
     "splitDown": "Split Down"
   },
@@ -70,7 +114,14 @@
     "orClickFolderIcon": "Or click the folder icon in the title bar above",
     "addFolder": "Add Folder",
     "saveWorkspaceAs": "Save Workspace As...",
-    "openWorkspace": "Open Workspace..."
+    "openWorkspace": "Open Workspace...",
+    "workspace": "Workspace",
+    "removeFolder": "Remove Folder",
+    "removeFolderConfirm": "Remove folder \"{{name}}\" from the workspace?",
+    "folderRemoved": "Removed folder: {{name}}",
+    "folderRemoveFailed": "Failed to remove folder: {{error}}",
+    "switchFolderFailed": "Failed to switch folder: {{error}}",
+    "openNodeFailed": "Failed to open {{name}}: {{error}}"
   },
   "chat": {
     "title": "IfAI Chat",
@@ -85,25 +136,522 @@
     "title": "Search",
     "placeholder": "Search",
     "noResults": "No results",
-    "openFolder": "Please open a folder to search files"
+    "openFolder": "Please open a folder to search files",
+    "summary": "{{results}} results in {{files}} files",
+    "clear": "Clear",
+    "submit": "Search",
+    "options": "Options",
+    "optionsTitle": "Search options",
+    "caseSensitive": "Case sensitive",
+    "useRegex": "Regular expression",
+    "history": "History",
+    "historyTitle": "Search history",
+    "recentSearches": "Recent searches",
+    "noHistory": "No search history yet",
+    "noHistoryHint": "Start searching to build history",
+    "regexTip": "Tip: Check your regex syntax",
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    }
+  },
+  "cacheStatsPanel": {
+    "title": "Performance Monitor",
+    "cacheStats": "Cache stats",
+    "hitRate": "Hit rate",
+    "cacheSize": "Cache size",
+    "hits": "Hits",
+    "misses": "Misses",
+    "performanceMetrics": "Performance metrics",
+    "count": "{{count}} runs",
+    "average": "Avg",
+    "min": "Min",
+    "max": "Max",
+    "instructionsTitle": "How to test",
+    "instructions": {
+      "expandCollapse": "Expand and collapse directories to observe cache hit rate changes",
+      "repeatAccess": "Open the same directory repeatedly to verify faster responses",
+      "observeLatency": "Watch latency changes across different operations"
+    },
+    "operations": {
+      "readDirectory": "Read directory",
+      "expandDirectory": "Expand directory",
+      "gitStatusUpdate": "Update Git status",
+      "refreshTree": "Refresh tree"
+    }
+  },
+  "performancePanel": {
+    "title": "Performance Monitor",
+    "expand": "Expand performance monitor",
+    "minimize": "Minimize performance monitor",
+    "metrics": {
+      "fps": "FPS",
+      "memory": "Memory",
+      "tokens": "Tokens"
+    }
+  },
+  "performanceMonitor": {
+    "title": "Performance",
+    "fps": "FPS",
+    "avgFps": "Avg FPS"
+  },
+  "storageQuotaBanner": {
+    "title": "Local storage is almost full ({{percentage}}% used).",
+    "description": "Move old history or clear cache soon to reduce the risk of data loss.",
+    "dismiss": "Dismiss storage warning"
   },
   "terminal": {
-    "title": "Terminal"
+    "title": "Terminal",
+    "debugWithAI": "Debug With AI",
+    "processExited": "Process exited",
+    "ptyError": "PTY error: {{error}}",
+    "createFailed": "Failed to create terminal: {{error}}",
+    "debugPrompt": "Please help me diagnose and fix the following terminal error:\n\n```text\n{{error}}\n```\n\nExplain the root cause and suggest actionable fixes."
   },
   "taskMonitor": {
-    "title": "Mission Control"
+    "title": "Mission Control",
+    "filter": "Filter",
+    "all": "All",
+    "searchPlaceholder": "Quick filter...",
+    "noTasks": "No task history",
+    "listView": "List view",
+    "timelineView": "Timeline view",
+    "processing": "Processing...",
+    "clearCompleted": "Clear completed tasks",
+    "summary": {
+      "runningShort": "Run",
+      "pendingShort": "Wait",
+      "successShort": "Done",
+      "failedShort": "Fail"
+    },
+    "card": {
+      "pause": "Pause task",
+      "resume": "Resume task",
+      "cancel": "Cancel task",
+      "retry": "Retry task",
+      "remove": "Remove task",
+      "logs": "Real-time logs",
+      "live": "Live",
+      "progressBar": "Task progress"
+    },
+    "metrics": {
+      "remaining": "Remaining {{duration}}",
+      "bytesPerSecond": "{{value}} B/s",
+      "kilobytesPerSecond": "{{value}} KB/s",
+      "megabytesPerSecond": "{{value}} MB/s",
+      "filesPerSecond": "{{value}} files/s",
+      "itemsPerSecond": "{{value}} items/s"
+    },
+    "duration": {
+      "secondsShort": "{{count}}s",
+      "minutesSecondsShort": "{{minutes}}m {{seconds}}s",
+      "hoursMinutesShort": "{{hours}}h {{minutes}}m"
+    },
+    "categories": {
+      "scan": "Scan",
+      "build": "Build",
+      "generation": "Generation",
+      "transfer": "Transfer",
+      "analysis": "Analysis",
+      "test": "Test",
+      "deploy": "Deploy",
+      "install": "Install",
+      "git": "Git",
+      "format": "Format",
+      "refactor": "Refactor",
+      "document": "Document",
+      "backup": "Backup",
+      "cleanup": "Cleanup",
+      "optimize": "Optimize",
+      "security": "Security"
+    },
+    "stats": {
+      "total": "Total",
+      "successRate": "Success rate",
+      "completed": "Completed",
+      "failed": "Failed",
+      "running": "Running",
+      "averageDuration": "Avg duration",
+      "byStatus": "Status distribution",
+      "byCategory": "By category",
+      "categoryCount": "{{count}} tasks",
+      "empty": "No task statistics yet"
+    },
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "paused": "Paused",
+      "success": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
+  },
+  "todoWrite": {
+    "title": "Todo list",
+    "progress": "{{completed}}/{{total}} complete",
+    "status": {
+      "pending": "Pending",
+      "inProgress": "In progress",
+      "completed": "Completed"
+    },
+    "stats": {
+      "pending": "Pending: {{count}}",
+      "inProgress": "In progress: {{count}}",
+      "completed": "Completed: {{count}}"
+    },
+    "empty": {
+      "title": "No tasks yet",
+      "description": "AI can create tasks with the TodoWrite tool."
+    },
+    "actions": {
+      "expand": "Expand todo panel",
+      "refresh": "Refresh tasks",
+      "clear": "Clear all tasks",
+      "startTask": "Start task",
+      "completeTask": "Complete task"
+    },
+    "toast": {
+      "statusUpdated": "Task status updated",
+      "statusUpdateFailed": "Failed to update task status",
+      "deleted": "Task deleted",
+      "deleteFailed": "Failed to delete task",
+      "cleared": "Task list cleared",
+      "clearFailed": "Failed to clear tasks",
+      "refreshed": "Task list refreshed",
+      "refreshFailed": "Failed to refresh tasks"
+    }
+  },
+  "refactoring": {
+    "preview": {
+      "title": "Refactoring Preview",
+      "empty": {
+        "title": "No refactoring preview",
+        "description": "Run a refactoring action to inspect pending edits before applying them."
+      },
+      "summary": {
+        "filesChanged": "{{count}} files changed",
+        "totalEdits": "{{count}} edits"
+      },
+      "diff": {
+        "created": "Created",
+        "deleted": "Deleted",
+        "updated": "Updated"
+      },
+      "labels": {
+        "original": "Original",
+        "updated": "Updated",
+        "location": "Location",
+        "emptyValue": "(empty)",
+        "deletedValue": "(deleted)"
+      },
+      "actions": {
+        "executing": "Applying...",
+        "apply": "Apply Changes"
+      }
+    }
+  },
+  "reviewHistory": {
+    "title": "Review History",
+    "empty": "No review history yet",
+    "commitFallback": "N/A",
+    "issueCount": "{{count}} issues",
+    "moreIssues": "{{count}} more issues",
+    "status": {
+      "fixed": "Fixed",
+      "ignored": "Ignored",
+      "pending": "Pending"
+    }
   },
   "taskTimeline": {
-    "noActivity": "No activity recorded yet"
+    "noActivity": "No activity recorded yet",
+    "recentLog": "Recent log"
+  },
+  "taskLogStream": {
+    "title": "Logs ({{count}})",
+    "searchPlaceholder": "Search logs...",
+    "filter": "Filter logs",
+    "export": "Export logs",
+    "clear": "Clear logs",
+    "allLevels": "All",
+    "empty": "No logs yet",
+    "noMatches": "No matching logs",
+    "autoScroll": "Auto-scroll",
+    "more": "{{count}} more...",
+    "less": "Show less"
   },
   "snippetManager": {
     "title": "Snippet Manager",
     "items": "items",
     "storage": "IndexedDB Storage"
   },
+  "toolExplorer": {
+    "title": "Tool Explorer",
+    "searchPlaceholder": "Search tool names or descriptions...",
+    "resetFilters": "Reset filters",
+    "clearFilters": "Clear filters",
+    "empty": "No matching tools found",
+    "loadError": "Failed to load tool information.",
+    "totalTools": "Total tools:",
+    "countLabel": "{{label}}: {{count}}",
+    "description": "Description",
+    "parameterDescriptions": "Parameter descriptions",
+    "inputSchema": "Input JSON Schema",
+    "examples": "Examples",
+    "copyToolName": "Copy tool name",
+    "danger": "Danger",
+    "dangerousAction": "Dangerous action",
+    "filters": {
+      "category": "Category",
+      "permission": "Permission level"
+    },
+    "categories": {
+      "File": "File",
+      "Search": "Search",
+      "Command": "Command",
+      "Network": "Network",
+      "System": "System",
+      "Other": "Other"
+    },
+    "permissions": {
+      "ReadOnly": "Read-only",
+      "WorkspaceWrite": "Write",
+      "Prompt": "Prompt",
+      "DangerFullAccess": "Danger",
+      "Allow": "Allow"
+    },
+    "tools": {
+      "read_file": {
+        "label": "Read File",
+        "description": "Read the contents of a file.",
+        "examples": [
+          "Read a single file",
+          "Inspect source code",
+          "Open a config file"
+        ],
+        "schema": {
+          "properties": {
+            "path": {
+              "description": "Path of the file to read"
+            }
+          }
+        },
+        "parameters": {
+          "path": "Path of the file to read"
+        }
+      },
+      "write_file": {
+        "label": "Write File",
+        "description": "Write content to a file.",
+        "examples": [
+          "Create a new file",
+          "Overwrite an existing file",
+          "Save generated code"
+        ],
+        "schema": {
+          "properties": {
+            "path": {
+              "description": "Path of the file to write"
+            },
+            "content": {
+              "description": "Content to write into the file"
+            }
+          }
+        },
+        "parameters": {
+          "path": "Path of the file to write",
+          "content": "Content to write into the file"
+        }
+      },
+      "edit_file": {
+        "label": "Edit File",
+        "description": "Edit specific parts of a file.",
+        "examples": [
+          "Modify a targeted section",
+          "Replace a code snippet",
+          "Update a config entry"
+        ],
+        "schema": {
+          "properties": {
+            "path": {
+              "description": "Path of the file to edit"
+            },
+            "old_text": {
+              "description": "Original text to replace"
+            },
+            "new_text": {
+              "description": "New text that replaces the original text"
+            }
+          }
+        },
+        "parameters": {
+          "path": "Path of the file to edit",
+          "old_text": "Original text to replace",
+          "new_text": "New text that replaces the original text"
+        }
+      },
+      "glob_search": {
+        "label": "Glob Search",
+        "description": "Search for files with glob patterns.",
+        "examples": [
+          "Find all .ts files",
+          "Search files in a specific folder",
+          "Match files by naming pattern"
+        ],
+        "schema": {
+          "properties": {
+            "pattern": {
+              "description": "Glob pattern to match, such as **/*.ts"
+            },
+            "path": {
+              "description": "Directory to search in, if needed"
+            }
+          }
+        },
+        "parameters": {
+          "pattern": "Glob pattern to match, such as **/*.ts",
+          "path": "Directory to search in, if needed"
+        }
+      },
+      "grep_search": {
+        "label": "Grep Search",
+        "description": "Search for text in files.",
+        "examples": [
+          "Find a text snippet in files",
+          "Locate function definitions",
+          "Search variable usages"
+        ],
+        "schema": {
+          "properties": {
+            "pattern": {
+              "description": "Text or regular expression to search for"
+            },
+            "path": {
+              "description": "Directory to search in, if needed"
+            }
+          }
+        },
+        "parameters": {
+          "pattern": "Text or regular expression to search for",
+          "path": "Directory to search in, if needed"
+        }
+      },
+      "bash": {
+        "label": "Bash",
+        "description": "Execute bash commands.",
+        "examples": [
+          "Run a shell command",
+          "Execute a build script",
+          "Run a git operation"
+        ],
+        "schema": {
+          "properties": {
+            "command": {
+              "description": "Bash command to execute"
+            }
+          }
+        },
+        "parameters": {
+          "command": "Bash command to execute"
+        }
+      },
+      "PowerShell": {
+        "label": "PowerShell",
+        "description": "Execute PowerShell commands on Windows.",
+        "examples": [
+          "Run a PowerShell command on Windows",
+          "Manage system configuration"
+        ],
+        "schema": {
+          "properties": {
+            "command": {
+              "description": "PowerShell command to execute"
+            }
+          }
+        },
+        "parameters": {
+          "command": "PowerShell command to execute"
+        }
+      },
+      "WebFetch": {
+        "label": "Web Fetch",
+        "description": "Fetch content from a web URL.",
+        "examples": [
+          "Fetch a webpage",
+          "Read online documentation",
+          "Inspect an API response"
+        ],
+        "schema": {
+          "properties": {
+            "url": {
+              "description": "Web URL to fetch"
+            }
+          }
+        },
+        "parameters": {
+          "url": "Web URL to fetch"
+        }
+      },
+      "WebSearch": {
+        "label": "Web Search",
+        "description": "Search the web for information.",
+        "examples": [
+          "Search technical documentation",
+          "Look up a solution",
+          "Find the latest information"
+        ],
+        "schema": {
+          "properties": {
+            "query": {
+              "description": "Search query keywords"
+            }
+          }
+        },
+        "parameters": {
+          "query": "Search query keywords"
+        }
+      },
+      "TodoWrite": {
+        "label": "Todo Write",
+        "description": "Create or update a structured task list for the current session.",
+        "examples": [
+          "Create a task list",
+          "Update task progress",
+          "Mark a task as completed"
+        ],
+        "schema": {
+          "properties": {
+            "todos": {
+              "description": "Array of tasks to manage",
+              "items": {
+                "properties": {
+                  "activeForm": {
+                    "description": "Task phrased as an active verb, such as \"Implementing login feature\""
+                  },
+                  "content": {
+                    "description": "Task phrased as a noun, such as \"Implement login feature\""
+                  },
+                  "status": {
+                    "description": "Current status: pending, in_progress, or completed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "todos": "Array of tasks containing content, activeForm, and status"
+        }
+      }
+    }
+  },
   "snippetList": {
     "loading": "Loading snippets...",
-    "noSnippets": "No snippets found"
+    "noSnippets": "No snippets found",
+    "untitled": "Untitled snippet",
+    "emptyTitle": "No snippets yet",
+    "emptyDescription": "Create a snippet or generate demo data to populate this list."
   },
   "snippetSearch": {
     "placeholder": "Search snippets...",
@@ -112,15 +660,231 @@
     "clearAll": "Clear All",
     "confirmGenerate": "Generate 1000 test snippets? This will clear existing ones.",
     "confirmClear": "Clear all snippets?",
-    "newSnippet": "New Snippet"
+    "newSnippet": "New Snippet",
+    "defaultTitle": "New Snippet",
+    "defaultCode": "// Start coding here..."
+  },
+  "promptManager": {
+    "common": {
+      "technicalDetails": "Technical details"
+    },
+    "list": {
+      "title": "Prompts",
+      "exportTitle": "Export prompts",
+      "importTitle": "Import prompts",
+      "refresh": "Refresh",
+      "expertMode": "Expert mode",
+      "normalMode": "Normal mode",
+      "enableExpertMode": "Enable expert mode",
+      "disableExpertMode": "Disable expert mode",
+      "loading": "Loading prompts...",
+      "emptyTitle": "No prompts found",
+      "directoryLabel": "Directory: {{path}}",
+      "untitledPrompt": "Untitled prompt",
+      "noDescription": "No description",
+      "loadFailedTitle": "Failed to load prompts",
+      "loadFailedDescription": "Check the prompt directory and project configuration, then try again."
+    },
+    "accessTier": {
+      "public": "Editable",
+      "protected": "Read-only + override",
+      "private": "Expert",
+      "unknown": "Unknown"
+    },
+    "editor": {
+      "emptyTitle": "Select a prompt",
+      "emptyDescription": "Choose a prompt from the left to start editing.",
+      "invalidTitle": "Invalid prompt data",
+      "invalidDescription": "Metadata is missing in the backend response.",
+      "commercialNotice": "Prompt editing is available in the commercial edition only",
+      "learnMore": "Learn more",
+      "builtInNotice": "This is a built-in system prompt. Saving will create a project-specific override.",
+      "infoBadge": "Info",
+      "tabEditor": "Editor",
+      "tabPreview": "Preview",
+      "readOnly": "Read-only",
+      "versionHistory": "Version history",
+      "validatePrompt": "Validate prompt",
+      "launchAgent": "Launch agent",
+      "save": "Save",
+      "createOverride": "Create override",
+      "variables": "Variables",
+      "noPreview": "No preview available. Try typing something above.",
+      "renderFailed": "Render failed: {{error}}",
+      "saveSuccess": "Prompt saved successfully",
+      "saveFailed": "Failed to save prompt",
+      "overrideProjectCreated": "Project-specific override created",
+      "overrideProjectCreatedDesc": "This prompt will now be used for the current project.",
+      "overrideFileCreated": "Override file created successfully",
+      "overrideFileCreatedDesc": "{{fileName}} has been created.",
+      "launchStarted": "Agent '{{name}}' started",
+      "launchFailed": "Launch failed",
+      "rollbackSuccess": "Rolled back to version {{version}}",
+      "sampleUser": "Example User",
+      "sampleLanguage": "TypeScript",
+      "sampleProject": "IfAI Workspace",
+      "sampleCwd": "/workspace/project",
+      "sampleValue": "Sample Value",
+      "launchTask": "Run a prompt preview task from Prompt Manager"
+    },
+    "monaco": {
+      "loading": "Loading editor...",
+      "variableDetail": "Prompt variable",
+      "variableDocumentation": "Prompt variable: {{variable}}",
+      "helpers": {
+        "if": "Conditional block",
+        "unless": "Negated conditional block",
+        "each": "Loop through an array or object",
+        "with": "Switch the current context",
+        "eq": "Equals comparison",
+        "ne": "Not-equals comparison",
+        "gt": "Greater-than comparison",
+        "lt": "Less-than comparison",
+        "and": "Logical AND",
+        "or": "Logical OR",
+        "not": "Logical NOT",
+        "concat": "Concatenate strings",
+        "lookup": "Look up a property dynamically"
+      }
+    },
+    "exportDialog": {
+      "openProjectFirstTitle": "Open a project first",
+      "openProjectFirstDescription": "Exporting prompts requires an opened project folder.",
+      "title": "Export prompts",
+      "selectTitle": "Select prompts",
+      "selectDescription": "Choose prompts to export ({{selected}} / {{total}})",
+      "selectAll": "Select all",
+      "clearSelection": "Clear selection",
+      "loadingPrompts": "Loading exportable prompts...",
+      "packageInfoTitle": "Package info",
+      "packageInfoDescription": "Fill in the metadata for this export package.",
+      "packageName": "Package name",
+      "description": "Description",
+      "author": "Author",
+      "version": "Version",
+      "saveDialogTitle": "Export prompt package",
+      "defaultFileName": "{{name}}-prompts.json",
+      "exportSummary": "{{count}} prompts will be exported",
+      "namePlaceholder": "e.g. my-prompts",
+      "descriptionPlaceholder": "Describe the purpose and contents of this prompt package",
+      "authorPlaceholder": "Author name or organization",
+      "jsonFileFilter": "JSON files",
+      "selectAtLeastOneError": "Select at least one prompt",
+      "requiredError": "Please complete all package information",
+      "errorTitle": "Export failed",
+      "errorDescription": "Check the selected prompts and package information, then try again.",
+      "next": "Next",
+      "back": "Back",
+      "exporting": "Exporting...",
+      "export": "Export"
+    },
+    "importDialog": {
+      "openProjectFirstTitle": "Open a project first",
+      "openProjectFirstDescription": "Importing prompts requires an opened project folder.",
+      "title": "Import prompts",
+      "openDialogTitle": "Choose a prompt package",
+      "fileStepTitle": "Choose a prompt package",
+      "fileStepDescription": "Select a previously exported prompt package file (.json).",
+      "dropzoneHint": "Click the button below to choose a file",
+      "chooseFile": "Choose file",
+      "loadingFile": "Loading...",
+      "packageContents": "Included prompts",
+      "author": "Author",
+      "version": "Version",
+      "ifaiVersion": "IfAI version",
+      "promptCount": "Prompt count",
+      "overwriteTitle": "Overwrite existing prompts",
+      "overwriteDescription": "If enabled, importing will replace prompts with the same name. Otherwise existing prompts will be skipped.",
+      "jsonFileFilter": "JSON files",
+      "loadPackageFailed": "Failed to load package: {{error}}",
+      "errorTitle": "Import failed",
+      "errorDescription": "Check the prompt package and import settings, then try again.",
+      "successTitle": "Import completed",
+      "successDescription": "{{count}} prompts imported successfully",
+      "warningTitle": "Import completed with warnings",
+      "imported": "Imported ({{count}})",
+      "skipped": "Skipped ({{count}})",
+      "warnings": "Warnings ({{count}})",
+      "errors": "Errors ({{count}})",
+      "importing": "Importing...",
+      "startImport": "Start import",
+      "done": "Done"
+    },
+    "validation": {
+      "title": "Validation results",
+      "validating": "Validating...",
+      "passed": "Validation passed",
+      "failed": "Validation failed",
+      "errorCount": "{{count}} errors",
+      "warningCount": "{{count}} warnings",
+      "validatingPrompt": "Validating prompt...",
+      "systemErrorType": "System",
+      "systemErrorMessage": "Prompt validation is temporarily unavailable. Please try again later.",
+      "line": "Line {{line}}",
+      "lineWithColumn": "Line {{line}}:{{column}}",
+      "noIssues": "Prompt validation passed with no errors or warnings",
+      "editToValidate": "Edit the prompt to start validation",
+      "footer": "Validation checks include YAML format, brace balance, Handlebars syntax, and safety rules."
+    },
+    "versionHistory": {
+      "title": "Version history",
+      "compareSelected": "Compare selected versions",
+      "rollbackConfirm": "Rollback to this version? This will overwrite the current file content.",
+      "rollbackFailed": "Rollback failed: {{error}}",
+      "loading": "Loading version history...",
+      "loadFailed": "Failed to load version history: {{error}}",
+      "errorTitle": "Unable to load version history",
+      "loadFailedDescription": "The version history for this prompt is currently unavailable. Please try again later.",
+      "emptyTitle": "No version history yet",
+      "emptyDescription": "This prompt has not been committed to Git.",
+      "latest": "Latest",
+      "noCommitMessage": "No commit message",
+      "rollback": "Rollback to this version",
+      "footer": "{{count}} versions shown, up to the most recent 20"
+    },
+    "versionDiff": {
+      "loading": "Loading version comparison...",
+      "loadFailed": "Failed to load version comparison: {{error}}",
+      "errorTitle": "Unable to load version comparison",
+      "loadFailedDescription": "The selected version comparison is currently unavailable. Please try again later.",
+      "oldVersion": "Old version",
+      "newVersion": "New version",
+      "addedLines": "Added lines",
+      "deletedLines": "Deleted lines"
+    },
+    "overrideDialog": {
+      "expertTitle": "Expert mode editing",
+      "protectedTitle": "Create override file",
+      "defaultTitle": "Confirm edit",
+      "expertIntroPrefix": "You are editing the private prompt",
+      "expertModeLabel": "Expert mode",
+      "expertWarningTitle": "Warning",
+      "expertWarningBody": "Private prompts are core system components. Changes may affect AI behavior. Make sure you understand the impact.",
+      "protectedIntro": "You are about to edit the protected prompt",
+      "overrideMechanismTitle": "Override mechanism",
+      "overrideMechanismPrefix": "The system will create the file",
+      "overrideMechanismSuffix": "The original prompt will remain unchanged, and your override will take precedence in this project.",
+      "restoreHint": "To restore the original prompt, simply delete the override file.",
+      "defaultMessage": "Save changes to the prompt",
+      "saveAsExpert": "Save in expert mode",
+      "createOverrideAndSave": "Create override and save"
+    }
   },
   "common": {
+    "thisFile": "This file",
     "untitled": "Untitled",
     "loading": "Loading...",
     "fileSaved": "File saved",
     "fileSaveFailed": "Failed to save file",
     "fileOpenFailed": "Failed to open file",
+    "fileOpenFailedWithName": "Failed to open {{fileName}}",
     "folderOpenFailed": "Failed to open folder",
+    "protectedFileOpenMessage": "Cannot open {{fileName}} as text. {{categoryLabel}} files are not supported in the editor.",
+    "protectedFileCategories": {
+      "binary": "Binary",
+      "archive": "Archive",
+      "media": "Media"
+    },
     "emptyPane": "Empty Pane",
     "newFile": "New File",
     "openFile": "Open File...",
@@ -131,6 +895,7 @@
     "rename": "Rename",
     "delete": "Delete",
     "confirmDeleteFile": "Delete {{fileName}}?",
+    "confirmDeleteMultiple": "Delete {{count}} selected items?",
     "renameTo": "Rename to:",
     "copiedToClipboard": "Copied to clipboard",
     "copyFailed": "Failed to copy to clipboard",
@@ -148,7 +913,8 @@
     "deleteFailed": "Failed to delete",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "close": "Close"
+    "close": "Close",
+    "unknown": "Unknown"
   },
   "tool": {
     "executed": "Tool executed successfully",
@@ -177,7 +943,10 @@
     "new": "New",
     "newFile": "New File",
     "newFolder": "New Folder",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "terminalOpened": "Terminal opened",
+    "fileRevealed": "File revealed",
+    "folderRevealed": "Folder revealed"
   },
   "settings": {
     "general": "General",
@@ -203,7 +972,7 @@
     "sidebarPosition": "Sidebar Position",
     "sidebarLeft": "Left",
     "sidebarRight": "Right",
-    "sidebarPositionHint": "Shortcut: Cmd/Ctrl+B to toggle sidebar",
+    "sidebarPositionHint": "Shortcut: {{shortcut}} to toggle sidebar",
     "aiProviders": "AI Providers",
     "apiKey": "API Key",
     "baseUrl": "Base URL",
@@ -217,7 +986,14 @@
     "customProvider": "Custom Provider",
     "dataManagement": "Data Management",
     "localModelSettings": "Local Model",
+    "languageZhCn": "Simplified Chinese",
+    "languageEnUs": "English",
     "manageCustomProvider": "Manage Custom Provider",
+    "toolClassification": "Tool Classification",
+    "toolClassificationSettings": "Tool Classification Settings",
+    "skills": "Skills Center",
+    "builtInProviders": "Built-in Providers",
+    "configured": "Configured",
     "currentActive": "Currently Active",
     "notSelected": "Not Selected",
     "modelLabel": "Model",
@@ -237,14 +1013,24 @@
     "targetFPS": "Target FPS",
     "enableGPUAcceleration": "Enable GPU Acceleration",
     "showPerformanceMonitor": "Show Performance Monitor",
-    "enableAutoDowngrade": "Auto Performance Downgrade"
+    "enableAutoDowngrade": "Auto Performance Downgrade",
+    "typewriterEffect": "Enable typewriter effect",
+    "typewriterEffectDesc": "Reveal AI responses progressively instead of showing the full message at once",
+    "sandboxMode": "Sandbox Mode",
+    "sandboxModeDesc": "Control auto-approval for destructive actions such as bash or file deletion",
+    "sandboxModeAuto": "Auto Detect",
+    "sandboxModeTauriOnly": "Desktop App Only",
+    "sandboxModeAlwaysOn": "Always On",
+    "sandboxModeAlwaysOff": "Always Off"
   },
   "customProviderSettings": {
     "custom": "Custom",
     "customEndpointDesc": "Fully custom endpoint",
+    "customEndpointPlaceholder": "https://your-endpoint.com/v1/chat/completions",
     "pleaseEnterName": "Please enter a provider name",
-    "confirmDelete": "Are you sure you want to delete this provider?",
+    "confirmDelete": "Delete provider \"{{name}}\"?",
     "noModelsFound": "No models found. Please make sure Ollama has installed models.",
+    "addModelsFirst": "Please edit this provider and add at least one model name first",
     "refreshSuccess": "Successfully retrieved {{count}} models:\n{{models}}",
     "refreshFailed": "Refresh failed: {{error}}\n\nPlease ensure:\n1. Ollama is running\n2. Endpoint address is correct ({{baseUrl}})\n3. At least one model is installed",
     "cancelEdit": "Cancel Edit",
@@ -255,10 +1041,16 @@
     "providerName": "Provider Name",
     "apiUrl": "API URL",
     "availableModels": "Available Models (comma separated)",
+    "modelsDelimitedHint": "comma separated",
+    "modelsPlaceholder": "e.g. gpt-4o, qwen2.5-coder",
     "statusLabel": "Status",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "etc": " etc.",
+    "parametersTitle": "Parameter settings",
+    "temperature": "Temperature",
+    "topP": "Top-P",
+    "maxTokens": "Max tokens",
     "notConfigured": "Not configured",
     "addNewProvider": "Add New Provider",
     "providerNamePlaceholder": "e.g., My Ollama",
@@ -269,6 +1061,84 @@
     "customProviderDesc": "Add local or custom endpoints like Ollama, vLLM, LocalAI",
     "addProvider": "Add Provider",
     "noCustomProviders": "No custom providers, click the button above to add"
+  },
+  "modelCapsule": {
+    "selectModel": "Select model",
+    "advancedSettings": "Advanced model settings",
+    "transparency": {
+      "label": "AI transparency",
+      "minimal": "Minimal",
+      "standard": "Standard",
+      "verbose": "Verbose",
+      "debug": "Debug"
+    }
+  },
+  "modelParamsConfig": {
+    "simpleMode": "Simple Mode",
+    "advancedMode": "Advanced Mode",
+    "quickPresets": "Quick Presets",
+    "presets": {
+      "fast": {
+        "label": "Fast",
+        "description": "Lower temperature for simple tasks"
+      },
+      "balanced": {
+        "label": "Balanced",
+        "description": "Balance speed and quality"
+      },
+      "precise": {
+        "label": "Precise",
+        "description": "Higher precision for complex tasks"
+      }
+    },
+    "temperatureRange": {
+      "low": "Precise (0)",
+      "high": "Creative (2)"
+    },
+    "topPRange": {
+      "low": "Focused (0)",
+      "high": "Diverse (1)"
+    },
+    "badge": {
+      "temperature": "T",
+      "topP": "P",
+      "maxTokens": "Max"
+    }
+  },
+  "systemPromptCard": {
+    "title": "System Prompt",
+    "sectionsCount": "{{count}} sections",
+    "skillsCount": "{{count}} skills",
+    "totalTokens": "~{{count}} {{tokens}}",
+    "inactive": "inactive",
+    "clickToLoad": "Click to load content",
+    "truncated": "... (truncated)"
+  },
+  "bashConsoleOutput": {
+    "title": "Console Output",
+    "empty": "No output",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "exitCode": "Exit: {{code}}"
+  },
+  "chatInput": {
+    "dropImageHint": "Drop an image to let AI read it instantly",
+    "currentModel": "Current model: {{model}}",
+    "referenceFile": "Reference file",
+    "referenceSymbol": "Reference symbol"
+  },
+  "fuzzyFileSearch": {
+    "title": "Reference File (@)",
+    "noMatches": "No matching files found..."
+  },
+  "taskSummary": {
+    "title": "Generation Complete",
+    "completedOperations": "{{completed}}/{{total}} operations completed",
+    "filesCreated": "Created Files ({{count}})",
+    "filesRead": "Read Files ({{count}})",
+    "commandsExecuted": "Executed {{count}} commands",
+    "errors": "Errors ({{count}})",
+    "operationFailed": "Operation failed"
   },
   "agent_monitor_title": "Agent Monitor",
   "agent_monitor_activeTasks": "{{count}} Active Tasks",
@@ -304,56 +1174,8 @@
     "export": "Export",
     "importSuccess": "Shortcuts imported successfully",
     "importError": "Import failed: Invalid format",
-    "exportSuccess": "Shortcuts exported successfully"
-  },
-  "commands": {
-    "title": "System Commands",
-    "scanResult": "Scanned {{count}} items ({{time}}ms)",
-    "explore": { "label": "Explore", "description": "Deep codebase search and analysis" },
-    "review": { "label": "Review", "description": "Review code quality and security" },
-    "test": { "label": "Test", "description": "Generate unit and integration tests" },
-    "doc": { "label": "Document", "description": "Write documentation and READMEs" },
-    "refactor": { "label": "Refactor", "description": "Suggest code improvements" },
-    "proposal": { "label": "Proposal", "description": "Generate OpenSpec-compliant proposals" },
-    "help": { "label": "System Help", "description": "Show feature guide and shortcuts" },
-    "index": { "label": "Rebuild Index", "description": "Manually force a RAG semantic index rebuild" },
-    "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization" }
-  },
-  "help_message": {
-    "title": "🚀 Welcome to IfAI v0.2.0",
-    "intro": "I am your AI programming companion, designed to boost your productivity with deeply integrated Agents.",
-    "commands_title": "💡 Smart Commands",
-    "commands": [
-      "**@codebase** - Include this in your query for global semantic code search",
-      "**/explore** - Explore codebase, analyze architecture and logic",
-      "**/review** - Review code quality and security recommendations",
-      "**/test** - Automatically generate unit tests for your code",
-      "**/doc** - Write documentation, READMEs, or code comments"
-    ],
-    "shortcuts_title": "⌨️ Key Shortcuts",
-    "shortcuts": [
-      "**Cmd/Ctrl + P** - Quick search and open project files",
-      "**Cmd/Ctrl + K** - Trigger inline AI editing in editor",
-      "**Cmd/Ctrl + L** - Toggle/focus the chat panel",
-      "**Cmd/Ctrl + Alt + P** - Toggle performance monitor panel",
-      "**↑ / ↓** - Quickly recall previous command history"
-    ],
-    "footer": "You can chat with me normally or use the slash commands above to launch specific Agents. Happy coding!"
-  },
-  "help": {
-    "keyboardShortcuts": "Keyboard Shortcuts",
-    "about": "About",
-    "tagline": "AI-Powered Code Editor",
-    "description": "An intelligent code editor powered by AI, designed to help you write better code faster.",
-    "repository": "Source Repository",
-    "documentation": "Documentation",
-    "githubRepository": "GitHub Repository",
-    "reportIssue": "Report Issue",
-    "changelog": "Changelog & Releases",
-    "community": "Community Discussions",
-    "allRightsReserved": "All rights reserved."
-  },
-  "shortcuts": {
+    "exportSuccess": "Shortcuts exported successfully",
+    "exportError": "Export failed",
     "category": {
       "file": "File Operations",
       "edit": "Edit Operations",
@@ -384,6 +1206,1174 @@
     "toggleExplorer": "Toggle Explorer",
     "tip": "Tip: Use ? to quickly open this shortcut list"
   },
+  "commands": {
+    "title": "System Commands",
+    "scanResult": "Scanned {{count}} items ({{time}}ms)",
+    "explore": { "label": "Explore", "description": "Deep codebase search and analysis" },
+    "review": { "label": "Review", "description": "Review code quality and security" },
+    "test": { "label": "Test", "description": "Generate unit and integration tests" },
+    "doc": { "label": "Document", "description": "Write documentation and READMEs" },
+    "refactor": { "label": "Refactor", "description": "Suggest code improvements" },
+    "proposal": { "label": "Proposal", "description": "Generate OpenSpec-compliant proposals" },
+    "help": { "label": "System Help", "description": "Show feature guide and shortcuts" },
+    "index": { "label": "Rebuild Index", "description": "Manually force a RAG semantic index rebuild" },
+    "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization" }
+  },
+  "help_message": {
+    "title": "Welcome to IfAI v0.2.0",
+    "intro": "I am your AI programming companion, designed to boost your productivity with deeply integrated Agents.",
+    "commands_title": "Smart Commands",
+    "commands": [
+      "**@codebase** - Include this in your query for global semantic code search",
+      "**/explore** - Explore codebase, analyze architecture and logic",
+      "**/review** - Review code quality and security recommendations",
+      "**/test** - Automatically generate unit tests for your code",
+      "**/doc** - Write documentation, READMEs, or code comments",
+      "**/index** - Manually rebuild the project's RAG semantic index"
+    ],
+    "shortcuts_title": "Key Shortcuts",
+    "shortcuts": [
+      "**{{quickOpenShortcut}}** - Quick search and open project files",
+      "**{{inlineEditShortcut}}** - Trigger inline AI editing in editor",
+      "**{{toggleChatShortcut}}** - Toggle/focus the chat panel",
+      "**{{performanceMonitorShortcut}}** - Toggle performance monitor panel",
+      "**↑ / ↓** - Quickly recall previous command history"
+    ],
+    "footer": "You can chat with me normally or use the slash commands above to launch specific Agents. Happy coding!"
+  },
+  "inlineAIWidget": {
+    "title": "Inline Assistant",
+    "placeholder": "Optimize this, add comments, or ask questions...",
+    "targetLabel": "Target",
+    "currentContext": "Current Context",
+    "modifiedFiles": "Modified Files ({{count}})",
+    "openModifiedFile": "Open modified file {{file}}",
+    "newLineHint": "{{shortcut}} for new line",
+    "processing": "Processing",
+    "readyToApply": "Changes ready to apply",
+    "applied": "Changes applied successfully",
+    "accept": "Accept",
+    "acceptAndClose": "Accept & Close",
+    "discard": "Discard",
+    "stage": {
+      "plan": "Planning...",
+      "implement": "Implementing...",
+      "verify": "Verifying...",
+      "optimize": "Optimizing..."
+    }
+  },
+  "composerDiff": {
+    "rootDirectory": "root",
+    "empty": "No file changes",
+    "close": "Close",
+    "closeTitle": "Close",
+    "title": "Code Change Preview",
+    "fileCount": "{{count}} files",
+    "acceptAll": "Accept All",
+    "acceptAllTitle": "Accept all changes",
+    "rejectAll": "Reject All",
+    "rejectAllTitle": "Reject all changes",
+    "appliedBadge": "Applied",
+    "acceptFileTitle": "Accept changes for this file",
+    "rejectFileTitle": "Reject changes for this file",
+    "rejectFileRollbackTitle": "Reject changes for this file (rollback)",
+    "selectFile": "Select a file to view changes",
+    "appliedSummary": "Applied: {{applied}}/{{total}}",
+    "allApplied": "All changes applied",
+    "original": "Original",
+    "modified": "Updated",
+    "emptyFile": "<empty file>"
+  },
+  "help": {
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "about": "About",
+    "tagline": "AI-Powered Code Editor",
+    "description": "An intelligent code editor powered by AI, designed to help you write better code faster.",
+    "repository": "Source Repository",
+    "documentation": "Documentation",
+    "githubRepository": "GitHub Repository",
+    "reportIssue": "Report Issue",
+    "changelog": "Changelog & Releases",
+    "community": "Community Discussions",
+    "allRightsReserved": "All rights reserved.",
+    "madeBy": "Made by {{name}}"
+  },
+  "toolClassificationSettings": {
+    "summaryTitle": "Tool classification system",
+    "summaryDescription": "Three-layer routing: exact match (Layer 1) → rule classification (Layer 2) → LLM classification (Layer 3). Adjust behavior and display settings to match your workflow.",
+    "basic": "Basics",
+    "enable": "Enable tool classification",
+    "enableDescription": "Use the three-layer classification system to identify user intent and choose the right tool",
+    "showIndicator": "Show classification indicator",
+    "showIndicatorDescription": "Display live classification results below the chat input",
+    "behavior": "Classification behavior",
+    "confidenceThreshold": "Confidence threshold",
+    "confidenceLoose": "50% (Loose)",
+    "confidenceStrict": "95% (Strict)",
+    "confidenceDescription": "Results below this threshold trigger the fallback strategy",
+    "fallbackStrategy": "Fallback strategy",
+    "fallbackAlways": "Always fall back (most conservative)",
+    "fallbackOnLowConfidence": "Fall back on low confidence (recommended)",
+    "fallbackNever": "Never fall back (most aggressive)",
+    "fallbackAlwaysDescription": "Run the fallback strategy for a second validation even when confidence is high",
+    "fallbackOnLowConfidenceDescription": "Only use the fallback strategy when confidence drops below the threshold",
+    "fallbackNeverDescription": "Trust the classification result completely without using a fallback strategy",
+    "performanceReference": "Performance reference",
+    "layer1": "Layer 1",
+    "layer2": "Layer 2",
+    "layer3": "Layer 3",
+    "openTestPage": "Open test page ({{shortcut}})"
+  },
+  "skillsSettings": {
+    "scanning": "Scanning skills directory...",
+    "emptyTitle": "No skills found",
+    "emptyDescription": "IfAI automatically scans skill plugins in `.ifai/skills` under the project root. Install the built-in demo to get started quickly.",
+    "installDemo": "Install built-in demo skills",
+    "refresh": "Refresh",
+    "viewSource": "View source",
+    "footerTip": "Tip: After a skill is enabled, the AI automatically receives enhanced instructions for that domain.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "toggleSkill": "Toggle skill {{name}}",
+    "openProjectFirst": "Open a project folder before installing demo skills.",
+    "loadFailed": "Failed to load skills: {{error}}",
+    "retry": "Retry"
+  },
+  "skillShared": {
+    "state": {
+      "active": "Active",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "installing": "Installing",
+      "inactive": "Inactive",
+      "uninstalling": "Uninstalling",
+      "error": "Error"
+    },
+    "filters": {
+      "all": "All",
+      "active": "Active",
+      "installed": "Installed",
+      "inactive": "Inactive",
+      "error": "Error"
+    },
+    "sort": {
+      "name": "Name",
+      "version": "Version",
+      "status": "Status",
+      "author": "Author"
+    }
+  },
+  "skillsPanel": {
+    "title": "Skills",
+    "summary": "{{active}} active / {{total}} total",
+    "openMarket": "Open skill market",
+    "searchPlaceholder": "Search skills...",
+    "filter": "Filter",
+    "clearFilters": "Clear filters",
+    "loading": "Loading skills...",
+    "emptyTitle": "No matching skills",
+    "emptyDescription": "Try a different keyword or state filter.",
+    "footer": {
+      "active": "Active: {{count}}",
+      "total": "Total: {{count}}",
+      "filtered": "Showing: {{count}}"
+    },
+    "processing": "Processing...",
+    "activate": "Activate skill",
+    "deactivate": "Deactivate skill",
+    "uninstall": "Uninstall skill",
+    "author": "Author: {{author}}",
+    "tags": "Tags",
+    "noTags": "No tags",
+    "dependencies": "Dependencies",
+    "noDependencies": "No dependencies",
+    "systemPrompt": "System Prompt",
+    "emptySelectionTitle": "Select a skill",
+    "emptySelectionDescription": "Choose a skill from the list to inspect details and actions.",
+    "confirmUninstall": "Uninstall \"{{name}}\"?",
+    "toasts": {
+      "activating": "Activating {{name}}...",
+      "activated": "{{name}} activated",
+      "deactivating": "Deactivating {{name}}...",
+      "deactivated": "{{name}} deactivated",
+      "uninstalling": "Uninstalling {{name}}...",
+      "uninstalled": "{{name}} uninstalled",
+      "actionFailed": "Action failed: {{error}}",
+      "uninstallFailed": "Uninstall failed: {{error}}",
+      "openProjectFirst": "Open a project folder first.",
+      "unknownError": "Unknown error"
+    }
+  },
+  "skillMarket": {
+    "title": "Skill Market",
+    "countSummary": "{{count}} built-in skills",
+    "close": "Close skill market",
+    "back": "Back to list",
+    "searchPlaceholder": "Search skills...",
+    "featuredBadge": "Featured",
+    "installed": "Installed",
+    "installing": "Installing...",
+    "installToProject": "Install to project",
+    "uninstall": "Uninstall skill",
+    "confirmUninstall": "Uninstall \"{{name}}\"?",
+    "version": "Version {{version}}",
+    "author": "Author: {{author}}",
+    "downloads": "{{value}} downloads",
+    "rating": "Rating {{value}}",
+    "size": "Size {{value}}",
+    "tags": "Tags",
+    "dependencies": "Dependencies",
+    "noDependencies": "No dependencies",
+    "requirements": "Requirements",
+    "examples": "Use cases",
+    "systemPromptPreview": "System Prompt Preview",
+    "previewHint": "The full prompt is available after installation.",
+    "welcomeTitle": "Welcome to Skill Market",
+    "welcomeDescription": "Browse curated built-in skills and install them into the current project when you need them.",
+    "featuredCount": "{{count}} featured",
+    "totalCount": "{{count}} skills",
+    "emptyTitle": "No matching skills",
+    "emptyDescription": "Try a different search term or category.",
+    "categories": {
+      "all": "All",
+      "featured": "Featured",
+      "development": "Development",
+      "testing": "Testing",
+      "documentation": "Documentation",
+      "pivo": "PIVO"
+    },
+    "toasts": {
+      "openProjectFirst": "Open a project folder first.",
+      "installing": "Installing {{name}}...",
+      "installed": "{{name}} installed",
+      "installFailed": "Install failed: {{error}}",
+      "uninstalling": "Uninstalling {{name}}...",
+      "uninstalled": "{{name}} uninstalled",
+      "uninstallFailed": "Uninstall failed: {{error}}",
+      "unknownError": "Unknown error"
+    }
+  },
+  "skillCatalog": {
+    "common": {
+      "ifaiTeam": "IfAI Team"
+    },
+    "tags": {
+      "codeReview": "Code Review",
+      "quality": "Quality",
+      "security": "Security",
+      "performance": "Performance",
+      "testing": "Testing",
+      "automation": "Automation",
+      "ciCd": "CI/CD",
+      "documentation": "Documentation",
+      "api": "API",
+      "openapi": "OpenAPI",
+      "swagger": "Swagger",
+      "debugging": "Debugging",
+      "troubleshooting": "Troubleshooting",
+      "errorFixing": "Error Fixing",
+      "pivo": "PIVO",
+      "diagnostics": "Diagnostics",
+      "recovery": "Recovery",
+      "delivery": "Delivery",
+      "implementation": "Implementation",
+      "verification": "Verification",
+      "refactor": "Refactor",
+      "architecture": "Architecture",
+      "maintainability": "Maintainability",
+      "profiling": "Profiling",
+      "optimization": "Optimization",
+      "audit": "Audit",
+      "compliance": "Compliance",
+      "guides": "Guides",
+      "knowledgeBase": "Knowledge Base",
+      "docker": "Docker",
+      "kubernetes": "Kubernetes",
+      "devops": "DevOps",
+      "container": "Containers"
+    },
+    "skills": {
+      "code-review-pro": {
+        "name": "Code Review Pro",
+        "description": "Deep code review focused on correctness, maintainability, security, and performance.",
+        "longDescription": "Reviews code changes with a senior engineering mindset, prioritizes risk, and explains concrete regressions before optional improvements.",
+        "systemPrompt": "Act as a senior code reviewer. Return prioritized findings with impact, evidence, and specific fixes.",
+        "examples": [
+          "Review a React component for state bugs and rendering issues",
+          "Audit an API handler for security regressions",
+          "Check a refactor for maintainability and test gaps"
+        ]
+      },
+      "test-generator-ai": {
+        "name": "AI Test Generator",
+        "description": "Generates unit and integration tests from real code paths and edge cases.",
+        "longDescription": "Builds practical tests that cover behavior, failures, and regression scenarios across common web and backend stacks.",
+        "systemPrompt": "Act as a test engineer. Produce focused unit and integration tests with clear setup, assertions, and edge cases.",
+        "examples": [
+          "Generate Vitest tests for a React hook",
+          "Write integration tests for an Express endpoint",
+          "Cover error handling paths in a utility module"
+        ]
+      },
+      "api-doc-writer": {
+        "name": "API Doc Writer",
+        "description": "Produces structured API documentation with request, response, and error details.",
+        "longDescription": "Turns code and route contracts into concise API references with examples that teams can ship and maintain.",
+        "systemPrompt": "Act as a technical documentation writer. Produce accurate API docs with endpoints, parameters, examples, and error notes.",
+        "examples": [
+          "Document a REST API route group",
+          "Summarize request and response payloads",
+          "Prepare OpenAPI-ready endpoint notes"
+        ]
+      },
+      "bug-hunter": {
+        "name": "Bug Hunter",
+        "description": "Diagnoses defects quickly and proposes narrowly scoped fixes.",
+        "longDescription": "Reads logs, stack traces, and code paths to identify the most probable root cause and recommend a minimal safe patch.",
+        "systemPrompt": "Act as a debugging specialist. Find the likely root cause, explain it clearly, and propose the smallest reliable fix.",
+        "examples": [
+          "Trace a crash from a production stack trace",
+          "Pinpoint a state synchronization bug",
+          "Explain why a background task intermittently fails"
+        ]
+      },
+      "pivo-healer": {
+        "name": "PIVO Healer",
+        "description": "Stabilizes broken flows and guides recovery with clear diagnostics.",
+        "longDescription": "Focuses on degraded systems, identifies the highest-priority breakpoints, and recommends a recovery plan with validation steps.",
+        "systemPrompt": "Act as a recovery specialist. Diagnose failure points, stabilize the flow, and propose a verification-first recovery plan.",
+        "examples": [
+          "Triage a failing proposal workflow",
+          "Recover from a broken persistence chain",
+          "Stabilize a flaky cross-service handoff"
+        ]
+      },
+      "pivo-implementer": {
+        "name": "PIVO Implementer",
+        "description": "Turns approved plans into concrete execution steps and deliverables.",
+        "longDescription": "Translates scoped requirements into implementation sequencing, checkpoints, and production-ready acceptance criteria.",
+        "systemPrompt": "Act as an implementation lead. Break work into executable steps, make the sequence explicit, and surface dependencies early.",
+        "examples": [
+          "Convert a design proposal into implementation tasks",
+          "Sequence a multi-file feature delivery",
+          "Define acceptance criteria for a workflow change"
+        ]
+      },
+      "pivo-verifier": {
+        "name": "PIVO Verifier",
+        "description": "Checks whether execution matches the plan and flags gaps before release.",
+        "longDescription": "Reviews completed work against scope, catches missing verification, and documents the delta between intended and actual outcomes.",
+        "systemPrompt": "Act as a verification lead. Compare execution to the plan, identify gaps, and require concrete validation evidence.",
+        "examples": [
+          "Verify a finished feature against a spec",
+          "Check release readiness before merge",
+          "Audit acceptance criteria coverage"
+        ]
+      },
+      "code-refactor": {
+        "name": "Code Refactor",
+        "description": "Restructures code without changing behavior and preserves maintainability.",
+        "longDescription": "Improves naming, layering, duplication, and module boundaries while protecting behavior with safe incremental changes.",
+        "systemPrompt": "Act as a refactoring specialist. Improve structure and readability while preserving behavior and calling out validation needs.",
+        "examples": [
+          "Split a large component into focused modules",
+          "Remove duplication in service code",
+          "Reshape a store API without changing behavior"
+        ]
+      },
+      "performance-optimizer": {
+        "name": "Performance Optimizer",
+        "description": "Finds bottlenecks and recommends high-impact runtime improvements.",
+        "longDescription": "Targets slow paths, unnecessary renders, expensive queries, and wasteful I/O with pragmatic performance fixes.",
+        "systemPrompt": "Act as a performance engineer. Identify the main bottleneck, estimate impact, and propose the lowest-risk optimization.",
+        "examples": [
+          "Reduce React re-render churn",
+          "Optimize a slow API query path",
+          "Investigate startup latency in a desktop app"
+        ]
+      },
+      "security-auditor": {
+        "name": "Security Auditor",
+        "description": "Reviews code paths for security weaknesses and unsafe assumptions.",
+        "longDescription": "Checks input handling, trust boundaries, credential usage, and operational safeguards to surface practical security risks.",
+        "systemPrompt": "Act as a security auditor. Identify realistic attack surfaces, explain severity, and propose concrete mitigations.",
+        "examples": [
+          "Audit file-system access controls",
+          "Check secret handling in configuration flows",
+          "Review input validation in API endpoints"
+        ]
+      },
+      "tech-writer": {
+        "name": "Tech Writer",
+        "description": "Creates concise technical guides, handoff notes, and user-facing references.",
+        "longDescription": "Helps teams ship clear engineering documentation that is structured, reusable, and easy to maintain across releases.",
+        "systemPrompt": "Act as a technical writer. Produce concise, structured documentation with clear steps, scope, and assumptions.",
+        "examples": [
+          "Write a setup guide for a local toolchain",
+          "Prepare a release note summary",
+          "Document an internal workflow for other engineers"
+        ]
+      },
+      "docker-expert": {
+        "name": "Docker Expert",
+        "description": "Improves Docker, Compose, and container delivery workflows.",
+        "longDescription": "Designs container builds and runtime configuration with attention to image size, security, repeatability, and deployability.",
+        "systemPrompt": "Act as a container specialist. Recommend practical Docker and orchestration improvements with deployment constraints in mind.",
+        "requirements": [
+          "Basic Docker knowledge is recommended"
+        ],
+        "examples": [
+          "Refine a production Dockerfile",
+          "Set up docker-compose for local development",
+          "Prepare Kubernetes deployment guidance"
+        ]
+      }
+    }
+  },
+  "archivePanel": {
+    "title": "Conversation Archive",
+    "detailTitle": "Archive Details",
+    "close": "Close archive panel",
+    "back": "Back to archive list",
+    "errorTitle": "Failed to load archives",
+    "errorDescription": "{{error}}",
+    "summaryTitle": "Conversation Summary",
+    "restore": "Restore archive",
+    "loading": "Loading archives...",
+    "emptyTitle": "No archives yet",
+    "emptyDescription": "Archives are created automatically after conversation compression.",
+    "messageCount": "{{value}} messages",
+    "tokens": "{{value}} tokens",
+    "meta": {
+      "time": "Time",
+      "messages": "Messages",
+      "tokens": "Tokens",
+      "format": "Format",
+      "size": "Size"
+    }
+  },
+  "skillsManagement": {
+    "title": "Skills Center",
+    "subtitle": "Manage AI skill plugins with a consistent project-wide workflow.",
+    "refresh": "Refresh",
+    "grid": "Grid",
+    "list": "List",
+    "gridAria": "Grid view",
+    "listAria": "List view",
+    "openInstaller": "Open skill market",
+    "searchPlaceholder": "Search by skill name, ID, or description...",
+    "clearSearch": "Clear search",
+    "filter": "Filter",
+    "resultsSummary": "{{resultCount}} / {{totalCount}} skills",
+    "filterState": "State:",
+    "sortLabel": "Sort:",
+    "sortOrderAsc": "Ascending",
+    "sortOrderDesc": "Descending",
+    "filterTags": "Tags:",
+    "showLessTags": "Show less",
+    "showMoreTags": "+{{count}} more",
+    "clearAllFilters": "Clear all filters",
+    "popularTags": "Popular tags",
+    "batchSelected": "{{count}} skills selected",
+    "batchActivate": "Activate selected",
+    "clearSelection": "Clear selection",
+    "loading": "Loading skills...",
+    "loadFailedTitle": "Failed to load skills",
+    "retry": "Retry",
+    "emptyTitle": "No skills found",
+    "emptyDescription": "Install built-in sample skills to get started quickly.",
+    "emptyFilteredDescription": "Adjust the current search or filter settings.",
+    "installExamples": "Install sample skills",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "install": "Install",
+    "stats": {
+      "total": "Total",
+      "active": "Active",
+      "installed": "Installed",
+      "error": "Errors"
+    }
+  },
+  "skillInstaller": {
+    "title": "Skill Market",
+    "subtitle": "Browse curated skills and install them into the current project.",
+    "close": "Close installer",
+    "searchPlaceholder": "Search skills...",
+    "emptyTitle": "No matching skills",
+    "emptyDescription": "Try another keyword or category.",
+    "version": "Version {{version}}",
+    "downloads": "{{value}} downloads",
+    "installing": "Installing...",
+    "install": "Install skill",
+    "browseAll": "Browse full catalog",
+    "installFromFile": "Install from local file",
+    "availableCount": "{{count}} skills available",
+    "installFailed": "Failed to install {{name}}: {{error}}",
+    "unknownError": "Unknown error",
+    "categories": {
+      "all": "All",
+      "official": "Official",
+      "community": "Community"
+    }
+  },
+  "skillDetail": {
+    "installing": "Installing...",
+    "install": "Install",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "uninstall": "Uninstall",
+    "source": "Source",
+    "basicInfo": "Basic Info",
+    "skillId": "Skill ID",
+    "author": "Author",
+    "unknownAuthor": "Unknown",
+    "compatibility": "Compatibility",
+    "systemPrompt": "System Prompt",
+    "tags": "Tags",
+    "noTags": "No tags",
+    "dependencies": "Dependencies",
+    "noDependencies": "No dependencies",
+    "sourceFiles": "Source Files",
+    "open": "Open"
+  },
+  "skillEditor": {
+    "createTitle": "Create Skill",
+    "createSubtitle": "Create a new AI skill plugin.",
+    "editTitle": "Edit Skill",
+    "editSubtitle": "Editing {{name}}",
+    "viewTitle": "View Skill",
+    "viewSubtitle": "Read skill details without editing.",
+    "editTab": "Edit",
+    "previewTab": "Preview",
+    "close": "Close editor",
+    "sections": {
+      "basic": "Basic Info"
+    },
+    "fields": {
+      "id": "Skill ID",
+      "idHint": "Use lowercase letters, numbers, and hyphens only.",
+      "name": "Skill Name",
+      "description": "Description",
+      "systemPrompt": "System Prompt",
+      "version": "Version",
+      "versionHint": "Use semantic versioning when possible.",
+      "author": "Author",
+      "tags": "Tags",
+      "tagsPlaceholder": "Add a tag...",
+      "dependencies": "Dependencies",
+      "dependenciesPlaceholder": "Add a dependency ID...",
+      "compatibility": "Compatibility",
+      "compatibilityHint": "Describe compatible app versions with a semver expression."
+    },
+    "placeholders": {
+      "id": "my-skill",
+      "name": "My skill",
+      "description": "Describe what this skill does",
+      "systemPrompt": "You are a helpful assistant...",
+      "version": "1.0.0",
+      "author": "Your Name",
+      "compatibility": "^1.0.0 || >=2.0.0"
+    },
+    "characterCount": "{{count}} characters",
+    "validation": {
+      "id": "Skill ID is required",
+      "name": "Skill name is required",
+      "description": "Description is required",
+      "systemPrompt": "System Prompt is required",
+      "version": "Version is required"
+    },
+    "errorsSummary": "Please fix {{count}} errors",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "previewFallbackName": "Untitled skill",
+    "previewFallbackDescription": "Add a short summary for this skill.",
+    "previewVersion": "Version {{version}}",
+    "previewAuthor": "Author {{author}}",
+    "add": "Add",
+    "removeItem": "Remove item"
+  },
+  "commandPalette": {
+    "placeholder": "Search files...",
+    "placeholderThreads": "Search threads...",
+    "placeholderAll": "Search files, threads... (@files, #threads)",
+    "noResults": "No results found",
+    "threadType": "Thread",
+    "messageCount": "{{count}} messages",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "threads": {
+    "now": "Just now",
+    "minutesAgo": "{{m}}m ago",
+    "hoursAgo": "{{h}}h ago",
+    "daysAgo": "{{d}}d ago",
+    "noThreads": "No threads yet",
+    "newThread": "New thread",
+    "new": "New",
+    "searchPlaceholder": "Search threads...",
+    "clearFilters": "Clear filters",
+    "filterByTag": "Filter by tag",
+    "allTags": "All tags",
+    "noTags": "No tags",
+    "filterByTagHint": "Filter all threads by tag",
+    "manageCurrentThreadTags": "Manage tags for the current thread",
+    "manageTags": "Manage tags",
+    "currentThread": "Current thread",
+    "threads": "threads",
+    "confirmDeleteTag": "Delete tag \"{{tag}}\"?",
+    "tagExists": "Tag already exists",
+    "noActiveThread": "No active thread",
+    "noTagsYet": "No tags on this thread yet",
+    "createTagHint": "Create a tag to assign it to the current thread",
+    "save": "Save",
+    "cancel": "Cancel",
+    "editTag": "Edit tag",
+    "deleteTag": "Delete tag",
+    "newTagName": "New tag name",
+    "create": "Create",
+    "createNewTag": "Create new tag",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinned": "Pinned",
+    "unpinned": "Unpinned",
+    "addTag": "Add tag",
+    "copyTitle": "Copy title",
+    "details": "Thread details",
+    "deleteThread": "Delete thread",
+    "threadId": "Thread ID",
+    "messageCount": "Messages",
+    "messageCountValue": "{{count}} messages",
+    "createdAt": "Created",
+    "lastActive": "Last active",
+    "tags": "Tags",
+    "description": "Description",
+    "confirmDeleteThread": "Delete thread \"{{title}}\"?"
+  },
+  "toolClassificationHistory": {
+    "empty": "No classification history",
+    "total": "{{count}} records",
+    "clear": "Clear history",
+    "clearConfirm": "Clear all classification history?",
+    "secondsAgo": "{{count}}s ago",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago",
+    "categories": {
+      "all": "All categories",
+      "fileOperations": "File operations",
+      "codeGeneration": "Code generation",
+      "codeAnalysis": "Code analysis",
+      "terminalCommands": "Terminal commands",
+      "aiChat": "AI chat",
+      "searchOperations": "Search operations",
+      "noToolNeeded": "No tool needed"
+    },
+    "layers": {
+      "all": "All layers",
+      "layer1": "Layer 1 (Exact match)",
+      "layer2": "Layer 2 (Rule-based)",
+      "layer3": "Layer 3 (LLM)"
+    }
+  },
+  "toolClassificationMonitor": {
+    "title": "Tool classification monitor",
+    "refresh": "Refresh data",
+    "totalCalls": "Total calls",
+    "averageAccuracy": "Average accuracy",
+    "averageLatency": "Average latency",
+    "errorCount": "Error count",
+    "layerDistribution": "Layer distribution",
+    "recentHistory": "Recent history",
+    "errorLog": "Error log ({{count}})",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "noErrors": "No error logs",
+    "expandHint": "Click “Expand” to view error details",
+    "lowConfidence": "Low confidence ({{confidence}}%)"
+  },
+  "toolClassificationIndicator": {
+    "thinking": "Thinking...",
+    "querySimple": "Simple query",
+    "queryComplex": "Complex query",
+    "categoryAria": "Tool category",
+    "feedbackCorrect": "Correct classification",
+    "feedbackIncorrect": "Incorrect classification"
+  },
+  "toolClassificationPanel": {
+    "tabs": {
+      "classify": "Classification test",
+      "history": "History",
+      "stats": "Statistics"
+    },
+    "inputLabel": "Text to classify",
+    "inputPlaceholder": "For example: read a file, generate a function, git status...",
+    "classify": "Classify",
+    "classifying": "Classifying...",
+    "result": "Classification result",
+    "runBenchmark": "Run benchmark",
+    "clearHistory": "Clear history",
+    "benchmarkResults": "Benchmark results",
+    "totalClassifications": "Total classifications",
+    "averageConfidence": "Average confidence",
+    "highAccuracy": "High accuracy",
+    "needsTuning": "Needs tuning",
+    "latestClassification": "Latest classification",
+    "justNow": "Just now",
+    "latestClassificationDesc": "Time of the most recent classification",
+    "byCategory": "By category",
+    "byLayer": "By layer"
+  },
+  "messageItem": {
+    "regenerate": "Regenerate",
+    "agentLive": "Agent Live",
+    "thinking": "Thinking: {{summary}}",
+    "contentCopied": "Content copied",
+    "viewDiff": "View Diff ({{count}} files)",
+    "fixActionFallback": "Apply Fix",
+    "ignoreFix": "Ignore",
+    "applyFix": "Apply Fix",
+    "fixIgnored": "Fix ignored",
+    "fixApplied": "Fix applied",
+    "pendingActions": "{{count}} pending actions",
+    "approveAll": "Approve All",
+    "rejectAll": "Reject All",
+    "breakingDownTask": "Breaking down task...",
+    "rollbackUnavailable": "Rollback is unavailable",
+    "rollbackConflict": "File conflicts detected. Roll back each file individually.",
+    "rollbackSuccess": "Rolled back {{count}} file(s)",
+    "rollbackFailed": "Rollback failed",
+    "rollbackFailedWithError": "Rollback failed: {{error}}"
+  },
+  "codeAnalysisPanel": {
+    "title": "Code Analysis",
+    "analyzing": "Analyzing...",
+    "total": "Total",
+    "empty": "No analysis results yet",
+    "emptyHint": "Open a file to start analysis automatically",
+    "issueCount": "{{count}} issues",
+    "types": {
+      "longFunction": "Long function",
+      "complexFunction": "High complexity",
+      "duplicateCode": "Duplicate code",
+      "magicNumber": "Magic number",
+      "deepNesting": "Deep nesting"
+    },
+    "metrics": {
+      "complexity": "Complexity: {{count}}",
+      "length": "Length: {{count}} lines",
+      "nesting": "Nesting: {{count}} levels"
+    }
+  },
+  "toolApproval": {
+    "rollbackSnapshotRestored": "PIVO: file restored from physical snapshot",
+    "rollbackRestored": "File restored",
+    "rollbackForceRestored": "File force-restored",
+    "rollbackFailed": "Rollback failed",
+    "rollbackFailedWithError": "Rollback failed: {{error}}",
+    "commandLabel": "exec",
+    "autoApprove": {
+      "enabled": "Auto-approve enabled · tool running"
+    },
+    "actions": {
+      "approve": "Approve execution",
+      "cancel": "Cancel",
+      "confirmRollback": "Confirm rollback",
+      "reject": "Reject",
+      "undo": "Undo",
+      "undoPending": "Undoing..."
+    },
+    "conflict": {
+      "title": "Manual edits detected",
+      "description": "This file was manually edited after AI changes. Confirm rollback to overwrite manual edits. This cannot be undone."
+    },
+    "diff": {
+      "loadingContent": "Loading content...",
+      "preparing": "Preparing diff analysis...",
+      "title": "Change analysis"
+    },
+    "fileTree": {
+      "title": "File tree"
+    },
+    "preview": {
+      "collapseView": "Collapse view",
+      "dangerDescription": "This command includes sensitive operations, such as delete or permission changes. Review carefully before running.",
+      "dangerTitle": "High-risk operation warning",
+      "directoryScanning": "Scanning directory structure...",
+      "lines": "{{count}} lines",
+      "preparingChanges": "Preparing change preview...",
+      "queryLabel": "Query",
+      "scopeLabel": "Scope",
+      "searchTitle": "{{toolType}} preview",
+      "showAllLines": "Show all lines ({{count}})",
+      "streaming": "Streaming",
+      "symbolDescription": "Deep semantic analysis in progress: {{fileName}}",
+      "symbolTitle": "{{toolType}} preview"
+    },
+    "result": {
+      "failedStatus": "Failed",
+      "failedTitle": "Execution failed",
+      "runningStatus": "Running",
+      "successStatus": "Success",
+      "title": "Execution result"
+    },
+    "risk": {
+      "high": "High-risk operation",
+      "low": "Low-risk operation",
+      "medium": "Medium risk"
+    },
+    "sections": {
+      "parameters": "Parameters"
+    },
+    "status": {
+      "approved": "Approved",
+      "completed": "Completed",
+      "executing": "Running...",
+      "executingOperation": "Executing operation...",
+      "failed": "Failed",
+      "generating": "Generating...",
+      "generatingShort": "Generating",
+      "pending": "Pending approval",
+      "rejected": "Rejected",
+      "waitingOutput": "Waiting for command output...",
+      "writingFile": "Writing file: {{path}}"
+    }
+  },
+  "aiChat": {
+    "externalFileOpenTitle": "Open external file",
+    "externalFileOpenDescription": "This path is outside the current workspace:\n{{path}}\n\nOpen it anyway?",
+    "composerApplySuccess": "Applied {{count}} file change(s)",
+    "composerApplyFailed": "Apply failed: {{error}}",
+    "composerRejectAll": "Rejected all file changes",
+    "composerRejectSummary": "{{message}} (rolled back {{rolledBack}}, deleted {{deleted}})",
+    "composerFileApplied": "Applied: {{path}}",
+    "composerChangeMissing": "File change not found: {{path}}",
+    "projectFolderNotOpen": "No project folder is open",
+    "composerFileRejected": "Rejected and rolled back: {{path}}",
+    "rollbackFailed": "Rollback failed: {{error}}",
+    "errorFixNone": "No fixable errors found",
+    "errorFixDetected": "Detected {{count}} fixable error(s)",
+    "errorFixFailed": "Error detection failed",
+    "errorFixSent": "Sent the error to the AI assistant",
+    "errorFixOpened": "Opened {{path}}:{{line}}",
+    "unknownError": "Unknown error",
+    "markdown": {
+      "expandHint": "expand to view all",
+      "expandAll": "Expand all ({{count}} lines)",
+      "collapse": "Collapse ({{count}} lines)",
+      "streaming": "Generating..."
+    },
+    "timeline": {
+      "loading": "Loading...",
+      "user": "User",
+      "assistant": "AI",
+      "containsCode": "Contains code",
+      "codeLines": "({{count}} lines)",
+      "loadedSummary": "Loaded {{loaded}}/{{total}} messages",
+      "loadFailed": "Failed to load the timeline. Please try again.",
+      "loadTimeout": "Timeline loading timed out. Please try again.",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "loadMore": "Load more...",
+      "retry": "Retry",
+      "groups": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "older": "Older"
+      }
+    },
+    "streamingBash": {
+      "waitingOutput": "Waiting for output...",
+      "running": "Running... ({{lineCount}} lines)",
+      "completed": "Completed ({{lineCount}} lines, {{elapsedMs}}ms)",
+      "failed": "Failed (exit code: {{exitCode}}, {{lineCount}} lines)",
+      "collapse": "Collapse output",
+      "expand": "Expand output",
+      "commandOutput": "Command output",
+      "streamError": "Stream error: {{error}}",
+      "commandFailed": "Execution failed: {{error}}"
+    },
+    "streamingToolArgs": {
+      "none": "No parameters",
+      "generating": "Generating...",
+      "empty": "Empty",
+      "generatingArgs": "Generating arguments..."
+    },
+    "exploreFindings": {
+      "completed": "Explore complete",
+      "directories": "{{count}} directories",
+      "files": "{{count}} files",
+      "patterns": "{{count}} patterns"
+    },
+    "symbolSearch": {
+      "title": "Reference Symbols (#)",
+      "openFileFirst": "Open a file in the editor first...",
+      "noMatches": "No matching symbols found in the current file...",
+      "lineKind": "Line {{line}} · {{kind}}"
+    },
+    "toolExecution": {
+      "progress": "Execution progress",
+      "generatingContent": "Generating content...",
+      "status": {
+        "pending": "Pending approval",
+        "approved": "Approved",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "rejected": "Rejected",
+        "unknown": "Unknown"
+      },
+      "steps": {
+        "initialize": "Initialize environment",
+        "execute": "Execute command",
+        "process": "Process results"
+      }
+    },
+    "taskCompletion": {
+      "completed": "Task completed",
+      "generatedFiles": "Generated {{count}} file(s)",
+      "characters": "{{count}} chars"
+    },
+    "queueIndicator": {
+      "processing": "Processing",
+      "pending": "{{count}} pending"
+    },
+    "slashCommand": {
+      "navigationHint": "↑↓ to navigate",
+      "enter": "Enter"
+    },
+    "tokenUsage": {
+      "breakdown": "Token breakdown",
+      "systemTotal": "System total",
+      "tokens": "tokens"
+    },
+    "globalAgentMonitor": {
+      "switchToThread": "Switch to thread: {{title}}",
+      "closeInSeconds": "Closes in {{count}}s",
+      "secondsElapsed": "{{count}}s"
+    },
+    "projectTree": {
+      "characters": "{{count}} chars",
+      "truncatedHint": "... (truncated, click to expand)",
+      "hidePreview": "Hide key file preview",
+      "showPreview": "Preview key file",
+      "topology": "Project topology",
+      "keyFiles": "{{count}} key files",
+      "keyFilesPreview": "Key files preview",
+      "files": "{{count}} files",
+      "moreKeyFiles": "... and {{count}} more key files"
+    },
+    "pivoTree": {
+      "missionExecutionPlan": "Mission Execution Plan",
+      "healing": "Healing"
+    },
+    "diffPreview": {
+      "newFile": "New file preview",
+      "semantic": "Semantic diff preview",
+      "remainingLines": "... {{count}} more lines",
+      "analyzing": "The engine is analyzing code changes...",
+      "lineSummary": "Detected {{oldCount}} original lines and will replace them with {{newCount}} new lines.",
+      "poweredBy": "Powered by PIVO 2.0 Engine"
+    },
+    "toolArgsViewer": {
+      "itemsCount": "{{count}} items",
+      "arrayCount": "[{{count}} items]",
+      "arrayTooLarge": "Array too large to display ({{count}} items)",
+      "none": "No parameters",
+      "generating": "Generating arguments...",
+      "moreParameters": "{{count}} more parameters"
+    },
+    "probeSymbol": {
+      "pipeline": "Symbol Probe Pipeline",
+      "empty": "No significant symbols detected in this file."
+    },
+    "exploreProgress": {
+      "phase": {
+        "scanning": "Scanning",
+        "analyzing": "Analyzing",
+        "completed": "Completed"
+      },
+      "directories": "{{current}}/{{total}} directories",
+      "files": "{{count}} files",
+      "filesPerSecond": "{{count}} files/s",
+      "preparing": "Preparing scan...",
+      "scannedFiles": "Scanned files",
+      "recentScanned": "Recently scanned",
+      "directoryTree": "Directory tree ({{count}})",
+      "scanningDirectory": "Scanning directories...",
+      "scanningNow": "Scanning",
+      "scanCompleted": "Scan completed {{count}} files",
+      "scanCompletedTotal": "Scan completed, {{count}} files",
+      "scanCompletedDetailed": "Scan completed, scanned {{count}} files"
+    },
+    "toolBatchApproval": {
+      "groups": {
+        "read": "Read files",
+        "list": "List directories",
+        "search": "Search content",
+        "write": "Write files",
+        "analyze": "Analyze code",
+        "other": "Other actions"
+      },
+      "actions": {
+        "read": "Read",
+        "list": "List",
+        "search": "Search"
+      },
+      "taskTitle": {
+        "privateRepo": "Access ifainew-core private repo",
+        "exploreProject": "Explore the overall project structure",
+        "analyzeKeyFiles": "Analyze key project files"
+      },
+      "status": {
+        "running": "Running",
+        "completed": "Completed"
+      },
+      "headerSummary": "{{status}} {{groupCount}} action groups ({{toolCount}} tools)...",
+      "expandHint": "Ctrl+O to expand",
+      "toolUses": "{{count}} tool uses",
+      "tokens": "tokens",
+      "done": "Done",
+      "showingDetails": "Showing all details below",
+      "approveAll": "Approve all ({{count}})"
+    },
+    "messageRegistry": {
+      "thinking": "Thinking",
+      "status": "Status",
+      "exploreProject": "Explore project",
+      "scannedFiles": "Scanned {{count}} files",
+      "taskBreakdown": "Task breakdown",
+      "generatedImage": "AI generated image",
+      "systemMessage": "System message",
+      "uploadedImage": "Uploaded image",
+      "unknownMessageType": "Unknown message type: {{role}}"
+    },
+    "commandMessages": {
+      "shared": {
+        "possibleReasons": "Possible reasons",
+        "suggestions": "Suggestions",
+        "checkApiKey": "Check the API key configuration",
+        "retryLater": "Try again later",
+        "none": "None",
+        "reasons": {
+          "invalidResponseFormat": "The AI response format was invalid",
+          "networkIssue": "There was a network connection issue",
+          "apiQuotaExceeded": "The API quota may have been exceeded"
+        }
+      },
+      "index": {
+        "rebuilding": "**Rebuilding project index**\n\nThe system is scanning files and building semantic vectors. This may take a moment. You can watch the live progress in the status bar.",
+        "initFailed": "**Index initialization failed**\n\nError details: {{error}}",
+        "projectNotOpen": "**No project folder is open**\n\nOpen a project folder before using this command."
+      },
+      "taskDemo": {
+        "message": "### Task Breakdown Demo\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**Tip:** This is a demo of the task breakdown feature. Use **/task:breakdown [task description]** to break down a real task.\n\nThe task tree includes:\n- **Hierarchy:** parent tasks → subtasks → nested subtasks\n- **Status tracking:** todo / in progress / completed / failed\n- **Priority:** urgent / high / medium / low\n- **Categories:** development / testing / documentation / design / research\n- **Effort estimate:** estimated hours\n- **Acceptance criteria:** explicit completion conditions\n- **Dependencies:** task-to-task dependencies{{saveHint}}\n\nTest it in the console:\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
+        "saveHint": {
+          "saved": "\n\nSaved to: `{{path}}`",
+          "memoryOnly": "\n\nNo project is open. The demo task is stored in memory only."
+        },
+        "tree": {
+          "title": "Demo: Implement user login",
+          "description": "A sample task breakdown that demonstrates the task tree structure",
+          "root": {
+            "title": "Implement user login",
+            "description": "A complete authentication system including login, registration, and password reset"
+          },
+          "backend": {
+            "title": "Backend API development",
+            "description": "Implement backend endpoints for login, registration, and password reset",
+            "acceptance": {
+              "login": "POST /api/auth/login returns a JWT token",
+              "register": "POST /api/auth/register creates a new user",
+              "resetPassword": "POST /api/auth/reset-password sends a reset email"
+            },
+            "children": {
+              "databaseSchema": "Design the database schema",
+              "jwtMiddleware": "Implement JWT auth middleware",
+              "apiEndpoints": "Build the API endpoints"
+            }
+          },
+          "frontend": {
+            "title": "Frontend login screen",
+            "description": "Implement the user login and registration forms",
+            "acceptance": {
+              "responsive": "Responsive design with mobile support",
+              "validation": "Form validation for email format and password strength",
+              "friendlyErrors": "Friendly error messages",
+              "rememberMe": "Remember me option"
+            },
+            "children": {
+              "uiPrototype": "Design the UI prototype",
+              "loginForm": "Implement the login form component",
+              "integrateApi": "Integrate the backend API"
+            }
+          },
+          "testing": {
+            "title": "Write test cases",
+            "description": "Write unit and integration tests for the auth system"
+          },
+          "documentation": {
+            "title": "Write technical documentation",
+            "description": "Write API documentation and deployment guides"
+          }
+        }
+      },
+      "taskBreakdown": {
+        "missingDescription": "Please provide a task description to break down\n\n**Usage**: `/task:breakdown [task description]`\n\n**Example**: `/task:breakdown Implement user login`",
+        "failedTitle": "Task breakdown failed",
+        "simplifySuggestion": "Try simplifying the task description"
+      },
+      "proposal": {
+        "missingDescription": "Please provide a requirement description for the proposal\n\n**Usage**: `/proposal [requirement description]`\n\n**Example**: `/proposal Implement user login`",
+        "starting": "_[Generating OpenSpec proposal...]_\n\n",
+        "failedTitle": "Proposal generation failed",
+        "simplifySuggestion": "Try simplifying the requirement description"
+      },
+      "taskStart": {
+        "missingTaskId": "Please provide a task ID\n\n**Usage**: `/task:start <task-id>`\n\n**Examples**: `/task:start 1` or `/task:start 2-1`\n\n**See available tasks**: run `/task:list`",
+        "tasksFileMissing": "Could not find `tasks.md`\n\nOpen a `tasks.md` file from a proposal first.",
+        "taskNotFound": "Task not found: {{taskId}}\n\n**Available tasks**:\n{{taskList}}",
+        "failed": "Failed to start the task: {{error}}"
+      },
+      "taskList": {
+        "projectNotOpen": "No project is open\n\nOpen a project folder first.",
+        "openFilesTitle": "Currently open files",
+        "tasksFileMissing": "Could not find `tasks.md`{{fileList}}\n\n**How to fix it**:\n1. Find the proposal directory in `.ifai/changes/xxx/`\n2. Open `tasks.md`\n3. Run `/task:list` again",
+        "failed": "Failed to fetch the task list: {{error}}",
+        "report": {
+          "title": "Task Statistics",
+          "total": "Total",
+          "todo": "Todo",
+          "inProgress": "In progress",
+          "done": "Completed",
+          "todoSection": "Todo Tasks",
+          "inProgressSection": "In Progress",
+          "doneSection": "Completed",
+          "moreDone": "... and {{count}} more completed tasks",
+          "noTasksParsed": "No tasks were parsed. Check the format of `tasks.md`."
+        }
+      },
+      "taskComplete": {
+        "missingTaskId": "Please provide a task ID\n\n**Usage**: `/task:complete <task-id>`",
+        "success": "Task **{{taskId}}** has been marked as completed.",
+        "failed": "Operation failed: {{error}}"
+      },
+      "taskTestAll": {
+        "starting": "_[Starting automated test integration flow...]_",
+        "failed": "Failed to start the test agent: {{error}}",
+        "mission": "Run the full unit and E2E suites, then summarize the report in Mission Control"
+      }
+    },
+    "imageAttachments": {
+      "fileTooLarge": "File too large (5MB limit)",
+      "processingFailed": "Processing failed"
+    }
+  },
+  "ghostTaskList": {
+    "active": "Active"
+  },
   "layout": {
     "switcher": {
       "toggleLayout": "Toggle Layout Mode",
@@ -396,15 +2386,19 @@
       "customLayout": "Custom Layout",
       "customLayoutDesc": "Chat panel on left",
       "autoSave": "Settings are auto-saved"
+    },
+    "modeSwitch": {
+      "vibe": "Vibe",
+      "spec": "Spec"
     }
   },
   "onboarding": {
     "steps": {
       "welcome": "Welcome to IfAI Editor! This is a powerful AI-powered code editor. Let's take a quick tour of the core features.",
       "welcomeTitle": "Welcome to IfAI Editor",
-      "commandBar": "⌨️ CommandBar\n\nThis is a Vim-style command line! Press **:** to open it.\n\nCommon commands:\n• **:w** - Save current file\n• **:q** - Close current file\n• **:wq** - Save and close\n• **:grep keyword** - Search in files",
+      "commandBar": "CommandBar\n\nThis is a Vim-style command line. Press **:** to open it.\n\nCommon commands:\n• **:w** - Save current file\n• **:q** - Close current file\n• **:wq** - Save and close\n• **:grep keyword** - Search in files",
       "commandBarTitle": "Vim-Style Command Line",
-      "settingsGuide": "⚙️ Settings Panel\n\nHere you can:\n• Configure AI providers and API keys\n• Adjust editor appearance and behavior\n• View and customize keyboard shortcuts\n• Manage performance and display options",
+      "settingsGuide": "Settings Panel\n\nHere you can:\n• Configure AI providers and API keys\n• Adjust editor appearance and behavior\n• View and customize keyboard shortcuts\n• Manage performance and display options",
       "settingsGuideTitle": "Settings Guide",
       "layoutSwitcher": "Click here to switch between different layout modes to adapt to different work scenarios.",
       "layoutSwitcherTitle": "Layout Switcher"
@@ -417,6 +2411,7 @@
       "open": "Open Dialog",
       "skip": "Skip"
     },
+    "progress": "Step {{current}} of {{total}}",
     "resetTutorial": "Reset Tutorial",
     "resetConfirm": "Are you sure you want to reset the tutorial?",
     "resetMessage": "The page will reload to show the onboarding tour"
@@ -444,6 +2439,7 @@
     "saveAndContinue": "Save and Continue",
     "skipForNow": "Skip for Now",
     "skipWarning": "You can set it up later in Settings",
+    "securityNote": "Your API key is stored locally and is never uploaded to any server.",
     "openZhipuPlatform": "Open Zhipu AI Platform →",
     "otherProviders": "Other Providers",
     "otherProvidersDesc": "You can also use OpenAI, DeepSeek, Kimi, or custom providers in settings."
@@ -515,6 +2511,8 @@
     "arch": "Architecture",
     "modelDir": "Model Directory",
     "inferenceParams": "Inference Parameters",
+    "temperature": "Temperature",
+    "topP": "Top P",
     "temperatureDesc": "Control randomness (0.0 - 2.0)",
     "topPDesc": "Nuclear sampling parameter (0.0 - 1.0)",
     "testFeatures": "Test Features",
@@ -535,7 +2533,15 @@
     "disabled": "Local model disabled",
     "validateSuccess": "Model validation successful",
     "parseSuccess": "Parse successful!",
-    "parseFailed": "Parse failed"
+    "parseFailed": "Parse failed",
+    "loadFailed": "Failed to load local model settings: {{error}}",
+    "validateFailed": "Model validation failed: {{error}}",
+    "openDirFailed": "Failed to open model directory: {{error}}",
+    "toggleLabel": "Enable or disable the local model",
+    "etaUnknown": "--",
+    "etaSeconds": "{{count}}s",
+    "etaMinutesSeconds": "{{minutes}}m {{seconds}}s",
+    "etaHoursMinutes": "{{hours}}h {{minutes}}m"
   },
   "dataManagement": {
     "statistics": "Data Statistics",
@@ -601,7 +2607,39 @@
       "todoTasks": "Todo Tasks",
       "summary": "Summary",
       "mentions": "mentions",
-      "solution": "Solution"
+      "solution": "Solution",
+      "extractFromMessages": "Re-extract notes from messages",
+      "startedAt": "Started at",
+      "exportFormats": {
+        "markdown": "Markdown",
+        "json": "JSON"
+      },
+      "stats": {
+        "techConcepts": "Technical concepts: {{count}}",
+        "fileChanges": "File changes: {{count}}",
+        "todoTasks": "Todo tasks: {{count}}"
+      },
+      "categories": {
+        "concept": "Concept",
+        "pattern": "Pattern",
+        "algorithm": "Algorithm",
+        "framework": "Framework"
+      },
+      "priorities": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "fileAction": {
+        "created": "Created",
+        "modified": "Modified",
+        "deleted": "Deleted"
+      },
+      "taskStatus": {
+        "pending": "Pending",
+        "inProgress": "In Progress",
+        "completed": "Completed"
+      }
     },
     "summary": {
       "title": "Conversation Summary",
@@ -610,7 +2648,493 @@
       "copy": "Copy",
       "copied": "Copied",
       "export": "Export",
-      "compacted": "Conversation compacted"
+      "compacted": "Conversation compacted",
+      "estimatedCost": "Est. cost ¥{{value}}"
     }
+  },
+  "proposalReview": {
+    "title": "Proposal Review",
+    "loading": "Loading proposal...",
+    "notFound": "Proposal not found",
+    "closeWindow": "Close",
+    "saved": "Proposal saved",
+    "validated": "Spec validated",
+    "pendingReview": "Pending review",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "reject": "Reject",
+    "approve": "Approve",
+    "taskLabel": "Task {{index}}",
+    "hours": "{{count}}h",
+    "tabs": {
+      "overview": "Overview",
+      "tasks": "Tasks",
+      "specs": "Specs"
+    },
+    "sections": {
+      "background": "Background",
+      "changes": "Proposed changes"
+    },
+    "impact": {
+      "affectedSpecs": "Affected specs",
+      "filesToChange": "Files to change",
+      "breaking": "Breaking changes",
+      "estimated": "Estimated",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "specTypes": {
+      "added": "Added",
+      "modified": "Modified",
+      "removed": "Removed"
+    },
+    "errors": {
+      "save": "Save failed: {{error}}",
+      "approve": "Approve failed: {{error}}",
+      "reject": "Reject failed: {{error}}"
+    }
+  },
+  "codeReviewModal": {
+    "title": "Code Review Results",
+    "issueCount": "{{count}} issues",
+    "viewFix": "View fix",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "commitAnyway": "Commit anyway",
+    "forceCommit": "Force commit",
+    "ignoreIssues": "Ignore issues",
+    "ignoreIssuesSuffix": "continue anyway",
+    "applyAllFixes": "Apply all fixes",
+    "fixSuggestion": "Fix suggestion",
+    "currentCode": "Current code",
+    "suggestedFix": "Suggested fix",
+    "description": "Description",
+    "cancelFix": "Close",
+    "applyFix": "Apply fix",
+    "committed": "Changes committed",
+    "fixAppliedSuccessfully": "Fix applied successfully",
+    "fixApplied": "Applied fix: {{message}}",
+    "originalCodeFallback": "No original code available",
+    "fixedCodeFallback": "No suggested fix available",
+    "types": {
+      "security": "Security",
+      "performance": "Performance",
+      "style": "Style",
+      "error": "Error",
+      "custom": "Custom"
+    },
+    "severities": {
+      "critical": "Critical",
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info"
+    }
+  },
+  "taskBreakdown": {
+    "stats": {
+      "completed": "Completed: {{count}}",
+      "inProgress": "In progress: {{count}}",
+      "failed": "Failed: {{count}}",
+      "total": "Total: {{count}} tasks"
+    },
+    "actions": {
+      "viewFull": "View full",
+      "searchPlaceholder": "Search tasks...",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "exportJson": "Export JSON",
+      "enterFullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "copyId": "Copy ID"
+    },
+    "labels": {
+      "taskTree": "Task tree",
+      "totalEstimatedHours": "Estimated total time: {{hours}}",
+      "id": "ID: {{id}}",
+      "status": "Task status",
+      "description": "Description",
+      "taskId": "Task ID",
+      "priority": "Priority",
+      "category": "Category",
+      "estimatedHours": "Estimated time",
+      "dependencies": "Dependencies ({{count}})",
+      "dependenciesTitle": "Dependencies: {{items}}",
+      "acceptanceCriteria": "Acceptance criteria",
+      "subtasks": "Subtasks"
+    },
+    "feedback": {
+      "copied": "Copied"
+    },
+    "status": {
+      "pending": "Pending",
+      "inProgress": "In progress",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent",
+      "critical": "Critical"
+    },
+    "categories": {
+      "development": "Development",
+      "testing": "Testing",
+      "documentation": "Documentation",
+      "design": "Design",
+      "research": "Research",
+      "deployment": "Deployment",
+      "other": "Other"
+    },
+    "units": {
+      "hoursShort": "{{count}}h",
+      "hoursLong": "{{count}} hours"
+    }
+  },
+  "workflow": {
+    "shared": {
+      "status": {
+        "completed": "Completed",
+        "failed": "Failed",
+        "running": "Running",
+        "skipped": "Skipped",
+        "waiting": "Waiting"
+      }
+    },
+    "page": {
+      "title": "Multi-Agent Workflows",
+      "description": "Automate code analysis, reviews, refactoring, and testing.",
+      "back": "Back",
+      "running": "Running workflows ({{count}})",
+      "startedAt": "Started at: {{time}}",
+      "view": "View",
+      "targetPath": "Target path",
+      "targetPathPlaceholder": "./src",
+      "browse": "Browse",
+      "tabs": {
+        "select": "Quick workflows",
+        "templates": "Workflow templates",
+        "editor": "Custom editor",
+        "monitor": "Execution monitor"
+      },
+      "idleTitle": "No workflow is running",
+      "idleDescription": "Start a workflow from Quick Workflows or Workflow Templates.",
+      "completed": "Completed workflows ({{count}})",
+      "viewResults": "View results",
+      "nodes": {
+        "explore": "Explore code",
+        "review": "Code review",
+        "refactor": "Refactor plan",
+        "quickExplore": "Quick exploration",
+        "security": "Security check"
+      }
+    },
+    "monitor": {
+      "title": "Workflow Running",
+      "workflowId": "Workflow ID: {{id}}",
+      "duration": "Duration",
+      "durationSeconds": "{{count}}s",
+      "completedNodes": "{{completed}} / {{total}} nodes",
+      "progress": "Progress",
+      "nodeResults": "Node Results",
+      "output": "Output:",
+      "error": "Error:",
+      "waitingForResults": "Waiting for node results...",
+      "executionFailed": "Execution Failed"
+    },
+    "results": {
+      "title": "Workflow Results",
+      "workflowId": "Workflow ID: {{id}}",
+      "export": "Export",
+      "share": "Share",
+      "retry": "Retry",
+      "status": "Status",
+      "totalDuration": "Total duration",
+      "completedNodesLabel": "Completed nodes",
+      "failedNodesLabel": "Failed nodes",
+      "startedAt": "Started at",
+      "completedAt": "Completed at",
+      "nodeDetails": "Node Details",
+      "output": "Output:",
+      "error": "Error:",
+      "metadata": "Metadata:",
+      "exportOptions": "Export Options",
+      "exportFormats": {
+        "json": "Export as JSON",
+        "markdown": "Export as Markdown",
+        "pdf": "Export as PDF"
+      },
+      "tabs": {
+        "all": "All ({{count}})",
+        "completed": "Completed ({{count}})",
+        "failed": "Failed ({{count}})",
+        "skipped": "Skipped ({{count}})"
+      }
+    },
+    "selector": {
+      "loading": "Loading workflows...",
+      "title": "Multi-Agent Workflows",
+      "description": "Choose a workflow template to automate your code tasks.",
+      "run": "Run Workflow",
+      "executing": "Running...",
+      "templateNodes": "{{count}} nodes",
+      "tabs": {
+        "quick": "Quick Workflows",
+        "templates": "Workflow Templates",
+        "custom": "Custom Workflows"
+      },
+      "quick": {
+        "codeReview": {
+          "title": "Code Review",
+          "description": "Explore, review, test, and draft documentation automatically."
+        },
+        "exploration": {
+          "title": "Code Exploration",
+          "description": "Quickly inspect and analyze the project structure."
+        },
+        "qualityCheck": {
+          "title": "Quality Check",
+          "description": "Run a broad code-quality inspection and analysis."
+        }
+      },
+      "custom": {
+        "title": "Custom Workflows",
+        "description": "Create your own multi-agent workflow.",
+        "comingSoonDescription": "The custom workflow editor is coming soon...",
+        "comingSoon": "Coming Soon"
+      }
+    },
+    "editor": {
+      "configuration": "Workflow Configuration",
+      "nodes": "Nodes",
+      "connections": "Connections",
+      "addNode": "Add Node",
+      "save": "Save Workflow",
+      "run": "Run Workflow",
+      "executing": "Running...",
+      "defaultNodeLabel": "Node {{index}}",
+      "fields": {
+        "id": "Workflow ID",
+        "name": "Workflow Name",
+        "description": "Description",
+        "agentType": "Agent Type",
+        "nodeId": "Node ID"
+      },
+      "placeholders": {
+        "id": "custom-workflow",
+        "name": "My Workflow",
+        "description": "Describe what this workflow does..."
+      },
+      "empty": {
+        "nodes": "No nodes yet. Add one to start building the workflow.",
+        "connections": "No connections yet."
+      },
+      "agentTypes": {
+        "explore": "Explore",
+        "review": "Review",
+        "refactor": "Refactor",
+        "test": "Test",
+        "doc": "Document",
+        "taskBreakdown": "Task Breakdown",
+        "proposalGenerator": "Proposal Generator",
+        "generalPurpose": "General Purpose"
+      }
+    },
+    "floatingMonitor": {
+      "title": "Workflow Monitor",
+      "runningCount": "{{count}} running",
+      "expand": "Expand",
+      "minimize": "Minimize",
+      "close": "Close",
+      "runningFallback": "Workflow running",
+      "defaultWorkflowName": "Workflow",
+      "completedNodes": "{{completed}} / {{total}} nodes completed",
+      "showDetails": "Show Details",
+      "hideDetails": "Hide Details",
+      "status": {
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed"
+      }
+    },
+    "inlineMonitor": {
+      "duration": {
+        "secondsShort": "{{value}}s",
+        "millisecondsShort": "{{value}}ms",
+        "minutesShort": "{{value}}m"
+      },
+      "operations": {
+        "search": "Search",
+        "read": "Read",
+        "write": "Write",
+        "agent": "Agent"
+      },
+      "toolSummary": {
+        "lines": "{{count}} lines",
+        "files": "{{count}} files",
+        "chars": "{{count}} chars",
+        "replacements": "{{count}} replacements",
+        "matches": "{{count}} matches",
+        "separator": ", "
+      },
+      "toolTitles": {
+        "read": "Read",
+        "write": "Write",
+        "edit": "Edit",
+        "glob": "Glob",
+        "grep": "Grep",
+        "list": "List",
+        "bash": "Bash"
+      },
+      "workflow": {
+        "defaultLabel": "Workflow",
+        "embeddedRunningName": "{{type}} running",
+        "runningName": "Workflow running",
+        "completedName": "Workflow completed",
+        "failedName": "Workflow failed",
+        "initializing": "Initializing..."
+      },
+      "status": {
+        "completed": "Completed",
+        "failed": "Failed",
+        "running": "Running..."
+      },
+      "node": {
+        "details": {
+          "pending": "Waiting to run...",
+          "streamingCompleted": "Streaming completed",
+          "streamingGenerating": "Generating content..."
+        }
+      },
+      "streaming": {
+        "summaryLabel": "Generate summary"
+      },
+      "stepsCount": "{{count}} steps",
+      "viewModes": {
+        "switchToDag": "Switch to DAG view",
+        "switchToList": "Switch to list view",
+        "dag": "DAG view",
+        "list": "List view"
+      },
+      "toolDetails": {
+        "summary": "Details",
+        "input": "Input:",
+        "output": "Output:"
+      },
+      "nodeStatus": {
+        "completed": "Completed",
+        "failed": "Failed",
+        "generating": "Generating...",
+        "pending": "Waiting",
+        "running": "Running"
+      },
+      "toolStatus": {
+        "error": "Failed",
+        "success": "Succeeded"
+      },
+      "content": {
+        "length": "Content length: {{count}} chars"
+      },
+      "empty": {
+        "preparing": "Preparing workflow...",
+        "waitingForNodes": "Waiting for node details..."
+      },
+      "labels": {
+        "workflowId": "Workflow ID"
+      },
+      "currentNode": {
+        "executing": "Executing: {{node}}"
+      },
+      "footer": {
+        "completed": "Workflow execution completed",
+        "failed": "Workflow execution failed"
+      },
+      "dagVisualizer": {
+        "empty": {
+          "title": "No DAG nodes yet",
+          "description": "Run the workflow to display the DAG visualization."
+        }
+      },
+      "dagMonitor": {
+        "workflow": {
+          "titleRunning": "Workflow running",
+          "titleCompleted": "Workflow completed",
+          "titleFailed": "Workflow failed",
+          "statusRunning": "Running...",
+          "statusCompleted": "Completed",
+          "statusFailed": "Failed",
+          "executionFailedGeneric": "Workflow execution failed",
+          "durationLabel": "Duration",
+          "progressLabel": "Progress"
+        },
+        "summary": {
+          "runningCount": "Running {{count}}",
+          "completedCount": "Completed {{count}}",
+          "failedCount": "Failed {{count}}"
+        },
+        "sections": {
+          "visualization": "Workflow visualization",
+          "nodes": "Node status",
+          "timeline": "Execution timeline"
+        },
+        "viewMode": {
+          "switchToReactFlow": "Switch to React Flow",
+          "switchToSvg": "Switch to SVG"
+        },
+        "timeline": {
+          "empty": "Waiting for events...",
+          "started": "▶ Start",
+          "completed": "Completed",
+          "progress": "Progress",
+          "toolCall": "Tool call"
+        },
+        "status": {
+          "running": "Running",
+          "completed": "Completed",
+          "pending": "Waiting",
+          "failed": "Failed",
+          "skipped": "Skipped"
+        },
+        "nodeTypes": {
+          "search": "Search",
+          "read": "Read",
+          "write": "Write",
+          "agent": "Agent",
+          "command": "Command",
+          "explore": "Explore",
+          "review": "Review",
+          "refactor": "Refactor",
+          "test": "Test",
+          "build": "Build",
+          "deploy": "Deploy"
+        },
+        "nodeDetails": {
+          "nodeId": "Node ID",
+          "status": "Status",
+          "type": "Type",
+          "startedAt": "Started at",
+          "completedAt": "Completed at",
+          "duration": "Duration",
+          "toolCalls": "Tool calls ({{count}})",
+          "toolFailed": "Failed",
+          "toolSuccess": "Success",
+          "toolDuration": "Duration: {{count}}ms",
+          "toolOutputLength": "Output: {{count}} chars",
+          "toolInput": "Input",
+          "toolOutput": "Output",
+          "output": "Output",
+          "error": "Error"
+        }
+      }
+    }
+  },
+  "statusbar": {
+    "ready": "Ready",
+    "noFileOpen": "No file open",
+    "plainText": "Plain Text",
+    "tokens": "Tokens",
+    "filesCount": "{{count}} files"
   }
 }

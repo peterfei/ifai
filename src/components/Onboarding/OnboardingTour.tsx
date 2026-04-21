@@ -130,13 +130,15 @@ const getTourSteps = (t: (key: string) => string): any[] => {
         ul: ({ children }) => <ul style={{ marginLeft: '1.5em', marginTop: '0.5em', marginBottom: '0.5em' }}>{children}</ul>,
         // 自定义 strong/b 样式
         strong: ({ children }) => {
-          return <strong style={{ fontWeight: '600', color: '#fff' }}>{children}</strong>;
+          return <strong style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{children}</strong>;
         },
         // 自定义代码样式
         code: ({ inline, children }: any) => {
           return inline ? (
             <code style={{
-              backgroundColor: 'rgba(255,255,255,0.1)',
+              backgroundColor: 'var(--accent-soft-bg)',
+              border: '1px solid var(--accent-soft-border)',
+              color: 'var(--accent-color)',
               padding: '0.2em 0.4em',
               borderRadius: '4px',
               fontFamily: 'monospace',
@@ -179,7 +181,7 @@ const getTourSteps = (t: (key: string) => string): any[] => {
     },
     // 步骤 4: 布局切换器（定位到布局切换按钮）
     {
-      target: '[data-testid="layout-switcher"]',
+      target: document.querySelector('[data-testid="layout-switcher"]') ? '[data-testid="layout-switcher"]' : 'body',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
       disableBeacon: false,
@@ -210,8 +212,8 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       // 目标元素选择器（只检查静态元素）
       const targets = [
         'body',
-        '[data-testid="layout-switcher"]'
-      ];
+        document.querySelector('[data-testid="layout-switcher"]') ? '[data-testid="layout-switcher"]' : null,
+      ].filter(Boolean) as string[];
 
       // 轮询检测目标元素是否存在
       let checkInterval: NodeJS.Timeout | null = null;
@@ -316,11 +318,10 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   const tooltipStyles = {
     options: {
       zIndex: 10000,
-      arrowColor: '#1e1e1e',
+      arrowColor: 'var(--bg-secondary)',
     },
     button: {
       primary: {
-        backgroundColor: '#3b82f6',
         borderRadius: '8px',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '13px',
@@ -329,19 +330,14 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       },
       secondary: {
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderRadius: '8px',
-        color: 'rgba(255, 255, 255, 0.8)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '13px',
         fontWeight: '500',
         padding: '8px 16px',
       },
       skip: {
-        backgroundColor: 'transparent',
         borderRadius: '8px',
-        color: 'rgba(255, 255, 255, 0.5)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '13px',
         fontWeight: '500',
@@ -349,10 +345,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       },
     },
     tooltip: {
-      backgroundColor: '#1e1e1e',
       borderRadius: '16px',
-      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.2)',
-      color: 'rgba(255, 255, 255, 0.9)',
       fontSize: '14px',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       lineHeight: '1.7',
@@ -366,7 +359,6 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       padding: '24px 32px 8px',
     },
     tooltipTitle: {
-      color: '#ffffff',
       fontSize: '18px',
       fontWeight: '600',
       marginBottom: '0',
@@ -403,12 +395,12 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       callback={handleCallback}
       styles={tooltipStyles}
       locale={{
-        back: t('onboarding.buttons.back') || 'Back',
-        close: t('onboarding.buttons.close') || 'Close',
-        last: t('onboarding.buttons.last') || 'Finish',
-        next: t('onboarding.buttons.next') || 'Next',
-        open: t('onboarding.buttons.open') || 'Open the dialog',
-        skip: t('onboarding.buttons.skip') || 'Skip',
+        back: String(t('onboarding.buttons.back')),
+        close: String(t('onboarding.buttons.close')),
+        last: String(t('onboarding.buttons.last')),
+        next: String(t('onboarding.buttons.next')),
+        open: String(t('onboarding.buttons.open')),
+        skip: String(t('onboarding.buttons.skip')),
       }}
       disableCloseOnEsc={true}
       disableOverlayClose={true}

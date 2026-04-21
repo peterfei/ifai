@@ -23,6 +23,8 @@ import { ThreadContextMenu } from './ThreadContextMenu';
 import { TagManager } from './TagManager';
 import type { Thread } from '../../stores/threadStore';
 import clsx from 'clsx';
+import { Pin, Bug, Sparkles, Wrench, FlaskConical, MessageSquare } from 'lucide-react';
+import { formatKeybinding } from '../../utils/keyboard';
 
 // ============================================================================
 // Types
@@ -141,13 +143,13 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
   };
 
   // 💎 Phase 3: 根据标题初步判断意图图标
-  const getIntentIcon = (title: string) => {
+  const getIntentIcon = (title: string): React.ReactNode => {
     const t = title.toLowerCase();
-    if (t.includes('bug') || t.includes('fix') || t.includes('修复') || t.includes('报错')) return '🐛';
-    if (t.includes('feature') || t.includes('实现') || t.includes('功能') || t.includes('add')) return '✨';
-    if (t.includes('refactor') || t.includes('重构') || t.includes('clean')) return '🛠️';
-    if (t.includes('test') || t.includes('测试')) return '🧪';
-    return '💬'; // 默认
+    if (t.includes('bug') || t.includes('fix') || t.includes('修复') || t.includes('报错')) return <Bug size={isSidekick ? 16 : 12} className="theme-text-danger" />;
+    if (t.includes('feature') || t.includes('实现') || t.includes('功能') || t.includes('add')) return <Sparkles size={isSidekick ? 16 : 12} className="text-[var(--accent-color)]" />;
+    if (t.includes('refactor') || t.includes('重构') || t.includes('clean')) return <Wrench size={isSidekick ? 16 : 12} className="theme-text-warning" />;
+    if (t.includes('test') || t.includes('测试')) return <FlaskConical size={isSidekick ? 16 : 12} className="theme-text-success" />;
+    return <MessageSquare size={isSidekick ? 16 : 12} className="text-[var(--accent-color)]" />;
   };
 
   return (
@@ -155,11 +157,11 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
       layout
       data-thread-id={thread.id}
       className={`
-        group relative flex items-center gap-2 rounded-full cursor-pointer transition-all duration-300 whitespace-nowrap
+        group relative flex items-center gap-2 rounded-full border cursor-pointer transition-all duration-300 whitespace-nowrap
         ${isSidekick ? 'p-2 justify-center min-w-[36px]' : 'px-3 py-1.5'}
         ${isActive
-          ? 'bg-blue-600/10 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]'
-          : 'bg-transparent text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'
+          ? 'border-[var(--accent-soft-border)] bg-[var(--selected-bg)] text-[var(--text-primary)] shadow-sm'
+          : 'border-transparent bg-transparent text-[var(--text-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
         }
       `}
       title={isSidekick ? thread.title : undefined}
@@ -174,7 +176,7 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
     >
       {/* 意图图标与 Pin 状态 */}
       <span className={clsx("flex-shrink-0", isSidekick ? "text-[16px]" : "text-[12px]")}>
-        {thread.pinned ? '📌' : getIntentIcon(thread.title)}
+        {thread.pinned ? <Pin size={isSidekick ? 16 : 12} className="fill-[var(--warning-soft-bg)] text-[var(--warning-color)]" /> : getIntentIcon(thread.title)}
       </span>
 
       {/* 标题 */}
@@ -187,11 +189,21 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
-            className="w-[80px] text-[11px] font-bold bg-gray-700 text-white px-1.5 py-0.5 rounded-full outline-none focus:ring-1 focus:ring-blue-500"
+            className={clsx(
+              'w-[80px] text-[11px] font-bold px-1.5 py-0.5 rounded-full outline-none focus:ring-1 focus:ring-[var(--accent-color)]',
+              'theme-panel theme-text border theme-border'
+            )}
             autoFocus
           />
         ) : (
-          <span className={`text-[11px] font-bold truncate transition-all ${isActive ? 'max-w-[120px]' : 'max-w-[80px]'}`}>
+          <span
+            className={clsx(
+              'truncate text-[11px] font-semibold transition-colors',
+              isActive
+                ? 'max-w-[120px] text-[var(--text-primary)]'
+                : 'max-w-[80px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
+            )}
+          >
             {thread.title}
           </span>
         )
@@ -201,10 +213,12 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
       {showCloseButton && canClose && !isSidekick && (
         <button
           onClick={(e) => onClose(e, thread.id)}
-          className={`
-            ml-1 p-0.5 rounded-full hover:bg-blue-500/20 hover:text-blue-300 transition-all
-            ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-          `}
+          className={clsx(
+            'ml-1 flex h-5 w-5 items-center justify-center rounded-full border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)]',
+            isActive
+              ? 'border-[var(--accent-soft-border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+              : 'border-transparent text-[var(--text-subtle)] opacity-60 group-hover:opacity-100 hover:border-[var(--border-strong)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+          )}
         >
           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
@@ -217,7 +231,7 @@ const ThreadItem: React.FC<ThreadItemProps> = memo(({
         <motion.div
           layoutId="tab-active-pill"
           data-testid="tab-active-pill"
-          className={clsx("absolute bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6]", isSidekick ? "-right-1 top-1/4 bottom-1/4 w-[2px]" : "-bottom-[9px] left-1/4 right-1/4 h-[2px]")}
+          className={clsx("absolute rounded-full bg-[var(--accent-color)] shadow-sm", isSidekick ? "-right-1 top-1/4 bottom-1/4 w-[2px]" : "-bottom-[9px] left-1/4 right-1/4 h-[2px]")}
           initial={false}
           transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
         />
@@ -238,9 +252,10 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
   showCloseButton = true,
   width,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeFileId = useFileStore(state => state.activeFileId);
   const isSidekick = width ? width < 100 : false;
+  const newThreadShortcut = formatKeybinding('Mod+t');
 
   // Edit signal state for F2 shortcut
   const [startEditSignal, setStartEditSignal] = React.useState<string | null>(null);
@@ -421,24 +436,24 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return t('threads.now', '刚刚');
-    if (diffMins < 60) return t('threads.minutesAgo', '{{m}}分钟前', { m: diffMins });
-    if (diffMins < 1440) return t('threads.hoursAgo', '{{h}}小时前', { h: Math.floor(diffMins / 60) });
-    return date.toLocaleDateString();
+    if (diffMins < 1) return t('threads.now');
+    if (diffMins < 60) return t('threads.minutesAgo', { m: diffMins });
+    if (diffMins < 1440) return t('threads.hoursAgo', { h: Math.floor(diffMins / 60) });
+    return date.toLocaleDateString(i18n.language);
   };
 
   // No threads state
   if (filteredThreads.length === 0) {
     return (
       <>
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-          <span className="text-sm text-gray-500">{t('threads.noThreads', '暂无对话')}</span>
+        <div className="flex items-center justify-between px-4 py-2 theme-panel-muted border-b theme-border">
+          <span className="text-sm theme-text-subtle">{t('threads.noThreads')}</span>
           <button
             onClick={handleNewThread}
-            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-            title={t('threads.newThread', '新建对话')}
+            className="px-3 py-1 text-sm theme-button-primary rounded transition-colors"
+            title={t('threads.newThread')}
           >
-            + {t('threads.new', '新对话')}
+            + {t('threads.new')}
           </button>
         </div>
       </>
@@ -447,7 +462,7 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
 
   return (
     <>
-      <div className={clsx("flex flex-col bg-[#1e1e1e]/40 backdrop-blur-md", isSidekick && "items-center")}>
+      <div className={clsx('flex flex-col theme-glass backdrop-blur-md', isSidekick && 'items-center')}>
         <div className={clsx("flex px-3 py-2 gap-2 overflow-hidden", isSidekick ? "flex-col items-center px-1" : "items-center")}>
           {/* Scrollable tab list */}
           <div
@@ -478,17 +493,17 @@ export const ThreadTabs: React.FC<ThreadTabsProps> = ({
           <button
             onClick={handleNewThread}
             className={clsx(
-              "rounded-full bg-gray-800/50 hover:bg-blue-600/20 text-gray-400 hover:text-blue-400 transition-all flex items-center justify-center flex-shrink-0 border border-white/5",
+              'rounded-full theme-panel theme-border border text-[var(--text-secondary)] hover:border-[var(--accent-soft-border)] hover:bg-[var(--hover-bg)] hover:text-[var(--accent-color)] transition-all flex items-center justify-center flex-shrink-0 shadow-sm',
               isSidekick ? "w-10 h-10 mb-2" : "w-8 h-8"
             )}
-            title={t('threads.newThread', '新建对话') + ' (Ctrl+T)'}
+            title={`${t('threads.newThread')} (${newThreadShortcut})`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
         </div>
-        <div className="h-px bg-white/5 w-full" />
+        <div className="theme-divider h-px w-full" />
       </div>
 
       {/* Thread Context Menu */}

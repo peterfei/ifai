@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Hash, Image, AtSign, X, Code, Terminal, ChevronRight, Activity } from 'lucide-react';
+import { Send, Hash, Image, AtSign, X, Cpu } from 'lucide-react';
 // 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
 import { useChatStore } from '../../stores/chat/CoreStoreProxy';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -15,6 +15,7 @@ import { ModelCapsulePanel } from './ModelCapsulePanel';
 import type { ImageAttachment } from '../../types/multimodal';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface ChatInputAreaProps {
   isLoading: boolean;
@@ -24,7 +25,8 @@ interface ChatInputAreaProps {
  * v0.3.6: 顶级重构 - 沉浸式多模态输入框 (仪表盘布局版)
  * 优化重点：释放输入宽度，引入底部集成状态栏
  */
-export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
+export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoading }) => {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [showMention, setShowMention] = useState(false);
   const [mentionFilter, setMentionFilter] = useState('');
@@ -43,18 +45,12 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
 
   // 🔥 FIX: 添加 null 检查，防止在 E2E 测试环境中 store 未初始化
   const chatStoreState = useChatStore();
-  const { providers, currentProviderId, currentModel } = useSettingsStore();
+  const { currentProviderId, currentModel } = useSettingsStore();
   const { allFilePaths, refreshFileTree } = useFileStore();
   const setSettingsOpen = useLayoutStore(state => state.setSettingsOpen);
 
   // 🔥 FIX: 使用默认值而不是早期返回，避免违反 React Hooks 规则
-  const sendMessage = chatStoreState?.sendMessage;
   const messages = chatStoreState?.messages || [];
-
-  const currentProvider = React.useMemo(() => 
-    providers.find(p => p.id === currentProviderId),
-    [providers, currentProviderId]
-  );
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -316,28 +312,38 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
 
       <AnimatePresence>
         {isDragging && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[100] bg-blue-600/30 backdrop-blur-md border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center gap-3 text-white pointer-events-none">
-            <div className="bg-blue-500 p-4 rounded-full shadow-2xl animate-bounce"><Image size={32} /></div>
-            <span className="text-sm font-black tracking-wider">释放图片，AI 即刻读图</span>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="theme-dropzone-accent absolute inset-0 z-[100] flex items-center justify-center gap-3 rounded-2xl border-2 border-dashed backdrop-blur-md pointer-events-none flex-col">
+            <div className="theme-button-primary theme-glow-accent rounded-full p-4 animate-bounce"><Image size={32} /></div>
+            <span className="text-sm font-black tracking-wider">
+              {t('chatInput.dropImageHint')}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div data-testid="chat-input-container" className={clsx("relative flex flex-col w-full transition-all duration-500 rounded-2xl border bg-[#1e1e1e]/90 backdrop-blur-3xl border-white/5 shadow-2xl group-focus-within:border-blue-500/40")}>
+      <div
+        data-testid="chat-input-container"
+        className="theme-panel-elevated theme-border theme-shadow group-focus-within:border-[var(--accent-soft-border)] relative flex w-full flex-col rounded-2xl border shadow-2xl backdrop-blur-3xl transition-all duration-500"
+      >
         {/* 1. 顶部预览流 (附件与图片) */}
         <AnimatePresence mode="popLayout">
           {(imageAttachments.length > 0 || activeReferences.length > 0) && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex flex-wrap items-center gap-3 p-3 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent overflow-x-auto scrollbar-none rounded-t-2xl">
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="theme-border flex flex-wrap items-center gap-3 overflow-x-auto rounded-t-2xl border-b bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-primary)] p-3 scrollbar-none"
+            >
               {activeReferences.map(ref => (
-                <div key={ref.path} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black group/chip hover:bg-blue-500/20 transition-all">
+                <div key={ref.path} className="theme-badge-accent flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black group/chip transition-all hover:border-[var(--accent-color)] hover:bg-[var(--selected-bg)]">
                   <Hash size={10} /><span className="max-w-[120px] truncate">{ref.name}</span>
-                  <button onClick={() => setInput(prev => prev.replace(ref.fullMatch, '').trim())} className="hover:text-blue-300 opacity-60 group-hover/chip:opacity-100 transition-opacity"><X size={10} /></button>
+                  <button onClick={() => setInput(prev => prev.replace(ref.fullMatch, '').trim())} className="theme-soft-hover-accent theme-text-subtle rounded-full p-0.5 opacity-60 transition-opacity group-hover/chip:opacity-100 hover:text-[var(--accent-color)]"><X size={10} /></button>
                 </div>
               ))}
               {imageAttachments.map(img => (
                 <motion.div layout key={img.id} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} data-testid="image-attachment-item" className="relative group/img">
-                  <img src={img.previewUrl} className="w-14 h-14 rounded-xl object-cover border border-white/10 shadow-lg ring-2 ring-transparent group-hover/img:ring-blue-500/50 transition-all" />
-                  <button onClick={() => setImageAttachments(prev => prev.filter(i => i.id !== img.id))} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover/img:opacity-100 transition-all shadow-lg scale-75 group-hover/img:scale-100"><X size={10} /></button>
+                  <img src={img.previewUrl} className="theme-border h-14 w-14 rounded-xl border object-cover shadow-lg ring-2 ring-transparent transition-all group-hover/img:ring-[var(--accent-soft-border)]" />
+                  <button onClick={() => setImageAttachments(prev => prev.filter(i => i.id !== img.id))} className="theme-button-danger absolute -top-1.5 -right-1.5 rounded-full p-0.5 opacity-0 scale-75 transition-all shadow-lg group-hover/img:opacity-100 group-hover/img:scale-100"><X size={10} /></button>
                 </motion.div>
               ))}
             </motion.div>
@@ -346,11 +352,25 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
 
         {/* 2. 中部输入区 (Textarea 占满宽度) */}
         <div className="flex flex-col p-2">
-          <textarea ref={textareaRef} data-testid="chat-input" rows={1} value={input} onChange={handleInputChange} onKeyDown={handleKeyDown} placeholder="问问 IfAI..." className="w-full max-h-48 min-h-[44px] py-2.5 px-3 bg-transparent outline-none text-gray-100 text-[13px] placeholder-gray-500 resize-none leading-relaxed font-semibold transition-all" />
+          <textarea
+            ref={textareaRef}
+            data-testid="chat-input"
+            rows={1}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder={t('chat.placeholder')}
+            className={clsx(
+              'w-full max-h-48 min-h-[44px] py-2.5 px-3 bg-transparent outline-none text-[13px] resize-none leading-relaxed font-semibold transition-all',
+              'theme-text placeholder:theme-text-subtle'
+            )}
+          />
         </div>
 
         {/* 3. 底部集成状态栏 (Status Dashboard) */}
-        <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-black/20 via-white/[0.02] to-black/20 border-t border-white/5 backdrop-blur-sm min-h-[40px] rounded-b-2xl">
+        <div
+          className="theme-border flex min-h-[40px] items-center justify-between rounded-b-2xl border-t bg-gradient-to-r from-[var(--bg-secondary)] via-[var(--bg-primary)] to-[var(--bg-secondary)] px-3 py-1.5 backdrop-blur-sm"
+        >
           {/* 左侧：识别状态与性能指标 */}
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="scale-95 origin-left">
@@ -358,7 +378,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
             </div>
             {input.length > 0 && (
               <>
-                <div className="h-3 w-px bg-white/10 hidden sm:block" />
+                <div className="theme-divider hidden h-3 w-px sm:block" />
                 <div className="scale-95 origin-left opacity-60 hover:opacity-100 transition-opacity">
                   <ContextHUD text={input} />
                 </div>
@@ -376,12 +396,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
                 className={clsx(
                   "flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all active:scale-95 group/model",
                   isModelPanelOpen 
-                    ? "bg-blue-600/20 border-blue-500/50 text-blue-400" 
-                    : "bg-white/5 border-white/5 text-gray-500 hover:border-white/10 hover:text-gray-300"
+                    ? "theme-badge-accent theme-text-accent"
+                    : "theme-button-secondary theme-text-subtle hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                 )}
-                title={`当前模型: ${currentModel}`}
+                title={t('chatInput.currentModel', {
+                  model: currentModel,
+                })}
               >
-                <span className="text-[10px] leading-none">🧠</span>
+                <Cpu size={12} className="theme-text-accent" />
                 <span className="text-[9px] font-black uppercase tracking-tighter max-w-[60px] truncate">
                   {currentModel.split('/').pop()?.replace('glm-', '') || 'AI'}
                 </span>
@@ -399,14 +421,26 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
               </AnimatePresence>
             </div>
 
-            <div className="w-px h-4 bg-white/5 mx-1" />
+            <div className="theme-divider mx-1 h-4 w-px" />
 
             <div className="flex items-center">
               <ImageInput attachments={imageAttachments} onAddAttachment={(a) => setImageAttachments(prev => [...prev, a])} onRemoveAttachment={(id) => setImageAttachments(prev => prev.filter(i => i.id !== id))} />
-              <button onClick={() => setShowMention(!showMention)} className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all" title="引用文件"><AtSign size={16} /></button>
-              <button onClick={() => setShowSymbol(!showSymbol)} className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all" title="引用符号"><Hash size={16} /></button>
+              <button
+                onClick={() => setShowMention(!showMention)}
+                className="theme-soft-hover-accent theme-text-subtle rounded-xl p-2 transition-all hover:text-[var(--accent-color)]"
+                title={t('chatInput.referenceFile')}
+              >
+                <AtSign size={16} />
+              </button>
+              <button
+                onClick={() => setShowSymbol(!showSymbol)}
+                className="theme-soft-hover-accent theme-text-subtle rounded-xl p-2 transition-all hover:text-[var(--accent-color)]"
+                title={t('chatInput.referenceSymbol')}
+              >
+                <Hash size={16} />
+              </button>
             </div>
-            <div className="w-px h-4 bg-white/5 mx-1.5" />
+            <div className="theme-divider mx-1.5 h-4 w-px" />
             <button
               onClick={handleSend}
               data-testid="chat-send-button"
@@ -414,16 +448,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading }) => {
               className={clsx(
                 "p-2 rounded-xl transition-all duration-300 relative overflow-hidden group/send",
                 (input.trim() || imageAttachments.length > 0)
-                  ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] scale-105 active:scale-95"
-                  : "bg-gray-800 text-gray-600"
+                  ? "theme-button-primary theme-glow-accent scale-105 active:scale-95"
+                  : 'theme-button-secondary theme-text-subtle'
               )}
             >
               <motion.div
-                animate={(input.trim() || imageAttachments.length > 0) ? {
-                  boxShadow: ["0 0 20px rgba(59,130,246,0.4)", "0 0 35px rgba(59,130,246,0.7)", "0 0 20px rgba(59,130,246,0.4)"]
-                } : {}}
+                animate={(input.trim() || imageAttachments.length > 0) ? { opacity: [0.7, 1, 0.7] } : {}}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute inset-0 rounded-xl"
+                className="theme-glow-accent absolute inset-0 rounded-xl"
               />
               <Send size={18} className="relative z-10 group-hover/send:translate-x-0.5 group-hover/send:-translate-y-0.5 transition-transform" />
             </button>

@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '../UI/card';
 import { Button } from '../UI/button';
 import { Input } from '../UI/input';
@@ -25,7 +26,14 @@ import {
   Save,
   GitBranch,
   Box,
-  Settings,
+  Compass,
+  Search as SearchIcon,
+  Wrench,
+  FlaskConical,
+  FileText,
+  ListChecks,
+  Lightbulb,
+  Bot,
 } from 'lucide-react';
 
 interface WorkflowNode {
@@ -47,17 +55,74 @@ interface WorkflowEditorProps {
 }
 
 const AGENT_TYPES = [
-  { value: 'explore', label: '探索', icon: '🧭', color: 'bg-blue-500' },
-  { value: 'review', label: '审查', icon: '🔍', color: 'bg-green-500' },
-  { value: 'refactor', label: '重构', icon: '🔧', color: 'bg-purple-500' },
-  { value: 'test', label: '测试', icon: '🧪', color: 'bg-orange-500' },
-  { value: 'doc', label: '文档', icon: '📄', color: 'bg-pink-500' },
-  { value: 'task_breakdown', label: '任务拆解', icon: '📋', color: 'bg-indigo-500' },
-  { value: 'proposal_generator', label: '提案生成', icon: '💡', color: 'bg-yellow-500' },
-  { value: 'general_purpose', label: '通用', icon: '⚙️', color: 'bg-gray-500' },
-];
+  {
+    value: 'explore',
+    labelKey: 'workflow.editor.agentTypes.explore',
+    defaultLabel: 'Explore',
+    icon: Compass,
+    surfaceClass: 'theme-surface-info',
+    badgeClass: 'theme-badge-info',
+  },
+  {
+    value: 'review',
+    labelKey: 'workflow.editor.agentTypes.review',
+    defaultLabel: 'Review',
+    icon: SearchIcon,
+    surfaceClass: 'theme-surface-success',
+    badgeClass: 'theme-badge-success',
+  },
+  {
+    value: 'refactor',
+    labelKey: 'workflow.editor.agentTypes.refactor',
+    defaultLabel: 'Refactor',
+    icon: Wrench,
+    surfaceClass: 'theme-surface-warning',
+    badgeClass: 'theme-badge-warning',
+  },
+  {
+    value: 'test',
+    labelKey: 'workflow.editor.agentTypes.test',
+    defaultLabel: 'Test',
+    icon: FlaskConical,
+    surfaceClass: 'theme-surface-accent',
+    badgeClass: 'theme-badge-accent',
+  },
+  {
+    value: 'doc',
+    labelKey: 'workflow.editor.agentTypes.doc',
+    defaultLabel: 'Document',
+    icon: FileText,
+    surfaceClass: 'theme-surface-info',
+    badgeClass: 'theme-badge-info',
+  },
+  {
+    value: 'task_breakdown',
+    labelKey: 'workflow.editor.agentTypes.taskBreakdown',
+    defaultLabel: 'Task Breakdown',
+    icon: ListChecks,
+    surfaceClass: 'theme-surface-accent',
+    badgeClass: 'theme-badge-accent',
+  },
+  {
+    value: 'proposal_generator',
+    labelKey: 'workflow.editor.agentTypes.proposalGenerator',
+    defaultLabel: 'Proposal Generator',
+    icon: Lightbulb,
+    surfaceClass: 'theme-surface-warning',
+    badgeClass: 'theme-badge-warning',
+  },
+  {
+    value: 'general_purpose',
+    labelKey: 'workflow.editor.agentTypes.generalPurpose',
+    defaultLabel: 'General Purpose',
+    icon: Bot,
+    surfaceClass: 'theme-panel-elevated theme-border theme-text-muted',
+    badgeClass: 'theme-panel-elevated theme-border theme-text-muted border',
+  },
+] as const;
 
 export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
+  const { t } = useTranslation();
   const [workflowId, setWorkflowId] = useState('');
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
@@ -65,6 +130,10 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
   const [edges, setEdges] = useState<WorkflowEdge[]>([]);
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [executing, setExecuting] = useState(false);
+  const agentTypes = AGENT_TYPES.map((agentType) => ({
+    ...agentType,
+    label: t(agentType.labelKey, agentType.defaultLabel),
+  }));
 
   // 添加节点
   const addNode = useCallback(() => {
@@ -72,10 +141,13 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
     const newNode: WorkflowNode = {
       id: newId,
       agent_type: 'explore',
-      label: `节点 ${nodes.length + 1}`,
+      label: t('workflow.editor.defaultNodeLabel', {
+        defaultValue: 'Node {{index}}',
+        index: nodes.length + 1,
+      }),
     };
     setNodes([...nodes, newNode]);
-  }, [nodes]);
+  }, [nodes, t]);
 
   // 删除节点
   const removeNode = useCallback((nodeId: string) => {
@@ -151,35 +223,35 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
   return (
     <div className="space-y-6">
       {/* 工作流基本信息 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>工作流配置</CardTitle>
+      <Card className="theme-panel theme-border border">
+        <CardHeader className="theme-panel-muted theme-border border-b">
+          <CardTitle className="theme-text">{t('workflow.editor.configuration')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4">
             <div>
-              <Label htmlFor="workflow-id">工作流 ID</Label>
+              <Label htmlFor="workflow-id">{t('workflow.editor.fields.id')}</Label>
               <Input
                 id="workflow-id"
-                placeholder="custom-workflow"
+                placeholder={t('workflow.editor.placeholders.id')}
                 value={workflowId}
                 onChange={(e) => setWorkflowId(e.target.value)}
               />
             </div>
             <div>
-              <Label htmlFor="workflow-name">工作流名称</Label>
+              <Label htmlFor="workflow-name">{t('workflow.editor.fields.name')}</Label>
               <Input
                 id="workflow-name"
-                placeholder="我的工作流"
+                placeholder={t('workflow.editor.placeholders.name')}
                 value={workflowName}
                 onChange={(e) => setWorkflowName(e.target.value)}
               />
             </div>
             <div>
-              <Label htmlFor="workflow-description">描述</Label>
+              <Label htmlFor="workflow-description">{t('workflow.editor.fields.description')}</Label>
               <Textarea
                 id="workflow-description"
-                placeholder="描述这个工作流的作用..."
+                placeholder={t('workflow.editor.placeholders.description')}
                 value={workflowDescription}
                 onChange={(e) => setWorkflowDescription(e.target.value)}
                 rows={3}
@@ -190,21 +262,21 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
       </Card>
 
       {/* 节点编辑器 */}
-      <Card>
-        <CardHeader>
+      <Card className="theme-panel theme-border border">
+        <CardHeader className="theme-panel-muted theme-border border-b">
           <div className="flex items-center justify-between">
-            <CardTitle>节点</CardTitle>
-            <Button onClick={addNode} size="sm">
+            <CardTitle className="theme-text">{t('workflow.editor.nodes')}</CardTitle>
+            <Button onClick={addNode} size="sm" className="theme-button-primary">
               <Plus className="w-4 h-4 mr-2" />
-              添加节点
+              {t('workflow.editor.addNode')}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {nodes.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="theme-text-subtle py-8 text-center">
               <Box className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>还没有节点，点击"添加节点"开始创建</p>
+              <p>{t('workflow.editor.empty.nodes')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -213,7 +285,7 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
                   key={node.id}
                   node={node}
                   index={index}
-                  agentTypes={AGENT_TYPES}
+                  agentTypes={agentTypes}
                   isSelected={selectedNode?.id === node.id}
                   onSelect={() => setSelectedNode(node)}
                   onUpdate={(updatedNode) => {
@@ -230,32 +302,33 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
       </Card>
 
       {/* 连接编辑器 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>连接</CardTitle>
+      <Card className="theme-panel theme-border border">
+        <CardHeader className="theme-panel-muted theme-border border-b">
+          <CardTitle className="theme-text">{t('workflow.editor.connections')}</CardTitle>
         </CardHeader>
         <CardContent>
           {edges.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="theme-text-subtle py-8 text-center">
               <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>还没有连接，添加节点后会自动创建</p>
+              <p>{t('workflow.editor.empty.connections')}</p>
             </div>
           ) : (
             <div className="space-y-2">
               {edges.map((edge, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="theme-panel-muted theme-border flex items-center justify-between rounded-lg border p-3"
                 >
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{edge.from}</Badge>
-                    <GitBranch className="w-4 h-4 text-muted-foreground" />
+                    <GitBranch className="theme-text-subtle w-4 h-4" />
                     <Badge variant="outline">{edge.to}</Badge>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => removeEdge(edge.from, edge.to)}
+                    className="theme-button-ghost"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -268,23 +341,24 @@ export function WorkflowEditor({ onSave, onExecute }: WorkflowEditorProps) {
 
       {/* 操作按钮 */}
       <div className="flex gap-4">
-        <Button onClick={handleSave} variant="outline">
+        <Button onClick={handleSave} variant="outline" className="theme-button-secondary">
           <Save className="w-4 h-4 mr-2" />
-          保存工作流
+          {t('workflow.editor.save')}
         </Button>
         <Button
           onClick={handleExecute}
           disabled={!workflowId || nodes.length === 0 || executing}
+          className="theme-button-primary"
         >
           {executing ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
-              执行中...
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current" />
+              {t('workflow.editor.executing')}
             </>
           ) : (
             <>
               <Play className="w-4 h-4 mr-2" />
-              执行工作流
+              {t('workflow.editor.run')}
             </>
           )}
         </Button>
@@ -299,8 +373,9 @@ interface NodeCardProps {
   agentTypes: Array<{
     value: string;
     label: string;
-    icon: string;
-    color: string;
+    icon: React.ComponentType<{ className?: string }>;
+    surfaceClass: string;
+    badgeClass: string;
   }>;
   isSelected: boolean;
   onSelect: () => void;
@@ -317,18 +392,25 @@ function NodeCard({
   onUpdate,
   onRemove,
 }: NodeCardProps) {
+  const { t } = useTranslation();
   const agentType = agentTypes.find(t => t.value === node.agent_type);
 
   return (
     <div
-      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-        isSelected ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+      className={`theme-border rounded-lg border p-4 cursor-pointer transition-colors ${
+        isSelected
+          ? 'theme-surface-accent border-[var(--accent-soft-border)]'
+          : 'theme-panel-muted hover:border-[var(--accent-soft-border)]'
       }`}
       onClick={onSelect}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{agentType?.icon}</span>
+          {agentType && (
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${agentType.surfaceClass}`}>
+              <agentType.icon className="h-5 w-5" />
+            </div>
+          )}
           <div>
             <Input
               value={node.label}
@@ -337,8 +419,10 @@ function NodeCard({
               onClick={(e) => e.stopPropagation()}
             />
             <div className="flex items-center gap-2 mt-1">
-              <Badge className={agentType?.color}>{agentType?.label}</Badge>
-              <span className="text-xs text-muted-foreground">#{index + 1}</span>
+              <Badge variant="outline" className={agentType?.badgeClass}>
+                {agentType?.label}
+              </Badge>
+              <span className="theme-text-subtle text-xs">#{index + 1}</span>
             </div>
           </div>
         </div>
@@ -349,15 +433,16 @@ function NodeCard({
             e.stopPropagation();
             onRemove();
           }}
+          className="theme-button-ghost"
         >
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
       {isSelected && (
-        <div className="mt-3 pt-3 border-t space-y-3">
+        <div className="theme-border mt-3 space-y-3 border-t pt-3">
           <div>
-            <Label>智能体类型</Label>
+            <Label>{t('workflow.editor.fields.agentType')}</Label>
             <Select
               value={node.agent_type}
               onChange={(e) => {
@@ -366,14 +451,14 @@ function NodeCard({
             >
               {agentTypes.map((type) => (
                 <option key={type.value} value={type.value}>
-                  {type.icon} {type.label}
+                  {type.label}
                 </option>
               ))}
             </Select>
           </div>
 
           <div>
-            <Label>节点 ID</Label>
+            <Label>{t('workflow.editor.fields.nodeId')}</Label>
             <Input
               value={node.id}
               onChange={(e) => onUpdate({ ...node, id: e.target.value })}

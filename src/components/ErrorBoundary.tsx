@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import i18n from '../i18n/config';
 
 interface Props {
   children: ReactNode;
@@ -55,37 +56,37 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-900 text-gray-100 p-8">
-          <div className="max-w-md w-full bg-gray-800 rounded-lg border border-gray-700 p-6 shadow-lg">
+        <div className="theme-panel theme-text flex min-h-screen items-center justify-center p-8">
+          <div className="theme-panel-elevated theme-border theme-shadow w-full max-w-md rounded-lg border p-6">
             <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="text-red-500" size={24} />
-              <h2 className="text-xl font-semibold text-red-400">应用崩溃了</h2>
+              <AlertTriangle className="text-[var(--danger-color)]" size={24} />
+              <h2 className="text-xl font-semibold text-[var(--danger-color)]">{i18n.t('errorBoundary.title')}</h2>
             </div>
 
-            <p className="text-gray-300 mb-4">
-              抱歉，应用遇到了一个错误。请尝试以下操作：
+            <p className="theme-text-muted mb-4">
+              {i18n.t('errorBoundary.description')}
             </p>
 
-            <ul className="list-disc list-inside text-gray-400 mb-6 space-y-1">
-              <li>点击下方按钮重置应用</li>
-              <li>如果问题持续，请刷新页面</li>
-              <li>检查控制台获取详细错误信息</li>
+            <ul className="theme-text-subtle mb-6 list-inside list-disc space-y-1">
+              <li>{i18n.t('errorBoundary.steps.reset')}</li>
+              <li>{i18n.t('errorBoundary.steps.refresh')}</li>
+              <li>{i18n.t('errorBoundary.steps.console')}</li>
             </ul>
 
             <button
               onClick={this.handleReset}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors"
+              className="theme-button-primary flex w-full items-center justify-center gap-2 rounded px-4 py-2"
             >
               <RefreshCw size={16} />
-              重置应用
+              {i18n.t('errorBoundary.reset')}
             </button>
 
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <details className="mt-4">
-                <summary className="cursor-pointer text-gray-400 hover:text-gray-300">
-                  错误详情 (开发模式)
+                <summary className="theme-text-subtle cursor-pointer transition-colors hover:text-[var(--text-primary)]">
+                  {i18n.t('errorBoundary.details')}
                 </summary>
-                <div className="mt-2 p-3 bg-gray-900 rounded text-xs text-red-400 overflow-auto max-h-60">
+                <div className="theme-code-surface theme-border mt-2 max-h-60 overflow-auto rounded border p-3 text-xs text-[var(--danger-color)]">
                   <div className="font-bold mb-1">{this.state.error.toString()}</div>
                   <pre className="whitespace-pre-wrap">
                     {this.state.errorInfo?.componentStack}

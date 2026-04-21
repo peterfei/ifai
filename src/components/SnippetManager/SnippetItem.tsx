@@ -1,40 +1,47 @@
 import React from 'react';
 import { Snippet } from '../../types/snippet';
-import { Clock, Tag, Code } from 'lucide-react';
+import { Clock, Tag } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 interface SnippetItemProps {
   snippet: Snippet;
   isActive: boolean;
-  onClick: (id: string) => void;
+  onClick: () => void;
 }
 
 export const SnippetItem: React.FC<SnippetItemProps> = ({ snippet, isActive, onClick }) => {
+  const { t, i18n } = useTranslation();
+
   return (
-    <div
+    <button
+      type="button"
       className={clsx(
-        "p-3 cursor-pointer border-b border-gray-700 transition-colors",
-        isActive ? "bg-blue-600/20 border-l-2 border-l-blue-500" : "hover:bg-gray-800"
+        'theme-focus-ring-accent theme-border w-full border-b p-3 text-left transition-colors',
+        isActive
+          ? 'theme-panel-elevated border-l-2 border-l-[var(--accent-color)] bg-[var(--accent-soft-bg)]'
+          : 'theme-hoverable'
       )}
-      onClick={() => onClick(snippet.id)}
+      onClick={onClick}
+      aria-pressed={isActive}
     >
       <div className="flex justify-between items-start mb-1">
-        <h3 className="text-sm font-semibold text-gray-200 truncate pr-2">
-          {snippet.title || "Untitled Snippet"}
+        <h3 className="theme-text truncate pr-2 text-sm font-semibold">
+          {snippet.title || t('snippetList.untitled')}
         </h3>
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 font-mono capitalize">
+        <span className="theme-input-surface theme-border theme-text-subtle rounded border px-1.5 py-0.5 text-[10px] font-mono capitalize">
           {snippet.language}
         </span>
       </div>
       
-      <p className="text-xs text-gray-500 line-clamp-2 mb-2 font-mono opacity-80">
+      <p className="theme-text-subtle mb-2 line-clamp-2 text-xs font-mono opacity-80">
         {snippet.code.substring(0, 100)}
       </p>
       
-      <div className="flex items-center gap-3 text-[10px] text-gray-500">
+      <div className="theme-text-subtle flex items-center gap-3 text-[10px]">
         <div className="flex items-center gap-1">
           <Clock size={10} />
-          <span>{new Date(snippet.updatedAt).toLocaleDateString()}</span>
+          <span>{new Date(snippet.updatedAt).toLocaleDateString(i18n.language)}</span>
         </div>
         {snippet.tags.length > 0 && (
           <div className="flex items-center gap-1">
@@ -43,6 +50,6 @@ export const SnippetItem: React.FC<SnippetItemProps> = ({ snippet, isActive, onC
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 };

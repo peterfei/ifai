@@ -7,13 +7,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConversationStore } from '../../stores/conversationStore';
-import type { SessionNotesData, TechConcept, FileChange, ErrorFix, TodoTask } from '../../types/conversation';
 import {
   FileText,
   Clock,
   CheckCircle,
   AlertCircle,
-  Plus,
   Download,
   RefreshCw,
   X,
@@ -25,45 +23,6 @@ interface SessionNotesProps {
   sessionId: string;
   projectRoot: string;
   messages?: any[]; // 🔥 FIX: 添加 messages 属性以自动提取笔记
-}
-
-/**
- * 分类标签组件
- */
-function CategoryBadge({ category }: { category: string }) {
-  const colors: Record<string, string> = {
-    concept: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    pattern: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    algorithm: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    framework: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-  };
-
-  const colorClass = colors[category] || colors.concept;
-
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
-      {category}
-    </span>
-  );
-}
-
-/**
- * 优先级标签组件
- */
-function PriorityBadge({ priority }: { priority: string }) {
-  const colors: Record<string, string> = {
-    low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-    medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-  };
-
-  const colorClass = colors[priority] || colors.medium;
-
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
-      {priority}
-    </span>
-  );
 }
 
 /**
@@ -85,22 +44,22 @@ function CollapsibleSection({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
+    <div className="theme-panel theme-border mb-4 rounded-lg border">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        className="theme-hoverable flex w-full items-center justify-between px-4 py-3 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-          <span className="font-medium text-gray-900 dark:text-gray-100">{title}</span>
+          <Icon className="theme-text-subtle h-4 w-4" />
+          <span className="theme-text font-medium">{title}</span>
           {count !== undefined && (
-            <span className="text-sm text-gray-500 dark:text-gray-400">({count})</span>
+            <span className="theme-text-subtle text-sm">({count})</span>
           )}
         </div>
         {isOpen ? (
-          <ChevronUp className="w-4 h-4 text-gray-500" />
+          <ChevronUp className="theme-text-subtle h-4 w-4" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-gray-500" />
+          <ChevronDown className="theme-text-subtle h-4 w-4" />
         )}
       </button>
       {isOpen && (
@@ -116,7 +75,7 @@ function CollapsibleSection({
  * 主组件
  */
 export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionNotesProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     sessionNotes,
     isLoading,
@@ -135,6 +94,103 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
   const currentMessages = messages || [];
 
   const [exportFormat, setExportFormat] = useState<'markdown' | 'json'>('markdown');
+  const formatDateTime = (value: number) =>
+    new Intl.DateTimeFormat(i18n.language, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(value * 1000);
+
+  const getCategoryBadge = (category: string) => {
+    switch (category) {
+      case 'pattern':
+        return {
+          label: t('conversation.notes.categories.pattern'),
+          className: 'bg-[var(--info-soft-bg)] text-[var(--info-color)]'
+        };
+      case 'algorithm':
+        return {
+          label: t('conversation.notes.categories.algorithm'),
+          className: 'bg-[var(--success-soft-bg)] text-[var(--success-color)]'
+        };
+      case 'framework':
+        return {
+          label: t('conversation.notes.categories.framework'),
+          className: 'bg-[var(--warning-soft-bg)] text-[var(--warning-color)]'
+        };
+      case 'concept':
+      default:
+        return {
+          label: t('conversation.notes.categories.concept'),
+          className: 'bg-[var(--accent-soft-bg)] text-[var(--accent-color)]'
+        };
+    }
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+      case 'low':
+        return {
+          label: t('conversation.notes.priorities.low'),
+          className: 'theme-panel-elevated theme-text-muted'
+        };
+      case 'high':
+        return {
+          label: t('conversation.notes.priorities.high'),
+          className: 'bg-[var(--danger-soft-bg)] text-[var(--danger-color)]'
+        };
+      case 'medium':
+      default:
+        return {
+          label: t('conversation.notes.priorities.medium'),
+          className: 'bg-[var(--warning-soft-bg)] text-[var(--warning-color)]'
+        };
+    }
+  };
+
+  const getFileActionBadge = (action: string) => {
+    switch (action) {
+      case 'created':
+        return {
+          label: t('conversation.notes.fileAction.created'),
+          className: 'bg-[var(--success-soft-bg)] text-[var(--success-color)]'
+        };
+      case 'deleted':
+        return {
+          label: t('conversation.notes.fileAction.deleted'),
+          className: 'bg-[var(--danger-soft-bg)] text-[var(--danger-color)]'
+        };
+      case 'modified':
+      default:
+        return {
+          label: t('conversation.notes.fileAction.modified'),
+          className: 'bg-[var(--accent-soft-bg)] text-[var(--accent-color)]'
+        };
+    }
+  };
+
+  const getTaskStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return {
+          label: t('conversation.notes.taskStatus.completed'),
+          dotClass: 'bg-[var(--success-color)]',
+          className: 'bg-[var(--success-soft-bg)] text-[var(--success-color)]'
+        };
+      case 'in_progress':
+        return {
+          label: t('conversation.notes.taskStatus.inProgress'),
+          dotClass: 'bg-[var(--warning-color)]',
+          className: 'bg-[var(--warning-soft-bg)] text-[var(--warning-color)]'
+        };
+      case 'pending':
+      default:
+        return {
+          label: t('conversation.notes.taskStatus.pending'),
+          dotClass: 'bg-[var(--border-strong)]',
+          className: 'theme-panel-elevated theme-text-muted'
+        };
+    }
+  };
 
   // 初始化笔记并自动提取内容
   useEffect(() => {
@@ -203,8 +259,8 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
   if (isLoading && !sessionNotes) {
     return (
       <div className="flex items-center justify-center p-8">
-        <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-        <span className="ml-2 text-gray-600 dark:text-gray-400">{t('conversation.notes.loading')}</span>
+        <RefreshCw className="theme-text-subtle h-6 w-6 animate-spin" />
+        <span className="theme-text-subtle ml-2">{t('conversation.notes.loading')}</span>
       </div>
     );
   }
@@ -212,18 +268,19 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
   // 错误状态
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+      <div className="rounded-lg border border-[var(--danger-soft-border)] bg-[var(--danger-soft-bg)] p-4">
         <div className="flex items-start">
-          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+          <AlertCircle className="mt-0.5 h-5 w-5 text-[var(--danger-color)]" />
           <div className="ml-3 flex-1">
-            <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+            <h3 className="text-sm font-medium text-[var(--danger-color)]">
               {t('conversation.notes.error')}
             </h3>
-            <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
+            <p className="mt-1 text-sm text-[var(--danger-color)]">{error}</p>
           </div>
           <button
             onClick={clearError}
-            className="ml-4 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
+            className="theme-button-ghost theme-text-danger ml-4 rounded p-1 transition-colors hover:bg-[var(--danger-soft-bg)]"
+            title={t('common.close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -235,7 +292,7 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
   // 无笔记状态
   if (!sessionNotes) {
     return (
-      <div className="text-center p-8 text-gray-500 dark:text-gray-400">
+      <div className="theme-text-subtle p-8 text-center">
         <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
         <p>{t('conversation.notes.noNotes')}</p>
       </div>
@@ -243,32 +300,32 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
   }
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div className="theme-panel flex h-full flex-col">
       {/* 头部 */}
-      <div className="border-b border-gray-200 dark:border-gray-700 p-4">
+      <div className="theme-border border-b p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="theme-text text-lg font-semibold">
             {t('conversation.notes.title')}
           </h2>
           <div className="flex items-center gap-2">
             <select
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value as 'markdown' | 'json')}
-              className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              className="theme-input-surface theme-border theme-text rounded border px-2 py-1 text-sm"
             >
-              <option value="markdown">Markdown</option>
-              <option value="json">JSON</option>
+              <option value="markdown">{t('conversation.notes.exportFormats.markdown')}</option>
+              <option value="json">{t('conversation.notes.exportFormats.json')}</option>
             </select>
             <button
               onClick={handleExport}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+              className="theme-button-ghost rounded p-2"
               title={t('conversation.notes.export')}
             >
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={handleGenerateSummary}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+              className="theme-button-ghost rounded p-2"
               title={t('conversation.notes.generateSummary')}
             >
               <RefreshCw className="w-4 h-4" />
@@ -281,14 +338,14 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
                   console.log('[SessionNotesPanel] 🔄 Manual extraction triggered');
                 }
               }}
-              className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-900 rounded transition-colors"
-              title="从消息中重新提取笔记"
+              className="theme-button-ghost theme-text-accent rounded p-2 transition-colors"
+              title={t('conversation.notes.extractFromMessages')}
             >
               <RefreshCw className="w-4 h-4" />
             </button>
             <button
               onClick={handleSave}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+              className="theme-button-ghost rounded p-2"
               title={t('conversation.notes.save')}
             >
               <CheckCircle className="w-4 h-4" />
@@ -297,19 +354,19 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
         </div>
 
         {/* 会话信息 */}
-        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+        <div className="theme-text-subtle flex items-center gap-4 text-sm">
           <div className="flex items-center gap-1">
             <Clock className="w-4 h-4" />
             <span>
-              {new Date(sessionNotes.started_at * 1000).toLocaleString()}
+              {t('conversation.notes.startedAt')}: {formatDateTime(sessionNotes.started_at)}
             </span>
           </div>
           <span>•</span>
-          <span>技术概念: {sessionNotes.tech_concepts.length}</span>
+          <span>{t('conversation.notes.stats.techConcepts', { count: sessionNotes.tech_concepts.length })}</span>
           <span>•</span>
-          <span>文件变更: {sessionNotes.file_changes.length}</span>
+          <span>{t('conversation.notes.stats.fileChanges', { count: sessionNotes.file_changes.length })}</span>
           <span>•</span>
-          <span>待办任务: {sessionNotes.todo_tasks.length}</span>
+          <span>{t('conversation.notes.stats.todoTasks', { count: sessionNotes.todo_tasks.length })}</span>
         </div>
       </div>
 
@@ -323,25 +380,33 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
         >
           <div className="space-y-2">
             {sessionNotes.tech_concepts.map((concept, index) => (
-              <div
-                key={index}
-                className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {concept.name}
+              (() => {
+                const badge = getCategoryBadge(concept.category);
+
+                return (
+                  <div
+                    key={index}
+                    className="theme-panel-muted flex items-start justify-between rounded p-3"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="theme-text font-medium">
+                          {concept.name}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      <p className="theme-text-muted text-sm">
+                        {concept.description}
+                      </p>
+                    </div>
+                    <span className="theme-text-subtle ml-2 text-xs">
+                      {t('conversation.notes.mentions')}: {concept.mentions}
                     </span>
-                    <CategoryBadge category={concept.category} />
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {concept.description}
-                  </p>
-                </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                  {t('conversation.notes.mentions')}: {concept.mentions}
-                </span>
-              </div>
+                );
+              })()
             ))}
           </div>
         </CollapsibleSection>
@@ -354,28 +419,28 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
         >
           <div className="space-y-2">
             {sessionNotes.file_changes.map((change, index) => (
-              <div
-                key={index}
-                className="p-3 bg-gray-50 dark:bg-gray-800 rounded"
-              >
-                <div className="flex items-start justify-between mb-1">
-                  <code className="text-sm font-mono text-gray-900 dark:text-gray-100">
-                    {change.path}
-                  </code>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    change.action === 'created'
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      : change.action === 'deleted'
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                  }`}>
-                    {change.action}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {change.reason}
-                </p>
-              </div>
+              (() => {
+                const badge = getFileActionBadge(change.action);
+
+                return (
+                  <div
+                    key={index}
+                    className="theme-panel-muted rounded p-3"
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <code className="theme-text text-sm font-mono">
+                        {change.path}
+                      </code>
+                      <span className={`rounded px-2 py-1 text-xs font-medium ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <p className="theme-text-muted text-sm">
+                      {change.reason}
+                    </p>
+                  </div>
+                );
+              })()
             ))}
           </div>
         </CollapsibleSection>
@@ -390,23 +455,23 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
             {sessionNotes.error_fixes.map((fix, index) => (
               <div
                 key={index}
-                className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded"
+                className="rounded border border-[var(--danger-soft-border)] bg-[var(--danger-soft-bg)] p-3"
               >
                 <div className="flex items-start justify-between mb-2">
-                  <span className="font-medium text-red-800 dark:text-red-200">
+                  <span className="font-medium text-[var(--danger-color)]">
                     {fix.error_type}
                   </span>
                   {fix.file_path && (
-                    <code className="text-xs font-mono text-red-600 dark:text-red-400">
+                    <code className="text-xs font-mono text-[var(--danger-color)]">
                       {fix.file_path}
                     </code>
                   )}
                 </div>
-                <p className="text-sm text-red-700 dark:text-red-300 mb-2">
+                <p className="mb-2 text-sm text-[var(--danger-color)]">
                   {fix.error_message}
                 </p>
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-medium">{t('conversation.notes.solution')}:</span> {fix.solution}
+                <p className="theme-text-muted text-sm">
+                  <span className="theme-text font-medium">{t('conversation.notes.solution')}:</span> {fix.solution}
                 </p>
               </div>
             ))}
@@ -421,39 +486,34 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
         >
           <div className="space-y-2">
             {sessionNotes.todo_tasks.map((task, index) => (
-              <div
-                key={index}
-                className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        task.status === 'completed'
-                          ? 'bg-green-500'
-                          : task.status === 'in_progress'
-                          ? 'bg-yellow-500'
-                          : 'bg-gray-400'
-                      }`}
-                    />
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {task.description}
-                    </span>
+              (() => {
+                const statusBadge = getTaskStatusBadge(task.status);
+                const priorityBadge = getPriorityBadge(task.priority);
+
+                return (
+                  <div
+                    key={index}
+                    className="theme-panel-muted flex items-start justify-between rounded p-3"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`h-2 w-2 rounded-full ${statusBadge.dotClass}`} />
+                        <span className="theme-text font-medium">
+                          {task.description}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`rounded px-2 py-1 text-xs ${statusBadge.className}`}>
+                          {statusBadge.label}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${priorityBadge.className}`}>
+                          {priorityBadge.label}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      task.status === 'completed'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : task.status === 'in_progress'
-                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                    }`}>
-                      {task.status}
-                    </span>
-                    <PriorityBadge priority={task.priority} />
-                  </div>
-                </div>
-              </div>
+                );
+              })()
             ))}
           </div>
         </CollapsibleSection>
@@ -465,8 +525,8 @@ export function SessionNotesPanel({ sessionId, projectRoot, messages }: SessionN
             icon={FileText}
             defaultOpen={false}
           >
-            <div className="prose dark:prose-invert max-w-none text-sm">
-              <pre className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+            <div className="max-w-none text-sm">
+              <pre className="theme-code-surface theme-border whitespace-pre-wrap rounded border p-3">
                 {sessionNotes.summary}
               </pre>
             </div>

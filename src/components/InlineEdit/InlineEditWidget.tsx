@@ -11,9 +11,13 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useInlineEditStore } from '../../stores/inlineEditStore';
 import { Sparkles, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { isDarkTheme } from '../../utils/theme';
 
 export const InlineEditWidget = () => {
   const { t } = useTranslation();
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
   // 🔥 使用选择器订阅 store
   const isInlineEditVisible = useInlineEditStore(state => state.isInlineEditVisible);
   const selectedText = useInlineEditStore(state => state.selectedText);
@@ -103,7 +107,7 @@ export const InlineEditWidget = () => {
   }, [selectedText, isInlineEditVisible]);
 
   // 🔥 使用 CSS class 控制显示/隐藏，而不是动态 style 对象
-  const containerClassName = `absolute z-[280] bg-[#252526] border border-blue-500/50 rounded-lg shadow-2xl w-[400px] inline-edit-widget transition-opacity duration-200 ${
+  const containerClassName = `theme-panel-elevated theme-border theme-shadow absolute z-[280] w-[400px] rounded-lg border inline-edit-widget transition-opacity duration-200 ${
     isInlineEditVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
   }`;
 
@@ -120,12 +124,12 @@ export const InlineEditWidget = () => {
       data-testid="inline-input-container"
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700">
-        <Sparkles className="text-blue-400" size={16} />
-        <span className="text-xs font-medium text-gray-300">{t('editor.inlineWidget.title')}</span>
+      <div className="theme-panel-muted theme-border flex items-center gap-2 border-b px-3 py-2">
+        <Sparkles className="theme-text-accent" size={16} />
+        <span className="theme-text text-xs font-medium">{t('editor.inlineWidget.title')}</span>
         <button
           onClick={handleClose}
-          className="ml-auto text-gray-400 hover:text-white transition-colors"
+          className="theme-button-ghost ml-auto rounded p-1"
           aria-label={t('common.close')}
         >
           <X size={14} />
@@ -137,7 +141,7 @@ export const InlineEditWidget = () => {
         <input
           ref={inputRef}
           type="text"
-          className="flex-1 bg-[#1e1e1e] text-white text-sm px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+          className="theme-input-surface theme-border theme-text theme-focus-accent flex-1 rounded border px-3 py-2 text-sm"
           placeholder={t('editor.inlineWidget.placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -149,24 +153,24 @@ export const InlineEditWidget = () => {
 
       {/* 🔥 v0.3.0: 加载状态指示器 */}
       {isProcessing && (
-        <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 animate-pulse">
+        <div className="theme-text-subtle flex items-center gap-2 px-3 py-2 text-sm animate-pulse">
           <div className="flex items-center gap-1">
             {/* 简洁的 spinner 动画 */}
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span>IFAI 正在处理...</span>
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent-color)] border-t-transparent" />
+            <span>{t('editor.inlineWidget.processing')}</span>
           </div>
         </div>
       )}
 
       {/* Footer hint */}
-      <div className="px-3 py-1.5 bg-[#1e1e1e] rounded-b-lg border-t border-gray-700">
-        <div className="flex items-center gap-3 text-xs text-gray-500">
+      <div className="theme-panel-muted theme-border rounded-b-lg border-t px-3 py-1.5">
+        <div className="theme-text-subtle flex items-center gap-3 text-xs">
           <span>
-            <kbd className="px-1.5 py-0.5 bg-[#333] rounded text-[10px]">Enter</kbd>
+            <kbd className="theme-input-surface theme-border theme-text rounded border px-1.5 py-0.5 text-[10px]">Enter</kbd>
             <span className="ml-1">{t('editor.inlineWidget.submit')}</span>
           </span>
           <span>
-            <kbd className="px-1.5 py-0.5 bg-[#333] rounded text-[10px]">Esc</kbd>
+            <kbd className="theme-input-surface theme-border theme-text rounded border px-1.5 py-0.5 text-[10px]">Esc</kbd>
             <span className="ml-1">{t('editor.inlineWidget.cancel')}</span>
           </span>
         </div>

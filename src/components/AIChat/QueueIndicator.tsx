@@ -13,8 +13,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Loader2, Clock, Zap } from 'lucide-react';
 import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
-import type { ChatEvents } from '../../stores/chat/eventBus/ChatEventBus';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 interface QueueStatus {
   normal: { pending: number; processing: number };
@@ -33,6 +33,7 @@ interface QueueIndicatorProps {
  * 自动订阅 ChatEventBus 的队列事件，实时显示队列状态
  */
 export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => {
+  const { t } = useTranslation();
   const [queueStatus, setQueueStatus] = useState<QueueStatus>({
     normal: { pending: 0, processing: 0 },
     workflow: { pending: 0, processing: 0 },
@@ -144,8 +145,8 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
       className={clsx(
         'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-300',
         hasWorkflow
-          ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-          : 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+          ? 'theme-surface-accent'
+          : 'theme-surface-info',
         className
       )}
       data-testid="queue-indicator"
@@ -154,22 +155,22 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
       {queueStatus.isProcessing && (
         <div className="flex items-center gap-1.5">
           <Loader2 size={14} className="animate-spin" />
-          <span>处理中</span>
+          <span>{t('aiChat.queueIndicator.processing')}</span>
         </div>
       )}
 
       {/* 等待中图标 + 消息摘要 */}
       {totalPending > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
-          {queueStatus.isProcessing && <span className="text-white/30">|</span>}
+          {queueStatus.isProcessing && <span className="theme-text-subtle">|</span>}
           <Clock size={14} className={clsx(totalPending > 0 && 'animate-pulse')} />
-          <span>{totalPending} 条等待</span>
+          <span>{t('aiChat.queueIndicator.pending', { count: totalPending })}</span>
           {/* 消息摘要 */}
           <span className="flex gap-1 ml-1">
             {queueStatus.pendingPreviews.map((preview, i) => (
               <span
                 key={i}
-                className="inline-block bg-white/10 rounded px-1.5 py-0.5 text-[10px] text-white/70 max-w-[120px] truncate"
+                className="inline-block theme-panel rounded px-1.5 py-0.5 text-[10px] theme-text-muted border theme-border max-w-[120px] truncate"
               >
                 {preview}
               </span>
@@ -180,7 +181,7 @@ export const QueueIndicator: React.FC<QueueIndicatorProps> = ({ className }) => 
 
       {/* 工作流优先级提示 */}
       {hasWorkflow && (
-        <div className="flex items-center gap-1 ml-1 pl-2 border-l border-white/20">
+        <div className="flex items-center gap-1 ml-1 pl-2 border-l theme-border">
           <Zap size={12} className="animate-pulse" />
         </div>
       )}

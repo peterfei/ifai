@@ -1,12 +1,13 @@
-import { readDir, readTextFile, writeTextFile, rename, remove } from '@tauri-apps/plugin-fs';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { readDir, readTextFile, writeTextFile, rename, remove, open as openFsFile } from '@tauri-apps/plugin-fs';
+import { open as openDialog, save } from '@tauri-apps/plugin-dialog';
 import { Command } from '@tauri-apps/plugin-shell';
 import { FileNode } from '../stores/types';
 import { v4 as uuidv4 } from 'uuid';
-import { platform, Platform } from '@tauri-apps/plugin-os';
+import { platform } from '@tauri-apps/plugin-os';
 import { invoke } from '@tauri-apps/api/core';
 import { getCachedDir, setCachedDir, invalidateCachePath } from './cache';
 import { perfMonitor } from './performanceMonitor';
+import i18n from '../i18n/config';
 
 /**
  * Normalize path separators for cross-platform compatibility.
@@ -95,6 +96,173 @@ export const getRelativePath = (basePath: string, fullPath: string): string => {
   return normalizedFull;
 };
 
+export type ProtectedEditorFileCategory = 'binary' | 'archive' | 'media';
+
+const PROTECTED_EDITOR_FILE_EXTENSIONS: Record<ProtectedEditorFileCategory, Set<string>> = {
+  binary: new Set([
+    'bin', 'dat', 'db', 'sqlite', 'sqlite3', 'pdf', 'psd', 'ai', 'eps', 'sketch',
+    'exe', 'dll', 'so', 'dylib', 'app', 'msi', 'pkg', 'deb', 'rpm',
+    'iso', 'dmg', 'img', 'class', 'pyc', 'pyo', 'o', 'obj', 'a', 'lib',
+    'woff', 'woff2', 'ttf', 'otf', 'eot', 'wasm',
+  ]),
+  archive: new Set([
+    'zip', '7z', 'rar', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'lz', 'lz4', 'zst',
+    'cab', 'jar', 'war', 'ear', 'apk', 'ipa',
+  ]),
+  media: new Set([
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'icns', 'tif', 'tiff',
+    'avif', 'heic', 'heif', 'mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'oga',
+    'mp4', 'm4v', 'mov', 'avi', 'mkv', 'webm', 'wmv', 'flv', 'mpeg', 'mpg',
+  ]),
+};
+
+const PROTECTED_EDITOR_FILE_BASENAMES = new Set([
+  '.ds_store',
+  'thumbs.db',
+  'desktop.ini',
+]);
+
+const PROTECTED_EDITOR_CATEGORY_LABEL_KEYS: Record<ProtectedEditorFileCategory, string> = {
+  binary: 'common.protectedFileCategories.binary',
+  archive: 'common.protectedFileCategories.archive',
+  media: 'common.protectedFileCategories.media',
+};
+
+const EDITOR_FILE_PROBE_SIZE = 4096;
+const SUSPICIOUS_BINARY_BYTE_RATIO = 0.3;
+
+const isSuspiciousBinaryByte = (byte: number): boolean =>
+  byte === 0x00 || byte === 0xff || byte <= 0x08 || (byte >= 0x0e && byte <= 0x1f) || byte === 0x7f;
+
+const isProtectedEditorSystemMetadataFile = (path: string): boolean => {
+  const fileName = getFileName(path).toLowerCase();
+  return PROTECTED_EDITOR_FILE_BASENAMES.has(fileName) || fileName.startsWith('._');
+};
+
+const getProtectedEditorFileCategoryByExtension = (path: string): ProtectedEditorFileCategory | null => {
+  const extension = getFileExtension(path).toLowerCase();
+
+  if (!extension) {
+    return null;
+  }
+
+  for (const [category, extensions] of Object.entries(PROTECTED_EDITOR_FILE_EXTENSIONS) as Array<[ProtectedEditorFileCategory, Set<string>]>) {
+    if (extensions.has(extension)) {
+      return category;
+    }
+  }
+
+  return null;
+};
+
+const getProtectedEditorFileCategoryByBytes = (sampleBytes: Uint8Array): ProtectedEditorFileCategory | null => {
+  if (sampleBytes.length === 0) {
+    return null;
+  }
+
+  let suspiciousBytes = 0;
+
+  for (const byte of sampleBytes) {
+    if (isSuspiciousBinaryByte(byte)) {
+      suspiciousBytes += 1;
+    }
+  }
+
+  if (suspiciousBytes === 0) {
+    return null;
+  }
+
+  return suspiciousBytes / sampleBytes.length >= SUSPICIOUS_BINARY_BYTE_RATIO ? 'binary' : null;
+};
+
+const readFileProbe = async (path: string): Promise<Uint8Array> => {
+  const handle = await openFsFile(path, { read: true });
+
+  try {
+    const buffer = new Uint8Array(EDITOR_FILE_PROBE_SIZE);
+    const bytesRead = await handle.read(buffer);
+
+    return bytesRead === null ? new Uint8Array() : buffer.slice(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+};
+
+const tryReadFileProbe = async (path: string): Promise<Uint8Array | null> => {
+  try {
+    return await readFileProbe(path);
+  } catch (error) {
+    console.warn('[fileSystem] Skipping binary probe and falling back to text read:', path, error);
+    return null;
+  }
+};
+
+export const detectProtectedEditorFileCategory = (
+  path: string,
+  sampleBytes?: Uint8Array
+): ProtectedEditorFileCategory | null => {
+  const normalizedPath = normalizePath(path);
+
+  return (
+    (isProtectedEditorSystemMetadataFile(normalizedPath) ? 'binary' : null) ??
+    getProtectedEditorFileCategoryByExtension(normalizedPath) ??
+    (sampleBytes ? getProtectedEditorFileCategoryByBytes(sampleBytes) : null)
+  );
+};
+
+export const getProtectedEditorFileMessage = (
+  path: string,
+  category: ProtectedEditorFileCategory
+): string => {
+  const fileName = getFileName(path) || String(i18n.t('common.thisFile'));
+  const categoryLabel = String(i18n.t(PROTECTED_EDITOR_CATEGORY_LABEL_KEYS[category]));
+
+  return String(i18n.t('common.protectedFileOpenMessage', { fileName, categoryLabel }));
+};
+
+export class ProtectedEditorFileOpenError extends Error {
+  readonly path: string;
+  readonly category: ProtectedEditorFileCategory;
+
+  constructor(path: string, category: ProtectedEditorFileCategory) {
+    super(getProtectedEditorFileMessage(path, category));
+    this.name = 'ProtectedEditorFileOpenError';
+    this.path = normalizePath(path);
+    this.category = category;
+  }
+}
+
+export const getFileOpenErrorMessage = (error: unknown, path?: string): string => {
+  if (error instanceof ProtectedEditorFileOpenError) {
+    return error.message;
+  }
+
+  const fileName = path ? getFileName(path) : '';
+  return fileName
+    ? String(i18n.t('common.fileOpenFailedWithName', { fileName }))
+    : String(i18n.t('common.fileOpenFailed'));
+};
+
+export const assertCanOpenFileAsText = async (path: string): Promise<void> => {
+  const normalizedPath = normalizePath(path);
+  const knownCategory = detectProtectedEditorFileCategory(normalizedPath);
+
+  if (knownCategory) {
+    throw new ProtectedEditorFileOpenError(normalizedPath, knownCategory);
+  }
+
+  const sampleBytes = await tryReadFileProbe(normalizedPath);
+  if (!sampleBytes) {
+    return;
+  }
+
+  const sampledCategory = detectProtectedEditorFileCategory(normalizedPath, sampleBytes);
+
+  if (sampledCategory) {
+    throw new ProtectedEditorFileOpenError(normalizedPath, sampledCategory);
+  }
+};
+
 // Helper to sort files: directories first, then files, alphabetically
 const sortFiles = (a: FileNode, b: FileNode) => {
   if (a.kind === b.kind) {
@@ -105,7 +273,7 @@ const sortFiles = (a: FileNode, b: FileNode) => {
 
 export const openDirectory = async (): Promise<FileNode | null> => {
   try {
-    const selected = await open({
+    const selected = await openDialog({
       directory: true,
       multiple: false,
     });
@@ -148,7 +316,12 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
       return [];
     }
 
-    const nodes: FileNode[] = entries.map((entry: any) => {
+    const nodes: FileNode[] = entries
+      .filter((entry: any) => {
+        const entryName = entry?.name;
+        return !entryName || !isProtectedEditorSystemMetadataFile(entryName);
+      })
+      .map((entry: any) => {
         return {
             id: uuidv4(), // Client-side ID
             name: entry.name || 'unknown',
@@ -156,7 +329,7 @@ export const readDirectory = async (path: string): Promise<FileNode[]> => {
             kind: (entry.isDirectory ? 'directory' : 'file') as 'file' | 'directory',
             children: undefined // Lazy load
         };
-    });
+      });
 
     // Sort and cache the result
     const sortedNodes = nodes.sort(sortFiles);
@@ -186,6 +359,7 @@ const readDirectoryRecursively = async (path: string, name: string): Promise<Fil
 
 export const readFileContent = async (path: string): Promise<string> => {
   const normalizedPath = normalizePath(path);
+  await assertCanOpenFileAsText(normalizedPath);
   const content = await readTextFile(normalizedPath);
   console.log(`Read file ${normalizedPath}, content length: ${content.length}`);
   return content;

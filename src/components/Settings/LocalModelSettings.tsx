@@ -15,6 +15,8 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 // ============================================================================
 // Types
@@ -72,13 +74,6 @@ const formatSpeed = (bytesPerSecond: number): string => {
   return `${formatBytes(bytesPerSecond)}/s`;
 };
 
-const formatETA = (seconds: number): string => {
-  if (seconds === 0) return '--';
-  if (seconds < 60) return `${seconds}秒`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
-  return `${Math.floor(seconds / 3600)}小时${Math.floor((seconds % 3600) / 60)}分`;
-};
-
 // ============================================================================
 // Component
 // ============================================================================
@@ -99,6 +94,23 @@ export const LocalModelSettings: React.FC = () => {
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const formatETA = useCallback((seconds: number): string => {
+    if (seconds === 0) return t('localModelSettings.etaUnknown');
+    if (seconds < 60) {
+      return t('localModelSettings.etaSeconds', { count: seconds });
+    }
+    if (seconds < 3600) {
+      return t('localModelSettings.etaMinutesSeconds', {
+        minutes: Math.floor(seconds / 60),
+        seconds: seconds % 60,
+      });
+    }
+    return t('localModelSettings.etaHoursMinutes', {
+      hours: Math.floor(seconds / 3600),
+      minutes: Math.floor((seconds % 3600) / 60),
+    });
+  }, [t]);
 
   // 加载配置和系统信息
   useEffect(() => {
@@ -151,7 +163,7 @@ export const LocalModelSettings: React.FC = () => {
 
       setError(null);
     } catch (err) {
-      setError(err as string);
+      setError(t('localModelSettings.loadFailed', { error: String(err) }));
     } finally {
       setLoading(false);
     }
@@ -200,7 +212,7 @@ export const LocalModelSettings: React.FC = () => {
       setError(null);
       toast.success(t('localModelSettings.validateSuccess'));
     } catch (err) {
-      setError(err as string);
+      setError(t('localModelSettings.validateFailed', { error: String(err) }));
       setModelInfo(null);
     }
   };
@@ -208,7 +220,10 @@ export const LocalModelSettings: React.FC = () => {
   // 打开模型目录
   const handleOpenModelDir = async () => {
     if (systemInfo) {
-      open({ directory: true, path: systemInfo.model_dir }).catch(console.error);
+      open({ directory: true, path: systemInfo.model_dir }).catch((err) => {
+        console.error(err);
+        toast.error(t('localModelSettings.openDirFailed', { error: String(err) }));
+      });
     }
   };
 
@@ -218,7 +233,9 @@ export const LocalModelSettings: React.FC = () => {
     try {
       const result = await invoke<any[]>('test_tool_parse', { text: testText });
       console.log('Tool parse result:', result);
-      toast.success(`${t('localModelSettings.parseSuccess')}\n${JSON.stringify(result, null, 2)}`);
+      toast.success(t('localModelSettings.parseSuccess'), {
+        description: JSON.stringify(result),
+      });
     } catch (err) {
       console.error(err);
       toast.error(t('localModelSettings.parseFailed'));
@@ -232,7 +249,7 @@ export const LocalModelSettings: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-gray-500">{t('common.loading')}</div>
+        <div className="theme-text-subtle">{t('common.loading')}</div>
       </div>
     );
   }
@@ -240,73 +257,78 @@ export const LocalModelSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 标题 */}
-      <div className="border-b pb-4">
-        <h2 className="text-xl font-semibold">{t('localModelSettings.title')}</h2>
-        <p className="text-sm text-gray-500 mt-1">
+      <div className="theme-border border-b pb-4">
+        <h2 className="theme-text text-xl font-semibold">{t('localModelSettings.title')}</h2>
+        <p className="theme-text-subtle mt-1 text-sm">
           {t('localModelSettings.description')}
         </p>
       </div>
 
       {/* 模型状态卡片 */}
-      <div className={`rounded-lg p-4 ${
-        modelInfo ? 'bg-green-50 border border-green-200' :
-        downloadState.status === 'Downloading' ? 'bg-blue-50 border border-blue-200' :
-        'bg-yellow-50 border border-yellow-200'
-      }`}>
+      <div
+        className={clsx(
+          'rounded-lg p-4',
+          modelInfo
+            ? 'theme-surface-success'
+            : downloadState.status === 'Downloading'
+              ? 'theme-surface-info'
+              : 'theme-surface-warning'
+        )}
+      >
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-semibold text-gray-900">{t('localModelSettings.modelStatus')}</h3>
+              <h3 className="theme-text font-semibold">{t('localModelSettings.modelStatus')}</h3>
               {modelInfo && (
-                <span className="px-2 py-0.5 text-xs bg-green-600 text-white rounded-full">{t('localModelSettings.downloaded')}</span>
+                <span className="theme-badge-success rounded-full px-2 py-0.5 text-xs">{t('localModelSettings.downloaded')}</span>
               )}
               {downloadState.status === 'Downloading' && (
-                <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full animate-pulse">{t('localModelSettings.downloading')}</span>
+                <span className="theme-badge-info animate-pulse rounded-full px-2 py-0.5 text-xs">{t('localModelSettings.downloading')}</span>
               )}
               {!modelInfo && downloadState.status !== 'Downloading' && (
-                <span className="px-2 py-0.5 text-xs bg-yellow-600 text-white rounded-full">{t('localModelSettings.notDownloaded')}</span>
+                <span className="theme-badge-warning rounded-full px-2 py-0.5 text-xs">{t('localModelSettings.notDownloaded')}</span>
               )}
             </div>
 
             {modelInfo ? (
-              <div className="mt-3 text-sm space-y-2 bg-white/50 rounded-lg p-3">
+              <div className="theme-input-surface theme-border mt-3 space-y-2 rounded-lg border p-3 text-sm">
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.file')}:</span>
-                  <span className="text-gray-900 break-all font-mono text-xs">{modelInfo.path}</span>
+                  <span className="theme-text-muted min-w-[3rem] font-semibold">{t('localModelSettings.file')}:</span>
+                  <span className="theme-text break-all font-mono text-xs">{modelInfo.path}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.size')}:</span>
-                  <span className="text-gray-900 font-medium">{modelInfo.size_mb.toFixed(2)} MB</span>
+                  <span className="theme-text-muted min-w-[3rem] font-semibold">{t('localModelSettings.size')}:</span>
+                  <span className="theme-text font-medium">{modelInfo.size_mb.toFixed(2)} MB</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.format')}:</span>
-                  <span className="text-gray-900 font-medium">{modelInfo.format}</span>
+                  <span className="theme-text-muted min-w-[3rem] font-semibold">{t('localModelSettings.format')}:</span>
+                  <span className="theme-text font-medium">{modelInfo.format}</span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-gray-700 min-w-[3rem]">{t('localModelSettings.model')}:</span>
-                  <span className="text-gray-900 font-medium">{modelInfo.model}</span>
+                  <span className="theme-text-muted min-w-[3rem] font-semibold">{t('localModelSettings.model')}:</span>
+                  <span className="theme-text font-medium">{modelInfo.model}</span>
                 </div>
               </div>
             ) : downloadState.status === 'Downloading' ? (
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="font-medium">{t('localModelSettings.downloadProgress')}</span>
-                  <span className="text-blue-600 font-semibold">{downloadState.progress}%</span>
+                  <span className="theme-text font-medium">{t('localModelSettings.downloadProgress')}</span>
+                  <span className="theme-text-info font-semibold">{downloadState.progress}%</span>
                 </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="theme-border h-2 overflow-hidden rounded-full border bg-[var(--bg-tertiary)]">
                   <div
-                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                    className="h-full rounded-full bg-[var(--accent-color)] transition-all duration-300"
                     style={{ width: `${downloadState.progress}%` }}
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                <div className="theme-text-subtle grid grid-cols-3 gap-2 text-xs">
                   <div>{formatBytes(downloadState.bytes_downloaded)} / {formatBytes(downloadState.total_bytes)}</div>
                   <div>{formatSpeed(downloadState.speed)}</div>
                   <div>{formatETA(downloadState.eta)}</div>
                 </div>
               </div>
             ) : (
-              <p className="mt-2 text-sm text-yellow-700">
+              <p className="theme-text-warning mt-2 text-sm">
                 {t('localModelSettings.modelNotFound')}
               </p>
             )}
@@ -316,14 +338,16 @@ export const LocalModelSettings: React.FC = () => {
             {modelInfo && (
               <>
                 <button
+                  type="button"
                   onClick={handleValidate}
-                  className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+                  className="theme-button-primary rounded px-3 py-1.5 text-sm"
                 >
                   {t('localModelSettings.refresh')}
                 </button>
                 <button
+                  type="button"
                   onClick={handleOpenModelDir}
-                  className="px-3 py-1.5 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+                  className="theme-button-secondary rounded px-3 py-1.5 text-sm"
                 >
                   {t('localModelSettings.openDir')}
                 </button>
@@ -331,8 +355,9 @@ export const LocalModelSettings: React.FC = () => {
             )}
             {!modelInfo && downloadState.status !== 'Downloading' && (
               <button
+                type="button"
                 onClick={handleStartDownload}
-                className="px-4 py-2 text-sm bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded hover:from-blue-600 hover:to-purple-700 flex items-center gap-2"
+                className="theme-button-primary flex items-center gap-2 rounded px-4 py-2 text-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -342,8 +367,9 @@ export const LocalModelSettings: React.FC = () => {
             )}
             {downloadState.status === 'Downloading' && (
               <button
+                type="button"
                 onClick={handleCancelDownload}
-                className="px-3 py-1.5 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                className="theme-button-danger rounded px-3 py-1.5 text-sm"
               >
                 {t('localModelSettings.cancel')}
               </button>
@@ -354,46 +380,59 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 启用开关 */}
       {modelInfo && config && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <div className="theme-panel-muted theme-border rounded-lg border p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900">{t('localModelSettings.enableLocalModel')}</h3>
-              <p className="text-sm text-gray-600 mt-1">
+              <h3 className="theme-text font-semibold">{t('localModelSettings.enableLocalModel')}</h3>
+              <p className="theme-text-subtle mt-1 text-sm">
                 {t('localModelSettings.enableLocalModelDesc')}
               </p>
             </div>
-            <button
-              onClick={handleToggleEnabled}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                config.enabled ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
-            >
+            <div className="flex items-center gap-3">
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+                className={clsx(
+                  'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                  config.enabled ? 'theme-badge-success' : 'theme-panel-muted theme-border theme-text-subtle border'
+                )}
+              >
+                {config.enabled ? t('localModelSettings.enabled') : t('localModelSettings.disabled')}
+              </span>
+              <button
+                type="button"
+                onClick={handleToggleEnabled}
+                className="theme-toggle-track theme-focus-ring-accent relative inline-flex h-6 w-11 items-center rounded-full"
+                data-active={config.enabled}
+                role="switch"
+                aria-checked={config.enabled}
+                aria-label={t('localModelSettings.toggleLabel')}
+              >
+                <span
+                  className={`theme-panel inline-block h-4 w-4 transform rounded-full shadow-sm transition-transform ${
+                    config.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* 系统信息 */}
       {systemInfo && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <h3 className="font-semibold text-gray-900 mb-3">{t('localModelSettings.systemInfo')}</h3>
+        <div className="theme-panel-muted theme-border rounded-lg border p-4 shadow-sm">
+          <h3 className="theme-text mb-3 font-semibold">{t('localModelSettings.systemInfo')}</h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="flex items-baseline gap-2">
-              <span className="font-semibold text-gray-700">{t('localModelSettings.os')}:</span>
-              <span className="text-gray-900">{systemInfo.os}</span>
+              <span className="theme-text-muted font-semibold">{t('localModelSettings.os')}:</span>
+              <span className="theme-text">{systemInfo.os}</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="font-semibold text-gray-700">{t('localModelSettings.arch')}:</span>
-              <span className="text-gray-900">{systemInfo.arch}</span>
+              <span className="theme-text-muted font-semibold">{t('localModelSettings.arch')}:</span>
+              <span className="theme-text">{systemInfo.arch}</span>
             </div>
             <div className="col-span-2 flex items-baseline gap-2">
-              <span className="font-semibold text-gray-700">{t('localModelSettings.modelDir')}:</span>
-              <span className="text-gray-900 break-all font-mono text-xs">{systemInfo.model_dir}</span>
+              <span className="theme-text-muted font-semibold">{t('localModelSettings.modelDir')}:</span>
+              <span className="theme-text break-all font-mono text-xs">{systemInfo.model_dir}</span>
             </div>
           </div>
         </div>
@@ -401,19 +440,19 @@ export const LocalModelSettings: React.FC = () => {
 
       {/* 错误信息 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="theme-surface-danger rounded-lg p-4">
+          <p className="theme-text-danger text-sm">{error}</p>
         </div>
       )}
 
       {/* 推理参数 */}
       {config && modelInfo && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm space-y-4">
-          <h3 className="font-semibold text-gray-900">{t('localModelSettings.inferenceParams')}</h3>
+        <div className="theme-panel-muted theme-border space-y-4 rounded-lg border p-4 shadow-sm">
+          <h3 className="theme-text font-semibold">{t('localModelSettings.inferenceParams')}</h3>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Temperature</label>
+              <label className="theme-text-muted mb-1.5 block text-sm font-medium">{t('localModelSettings.temperature')}</label>
               <input
                 type="number"
                 step="0.1"
@@ -421,13 +460,13 @@ export const LocalModelSettings: React.FC = () => {
                 max="2"
                 value={config.temperature}
                 onChange={(e) => setConfig({ ...config, temperature: parseFloat(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="theme-input-surface theme-border theme-focus-accent w-full rounded-md border px-3 py-2"
               />
-              <p className="text-xs text-gray-500 mt-1.5">{t('localModelSettings.temperatureDesc')}</p>
+              <p className="theme-text-subtle mt-1.5 text-xs">{t('localModelSettings.temperatureDesc')}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Top P</label>
+              <label className="theme-text-muted mb-1.5 block text-sm font-medium">{t('localModelSettings.topP')}</label>
               <input
                 type="number"
                 step="0.05"
@@ -435,21 +474,22 @@ export const LocalModelSettings: React.FC = () => {
                 max="1"
                 value={config.top_p}
                 onChange={(e) => setConfig({ ...config, top_p: parseFloat(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="theme-input-surface theme-border theme-focus-accent w-full rounded-md border px-3 py-2"
               />
-              <p className="text-xs text-gray-500 mt-1.5">{t('localModelSettings.topPDesc')}</p>
+              <p className="theme-text-subtle mt-1.5 text-xs">{t('localModelSettings.topPDesc')}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* 测试按钮 */}
-      <div className="border-t border-gray-200 pt-4">
-        <h3 className="font-semibold text-gray-900 mb-3">{t('localModelSettings.testFeatures')}</h3>
+      <div className="theme-border border-t pt-4">
+        <h3 className="theme-text mb-3 font-semibold">{t('localModelSettings.testFeatures')}</h3>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={handleTestToolParse}
-            className="px-4 py-2 text-sm font-medium bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors"
+            className="theme-button-primary rounded-md px-4 py-2 text-sm font-medium"
           >
             {t('localModelSettings.testToolParse')}
           </button>
@@ -457,39 +497,39 @@ export const LocalModelSettings: React.FC = () => {
       </div>
 
       {/* 功能说明 */}
-      <div className="bg-white border border-blue-200 rounded-lg p-4 text-sm shadow-sm">
-        <h3 className="font-semibold text-gray-900 mb-3">{t('localModelSettings.currentlySupported')}</h3>
-        <ul className="list-disc list-inside space-y-2 text-gray-700">
+      <div className="theme-panel rounded-lg border border-[var(--accent-soft-border)] bg-[var(--accent-soft-bg)] p-4 text-sm shadow-sm">
+        <h3 className="theme-text mb-3 font-semibold">{t('localModelSettings.currentlySupported')}</h3>
+        <ul className="theme-text-muted space-y-2">
           <li className="flex items-start gap-2">
-            <span className="text-blue-500 mt-0.5">•</span>
+            <span className="theme-text-accent mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.supportFeature1')}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-500 mt-0.5">•</span>
+            <span className="theme-text-accent mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.supportFeature2')}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-blue-500 mt-0.5">•</span>
+            <span className="theme-text-accent mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.supportFeature3')}</span>
           </li>
         </ul>
 
-        <h3 className="font-semibold text-gray-900 mt-5 mb-3">{t('localModelSettings.comingSoon')}</h3>
-        <ul className="list-disc list-inside space-y-2 text-gray-700">
+        <h3 className="theme-text mt-5 mb-3 font-semibold">{t('localModelSettings.comingSoon')}</h3>
+        <ul className="theme-text-muted space-y-2">
           <li className="flex items-start gap-2">
-            <span className="text-purple-500 mt-0.5">•</span>
+            <span className="theme-text-warning mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.comingFeature1')}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-purple-500 mt-0.5">•</span>
+            <span className="theme-text-warning mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.comingFeature2')}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-purple-500 mt-0.5">•</span>
+            <span className="theme-text-warning mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.comingFeature3')}</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-purple-500 mt-0.5">•</span>
+            <span className="theme-text-warning mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-current"></span>
             <span>{t('localModelSettings.comingFeature4')}</span>
           </li>
         </ul>

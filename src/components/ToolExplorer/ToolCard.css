@@ -11,5 +11,5 @@
 }
 
 .tool-card:hover .tool-card-title {
-  color: hsl(var(--primary));
+  color: var(--accent-color);
 }

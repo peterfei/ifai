@@ -10,9 +10,11 @@ import { X } from 'lucide-react';
 import { useLayoutStore } from '../../stores/layoutStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useEditorStore } from '../../stores/editorStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { getCommandLineCore } from '../../core/commandBar/bridge';
 import type { CommandResult, CommandSuggestion, CommandContext } from '../../core/commandBar/types';
-import { writeFileContent, readFileContent } from '../../utils/fileSystem';
+import { writeFileContent } from '../../utils/fileSystem';
+import { openFileFromPath } from '../../utils/fileActions';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { SimpleMarkdownRenderer } from '../AIChat/MarkdownRenderer';
@@ -22,6 +24,7 @@ export const CommandBar = () => {
   const { isCommandBarOpen, setCommandBarOpen, setSidebarActiveTab } = useLayoutStore();
   const { activeFileId, openedFiles, setFileDirty, rootPath } = useFileStore();
   const { getActiveEditor } = useEditorStore();
+  const theme = useSettingsStore(state => state.theme);
   const [input, setInput] = useState('');
   const [result, setResult] = useState<CommandResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -363,36 +366,12 @@ export const CommandBar = () => {
 
   // 打开搜索结果的辅助函数
   const openSearchResult = async (match: any) => {
-    try {
-      const content = await readFileContent(match.path);
-      const fileName = match.path.split('/').pop() || 'unknown';
-      const { openFile } = useFileStore.getState();
+    const opened = await openFileFromPath(match.path, {
+      initialLine: match.line_number,
+    });
 
-      // 使用 v4 生成 ID
-      const { v4: uuidv4 } = await import('uuid');
-      const language = await import(
-        '../../utils/languageDetection'
-      ).then(m => m.detectLanguageFromPath(match.path));
-
-      const openedId = openFile({
-        id: uuidv4(),
-        name: fileName,
-        path: match.path,
-        content,
-        language,
-        isDirty: false,
-        initialLine: match.line_number, // 跳转到对应行
-      });
-
-      // 分配到活动的编辑器窗格
-      const { activePaneId, assignFileToPane } = useLayoutStore.getState();
-      if (activePaneId && assignFileToPane) {
-        assignFileToPane(activePaneId, openedId);
-      }
-
+    if (opened) {
       handleClose();
-    } catch (error) {
-      console.error('[CommandBar] Failed to open file:', error);
     }
   };
 
@@ -440,6 +419,7 @@ export const CommandBar = () => {
       className={`command-bar-overlay ${!isCommandBarOpen ? 'command-bar-hidden' : ''}`}
       onClick={handleClose}
       data-test-id="quick-command-bar"
+      data-theme={theme}
       style={{
         visibility: isCommandBarOpen ? 'visible' : 'hidden',
         opacity: isCommandBarOpen ? 1 : 0,
@@ -488,18 +468,18 @@ export const CommandBar = () => {
             {result.outputType === 'html' ? (
               // 商业版可能错误地将 Markdown 标为 html，如果检测到 Markdown 标记则使用渲染器
               (result.message.includes('###') || result.message.includes('**')) ? (
-                <div className="command-bar-markdown">
+                <div className="command-bar-markdown allow-select">
                   <SimpleMarkdownRenderer content={result.message} />
                 </div>
               ) : (
-                <div dangerouslySetInnerHTML={{ __html: result.message }} />
+                <div className="allow-select" dangerouslySetInnerHTML={{ __html: result.message }} />
               )
             ) : (result.outputType === 'markdown' || result.message.includes('###') || result.message.includes('**')) ? (
-              <div className="command-bar-markdown">
+              <div className="command-bar-markdown allow-select">
                 <SimpleMarkdownRenderer content={result.message} />
               </div>
             ) : (
-              <div className="command-bar-message">{result.message}</div>
+              <div className="command-bar-message allow-select">{result.message}</div>
             )}
           </div>
         )}

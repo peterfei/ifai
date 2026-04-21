@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FileText, ArrowRight, ExternalLink } from 'lucide-react';
+import { FileText, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface FilePortalProps {
   files: string[];
@@ -8,13 +9,15 @@ interface FilePortalProps {
 }
 
 export const FilePortal: React.FC<FilePortalProps> = ({ files, onNavigate }) => {
+  const { t } = useTranslation();
+
   if (files.length === 0) return null;
 
   return (
-    <div className="file-portal mt-3 pt-2 border-t border-white/5">
+    <div className="file-portal theme-border mt-3 border-t pt-2">
       <div className="flex items-center gap-2 mb-2 px-1">
-        <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">
-          Modified Files ({files.length})
+        <span className="theme-text-subtle text-[10px] font-bold uppercase tracking-widest">
+          {t('inlineAIWidget.modifiedFiles', { count: files.length })}
         </span>
       </div>
       
@@ -22,20 +25,22 @@ export const FilePortal: React.FC<FilePortalProps> = ({ files, onNavigate }) => 
         {files.map((path) => (
           <motion.button
             key={path}
-            whileHover={{ x: 2, backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+            whileHover={{ x: 2 }}
             onClick={() => onNavigate(path)}
-            className="flex items-center justify-between w-full px-2 py-1.5 rounded-md text-left transition-all group"
+            title={path}
+            aria-label={t('inlineAIWidget.openModifiedFile', { file: path.split('/').pop() ?? path })}
+            className="theme-panel-muted theme-border flex w-full items-center justify-between rounded-md border px-2 py-1.5 text-left transition-all group hover:border-[var(--accent-soft-border)] hover:bg-[var(--hover-bg)]"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <FileText size={12} className="text-blue-400/60" />
-              <span className="text-[11px] text-white/60 truncate font-mono">
+              <FileText size={12} className="theme-text-accent shrink-0 opacity-70" />
+              <span className="theme-text-muted text-[11px] truncate font-mono">
                 {path.split('/').pop()}
-                <span className="text-white/20 ml-2 text-[9px]">
+                <span className="theme-text-subtle ml-2 text-[9px]">
                   {path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''}
                 </span>
               </span>
             </div>
-            <ExternalLink size={10} className="text-white/0 group-hover:text-white/40 transition-colors" />
+            <ExternalLink size={10} className="theme-text-subtle text-transparent transition-colors group-hover:text-[var(--accent-color)]" />
           </motion.button>
         ))}
       </div>

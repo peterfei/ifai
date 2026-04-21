@@ -137,7 +137,7 @@ export const LayoutSwitcher: React.FC = () => {
           {/* 菜单标题 */}
           <div className="layout-dropdown-header">
             <span className="layout-dropdown-title">{t('layout.switcher.layoutMode')}</span>
-            <span className="layout-dropdown-subtitle">Layout Mode</span>
+            <span className="layout-dropdown-subtitle">{t('layout.switcher.selectLayout')}</span>
           </div>
 
           {/* 分隔线 */}

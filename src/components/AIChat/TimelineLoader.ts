@@ -25,8 +25,10 @@ export interface TimelineEvent {
   codeLines?: number;
 }
 
+export type TimelineGroupKey = 'today' | 'yesterday' | 'older';
+
 export interface TimelineGroup {
-  label: string; // "今天", "昨天", "更早"
+  key: TimelineGroupKey;
   events: TimelineEvent[];
 }
 
@@ -35,7 +37,7 @@ export interface TimelineLoadResult {
   loadedCount: number;
   totalCount: number;
   hasMore: boolean;
-  error?: string; // 超时或其他错误信息
+  errorKey?: 'timeout';
 }
 
 interface TimelineLoaderOptions {
@@ -116,7 +118,7 @@ export class TimelineLoader {
         const currentState = this.getCurrentState();
         return {
           ...currentState,
-          error: '加载超时，点击重试'
+          errorKey: 'timeout',
         };
       }
       throw error;
@@ -263,13 +265,13 @@ export class TimelineLoader {
     });
 
     if (todayEvents.length > 0) {
-      groups.push({ label: '今天', events: todayEvents });
+      groups.push({ key: 'today', events: todayEvents });
     }
     if (yesterdayEvents.length > 0) {
-      groups.push({ label: '昨天', events: yesterdayEvents });
+      groups.push({ key: 'yesterday', events: yesterdayEvents });
     }
     if (olderEvents.length > 0) {
-      groups.push({ label: '更早', events: olderEvents });
+      groups.push({ key: 'older', events: olderEvents });
     }
 
     return groups;

@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { Zap, Clock, Cpu, HardDrive } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { TaskMetrics as TaskMetricsType } from './types';
 
 // ============================================================================
@@ -41,17 +42,28 @@ export interface TaskMetricsProps {
  * Format duration in human-readable format
  */
 export function formatDuration(milliseconds: number): string {
+  return formatDurationWithTranslation(milliseconds);
+}
+
+function formatDurationWithTranslation(
+  milliseconds: number,
+  t?: (key: string, options?: Record<string, unknown>) => string,
+): string {
   const seconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
 
   if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  } else {
-    return `${seconds}s`;
+    return t
+      ? t('taskMonitor.duration.hoursMinutesShort', { hours, minutes: minutes % 60 })
+      : `${hours}h ${minutes % 60}m`;
   }
+  if (minutes > 0) {
+    return t
+      ? t('taskMonitor.duration.minutesSecondsShort', { minutes, seconds: seconds % 60 })
+      : `${minutes}m ${seconds % 60}s`;
+  }
+  return t ? t('taskMonitor.duration.secondsShort', { count: seconds }) : `${seconds}s`;
 }
 
 /**
@@ -59,7 +71,8 @@ export function formatDuration(milliseconds: number): string {
  */
 export function formatSpeed(
   speed: number,
-  unit: 'files' | 'bytes' | 'items' = 'files'
+  unit: 'files' | 'bytes' | 'items' = 'files',
+  t?: (key: string, options?: Record<string, unknown>) => string,
 ): string {
   if (unit === 'bytes') {
     // Format as MB/s, KB/s, etc.
@@ -67,15 +80,15 @@ export function formatSpeed(
     const kb = speed / 1024;
 
     if (mb >= 1) {
-      return `${mb.toFixed(1)} MB/s`;
+      return t ? t('taskMonitor.metrics.megabytesPerSecond', { value: mb.toFixed(1) }) : `${mb.toFixed(1)} MB/s`;
     } else if (kb >= 1) {
-      return `${kb.toFixed(1)} KB/s`;
+      return t ? t('taskMonitor.metrics.kilobytesPerSecond', { value: kb.toFixed(1) }) : `${kb.toFixed(1)} KB/s`;
     } else {
-      return `${speed} B/s`;
+      return t ? t('taskMonitor.metrics.bytesPerSecond', { value: speed }) : `${speed} B/s`;
     }
   } else {
-    // Format as items/s
-    return `${speed} ${unit}/s`;
+    const key = unit === 'items' ? 'taskMonitor.metrics.itemsPerSecond' : 'taskMonitor.metrics.filesPerSecond';
+    return t ? t(key, { value: speed }) : `${speed} ${unit}/s`;
   }
 }
 
@@ -107,12 +120,13 @@ export const SpeedIndicator: React.FC<{
   speed?: number;
   unit?: 'files' | 'bytes' | 'items';
 }> = ({ speed, unit = 'files' }) => {
+  const { t } = useTranslation();
   if (speed === undefined || speed <= 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 text-[11px] text-[#4ec9b0]">
+    <div className="theme-text-success flex items-center gap-1.5 text-[11px]">
       <Zap size={10} className="flex-shrink-0" />
-      <span className="font-mono">{formatSpeed(speed, unit)}</span>
+      <span className="font-mono">{formatSpeed(speed, unit, t)}</span>
     </div>
   );
 };
@@ -123,12 +137,13 @@ export const SpeedIndicator: React.FC<{
 export const ETAIndicator: React.FC<{
   eta?: number;
 }> = ({ eta }) => {
+  const { t } = useTranslation();
   if (eta === undefined || eta <= 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 text-[11px] text-[#cccccc]">
+    <div className="theme-text flex items-center gap-1.5 text-[11px]">
       <Clock size={10} className="flex-shrink-0" />
-      <span className="font-mono">剩余 {formatDuration(eta)}</span>
+      <span className="font-mono">{t('taskMonitor.metrics.remaining', { duration: formatDurationWithTranslation(eta, t) })}</span>
     </div>
   );
 };
@@ -150,13 +165,13 @@ export const ResourceIndicator: React.FC<{
   return (
     <div className="flex items-center gap-3">
       {hasCpu && (
-        <div className="flex items-center gap-1.5 text-[11px] text-[#858585]">
+        <div className="theme-text-subtle flex items-center gap-1.5 text-[11px]">
           <Cpu size={10} className="flex-shrink-0" />
           <span className="font-mono">{formatResourceUsage(cpu, 'cpu')}</span>
         </div>
       )}
       {hasMemory && (
-        <div className="flex items-center gap-1.5 text-[11px] text-[#858585]">
+        <div className="theme-text-subtle flex items-center gap-1.5 text-[11px]">
           <HardDrive size={10} className="flex-shrink-0" />
           <span className="font-mono">{formatResourceUsage(memory, 'memory')}</span>
         </div>
@@ -236,7 +251,7 @@ export const MetricsSummary: React.FC<MetricsSummaryProps> = ({
         <div className="flex items-center gap-2">
             {speed !== undefined && speed > 0 && <SpeedIndicator speed={speed} />}
             {speed !== undefined && speed > 0 && eta !== undefined && eta > 0 && (
-                <span className="text-gray-700 text-[9px]">{separator}</span>
+                <span className="theme-text-subtle text-[9px]">{separator}</span>
             )}
             {eta !== undefined && eta > 0 && <ETAIndicator eta={eta} />}
         </div>
@@ -270,17 +285,17 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
   if (!hasCpu && !hasMemory) return null;
 
   const getColor = (value: number): string => {
-    if (value >= 80) return '#f14c4c'; // red
-    if (value >= 50) return '#dcdcaa'; // yellow
-    return '#4ec9b0'; // green
+    if (value >= 80) return 'var(--danger-color)';
+    if (value >= 50) return 'var(--warning-color)';
+    return 'var(--success-color)';
   };
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       {hasCpu && (
         <div className="flex items-center gap-1">
-          <Cpu size={8} className="text-[#858585]" />
-          <div className="w-12 h-1 bg-[#2d2d2d] rounded-full overflow-hidden">
+          <Cpu size={8} className="theme-text-subtle" />
+          <div className="w-12 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             <div
               className="h-full transition-all duration-300"
               style={{
@@ -289,15 +304,15 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
               }}
             />
           </div>
-          <span className="text-[10px] text-[#858585] font-mono min-w-[24px]">
+          <span className="theme-text-subtle min-w-[24px] text-[10px] font-mono">
             {cpu}%
           </span>
         </div>
       )}
       {hasMemory && (
         <div className="flex items-center gap-1">
-          <HardDrive size={8} className="text-[#858585]" />
-          <div className="w-12 h-1 bg-[#2d2d2d] rounded-full overflow-hidden">
+          <HardDrive size={8} className="theme-text-subtle" />
+          <div className="w-12 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
             <div
               className="h-full transition-all duration-300"
               style={{
@@ -306,7 +321,7 @@ export const ResourceBar: React.FC<ResourceBarProps> = ({
               }}
             />
           </div>
-          <span className="text-[10px] text-[#858585] font-mono min-w-[40px]">
+          <span className="theme-text-subtle min-w-[40px] text-[10px] font-mono">
             {formatResourceUsage(memory, 'memory')}
           </span>
         </div>

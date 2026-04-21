@@ -55,7 +55,7 @@ export const Tabs: React.FC<TabsProps> = ({ defaultValue, value, onValueChange, 
 };
 
 export const TabsList: React.FC<TabsListProps> = ({ children, className }) => (
-  <div className={clsx('inline-flex h-10 items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800 p-1', className)}>
+  <div className={clsx('theme-panel-muted theme-border inline-flex h-8 items-center justify-center rounded-[var(--radius-md)] border p-0.5', className)}>
     {children}
   </div>
 );
@@ -67,10 +67,10 @@ export const TabsTrigger: React.FC<TabsTriggerProps> = ({ value, children, class
     <button
       onClick={() => setActiveTab(value)}
       className={clsx(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+        'theme-focus-ring-accent inline-flex h-7 items-center justify-center whitespace-nowrap rounded-[var(--radius-sm)] px-3 py-1 text-[12px] font-medium transition-all disabled:pointer-events-none disabled:opacity-50',
         activeTab === value
-          ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
-          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200',
+          ? 'theme-panel-elevated theme-text'
+          : 'theme-text-muted theme-soft-hover',
         className
       )}
     >
@@ -85,7 +85,7 @@ export const TabsContent: React.FC<TabsContentProps> = ({ value, children, class
   if (activeTab !== value) return null;
 
   return (
-    <div className={clsx('mt-2 ring-offset-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2', className)}>
+    <div className={clsx('theme-focus-ring-accent mt-2', className)}>
       {children}
     </div>
   );

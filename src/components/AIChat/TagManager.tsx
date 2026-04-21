@@ -14,6 +14,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { X, Plus, Pencil, Trash2, Check, Tag } from 'lucide-react';
 import { useThreadStore } from '../../stores/threadStore';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 
 // ============================================================================
 // Types
@@ -47,6 +49,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
   const [editValue, setEditValue] = useState('');
   const [newTagName, setNewTagName] = useState('');
   const [showNewTagInput, setShowNewTagInput] = useState(false);
+  const [pendingDeleteTag, setPendingDeleteTag] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Get current thread's tags
@@ -104,8 +107,14 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
 
   // Handle delete tag (from current thread only)
   const handleDeleteTag = (tagName: string) => {
-    if (!activeThreadId) return;
-    if (!confirm(t('threads.confirmDeleteTag', '确定要删除标签 "{{tag}}" 吗？', { tag: tagName }))) {
+    if (!activeThreadId) {
+      return;
+    }
+    setPendingDeleteTag(tagName);
+  };
+
+  const confirmDeleteTag = () => {
+    if (!activeThreadId || !pendingDeleteTag) {
       return;
     }
 
@@ -113,8 +122,9 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
     if (!currentThread) return;
 
     // Remove tag from current thread only
-    const updatedTags = currentThread.tags.filter(t => t !== tagName);
+    const updatedTags = currentThread.tags.filter(t => t !== pendingDeleteTag);
     updateThread(activeThreadId, { tags: updatedTags });
+    setPendingDeleteTag(null);
   };
 
   // Handle create new tag (add to current thread)
@@ -128,7 +138,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
 
     // Check if tag already exists in current thread
     if (currentThread.tags.includes(tagName)) {
-      alert(t('threads.tagExists', '标签已存在'));
+      toast.error(t('threads.tagExists'));
       return;
     }
 
@@ -160,25 +170,36 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="bg-[#1e1e1e] border border-[#333] rounded-xl shadow-2xl w-full max-w-md max-h-[600px] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <>
+      <ConfirmDialog
+        open={pendingDeleteTag !== null}
+        title={t('threads.deleteTag')}
+        description={t('threads.confirmDeleteTag', { tag: pendingDeleteTag ?? '' })}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        tone="danger"
+        onCancel={() => setPendingDeleteTag(null)}
+        onConfirm={confirmDeleteTag}
+      />
+      <div className="theme-backdrop-strong fixed inset-0 z-[10000] flex items-center justify-center backdrop-blur-sm" onClick={onClose}>
+        <div
+          className="theme-panel-elevated border theme-border rounded-xl theme-shadow w-full max-w-md max-h-[600px] flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-[#333]">
+        <div className="flex justify-between items-center p-4 border-b theme-border">
           <div className="flex items-center gap-2">
-            <Tag size={18} className="text-blue-400" />
+            <Tag size={18} className="theme-text-info" />
             <div>
-              <h2 className="text-lg font-bold text-gray-200">{t('threads.manageTags', '管理标签')}</h2>
+              <h2 className="text-lg font-bold theme-text">{t('threads.manageTags')}</h2>
               {currentThread && (
-                <p className="text-xs text-gray-500">{currentThread.title}</p>
+                <p className="text-xs theme-text-subtle">{currentThread.title}</p>
               )}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+            className="p-1 rounded transition-colors theme-button-ghost"
           >
             <X size={20} />
           </button>
@@ -187,21 +208,21 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
         {/* Tag List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {!activeThreadId ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 theme-text-subtle">
               <Tag size={48} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">{t('threads.noActiveThread', '无活动会话')}</p>
+              <p className="text-sm">{t('threads.noActiveThread')}</p>
             </div>
           ) : tags.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 theme-text-subtle">
               <Tag size={48} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">{t('threads.noTagsYet', '当前会话暂无标签')}</p>
-              <p className="text-xs mt-1">{t('threads.createTagHint', '创建标签后可以为当前会话添加标签')}</p>
+              <p className="text-sm">{t('threads.noTagsYet')}</p>
+              <p className="text-xs mt-1">{t('threads.createTagHint')}</p>
             </div>
           ) : (
             tags.map((tag) => (
               <div
                 key={tag.name}
-                className="flex items-center gap-2 p-3 bg-[#2d2d2d] rounded-lg border border-[#333] group"
+                className="flex items-center gap-2 p-3 theme-panel-muted rounded-lg border theme-border group"
               >
                 {editingTag === tag.name ? (
                   <>
@@ -211,19 +232,19 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, 'save')}
-                      className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 outline-none focus:border-blue-500"
+                      className="flex-1 theme-input-surface border theme-border rounded px-2 py-1 text-sm theme-text outline-none focus:border-[var(--accent-color)]"
                     />
                     <button
                       onClick={handleSaveEdit}
-                      className="p-1.5 bg-green-600 hover:bg-green-700 rounded text-white transition-colors"
-                      title={t('threads.save', '保存')}
+                      className="p-1.5 theme-button-success rounded"
+                      title={t('threads.save')}
                     >
                       <Check size={16} />
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="p-1.5 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
-                      title={t('threads.cancel', '取消')}
+                      className="p-1.5 theme-button-secondary rounded"
+                      title={t('threads.cancel')}
                     >
                       <X size={16} />
                     </button>
@@ -231,22 +252,22 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
                 ) : (
                   <>
                     <div className="flex-1 flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded text-xs font-medium">
+                      <span className="theme-badge-info rounded px-2 py-0.5 text-xs font-medium">
                         {tag.name}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleStartEdit(tag.name)}
-                        className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
-                        title={t('threads.editTag', '编辑标签')}
+                        className="p-1.5 rounded transition-colors theme-button-ghost"
+                        title={t('threads.editTag')}
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteTag(tag.name)}
-                        className="p-1.5 hover:bg-red-600/20 rounded text-gray-400 hover:text-red-400 transition-colors"
-                        title={t('threads.deleteTag', '删除标签')}
+                        className="theme-button-ghost theme-text-danger rounded p-1.5 transition-colors"
+                        title={t('threads.deleteTag')}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -259,7 +280,7 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Create New Tag */}
-        <div className="p-4 border-t border-[#333]">
+        <div className="p-4 border-t theme-border">
           {showNewTagInput ? (
             <div className="flex items-center gap-2">
               <input
@@ -268,13 +289,13 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, 'create')}
-                placeholder={t('threads.newTagName', '新标签名称')}
-                className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-gray-200 outline-none focus:border-blue-500"
+                placeholder={t('threads.newTagName')}
+                className="flex-1 theme-input-surface border theme-border rounded px-3 py-2 text-sm theme-text outline-none focus:border-[var(--accent-color)]"
               />
               <button
                 onClick={handleCreateTag}
-                className="p-2 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors"
-                title={t('threads.create', '创建')}
+                className="p-2 theme-button-primary rounded"
+                title={t('threads.create')}
               >
                 <Check size={18} />
               </button>
@@ -283,8 +304,8 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
                   setShowNewTagInput(false);
                   setNewTagName('');
                 }}
-                className="p-2 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
-                title={t('threads.cancel', '取消')}
+                className="p-2 theme-button-secondary rounded"
+                title={t('threads.cancel')}
               >
                 <X size={18} />
               </button>
@@ -292,15 +313,16 @@ export const TagManager: React.FC<TagManagerProps> = ({ isOpen, onClose }) => {
           ) : (
             <button
               onClick={() => setShowNewTagInput(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-dashed border-gray-600 rounded-lg text-gray-400 hover:text-white transition-colors"
+              className="theme-button-secondary theme-text-subtle w-full flex items-center justify-center gap-2 rounded-lg border-dashed px-4 py-2 transition-colors hover:text-[var(--text-primary)]"
             >
               <Plus size={16} />
-              <span className="text-sm">{t('threads.createNewTag', '创建新标签')}</span>
+              <span className="text-sm">{t('threads.createNewTag')}</span>
             </button>
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

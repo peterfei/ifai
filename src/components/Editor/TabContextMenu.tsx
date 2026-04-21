@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { X, XCircle, Trash2 } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
 
 interface TabContextMenuProps {
   x: number;
@@ -43,7 +44,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, fileId, on
   return (
     <div
       ref={menuRef}
-      className="fixed bg-gray-800 border border-gray-700 rounded shadow-xl z-[100] py-1 min-w-40"
+      className="theme-panel-elevated theme-border theme-shadow fixed z-[100] min-w-40 rounded border py-1"
       style={{ left: x, top: y }}
     >
       <ContextMenuItem
@@ -53,15 +54,15 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, fileId, on
       />
       <ContextMenuItem
         icon={<XCircle size={14} />}
-        label="关闭其它"
+        label={t('editor.closeOtherTabs')}
         onClick={handleCloseOthers}
       />
-      <div className="my-1 border-t border-gray-700" />
+      <div className="theme-border my-1 border-t" />
       <ContextMenuItem
         icon={<Trash2 size={14} />}
-        label="关闭所有"
+        label={t('editor.closeAllTabs')}
         onClick={handleCloseAll}
-        className="text-red-400 hover:bg-red-900/20 hover:text-red-300"
+        className="theme-text-danger hover:bg-[var(--danger-soft-bg)] hover:text-[var(--danger-color)]"
       />
     </div>
   );
@@ -76,10 +77,10 @@ interface ContextMenuItemProps {
 
 const ContextMenuItem: React.FC<ContextMenuItemProps> = ({ icon, label, onClick, className = '' }) => (
   <div
-    className={`px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-gray-300 hover:bg-gray-700 hover:text-white ${className}`}
+    className={clsx('theme-hoverable theme-text-muted flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm', className)}
     onClick={onClick}
   >
-    <span className="text-gray-400">{icon}</span>
+    <span className="theme-text-subtle">{icon}</span>
     <span>{label}</span>
   </div>
 );

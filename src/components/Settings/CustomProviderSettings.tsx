@@ -5,6 +5,8 @@ import { AIProviderConfig } from '../../stores/settingsStore';
 import { ModelParamsConfigComponent } from './ModelParamsConfig';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '../UI/ConfirmDialog';
 
 export const CustomProviderSettings = () => {
   const { t } = useTranslation();
@@ -13,6 +15,7 @@ export const CustomProviderSettings = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showParamsEditor, setShowParamsEditor] = useState<string | null>(null);
   const [refreshingProvider, setRefreshingProvider] = useState<string | null>(null);
+  const [pendingDeleteProviderId, setPendingDeleteProviderId] = useState<string | null>(null);
 
   // 新建提供商表单状态
   const [newProvider, setNewProvider] = useState({
@@ -39,11 +42,11 @@ export const CustomProviderSettings = () => {
   // 添加自定义提供商
   const handleAddProvider = () => {
     if (!newProvider.name.trim()) {
-      alert(t('customProviderSettings.pleaseEnterName'));
+      toast.error(t('customProviderSettings.pleaseEnterName'));
       return;
     }
 
-    const id = settings.addCustomProvider({
+    settings.addCustomProvider({
       name: newProvider.name,
       presetTemplate: newProvider.presetTemplate,
       customEndpoint: newProvider.customEndpoint || undefined,
@@ -65,9 +68,7 @@ export const CustomProviderSettings = () => {
 
   // 删除提供商
   const handleDeleteProvider = (providerId: string) => {
-    if (confirm(t('customProviderSettings.confirmDelete'))) {
-      settings.removeProvider(providerId);
-    }
+    setPendingDeleteProviderId(providerId);
   };
 
   // 切换编辑状态
@@ -96,17 +97,23 @@ export const CustomProviderSettings = () => {
       const models = data.models?.map((m: any) => m.name) || [];
 
       if (models.length === 0) {
-        alert(t('customProviderSettings.noModelsFound'));
+        toast.error(t('customProviderSettings.noModelsFound'));
         return;
       }
 
       // 更新提供商的模型列表
       settings.updateProviderConfig(provider.id, { models });
 
-      alert(t('customProviderSettings.refreshSuccess', { count: models.length, models: models.slice(0, 5).join(', ') }));
+      toast.success(t('customProviderSettings.refreshSuccess', {
+        count: models.length,
+        models: models.slice(0, 5).join(', '),
+      }));
     } catch (error) {
       console.error('刷新模型列表失败:', error);
-      alert(t('customProviderSettings.refreshFailed', { error, baseUrl: provider.baseUrl }));
+      toast.error(t('customProviderSettings.refreshFailed', {
+        error: String(error),
+        baseUrl: provider.baseUrl,
+      }));
     } finally {
       setRefreshingProvider(null);
     }
@@ -121,38 +128,38 @@ export const CustomProviderSettings = () => {
       <div
         key={provider.id}
         className={clsx(
-          "border rounded p-4 bg-[#2d2d2d] transition-all",
-          isCurrent ? "border-blue-500 bg-blue-900/10" : "border-gray-600"
+          'theme-panel-muted theme-border rounded border p-4 transition-all',
+          isCurrent && 'border-[var(--accent-soft-border)] bg-[var(--selected-bg)]'
         )}
       >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center">
-            <Globe size={16} className="mr-2 text-gray-400" />
-            <span className="font-semibold text-gray-200">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <Globe size={16} className="theme-text-subtle mr-2" />
+            <span className="theme-text min-w-0 truncate font-semibold">
               {provider.displayName || provider.name}
             </span>
             {isCurrent && (
-              <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+              <span className="theme-badge-accent rounded px-2 py-0.5 text-xs">{t('settings.current')}</span>
             )}
             {provider.presetTemplate && (
-              <span className="ml-2 px-2 py-0.5 text-xs bg-gray-600 text-gray-300 rounded">
+              <span className="theme-input-surface theme-text-subtle rounded px-2 py-0.5 text-xs">
                 {presetOptions.find(o => o.value === provider.presetTemplate)?.label}
               </span>
             )}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex shrink-0 items-center space-x-2">
             {!isCurrent && (
               <button
                 onClick={() => {
                   // 🔥 修复：如果模型列表为空，提示用户先添加模型
                   if (provider.models.length === 0) {
-                    alert('请先编辑提供商并添加模型名称');
+                    toast.error(t('customProviderSettings.addModelsFirst'));
                     setEditingId(provider.id);
                     return;
                   }
                   settings.setCurrentProviderAndModel(provider.id, provider.models[0]);
                 }}
-                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                className="theme-button-primary rounded px-2 py-1 text-xs"
                 disabled={provider.models.length === 0}
               >
                 {t('settings.setAsDefault')}
@@ -160,7 +167,7 @@ export const CustomProviderSettings = () => {
             )}
             <button
               onClick={() => handleToggleEdit(provider.id)}
-              className="p-1 hover:bg-gray-700 rounded transition-colors"
+              className="theme-button-ghost rounded p-1"
               title={isEditing ? t('customProviderSettings.cancelEdit') : t('customProviderSettings.edit')}
             >
               {isEditing ? <X size={14} /> : <Edit2 size={14} />}
@@ -168,8 +175,8 @@ export const CustomProviderSettings = () => {
             <button
               onClick={() => setShowParamsEditor(showParamsEditor === provider.id ? null : provider.id)}
               className={clsx(
-                "p-1 hover:bg-gray-700 rounded transition-colors",
-                showParamsEditor === provider.id ? "text-blue-400" : "text-gray-400"
+                'rounded p-1 transition-colors',
+                showParamsEditor === provider.id ? 'theme-button-primary' : 'theme-button-ghost'
               )}
               title={t('customProviderSettings.modelParams')}
             >
@@ -180,8 +187,8 @@ export const CustomProviderSettings = () => {
               <button
                 onClick={() => handleRefreshModels(provider)}
                 className={clsx(
-                  "p-1 hover:bg-gray-700 rounded transition-colors",
-                  refreshingProvider === provider.id ? "text-yellow-400 animate-spin" : "text-green-400"
+                  'rounded p-1',
+                  refreshingProvider === provider.id ? 'theme-button-secondary theme-text-warning animate-spin' : 'theme-button-ghost theme-text-success'
                 )}
                 title={t('customProviderSettings.refreshFromOllama')}
                 disabled={refreshingProvider === provider.id}
@@ -191,7 +198,7 @@ export const CustomProviderSettings = () => {
             )}
             <button
               onClick={() => handleDeleteProvider(provider.id)}
-              className="p-1 hover:bg-red-900/50 rounded transition-colors text-red-400"
+              className="theme-button-ghost theme-text-danger rounded p-1"
               title={t('customProviderSettings.delete')}
             >
               <Trash2 size={14} />
@@ -203,75 +210,77 @@ export const CustomProviderSettings = () => {
           // 编辑模式
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.providerName')}</label>
+              <label className="theme-text-subtle mb-1 block text-xs">{t('customProviderSettings.providerName')}</label>
               <input
                 type="text"
                 value={provider.displayName || provider.name}
                 onChange={(e) => settings.updateProviderConfig(provider.id, { displayName: e.target.value })}
-                className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.apiUrl')}</label>
+              <label className="theme-text-subtle mb-1 block text-xs">{t('customProviderSettings.apiUrl')}</label>
               <input
                 type="text"
                 value={provider.baseUrl}
                 onChange={(e) => settings.updateProviderConfig(provider.id, { baseUrl: e.target.value })}
-                className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">API Key</label>
+              <label className="theme-text-subtle mb-1 block text-xs">{t('settings.apiKey')}</label>
               <input
                 type="password"
                 value={provider.apiKey}
                 onChange={(e) => settings.updateProviderConfig(provider.id, { apiKey: e.target.value })}
-                className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                {t('customProviderSettings.availableModels')} (多个模型请用逗号分隔)
+              <label className="theme-text-subtle mb-1 block text-xs">
+                {t('customProviderSettings.availableModels')}
               </label>
               <input
                 type="text"
                 value={provider.models.join(', ')}
-                placeholder="例如: qwen2.5-coder, gpt-4o"
+                placeholder={t('customProviderSettings.modelsPlaceholder')}
                 onChange={(e) => settings.updateProviderConfig(provider.id, { models: e.target.value.split(',').map(m => m.trim()).filter(Boolean) })}
-                className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                className="theme-input-surface theme-border theme-text w-full rounded border px-2 py-1 text-xs"
               />
             </div>
             <button
               onClick={() => setEditingId(null)}
-              className="w-full px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+              className="theme-button-success w-full rounded px-3 py-1.5 text-xs"
             >
               <Check size={14} className="inline mr-1" />
-              保存
+              {t('menu.save')}
             </button>
           </div>
         ) : (
           // 查看模式
-          <div className="space-y-2 text-xs text-gray-400">
-            <div className="flex justify-between">
+          <div className="theme-text-subtle space-y-2 text-xs">
+            <div className="flex items-start justify-between gap-4">
               <span>{t('customProviderSettings.statusLabel')}:</span>
-              <span className={provider.enabled ? 'text-green-400' : 'text-gray-500'}>
+              <span className={provider.enabled ? 'theme-text-success' : 'theme-text-subtle'}>
                 {provider.enabled ? t('customProviderSettings.enabled') : t('customProviderSettings.disabled')}
               </span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-start justify-between gap-4">
               <span>{t('settings.endpoint')}:</span>
-              <span className="font-mono truncate max-w-[200px]" title={provider.baseUrl}>
+              <span className="min-w-0 max-w-[200px] break-all text-right font-mono" title={provider.baseUrl}>
                 {provider.baseUrl}
               </span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-start justify-between gap-4">
               <span>{t('settings.modelLabel')}:</span>
-              <span>{provider.models.length > 0 ? provider.models[0] + t('customProviderSettings.etc') : t('customProviderSettings.notConfigured')}</span>
+              <span className="min-w-0 max-w-[200px] break-words text-right">
+                {provider.models.length > 0 ? provider.models[0] + t('customProviderSettings.etc') : t('customProviderSettings.notConfigured')}
+              </span>
             </div>
 
             {/* 模型参数配置器 */}
             {showParamsEditor === provider.id ? (
-              <div className="pt-3 border-t border-gray-600">
+              <div className="theme-border border-t pt-3">
                 <ModelParamsConfigComponent
                   config={provider.modelParams || MODEL_PARAM_PRESETS.balanced}
                   onChange={(newConfig) => settings.updateModelParams(provider.id, newConfig)}
@@ -281,12 +290,12 @@ export const CustomProviderSettings = () => {
               </div>
             ) : (
               provider.modelParams && (
-                <div className="pt-2 border-t border-gray-600">
-                  <div className="text-gray-500 mb-1">参数配置:</div>
+                <div className="theme-border border-t pt-2">
+                  <div className="theme-text-subtle mb-1">{t('customProviderSettings.parametersTitle')}:</div>
                   <div className="grid grid-cols-2 gap-1 text-xs">
-                    <span>温度: {provider.modelParams.temperature}</span>
-                    <span>Top-P: {provider.modelParams.top_p}</span>
-                    <span className="col-span-2">最大 Token: {provider.modelParams.max_tokens}</span>
+                    <span>{t('customProviderSettings.temperature')}: {provider.modelParams.temperature}</span>
+                    <span>{t('customProviderSettings.topP')}: {provider.modelParams.top_p}</span>
+                    <span className="col-span-2">{t('customProviderSettings.maxTokens')}: {provider.modelParams.max_tokens}</span>
                   </div>
                 </div>
               )
@@ -297,23 +306,44 @@ export const CustomProviderSettings = () => {
     );
   };
 
+  const pendingDeleteProvider = pendingDeleteProviderId
+    ? customProviders.find((provider) => provider.id === pendingDeleteProviderId) ?? null
+    : null;
+
   return (
     <div className="space-y-4">
+      <ConfirmDialog
+        open={pendingDeleteProvider !== null}
+        title={t('customProviderSettings.delete')}
+        description={t('customProviderSettings.confirmDelete', {
+          name: pendingDeleteProvider?.displayName || pendingDeleteProvider?.name || '',
+        })}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        tone="danger"
+        onCancel={() => setPendingDeleteProviderId(null)}
+        onConfirm={() => {
+          if (pendingDeleteProviderId) {
+            settings.removeProvider(pendingDeleteProviderId);
+          }
+          setPendingDeleteProviderId(null);
+        }}
+      />
       {/* 标题和添加按钮 */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-gray-300">{t('settings.customProvider')}</h3>
-          <p className="text-xs text-gray-500 mt-1">
+          <h3 className="theme-text-muted text-sm font-bold">{t('settings.customProvider')}</h3>
+          <p className="theme-text-subtle mt-1 text-xs">
             {t('customProviderSettings.customProviderDesc')}
           </p>
         </div>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className={clsx(
-            "flex items-center px-3 py-1.5 rounded text-sm transition-colors",
+            'flex items-center rounded px-3 py-1.5 text-sm',
             showAddForm
-              ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              : "bg-blue-600 text-white hover:bg-blue-700"
+              ? 'theme-button-secondary'
+              : 'theme-button-primary'
           )}
         >
           <Plus size={16} className="mr-1" />
@@ -323,22 +353,22 @@ export const CustomProviderSettings = () => {
 
       {/* 添加表单 */}
       {showAddForm && (
-        <div className="border border-blue-500/50 rounded p-4 bg-blue-900/10 space-y-3">
-          <h4 className="text-sm font-medium text-gray-300">{t('customProviderSettings.addNewProvider')}</h4>
+        <div className="theme-surface-info theme-border space-y-3 rounded border p-4">
+          <h4 className="theme-text-muted text-sm font-medium">{t('customProviderSettings.addNewProvider')}</h4>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.providerName')}</label>
+            <label className="theme-text-subtle mb-1 block text-xs">{t('customProviderSettings.providerName')}</label>
             <input
               type="text"
               value={newProvider.name}
               onChange={(e) => setNewProvider({ ...newProvider, name: e.target.value })}
               placeholder={t('customProviderSettings.providerNamePlaceholder')}
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.presetTemplate')}</label>
+            <label className="theme-text-subtle mb-1 block text-xs">{t('customProviderSettings.presetTemplate')}</label>
             <select
               value={newProvider.presetTemplate}
               onChange={(e) => {
@@ -350,7 +380,7 @@ export const CustomProviderSettings = () => {
                   models: PRESET_ENDPOINTS[template]?.defaultModels.join(', ') || ''
                 });
               }}
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm"
             >
               {presetOptions.map(option => (
                 <option key={option.value} value={option.value}>
@@ -361,49 +391,49 @@ export const CustomProviderSettings = () => {
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">
-              {t('customProviderSettings.availableModels')} (多个请用逗号分隔)
+            <label className="theme-text-subtle mb-1 block text-xs">
+              {t('customProviderSettings.availableModels')}
             </label>
             <input
               type="text"
               value={newProvider.models}
               onChange={(e) => setNewProvider({ ...newProvider, models: e.target.value })}
-              placeholder="例如: gpt-4o, qwen2.5-coder"
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder={t('customProviderSettings.modelsPlaceholder')}
+              className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm"
             />
           </div>
 
           {newProvider.presetTemplate === 'custom' && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.customEndpoint')}</label>
+              <label className="theme-text-subtle mb-1 block text-xs">{t('customProviderSettings.customEndpoint')}</label>
               <input
                 type="text"
                 value={newProvider.customEndpoint}
                 onChange={(e) => setNewProvider({ ...newProvider, customEndpoint: e.target.value })}
-                placeholder="https://your-endpoint.com/v1/chat/completions"
-                className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                placeholder={t('customProviderSettings.customEndpointPlaceholder')}
+                className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('customProviderSettings.apiKeyOptional')}</label>
+            <label className="theme-text-subtle mb-1 block text-xs">{t('customProviderSettings.apiKeyOptional')}</label>
             <input
               type="password"
               value={newProvider.apiKey}
               onChange={(e) => setNewProvider({ ...newProvider, apiKey: e.target.value })}
               placeholder={t('customProviderSettings.apiKeyPlaceholder')}
-              className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border px-3 py-2 text-sm"
             />
           </div>
 
           <div className="flex space-x-2">
             <button
               onClick={handleAddProvider}
-              className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+              className="theme-button-primary flex-1 rounded px-3 py-2 text-sm"
             >
               <Check size={16} className="inline mr-1" />
-              添加
+              {t('customProviderSettings.addProvider')}
             </button>
             <button
               onClick={() => {
@@ -416,7 +446,7 @@ export const CustomProviderSettings = () => {
                   models: '',
                 });
               }}
-              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded transition-colors"
+              className="theme-button-secondary rounded px-3 py-2 text-sm"
             >
               {t('common.cancel')}
             </button>
@@ -426,7 +456,7 @@ export const CustomProviderSettings = () => {
 
       {/* 提供商列表 */}
       {customProviders.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 text-sm">
+        <div className="theme-text-subtle py-8 text-center text-sm">
           {t('customProviderSettings.noCustomProviders')}
         </div>
       ) : (

@@ -11,14 +11,14 @@ export const SnippetManager: React.FC = () => {
 
   useEffect(() => {
     fetchSnippets();
-  }, []);
+  }, [fetchSnippets]);
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] border-r border-gray-700 w-full overflow-hidden">
+    <div className="theme-panel theme-border flex h-full w-full flex-col overflow-hidden border-r">
       {/* Header */}
-      <div className="flex items-center gap-2 p-3 bg-[#252526] border-b border-gray-700">
-        <Code2 className="w-4 h-4 text-blue-400" />
-        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('snippetManager.title')}</span>
+      <div className="theme-panel-muted theme-border flex items-center gap-2 border-b p-3">
+        <Code2 className="theme-text-accent h-4 w-4" />
+        <span className="theme-text-subtle text-xs font-bold uppercase tracking-wider">{t('snippetManager.title')}</span>
       </div>
 
       {/* Toolbar / Search */}
@@ -39,7 +39,7 @@ const SnippetStats: React.FC = () => {
   const snippets = useSnippetStore(state => state.snippets);
   const { t } = useTranslation();
   return (
-    <div className="p-1.5 px-3 bg-[#007acc] text-[10px] text-white flex justify-between items-center shrink-0">
+    <div className="theme-panel-muted theme-border theme-text-subtle flex shrink-0 items-center justify-between border-t px-3 py-1.5 text-[10px]">
       <span>{snippets.length} {t('snippetManager.items')}</span>
       <span className="opacity-70">{t('snippetManager.storage')}</span>
     </div>

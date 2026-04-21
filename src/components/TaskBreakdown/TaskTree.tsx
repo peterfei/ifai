@@ -9,7 +9,7 @@
  * - 导出功能
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -17,7 +17,6 @@ import {
   Minimize2,
   Search,
   Download,
-  RefreshCw,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -28,6 +27,8 @@ import { useTaskBreakdownStore } from '../../stores/taskBreakdownStore';
 import { TaskTreeProvider, useTaskTree } from './TaskTreeContext';
 import { TaskNode } from './TaskNode';
 import { TaskDetailPanel } from './TaskDetailPanel';
+import { useTranslation } from 'react-i18next';
+import { getTaskStatusMeta } from './taskBreakdownMeta';
 
 interface TaskTreeProps {
   taskTree: TaskNodeType;
@@ -45,6 +46,7 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
   showDetailPanel: externalShowDetail = true,
   detailPanelPosition = 'right',
 }) => {
+  const { t } = useTranslation();
   const {
     expandedState,
     expandAll,
@@ -57,17 +59,21 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const completedMeta = getTaskStatusMeta('completed', t);
+  const inProgressMeta = getTaskStatusMeta('in_progress', t);
+  const failedMeta = getTaskStatusMeta('failed', t);
 
   /**
    * 计算统计信息
    */
   const stats = useMemo(() => {
     const calculateStats = (node: TaskNodeType) => {
+      const statusKey = getTaskStatusMeta(node.status, t).key;
       let total = 1;
-      let completed = node.status === 'completed' ? 1 : 0;
-      let inProgress = node.status === 'in_progress' ? 1 : 0;
-      let pending = node.status === 'pending' ? 1 : 0;
-      let failed = node.status === 'failed' ? 1 : 0;
+      let completed = statusKey === 'completed' ? 1 : 0;
+      let inProgress = statusKey === 'inProgress' ? 1 : 0;
+      let pending = statusKey === 'pending' ? 1 : 0;
+      let failed = statusKey === 'failed' ? 1 : 0;
 
       if (node.children && node.children.length > 0) {
         node.children.forEach(child => {
@@ -84,7 +90,7 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
     };
 
     return calculateStats(taskTree);
-  }, [taskTree]);
+  }, [t, taskTree]);
 
   /**
    * 展开所有节点的辅助函数
@@ -125,41 +131,33 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  /**
-   * 刷新任务树（重新计算统计）
-   */
-  const handleRefresh = () => {
-    // 触发重新渲染
-    window.location.reload();
-  };
-
   return (
     <div
       className={`
-        flex flex-row bg-[#1a1a1a] border border-gray-800 rounded-lg overflow-hidden
-        ${isFullscreen ? 'fixed inset-4 z-50' : 'h-full'}
+        theme-panel theme-border flex flex-row overflow-hidden rounded-lg border
+        ${isFullscreen ? 'theme-shadow fixed inset-4 z-50' : 'h-full'}
       `}
     >
       {/* 主任务树区域 */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* 工具栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#1e1e1e]">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-3">
-            <h3 className="text-sm font-medium text-gray-200">任务树</h3>
+            <h3 className="theme-text text-sm font-medium">{t('taskBreakdown.labels.taskTree')}</h3>
 
             {/* 统计信息 */}
             <div className="flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1 text-gray-400">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+              <span className="theme-text-subtle flex items-center gap-1" title={t('taskBreakdown.stats.completed', { count: stats.completed })}>
+                <CheckCircle2 className={`h-3.5 w-3.5 ${completedMeta.textClass}`} />
                 {stats.completed}/{stats.total}
               </span>
-              <span className="flex items-center gap-1 text-gray-400">
-                <Clock className="w-3.5 h-3.5 text-blue-400" />
+              <span className="theme-text-subtle flex items-center gap-1" title={t('taskBreakdown.stats.inProgress', { count: stats.inProgress })}>
+                <Clock className={`h-3.5 w-3.5 ${inProgressMeta.textClass}`} />
                 {stats.inProgress}
               </span>
               {stats.failed > 0 && (
-                <span className="flex items-center gap-1 text-gray-400">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                <span className="theme-text-subtle flex items-center gap-1" title={t('taskBreakdown.stats.failed', { count: stats.failed })}>
+                  <AlertCircle className={`h-3.5 w-3.5 ${failedMeta.textClass}`} />
                   {stats.failed}
                 </span>
               )}
@@ -169,28 +167,28 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
           <div className="flex items-center gap-2">
             {/* 搜索框 */}
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="theme-text-subtle absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="搜索任务..."
+                placeholder={t('taskBreakdown.actions.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs bg-[#2a2a2a] border border-gray-700 rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 w-40"
+                className="theme-input-surface theme-border theme-text w-40 rounded-md border py-1.5 pl-8 pr-3 text-xs focus:border-[var(--accent-color)] focus:outline-none"
               />
             </div>
 
             {/* 展开/折叠 */}
             <button
               onClick={handleExpandAll}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
-              title="展开全部"
+              className="theme-button-ghost rounded-md p-1.5"
+              title={t('taskBreakdown.actions.expandAll')}
             >
               <ChevronDown className="w-4 h-4" />
             </button>
             <button
               onClick={collapseAll}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
-              title="折叠全部"
+              className="theme-button-ghost rounded-md p-1.5"
+              title={t('taskBreakdown.actions.collapseAll')}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -198,8 +196,8 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
             {/* 导出 */}
             <button
               onClick={handleExport}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
-              title="导出 JSON"
+              className="theme-button-ghost rounded-md p-1.5"
+              title={t('taskBreakdown.actions.exportJson')}
             >
               <Download className="w-4 h-4" />
             </button>
@@ -207,8 +205,8 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
             {/* 全屏 */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 rounded-md hover:bg-[#2a2a2a] text-gray-400 hover:text-gray-200 transition-colors"
-              title={isFullscreen ? '退出全屏' : '全屏'}
+              className="theme-button-ghost rounded-md p-1.5"
+              title={isFullscreen ? t('taskBreakdown.actions.exitFullscreen') : t('taskBreakdown.actions.enterFullscreen')}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
@@ -216,7 +214,7 @@ const TaskTreeContent: React.FC<TaskTreeProps> = ({
         </div>
 
         {/* 任务树内容 */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="theme-panel flex-1 overflow-auto p-4">
           <TaskNode node={taskTree} depth={0} />
         </div>
       </div>

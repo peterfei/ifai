@@ -5,11 +5,9 @@
  */
 
 import React, { useState } from 'react';
-import { X, Check, AlertTriangle, File, Edit3 } from 'lucide-react';
-import { useRefactoringStore } from '../../stores/refactoringStore';
+import { X, Check, AlertTriangle, File, Edit3, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { open } from '@tauri-apps/plugin-dialog';
-import { readFileContent, writeFileContent } from '../../utils/fileSystem';
+import { useRefactoringStore } from '../../stores/refactoringStore';
 
 interface RefactoringPreviewPanelProps {
   onClose?: () => void;
@@ -29,10 +27,10 @@ export const RefactoringPreviewPanel: React.FC<RefactoringPreviewPanelProps> = (
 
   if (!currentPreview) {
     return (
-      <div className="p-6 text-center text-gray-400">
-        <Edit3 size={48} className="mx-auto mb-4 opacity-50" />
-        <p className="text-sm">暂无重构预览</p>
-        <p className="text-xs mt-2">选择代码元素后查看重构选项</p>
+      <div className="theme-panel theme-text-subtle flex h-full flex-col items-center justify-center p-6 text-center">
+        <Edit3 size={48} className="theme-text-accent mx-auto mb-4 opacity-40" />
+        <p className="text-sm">{t('refactoring.preview.empty.title')}</p>
+        <p className="mt-2 text-xs">{t('refactoring.preview.empty.description')}</p>
       </div>
     );
   }
@@ -56,10 +54,23 @@ export const RefactoringPreviewPanel: React.FC<RefactoringPreviewPanelProps> = (
     }
   };
 
-  const getDiffColor = (oldText: string, newText: string) => {
-    if (!oldText) return 'text-green-400 bg-green-400/10';
-    if (!newText) return 'text-red-400 bg-red-400/10';
-    return 'text-yellow-400 bg-yellow-400/10';
+  const getDiffMeta = (oldText: string, newText: string) => {
+    if (!oldText) {
+      return {
+        className: 'border border-[var(--success-soft-border)] bg-[var(--success-soft-bg)] text-[var(--success-color)]',
+        label: t('refactoring.preview.diff.created'),
+      };
+    }
+    if (!newText) {
+      return {
+        className: 'border border-[var(--danger-soft-border)] bg-[var(--danger-soft-bg)] text-[var(--danger-color)]',
+        label: t('refactoring.preview.diff.deleted'),
+      };
+    }
+    return {
+      className: 'border border-[var(--warning-soft-border)] bg-[var(--warning-soft-bg)] text-[var(--warning-color)]',
+      label: t('refactoring.preview.diff.updated'),
+    };
   };
 
   const formatFilePath = (filePath: string) => {
@@ -67,17 +78,18 @@ export const RefactoringPreviewPanel: React.FC<RefactoringPreviewPanelProps> = (
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="theme-panel flex h-full flex-col">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+      <div className="theme-panel-elevated theme-border flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <Edit3 size={18} className="text-purple-400" />
-          <h2 className="text-sm font-semibold text-white">重构预览</h2>
+          <Edit3 size={18} className="theme-text-accent" />
+          <h2 className="theme-text text-sm font-semibold">{t('refactoring.preview.title')}</h2>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="theme-button-ghost rounded p-1"
+            title={t('common.close')}
           >
             <X size={18} />
           </button>
@@ -85,25 +97,25 @@ export const RefactoringPreviewPanel: React.FC<RefactoringPreviewPanelProps> = (
       </div>
 
       {/* 重构信息 */}
-      <div className="px-4 py-3 border-b border-gray-700">
-        <h3 className="text-sm font-medium text-white mb-1">{currentPreview.name}</h3>
-        <p className="text-xs text-gray-400 mb-2">{currentPreview.description}</p>
+      <div className="theme-panel-muted theme-border border-b px-4 py-3">
+        <h3 className="theme-text mb-1 text-sm font-medium">{currentPreview.name}</h3>
+        <p className="theme-text-muted mb-2 text-xs">{currentPreview.description}</p>
         <div className="flex gap-4 text-xs">
-          <span className="text-gray-500">
-            {currentPreview.summary.filesChanged} 个文件
+          <span className="theme-text-subtle">
+            {t('refactoring.preview.summary.filesChanged', { count: currentPreview.summary.filesChanged })}
           </span>
-          <span className="text-gray-500">
-            {currentPreview.summary.totalEdits} 处编辑
+          <span className="theme-text-subtle">
+            {t('refactoring.preview.summary.totalEdits', { count: currentPreview.summary.totalEdits })}
           </span>
         </div>
       </div>
 
       {/* 错误信息 */}
       {error && (
-        <div className="mx-4 mt-3 p-3 bg-red-900/30 border border-red-700 rounded-lg">
+        <div className="mx-4 mt-3 rounded-lg border border-[var(--danger-soft-border)] bg-[var(--danger-soft-bg)] p-3">
           <div className="flex items-start gap-2">
-            <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-300">{error}</p>
+            <AlertTriangle size={16} className="theme-text-danger mt-0.5 flex-shrink-0" />
+            <p className="theme-text-danger text-xs">{error}</p>
           </div>
         </div>
       )}
@@ -113,43 +125,48 @@ export const RefactoringPreviewPanel: React.FC<RefactoringPreviewPanelProps> = (
         {currentPreview.edits.map((edit, index) => (
           <div
             key={`${edit.filePath}-${index}`}
-            className="mb-2 rounded-lg overflow-hidden border border-gray-700"
+            className="theme-border mb-2 overflow-hidden rounded-lg border"
           >
             {/* 文件路径 */}
             <div
-              className="px-3 py-2 bg-gray-800 flex items-center justify-between cursor-pointer hover:bg-gray-700"
+              className="theme-panel-muted theme-hoverable flex cursor-pointer items-center justify-between px-3 py-2"
               onClick={() => toggleEditExpanded(index)}
             >
               <div className="flex items-center gap-2">
-                <File size={14} className="text-gray-400" />
-                <span className="text-xs text-gray-300">{formatFilePath(edit.filePath)}</span>
+                <File size={14} className="theme-text-subtle" />
+                <span className="theme-text-muted text-xs">{formatFilePath(edit.filePath)}</span>
               </div>
-              <span className="text-xs text-gray-500">
+              <span className="theme-text-subtle text-xs">
                 L{edit.range.startLineNumber}
               </span>
             </div>
 
             {/* Diff 预览 */}
             {expandedEdits.has(index) && (
-              <div className="p-3 bg-gray-900 border-t border-gray-700">
+              <div className="theme-panel theme-border border-t p-3">
                 <div className="grid grid-cols-[80px_1fr] gap-2 text-xs">
+                  <div className="col-span-2 mb-1 flex justify-end">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${getDiffMeta(edit.oldText, edit.newText).className}`}>
+                      {getDiffMeta(edit.oldText, edit.newText).label}
+                    </span>
+                  </div>
                   {/* 原代码 */}
-                  <div className="text-gray-500">原代码:</div>
-                  <div className="bg-gray-800 p-2 rounded font-mono text-gray-300 break-all">
-                    {edit.oldText || '(空)'}
+                  <div className="theme-text-subtle">{t('refactoring.preview.labels.original')}</div>
+                  <div className="theme-code-surface theme-border theme-text break-all rounded border p-2 font-mono">
+                    {edit.oldText || t('refactoring.preview.labels.emptyValue')}
                   </div>
 
                   {/* 新代码 */}
-                  <div className="text-gray-500">新代码:</div>
+                  <div className="theme-text-subtle">{t('refactoring.preview.labels.updated')}</div>
                   <div
-                    className={`p-2 rounded font-mono break-all ${getDiffColor(edit.oldText, edit.newText)}`}
+                    className={`break-all rounded p-2 font-mono ${getDiffMeta(edit.oldText, edit.newText).className}`}
                   >
-                    {edit.newText || '(删除)'}
+                    {edit.newText || t('refactoring.preview.labels.deletedValue')}
                   </div>
 
                   {/* 位置信息 */}
-                  <div className="text-gray-500">位置:</div>
-                  <div className="text-gray-400">
+                  <div className="theme-text-subtle">{t('refactoring.preview.labels.location')}</div>
+                  <div className="theme-text-muted">
                     {edit.range.startLineNumber}:{edit.range.startColumn}
                     {edit.range.endLineNumber !== edit.range.startLineNumber &&
                       ` → ${edit.range.endLineNumber}:${edit.range.endColumn}`}
@@ -162,30 +179,30 @@ export const RefactoringPreviewPanel: React.FC<RefactoringPreviewPanelProps> = (
       </div>
 
       {/* 操作按钮 */}
-      <div className="p-3 border-t border-gray-700 bg-gray-800">
+      <div className="theme-panel-elevated theme-border border-t p-3">
         <div className="flex gap-2">
           <button
             onClick={handleExecute}
             disabled={isExecuting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 text-white text-sm rounded-lg transition-colors"
+            className="theme-button-primary flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isExecuting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-transparent rounded-full animate-spin" />
-                执行中...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('refactoring.preview.actions.executing')}
               </>
             ) : (
               <>
                 <Check size={16} />
-                应用重构
+                {t('refactoring.preview.actions.apply')}
               </>
             )}
           </button>
           <button
             onClick={clearPreview}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded-lg transition-colors"
+            className="theme-button-secondary rounded-lg px-4 py-2 text-sm"
           >
-            取消
+            {t('common.cancel')}
           </button>
         </div>
       </div>

@@ -9,10 +9,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, XCircle, Diff } from 'lucide-react';
-import Editor, { Monaco, DiffEditor } from '@monaco-editor/react';
+import { DiffEditor } from '@monaco-editor/react';
 import { toast } from 'sonner';
 import { useInlineEditStore } from '../../stores/inlineEditStore';
-import { shallow } from 'zustand/shallow';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { getMonacoTheme } from '../../utils/theme';
+import { useTranslation } from 'react-i18next';
 
 // 简单的 diff 行计算
 function computeLineDiff(original: string, modified: string): {
@@ -182,6 +184,8 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   onAccept,
   onReject,
 }) => {
+  const { t } = useTranslation();
+  const theme = useSettingsStore(state => state.theme);
   // 🔥 修复无限循环：使用单独的选择器，避免对象选择器导致引用不稳定
   const isDiffEditorVisible = useInlineEditStore(state => state.isDiffEditorVisible);
   const storeOriginalCode = useInlineEditStore(state => state.originalCode);
@@ -196,7 +200,6 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
   const filePath = storeFilePath || propFilePath || 'unknown';
   const instruction = storeInstruction || propInstruction || '';
 
-  const [monaco, setMonaco] = useState<Monaco | null>(null);
   const editorRef = useRef<any>(null);
   const diffStats = calculateDiffStats(originalCode, modifiedCode);
   const actualLanguage = language || getLanguageFromPath(filePath);
@@ -245,38 +248,39 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[295] flex items-center justify-center bg-black bg-opacity-70"
+      className="theme-backdrop-strong fixed inset-0 z-[295] flex items-center justify-center backdrop-blur-sm"
       data-testid="diff-modal"
     >
-      <div className="w-[90vw] max-w-6xl h-[80vh] bg-[#252526] rounded-lg shadow-2xl border border-gray-700 flex flex-col">
+      <div className="theme-panel-elevated theme-border theme-shadow flex h-[80vh] w-[90vw] max-w-6xl flex-col rounded-lg border">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+        <div className="theme-panel-muted theme-border flex items-center justify-between border-b p-4">
           <div className="flex items-center gap-3">
-            <Diff className="text-blue-400" size={20} />
+            <Diff className="theme-text-accent" size={20} />
             <div>
-              <h2 className="text-lg font-semibold text-white">代码修改预览</h2>
+              <h2 className="theme-text text-lg font-semibold">{t('diffEditorModal.title')}</h2>
               {instruction && (
-                <p className="text-xs text-gray-400 mt-0.5">"{instruction}"</p>
+                <p className="theme-text-subtle mt-0.5 text-xs">"{instruction}"</p>
               )}
             </div>
           </div>
           <button
             onClick={onReject}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="theme-button-ghost rounded p-1"
+            aria-label={t('common.close')}
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Stats */}
-        <div className="flex items-center gap-4 px-4 py-2 bg-[#1e1e1e] border-b border-gray-700">
+        <div className="theme-panel theme-border flex items-center gap-4 border-b px-4 py-2">
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-green-400">+{diffStats.additions} 行</span>
+            <span className="theme-text-success">{t('diffEditorModal.addedLines', { count: diffStats.additions })}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-red-400">-{diffStats.deletions} 行</span>
+            <span className="theme-text-danger">{t('diffEditorModal.deletedLines', { count: diffStats.deletions })}</span>
           </div>
-          <div className="ml-auto text-xs text-gray-500">
+          <div className="theme-text-subtle ml-auto text-xs">
             {filePathStr}
           </div>
         </div>
@@ -286,7 +290,7 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
           <DiffEditor
             height="100%"
             language={actualLanguage}
-            theme="vs-dark"
+            theme={getMonacoTheme(theme)}
             original={originalCode}
             modified={modifiedCode}
             options={{
@@ -298,35 +302,34 @@ export const DiffEditorModal: React.FC<DiffEditorModalProps> = ({
               renderSideBySide: true,
               enableSplitViewResizing: false,
             }}
-            onMount={(editor, monaco) => {
-              setMonaco(monaco);
+            onMount={(editor) => {
               editorRef.current = editor;
             }}
           />
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-gray-700 bg-[#1e1e1e] rounded-b-lg">
+        <div className="theme-panel-muted theme-border flex items-center justify-between rounded-b-lg border-t p-4">
           <button
             onClick={() => onRejectRef.current()}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded transition-colors"
+            className="theme-button-secondary flex items-center gap-2 rounded px-4 py-2 text-sm"
             data-testid="reject-diff-button"
           >
             <XCircle size={16} />
-            <span>拒绝 (Reject)</span>
+            <span>{t('diffEditorModal.reject')}</span>
           </button>
 
           <div className="flex gap-2">
             <button
               onClick={() => {
                 onAcceptRef.current();
-                toast.success('已应用代码修改');
+                toast.success(t('diffEditorModal.applied'));
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+              className="theme-button-success flex items-center gap-2 rounded px-4 py-2 text-sm"
               data-testid="accept-diff-button"
             >
               <Check size={16} />
-              <span>接受 (Accept)</span>
+              <span>{t('diffEditorModal.accept')}</span>
             </button>
           </div>
         </div>

@@ -32,12 +32,21 @@ export const useCodeSmellDecorations = () => {
     // 创建新的装饰
     const decorations = result.smells.map((smell) => {
       const severity = smell.severity;
-      const colorClass =
+      const tone =
         severity === 'error'
-          ? 'text-red-400'
+          ? {
+              strong: 'var(--danger-color)',
+              ruler: 'var(--danger-color)',
+            }
           : severity === 'warning'
-          ? 'text-yellow-400'
-          : 'text-blue-400';
+          ? {
+              strong: 'var(--warning-color)',
+              ruler: 'var(--warning-color)',
+            }
+          : {
+              strong: 'var(--accent-color)',
+              ruler: 'var(--accent-color)',
+            };
 
       return {
         range: {
@@ -65,21 +74,14 @@ export const useCodeSmellDecorations = () => {
           hoverMessage: {
             value: `
               <div style="padding: 4px 0;">
-                <strong style="color: ${
-                  severity === 'error' ? '#f87171' : severity === 'warning' ? '#fbbf24' : '#60a5fa'
-                }">${smell.message}</strong>
-                ${smell.suggestion ? `<br/><em style="color: #9ca3af; font-size: 0.9em;">💡 ${smell.suggestion}</em>` : ''}
+                <strong style="color: ${tone.strong};">${smell.message}</strong>
+                ${smell.suggestion ? `<br/><em style="color: var(--text-subtle); font-size: 0.9em;">${smell.suggestion}</em>` : ''}
               </div>
             `.trim(),
           },
           // 概览标尺标记
           overviewRuler: {
-            color:
-              severity === 'error'
-                ? '#ef4444'
-                : severity === 'warning'
-                ? '#f59e0b'
-                : '#3b82f6',
+            color: tone.ruler,
             position: 1, // overview ruler 位置
           },
         },
@@ -123,37 +125,43 @@ export const injectCodeSmellStyles = () => {
     /* 行内波浪线效果 */
     .code-smell-error-line {
       text-decoration: wavy underline;
-      text-decoration-color: rgba(239, 68, 68, 0.6);
+      text-decoration-color: color-mix(in srgb, var(--danger-color) 68%, transparent);
       text-decoration-skip-ink: none;
     }
 
     .code-smell-warning-line {
       text-decoration: wavy underline;
-      text-decoration-color: rgba(245, 158, 11, 0.6);
+      text-decoration-color: color-mix(in srgb, var(--warning-color) 68%, transparent);
       text-decoration-skip-ink: none;
     }
 
     .code-smell-info-line {
       text-decoration: wavy underline;
-      text-decoration-color: rgba(59, 130, 246, 0.6);
+      text-decoration-color: color-mix(in srgb, var(--accent-color) 68%, transparent);
       text-decoration-skip-ink: none;
     }
 
     /* 行号旁图标 */
     .code-smell-error-glyph {
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>') center/contain no-repeat;
+      background-color: var(--danger-color);
+      -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>') center/contain no-repeat;
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>') center/contain no-repeat;
       width: 16px !important;
       height: 16px !important;
     }
 
     .code-smell-warning-glyph {
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>') center/contain no-repeat;
+      background-color: var(--warning-color);
+      -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>') center/contain no-repeat;
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>') center/contain no-repeat;
       width: 16px !important;
       height: 16px !important;
     }
 
     .code-smell-info-glyph {
-      background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%233b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>') center/contain no-repeat;
+      background-color: var(--accent-color);
+      -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>') center/contain no-repeat;
+      mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>') center/contain no-repeat;
       width: 16px !important;
       height: 16px !important;
     }

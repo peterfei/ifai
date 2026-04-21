@@ -10,6 +10,10 @@ import { TaskCard } from './TaskCard';
 import { useTaskStore, createTask } from '../../stores/taskStore';
 import { TaskCategory, TaskStatus, TaskPriority, LogLevel } from './types';
 
+const exampleCardClass = 'theme-panel-muted theme-border rounded border p-4';
+const exampleTitleClass = 'theme-text mb-3 text-sm font-semibold';
+const exampleTextClass = 'theme-text-subtle mt-2 text-[10px]';
+
 // ============================================================================
 // Example 1: Test Runner
 // ============================================================================
@@ -76,8 +80,8 @@ export const TestRunnerExample: React.FC = () => {
   };
 
   return (
-    <div className="p-4 bg-[#252526] rounded border border-[#3c3c3c]">
-      <h3 className="text-sm font-semibold text-[#cccccc] mb-3">
+    <div className={exampleCardClass}>
+      <h3 className={exampleTitleClass}>
         🧪 测试运行器示例
       </h3>
 
@@ -86,8 +90,8 @@ export const TestRunnerExample: React.FC = () => {
         disabled={isRunning}
         className={`flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-colors ${
           isRunning
-            ? 'bg-[#3c3c3c] text-[#858585] cursor-not-allowed'
-            : 'bg-[#569cd6] text-white hover:bg-[#569cd680]'
+            ? 'theme-input-surface theme-text-subtle cursor-not-allowed'
+            : 'theme-button-primary'
         }`}
       >
         <Play size={12} />
@@ -182,20 +186,20 @@ export const DeploymentPipelineExample: React.FC = () => {
   };
 
   return (
-    <div className="p-4 bg-[#252526] rounded border border-[#3c3c3c]">
-      <h3 className="text-sm font-semibold text-[#cccccc] mb-3">
+    <div className={exampleCardClass}>
+      <h3 className={exampleTitleClass}>
         🚀 CI/CD 部署管道示例
       </h3>
 
       <button
         onClick={deploy}
-        className="flex items-center gap-2 px-3 py-2 bg-[#f14c4c] text-white rounded text-xs font-medium hover:bg-[#f14c4c80] transition-colors"
+        className="theme-button-danger flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <Terminal size={12} />
         部署到生产环境
       </button>
 
-      <p className="text-[10px] text-[#858585] mt-2">
+      <p className={exampleTextClass}>
         点击按钮模拟完整的 CI/CD 部署流程
       </p>
     </div>
@@ -271,14 +275,14 @@ export const GitOperationsExample: React.FC = () => {
   };
 
   return (
-    <div className="p-4 bg-[#252526] rounded border border-[#3c3c3c]">
-      <h3 className="text-sm font-semibold text-[#cccccc] mb-3">
+    <div className={exampleCardClass}>
+      <h3 className={exampleTitleClass}>
         🔀 Git 操作示例
       </h3>
 
       <button
         onClick={gitPull}
-        className="flex items-center gap-2 px-3 py-2 bg-[#f14c4c] text-white rounded text-xs font-medium hover:bg-[#f14c4c80] transition-colors"
+        className="theme-button-danger flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <GitMerge size={12} />
         Git Pull
@@ -351,20 +355,20 @@ export const SecurityScannerExample: React.FC = () => {
   };
 
   return (
-    <div className="p-4 bg-[#252526] rounded border border-[#3c3c3c]">
-      <h3 className="text-sm font-semibold text-[#cccccc] mb-3">
+    <div className={exampleCardClass}>
+      <h3 className={exampleTitleClass}>
         🔒 安全扫描示例
       </h3>
 
       <button
         onClick={scan}
-        className="flex items-center gap-2 px-3 py-2 bg-[#f14c4c] text-white rounded text-xs font-medium hover:bg-[#f14c4c80] transition-colors"
+        className="theme-button-danger flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <Shield size={12} />
         运行安全扫描
       </button>
 
-      <p className="text-[10px] text-[#858585] mt-2">
+      <p className={exampleTextClass}>
         扫描 npm 依赖的安全漏洞
       </p>
     </div>
@@ -448,20 +452,20 @@ export const PerformanceOptimizationExample: React.FC = () => {
   };
 
   return (
-    <div className="p-4 bg-[#252526] rounded border border-[#3c3c3c]">
-      <h3 className="text-sm font-semibold text-[#cccccc] mb-3">
+    <div className={exampleCardClass}>
+      <h3 className={exampleTitleClass}>
         ⚡ 性能优化示例
       </h3>
 
       <button
         onClick={optimize}
-        className="flex items-center gap-2 px-3 py-2 bg-[#569cd6] text-white rounded text-xs font-medium hover:bg-[#569cd680] transition-colors"
+        className="theme-button-primary flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <Zap size={12} />
         运行优化
       </button>
 
-      <p className="text-[10px] text-[#858585] mt-2">
+      <p className={exampleTextClass}>
         优化前端资源加载性能
       </p>
     </div>
@@ -474,11 +478,11 @@ export const PerformanceOptimizationExample: React.FC = () => {
 
 export const IntegrationExamples: React.FC = () => {
   return (
-    <div className="integration-examples p-6 bg-[#1e1e1e]">
-      <h2 className="text-lg font-bold text-[#cccccc] mb-4">
+    <div className="integration-examples theme-panel p-6">
+      <h2 className="theme-text mb-4 text-lg font-bold">
         TaskMonitor 集成示例
       </h2>
-      <p className="text-xs text-[#858585] mb-6">
+      <p className="theme-text-subtle mb-6 text-xs">
         这些示例展示了如何在现有项目中集成和使用 TaskMonitor 系统
       </p>
 
@@ -492,13 +496,13 @@ export const IntegrationExamples: React.FC = () => {
 
       {/* Task Monitor */}
       <div className="mt-6">
-        <h3 className="text-sm font-semibold text-[#cccccc] mb-3">
+        <h3 className="theme-text mb-3 text-sm font-semibold">
           📊 任务监控面板
         </h3>
-        <p className="text-[10px] text-[#858585] mb-3">
+        <p className="theme-text-subtle mb-3 text-[10px]">
           点击上方按钮后，任务会自动添加到这里
         </p>
-        <div className="bg-[#252526] border border-[#3c3c3c] rounded p-4">
+        <div className="theme-panel-muted theme-border rounded p-4">
           {/* 使用 taskStore 的 getAllTasks 显示所有任务 */}
           {/* 在实际使用中，可以使用 TaskMonitor 组件 */}
         </div>

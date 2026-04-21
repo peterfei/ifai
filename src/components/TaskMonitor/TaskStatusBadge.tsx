@@ -8,6 +8,7 @@
 import React from 'react';
 import { Loader2, CheckCircle2, XCircle, Clock, Pause, Ban } from 'lucide-react';
 import type { TaskStatus, StatusBadgeSize } from './types';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Props
@@ -41,47 +42,47 @@ export interface TaskStatusBadgeProps {
 // ============================================================================
 
 interface StatusConfig {
-  label: string;
   color: string;
   bgColor: string;
+  borderColor: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }
 
 const STATUS_CONFIG: Record<TaskStatus, StatusConfig> = {
   pending: {
-    label: '等待中',
-    color: '#858585',
-    bgColor: '#85858520',
+    color: 'var(--text-subtle)',
+    bgColor: 'var(--hover-soft)',
+    borderColor: 'var(--border-color)',
     icon: Clock,
   },
   running: {
-    label: '运行中',
-    color: '#569cd6',
-    bgColor: '#569cd620',
+    color: 'var(--accent-color)',
+    bgColor: 'var(--accent-soft-bg)',
+    borderColor: 'var(--accent-soft-border)',
     icon: Loader2,
   },
   paused: {
-    label: '已暂停',
-    color: '#dcdcaa',
-    bgColor: '#dcdcaa20',
+    color: 'var(--warning-color)',
+    bgColor: 'var(--warning-soft-bg)',
+    borderColor: 'var(--warning-soft-border)',
     icon: Pause,
   },
   success: {
-    label: '已完成',
-    color: '#4ec9b0',
-    bgColor: '#4ec9b020',
+    color: 'var(--success-color)',
+    bgColor: 'var(--success-soft-bg)',
+    borderColor: 'var(--success-soft-border)',
     icon: CheckCircle2,
   },
   failed: {
-    label: '失败',
-    color: '#f14c4c',
-    bgColor: '#f14c4c20',
+    color: 'var(--danger-color)',
+    bgColor: 'var(--danger-soft-bg)',
+    borderColor: 'var(--danger-soft-border)',
     icon: XCircle,
   },
   cancelled: {
-    label: '已取消',
-    color: '#858585',
-    bgColor: '#85858520',
+    color: 'var(--text-subtle)',
+    bgColor: 'var(--hover-soft)',
+    borderColor: 'var(--border-color)',
     icon: Ban,
   },
 };
@@ -121,9 +122,11 @@ export const TaskStatusBadge: React.FC<TaskStatusBadgeProps> = ({
   className = '',
   customLabel,
 }) => {
+  const { t } = useTranslation();
   const config = STATUS_CONFIG[status];
   const sizeConfig = SIZE_CONFIG[size];
   const Icon = config.icon;
+  const defaultLabel = t(`taskMonitor.status.${status}`);
 
   const isRunning = status === 'running' && animated;
 
@@ -135,7 +138,7 @@ export const TaskStatusBadge: React.FC<TaskStatusBadgeProps> = ({
         padding: sizeConfig.padding,
         backgroundColor: config.bgColor,
         color: config.color,
-        border: `1px solid ${config.color}40`,
+        border: `1px solid ${config.borderColor}`,
       }}
     >
       {showIcon && (
@@ -145,7 +148,7 @@ export const TaskStatusBadge: React.FC<TaskStatusBadgeProps> = ({
         />
       )}
       {showLabel && (
-        <span>{customLabel || config.label}</span>
+        <span>{customLabel || defaultLabel}</span>
       )}
     </div>
   );
@@ -170,6 +173,7 @@ export const StatusDot: React.FC<StatusDotProps> = ({
   animated = true,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const config = STATUS_CONFIG[status];
   const isRunning = status === 'running' && animated;
 
@@ -186,7 +190,7 @@ export const StatusDot: React.FC<StatusDotProps> = ({
       />
       {showLabel && (
         <span className="text-[11px]" style={{ color: config.color }}>
-          {config.label}
+          {t(`taskMonitor.status.${status}`)}
         </span>
       )}
     </div>
@@ -216,8 +220,8 @@ export const StatusProgress: React.FC<StatusProgressProps> = ({
     <div className={`inline-flex items-center gap-2 ${className}`}>
       <TaskStatusBadge status={status} size="sm" />
       <div
-        className="h-1.5 rounded-full overflow-hidden bg-[#3c3c3c]"
-        style={{ width: '60px' }}
+        className="h-1.5 rounded-full overflow-hidden"
+        style={{ width: '60px', backgroundColor: 'var(--bg-tertiary)' }}
       >
         <div
           className="h-full transition-all duration-300"
@@ -228,7 +232,7 @@ export const StatusProgress: React.FC<StatusProgressProps> = ({
         />
       </div>
       {showPercentage && (
-        <span className="text-[11px] text-[#858585] font-mono min-w-[32px]">
+        <span className="theme-text-subtle min-w-[32px] text-[11px] font-mono">
           {Math.round(progress)}%
         </span>
       )}

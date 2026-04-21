@@ -5,6 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Copy, Check, Terminal, Maximize2, Minimize2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface BashConsoleOutputProps {
   output: string;
@@ -24,12 +25,14 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
   output,
   command,
   exitCode,
-  success = true,
+  success,
   className = ''
 }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const isFailed = typeof success === 'boolean' ? !success : exitCode !== undefined ? exitCode !== 0 : false;
 
   // 解析输出为行
   const parseOutput = (text: string): LogLine[] => {
@@ -46,7 +49,6 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
   };
 
   const logLines = parseOutput(output);
-  const lineCount = logLines.length;
 
   // 复制到剪贴板
   const handleCopy = async () => {
@@ -73,27 +75,25 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
 
   if (!output) {
     return (
-      <div className="flex items-center justify-center p-8 text-gray-500 text-sm">
+      <div className="flex items-center justify-center p-8 theme-text-subtle text-sm">
         <Terminal className="w-5 h-5 mr-2 opacity-50" />
-        <span>No output</span>
+        <span>{t('bashConsoleOutput.empty')}</span>
       </div>
     );
   }
 
   return (
-    <div className={`bash-console-output ${className}`}>
+    <div className={`bash-console-output theme-panel theme-border overflow-hidden rounded-xl border ${className}`}>
       {/* 控制台头部 */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700 rounded-t-xl">
+      <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-4 py-2">
         <div className="flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-gray-400" />
-          <span className="text-xs font-medium text-gray-300">Console Output</span>
+          <Terminal className="w-4 h-4 theme-text-subtle" />
+          <span className="text-xs font-medium theme-text-muted">{t('bashConsoleOutput.title')}</span>
           {exitCode !== undefined && (
-            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-              exitCode === 0
-                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+            <span className={`rounded px-2 py-0.5 text-[10px] font-mono font-bold ${
+              exitCode === 0 ? 'theme-badge-success' : 'theme-badge-danger'
             }`}>
-              Exit: {exitCode}
+              {t('bashConsoleOutput.exitCode', { code: exitCode })}
             </span>
           )}
         </div>
@@ -101,26 +101,26 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
         <div className="flex items-center gap-1">
           <button
             onClick={toggleExpanded}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-all"
-            title={expanded ? 'Collapse' : 'Expand'}
+            className="p-1.5 theme-button-ghost rounded transition-all"
+            title={expanded ? t('bashConsoleOutput.collapse') : t('bashConsoleOutput.expand')}
           >
             {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
 
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-all text-xs"
-            title="Copy to clipboard"
+            className="flex items-center gap-1 px-2 py-1 theme-button-ghost rounded transition-all text-xs"
+            title={t('conversation.summary.copy')}
           >
             {copied ? (
               <>
-                <Check size={12} className="text-green-400" />
-                <span className="text-green-400">Copied!</span>
+                <Check size={12} className="theme-text-success" />
+                <span className="theme-text-success">{t('conversation.summary.copied')}</span>
               </>
             ) : (
               <>
                 <Copy size={12} />
-                <span>Copy</span>
+                <span>{t('conversation.summary.copy')}</span>
               </>
             )}
           </button>
@@ -130,20 +130,23 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
       {/* 控制台内容 */}
       <div
         ref={contentRef}
-        className={`bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 font-mono text-xs overflow-auto ${
-          expanded ? 'max-h-[600px]' : 'max-h-96'
-        }`}
+        role="log"
+        aria-live="polite"
+        className={`theme-code-surface p-4 font-mono text-xs overflow-auto ${expanded ? 'max-h-[600px]' : 'max-h-96'}`}
         style={{
           fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
           WebkitFontSmoothing: 'antialiased',
-          MozOsxFontSmoothing: 'grayscale'
+          MozOsxFontSmoothing: 'grayscale',
+          backgroundImage: isFailed
+            ? 'linear-gradient(180deg, var(--danger-soft-bg) 0%, var(--code-bg) 140px)'
+            : undefined,
         }}
       >
         {/* 命令行显示 */}
         {command && (
-          <div className="mb-3 pb-3 border-b border-gray-800">
-            <span className="text-green-400 font-bold">$</span>
-            <span className="ml-2 text-gray-200">{command}</span>
+          <div className="mb-3 pb-3 border-b theme-border">
+            <span className={isFailed ? 'theme-text-danger font-bold' : 'theme-text-success font-bold'}>$</span>
+            <span className="ml-2 theme-text">{command}</span>
           </div>
         )}
 
@@ -152,20 +155,22 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
           {logLines.map((line, index) => (
             <div
               key={index}
-              className="group flex items-start hover:bg-gray-800/30 -mx-1 px-1 py-0.5 rounded transition-colors"
+              className={`group flex items-start -mx-1 rounded px-1 py-0.5 transition-colors ${
+                isFailed ? 'hover:bg-[var(--danger-soft-bg)]' : 'theme-soft-hover'
+              }`}
             >
               {/* 行号 */}
-              <span className="flex-shrink-0 w-12 text-right pr-3 text-gray-600 font-mono select-none text-[10px] leading-5">
+              <span className="flex-shrink-0 w-12 text-right pr-3 theme-text-subtle font-mono select-none text-[10px] leading-5">
                 {line.lineNumber}
               </span>
 
               {/* 时间戳 */}
-              <span className="flex-shrink-0 w-20 text-gray-700 font-mono select-none text-[10px] leading-5">
+              <span className="flex-shrink-0 w-20 theme-text-subtle font-mono select-none text-[10px] leading-5">
                 {line.timestamp}
               </span>
 
               {/* 内容 */}
-              <span className="flex-1 text-gray-300 leading-5 break-words font-mono whitespace-pre-wrap">
+              <span className={`flex-1 leading-5 break-words font-mono whitespace-pre-wrap ${isFailed ? 'theme-text-danger' : 'theme-text-muted'}`}>
                 {line.content}
               </span>
             </div>
@@ -181,27 +186,27 @@ export const BashConsoleOutput: React.FC<BashConsoleOutputProps> = ({
         }
 
         .bash-console-output ::-webkit-scrollbar-track {
-          background: rgba(26, 26, 26, 0.5);
+          background: var(--bg-secondary);
           border-radius: 4px;
         }
 
         .bash-console-output ::-webkit-scrollbar-thumb {
-          background: rgba(102, 102, 102, 0.5);
+          background: var(--border-strong);
           border-radius: 4px;
           border: 2px solid transparent;
           background-clip: content-box;
         }
 
         .bash-console-output ::-webkit-scrollbar-thumb:hover {
-          background: rgba(120, 120, 120, 0.6);
+          background: var(--text-subtle);
           border: 2px solid transparent;
           background-clip: content-box;
         }
 
         /* 选中文本样式 */
         .bash-console-output ::selection {
-          background: rgba(59, 130, 246, 0.3);
-          color: #fff;
+          background: var(--accent-soft-bg);
+          color: var(--text-primary);
         }
       ` }} />
     </div>

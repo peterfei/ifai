@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Download, Check, AlertCircle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
+import { AccessTierBadge } from './AccessTierBadge';
+import { AccessTier } from '../../types/prompt';
 
 interface PromptExportMetadata {
   name: string;
@@ -44,13 +47,17 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   projectRoot,
   onSuccess,
 }) => {
+  const defaultPackageVersion = '1.0.0';
+  const { t } = useTranslation();
+  const secondaryButtonClass = 'theme-button-secondary rounded-lg px-4 py-2 transition-colors';
+  const primaryButtonClass = 'theme-button-primary flex items-center gap-2 rounded-lg px-4 py-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50';
   const [availablePrompts, setAvailablePrompts] = useState<PromptExportMetadata[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [packageInfo, setPackageInfo] = useState<PackageInfo>({
     name: '',
     description: '',
     author: '',
-    version: '1.0.0',
+    version: defaultPackageVersion,
     ifai_version: '0.3.0',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -99,7 +106,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
 
   const handleNext = () => {
     if (selectedPaths.size === 0) {
-      setError('请至少选择一个提示词');
+      setError(t('promptManager.exportDialog.selectAtLeastOneError'));
       return;
     }
     setStep('info');
@@ -108,7 +115,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const handleExport = async () => {
     // 验证包信息
     if (!packageInfo.name || !packageInfo.description || !packageInfo.author) {
-      setError('请填写完整的包信息');
+      setError(t('promptManager.exportDialog.requiredError'));
       return;
     }
 
@@ -118,10 +125,11 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     try {
       // 选择保存路径
       const outputPath = await save({
-        defaultPath: `${packageInfo.name}-prompts.json`,
+        title: t('promptManager.exportDialog.saveDialogTitle'),
+        defaultPath: t('promptManager.exportDialog.defaultFileName', { name: packageInfo.name }),
         filters: [
           {
-            name: 'JSON',
+            name: t('promptManager.exportDialog.jsonFileFilter'),
             extensions: ['json'],
           },
         ],
@@ -154,21 +162,21 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   // 检查是否有项目路径
   if (!projectRoot) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+      <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow w-full max-w-md rounded-lg border p-6">
           <div className="text-center">
-            <AlertCircle className="mx-auto mb-4 text-yellow-500" size={48} />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              请先打开项目
+            <AlertCircle className="theme-text-warning mx-auto mb-4" size={48} />
+            <h3 className="theme-text mb-2 text-lg font-semibold">
+              {t('promptManager.exportDialog.openProjectFirstTitle')}
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              导出提示词需要先打开一个项目文件夹。
+            <p className="theme-text-subtle mb-6 text-sm">
+              {t('promptManager.exportDialog.openProjectFirstDescription')}
             </p>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="theme-button-primary rounded-lg px-4 py-2 transition-colors"
             >
-              确定
+              {t('common.confirm')}
             </button>
           </div>
         </div>
@@ -177,14 +185,16 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+    <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+      <div className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-full max-w-3xl flex-col rounded-lg border">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
-          <h2 className="text-xl font-semibold dark:text-white">导出提示词</h2>
+        <div className="theme-border flex items-center justify-between border-b p-6">
+          <h2 className="theme-text text-xl font-semibold">{t('promptManager.exportDialog.title')}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="theme-button-ghost rounded p-1"
+            title={t('common.close')}
+            aria-label={t('common.close')}
           >
             <X size={24} />
           </button>
@@ -193,10 +203,18 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         {/* 内容 */}
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
-            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-              <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+            <div className="theme-surface-danger mb-4 flex items-start gap-3 rounded-lg p-4">
+              <AlertCircle className="theme-text-danger flex-shrink-0 mt-0.5" size={20} />
               <div className="flex-1">
-                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                <p className="theme-text-danger text-sm font-medium">
+                  {t('promptManager.exportDialog.errorTitle')}
+                </p>
+                <p className="theme-text-muted mt-1 text-sm">
+                  {t('promptManager.exportDialog.errorDescription')}
+                </p>
+                <p className="theme-text-subtle mt-2 break-all text-xs">
+                  {t('promptManager.common.technicalDetails')}: {error}
+                </p>
               </div>
             </div>
           )}
@@ -204,24 +222,32 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           {step === 'select' && (
             <div>
               <div className="mb-4">
-                <h3 className="text-lg font-medium dark:text-white mb-2">选择提示词</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  选择要导出的提示词（{selectedPaths.size} / {availablePrompts.length}）
+                <h3 className="theme-text mb-2 text-lg font-medium">{t('promptManager.exportDialog.selectTitle')}</h3>
+                <p className="theme-text-subtle text-sm">
+                  {t('promptManager.exportDialog.selectDescription', {
+                    selected: selectedPaths.size,
+                    total: availablePrompts.length,
+                  })}
                 </p>
               </div>
 
               <div className="mb-4 flex justify-between items-center">
                 <button
                   onClick={handleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  className="theme-text-accent theme-soft-hover-accent rounded px-2 py-1 text-sm transition-colors"
                 >
-                  {selectedPaths.size === availablePrompts.length ? '取消全选' : '全选'}
+                  {selectedPaths.size === availablePrompts.length
+                    ? t('promptManager.exportDialog.clearSelection')
+                    : t('promptManager.exportDialog.selectAll')}
                 </button>
               </div>
 
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <div
+                    aria-label={t('promptManager.exportDialog.loadingPrompts')}
+                    className="theme-text-accent h-8 w-8 animate-spin rounded-full border-2 border-current border-b-transparent"
+                  ></div>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -233,36 +259,29 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       className={`
                         flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors
                         ${selectedPaths.has(prompt.path)
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                          ? 'theme-selection-accent shadow-sm'
+                          : 'theme-panel theme-border theme-soft-hover hover:border-[var(--border-strong)]'
                         }
                       `}
                     >
                       <div className="flex-shrink-0 mt-1">
                         {selectedPaths.has(prompt.path) ? (
-                          <div className="w-5 h-5 rounded bg-blue-500 flex items-center justify-center">
-                            <Check size={14} className="text-white" />
+                          <div className="theme-panel theme-border flex h-5 w-5 items-center justify-center rounded border">
+                            <Check size={14} className="theme-text-accent" />
                           </div>
                         ) : (
-                          <div className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600" />
+                          <div className="theme-border h-5 w-5 rounded border-2" />
                         )}
                       </div>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-gray-900 dark:text-white">
+                          <span className="theme-text font-medium">
                             {prompt.name}
                           </span>
-                          <span className={`
-                            text-xs px-2 py-0.5 rounded
-                            ${prompt.access_tier === 'private' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
-                              prompt.access_tier === 'protected' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}
-                          `}>
-                            {prompt.access_tier}
-                          </span>
+                          <AccessTierBadge tier={prompt.access_tier as AccessTier} />
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                        <p className="theme-text-subtle line-clamp-2 text-sm">
                           {prompt.description}
                         </p>
                       </div>
@@ -276,68 +295,68 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           {step === 'info' && (
             <div>
               <div className="mb-6">
-                <h3 className="text-lg font-medium dark:text-white mb-2">包信息</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  填写导出包的元数据信息
+                <h3 className="theme-text mb-2 text-lg font-medium">{t('promptManager.exportDialog.packageInfoTitle')}</h3>
+                <p className="theme-text-subtle text-sm">
+                  {t('promptManager.exportDialog.packageInfoDescription')}
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    包名称 <span className="text-red-500">*</span>
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
+                    {t('promptManager.exportDialog.packageName')} <span className="theme-text-danger">*</span>
                   </label>
                   <input
                     type="text"
                     value={packageInfo.name}
                     onChange={(e) => setPackageInfo({ ...packageInfo, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="例如: my-prompts"
+                    className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-lg border px-3 py-2"
+                    placeholder={t('promptManager.exportDialog.namePlaceholder')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    描述 <span className="text-red-500">*</span>
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
+                    {t('promptManager.exportDialog.description')} <span className="theme-text-danger">*</span>
                   </label>
                   <textarea
                     value={packageInfo.description}
                     onChange={(e) => setPackageInfo({ ...packageInfo, description: e.target.value })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="描述这个提示词包的用途和内容"
+                    className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-lg border px-3 py-2"
+                    placeholder={t('promptManager.exportDialog.descriptionPlaceholder')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    作者 <span className="text-red-500">*</span>
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
+                    {t('promptManager.exportDialog.author')} <span className="theme-text-danger">*</span>
                   </label>
                   <input
                     type="text"
                     value={packageInfo.author}
                     onChange={(e) => setPackageInfo({ ...packageInfo, author: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="作者名称或组织"
+                    className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-lg border px-3 py-2"
+                    placeholder={t('promptManager.exportDialog.authorPlaceholder')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    版本
+                  <label className="theme-text-muted mb-1 block text-sm font-medium">
+                    {t('promptManager.exportDialog.version')}
                   </label>
                   <input
                     type="text"
                     value={packageInfo.version}
                     onChange={(e) => setPackageInfo({ ...packageInfo, version: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="1.0.0"
+                    className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-lg border px-3 py-2"
+                    placeholder={defaultPackageVersion}
                   />
                 </div>
 
-                <div className="pt-4 border-t dark:border-gray-700">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    将导出 <strong>{selectedPaths.size}</strong> 个提示词
+                <div className="theme-border border-t pt-4">
+                  <p className="theme-text-subtle text-sm">
+                    {t('promptManager.exportDialog.exportSummary', { count: selectedPaths.size })}
                   </p>
                 </div>
               </div>
@@ -346,21 +365,21 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex justify-end gap-3 p-6 border-t dark:border-gray-700">
+        <div className="theme-panel-muted theme-border flex justify-end gap-3 border-t p-6">
           {step === 'select' && (
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className={secondaryButtonClass}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleNext}
                 disabled={selectedPaths.size === 0 || isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className={primaryButtonClass}
               >
-                下一步
+                {t('promptManager.exportDialog.next')}
               </button>
             </>
           )}
@@ -369,24 +388,24 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
             <>
               <button
                 onClick={() => setStep('select')}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className={secondaryButtonClass}
               >
-                上一步
+                {t('promptManager.exportDialog.back')}
               </button>
               <button
                 onClick={handleExport}
                 disabled={isLoading || !packageInfo.name || !packageInfo.description || !packageInfo.author}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className={primaryButtonClass}
               >
                 {isLoading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    导出中...
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-b-transparent"></div>
+                    {t('promptManager.exportDialog.exporting')}
                   </>
                 ) : (
                   <>
                     <Download size={16} />
-                    导出
+                    {t('promptManager.exportDialog.export')}
                   </>
                 )}
               </button>

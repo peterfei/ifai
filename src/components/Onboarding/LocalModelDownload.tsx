@@ -145,23 +145,23 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
   // 后台模式显示
   if (isInBackground) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-lg border p-4 max-w-sm animate-slide-up">
+      <div className="theme-panel-elevated theme-border theme-shadow fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border p-4 animate-slide-up">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <svg className="w-5 h-5 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24">
+          <div className="theme-surface-accent flex h-10 w-10 items-center justify-center rounded-full">
+            <svg className="theme-text-accent h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{t('localModel.downloading')}</p>
-            <p className="text-xs text-gray-500">
+            <p className="theme-text truncate text-sm font-medium">{t('localModel.downloading')}</p>
+            <p className="theme-text-subtle text-xs">
               {state.progress}% • {formatSpeed(state.speed)}
             </p>
           </div>
           <button
             onClick={() => setIsInBackground(false)}
-            className="text-blue-600 text-sm hover:underline"
+            className="theme-button-ghost theme-text-accent rounded px-2 py-1 text-sm"
           >
             {t('localModel.view')}
           </button>
@@ -173,18 +173,18 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
   // 完成状态
   if (state.status === 'Completed') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-8 text-center animate-fade-in">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow mx-4 w-full max-w-md rounded-xl border p-8 text-center animate-fade-in">
+          <div className="theme-surface-success mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <svg className="theme-text-success h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">{t('localModel.downloadCompleteTitle')}</h2>
-          <p className="text-gray-600 mb-6">{t('localModel.downloadCompleteMessage')}</p>
+          <h2 className="theme-text mb-2 text-xl font-bold">{t('localModel.downloadCompleteTitle')}</h2>
+          <p className="theme-text-subtle mb-6">{t('localModel.downloadCompleteMessage')}</p>
           <button
             onClick={onComplete}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 transition-all"
+            className="theme-button-primary w-full rounded-lg px-4 py-3 font-medium"
           >
             {t('localModel.start')}
           </button>
@@ -196,24 +196,24 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
   // 失败状态
   if (state.status === 'Failed' || state.status === 'Cancelled') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-8 text-center animate-fade-in">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow mx-4 w-full max-w-md rounded-xl border p-8 text-center animate-fade-in">
+          <div className="theme-surface-danger mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+            <svg className="theme-text-danger h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
+          <h2 className="theme-text mb-2 text-xl font-bold">
             {state.status === 'Failed' ? t('localModel.downloadFailedTitle') : t('localModel.downloadCancelledTitle')}
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="theme-text-subtle mb-6">
             {state.status === 'Failed'
               ? t('localModel.downloadFailedMessage')
               : t('localModel.downloadCancelledMessage')}
           </p>
           <button
             onClick={onComplete}
-            className="w-full py-3 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+            className="theme-button-secondary w-full rounded-lg px-4 py-3 font-medium"
           >
             {t('localModel.continue')}
           </button>
@@ -224,26 +224,26 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
 
   // 下载进度
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-fade-in">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-6 text-white">
+    <div className="theme-backdrop fixed inset-0 z-50 flex items-center justify-center">
+        <div className="theme-panel-elevated theme-border theme-shadow mx-4 w-full max-w-md overflow-hidden rounded-xl border animate-fade-in">
+          {/* Header */}
+        <div className="theme-panel-muted theme-border border-b px-6 py-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className={`w-10 h-10 bg-white/20 rounded-full flex items-center justify-center ${state.status === 'Downloading' ? 'animate-pulse' : ''}`}>
+            <div className={`theme-surface-accent flex h-10 w-10 items-center justify-center rounded-full ${state.status === 'Downloading' ? 'animate-pulse' : ''}`}>
               {state.status === 'Downloading' ? (
-                <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg className="theme-text-accent h-6 w-6 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
               ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="theme-text-accent h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                 </svg>
               )}
             </div>
             <div>
-              <h2 className="text-lg font-bold">{t('localModel.downloadingModel')}</h2>
-              <p className="text-sm text-white/80">{t('localModel.pleaseWait')}</p>
+              <h2 className="theme-text text-lg font-bold">{t('localModel.downloadingModel')}</h2>
+              <p className="theme-text-muted text-sm">{t('localModel.pleaseWait')}</p>
             </div>
           </div>
         </div>
@@ -253,12 +253,12 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
           {/* 进度条 */}
           <div className="mb-6">
             <div className="flex justify-between text-sm mb-2">
-              <span className="font-medium text-gray-900">{t('localModel.downloadProgress')}</span>
-              <span className="text-blue-600 font-semibold">{state.progress}%</span>
+              <span className="theme-text font-medium">{t('localModel.downloadProgress')}</span>
+              <span className="theme-text-accent font-semibold">{state.progress}%</span>
             </div>
-            <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+            <div className="theme-input-surface h-3 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-300 ease-out"
+                className="h-full rounded-full bg-[var(--accent-color)] transition-all duration-300 ease-out"
                 style={{ width: `${state.progress}%` }}
               />
             </div>
@@ -266,22 +266,22 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
 
           {/* 统计信息 */}
           <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-xs text-gray-500 mb-1">{t('localModel.downloaded')}</div>
-              <div className="font-semibold text-gray-900">
+            <div className="theme-panel-muted rounded-lg p-3">
+              <div className="theme-text-subtle mb-1 text-xs">{t('localModel.downloaded')}</div>
+              <div className="theme-text font-semibold">
                 {formatBytes(state.bytes_downloaded)} / {formatBytes(state.total_bytes)}
               </div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="text-xs text-gray-500 mb-1">{t('localModel.downloadSpeed')}</div>
-              <div className="font-semibold text-gray-900">{formatSpeed(state.speed)}</div>
+            <div className="theme-panel-muted rounded-lg p-3">
+              <div className="theme-text-subtle mb-1 text-xs">{t('localModel.downloadSpeed')}</div>
+              <div className="theme-text font-semibold">{formatSpeed(state.speed)}</div>
             </div>
           </div>
 
           {/* 预计时间 */}
           {state.eta > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-              <div className="flex items-center gap-2 text-sm text-blue-800">
+            <div className="theme-surface-accent mb-6 rounded-lg p-3">
+              <div className="theme-text-accent flex items-center gap-2 text-sm">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -295,13 +295,13 @@ export const LocalModelDownload: React.FC<LocalModelDownloadProps> = ({
         <div className="px-6 pb-6 flex gap-3">
           <button
             onClick={handleBackground}
-            className="flex-1 py-2.5 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+            className="theme-button-secondary flex-1 rounded-lg px-4 py-2.5 font-medium"
           >
             {t('localModel.background')}
           </button>
           <button
             onClick={handleCancel}
-            className="flex-1 py-2.5 px-4 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors"
+            className="theme-button-danger flex-1 rounded-lg px-4 py-2.5 font-medium"
           >
             {t('localModel.cancel')}
           </button>

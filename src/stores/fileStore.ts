@@ -6,7 +6,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { debounce } from 'lodash-es';
 import { FileNode, OpenedFile, GitStatus, WorkspaceRoot } from './types';
-import { readFileContent, readDirectory } from '../utils/fileSystem';
+import { detectProtectedEditorFileCategory, readFileContent, readDirectory } from '../utils/fileSystem';
 import { useProjectConfigStore } from './projectConfigStore';
 
 interface FileState {
@@ -89,6 +89,9 @@ const updateGitStatusRecursive = (node: FileNode, statuses: Map<string, GitStatu
     // This avoids O(n) tree traversal on every git status update
     return node;
 };
+
+const shouldKeepOpenedFile = (file: Pick<OpenedFile, 'path'>): boolean =>
+  !file.path || !detectProtectedEditorFileCategory(file.path);
 
 export const useFileStore = create<FileState>()(
   persist(
@@ -904,7 +907,7 @@ export const useFileStore = create<FileState>()(
         workspaceRoots: state.workspaceRoots,
         activeRootId: state.activeRootId,
         // 🔥 修复编辑器持久化:保留文件内容(限制100KB以内的小文件)
-        openedFiles: state.openedFiles.map(f => {
+        openedFiles: state.openedFiles.filter(shouldKeepOpenedFile).map(f => {
           // 保留小文件内容用于持久化,避免重新加载时丢失
           const contentSize = f.content?.length || 0;
           const shouldKeepContent = contentSize > 0 && contentSize < 100000; // 100KB
@@ -977,7 +980,17 @@ export const useFileStore = create<FileState>()(
               delete (state as any).expandedPaths;
             }
 
-            state.openedFiles.forEach(file => {
+            const hydratedOpenedFiles = state.openedFiles.filter(shouldKeepOpenedFile);
+            const activeFileId = state.activeFileId && hydratedOpenedFiles.some(file => file.id === state.activeFileId)
+              ? state.activeFileId
+              : hydratedOpenedFiles[0]?.id ?? null;
+
+            if (hydratedOpenedFiles.length !== state.openedFiles.length) {
+              console.warn('[FileStore] Removed protected files from persisted editor state');
+              state.syncState({ openedFiles: hydratedOpenedFiles, activeFileId });
+            }
+
+            hydratedOpenedFiles.forEach(file => {
               const hasPersistedContent = (file as any)._hasPersistedContent;
               if (!hasPersistedContent && file.path && !file.isDirty) {
                 state.reloadFileContent(file.id);

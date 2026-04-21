@@ -2,14 +2,18 @@ import React, { useRef, useMemo, useState } from 'react';
 import { Eye, Code, Columns, X } from 'lucide-react';
 import { useFileStore } from '../../stores/fileStore';
 import { useLayoutStore } from '../../stores/layoutStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { TabContextMenu } from './TabContextMenu';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+import { isDarkTheme } from '../../utils/theme';
 
 export const TabBar = () => {
   const openedFiles = useFileStore(state => state.openedFiles);
   const activeFileId = useFileStore(state => state.activeFileId);
   const previewMode = useFileStore(state => state.previewMode);
+  const theme = useSettingsStore(state => state.theme);
+  const dark = isDarkTheme(theme);
 
   const setActiveFile = useFileStore(state => state.setActiveFile);
   const closeFile = useFileStore(state => state.closeFile);
@@ -73,10 +77,10 @@ export const TabBar = () => {
         data-testid="tab-bar-container"
         ref={tabBarRef}
         onWheel={handleWheel}
-        className="flex bg-[#1e1e1e] h-11 items-center px-4 gap-2 relative overflow-hidden border-b border-white/5"
+        className="theme-panel theme-border relative flex h-11 items-center gap-2 overflow-hidden border-b px-4 transition-colors"
     >
       {/* Precision Blur Background */}
-      <div className="absolute inset-0 bg-[#1e1e1e]/40 backdrop-blur-xl -z-10" />
+      <div className="theme-glass absolute inset-0 -z-10 backdrop-blur-xl" />
 
       {/* 标签栏 - 可滚动区域 */}
       <div
@@ -97,8 +101,8 @@ export const TabBar = () => {
                 className={clsx(
                   "relative flex items-center px-3.5 py-1.5 cursor-pointer select-none group rounded-full transition-all duration-300 flex-shrink-0 max-w-[200px] border border-transparent",
                   isActive 
-                    ? "text-white" 
-                    : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    ? 'theme-text'
+                    : 'theme-text-subtle hover:text-[var(--text-primary)] hover:bg-[var(--hover-soft)]'
                 )}
                 onClick={() => handleTabClick(file.id)}
                 onContextMenu={(e) => handleContextMenu(e, file.id)}
@@ -109,7 +113,7 @@ export const TabBar = () => {
                   <motion.div
                     layoutId="tab-active-pill"
                     data-testid="tab-active-pill"
-                    className="absolute inset-0 bg-blue-600/10 rounded-full border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+                    className="theme-active-pill absolute inset-0 rounded-full"
                     transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                   />
                 )}
@@ -119,11 +123,14 @@ export const TabBar = () => {
                 </span>
 
                 {file.isDirty && (
-                  <span className="relative z-10 ml-2 w-1.5 h-1.5 rounded-full bg-blue-400/80 shadow-[0_0_8px_rgba(96,165,250,0.5)]" />
+                  <span className="relative z-10 ml-2 h-1.5 w-1.5 rounded-full bg-[var(--accent-color)]" />
                 )}
 
                 <button
-                  className="relative z-10 ml-2.5 p-0.5 rounded-full hover:bg-white/10 text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  className={clsx(
+                    'relative z-10 ml-2.5 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity',
+                    'theme-button-ghost'
+                  )}
                   onClick={(e) => {
                     e.stopPropagation();
                     closeFile(file.id);
@@ -139,13 +146,13 @@ export const TabBar = () => {
 
       {/* Markdown Preview Controls - Capsule Style */}
       {showPreviewButton && (
-        <div className="flex items-center bg-gray-800/40 p-0.5 rounded-full border border-white/5 ml-2">
+        <div className="theme-panel-muted theme-border ml-2 flex items-center rounded-full border p-0.5">
           <button
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black transition-all",
               previewMode !== 'editor'
-                ? "text-blue-400 bg-blue-500/10 shadow-sm"
-                : "text-gray-500 hover:text-white"
+                ? 'theme-selection-accent shadow-sm'
+                : 'theme-button-ghost'
             )}
             onClick={togglePreviewMode}
           >

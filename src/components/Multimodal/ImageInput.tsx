@@ -133,7 +133,7 @@ export const ImageInput: React.FC<ImageInputProps> = ({
       <button
         onClick={triggerFileSelect}
         disabled={!canAddMore || disabled}
-        className="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        className="theme-button-ghost rounded-xl p-2 hover:text-blue-400 disabled:cursor-not-allowed disabled:opacity-30"
         title={canAddMore ? '上传图片' : `最多 ${maxImages} 张图片`}
         data-testid="image-input-button"
       >

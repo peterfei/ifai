@@ -12,6 +12,7 @@
 
 import React from 'react';
 import { CheckCircle2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Types
@@ -45,36 +46,37 @@ export const ExploreFindings: React.FC<ExploreFindingsProps> = ({
   compact = false,
   onOpenFile,
 }) => {
+  const { t } = useTranslation();
   const totalFiles = findings.directories.reduce((sum, d) => sum + d.fileCount, 0);
   const patternCount = findings.patterns?.length || 0;
 
   // Compact mode - simplified view
   if (compact) {
     return (
-      <div className="bg-[#252526] border border-[#3c3c3c] rounded p-3">
+      <div className="theme-panel-muted theme-border rounded border p-3">
         <div className="flex items-center gap-2 mb-2">
-          <CheckCircle2 size={14} className="text-[#4ec9b0]" />
-          <span className="text-[11px] font-medium text-[#cccccc]">探索完成</span>
+          <CheckCircle2 size={14} className="text-[var(--success-color)]" />
+          <span className="theme-text text-[11px] font-medium">{t('aiChat.exploreFindings.completed')}</span>
         </div>
-        <div className="text-[11px] text-[#cccccc]">{findings.summary}</div>
+        <div className="theme-text-muted text-[11px]">{findings.summary}</div>
       </div>
     );
   }
 
   // Simplified mode - single line summary
   return (
-    <div className="bg-[#252526] border border-[#3c3c3c] rounded p-3 my-2">
+    <div className="theme-panel-muted theme-border my-2 rounded border p-3">
       <div className="explore-status-bar">
-        <CheckCircle2 size={12} className="text-[#4ec9b0]" />
-        <span className="text-[#cccccc]">探索完成</span>
-        <span className="text-[#3c3c3c]">|</span>
-        <span className="text-[#cccccc]">{findings.directories.length} 目录</span>
-        <span className="text-[#3c3c3c]">|</span>
-        <span className="text-[#cccccc]">{totalFiles} 文件</span>
+        <CheckCircle2 size={12} className="text-[var(--success-color)]" />
+        <span className="theme-text">{t('aiChat.exploreFindings.completed')}</span>
+        <span className="theme-text-subtle opacity-60">|</span>
+        <span className="theme-text">{t('aiChat.exploreFindings.directories', { count: findings.directories.length })}</span>
+        <span className="theme-text-subtle opacity-60">|</span>
+        <span className="theme-text">{t('aiChat.exploreFindings.files', { count: totalFiles })}</span>
         {patternCount > 0 && (
           <>
-            <span className="text-[#3c3c3c]">|</span>
-            <span className="text-[#cccccc]">{patternCount} 模式</span>
+            <span className="theme-text-subtle opacity-60">|</span>
+            <span className="theme-text">{t('aiChat.exploreFindings.patterns', { count: patternCount })}</span>
           </>
         )}
       </div>

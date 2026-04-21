@@ -52,8 +52,9 @@
 
 .file-count {
   padding: 2px 8px;
-  background: var(--accent-color, #007acc);
-  color: white;
+  background: var(--accent-soft-bg, rgba(37, 99, 235, 0.16));
+  border: 1px solid var(--accent-soft-border, rgba(37, 99, 235, 0.32));
+  color: var(--accent-color, #2563eb);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
@@ -85,16 +86,16 @@
 }
 
 .btn-accept-all:hover {
-  background: #45a049;
+  background: var(--success-hover, #10b981);
 }
 
 .btn-reject-all {
-  background: var(--error-color, #f44336);
+  background: var(--danger-color, #f87171);
   color: white;
 }
 
 .btn-reject-all:hover {
-  background: #da190b;
+  background: var(--danger-hover, #ef4444);
 }
 
 .btn-close {
@@ -220,9 +221,9 @@
 }
 
 .btn-reject-single:hover {
-  background: var(--error-color, #f44336);
+  background: var(--danger-color, #f87171);
   color: white;
-  border-color: var(--error-color, #f44336);
+  border-color: var(--danger-color, #f87171);
 }
 
 .applied-badge {
@@ -354,8 +355,9 @@
 
 .all-applied-badge {
   padding: 2px 8px;
-  background: var(--success-color, #4caf50);
-  color: white;
+  background: var(--success-soft-bg, rgba(52, 211, 153, 0.16));
+  border: 1px solid var(--success-soft-border, rgba(52, 211, 153, 0.32));
+  color: var(--success-color, #34d399);
   border-radius: 12px;
   font-size: 11px;
   font-weight: 500;
@@ -366,15 +368,15 @@
    ============================================================================ */
 
 .change-type-added .file-name {
-  color: #4ec9b0;
+  color: var(--success-color, #34d399);
 }
 
 .change-type-deleted .file-name {
-  color: #f48771;
+  color: var(--danger-color, #f87171);
 }
 
 .change-type-modified .file-name {
-  color: #dcdcaa;
+  color: var(--warning-color, #facc15);
 }
 
 /* ============================================================================
@@ -432,25 +434,5 @@
 
   .composer-diff-actions button {
     flex: 1;
-  }
-}
-
-/* ============================================================================
-   暗色主题优化
-   ============================================================================ */
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #1e1e1e;
-    --bg-secondary: #252526;
-    --bg-tertiary: #3c3c3c;
-    --text-primary: #d4d4d4;
-    --text-secondary: #858585;
-    --border-color: #3c3c3c;
-    --hover-bg: #2d2d30;
-    --selected-bg: #37373d;
-    --accent-color: #007acc;
-    --success-color: #4caf50;
-    --error-color: #f44336;
   }
 }

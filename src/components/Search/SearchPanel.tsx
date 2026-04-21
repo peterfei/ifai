@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '../../stores/fileStore';
-import { useLayoutStore } from '../../stores/layoutStore';
-import { Loader2, Search, X, ChevronDown, CaseSensitive, Regex, RotateCcw, Clock } from 'lucide-react';
-import { readFileContent } from '../../utils/fileSystem';
-import { v4 as uuidv4 } from 'uuid';
+import { Loader2, Search, X, ChevronDown, CaseSensitive, Regex, Clock } from 'lucide-react';
+import { openFileFromPath } from '../../utils/fileActions';
 import { useTranslation } from 'react-i18next';
-import { detectLanguageFromPath } from '../../utils/languageDetection';
 
 interface SearchResult {
   path: string;
@@ -42,17 +39,13 @@ const useDebounce = <T,>(value: T, delay: number): T => {
 };
 
 // Format timestamp to human-readable time ago
-const formatTimeAgo = (timestamp: number): string => {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-};
-
 // Highlight matching text in result
-const highlightMatch = (text: string, query: string, caseSensitive: boolean, useRegex: boolean): React.ReactNode => {
+const highlightMatch = (
+  text: string,
+  query: string,
+  caseSensitive: boolean,
+  useRegex: boolean,
+): React.ReactNode => {
   if (!query) return text;
 
   try {
@@ -67,8 +60,15 @@ const highlightMatch = (text: string, query: string, caseSensitive: boolean, use
     const parts = text.split(regex);
 
     return parts.map((part, index) => {
-      if (regex.test(part)) {
-        return <span key={index} className="bg-yellow-500/50 text-yellow-200 px-0.5 rounded">{part}</span>;
+      if (index % 2 === 1) {
+        return (
+          <span
+            key={index}
+            className="rounded border border-[var(--warning-soft-border)] bg-[var(--warning-soft-bg)] px-0.5 text-[var(--text-primary)]"
+          >
+            {part}
+          </span>
+        );
       }
       return <span key={index}>{part}</span>;
     });
@@ -84,7 +84,7 @@ export const SearchPanel = () => {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { rootPath, openFile } = useFileStore();
+  const { rootPath } = useFileStore();
   const [options, setOptions] = useState<SearchOptions>({
     caseSensitive: false,
     useRegex: false
@@ -198,37 +198,12 @@ export const SearchPanel = () => {
 
   const handleResultClick = async (result: SearchResult) => {
     console.log('[Search] Clicking result:', result);
-    try {
-      const content = await readFileContent(result.path);
-      console.log('[Search] File content loaded, length:', content.length);
+    const opened = await openFileFromPath(result.path, {
+      initialLine: result.line_number,
+    });
 
-      const fileName = result.path.split('/').pop() || 'unknown';
-
-      // v0.2.6: 使用统一的语言检测工具
-      const language = detectLanguageFromPath(result.path);
-
-      const openedId = openFile({
-        id: uuidv4(),
-        path: result.path,
-        name: fileName,
-        content,
-        isDirty: false,
-        language,
-        initialLine: result.line_number
-      });
-
-      console.log('[Search] File opened with ID:', openedId);
-
-      // Assign to active pane if available
-      const { activePaneId, assignFileToPane } = useLayoutStore.getState();
-      if (activePaneId) {
-        console.log('[Search] Assigning to pane:', activePaneId);
-        assignFileToPane(activePaneId, openedId);
-      }
-    } catch (e) {
-      console.error('[Search] Failed to open file:', e);
-      // Show error to user
-      alert(`Failed to open file: ${result.path}\nError: ${String(e)}`);
+    if (opened) {
+      console.log('[Search] File opened:', result.path);
     }
   };
 
@@ -262,15 +237,26 @@ export const SearchPanel = () => {
     return uniquePaths.size;
   }, [results]);
 
+  const formatTimeAgo = useCallback((timestamp: number): string => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+
+    if (seconds < 60) return t('search.time.justNow');
+    if (seconds < 3600) return t('search.time.minutesAgo', { count: Math.floor(seconds / 60) });
+    if (seconds < 86400) return t('search.time.hoursAgo', { count: Math.floor(seconds / 3600) });
+    return t('search.time.daysAgo', { count: Math.floor(seconds / 86400) });
+  }, [t]);
+
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] border-r border-gray-700 w-full">
+    <div className="flex flex-col h-full theme-panel border-r theme-border w-full">
       {/* Header */}
-      <div className="p-3 border-b border-gray-700">
+      <div className="p-3 border-b theme-border">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">{t('search.title')}</span>
+          <span className="theme-text-subtle text-xs font-bold uppercase tracking-wider">
+            {t('search.title')}
+          </span>
           {results.length > 0 && (
-            <span className="text-xs text-gray-500">
-              {results.length} {results.length === 1 ? 'result' : 'results'} in {uniqueFileCount} {uniqueFileCount === 1 ? 'file' : 'files'}
+            <span className="theme-text-subtle text-xs">
+              {t('search.summary', { results: results.length, files: uniqueFileCount })}
             </span>
           )}
         </div>
@@ -279,7 +265,7 @@ export const SearchPanel = () => {
         <form onSubmit={handleSearch} className="relative mb-2">
           <input
             type="text"
-            className="w-full bg-[#3c3c3c] text-white rounded p-2 pl-3 pr-16 text-sm focus:outline-none border border-transparent focus:border-blue-500"
+            className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded border p-2 pl-3 pr-16 text-sm"
             placeholder={t('search.placeholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -290,85 +276,89 @@ export const SearchPanel = () => {
               <button
                 type="button"
                 onClick={clearSearch}
-                className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700"
-                title="Clear"
+                className="theme-button-ghost rounded p-1"
+                title={t('search.clear')}
+                aria-label={t('search.clear')}
               >
                 <X size={14} />
               </button>
             )}
-            <button
-              type="submit"
-              className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700"
-              disabled={isSearching}
-              title="Search"
-            >
-              {isSearching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-            </button>
+              <button
+                type="submit"
+                className="theme-button-ghost rounded p-1"
+                disabled={isSearching}
+                title={t('search.submit')}
+                aria-label={t('search.submit')}
+              >
+                {isSearching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+              </button>
           </div>
         </form>
 
         {/* Options Bar */}
         <div className="flex items-center gap-1 relative">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setShowOptions(!showOptions);
             }}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-white rounded hover:bg-gray-700 transition-colors"
-            title="Search options"
+            className="theme-button-ghost flex items-center gap-1 rounded px-2 py-1 text-xs"
+            title={t('search.optionsTitle')}
           >
             <Regex size={12} />
-            <span>Options</span>
+            <span>{t('search.options')}</span>
             <ChevronDown size={12} className={`transition-transform ${showOptions ? 'rotate-180' : ''}`} />
           </button>
 
           {showOptions && (
             <div
               ref={optionsRef}
-              className="absolute top-full left-0 mt-1 bg-[#2d2d2d] border border-gray-700 rounded-lg shadow-xl py-1 z-10 min-w-40"
+              className="theme-panel-elevated theme-border absolute top-full left-0 mt-1 rounded-lg border py-1 z-10 min-w-40 shadow-xl"
             >
               <div className="px-3 py-2">
-                <button
-                  onClick={() => toggleOption('caseSensitive')}
-                  className="flex items-center justify-between w-full text-sm text-gray-300 hover:text-white"
-                >
+                <label className="theme-hoverable theme-text-muted flex cursor-pointer items-center justify-between rounded px-1 py-1.5 text-sm">
                   <span className="flex items-center gap-2">
                     <CaseSensitive size={14} />
-                    Case sensitive
+                    {t('search.caseSensitive')}
                   </span>
-                  <div className={`w-4 h-4 border border-gray-600 rounded flex items-center justify-center ${options.caseSensitive ? 'bg-blue-600 border-blue-600' : ''}`}>
-                    {options.caseSensitive && <span className="text-white text-xs">✓</span>}
-                  </div>
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={options.caseSensitive}
+                    onChange={() => toggleOption('caseSensitive')}
+                    className="theme-checkbox-input theme-focus-ring-accent h-4 w-4 rounded"
+                  />
+                </label>
               </div>
-              <div className="px-3 py-2 border-t border-gray-700">
-                <button
-                  onClick={() => toggleOption('useRegex')}
-                  className="flex items-center justify-between w-full text-sm text-gray-300 hover:text-white"
-                >
+              <div className="theme-border border-t px-3 py-2">
+                <label className="theme-hoverable theme-text-muted flex cursor-pointer items-center justify-between rounded px-1 py-1.5 text-sm">
                   <span className="flex items-center gap-2">
                     <Regex size={14} />
-                    Regular expression
+                    {t('search.useRegex')}
                   </span>
-                  <div className={`w-4 h-4 border border-gray-600 rounded flex items-center justify-center ${options.useRegex ? 'bg-blue-600 border-blue-600' : ''}`}>
-                    {options.useRegex && <span className="text-white text-xs">✓</span>}
-                  </div>
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={options.useRegex}
+                    onChange={() => toggleOption('useRegex')}
+                    className="theme-checkbox-input theme-focus-ring-accent h-4 w-4 rounded"
+                  />
+                </label>
               </div>
             </div>
           )}
 
           <button
+            type="button"
             ref={historyButtonRef}
             onClick={(e) => {
               e.stopPropagation();
               setShowHistory(!showHistory);
             }}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-white rounded hover:bg-gray-700 transition-colors"
-            title="Search history"
+            className="theme-button-ghost flex items-center gap-1 rounded px-2 py-1 text-xs"
+            title={t('search.historyTitle')}
           >
             <Clock size={12} />
-            <span>History</span>
+            <span>{t('search.history')}</span>
             <ChevronDown size={12} className={`transition-transform ${showHistory ? 'rotate-180' : ''}`} />
           </button>
         </div>
@@ -377,7 +367,7 @@ export const SearchPanel = () => {
         {showHistory && (
           <div
             ref={historyRef}
-            className="bg-[#252526] border border-gray-600/50 rounded-lg shadow-2xl overflow-hidden max-h-80 overflow-y-auto backdrop-blur-sm"
+            className="theme-panel-elevated theme-border rounded-lg border shadow-2xl overflow-hidden max-h-80 overflow-y-auto backdrop-blur-sm"
             style={{
               position: 'fixed',
               top: `${historyPosition.top}px`,
@@ -385,39 +375,40 @@ export const SearchPanel = () => {
               minWidth: '300px',
               maxWidth: '400px',
               zIndex: 1000,
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2)'
+              boxShadow: 'var(--app-shadow)'
             }}
           >
             {searchHistory.length > 0 ? (
               <>
                 {/* Header */}
-                <div className="px-4 py-2 border-b border-gray-700/50 bg-gray-800/30">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    Recent Searches
+                <div className="theme-panel-muted theme-border border-b px-4 py-2">
+                  <span className="theme-text-subtle text-xs font-semibold uppercase tracking-wide">
+                    {t('search.recentSearches')}
                   </span>
                 </div>
                 {/* History Items */}
                 {searchHistory.map((item, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      setQuery(item.query);
+              <button
+                type="button"
+                key={index}
+                onClick={() => {
+                  setQuery(item.query);
                       setShowHistory(false);
                       performSearch(item.query);
                     }}
-                    className="w-full text-left px-4 py-3 text-sm hover:bg-blue-600/20 hover:text-blue-300 transition-all duration-150 border-b border-gray-700/30 last:border-0 group"
+                    className="theme-soft-hover theme-border group w-full border-b px-4 py-3 text-left text-sm transition-all duration-150 last:border-0"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {/* Search Icon */}
-                        <svg className="w-4 h-4 text-gray-500 group-hover:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="theme-text-subtle h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <span className="truncate text-gray-300 group-hover:text-white font-medium">
+                        <span className="theme-text truncate font-medium">
                           {item.query}
                         </span>
                       </div>
-                      <span className="text-xs text-gray-500 group-hover:text-gray-400 flex-shrink-0">
+                      <span className="theme-text-subtle flex-shrink-0 text-xs">
                         {formatTimeAgo(item.timestamp)}
                       </span>
                     </div>
@@ -426,11 +417,11 @@ export const SearchPanel = () => {
               </>
             ) : (
               <div className="px-4 py-8 text-center">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="theme-text-subtle mx-auto mb-3 h-12 w-12 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-sm text-gray-500">No search history yet</p>
-                <p className="text-xs text-gray-600 mt-1">Start searching to build history</p>
+                <p className="theme-text-subtle text-sm">{t('search.noHistory')}</p>
+                <p className="theme-text-subtle mt-1 text-xs opacity-80">{t('search.noHistoryHint')}</p>
               </div>
             )}
           </div>
@@ -443,14 +434,14 @@ export const SearchPanel = () => {
           results.map((result, index) => (
             <div
               key={index}
-              className="p-2 hover:bg-gray-800 cursor-pointer border-b border-gray-800 transition-colors"
+              className="theme-hoverable theme-border cursor-pointer border-b p-2 transition-colors"
               onClick={() => handleResultClick(result)}
             >
-              <div className="text-xs text-blue-400 truncate mb-1" title={result.path}>
+              <div className="theme-text-accent mb-1 truncate text-xs" title={result.path}>
                 {result.path.replace(rootPath || '', '').substring(1)}
               </div>
-              <div className="text-xs text-gray-300 font-mono">
-                <span className="text-gray-500 mr-2 select-none">{result.line_number}:</span>
+              <div className="theme-text text-xs font-mono">
+                <span className="theme-text-subtle mr-2 select-none">{result.line_number}:</span>
                 {highlightMatch(result.content.trim(), query, options.caseSensitive, options.useRegex)}
               </div>
             </div>
@@ -459,15 +450,17 @@ export const SearchPanel = () => {
 
         {!isSearching && results.length === 0 && query && (
           <div className="p-4 text-center">
-            <p className="text-gray-500 text-xs mb-2">{t('search.noResults')}</p>
+            <p className="theme-text-subtle mb-2 text-xs">{t('search.noResults')}</p>
             {options.useRegex && (
-              <p className="text-gray-600 text-xs">Tip: Check your regex syntax</p>
+              <p className="theme-text-subtle text-xs opacity-80">{t('search.regexTip')}</p>
             )}
           </div>
         )}
 
         {!rootPath && (
-          <div className="p-4 text-center text-gray-500 text-xs">{t('search.openFolder')}</div>
+          <div className="theme-text-subtle p-4 text-center text-xs">
+            {t('search.openFolder')}
+          </div>
         )}
       </div>
     </div>

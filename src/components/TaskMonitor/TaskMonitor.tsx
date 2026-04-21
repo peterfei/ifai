@@ -1,13 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Filter, Trash2, X, Search, LayoutGrid, ListTree, Activity } from 'lucide-react';
+import { Filter, Trash2, Search, LayoutGrid, ListTree, Activity } from 'lucide-react';
 import { TaskCard } from './TaskCard';
-import { TaskStatusBadge } from './TaskStatusBadge';
 import { TaskTimeline } from './TaskTimeline';
 import { useTaskStore, useFilteredTasks, useTaskCounts } from '../../stores/taskStore';
-import type { TaskFilter, TaskCardMode } from './types';
-import { TaskStatus, TaskCategory } from './types';
+import type { TaskFilter } from './types';
+import { TaskStatus } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { shallow } from 'zustand/shallow';
 import { useTranslation } from 'react-i18next';
 
 // ============================================================================
@@ -31,14 +29,15 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
   filter,
   onFilterChange,
 }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const STATUS_OPTIONS: Array<{ value: TaskStatus | 'all'; label: string }> = [
-    { value: 'all', label: '全部' },
-    { value: TaskStatus.RUNNING, label: '运行中' },
-    { value: TaskStatus.PENDING, label: '等待中' },
-    { value: TaskStatus.SUCCESS, label: '完成' },
-    { value: TaskStatus.FAILED, label: '失败' },
+    { value: 'all', label: t('taskMonitor.all') },
+    { value: TaskStatus.RUNNING, label: t('taskMonitor.status.running') },
+    { value: TaskStatus.PENDING, label: t('taskMonitor.status.pending') },
+    { value: TaskStatus.SUCCESS, label: t('taskMonitor.status.success') },
+    { value: TaskStatus.FAILED, label: t('taskMonitor.status.failed') },
   ];
 
   return (
@@ -46,22 +45,22 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
       <button
         onClick={() => setExpanded(!expanded)}
         className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded transition-colors ${
-          expanded ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800'
+          expanded ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]' : 'theme-text-subtle theme-hoverable'
         }`}
       >
         <Filter size={12} />
-        <span>筛选</span>
+        <span>{t('taskMonitor.filter')}</span>
       </button>
 
       {expanded && (
-        <div className="absolute top-full left-0 mt-2 w-48 bg-[#252526] border border-gray-700 rounded shadow-2xl z-[100] p-2 space-y-2">
+        <div className="theme-panel-elevated theme-border theme-shadow absolute top-full left-0 z-[100] mt-2 w-48 rounded border p-2 space-y-2">
           <div className="flex flex-col gap-1">
             {STATUS_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 onClick={() => { onFilterChange({ ...filter, status: opt.value }); setExpanded(false); }}
                 className={`text-left px-2 py-1.5 rounded text-[10px] ${
-                  filter.status === opt.value ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+                  filter.status === opt.value ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]' : 'theme-text-subtle theme-hoverable'
                 }`}
               >
                 {opt.label}
@@ -81,31 +80,31 @@ const TaskFilterControls: React.FC<TaskFilterControlsProps> = ({
 const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
   const { t } = useTranslation();
   const chartData = useMemo(() => [
-    { name: 'R', value: counts.running, color: '#3b82f6' },
-    { name: 'P', value: counts.pending, color: '#6b7280' },
-    { name: 'S', value: counts.success, color: '#10b981' },
-    { name: 'F', value: counts.failed, color: '#ef4444' },
-  ].filter(d => d.value > 0), [counts]);
+    { name: t('taskMonitor.summary.runningShort'), value: counts.running, color: 'var(--accent-color)' },
+    { name: t('taskMonitor.summary.pendingShort'), value: counts.pending, color: 'var(--text-subtle)' },
+    { name: t('taskMonitor.summary.successShort'), value: counts.success, color: 'var(--success-color)' },
+    { name: t('taskMonitor.summary.failedShort'), value: counts.failed, color: 'var(--danger-color)' },
+  ].filter(d => d.value > 0), [counts, t]);
 
   return (
-    <div className="bg-[#1e1e1e] border-b border-gray-800 p-3 space-y-3">
+    <div className="theme-panel-muted theme-border border-b p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-            <Activity size={14} className="text-blue-500" />
-            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{t('taskMonitor.title')}</span>
+            <Activity size={14} className="theme-text-accent" />
+            <span className="theme-text-subtle text-[11px] font-bold uppercase tracking-tight">{t('taskMonitor.title')}</span>
         </div>
-        <div className="flex bg-black/20 rounded p-0.5 border border-gray-800">
+        <div className="theme-panel flex rounded border p-0.5 theme-border">
             <button 
                 onClick={() => setView('list')}
-                className={`p-1 rounded ${view === 'list' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}
-                title="List View"
+                className={`p-1 rounded ${view === 'list' ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]' : 'theme-text-subtle'}`}
+                title={t('taskMonitor.listView')}
             >
                 <ListTree size={12} />
             </button>
             <button 
                 onClick={() => setView('timeline')}
-                className={`p-1 rounded ${view === 'timeline' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}
-                title="Timeline View"
+                className={`p-1 rounded ${view === 'timeline' ? 'bg-[var(--selected-bg)] text-[var(--accent-color)]' : 'theme-text-subtle'}`}
+                title={t('taskMonitor.timelineView')}
             >
                 <LayoutGrid size={12} />
             </button>
@@ -113,7 +112,7 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
       </div>
 
       {chartData.length > 0 && (
-        <div className="flex items-center gap-4 bg-black/10 p-2 rounded-lg border border-gray-800/50">
+        <div className="theme-panel flex items-center gap-4 rounded-lg border p-2 theme-border">
             <div className="w-10 h-10">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -126,13 +125,13 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
             <div className="flex gap-3">
                 {chartData.map(d => (
                     <div key={d.name} className="flex flex-col">
-                        <span className="text-[9px] text-gray-500 font-bold">{d.name}</span>
-                        <span className="text-[11px] text-gray-200 font-mono leading-none">{d.value}</span>
+                        <span className="theme-text-subtle text-[9px] font-bold">{d.name}</span>
+                        <span className="theme-text text-[11px] font-mono leading-none">{d.value}</span>
                     </div>
-                ))}
+            ))}
             </div>
             {counts.success > 0 && (
-              <button onClick={onClearCompleted} className="ml-auto p-1.5 text-gray-500 hover:text-red-400">
+              <button onClick={onClearCompleted} className="theme-hoverable theme-text-subtle ml-auto rounded p-1.5 transition-colors hover:text-[var(--danger-color)]" title={t('taskMonitor.clearCompleted')}>
                   <Trash2 size={12} />
               </button>
             )}
@@ -147,6 +146,7 @@ const TaskSummary = ({ counts, onClearCompleted, view, setView }: any) => {
 // ============================================================================
 
 export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = ({ className = '' }) => {
+  const { t } = useTranslation();
   const [view, setView] = useState<'list' | 'timeline'>('list');
   const tasks = useFilteredTasks();
   const counts = useTaskCounts();
@@ -155,7 +155,7 @@ export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = 
   const clearCompleted = useTaskStore((state: any) => state.clearCompleted);
 
   return (
-    <div className={`flex flex-col bg-[#1e1e1e] h-full overflow-hidden ${className}`}>
+    <div className={`theme-panel flex flex-col h-full overflow-hidden ${className}`}>
       <TaskSummary 
         counts={counts} 
         onClearCompleted={clearCompleted} 
@@ -165,24 +165,24 @@ export const TaskMonitor: React.FC<TaskMonitorProps & { className?: string }> = 
 
       {view === 'list' ? (
         <>
-            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-[#1a1a1a]">
+            <div className="theme-panel-muted theme-border flex items-center justify-between border-b px-3 py-2">
                 <TaskFilterControls filter={filter} onFilterChange={setFilter} />
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-black/20 rounded border border-gray-800">
-                    <Search size={10} className="text-gray-600" />
+                <div className="theme-input-surface theme-border flex items-center gap-1.5 rounded border px-2 py-1">
+                    <Search size={10} className="theme-text-subtle" />
                     <input
                         value={(filter as TaskFilter).search || ''}
                         onChange={(e) => setFilter({ ...filter, search: e.target.value || undefined })}
-                        placeholder="快速过滤..."
-                        className="bg-transparent text-[10px] outline-none w-20 text-gray-300"
+                        placeholder={t('taskMonitor.searchPlaceholder')}
+                        className="theme-text w-20 bg-transparent text-[10px] outline-none placeholder:text-[var(--text-muted)]"
                     />
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {tasks.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                  <div className="theme-text-subtle flex flex-col items-center justify-center py-20 opacity-50">
                     <Activity size={32} className="mb-2" />
-                    <span className="text-xs">暂无任务记录</span>
+                    <span className="text-xs">{t('taskMonitor.noTasks')}</span>
                   </div>
                 ) : (
                     tasks.map(task => <TaskCard key={task.id} task={task} mode="normal" />)

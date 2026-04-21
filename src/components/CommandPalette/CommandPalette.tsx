@@ -7,6 +7,7 @@ import { switchThread } from '../../stores/useChatStore';
 import { invoke } from '@tauri-apps/api/core';
 import Fuse from 'fuse.js';
 import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
 
 interface CommandPaletteProps {
   onSelect?: (path: string) => void;
@@ -24,7 +25,7 @@ type SearchResult = {
 };
 
 export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isCommandPaletteOpen, setCommandPaletteOpen } = useLayoutStore();
   const { rootPath } = useFileStore();
   const threads = useThreadStore(state => state.threads);
@@ -60,11 +61,11 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}小时前`;
-    if (diffMins < 43200) return `${Math.floor(diffMins / 1440)}天前`;
-    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+    if (diffMins < 1) return t('commandPalette.justNow');
+    if (diffMins < 60) return t('commandPalette.minutesAgo', { count: diffMins });
+    if (diffMins < 1440) return t('commandPalette.hoursAgo', { count: Math.floor(diffMins / 60) });
+    if (diffMins < 43200) return t('commandPalette.daysAgo', { count: Math.floor(diffMins / 1440) });
+    return date.toLocaleDateString(i18n.language, { month: '2-digit', day: '2-digit' });
   };
 
   // Convert threads to search results
@@ -75,11 +76,11 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
         type: 'thread' as const,
         id: thread.id,
         title: thread.title,
-        subtitle: `${thread.messageCount} 条消息 • ${formatThreadTimestamp(thread.lastActiveAt)}`,
+        subtitle: `${t('commandPalette.messageCount', { count: thread.messageCount })} • ${formatThreadTimestamp(thread.lastActiveAt)}`,
         icon: <MessageSquare size={16} />,
         threadId: thread.id,
       }));
-  }, [threads]);
+  }, [threads, t, i18n.language]);
 
   useEffect(() => {
     if (isCommandPaletteOpen) {
@@ -222,73 +223,72 @@ export const CommandPalette = ({ onSelect }: CommandPaletteProps) => {
   // Get placeholder text based on current input mode
   const getPlaceholder = () => {
     const { mode } = parseInput(input);
-    if (mode === 'files') return t('commandPalette.placeholder') || "搜索文件...";
-    if (mode === 'threads') return "搜索会话...";
-    return "搜索文件、会话... (@文件, #会话)";
+    if (mode === 'files') return t('commandPalette.placeholder');
+    if (mode === 'threads') return t('commandPalette.placeholderThreads');
+    return t('commandPalette.placeholderAll');
   };
 
   if (!isCommandPaletteOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-20 bg-black bg-opacity-50"
+      className="theme-backdrop fixed inset-0 z-[100] flex items-start justify-center pt-20"
       onClick={handleClose} // Close when clicking outside
     >
       <div
-        className="bg-[#252526] rounded-lg shadow-2xl w-[600px] flex flex-col max-h-[80vh] border border-gray-700 overflow-hidden"
+        className="theme-panel-elevated theme-border theme-shadow flex max-h-[80vh] w-[600px] flex-col overflow-hidden rounded-lg border"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
       >
-        <div className="relative p-3 border-b border-gray-700 bg-[#252526]">
+        <div className="theme-panel-elevated theme-border relative border-b p-3">
           <input
             ref={inputRef}
             type="text"
-            className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+            className="theme-input-surface theme-border theme-text theme-focus-accent w-full rounded-[var(--radius-sm)] border px-3 py-2 text-sm"
             placeholder={getPlaceholder()}
             value={input}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
           />
           <button
-            className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+            className="theme-hoverable theme-text-subtle absolute right-6 top-1/2 -translate-y-1/2 rounded p-1 transition-colors"
             onClick={handleClose}
           >
             <X size={16} />
           </button>
         </div>
 
-        <div ref={listRef} className="flex-1 overflow-y-auto py-2 bg-[#252526] custom-scrollbar">
+        <div ref={listRef} className="theme-panel flex-1 overflow-y-auto py-2 custom-scrollbar">
           {results.length > 0 ? (
             results.map((result, index) => (
               <div
                 key={`${result.type}-${result.id}-${index}`}
-                className={`px-4 py-2 text-sm cursor-pointer transition-colors flex items-center gap-3 ${
-                  index === selectedIndex
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-[#2a2d2e] hover:text-white'
-                }`}
+                className={clsx('flex cursor-pointer items-center gap-3 px-4 py-2 text-sm transition-colors', index === selectedIndex
+                    ? 'bg-[var(--selected-bg)] text-[var(--text-primary)]'
+                    : 'theme-text-muted theme-hoverable'
+                )}
                 onClick={() => handleSelect(result)}
               >
-                <div className={`flex-shrink-0 ${index === selectedIndex ? 'text-white' : 'text-gray-400'}`}>
+                <div className={clsx('flex-shrink-0', index === selectedIndex ? 'text-[var(--accent-color)]' : 'theme-text-subtle')}>
                   {result.icon}
                 </div>
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="font-medium truncate">{result.title}</span>
-                  <span className={`text-[10px] truncate ${index === selectedIndex ? 'text-blue-100' : 'text-gray-500'}`}>
+                  <span className={clsx('truncate text-[10px]', index === selectedIndex ? 'text-[var(--accent-color)]' : 'theme-text-subtle')}>
                     {result.subtitle}
                   </span>
                 </div>
                 {result.type === 'thread' && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
-                    index === selectedIndex ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400'
-                  }`}>
-                    会话
+                  <span className={clsx('text-[10px] px-1.5 py-0.5 rounded flex-shrink-0',
+                    index === selectedIndex ? 'bg-[var(--accent-color)] text-white' : 'theme-panel-muted theme-text-subtle'
+                  )}>
+                    {t('commandPalette.threadType')}
                   </span>
                 )}
               </div>
             ))
           ) : (
-            <div className="px-4 py-6 text-center text-sm text-gray-400">
-              {t('commandPalette.noResults') || "未找到结果"}
+            <div className="theme-text-subtle px-4 py-6 text-center text-sm">
+              {t('commandPalette.noResults')}
             </div>
           )}
         </div>
