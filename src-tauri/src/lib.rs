@@ -1347,16 +1347,6 @@ fn resolve_tool_approval(
     Ok(crate::harness_ai_service::resolve_tool_approval(&tool_call_id, approved, result))
 }
 
-/// 前端审批完成后回调：将审批结果发送给等待中的 stream_chat loop
-#[tauri::command]
-fn resolve_tool_approval(
-    tool_call_id: String,
-    approved: bool,
-    result: Option<String>,
-) -> Result<bool, String> {
-    Ok(crate::harness_ai_service::resolve_tool_approval(&tool_call_id, approved, result))
-}
-
 #[tauri::command]
 async fn ai_completion(
     state: tauri::State<'_, AppState>,
