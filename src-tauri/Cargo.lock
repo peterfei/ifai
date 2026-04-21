@@ -2916,7 +2916,6 @@ dependencies = [
  "llama-cpp-2",
  "log",
  "lru",
- "macros",
  "md5",
  "notify",
  "num_cpus",

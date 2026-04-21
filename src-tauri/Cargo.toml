@@ -78,8 +78,6 @@ uuid = { version = "1.19.0", features = ["v4"] }
 notify = "8.2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 
-# 本地宏库（技能系统元编程）
-macros = { path = "../macros" }
 ifainew-core = { path = "../../ifainew-core/rust", optional = true }
 tauri-plugin-window-state = "2"
 handlebars = "6.3.2"
