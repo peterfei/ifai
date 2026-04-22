@@ -135,9 +135,9 @@ export const SettingsModal = () => {
                     }}
                     className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                   >
-                    <option value="zh-CN">{t('settings.language.zhCN')}</option>
-                    <option value="en-US">{t('settings.language.enUS')}</option>
-                    <option value="ru-RU">{t('settings.language.ruRU')}</option>
+                    <option value="zh-CN">{t('settings.languageOptions.zhCN')}</option>
+                    <option value="en-US">{t('settings.languageOptions.enUS')}</option>
+                    <option value="ru-RU">{t('settings.languageOptions.ruRU')}</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">{t('settings.languageHint')}</p>
                 </div>

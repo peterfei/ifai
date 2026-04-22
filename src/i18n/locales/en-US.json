@@ -969,7 +969,8 @@
     "theme": "Theme",
     "dark": "Dark",
     "light": "Light",
-    "language": {
+    "language": "Language",
+    "languageOptions": {
       "zhCN": "简体中文",
       "enUS": "English",
       "ruRU": "Русский"

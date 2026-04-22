@@ -969,7 +969,8 @@
     "theme": "Тема",
     "dark": "глубокий",
     "light": "мелкий",
-    "language": {
+    "language": "Язык",
+    "languageOptions": {
       "zhCN": "Упрощенный китайский",
       "enUS": "English",
       "ruRU": "Русский"
