@@ -80,22 +80,22 @@
       "refactor": "若爱: 重构代码"
     },
     "inlineWidget": {
-        "title": "AI 编辑",
-        "placeholder": "使用若爱编辑 (例如 '添加注释')...",
-        "processing": "IfAI 正在处理...",
-        "submit": "提交",
-        "cancel": "取消",
-        "prompt": {
-            "title": "内联 AI 任务",
-            "selectedCode": "用户选中的目标代码:",
-            "surroundingContext": "周围上下文 (供参考):",
-            "cursorContext": "光标周围上下文:",
-            "directive1": "你是一个行内编辑代理。你的目标是直接修改文件中的代码。",
-            "directive2": "你必须使用合适的工具（如 `agent_write_file` 或 `agent_replace_content`）来应用所请求的更改。",
-            "directive3": "不要只在聊天回复中提供建议或代码块。你的回复应侧重于你正在使用工具进行的操作。",
-            "directive4": "手术刀式修改：你必须严格仅修改用户选中的代码块。严禁修改选中范围之外的任何字符，包括空格、缩进或其他方法。",
-            "directive5": "保持完整性：如果需要读取更多文件来理解上下文，请先执行读取，然后再应用更改。但在应用更改时，禁止对未请求修改的区域产生任何副作用。"
-        }
+      "title": "AI 编辑",
+      "placeholder": "使用若爱编辑 (例如 '添加注释')...",
+      "processing": "IfAI 正在处理...",
+      "submit": "提交",
+      "cancel": "取消",
+      "prompt": {
+        "title": "内联 AI 任务",
+        "selectedCode": "用户选中的目标代码:",
+        "surroundingContext": "周围上下文 (供参考):",
+        "cursorContext": "光标周围上下文:",
+        "directive1": "你是一个行内编辑代理。你的目标是直接修改文件中的代码。",
+        "directive2": "你必须使用合适的工具（如 `agent_write_file` 或 `agent_replace_content`）来应用所请求的更改。",
+        "directive3": "不要只在聊天回复中提供建议或代码块。你的回复应侧重于你正在使用工具进行的操作。",
+        "directive4": "手术刀式修改：你必须严格仅修改用户选中的代码块。严禁修改选中范围之外的任何字符，包括空格、缩进或其他方法。",
+        "directive5": "保持完整性：如果需要读取更多文件来理解上下文，请先执行读取，然后再应用更改。但在应用更改时，禁止对未请求修改的区域产生任何副作用。"
+      }
     },
     "inlineDiff": {
       "title": "AI 构思的代码建议",
@@ -969,7 +969,11 @@
     "theme": "主题",
     "dark": "深色",
     "light": "浅色",
-    "language": "语言",
+    "language": {
+      "zhCN": "简体中文",
+      "enUS": "English",
+      "ruRU": "Русский"
+    },
     "languageHint": "切换界面语言，立即生效无需刷新",
     "fontSize": "字体大小",
     "showMinimap": "显示迷你地图",
@@ -1033,11 +1037,6 @@
       "skillsCenter": "技能中心",
       "toolClassificationSettings": "工具分类设置",
       "skillsCenterFull": "技能中心 (Skills Center)"
-    },
-    "language": {
-      "zhCN": "简体中文",
-      "enUS": "English",
-      "ruRU": "Русский"
     },
     "providers": {
       "builtIn": "内置提供商",
@@ -1884,7 +1883,9 @@
     "rollbackConflict": "检测到文件冲突，请单独回滚每个文件",
     "rollbackSuccess": "已回滚 {{count}} 个文件",
     "rollbackFailed": "回滚失败",
-    "rollbackFailedWithError": "回滚失败：{{error}}"
+    "rollbackFailedWithError": "回滚失败：{{error}}",
+    "analyzeProject": "分析项目",
+    "exploreProject": "探索项目"
   },
   "codeAnalysisPanel": {
     "title": "代码分析",
@@ -1934,7 +1935,9 @@
       "title": "变更分析"
     },
     "fileTree": {
-      "title": "文件结构"
+      "title": "文件结构",
+      "access": "访问",
+      "write": "写入"
     },
     "preview": {
       "collapseView": "收起视图",
@@ -1949,7 +1952,9 @@
       "showAllLines": "显示全部行（{{count}}）",
       "streaming": "流式传输",
       "symbolDescription": "正在深度解析代码语义：{{fileName}}",
-      "symbolTitle": "{{toolType}}预览"
+      "symbolTitle": "{{toolType}}预览",
+      "inlinePreviewOpened": "已开启编辑器内联预览",
+      "previewInEditor": "在主编辑器中预览变更"
     },
     "result": {
       "failedStatus": "失败",
@@ -2308,6 +2313,177 @@
     "imageAttachments": {
       "fileTooLarge": "文件过大（5MB 限制）",
       "processingFailed": "处理失败"
+    },
+    "commands": {
+      "index": {
+        "errorDetails": "错误详情",
+        "initFailed": "索引初始化失败",
+        "noProject": "未打开项目文件夹",
+        "noProjectHint": "请先打开一个项目文件夹后再使用此命令。",
+        "rebuilding": "正在重建项目索引",
+        "rebuildingDescription": "系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。"
+      },
+      "proposal": {
+        "causeBadFormat": "AI 响应格式不正确",
+        "causeNetwork": "网络连接问题",
+        "causeQuota": "API 配额不足",
+        "example": "示例",
+        "exampleRequirement": "实现用户登录功能",
+        "failed": "提案生成失败",
+        "generating": "正在生成 OpenSpec 提案...",
+        "noDescription": "请提供要生成提案的需求描述",
+        "possibleCauses": "可能的原因",
+        "requirementDescription": "需求描述",
+        "suggestion1": "尝试简化需求描述",
+        "suggestion2": "检查 API 密钥配置",
+        "suggestion3": "稍后重试",
+        "suggestions": "建议",
+        "usage": "用法"
+      },
+      "taskBreakdown": {
+        "causeBadFormat": "AI 响应格式不正确",
+        "causeNetwork": "网络连接问题",
+        "causeQuota": "API 配额不足",
+        "example": "示例",
+        "exampleTask": "实现用户登录功能",
+        "failed": "任务拆解失败",
+        "noDescription": "请提供要拆解的任务描述",
+        "possibleCauses": "可能的原因",
+        "suggestion1": "尝试简化任务描述",
+        "suggestion2": "检查 API 密钥配置",
+        "suggestion3": "稍后重试",
+        "suggestions": "建议",
+        "taskDescription": "任务描述",
+        "usage": "用法"
+      },
+      "taskComplete": {
+        "completed": "任务 **{{taskId}}** 已标记为完成。",
+        "noTaskId": "请提供任务 ID",
+        "operationFailed": "操作失败",
+        "taskId": "任务ID",
+        "usage": "用法"
+      },
+      "taskDemo": {
+        "apiLogin": "POST /api/auth/login 返回 JWT token",
+        "apiRegister": "POST /api/auth/register 创建新用户",
+        "apiResetPassword": "POST /api/auth/reset-password 发送重置邮件",
+        "backendApiDescription": "实现登录、注册、密码重置的后端接口",
+        "backendApiTitle": "后端 API 开发",
+        "consoleTest": "使用控制台测试",
+        "description": "这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。",
+        "designPrototype": "设计 UI 原型",
+        "designSchema": "设计数据库 Schema",
+        "featureAcceptance": "验收标准：明确的完成条件",
+        "featureCategory": "类别：开发 / 测试 / 文档 / 设计 / 研究",
+        "featureDependencies": "依赖关系：任务间的依赖",
+        "featureEstimate": "工时估算：预估小时数",
+        "featureHierarchy": "层级结构：主任务 → 子任务 → 子子任务",
+        "featurePriority": "优先级：紧急 / 高 / 中 / 低",
+        "featureStatus": "状态跟踪：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕",
+        "features": "任务树包含：",
+        "formValidation": "表单验证（邮箱格式、密码强度）",
+        "friendlyErrors": "错误提示友好",
+        "frontendLoginDescription": "实现用户登录和注册表单",
+        "frontendLoginTitle": "前端登录页面",
+        "hint": "提示",
+        "integrateBackend": "集成后端 API",
+        "jwtMiddleware": "实现 JWT 认证中间件",
+        "loginFormComponent": "实现登录表单组件",
+        "notSaved": "未打开项目，任务仅保存在内存中",
+        "rememberMe": "记住我功能",
+        "responsiveDesign": "响应式设计，支持移动端",
+        "rootDescription": "完整的用户认证系统，包括登录、注册、密码重置",
+        "rootTitle": "实现用户登录功能",
+        "savedTo": "任务已保存到：`{{path}}`",
+        "title": "任务拆解示例",
+        "treeDescription": "这是一个示例任务拆解，展示了任务树的结构",
+        "treeTitle": "示例：实现用户登录功能",
+        "writeDocsDescription": "编写 API 文档和部署指南",
+        "writeDocsTitle": "编写技术文档",
+        "writeEndpoints": "编写 API 端点",
+        "writeTestsDescription": "为认证系统编写单元测试和集成测试",
+        "writeTestsTitle": "编写测试用例"
+      },
+      "taskList": {
+        "completedTasks": "已完成",
+        "currentlyOpened": "当前打开的文件",
+        "done": "已完成",
+        "fetchFailed": "获取任务列表失败",
+        "inProgress": "进行中",
+        "inProgressTasks": "进行中",
+        "moreCompleted": "还有 {{count}} 个已完成任务",
+        "noProject": "未打开项目",
+        "noProjectHint": "请先打开一个项目文件夹",
+        "noTasksFile": "未找到 tasks.md 文件",
+        "noTasksParsed": "未解析到任何任务，请检查 tasks.md 文件格式",
+        "solution": "解决方法",
+        "solutionStep1": "在文件树中找到提案目录（.ifai/changes/xxx/）",
+        "solutionStep2": "打开 tasks.md 文件",
+        "solutionStep3": "再次运行 /task:list",
+        "taskStats": "任务统计",
+        "todo": "待办",
+        "todoTasks": "待办任务",
+        "total": "总计"
+      },
+      "taskStart": {
+        "availableTasks": "可用任务",
+        "example": "示例",
+        "noProject": "未打开项目",
+        "noTaskId": "请提供任务 ID",
+        "noTasksFile": "未找到 tasks.md 文件",
+        "noTasksFileHint": "请先打开一个提案中的 tasks.md 文件",
+        "none": "无",
+        "orExample": "或",
+        "startFailed": "任务启动失败",
+        "taskExecutionPrompt": "我需要协助实施以下开发任务：\n\n**任务 ID**: {{taskId}}\n**任务标题**: {{taskTitle}}\n**任务描述**: {{taskContent}}\n\n**任务路径**:\n{{context}}\n\n请帮助我完成这个任务的实施工作。请：\n1. 首先查看项目结构，了解现有代码\n2. 然后读取相关文件，分析实现方案\n3. 创建或修改所需的文件\n4. 最后总结完成的工作\n\n你可以使用 agent_list_dir、agent_read_file、agent_write_file 等工具来完成这些工作。",
+        "taskId": "任务ID",
+        "taskNotFound": "未找到任务: {{taskId}}",
+        "usage": "用法",
+        "useTaskList": "使用 `/task:list` 查看所有任务",
+        "viewAvailable": "查看可用任务"
+      },
+      "taskTestAll": {
+        "agentLaunchFailed": "无法启动测试 Agent",
+        "starting": "正在启动自动化测试集成流...",
+        "systemPrompt": "运行全量单元测试与 E2E 测试，并汇总报告至 Mission Control"
+      }
+    },
+    "compaction": {
+      "description": "原始对话包含 {{originalCount}} 条消息，已压缩以优化性能。压缩时间: {{time}}",
+      "label": "对话压缩"
+    },
+    "errorFix": {
+      "analyzePrompt": "请分析以下错误并提供修复建议：",
+      "code": "代码",
+      "codeContext": "代码上下文",
+      "errorCode": "错误代码",
+      "errorInfo": "错误信息",
+      "errorMessage": "错误消息",
+      "file": "文件",
+      "fileLocation": "文件位置",
+      "fixAndModify": "请提供修复方案并直接修改文件。",
+      "fixPrompt": "请帮我修复以下错误：",
+      "language": "语言",
+      "message": "消息",
+      "provide": "请提供",
+      "step1": "错误原因分析",
+      "step2": "具体的修复方案",
+      "step3": "修复后的代码示例（如果适用）"
+    },
+    "errorFixOpenFileFailed": "无法打开文件",
+    "help": {
+      "codebaseHint": "在提问中加入此指令可进行全局代码语义搜索",
+      "indexHint": "手动强制为项目代码库建立 RAG 语义索引"
+    },
+    "imageAttachment": {
+      "fileTooLarge": "文件过大 (5MB 限制)",
+      "processingFailed": "处理失败"
+    },
+    "searchChat": "搜索对话 ({{shortcut}})",
+    "sessionNotes": "会话笔记",
+    "viewMode": {
+      "chat": "对话",
+      "timeline": "时间线"
     }
   },
   "ghostTaskList": {
@@ -2316,15 +2492,42 @@
   "commands": {
     "title": "系统命令",
     "scanResult": "扫描 {{count}} 项 ({{time}}ms)",
-    "explore": { "label": "代码探索", "description": "深度代码库搜索与上下文分析" },
-    "review": { "label": "代码审查", "description": "审查代码质量、安全与最佳实践" },
-    "test": { "label": "测试生成", "description": "自动生成单元测试与集成案例" },
-    "doc": { "label": "文档生成", "description": "编写技术文档、README 与注释" },
-    "refactor": { "label": "重构建议", "description": "提供代码改进与架构重构方案" },
-    "proposal": { "label": "提案生成", "description": "生成 OpenSpec 规范的提案" },
-    "help": { "label": "系统帮助", "description": "显示功能指南与快捷键说明" },
-    "index": { "label": "重建索引", "description": "手动强制为项目代码库建立 RAG 语义索引" },
-    "task": { "label": "任务拆解", "description": "AI 驱动的任务分解与可视化" }
+    "explore": {
+      "label": "代码探索",
+      "description": "深度代码库搜索与上下文分析"
+    },
+    "review": {
+      "label": "代码审查",
+      "description": "审查代码质量、安全与最佳实践"
+    },
+    "test": {
+      "label": "测试生成",
+      "description": "自动生成单元测试与集成案例"
+    },
+    "doc": {
+      "label": "文档生成",
+      "description": "编写技术文档、README 与注释"
+    },
+    "refactor": {
+      "label": "重构建议",
+      "description": "提供代码改进与架构重构方案"
+    },
+    "proposal": {
+      "label": "提案生成",
+      "description": "生成 OpenSpec 规范的提案"
+    },
+    "help": {
+      "label": "系统帮助",
+      "description": "显示功能指南与快捷键说明"
+    },
+    "index": {
+      "label": "重建索引",
+      "description": "手动强制为项目代码库建立 RAG 语义索引"
+    },
+    "task": {
+      "label": "任务拆解",
+      "description": "AI 驱动的任务分解与可视化"
+    }
   },
   "help_message": {
     "title": "欢迎使用 若爱 (IfAI) v0.2.0",
