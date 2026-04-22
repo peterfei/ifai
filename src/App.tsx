@@ -9,10 +9,9 @@ const KeyboardShortcutsModal = React.lazy(() => import('./components/Help/Keyboa
 const GlobalAgentMonitor = React.lazy(() => import('./components/AIChat/GlobalAgentMonitor').then(m => ({ default: m.GlobalAgentMonitor })));
 const PerformancePanel = React.lazy(() => import('./components/DevTools/PerformancePanel').then(m => ({ default: m.PerformancePanel })));
 const CacheStatsPanel = React.lazy(() => import('./components/PerformanceMonitor/CacheStatsPanel').then(m => ({ default: m.CacheStatsPanel })));
-const WelcomeDialog = React.lazy(() => import('./components/Onboarding').then(m => ({ default: m.WelcomeDialog })));
-const LocalModelDownload = React.lazy(() => import('./components/Onboarding').then(m => ({ default: m.LocalModelDownload })));
-const APIKeyGuideDialog = React.lazy(() => import('./components/Onboarding').then(m => ({ default: m.APIKeyGuideDialog })));
-const OnboardingTour = React.lazy(() => import('./components/Onboarding/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+// 🔥 FIX: 直接导入 WelcomeDialog 以避免延迟加载导致的 NotFoundError
+import { WelcomeDialog, LocalModelDownload, APIKeyGuideDialog } from './components/Onboarding';
+import { OnboardingTour } from './components/Onboarding/OnboardingTour';
 const CodeReviewModal = React.lazy(() => import('./components/CodeReview').then(m => ({ default: m.CodeReviewModal })));
 const ReviewHistoryPanel = React.lazy(() => import('./components/CodeReview').then(m => ({ default: m.ReviewHistoryPanel })));
 const DiffEditorModal = React.lazy(() => import('./components/InlineEdit').then(m => ({ default: m.DiffEditorModal })));
@@ -1101,13 +1100,13 @@ function App() {
         </div>
 
         {/* Onboarding */}
-        {/* 🔥 E2E 环境跳过欢迎对话框（检查运行时全局变量）*/}
-        {!(isE2EEnvironment || (typeof window !== 'undefined' && (window as any).__E2E_SKIP_STABILIZER__)) && (
+        {/* 🔥 逐步排查：先注释 WelcomeDialog */}
+        {/* {!(isE2EEnvironment || (typeof window !== 'undefined' && (window as any).__E2E_SKIP_STABILIZER__)) && (
           <WelcomeDialog
             onChoice={handleWelcomeChoice}
             onClose={() => setOnboardingStep(null)}
           />
-        )}
+        )} */}
         {onboardingStep === 'download' && (
           <LocalModelDownload
             onComplete={handleDownloadComplete}

@@ -1,5 +1,5 @@
 /**
- * v0.5.0: 新手引导 Tour 组件 (深度修复语言切换崩溃)
+ * v0.3.0: 新手引导 Tour 组件
  *
  * 使用 react-joyride 实现的新手引导流程
  *
@@ -9,62 +9,16 @@
  * - 支持重置引导（通过命令面板或设置）
  * - LocalStorage 状态持久化
  * - Markdown 内容渲染支持
- * - 🔥 语言切换安全支持（避免崩溃）
- * - 🔥 高保真场景还原（动态面板控制）
- * - 🔥 ErrorBoundary 包裹防止错误扩散
- * - 🔥 激进的状态管理（语言切换时立即卸载）
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef, Component, ReactNode } from 'react';
-import { Joyride } from 'react-joyride';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Joyride, CallBackProps, STATUS, Step } from 'react-joyride';
 import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../stores/layoutStore';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import './OnboardingTour.css';
-
-// ============================================================================
-// Error Boundary for Joyride
-// ============================================================================
-
-interface TourErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-interface TourErrorBoundaryProps {
-  children: ReactNode;
-  onError?: (error: Error) => void;
-}
-
-/**
- * Tour Error Boundary
- * 捕获 Joyride 组件中的所有错误，防止导致整个应用崩溃
- */
-class TourErrorBoundary extends Component<TourErrorBoundaryProps, TourErrorBoundaryState> {
-  constructor(props: TourErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): TourErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[OnboardingTour] ErrorBoundary caught an error:', error);
-    console.error('[OnboardingTour] Error info:', errorInfo);
-    this.props.onError?.(error);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return null; // 静默失败，不渲染任何内容
-    }
-    return this.props.children;
-  }
-}
 
 // ============================================================================
 // Constants
@@ -162,75 +116,35 @@ export const resetTourState = () => {
 // Tour Steps Definition
 // ============================================================================
 
-/**
- * 创建 Markdown 渲染组件
- */
-const createMarkdownRenderer = () => {
+const getTourSteps = (t: (key: string) => string): Step[] => {
+  // 创建 Markdown 渲染组件的辅助函数
   const renderMarkdown = (content: string) => (
     <ReactMarkdown
       remarkPlugins={[remarkBreaks, remarkGfm]}
       components={{
+        // 自定义段落样式，保持一致的行高
         p: ({ children }) => <p style={{ margin: '0.5em 0' }}>{children}</p>,
+        // 自定义列表样式
         ul: ({ children }) => <ul style={{ marginLeft: '1.5em', marginTop: '0.5em', marginBottom: '0.5em' }}>{children}</ul>,
-        strong: ({ children }) => <strong style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{children}</strong>,
-        code: ({ inline, children }: any) => {
-          return inline ? (
-            <code style={{
-              backgroundColor: 'var(--accent-soft-bg)',
-              border: '1px solid var(--accent-soft-border)',
-              color: 'var(--accent-color)',
-              padding: '0.2em 0.4em',
-              borderRadius: '4px',
-              fontFamily: 'monospace',
-              fontSize: '0.9em',
-            }}>{children}</code>
-          ) : (
-            <code>{children}</code>
-          );
-        },
+        // 自定义 strong/b 样式
+        strong: ({ children }) => <strong style={{ fontWeight: '600', color: '#fff' }}>{children}</strong>,
+        // 自定义代码样式
+        code: ({ inline, children }) => inline ? (
+          <code style={{
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            padding: '0.2em 0.4em',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            fontSize: '0.9em',
+          }}>{children}</code>
+        ) : (
+          <code>{children}</code>
+        ),
       }}
     >
       {content}
     </ReactMarkdown>
   );
-  return renderMarkdown;
-};
-
-/**
- * 安全的 DOM 查询辅助函数
- * 确保总是返回一个有效的 DOM 元素
- */
-const safeQuerySelector = (selector: string): HTMLElement | null => {
-  try {
-    return document.querySelector(selector);
-  } catch (e) {
-    console.warn(`[OnboardingTour] Failed to query selector: ${selector}`, e);
-    return null;
-  }
-};
-
-/**
- * 🔥 FIX: 安全的 target 获取器
- * 返回字符串选择器，让 Joyride 自己处理查询
- * 如果元素不存在，Joyride 会跳过该步骤
- */
-const getSafeTargetSelector = (selector: string): string => {
-  const element = safeQuerySelector(selector);
-  if (element) {
-    return selector;  // 元素存在，返回选择器
-  }
-  console.warn(`[OnboardingTour] Target not found: ${selector}, falling back to body`);
-  return 'body';  // 元素不存在，回退到 body（居中显示）
-};
-
-/**
- * 生成 Tour Steps
- */
-const createTourSteps = (t: (key: string) => string): any[] => {
-  const renderMarkdown = createMarkdownRenderer();
-
-  // 🔥 FIX: 动态检查 layout-switcher 是否存在
-  const layoutSwitcherSelector = getSafeTargetSelector('[data-testid="layout-switcher"]');
 
   return [
     // 步骤 1: 欢迎屏幕（居中显示）
@@ -241,7 +155,7 @@ const createTourSteps = (t: (key: string) => string): any[] => {
       disableBeacon: true,
       placement: 'center' as const,
     },
-    // 步骤 2: CommandBar 演示（居中显示，动态打开 CommandBar）
+    // 步骤 2: CommandBar 演示（居中显示，动态打开）
     {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.commandBar')),
@@ -249,7 +163,7 @@ const createTourSteps = (t: (key: string) => string): any[] => {
       disableBeacon: true,
       placement: 'center' as const,
     },
-    // 步骤 3: Settings 演示（居中显示，动态打开 Settings）
+    // 步骤 3: Settings 演示（居中显示，动态打开）
     {
       target: 'body',
       content: renderMarkdown(t('onboarding.steps.settingsGuide')),
@@ -257,13 +171,11 @@ const createTourSteps = (t: (key: string) => string): any[] => {
       disableBeacon: true,
       placement: 'center' as const,
     },
-    // 步骤 4: 布局切换器（定位到布局切换按钮）
-    // 🔥 FIX: 使用预先验证的选择器，而不是函数
+    // 步骤 4: 布局切换器
     {
-      target: layoutSwitcherSelector,
+      target: '[data-testid="layout-switcher"]',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
-      disableBeacon: false,
       placement: 'bottom' as const,
     },
   ];
@@ -280,165 +192,172 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const [run, setRun] = useState(false);
-  const [mounted, setMounted] = useState(true);
-  const [joyrideKey, setJoyrideKey] = useState(0);
-  const [isLanguageChanging, setIsLanguageChanging] = useState(false);
   const { setCommandBarOpen, setSettingsOpen } = useLayoutStore();
 
-  // 🔥 FIX: 使用 useMemo 缓存 steps，只在语言改变时重新计算
-  const steps = useMemo(() => createTourSteps(t), [t]);
-
-  // 🔥 FIX: 激进的语言变化处理 - 语言切换后不重启 Tour
+  // 🔥 防止点击遮罩关闭引导
   useEffect(() => {
-    const handleLanguageChange = (lng: string) => {
-      console.log('[OnboardingTour] 🔄 Language change detected:', lng);
-      console.log('[OnboardingTour] Current state:', {
-        run,
-        mounted,
-        isLanguageChanging,
-        joyrideKey,
-        i18nLanguage: i18n.language
-      });
+    const handleOverlayClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // 检查是否点击的是 Joyride 相关元素
+      const isJoyrideElement =
+        target.classList.contains('react-joyride__overlay') ||
+        target.classList.contains('react-joyride__spotlight') ||
+        target.closest('.react-joyride__overlay') ||
+        target.closest('.react-joyride__spotlight') ||
+        // 检查是否点击的是 tooltip 外部
+        (target.classList.contains('react-joyride') && !target.closest('.react-joyride__tooltip'));
 
-      // 🔥 DEBUG: 记录调用堆栈
-      console.log('[OnboardingTour] Call stack:', new Error().stack);
-
-      // 1. 立即停止 tour
-      console.log('[OnboardingTour] Step 1: Stopping tour...');
-      setRun(false);
-
-      // 2. 永久卸载 Joyride（语言切换后不再重启）
-      console.log('[OnboardingTour] Step 2: Permanently unmounting Joyride...');
-      setMounted(false);
-
-      // 3. 关闭所有打开的面板
-      console.log('[OnboardingTour] Step 3: Closing all panels...');
-      setCommandBarOpen(false);
-      setSettingsOpen(false);
-
-      // 4. 标记 Tour 为已跳过（因为用户切换了语言）
-      console.log('[OnboardingTour] Step 4: Marking tour as skipped...');
-      markTourSkipped();
-
-      console.log('[OnboardingTour] ✅ Language change handled, tour stopped');
-    };
-
-    // 监听 i18next 的 languageChanged 事件
-    console.log('[OnboardingTour] Registering languageChanged listener...');
-    i18n.on('languageChanged', handleLanguageChange);
-
-    // 🔥 FIX: 同时监听 storage 事件（测试中通过 localStorage 修改语言）
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'i18nextLng' && e.newValue && e.newValue !== i18n.language) {
-        console.log('[OnboardingTour] 🔄 Storage event detected, new language:', e.newValue);
-        handleLanguageChange(e.newValue);
+      if (isJoyrideElement) {
+        console.log('[OnboardingTour] 🔥 Blocking click on:', target.className);
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    // 使用捕获阶段拦截所有点击
+    document.addEventListener('click', handleOverlayClick, true);
 
-    console.log('[OnboardingTour] Registered language change listeners (i18next + storage)');
+    // 同时监听 mousedown 和 mouseup
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isJoyrideElement =
+        target.classList.contains('react-joyride__overlay') ||
+        target.closest('.react-joyride__overlay');
+
+      if (isJoyrideElement) {
+        console.log('[OnboardingTour] 🔥 Blocking mousedown on overlay');
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    document.addEventListener('mousedown', handleMouseDown, true);
 
     return () => {
-      console.log('[OnboardingTour] Unregistering language change listeners...');
-      i18n.off('languageChanged', handleLanguageChange);
-      window.removeEventListener('storage', handleStorageChange);
-      console.log('[OnboardingTour] Unregistered language change listeners');
+      document.removeEventListener('click', handleOverlayClick, true);
+      document.removeEventListener('mousedown', handleMouseDown, true);
     };
-  }, [i18n, forceStart, run, mounted, isLanguageChanging, joyrideKey, setCommandBarOpen, setSettingsOpen]);
+  }, []);
 
   // 检查是否应该启动引导
   useEffect(() => {
     if (forceStart || shouldShowTour()) {
-      console.log('[OnboardingTour] Initializing tour...');
+      console.log('[OnboardingTour] Waiting for targets to be mounted...');
 
-      // 🔥 FIX: 简化初始化逻辑，不进行复杂的 DOM 检测
-      // 直接启动，让 joyride 自己处理 target 查找
-      const timer = setTimeout(() => {
-        console.log('[OnboardingTour] Starting tour...');
-        setRun(true);
-      }, 1000); // 给页面 1 秒时间完全渲染
+      // 目标元素选择器（只检查静态元素）
+      const targets = [
+        'body',
+        '[data-testid="layout-switcher"]'
+      ];
 
-      return () => clearTimeout(timer);
+      // 轮询检测目标元素是否存在
+      let checkInterval: NodeJS.Timeout | null = null;
+      let timeoutTimer: NodeJS.Timeout | null = null;
+
+      const checkTargets = () => {
+        const missingTargets = targets.filter(t => !document.querySelector(t));
+
+        if (missingTargets.length === 0) {
+          // 所有目标都存在，启动 Tour
+          console.log('[OnboardingTour] All targets mounted, starting tour...');
+          if (checkInterval) clearInterval(checkInterval);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          setRun(true);
+        } else {
+          console.log('[OnboardingTour] Still waiting for targets:', missingTargets);
+        }
+      };
+
+      // 立即检查一次
+      checkTargets();
+
+      // 每 500ms 检查一次，最多等待 3 秒
+      checkInterval = setInterval(checkTargets, 500);
+      timeoutTimer = setTimeout(() => {
+        if (checkInterval) clearInterval(checkInterval);
+        const missingTargets = targets.filter(t => !document.querySelector(t));
+        if (missingTargets.length > 0) {
+          console.warn('[OnboardingTour] Timeout - some targets still missing:', missingTargets);
+          // 即使有缺失的目标也启动 Tour
+          setRun(true);
+        }
+      }, 3000);
+
+      return () => {
+        if (checkInterval) clearInterval(checkInterval);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+      };
     }
   }, [forceStart]);
 
   // 处理引导回调
-  const handleCallback = useCallback((data: any) => {
+  const handleCallback = useCallback((data: CallBackProps) => {
     const { status, index, action, type } = data;
 
-    console.log('[OnboardingTour] Callback:', { status, index, action, type });
+    console.log('[OnboardingTour] === Callback triggered ===', { status, index, action, type });
 
-    // 🔥 FIX: 如果正在切换语言，不处理任何回调，避免面板被重新打开
-    if (isLanguageChanging) {
-      console.log('[OnboardingTour] Language change in progress, ignoring callback');
-      return;
-    }
-
-    // 提前处理完成/跳过状态
-    if (status === 'finished' || status === 'skipped') {
-      // 立即卸载组件
-      setMounted(false);
-      setRun(false);
-
-      // 延迟执行清理操作，并关闭所有打开的面板
-      setTimeout(() => {
-        setCommandBarOpen(false);
-        setSettingsOpen(false);
-
-        if (status === 'finished') {
-          console.log('[OnboardingTour] Tour finished');
-          markTourCompleted();
-          onTourComplete?.();
-        } else {
-          console.log('[OnboardingTour] Tour skipped');
-          markTourSkipped();
-          onTourSkip?.();
-        }
-      }, 300);
-
-      return;
-    }
-
-    // 🔥 在 step:before 事件中动态打开面板（高保真场景还原）
+    // 步骤开始前：打开对应组件
     if (type === 'step:before') {
-      console.log('[OnboardingTour] Before step:', index, '- preparing scene...');
+      console.log('[OnboardingTour] >>> Step before:', index);
 
-      // 步骤 0: 欢迎屏幕 - 关闭所有面板
-      if (index === 0) {
-        setCommandBarOpen(false);
-        setSettingsOpen(false);
-        console.log('[OnboardingTour] Scene ready: Clean workspace');
-      }
-      // 步骤 1: CommandBar - 打开命令行面板
-      else if (index === 1) {
+      // 步骤 2 (index 1): 打开 CommandBar
+      if (index === 1) {
+        console.log('[OnboardingTour] >>> Opening CommandBar NOW');
         setCommandBarOpen(true);
-        setSettingsOpen(false);
-        console.log('[OnboardingTour] Scene ready: CommandBar opened');
       }
-      // 步骤 2: Settings - 打开设置面板
-      else if (index === 2) {
-        setCommandBarOpen(false);
+      // 步骤 3 (index 2): 打开 Settings
+      if (index === 2) {
+        console.log('[OnboardingTour] >>> Opening Settings NOW');
         setSettingsOpen(true);
-        console.log('[OnboardingTour] Scene ready: Settings opened');
-      }
-      // 步骤 3: Layout Switcher - 关闭所有面板
-      else if (index === 3) {
-        setCommandBarOpen(false);
-        setSettingsOpen(false);
-        console.log('[OnboardingTour] Scene ready: Panels closed for layout switcher');
       }
     }
-  }, [onTourComplete, onTourSkip, setCommandBarOpen, setSettingsOpen, isLanguageChanging]);
+
+    // 步骤结束后：关闭组件
+    if (type === 'step:after') {
+      console.log('[OnboardingTour] >>> Step after:', index);
+
+      // 离开步骤 2 (index 1): 关闭 CommandBar
+      if (index === 1) {
+        console.log('[OnboardingTour] >>> Closing CommandBar');
+        setCommandBarOpen(false);
+      }
+      // 离开步骤 3 (index 2): 关闭 Settings
+      if (index === 2) {
+        console.log('[OnboardingTour] >>> Closing Settings');
+        setSettingsOpen(false);
+      }
+    }
+
+    // 处理完成状态（react-joyride 3.x 使用 action 而不是 status）
+    if (action === 'reset' || action === 'close' || status === STATUS.FINISHED) {
+      console.log('[OnboardingTour] >>> Tour finished');
+      setRun(false);
+      // 确保所有组件都已关闭
+      setCommandBarOpen(false);
+      setSettingsOpen(false);
+      markTourCompleted();
+      onTourComplete?.();
+    } else if (action === 'skip' || status === STATUS.SKIPPED) {
+      console.log('[OnboardingTour] >>> Tour skipped');
+      setRun(false);
+      setCommandBarOpen(false);
+      setSettingsOpen(false);
+      markTourSkipped();
+      onTourSkip?.();
+    }
+  }, [onTourComplete, onTourSkip, setCommandBarOpen, setSettingsOpen]);
 
   // 自定义 tooltip 样式
   const tooltipStyles = {
     options: {
       zIndex: 10000,
-      arrowColor: 'var(--bg-secondary)',
+      arrowColor: '#1e1e1e',
     },
     button: {
       primary: {
+        backgroundColor: '#3b82f6',
         borderRadius: '8px',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '13px',
@@ -447,14 +366,19 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       },
       secondary: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderRadius: '8px',
+        color: 'rgba(255, 255, 255, 0.8)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '13px',
         fontWeight: '500',
         padding: '8px 16px',
       },
       skip: {
+        backgroundColor: 'transparent',
         borderRadius: '8px',
+        color: 'rgba(255, 255, 255, 0.5)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         fontSize: '13px',
         fontWeight: '500',
@@ -462,20 +386,24 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       },
     },
     tooltip: {
+      backgroundColor: '#1e1e1e',
       borderRadius: '16px',
+      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.2)',
+      color: 'rgba(255, 255, 255, 0.9)',
       fontSize: '14px',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       lineHeight: '1.7',
-      padding: '24px 32px 0',
+      padding: '24px 32px 0', // 添加顶部和左右 padding，为标题提供空间
       maxWidth: '480px',
     },
     tooltipContainer: {
-      textAlign: 'left' as const,
+      textAlign: 'left',
     },
     tooltipHeader: {
       padding: '24px 32px 8px',
     },
     tooltipTitle: {
+      color: '#ffffff',
       fontSize: '18px',
       fontWeight: '600',
       marginBottom: '0',
@@ -492,90 +420,36 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
     },
   };
 
-  // 🔥 FIX: 处理 ErrorBoundary 错误（必须在所有 hooks 之后，在 return 之前）
-  const handleJoyrideError = useCallback((error: Error) => {
-    console.error('[OnboardingTour] Joyride error, permanently stopping tour:', error);
-    setRun(false);
-    setMounted(false);
-    // 标记为已完成，防止持续出错
-    markTourSkipped();
-  }, []);
+  const steps = getTourSteps(t);
 
-  const JoyrideComponent = Joyride as any;
-
-  // 🔥 FIX: 使用条件渲染而不是提前返回，避免违反 Hooks 规则
-  // 🔥 FIX: 只在 mounted 为 true 且语言未在变化时渲染 Joyride
-  if (!mounted || isLanguageChanging) {
-    return null;
-  }
-
-  // 🔥 FIX: 验证 Joyride target 元素存在，避免 NotFoundError
-  // 在渲染前检查所有 target 是否存在
-  const allTargetsExist = steps.every(step => {
-    // 对于居中显示的步骤（target: 'body'），总是返回 true
-    if (step.target === 'body' || step.placement === 'center') {
-      return true;
-    }
-    // 对于函数形式的 target，尝试执行并检查
-    if (typeof step.target === 'function') {
-      try {
-        const target = step.target();
-        return target !== null && target !== document.body;
-      } catch {
-        return false;
-      }
-    }
-    // 对于选择器字符串，检查元素是否存在
-    if (typeof step.target === 'string') {
-      return document.querySelector(step.target) !== null;
-    }
-    return true;
-  });
-
-  // 🔥 FIX: 如果有任何 target 不存在，不渲染 Joyride，避免崩溃
-  if (!allTargetsExist) {
-    console.log('[OnboardingTour] Some targets do not exist yet, skipping Joyride render');
-    return null;
-  }
-
-  // 🔥 FIX: 使用 Error Boundary 包裹 Joyride，防止错误扩散
   return (
-    <TourErrorBoundary onError={handleJoyrideError}>
-      <JoyrideComponent
-        key={`onboarding-${i18n.language}-${joyrideKey}`} // 🔥 使用 joyrideKey 确保语言切换后重新挂载
-        steps={steps}
-        run={run}
-        continuous
-        showSkipButton
-        showProgress
-        callback={handleCallback}
-        styles={tooltipStyles}
-        locale={{
-          back: String(t('onboarding.buttons.back')),
-          close: String(t('onboarding.buttons.close')),
-          last: String(t('onboarding.buttons.last')),
-          next: String(t('onboarding.buttons.next')),
-          open: String(t('onboarding.buttons.open')),
-          skip: String(t('onboarding.buttons.skip')),
-        }}
-        disableCloseOnEsc={true}
-        disableOverlayClose={true}
-        hideBackButton={false}
-        scrollToFirstStep={false}
-        spotlightClicks={true}
-        debug={false}
-        // 🔥 FIX: 添加容错选项，防止 target 找不到时崩溃
-        floaterProps={{
-          disableAnimation: true,
-        }}
-        // 🔥 FIX: 防止在 tour 未完全初始化时渲染 tooltip
-        disableScrolling
-        // 🔥 FIX: 添加错误处理
-        spotlightPadding={10}
-        // 🔥 FIX: 禁用 tooltip 动画，减少渲染问题
-        disableOverlay={false}
-      />
-    </TourErrorBoundary>
+    <Joyride
+      key={`onboarding-${i18n.language}`}
+      steps={steps}
+      run={run}
+      continuous
+      showSkipButton
+      showProgress
+      onEvent={handleCallback}
+      styles={tooltipStyles}
+      locale={{
+        back: t('onboarding.buttons.back') || 'Back',
+        close: t('onboarding.buttons.close') || 'Close',
+        last: t('onboarding.buttons.last') || 'Finish',
+        next: t('onboarding.buttons.next') || 'Next',
+        open: t('onboarding.buttons.open') || 'Open the dialog',
+        skip: t('onboarding.buttons.skip') || 'Skip',
+      }}
+      floaterProps={{
+        disableAnimation: false,
+      }}
+      disableCloseOnEsc={true}
+      disableOverlayClose={true}
+      hideBackButton={false}
+      scrollToFirstStep={false}
+      spotlightClicks={false}
+      debug={false}
+    />
   );
 };
 

@@ -113,19 +113,39 @@ export const completeOnboarding = () => {
 // Component
 // ============================================================================
 
-export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice }) => {
+export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice, onClose }) => {
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  // 🔥 安全的翻译函数
+  const safeT = (key: string): string => {
+    try {
+      const result = t(key);
+      return typeof result === 'string' ? result : String(result || key);
+    } catch (e) {
+      console.warn('[WelcomeDialog] Translation error for key:', key, e);
+      return key;
+    }
+  };
 
   useEffect(() => {
     if (shouldSkipOnboardingForE2E()) {
       return;
     }
 
+    // 🔥 确保翻译和组件都准备好后再显示
+    const readyTimer = setTimeout(() => setIsReady(true), 100);
+
     if (shouldShowOnboarding()) {
       const timer = setTimeout(() => setIsVisible(true), 500);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(readyTimer);
+      };
     }
+
+    return () => clearTimeout(readyTimer);
   }, []);
 
   const handleChoice = (choice: 'download' | 'remind' | 'skip') => {
@@ -157,7 +177,7 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice }) => {
     onChoice(choice);
   };
 
-  if (!isVisible) {
+  if (!isVisible || !isReady) {
     return null;
   }
 
@@ -175,35 +195,35 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h1 className="theme-text text-2xl font-bold">{t('welcomeDialog.title')}</h1>
+            <h1 className="theme-text text-2xl font-bold">{safeT('welcomeDialog.title')}</h1>
           </div>
           <p className="theme-text-muted text-sm">
-            {t('welcomeDialog.description')}
+            {safeT('welcomeDialog.description')}
           </p>
         </div>
 
         {/* Content */}
         <div className="px-6 py-6">
           <div className="theme-surface-info theme-border mb-6 rounded-lg border p-4">
-            <h3 className="theme-text-info mb-2 font-semibold">{t('welcomeDialog.advantagesTitle')}</h3>
+            <h3 className="theme-text-info mb-2 font-semibold">{safeT('welcomeDialog.advantagesTitle')}</h3>
             <ul className="space-y-2 text-sm theme-text-muted">
               <li className="flex items-start gap-2">
                 <svg className="theme-text-success mt-0.5 h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>{String(t('welcomeDialog.advantages.offline'))}</strong>{String(t('welcomeDialog.advantages.offlineDesc'))}</span>
+                <span><strong>{safeT('welcomeDialog.advantages.offline')}</strong>{safeT('welcomeDialog.advantages.offlineDesc')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="theme-text-success mt-0.5 h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>{String(t('welcomeDialog.advantages.autocomplete'))}</strong>{String(t('welcomeDialog.advantages.autocompleteDesc'))}</span>
+                <span><strong>{safeT('welcomeDialog.advantages.autocomplete')}</strong>{safeT('welcomeDialog.advantages.autocompleteDesc')}</span>
               </li>
               <li className="flex items-start gap-2">
                 <svg className="theme-text-success mt-0.5 h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span><strong>{String(t('welcomeDialog.advantages.free'))}</strong>{String(t('welcomeDialog.advantages.freeDesc'))}</span>
+                <span><strong>{safeT('welcomeDialog.advantages.free')}</strong>{safeT('welcomeDialog.advantages.freeDesc')}</span>
               </li>
             </ul>
           </div>
@@ -214,8 +234,8 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice }) => {
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
               <div className="text-sm">
-                <p className="theme-text-warning font-medium">{t('welcomeDialog.noticeTitle')}</p>
-                <p className="theme-text-muted">{t('welcomeDialog.noticeDesc')}</p>
+                <p className="theme-text-warning font-medium">{safeT('welcomeDialog.noticeTitle')}</p>
+                <p className="theme-text-muted">{safeT('welcomeDialog.noticeDesc')}</p>
               </div>
             </div>
           </div>
@@ -230,7 +250,7 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice }) => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            {t('welcomeDialog.downloadNow')}
+            {safeT('welcomeDialog.downloadNow')}
           </button>
 
           <div className="grid grid-cols-2 gap-3">
@@ -238,20 +258,20 @@ export const WelcomeDialog: React.FC<WelcomeDialogProps> = ({ onChoice }) => {
               onClick={() => handleChoice('remind')}
               className="theme-button-secondary rounded-lg px-4 py-2.5 text-sm font-medium"
             >
-              {t('welcomeDialog.remindLater')}
+              {safeT('welcomeDialog.remindLater')}
             </button>
             <button
               onClick={() => handleChoice('skip')}
               className="theme-button-secondary rounded-lg px-4 py-2.5 text-sm font-medium"
             >
-              {t('welcomeDialog.skipCloud')}
+              {safeT('welcomeDialog.skipCloud')}
             </button>
           </div>
         </div>
 
         {/* Footer */}
         <div className="theme-panel-muted theme-border theme-text-subtle border-t px-6 py-4 text-center text-xs">
-          {t('welcomeDialog.footerText')}
+          {safeT('welcomeDialog.footerText')}
         </div>
       </div>
     </div>

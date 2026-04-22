@@ -249,7 +249,15 @@
 .react-joyride__overlay {
   background: color-mix(in srgb, var(--bg-primary) 68%, transparent);
   backdrop-filter: blur(2px);
+  /* 🔥 防止点击遮罩层关闭引导 */
+  pointer-events: none !important;
 }
+
+/* 🔥 确保 tooltip 可以点击 */
+.react-joyride__tooltip {
+  pointer-events: auto !important;
+}
+
 
 /* ============================================
    响应式调整
