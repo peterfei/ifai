@@ -178,6 +178,7 @@ pub trait FormatAdapter: Send + Sync {
 /// - Zhipu AI (智谱)
 /// - Kimi (Moonshot AI)
 /// - 以及其他兼容 OpenAI API 的提供商
+#[derive(Debug, Clone)]
 pub struct OpenAIFormatAdapter {
     spec: ProviderSpec,
 }
@@ -240,6 +241,7 @@ impl FormatAdapter for OpenAIFormatAdapter {
 /// 🏛️ Gemini 自定义格式适配器
 ///
 /// Google Gemini 使用独特的请求/响应格式，需要特殊处理
+#[derive(Debug, Clone)]
 pub struct GeminiFormatAdapter {
     spec: ProviderSpec,
 }

@@ -18,10 +18,10 @@ fn init_provider_registry() -> &'static HashMap<String, ProviderSpec> {
         // 🔥 从嵌入的 YAML 文件加载提供商配置
         // 注意：这些文件在编译时被嵌入到二进制中
         let yaml_files = vec![
-            ("openai.yaml", include_str!("../../../providers/registry/openai.yaml")),
-            ("zhipu.yaml", include_str!("../../../providers/registry/zhipu.yaml")),
-            ("kimi.yaml", include_str!("../../../providers/registry/kimi.yaml")),
-            ("gemini.yaml", include_str!("../../../providers/registry/gemini.yaml")),
+            ("openai-official", include_str!("../../../providers/registry/openai-official.yaml")),
+            ("zhipu-official", include_str!("../../../providers/registry/zhipu-official.yaml")),
+            ("kimi-official", include_str!("../../../providers/registry/kimi-official.yaml")),
+            ("gemini-official", include_str!("../../../providers/registry/gemini-official.yaml")),
         ];
 
         for (filename, yaml_content) in yaml_files {
