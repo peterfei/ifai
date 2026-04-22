@@ -135,7 +135,7 @@
     "apiKeyLabel": "DeepSeek API Key",
     "autocompleteLabel": "AI Autocomplete",
     "saveAndStart": "Save and Start",
-    "placeholder": "Ask DeepSeek...",
+    "placeholder": "Type a message...",
     "errorNoKey": "Please set DeepSeek API Key in Chat Panel first"
   },
   "search": {

@@ -135,7 +135,7 @@
     "apiKeyLabel": "API-ключ DeepSeek",
     "autocompleteLabel": "Завершение кода AI",
     "saveAndStart": "Сохранить и начать разговор",
-    "placeholder": "Спросите DeepSeek...",
+    "placeholder": "Введите сообщение...",
     "errorNoKey": "Пожалуйста, сначала установите ключ API DeepSeek на панели чата."
   },
   "search": {

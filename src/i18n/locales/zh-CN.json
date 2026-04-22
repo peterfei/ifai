@@ -135,7 +135,7 @@
     "apiKeyLabel": "DeepSeek API 密钥",
     "autocompleteLabel": "AI 代码补全",
     "saveAndStart": "保存并开始对话",
-    "placeholder": "询问 DeepSeek...",
+    "placeholder": "输入消息...",
     "errorNoKey": "请先在聊天面板设置 DeepSeek API Key"
   },
   "search": {
