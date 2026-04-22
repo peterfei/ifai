@@ -21,7 +21,7 @@ request_format:
 response_format:
   type: sse
   stream_parser: openai_sse
-  content_extraction: delta.content
+  content_extraction: choices.0.delta.content
 
 models:
   - id: gpt-4o
