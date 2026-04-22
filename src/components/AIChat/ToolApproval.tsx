@@ -207,6 +207,7 @@ const TypewriterCodeBlock: React.FC <{
 // Helper to organize paths into a tree structure for better visualization (Point 3)
 const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     const [isExpanded, setIsExpanded] = useState(true);
+    const { t } = useTranslation();
     
     const tree = React.useMemo(() => {
         const root: any = { nodes: {}, files: [] };
@@ -246,7 +247,7 @@ const FileTreeVisualizer: React.FC<{ paths: string[] }> = ({ paths }) => {
     return (
         <div className="bg-gray-900/40 rounded-lg border border-gray-700/30 p-2.5">
             <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">文件结构</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t('toolApproval.fileTree.title')}</span>
                 <button onClick={() => setIsExpanded(!isExpanded)} className="text-gray-500 hover:text-gray-300">
                     {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 </button>
@@ -336,7 +337,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
             const success = await executor.undo();
             if (success) {
               useApprovalStore.getState().updateStatus(toolCall.id, 'undone');
-              toast.success('PIVO: 文件已通过物理快照恢复');
+              toast.success(t('toolApproval.rollbackSnapshotRestored'));
               return;
             }
           }
@@ -370,13 +371,13 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         }
 
         if (result.success) {
-          toast.success('文件已恢复');
+          toast.success(t('toolApproval.rollbackRestored'));
         } else {
-          toast.error(result.error || '回滚失败');
+          toast.error(result.error || t('toolApproval.rollbackFailed'));
         }
       } catch (e) {
         console.error('[Rollback] Error:', e);
-        toast.error('回滚失败: ' + String(e));
+        toast.error(t('toolApproval.rollbackFailedWithError', { error: String(e) }));
       } finally {
         setIsRollingBack(false);
       }
@@ -401,13 +402,13 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         }
 
         if (result.success) {
-          toast.success('文件已强制恢复');
+          toast.success(t('toolApproval.rollbackForceRestored'));
         } else {
-          toast.error(result.error || '回滚失败');
+          toast.error(result.error || t('toolApproval.rollbackFailed'));
         }
       } catch (e) {
         console.error('[Rollback] Error:', e);
-        toast.error('回滚失败: ' + String(e));
+        toast.error(t('toolApproval.rollbackFailedWithError', { error: String(e) }));
       }
     };
 
@@ -497,16 +498,16 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
         const TERMINAL_STATES = ['completed', 'failed', 'rejected'];
         if (TERMINAL_STATES.includes(toolCall.status)) {
             switch (toolCall.status) {
-                case 'completed': return '已完成';
-                case 'failed': return '失败';
-                case 'rejected': return '已拒绝';
+                case 'completed': return t('toolApproval.status.completed');
+                case 'failed': return t('toolApproval.status.failed');
+                case 'rejected': return t('toolApproval.status.rejected');
                 default: return toolCall.status;
             }
         }
-        if (isPartial) return '生成中...';
+        if (isPartial) return t('toolApproval.status.generating');
         switch (toolCall.status) {
-            case 'approved': return '已批准';
-            default: return '待审批';
+            case 'approved': return t('toolApproval.status.approved');
+            default: return t('toolApproval.status.pending');
         }
     };
 
@@ -632,7 +633,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     icon: <ShieldAlert size={14} className="text-red-400" />,
                     bg: 'from-red-950/40 to-transparent',
                     border: 'border-red-500/30',
-                    label: '高风险操作',
+                    label: t('toolApproval.risk.high'),
                     textColor: 'text-red-400'
                 };
             case 'low':
@@ -640,7 +641,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     icon: <ShieldCheck size={14} className="text-green-400" />,
                     bg: 'from-green-950/20 to-transparent',
                     border: 'border-green-500/20',
-                    label: '低风险操作',
+                    label: t('toolApproval.risk.low'),
                     textColor: 'text-green-400'
                 };
             default:
@@ -648,7 +649,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                     icon: <Shield size={14} className="text-amber-400" />,
                     bg: 'from-amber-950/20 to-transparent',
                     border: 'border-amber-500/20',
-                    label: '中等风险',
+                    label: t('toolApproval.risk.medium'),
                     textColor: 'text-amber-400'
                 };
         }
@@ -720,7 +721,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                     {filePath ? (
                                         <div className="flex items-center gap-2 group/path">
                                             <span data-testid="file-path" className="text-[10px] text-gray-500 font-mono font-medium truncate max-w-[220px]" title={filePath}>
-                                                {toolCall.tool?.includes('write') ? '写入' : '访问'} <span className="text-gray-300 font-bold">{formatFilePath(filePath)}</span>
+                                                {toolCall.tool?.includes('write') ? t('toolApproval.fileTree.write') : t('toolApproval.fileTree.access')} <span className="text-gray-300 font-bold">{formatFilePath(filePath)}</span>
                                             </span>
                                             {isWriteFile && !isPartial && (
                                                 <button
@@ -739,10 +740,10 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                                                 toolCallId: toolCall.id
                                                             }
                                                         });
-                                                        toast.info('已开启编辑器内联预览');
+                                                        toast.info(t('toolApproval.preview.inlinePreviewOpened'));
                                                     }}
                                                     className="p-1 rounded bg-gray-800 hover:bg-blue-500/20 text-gray-500 hover:text-blue-400 transition-all opacity-0 group-hover/path:opacity-100"
-                                                    title="在主编辑器中预览变更"
+                                                    title={t('toolApproval.preview.previewInEditor')}
                                                 >
                                                     <ExternalLink size={10} />
                                                 </button>
@@ -889,14 +890,14 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {/* 工具类型标题 */}
                         <div className="flex items-center gap-2">
                             <div className="w-1 h-4 bg-blue-500 rounded-full" />
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">操作参数</span>
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{t('toolApproval.sections.parameters')}</span>
                             {isPartial && (
                                 <div className="flex items-center gap-1.5 ml-auto">
                                     <span className="relative flex h-2 w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                                     </span>
-                                    <span className="text-[10px] font-bold text-blue-400 animate-pulse uppercase">生成中</span>
+                                    <span className="text-[10px] font-bold text-blue-400 animate-pulse uppercase">{t('toolApproval.status.generatingShort')}</span>
                                 </div>
                             )}
                         </div>
@@ -929,7 +930,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         ) : toolCall.tool === 'agent_write_file' && !isPartial && (
                             // 🏆 降级保护：如果预览没出来，显示个占位或提示
                             <div className="mt-3 p-3 bg-gray-800/50 border border-gray-700/30 rounded-xl">
-                                <div className="text-[10px] text-gray-500 italic">正在准备变更预览...</div>
+                                <div className="text-[10px] text-gray-500 italic">{t('toolApproval.preview.preparingChanges')}</div>
                             </div>
                         )}
 
@@ -937,7 +938,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {toolCall.tool === 'agent_list_dir' && (
                             <div className="mt-3 p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-center gap-3">
                                 <FolderOpen className="text-blue-400" size={16} />
-                                <div className="text-[11px] text-blue-300/80 italic">正在扫描目录结构...</div>
+                                <div className="text-[11px] text-blue-300/80 italic">{t('toolApproval.preview.directoryScanning')}</div>
                             </div>
                         )}
 
@@ -947,18 +948,18 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 <div className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 border-b border-blue-500/10">
                                     <Search size={14} className="text-blue-400" />
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-blue-300">
-                                        {previewData.toolType}预览
+                                        {t('toolApproval.preview.searchTitle', { toolType: previewData.toolType })}
                                     </span>
                                 </div>
                                 <div className="p-3">
                                     <div className="flex items-center gap-2 mb-1.5">
-                                        <span className="text-[10px] text-gray-500 uppercase">关键词:</span>
+                                        <span className="text-[10px] text-gray-500 uppercase">{t('toolApproval.preview.queryLabel')}:</span>
                                         <code className="text-[11px] text-blue-300 font-mono bg-blue-900/30 px-1.5 py-0.5 rounded">
                                             {previewData.query}
                                         </code>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-gray-500 uppercase">范围:</span>
+                                        <span className="text-[10px] text-gray-500 uppercase">{t('toolApproval.preview.scopeLabel')}:</span>
                                         <span className="text-[11px] text-gray-300 font-mono">{previewData.scope}</span>
                                     </div>
                                 </div>
@@ -970,8 +971,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             <div className="mt-3 p-3 bg-indigo-500/5 border border-indigo-500/20 rounded-xl flex items-start gap-3">
                                 <Search className="text-indigo-400 shrink-0" size={16} />
                                 <div>
-                                    <div className="text-[10px] font-bold text-indigo-300 uppercase">{previewData.toolType}预览</div>
-                                    <div className="text-[11px] text-indigo-400/80 mt-0.5 italic">正在深度解析代码语义: {previewData.fileName}</div>
+                                    <div className="text-[10px] font-bold text-indigo-300 uppercase">{t('toolApproval.preview.symbolTitle', { toolType: previewData.toolType })}</div>
+                                    <div className="text-[11px] text-indigo-400/80 mt-0.5 italic">{t('toolApproval.preview.symbolDescription', { fileName: previewData.fileName })}</div>
                                 </div>
                             </div>
                         )}
@@ -981,8 +982,8 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                             <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
                                 <AlertTriangle className="text-red-400 shrink-0" size={16} />
                                 <div>
-                                    <div className="text-[10px] font-bold text-red-300 uppercase">高风险操作警示</div>
-                                    <div className="text-[11px] text-red-400/80 mt-0.5">该命令包含敏感操作（如删除或权限修改），执行前请仔细检查。</div>
+                                    <div className="text-[10px] font-bold text-red-300 uppercase">{t('toolApproval.preview.dangerTitle')}</div>
+                                    <div className="text-[11px] text-red-400/80 mt-0.5">{t('toolApproval.preview.dangerDescription')}</div>
                                 </div>
                             </div>
                         )}
@@ -1001,20 +1002,20 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 onClick={() => onApprove(toolCall.id)}
                                 className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-green-400 hover:bg-green-500/10 flex items-center justify-center gap-2 border-r border-gray-700/30 transition-all duration-200"
                             >
-                                <Check size={14} /> 批准执行
+                                <Check size={14} /> {t('toolApproval.actions.approve')}
                             </button>
                             <button
                                 data-testid="reject-button"
                                 onClick={() => onReject(toolCall.id)}
                                 className="flex-1 p-3 text-[11px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 flex items-center justify-center gap-2 transition-all duration-200"
                             >
-                                <X size={14} /> 拒绝
+                                <X size={14} /> {t('toolApproval.actions.reject')}
                             </button>
                         </>
                     ) : (
                         <div className="w-full px-5 py-3 bg-blue-500/5 flex items-center gap-2 text-[10px] font-bold text-blue-400/80 uppercase tracking-widest">
                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                            自动批准已开启 · 工具执行中
+                            {t('toolApproval.autoApprove.enabled')}
                         </div>
                     )}
                 </div>
@@ -1037,12 +1038,12 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         {isRollingBack ? (
                             <>
                                 <Loader2 size={14} className="animate-spin" />
-                                撤销中...
+                                {t('toolApproval.actions.undoPending')}
                             </>
                         ) : (
                             <>
                                 <RotateCcw size={14} />
-                                撤销
+                                {t('toolApproval.actions.undo')}
                             </>
                         )}
                     </button>
@@ -1056,24 +1057,24 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                         <div className="p-4 border-b border-gray-700">
                             <h2 className="text-lg font-medium flex items-center gap-2">
                                 <AlertTriangle className="text-amber-400" size={18} />
-                                检测到手动修改
+                                {t('toolApproval.conflict.title')}
                             </h2>
                         </div>
                         <div className="p-6 text-sm text-gray-300">
-                            文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。
+                            {t('toolApproval.conflict.description')}
                         </div>
                         <div className="p-4 border-t border-gray-700 flex justify-end gap-3">
                             <button
                                 onClick={() => setShowConflictDialog(false)}
                                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
                             >
-                                取消
+                                {t('toolApproval.actions.cancel')}
                             </button>
                             <button
                                 onClick={handleConfirmRollback}
                                 className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded font-bold transition-colors"
                             >
-                                确认回滚
+                                {t('toolApproval.actions.confirmRollback')}
                             </button>
                         </div>
                     </div>
@@ -1110,12 +1111,12 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 </div>
                                 <div className="flex items-center gap-2 text-yellow-400">
                                     <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                                    <span className="text-xs">执行中...</span>
+                                    <span className="text-xs">{t('toolApproval.status.executing')}</span>
                                 </div>
                             </div>
                             <div className="p-3 font-mono text-xs text-gray-500 flex items-center gap-2">
                                 <div className="w-2 h-4 bg-yellow-500/50 animate-pulse" />
-                                <span className="italic">等待命令输出...</span>
+                                <span className="italic">{t('toolApproval.status.waitingOutput')}</span>
                             </div>
                         </div>
                     </div>
@@ -1127,7 +1128,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                 <div className="px-5 pb-4">
                     <ToolExecutionIndicator
                         status="running"
-                        message={isWriteFile ? `正在写入文件: ${filePath}` : '正在执行操作...'}
+                        message={isWriteFile ? t('toolApproval.status.writingFile', { path: filePath }) : t('toolApproval.status.executingOperation')}
                     />
                 </div>
             )}
@@ -1142,7 +1143,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 toolCall.result || toolCall.status === "completed" ? "bg-green-500" : "bg-gray-500"
                             }`} />
                             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                                {toolCall.status === "failed" ? "执行失败" : "执行结果"}
+                                {toolCall.status === "failed" ? t('toolApproval.result.failedTitle') : t('toolApproval.result.title')}
                             </span>
                         </div>
                         <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
@@ -1152,7 +1153,7 @@ export const ToolApproval = React.memo(({ toolCall, onApprove, onReject, isLates
                                 ? "bg-green-500/10 text-green-400 border-green-500/20"
                                 : "bg-gray-500/10 text-gray-400 border-gray-500/20"
                         }`}>
-                            {toolCall.status === "failed" ? "失败" : toolCall.result || toolCall.status === "completed" ? "成功" : "运行中"}
+                            {toolCall.status === "failed" ? t('toolApproval.result.failedStatus') : toolCall.result || toolCall.status === "completed" ? t('toolApproval.result.successStatus') : t('toolApproval.result.runningStatus')}
                         </div>
                     </div>
 

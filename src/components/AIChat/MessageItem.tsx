@@ -468,23 +468,23 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
     const handleUndoAll = async () => {
         const store = useChatStore.getState() as any;
         if (!store.rollbackMessageToolCalls) {
-            toast.error('回滚功能不可用');
+            toast.error(t('messageItem.rollbackUnavailable'));
             return;
         }
         try {
             const result = await store.rollbackMessageToolCalls(message.id, false);
             if (result?.hasConflict) {
-                toast.error('检测到文件冲突，请单独回滚每个文件');
+                toast.error(t('messageItem.rollbackConflict'));
                 return;
             }
             if (result?.success) {
-                toast.success(`已回滚 ${result.count || 0} 个文件`);
+                toast.success(t('messageItem.rollbackSuccess', { count: result.count || 0 }));
             } else {
-                toast.error(result?.error || '回滚失败');
+                toast.error(result?.error || t('messageItem.rollbackFailed'));
             }
         } catch (e) {
             console.error('[Rollback] Error:', e);
-            toast.error('回滚失败: ' + String(e));
+            toast.error(t('messageItem.rollbackFailedWithError', { error: String(e) }));
         }
     };
     const handleCopy = () => {
@@ -626,8 +626,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                     // 探索模式过滤
                     if (isExploreMessage) {
                         const text = seg.content;
-                        const isRedundant = text.includes('分析项目') ||
-                                          text.includes('探索项目') ||
+                        const isRedundant = text.includes(t('messageItem.exploreProject')) ||
+                                          text.includes(t('messageItem.analyzeProject')) ||
                                           text.includes('[Local Model] Completed');
                         if (isRedundant) return false;
                     }
@@ -678,8 +678,8 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
 
                 if (isExploreMessage) {
                     const text = seg.content;
-                    const isRedundant = text.includes('分析项目') ||
-                                      text.includes('探索项目') ||
+                    const isRedundant = text.includes(t('messageItem.exploreProject')) ||
+                                      text.includes(t('messageItem.analyzeProject')) ||
                                       text.includes('[Local Model] Completed') ||
                                       text.includes('[OK] agent_list_dir');
                     if (isRedundant) return false;
@@ -939,13 +939,13 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                         {/* Batch Review Panel */}
                         {pendingCount > 1 && (
                             <div className="mb-3 p-2 bg-blue-900/20 rounded border border-blue-700/50 flex items-center justify-between">
-                                <div className="text-xs font-medium text-blue-300">有 {pendingCount} 个待处理的操作</div>
+                                <div className="text-xs font-medium text-blue-300">{t('messageItem.pendingActions', { count: pendingCount })}</div>
                                 <div className="flex gap-2">
                                     <button onClick={handleApproveAll} className="flex items-center gap-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-[10px] rounded transition-colors">
-                                        <CheckCheck size={12} /> 全部批准
+                                        <CheckCheck size={12} /> {t('messageItem.approveAll')}
                                     </button>
                                     <button onClick={handleRejectAll} className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] rounded transition-colors">
-                                        <XCircle size={12} /> 全部拒绝
+                                        <XCircle size={12} /> {t('messageItem.rejectAll')}
                                     </button>
                                 </div>
                             </div>
@@ -958,7 +958,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm text-gray-400">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                    <span>正在拆解任务...</span>
+                                    <span>{t('messageItem.breakingDownTask')}</span>
                                 </div>
                                 <div className="text-xs text-gray-500 font-mono max-h-32 overflow-y-auto bg-[#1e1e1e] rounded border border-gray-700 p-2">
                                     {displayContent.slice(-500)}
@@ -1256,7 +1256,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                                     onOpenFile={onOpenFile} 
                                     onCopyContent={(content) => { 
                                         navigator.clipboard.writeText(content); 
-                                        toast.success('内容已复制'); 
+                                        toast.success(t('messageItem.contentCopied')); 
                                     }} 
                                 />
                             </div>
@@ -1267,7 +1267,7 @@ export const MessageItem = React.memo(({ message, onApprove, onReject, onOpenFil
                             <div className="mt-3">
                                 <button onClick={() => onOpenComposer(message.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <FileCode size={16} />
-                                    <span>查看 Diff ({(message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length} 个文件)</span>
+                                    <span>{t('messageItem.viewDiff', { count: (message.toolCalls || []).filter(tc => tc && ((tc as any).tool === 'agent_write_file')).length })}</span>
                                 </button>
                             </div>
                         )}

@@ -179,7 +179,7 @@ export const Sidebar = () => {
               if (isPromptManagerOpen) togglePromptManager();
               if (isToolExplorerOpen) toggleToolExplorer();
             }}
-            title="技能"
+            title={t('sidebar.skills')}
           >
             <Puzzle size={20} className="relative z-10" />
             {isSkillsPanelOpen && (

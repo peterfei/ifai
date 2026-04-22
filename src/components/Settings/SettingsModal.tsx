@@ -75,8 +75,8 @@ export const SettingsModal = () => {
     { id: 'keybindings', label: t('shortcuts.keyboardShortcuts'), icon: Keyboard },
     { id: 'data', label: t('settings.dataManagement'), icon: Database },
     { id: 'localModel', label: t('settings.localModelSettings'), icon: LocalLLM },
-    { id: 'toolClassification', label: '工具分类', icon: Target },
-    { id: 'skills', label: '技能中心', icon: Zap },
+    { id: 'toolClassification', label: t('settings.tabs.toolClassification'), icon: Target },
+    { id: 'skills', label: t('settings.tabs.skillsCenter'), icon: Zap },
   ] as const;
 
   return (
@@ -110,8 +110,8 @@ export const SettingsModal = () => {
                activeTab === 'data' ? t('settings.dataManagement') :
                activeTab === 'localModel' ? t('settings.localModelSettings') :
                activeTab === 'customProvider' ? t('settings.customProvider') :
-               activeTab === 'toolClassification' ? '工具分类设置' :
-               activeTab === 'skills' ? '技能中心 (Skills Center)' :
+               activeTab === 'toolClassification' ? t('settings.tabs.toolClassificationSettings') :
+               activeTab === 'skills' ? t('settings.tabs.skillsCenterFull') :
                `${t(`settings.${activeTab}`)} ${t('chat.settings')}`}
             </h2>
             <button onClick={() => setSettingsOpen(false)} className="text-gray-400 hover:text-white" data-testid="close-settings">
@@ -135,8 +135,9 @@ export const SettingsModal = () => {
                     }}
                     className="w-full bg-[#3c3c3c] border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
                   >
-                    <option value="zh-CN">简体中文</option>
-                    <option value="en-US">English</option>
+                    <option value="zh-CN">{t('settings.language.zhCN')}</option>
+                    <option value="en-US">{t('settings.language.enUS')}</option>
+                    <option value="ru-RU">{t('settings.language.ruRU')}</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">{t('settings.languageHint')}</p>
                 </div>
@@ -223,7 +224,7 @@ export const SettingsModal = () => {
                 {/* 内置提供商 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-bold text-gray-300">内置提供商</h3>
+                      <h3 className="text-sm font-bold text-gray-300">{t('settings.providers.builtIn')}</h3>
                   </div>
 
                   {settings.providers.filter(p => !p.isCustom).map(provider => {
@@ -242,7 +243,7 @@ export const SettingsModal = () => {
                                           <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">{t('settings.current')}</span>
                                       )}
                                       {hasApiKey && !isCurrent && (
-                                          <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
+                                          <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">{t('settings.providers.configured')}</span>
                                       )}
                                   </div>
                                   <div className="flex items-center">
@@ -334,11 +335,11 @@ export const SettingsModal = () => {
                                           {provider.displayName || provider.name}
                                         </span>
                                         {isCurrent && (
-                                            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">当前</span>
+                                            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-600 text-white rounded">{t('settings.shortcuts.current')}</span>
                                         )}
                                         <span className="ml-2 px-2 py-0.5 text-xs bg-purple-600/50 text-purple-300 rounded">{t('settings.custom')}</span>
                                         {hasApiKey && !isCurrent && (
-                                            <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">已配置</span>
+                                            <span className="ml-2 px-2 py-0.5 text-xs bg-green-600/50 text-green-300 rounded">{t('settings.shortcuts.configured')}</span>
                                         )}
                                     </div>
                                     <div className="flex items-center">
@@ -449,10 +450,10 @@ export const SettingsModal = () => {
                       data-testid="sandbox-mode-select"
                       className="ml-4 bg-[#3c3c3c] border border-gray-600 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
                     >
-                      <option value="auto">自动检测</option>
-                      <option value="tauri-only">仅桌面应用</option>
-                      <option value="always-on">始终启用</option>
-                      <option value="always-off">始终禁用</option>
+                      <option value="auto">{t('settings.autoUpdate.autoDetect')}</option>
+                      <option value="tauri-only">{t('settings.autoUpdate.desktopOnly')}</option>
+                      <option value="always-on">{t('settings.autoUpdate.alwaysOn')}</option>
+                      <option value="always-off">{t('settings.autoUpdate.alwaysOff')}</option>
                     </select>
                   </div>
                 </div>

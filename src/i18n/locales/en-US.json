@@ -59,7 +59,8 @@
     "tools": "Tool Explorer",
     "prompts": "Prompts",
     "promptsCommunityReadOnly": "Prompts (Community - Read Only)",
-    "projectFallback": "Project"
+    "projectFallback": "Project",
+    "skills": "Skills"
   },
   "editor": {
     "welcome": "IfAI Editor",
@@ -106,7 +107,13 @@
     "closeOtherTabs": "Close Others",
     "closeAllTabs": "Close All",
     "splitRight": "Split Right",
-    "splitDown": "Split Down"
+    "splitDown": "Split Down",
+    "demo": {
+      "complete": "Agent 2.0 demo task completed!"
+    },
+    "inlineEdit": {
+      "applied": "Code changes applied"
+    }
   },
   "fileTree": {
     "noFolderOpen": "No folder open",
@@ -1021,7 +1028,32 @@
     "sandboxModeAuto": "Auto Detect",
     "sandboxModeTauriOnly": "Desktop App Only",
     "sandboxModeAlwaysOn": "Always On",
-    "sandboxModeAlwaysOff": "Always Off"
+    "sandboxModeAlwaysOff": "Always Off",
+    "tabs": {
+      "toolClassification": "Tool Classification",
+      "skillsCenter": "Skills Center",
+      "toolClassificationSettings": "Tool Classification Settings",
+      "skillsCenterFull": "Skills Center"
+    },
+    "language": {
+      "zhCN": "简体中文",
+      "enUS": "English",
+      "ruRU": "Русский"
+    },
+    "providers": {
+      "builtIn": "Built-in Providers",
+      "configured": "Configured"
+    },
+    "shortcuts": {
+      "current": "Current",
+      "configured": "Configured"
+    },
+    "autoUpdate": {
+      "autoDetect": "Auto Detect",
+      "desktopOnly": "Desktop Only",
+      "alwaysOn": "Always On",
+      "alwaysOff": "Always Off"
+    }
   },
   "customProviderSettings": {
     "custom": "Custom",
@@ -1945,7 +1977,9 @@
     "rollbackConflict": "File conflicts detected. Roll back each file individually.",
     "rollbackSuccess": "Rolled back {{count}} file(s)",
     "rollbackFailed": "Rollback failed",
-    "rollbackFailedWithError": "Rollback failed: {{error}}"
+    "rollbackFailedWithError": "Rollback failed: {{error}}",
+    "exploreProject": "Explore project",
+    "analyzeProject": "Analyze project"
   },
   "codeAnalysisPanel": {
     "title": "Code Analysis",
@@ -1995,7 +2029,9 @@
       "title": "Change analysis"
     },
     "fileTree": {
-      "title": "File tree"
+      "title": "File tree",
+      "write": "Write",
+      "access": "Access"
     },
     "preview": {
       "collapseView": "Collapse view",
@@ -2010,7 +2046,9 @@
       "showAllLines": "Show all lines ({{count}})",
       "streaming": "Streaming",
       "symbolDescription": "Deep semantic analysis in progress: {{fileName}}",
-      "symbolTitle": "{{toolType}} preview"
+      "symbolTitle": "{{toolType}} preview",
+      "inlinePreviewOpened": "Inline preview opened in editor",
+      "previewInEditor": "Preview changes in main editor"
     },
     "result": {
       "failedStatus": "Failed",
@@ -2369,6 +2407,177 @@
     "imageAttachments": {
       "fileTooLarge": "File too large (5MB limit)",
       "processingFailed": "Processing failed"
+    },
+    "imageAttachment": {
+      "fileTooLarge": "File too large (5MB limit)",
+      "processingFailed": "Processing failed"
+    },
+    "compaction": {
+      "label": "Conversation Compaction",
+      "description": "Original conversation contained {{originalCount}} messages, compressed for performance. Time: {{time}}"
+    },
+    "viewMode": {
+      "chat": "Chat",
+      "timeline": "Timeline"
+    },
+    "searchChat": "Search Chat ({{shortcut}})",
+    "sessionNotes": "Session Notes",
+    "errorFixOpenFileFailed": "Unable to open file",
+    "errorFix": {
+      "analyzePrompt": "Please analyze the following error and provide a fix suggestion:",
+      "errorInfo": "Error Info",
+      "code": "Code",
+      "message": "Message",
+      "file": "File",
+      "language": "Language",
+      "codeContext": "Code Context",
+      "provide": "Please provide",
+      "step1": "Root cause analysis",
+      "step2": "Specific fix plan",
+      "step3": "Fixed code example (if applicable)",
+      "fixPrompt": "Please help me fix the following error:",
+      "errorCode": "Error Code",
+      "errorMessage": "Error Message",
+      "fileLocation": "File Location",
+      "fixAndModify": "Please provide a fix and modify the file directly."
+    },
+    "help": {
+      "codebaseHint": "Include this in your query for global semantic code search",
+      "indexHint": "Manually force a RAG semantic index rebuild for the project codebase"
+    },
+    "commands": {
+      "index": {
+        "rebuilding": "Rebuilding Project Index",
+        "rebuildingDescription": "The system is scanning files and building semantic vectors. This may take a moment. You can check real-time progress in the status bar.",
+        "initFailed": "Index Initialization Failed",
+        "errorDetails": "Error details",
+        "noProject": "No Project Folder Open",
+        "noProjectHint": "Please open a project folder before using this command."
+      },
+      "taskBreakdown": {
+        "noDescription": "Please provide a task description to break down",
+        "usage": "Usage",
+        "taskDescription": "task description",
+        "example": "Example",
+        "exampleTask": "Implement user login",
+        "failed": "Task Breakdown Failed",
+        "possibleCauses": "Possible causes",
+        "causeBadFormat": "Invalid AI response format",
+        "causeNetwork": "Network connectivity issue",
+        "causeQuota": "API quota exceeded",
+        "suggestions": "Suggestions",
+        "suggestion1": "Try simplifying the task description",
+        "suggestion2": "Check your API key configuration",
+        "suggestion3": "Try again later"
+      },
+      "taskDemo": {
+        "title": "Task Breakdown Example",
+        "hint": "Tip",
+        "description": "This is a demo of the task breakdown feature. Use **/task:breakdown [task description]** to break down your actual tasks.",
+        "features": "The task tree includes:",
+        "featureHierarchy": "Hierarchy: main task -> subtask -> sub-subtask",
+        "featureStatus": "Status tracking: Todo / In Progress / Done / Failed",
+        "featurePriority": "Priority: Urgent / High / Medium / Low",
+        "featureCategory": "Category: Dev / Test / Docs / Design / Research",
+        "featureEstimate": "Effort estimate: estimated hours",
+        "featureAcceptance": "Acceptance criteria: clear completion conditions",
+        "featureDependencies": "Dependencies: task-to-task relationships",
+        "consoleTest": "Test in console",
+        "savedTo": "Task saved to: `{{path}}`",
+        "notSaved": "No project open, task is only saved in memory",
+        "treeTitle": "Example: Implement User Login",
+        "treeDescription": "This is a sample task breakdown showing the task tree structure",
+        "rootTitle": "Implement User Login",
+        "rootDescription": "Complete user authentication system, including login, registration, and password reset",
+        "backendApiTitle": "Backend API Development",
+        "backendApiDescription": "Implement login, registration, and password reset backend endpoints",
+        "apiLogin": "POST /api/auth/login returns JWT token",
+        "apiRegister": "POST /api/auth/register creates new user",
+        "apiResetPassword": "POST /api/auth/reset-password sends reset email",
+        "designSchema": "Design Database Schema",
+        "jwtMiddleware": "Implement JWT Auth Middleware",
+        "writeEndpoints": "Write API Endpoints",
+        "frontendLoginTitle": "Frontend Login Page",
+        "frontendLoginDescription": "Implement user login and registration forms",
+        "responsiveDesign": "Responsive design, mobile support",
+        "formValidation": "Form validation (email format, password strength)",
+        "friendlyErrors": "Friendly error messages",
+        "rememberMe": "Remember me functionality",
+        "designPrototype": "Design UI Prototype",
+        "loginFormComponent": "Implement Login Form Component",
+        "integrateBackend": "Integrate Backend API",
+        "writeTestsTitle": "Write Test Cases",
+        "writeTestsDescription": "Write unit and integration tests for the auth system",
+        "writeDocsTitle": "Write Technical Documentation",
+        "writeDocsDescription": "Write API docs and deployment guide"
+      },
+      "proposal": {
+        "noDescription": "Please provide a requirement description for the proposal",
+        "usage": "Usage",
+        "requirementDescription": "requirement description",
+        "example": "Example",
+        "exampleRequirement": "Implement user login",
+        "generating": "Generating OpenSpec Proposal...",
+        "failed": "Proposal Generation Failed",
+        "possibleCauses": "Possible causes",
+        "causeBadFormat": "Invalid AI response format",
+        "causeNetwork": "Network connectivity issue",
+        "causeQuota": "API quota exceeded",
+        "suggestions": "Suggestions",
+        "suggestion1": "Try simplifying the requirement description",
+        "suggestion2": "Check your API key configuration",
+        "suggestion3": "Try again later"
+      },
+      "taskStart": {
+        "noTaskId": "Please provide a task ID",
+        "usage": "Usage",
+        "taskId": "Task ID",
+        "example": "Example",
+        "orExample": "or",
+        "viewAvailable": "View available tasks",
+        "useTaskList": "Use `/task:list` to view all tasks",
+        "noProject": "No project open",
+        "noTasksFile": "tasks.md file not found",
+        "noTasksFileHint": "Please open a tasks.md file from a proposal first",
+        "taskNotFound": "Task not found: {{taskId}}",
+        "availableTasks": "Available tasks",
+        "none": "None",
+        "startFailed": "Task start failed",
+        "taskExecutionPrompt": "I need help implementing the following development task:\n\n**Task ID**: {{taskId}}\n**Task Title**: {{taskTitle}}\n**Task Description**: {{taskContent}}\n\n**Task Path**:\n{{context}}\n\nPlease help me complete this task:\n1. First, review the project structure to understand existing code\n2. Then read relevant files and analyze the implementation approach\n3. Create or modify the necessary files\n4. Finally, summarize the completed work\n\nYou can use agent_list_dir, agent_read_file, agent_write_file and other tools to complete this work."
+      },
+      "taskList": {
+        "noProject": "No project open",
+        "noProjectHint": "Please open a project folder first",
+        "currentlyOpened": "Currently opened files",
+        "noTasksFile": "tasks.md file not found",
+        "solution": "Solution",
+        "solutionStep1": "Find the proposal directory in the file tree (.ifai/changes/xxx/)",
+        "solutionStep2": "Open the tasks.md file",
+        "solutionStep3": "Run /task:list again",
+        "taskStats": "Task Statistics",
+        "total": "Total",
+        "todo": "Todo",
+        "inProgress": "In Progress",
+        "done": "Done",
+        "todoTasks": "Todo Tasks",
+        "inProgressTasks": "In Progress",
+        "completedTasks": "Completed",
+        "moreCompleted": "{{count}} more completed tasks",
+        "noTasksParsed": "No tasks parsed. Please check the tasks.md file format.",
+        "fetchFailed": "Failed to fetch task list"
+      },
+      "taskComplete": {
+        "noTaskId": "Please provide a task ID",
+        "usage": "Usage",
+        "taskId": "Task ID",
+        "completed": "Task **{{taskId}}** has been marked as completed.",
+        "operationFailed": "Operation failed"
+      },
+      "taskTestAll": {
+        "starting": "Starting automated test integration flow...",
+        "agentLaunchFailed": "Failed to launch test agent",
+        "systemPrompt": "Run the full unit and E2E suites, then summarize the report in Mission Control"
+      }
     }
   },
   "ghostTaskList": {

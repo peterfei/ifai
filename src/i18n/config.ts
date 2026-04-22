@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import zhCN from './locales/zh-CN.json';
 import enUS from './locales/en-US.json';
+import ruRU from './locales/ru-RU.json';
 
 // 🔥 v0.3.0 修复：同步读取 localStorage 中的语言设置
 // 这样可以避免在 Vite 生产构建中，组件在语言检测完成前就渲染的竞态条件
@@ -10,7 +11,7 @@ const getInitialLanguage = (): string | undefined => {
   try {
     // 优先读取 localStorage 中保存的语言
     const saved = localStorage.getItem('i18nextLng');
-    if (saved && (saved === 'zh-CN' || saved === 'en-US' || saved === 'en' || saved === 'zh')) {
+    if (saved && (saved === 'zh-CN' || saved === 'en-US' || saved === 'en' || saved === 'zh' || saved === 'ru-RU' || saved === 'ru')) {
       console.log('[i18n] Initial language from localStorage:', saved);
       return saved;
     }
@@ -30,7 +31,9 @@ i18n
       'zh-CN': { translation: zhCN },
       'zh': { translation: zhCN }, // Fallback for 'zh'
       'en': { translation: enUS },
-      'en-US': { translation: enUS }
+      'en-US': { translation: enUS },
+      'ru-RU': { translation: ruRU },
+      'ru': { translation: ruRU }, // Fallback for 'ru'
     },
     // 🔥 v0.3.0 修复：使用同步读取的初始语言，避免竞态条件
     // 如果 localStorage 中有保存的语言，直接使用；否则让 LanguageDetector 检测

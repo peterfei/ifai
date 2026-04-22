@@ -285,7 +285,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
           prev[1],
           { ...prev[2], status: 'success' }
         ]);
-        toast.success('Agent 2.0 演示任务圆满完成！');
+        toast.success(t('editor.demo.complete'));
       }, 7000);
     };
 
@@ -1048,7 +1048,7 @@ ${textBefore}[CURSOR]${textAfter}
                         text: modifiedCode,
                         forceMoveMarkers: true
                       }]);
-                      toast.success('代码修改已应用');
+                      toast.success(t('editor.inlineEdit.applied'));
                     }
                   }
                   hideInlineEdit();

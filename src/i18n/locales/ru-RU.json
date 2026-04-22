@@ -1884,9 +1884,7 @@
     "rollbackConflict": "检测到文件冲突，请单独回滚每个文件",
     "rollbackSuccess": "已回滚 {{count}} 个文件",
     "rollbackFailed": "回滚失败",
-    "rollbackFailedWithError": "回滚失败：{{error}}",
-    "exploreProject": "探索项目",
-    "analyzeProject": "分析项目"
+    "rollbackFailedWithError": "回滚失败：{{error}}"
   },
   "codeAnalysisPanel": {
     "title": "代码分析",
@@ -1936,9 +1934,7 @@
       "title": "变更分析"
     },
     "fileTree": {
-      "title": "文件结构",
-      "write": "写入",
-      "access": "访问"
+      "title": "文件结构"
     },
     "preview": {
       "collapseView": "收起视图",
@@ -1953,9 +1949,7 @@
       "showAllLines": "显示全部行（{{count}}）",
       "streaming": "流式传输",
       "symbolDescription": "正在深度解析代码语义：{{fileName}}",
-      "symbolTitle": "{{toolType}}预览",
-      "inlinePreviewOpened": "已开启编辑器内联预览",
-      "previewInEditor": "在主编辑器中预览变更"
+      "symbolTitle": "{{toolType}}预览"
     },
     "result": {
       "failedStatus": "失败",
@@ -2314,177 +2308,6 @@
     "imageAttachments": {
       "fileTooLarge": "文件过大（5MB 限制）",
       "processingFailed": "处理失败"
-    },
-    "imageAttachment": {
-      "fileTooLarge": "文件过大 (5MB 限制)",
-      "processingFailed": "处理失败"
-    },
-    "compaction": {
-      "label": "对话压缩",
-      "description": "原始对话包含 {{originalCount}} 条消息，已压缩以优化性能。压缩时间: {{time}}"
-    },
-    "viewMode": {
-      "chat": "对话",
-      "timeline": "时间线"
-    },
-    "searchChat": "搜索对话 ({{shortcut}})",
-    "sessionNotes": "会话笔记",
-    "errorFixOpenFileFailed": "无法打开文件",
-    "errorFix": {
-      "analyzePrompt": "请分析以下错误并提供修复建议：",
-      "errorInfo": "错误信息",
-      "code": "代码",
-      "message": "消息",
-      "file": "文件",
-      "language": "语言",
-      "codeContext": "代码上下文",
-      "provide": "请提供",
-      "step1": "错误原因分析",
-      "step2": "具体的修复方案",
-      "step3": "修复后的代码示例（如果适用）",
-      "fixPrompt": "请帮我修复以下错误：",
-      "errorCode": "错误代码",
-      "errorMessage": "错误消息",
-      "fileLocation": "文件位置",
-      "fixAndModify": "请提供修复方案并直接修改文件。"
-    },
-    "help": {
-      "codebaseHint": "在提问中加入此指令可进行全局代码语义搜索",
-      "indexHint": "手动强制为项目代码库建立 RAG 语义索引"
-    },
-    "commands": {
-      "index": {
-        "rebuilding": "正在重建项目索引",
-        "rebuildingDescription": "系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。",
-        "initFailed": "索引初始化失败",
-        "errorDetails": "错误详情",
-        "noProject": "未打开项目文件夹",
-        "noProjectHint": "请先打开一个项目文件夹后再使用此命令。"
-      },
-      "taskBreakdown": {
-        "noDescription": "请提供要拆解的任务描述",
-        "usage": "用法",
-        "taskDescription": "任务描述",
-        "example": "示例",
-        "exampleTask": "实现用户登录功能",
-        "failed": "任务拆解失败",
-        "possibleCauses": "可能的原因",
-        "causeBadFormat": "AI 响应格式不正确",
-        "causeNetwork": "网络连接问题",
-        "causeQuota": "API 配额不足",
-        "suggestions": "建议",
-        "suggestion1": "尝试简化任务描述",
-        "suggestion2": "检查 API 密钥配置",
-        "suggestion3": "稍后重试"
-      },
-      "taskDemo": {
-        "title": "任务拆解示例",
-        "hint": "提示",
-        "description": "这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。",
-        "features": "任务树包含：",
-        "featureHierarchy": "层级结构：主任务 → 子任务 → 子子任务",
-        "featureStatus": "状态跟踪：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕",
-        "featurePriority": "优先级：紧急 / 高 / 中 / 低",
-        "featureCategory": "类别：开发 / 测试 / 文档 / 设计 / 研究",
-        "featureEstimate": "工时估算：预估小时数",
-        "featureAcceptance": "验收标准：明确的完成条件",
-        "featureDependencies": "依赖关系：任务间的依赖",
-        "consoleTest": "使用控制台测试",
-        "savedTo": "任务已保存到：`{{path}}`",
-        "notSaved": "未打开项目，任务仅保存在内存中",
-        "treeTitle": "示例：实现用户登录功能",
-        "treeDescription": "这是一个示例任务拆解，展示了任务树的结构",
-        "rootTitle": "实现用户登录功能",
-        "rootDescription": "完整的用户认证系统，包括登录、注册、密码重置",
-        "backendApiTitle": "后端 API 开发",
-        "backendApiDescription": "实现登录、注册、密码重置的后端接口",
-        "apiLogin": "POST /api/auth/login 返回 JWT token",
-        "apiRegister": "POST /api/auth/register 创建新用户",
-        "apiResetPassword": "POST /api/auth/reset-password 发送重置邮件",
-        "designSchema": "设计数据库 Schema",
-        "jwtMiddleware": "实现 JWT 认证中间件",
-        "writeEndpoints": "编写 API 端点",
-        "frontendLoginTitle": "前端登录页面",
-        "frontendLoginDescription": "实现用户登录和注册表单",
-        "responsiveDesign": "响应式设计，支持移动端",
-        "formValidation": "表单验证（邮箱格式、密码强度）",
-        "friendlyErrors": "错误提示友好",
-        "rememberMe": "记住我功能",
-        "designPrototype": "设计 UI 原型",
-        "loginFormComponent": "实现登录表单组件",
-        "integrateBackend": "集成后端 API",
-        "writeTestsTitle": "编写测试用例",
-        "writeTestsDescription": "为认证系统编写单元测试和集成测试",
-        "writeDocsTitle": "编写技术文档",
-        "writeDocsDescription": "编写 API 文档和部署指南"
-      },
-      "proposal": {
-        "noDescription": "请提供要生成提案的需求描述",
-        "usage": "用法",
-        "requirementDescription": "需求描述",
-        "example": "示例",
-        "exampleRequirement": "实现用户登录功能",
-        "generating": "正在生成 OpenSpec 提案...",
-        "failed": "提案生成失败",
-        "possibleCauses": "可能的原因",
-        "causeBadFormat": "AI 响应格式不正确",
-        "causeNetwork": "网络连接问题",
-        "causeQuota": "API 配额不足",
-        "suggestions": "建议",
-        "suggestion1": "尝试简化需求描述",
-        "suggestion2": "检查 API 密钥配置",
-        "suggestion3": "稍后重试"
-      },
-      "taskStart": {
-        "noTaskId": "请提供任务 ID",
-        "usage": "用法",
-        "taskId": "任务ID",
-        "example": "示例",
-        "orExample": "或",
-        "viewAvailable": "查看可用任务",
-        "useTaskList": "使用 `/task:list` 查看所有任务",
-        "noProject": "未打开项目",
-        "noTasksFile": "未找到 tasks.md 文件",
-        "noTasksFileHint": "请先打开一个提案中的 tasks.md 文件",
-        "taskNotFound": "未找到任务: {{taskId}}",
-        "availableTasks": "可用任务",
-        "none": "无",
-        "startFailed": "任务启动失败",
-        "taskExecutionPrompt": "我需要协助实施以下开发任务：\n\n**任务 ID**: {{taskId}}\n**任务标题**: {{taskTitle}}\n**任务描述**: {{taskContent}}\n\n**任务路径**:\n{{context}}\n\n请帮助我完成这个任务的实施工作。请：\n1. 首先查看项目结构，了解现有代码\n2. 然后读取相关文件，分析实现方案\n3. 创建或修改所需的文件\n4. 最后总结完成的工作\n\n你可以使用 agent_list_dir、agent_read_file、agent_write_file 等工具来完成这些工作。"
-      },
-      "taskList": {
-        "noProject": "未打开项目",
-        "noProjectHint": "请先打开一个项目文件夹",
-        "currentlyOpened": "当前打开的文件",
-        "noTasksFile": "未找到 tasks.md 文件",
-        "solution": "解决方法",
-        "solutionStep1": "在文件树中找到提案目录（.ifai/changes/xxx/）",
-        "solutionStep2": "打开 tasks.md 文件",
-        "solutionStep3": "再次运行 /task:list",
-        "taskStats": "任务统计",
-        "total": "总计",
-        "todo": "待办",
-        "inProgress": "进行中",
-        "done": "已完成",
-        "todoTasks": "待办任务",
-        "inProgressTasks": "进行中",
-        "completedTasks": "已完成",
-        "moreCompleted": "还有 {{count}} 个已完成任务",
-        "noTasksParsed": "未解析到任何任务，请检查 tasks.md 文件格式",
-        "fetchFailed": "获取任务列表失败"
-      },
-      "taskComplete": {
-        "noTaskId": "请提供任务 ID",
-        "usage": "用法",
-        "taskId": "任务ID",
-        "completed": "任务 **{{taskId}}** 已标记为完成。",
-        "operationFailed": "操作失败"
-      },
-      "taskTestAll": {
-        "starting": "正在启动自动化测试集成流...",
-        "agentLaunchFailed": "无法启动测试 Agent",
-        "systemPrompt": "运行全量单元测试与 E2E 测试，并汇总报告至 Mission Control"
-      }
     }
   },
   "ghostTaskList": {
