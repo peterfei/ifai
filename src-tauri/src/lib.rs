@@ -704,13 +704,10 @@ async fn ai_chat(
     }
 
     // 本地模型预处理 - 智能路由决策
-    // 🔥 暂时禁用本地模型工具执行，所有请求走云端 API
     let preprocess_result: Result<local_model::PreprocessResult, String> = if has_image {
         Err("Image content detected, routing to cloud Vision LLM".to_string())
     } else {
-        // 🔥 TODO: 本地模型工具执行暂时禁用，恢复时取消注释
-        // local_model::local_model_preprocess(messages.clone()).await
-        Err("Local model tool execution disabled, routing to cloud API".to_string())
+        local_model::local_model_preprocess(messages.clone()).await
     };
 
     // 检查是否应该使用本地处理
