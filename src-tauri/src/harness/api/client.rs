@@ -48,6 +48,14 @@ impl ApiClientFactory {
             crate::harness::api::types::AiProvider::Zhipu => {
                 Ok(Box::new(super::providers::zhipu::ZhipuClient::new(config)))
             }
+            crate::harness::api::types::AiProvider::Kimi => {
+                // 使用元数据驱动的 Kimi 客户端
+                Ok(Box::new(super::metadata_client::create_kimi_client(&config.api_key)))
+            }
+            crate::harness::api::types::AiProvider::Gemini => {
+                // 使用元数据驱动的 Gemini 客户端
+                Ok(Box::new(super::metadata_client::create_gemini_client(&config.api_key)))
+            }
             crate::harness::api::types::AiProvider::Custom { .. } => {
                 // 创建自定义供应商客户端
                 super::providers::CustomClient::new(&provider, config)

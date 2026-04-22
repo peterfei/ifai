@@ -182,21 +182,30 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
           apiKey: '',
-          models: ['glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'],
+          models: ['glm-5.1', 'glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'],
           enabled: true,
         },
         {
           id: 'kimi',
-          name: 'Kimi (Moonshot)',
+          name: 'Kimi (Moonshot AI)',
           protocol: 'openai',
           baseUrl: 'https://api.moonshot.cn/v1/chat/completions',
           apiKey: '',
-          models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+          models: ['moonshot-v1-k2.6', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+          enabled: false,
+        },
+        {
+          id: 'gemini',
+          name: 'Google Gemini',
+          protocol: 'gemini',
+          baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+          apiKey: '',
+          models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
           enabled: false,
         },
       ],
       currentProviderId: 'zhipu',
-      currentModel: 'glm-4.6',
+      currentModel: 'glm-5.1',
       enableAutocomplete: true,
       useLocalModelForCompletion: true,  // 默认启用本地模型补全
       maxContextMessages: 15,
@@ -338,7 +347,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 7, // v0.5.1: Sandbox mode
+      version: 8, // v0.5.2: Add Gemini provider, update Zhipu GLM-5.1 and Kimi K2.6
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -386,7 +395,44 @@ export const useSettingsStore = create<SettingsState>()(
         enableTypewriterEffect: state.enableTypewriterEffect,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 7`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 8`);
+
+        // v0.5.2: 版本 7 -> 8：添加 Gemini 提供商，更新 Zhipu 和 Kimi 模型列表
+        if (version < 8 && persistedState.providers) {
+          // 检查是否已有 Gemini 提供商
+          const hasGemini = persistedState.providers.some((p: any) => p.id === 'gemini');
+          if (!hasGemini) {
+            console.log('[SettingsStore] Adding Gemini provider (v7->8)');
+            persistedState.providers.push({
+              id: 'gemini',
+              name: 'Google Gemini',
+              protocol: 'gemini',
+              baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+              apiKey: '',
+              models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+              enabled: false,
+            });
+          }
+
+          // 更新 Zhipu 模型列表，添加 glm-5.1
+          const zhipuProvider = persistedState.providers.find((p: any) => p.id === 'zhipu');
+          if (zhipuProvider && zhipuProvider.models) {
+            const newModels = ['glm-5.1', 'glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'];
+            // 合并新旧模型，去重
+            zhipuProvider.models = Array.from(new Set([...newModels, ...zhipuProvider.models]));
+            console.log('[SettingsStore] Updated zhipu models with glm-5.1:', zhipuProvider.models);
+          }
+
+          // 更新 Kimi 模型列表，添加 moonshot-v1-k2.6
+          const kimiProvider = persistedState.providers.find((p: any) => p.id === 'kimi');
+          if (kimiProvider && kimiProvider.models) {
+            const newModels = ['moonshot-v1-k2.6', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'];
+            kimiProvider.models = Array.from(new Set([...newModels, ...kimiProvider.models]));
+            // 更新名称为 Moonshot AI
+            kimiProvider.name = 'Kimi (Moonshot AI)';
+            console.log('[SettingsStore] Updated kimi models with K2.6:', kimiProvider.models);
+          }
+        }
 
         // v0.5.1: 版本 6 -> 7：添加沙箱模式
         if (version < 7) {
@@ -475,11 +521,11 @@ export const useSettingsStore = create<SettingsState>()(
                 useSettingsStore.setState(s => ({
                   providers: s.providers.map(p =>
                     p.id === 'zhipu'
-                      ? { ...p, enabled: true, models: ['glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'] }
+                      ? { ...p, enabled: true, models: ['glm-5.1', 'glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'] }
                       : p
                   ),
                   currentProviderId: 'zhipu',
-                  currentModel: 'glm-4.6'
+                  currentModel: 'glm-5.1'
                 }));
               }
             } else {

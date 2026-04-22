@@ -132,6 +132,8 @@ impl HarnessAIService {
             name if name.contains("deepseek") => AiProvider::DeepSeek,
             name if name.contains("openai") || name.contains("gpt") => AiProvider::OpenAI,
             name if name.contains("zhipu") || name.contains("glm") => AiProvider::Zhipu,
+            name if name.contains("kimi") || name.contains("moonshot") => AiProvider::Kimi,
+            name if name.contains("gemini") || name.contains("google") => AiProvider::Gemini,
             _ => {
                 if config.base_url.contains("anthropic") {
                     AiProvider::Anthropic
@@ -139,6 +141,10 @@ impl HarnessAIService {
                     AiProvider::DeepSeek
                 } else if config.base_url.contains("bigmodel.cn") {
                     AiProvider::Zhipu
+                } else if config.base_url.contains("moonshot.cn") {
+                    AiProvider::Kimi
+                } else if config.base_url.contains("googleapis.com") {
+                    AiProvider::Gemini
                 } else {
                     AiProvider::OpenAI
                 }

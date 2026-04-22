@@ -126,6 +126,10 @@ pub enum AiProvider {
     OpenAI,
     /// 智谱 AI (Zhipu / GLM)
     Zhipu,
+    /// 月之暗面 (Kimi / Moonshot)
+    Kimi,
+    /// Google Gemini
+    Gemini,
     /// 自定义供应商（使用 OpenAI 兼容 API）
     Custom { name: String },
 }
@@ -137,6 +141,8 @@ pub enum AiProviderType {
     DeepSeek,
     OpenAI,
     Zhipu,
+    Kimi,
+    Gemini,
     Custom,
 }
 
@@ -147,6 +153,8 @@ impl From<AiProvider> for AiProviderType {
             AiProvider::DeepSeek => AiProviderType::DeepSeek,
             AiProvider::OpenAI => AiProviderType::OpenAI,
             AiProvider::Zhipu => AiProviderType::Zhipu,
+            AiProvider::Kimi => AiProviderType::Kimi,
+            AiProvider::Gemini => AiProviderType::Gemini,
             AiProvider::Custom { .. } => AiProviderType::Custom,
         }
     }
@@ -162,6 +170,8 @@ impl std::str::FromStr for AiProvider {
             "deepseek" => Ok(AiProvider::DeepSeek),
             "openai" => Ok(AiProvider::OpenAI),
             "zhipu" | "zhipuai" | "glm" => Ok(AiProvider::Zhipu),
+            "kimi" | "moonshot" => Ok(AiProvider::Kimi),
+            "gemini" | "google" => Ok(AiProvider::Gemini),
             "custom" => Ok(AiProvider::Custom {
                 name: "Custom".to_string(),
             }),
@@ -172,7 +182,7 @@ impl std::str::FromStr for AiProvider {
                         name: name.to_string(),
                     })
                 } else {
-                    Err(format!("Unknown provider: {}. Supported: anthropic, deepseek, openai, zhipu, custom[:name]", s))
+                    Err(format!("Unknown provider: {}. Supported: anthropic, deepseek, openai, zhipu, kimi, gemini, custom[:name]", s))
                 }
             }
         }
@@ -187,6 +197,8 @@ impl AiProvider {
             AiProvider::DeepSeek => "DeepSeek",
             AiProvider::OpenAI => "OpenAI",
             AiProvider::Zhipu => "Zhipu AI",
+            AiProvider::Kimi => "Kimi (Moonshot AI)",
+            AiProvider::Gemini => "Google Gemini",
             AiProvider::Custom { name } => name.as_str(),
         }
     }
@@ -203,4 +215,79 @@ pub struct ProviderConfig {
     pub api_key: String,
     pub base_url: Option<String>,
     pub organization: Option<String>,
+}
+
+#[cfg(test)]
+mod factory_integration_tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_ai_provider_from_str_kimi() {
+        // 测试 Kimi 提供商解析
+        let kimi = AiProvider::from_str("kimi").unwrap();
+        assert!(matches!(kimi, AiProvider::Kimi));
+        assert_eq!(kimi.name(), "Kimi (Moonshot AI)");
+
+        let moonshot = AiProvider::from_str("moonshot").unwrap();
+        assert!(matches!(moonshot, AiProvider::Kimi));
+    }
+
+    #[test]
+    fn test_ai_provider_from_str_gemini() {
+        // 测试 Gemini 提供商解析
+        let gemini = AiProvider::from_str("gemini").unwrap();
+        assert!(matches!(gemini, AiProvider::Gemini));
+        assert_eq!(gemini.name(), "Google Gemini");
+
+        let google = AiProvider::from_str("google").unwrap();
+        assert!(matches!(google, AiProvider::Gemini));
+    }
+
+    #[test]
+    fn test_ai_provider_name_kimi() {
+        let kimi = AiProvider::Kimi;
+        assert_eq!(kimi.name(), "Kimi (Moonshot AI)");
+    }
+
+    #[test]
+    fn test_ai_provider_name_gemini() {
+        let gemini = AiProvider::Gemini;
+        assert_eq!(gemini.name(), "Google Gemini");
+    }
+
+    #[test]
+    fn test_ai_provider_from_str_deepseek_unchanged() {
+        // 验证 DeepSeek 解析未被影响（向后兼容性测试）
+        let deepseek = AiProvider::from_str("deepseek").unwrap();
+        assert!(matches!(deepseek, AiProvider::DeepSeek));
+        assert_eq!(deepseek.name(), "DeepSeek");
+    }
+
+    #[test]
+    fn test_ai_provider_type_from_kimi() {
+        let kimi = AiProvider::Kimi;
+        let kimi_type = AiProviderType::from(kimi);
+        assert!(matches!(kimi_type, AiProviderType::Kimi));
+    }
+
+    #[test]
+    fn test_ai_provider_type_from_gemini() {
+        let gemini = AiProvider::Gemini;
+        let gemini_type = AiProviderType::from(gemini);
+        assert!(matches!(gemini_type, AiProviderType::Gemini));
+    }
+
+    #[test]
+    fn test_ai_provider_is_custom() {
+        // 验证 Kimi 和 Gemini 不是自定义提供商
+        let kimi = AiProvider::Kimi;
+        assert!(!kimi.is_custom());
+
+        let gemini = AiProvider::Gemini;
+        assert!(!gemini.is_custom());
+
+        let custom = AiProvider::Custom { name: "Test".to_string() };
+        assert!(custom.is_custom());
+    }
 }
