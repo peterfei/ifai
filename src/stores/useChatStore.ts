@@ -141,11 +141,13 @@ export const useChatStore = create<ChatStore>()(
             // 🔥 自动更新线程标题：如果当前线程的标题是默认标题，根据消息内容更新
             const { useThreadStore } = await import('./threadStore');
             const threadStore = useThreadStore.getState();
-            const currentThread = threadStore.getThread(get().currentThreadId);
+            // 🔥 FIX: 使用 activeThreadId 作为后备，确保即使 currentThreadId 不同步也能找到正确的线程
+            const threadId = get().currentThreadId || threadStore.activeThreadId;
+            const currentThread = threadId ? threadStore.getThread(threadId) : null;
             if (currentThread) {
               const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
               if (isDefaultTitle) {
-                threadStore.updateThreadTitleFromMessage(get().currentThreadId!, content as string);
+                threadStore.updateThreadTitleFromMessage(threadId, content as string);
               }
             }
 
@@ -643,6 +645,33 @@ export const useChatStore = create<ChatStore>()(
         }
         return merged;
       },
+      // 🔥 FIX: hydration 时同步 activeThreadId 和 currentThreadId
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('[ChatStore] ❌ Hydration error:', error);
+          return;
+        }
+        if (state) {
+          // 延迟执行，确保 threadStore 已经加载
+          setTimeout(async () => {
+            try {
+              const { useThreadStore } = await import('./threadStore');
+              const threadStore = useThreadStore.getState();
+              const activeThreadId = threadStore.activeThreadId;
+
+              // 如果 currentThreadId 是默认值或无效，使用 activeThreadId
+              if (!state.currentThreadId || state.currentThreadId === 'default-thread') {
+                if (activeThreadId) {
+                  console.log('[ChatStore] 🔀 Hydration: 同步 currentThreadId 到 activeThreadId:', activeThreadId.substring(0, 20));
+                  useChatStore.setState({ currentThreadId: activeThreadId });
+                }
+              }
+            } catch (e) {
+              console.warn('[ChatStore] ⚠️ Hydration sync failed:', e);
+            }
+          }, 100);
+        }
+      }
     }
   )
 );

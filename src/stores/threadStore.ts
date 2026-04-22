@@ -161,12 +161,14 @@ export const useThreadStore = create<ThreadStore>()(
           activeThreadId: threadId,
         }));
 
-        // 🏆 关键修复：创建新线程时立即清空全局 messages
-        // 避免旧线程的消息污染新线程
-        // 注意：这里不使用异步导入，而是使用全局挂载的 store（如果已挂载）
+        // 🔥 FIX: 同步更新 chatStore.currentThreadId，确保 sendMessage 能找到正确的线程
+        // 否则标题自动更新功能会失效（currentThread 为 undefined）
         if (typeof window !== 'undefined' && (window as any).__chatStore) {
-          (window as any).__chatStore.setState({ messages: [] });
-          console.log('[ThreadStore] 🧹 清空全局消息，准备加载新线程内容');
+          (window as any).__chatStore.setState({
+            messages: [],
+            currentThreadId: threadId
+          });
+          console.log('[ThreadStore] 🔀 同步 currentThreadId 到 chatStore:', threadId.substring(0, 20));
         }
 
         autoSaveThread(threadId);
