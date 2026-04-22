@@ -270,18 +270,28 @@ impl FormatAdapter for GeminiFormatAdapter {
     }
 
     fn parse_sse_event(&self, event_data: &str) -> Result<Option<StreamEvent>, String> {
-        // Gemini SSE 格式: data: [{...}]
-        let json_array: Vec<JsonValue> = serde_json::from_str(event_data)
-            .map_err(|e| format!("Failed to parse SSE JSON array: {}", e))?;
+        // Gemini SSE 格式可能是：
+        // 1. 官方格式: data: [{...}] (数组)
+        // 2. 第三方格式: data: {...} (对象)
 
-        if let Some(first_item) = json_array.first() {
-            let content = extract_content_by_path(first_item, &self.spec.response_format.content_extraction)?;
-            Ok(Some(StreamEvent::TextDelta {
-                text: content,
-            }))
-        } else {
-            Ok(None)
+        // 先尝试解析为数组
+        if let Ok(json_array) = serde_json::from_str::<Vec<JsonValue>>(event_data) {
+            if let Some(first_item) = json_array.first() {
+                let content = extract_content_by_path(first_item, &self.spec.response_format.content_extraction)?;
+                return Ok(Some(StreamEvent::TextDelta {
+                    text: content,
+                }));
+            }
         }
+
+        // 如果失败，尝试解析为对象
+        let json: JsonValue = serde_json::from_str(event_data)
+            .map_err(|e| format!("Failed to parse SSE JSON (tried array and object): {}", e))?;
+
+        let content = extract_content_by_path(&json, &self.spec.response_format.content_extraction)?;
+        Ok(Some(StreamEvent::TextDelta {
+            text: content,
+        }))
     }
 }
 

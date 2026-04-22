@@ -173,7 +173,13 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://api.openai.com/v1/chat/completions',
           apiKey: '',
-          models: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+          models: [
+            'gpt-5.4', 'gpt-5.2', 'gpt-5.1', 'gpt-5',
+            'gpt-4o', 'gpt-4o-2024-11-20', 'gpt-4o-2024-08-06', 'gpt-4o-mini',
+            'gpt-4-turbo', 'gpt-4',
+            'gpt-3.5-turbo',
+            'o1', 'o1-mini', 'o1-preview', 'o3-mini'
+          ],
           enabled: false,
         },
         {
@@ -200,7 +206,23 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'gemini',
           baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
           apiKey: '',
-          models: ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+          models: [
+            'gemini-3.1-flash-image-preview',
+            'gemini-3.1-pro-preview',
+            'gemini-3-flash-preview',
+            'gemini-3-pro-image-preview',
+            'gemini-2.5-flash',
+            'gemini-2.5-pro',
+            'gemini-2.5-flash-image-hd',
+            'gemini-2.5-flash-lite',
+            'gemini-2.5-flash-nothinking',
+            'gemini-2.0-flash-exp',
+            'gemini-2.0-flash-thinking',
+            'gemini-1.5-pro',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro-001',
+            'gemini-1.5-flash-001'
+          ],
           enabled: false,
         },
       ],
@@ -246,7 +268,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setTheme: (theme) => set({ theme }),
       updateSettings: (settings) => set((state) => ({ ...state, ...settings })),
-      
+
       updateProviderConfig: (providerId, updates) => set((state) => {
         const updatedProviders = state.providers.map(p =>
           p.id === providerId ? { ...p, ...updates } : p
@@ -347,7 +369,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 8, // v0.5.2: Add Gemini provider, update Zhipu GLM-5.1 and Kimi K2.6
+      version: 12, // v0.5.6: Add Gemini 3.1/3 series models
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -395,7 +417,75 @@ export const useSettingsStore = create<SettingsState>()(
         enableTypewriterEffect: state.enableTypewriterEffect,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 8`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 12`);
+
+        // v0.5.6: 版本 11 -> 12：添加 Gemini 3.1/3 系列模型
+        if (version < 12 && persistedState.providers) {
+          const geminiProvider = persistedState.providers.find((p: any) => p.id === 'gemini');
+          if (geminiProvider && geminiProvider.models) {
+            const newModels = [
+              'gemini-3.1-flash-image-preview',
+              'gemini-3.1-pro-preview',
+              'gemini-3-flash-preview',
+              'gemini-3-pro-image-preview',
+              'gemini-2.5-flash',
+              'gemini-2.5-pro',
+              'gemini-2.5-flash-image-hd',
+              'gemini-2.5-flash-lite',
+              'gemini-2.5-flash-nothinking',
+              'gemini-2.0-flash-exp',
+              'gemini-2.0-flash-thinking',
+              'gemini-1.5-pro',
+              'gemini-1.5-flash',
+              'gemini-1.5-pro-001',
+              'gemini-1.5-flash-001',
+              'gemini-pro',
+              'gemini-flash'
+            ];
+            // 合并新旧模型，去重
+            geminiProvider.models = Array.from(new Set([...newModels, ...geminiProvider.models]));
+            console.log('[SettingsStore] Updated Gemini models with 3.1/3 series:', geminiProvider.models);
+          }
+        }
+
+        // v0.5.4: 版本 9 -> 10：添加 Gemini 第三方 API 常用模型
+        if (version < 10 && persistedState.providers) {
+          const geminiProvider = persistedState.providers.find((p: any) => p.id === 'gemini');
+          if (geminiProvider && geminiProvider.models) {
+            const newModels = [
+              'gemini-pro',
+              'gemini-flash',
+              'gemini-2.5-pro-exp',
+              'gemini-2.0-flash-exp',
+              'gemini-2.0-flash-thinking-exp',
+              'gemini-exp-1206',
+              'gemini-1.5-pro',
+              'gemini-1.5-flash',
+              'gemini-1.5-pro-001',
+              'gemini-1.5-flash-001'
+            ];
+            // 合并新旧模型，去重
+            geminiProvider.models = Array.from(new Set([...newModels, ...geminiProvider.models]));
+            console.log('[SettingsStore] Updated Gemini models with third-party names:', geminiProvider.models);
+          }
+        }
+
+        // v0.5.3: 版本 8 -> 9：添加 GPT-5 系列和最新 OpenAI 模型
+        if (version < 9 && persistedState.providers) {
+          const openaiProvider = persistedState.providers.find((p: any) => p.id === 'openai');
+          if (openaiProvider && openaiProvider.models) {
+            const newModels = [
+              'gpt-5.4', 'gpt-5.2', 'gpt-5.1', 'gpt-5',
+              'gpt-4o', 'gpt-4o-2024-11-20', 'gpt-4o-2024-08-06', 'gpt-4o-mini',
+              'gpt-4-turbo', 'gpt-4',
+              'gpt-3.5-turbo',
+              'o1', 'o1-mini', 'o1-preview', 'o3-mini'
+            ];
+            // 合并新旧模型，去重
+            openaiProvider.models = Array.from(new Set([...newModels, ...openaiProvider.models]));
+            console.log('[SettingsStore] Updated OpenAI models with GPT-5 series:', openaiProvider.models);
+          }
+        }
 
         // v0.5.2: 版本 7 -> 8：添加 Gemini 提供商，更新 Zhipu 和 Kimi 模型列表
         if (version < 8 && persistedState.providers) {
@@ -499,7 +589,7 @@ export const useSettingsStore = create<SettingsState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           console.log('[SettingsStore] ✅ Hydration complete');
-          
+
           // 确保 agentApprovalMode 有值
           if (!state.agentApprovalMode) {
             state.agentApprovalMode = 'session-once';

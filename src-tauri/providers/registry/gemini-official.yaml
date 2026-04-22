@@ -1,4 +1,4 @@
-# Google Gemini Provider Specification
+# Google Gemini Provider Specification (Third-party API)
 metadata:
   id: gemini-official
   name: Google Gemini
@@ -8,32 +8,92 @@ api_spec:
   base_url: https://generativelanguage.googleapis.com/v1beta
   endpoint: /models/{model}:streamGenerateContent
   auth:
-    type: query_param
-    param_name: key
+    type: bearer_header
+    header_name: x-goog-api-key
+    format: "{key}"
 
 request_format:
   type: gemini_custom
   messages_wrapper: contents
-  system_prompt_handling: prefix_in_user
-  system_prompt_prefix: "System: "
-  content_wrapper: parts
-  role_mapping:
-    user: user
-    assistant: model
-    system: user
+  system_prompt_handling: separate_message
+  tools_field: tools
 
 response_format:
   type: sse
   stream_parser: gemini_sse
-  content_extraction: parts.0.text
+  content_extraction: candidates.0.content.parts.0.text
 
 models:
+  # Gemini 3.1 系列（第三方 API）
+  - id: gemini-3.1-flash-image-preview
+    name: Gemini 3.1 Flash Image Preview
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party, experimental]
+  - id: gemini-3.1-pro-preview
+    name: Gemini 3.1 Pro Preview
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party, experimental]
+  # Gemini 3 系列（第三方 API）
+  - id: gemini-3-flash-preview
+    name: Gemini 3 Flash Preview
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party, experimental]
+  - id: gemini-3-pro-image-preview
+    name: Gemini 3 Pro Image Preview
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party, experimental]
+  # Gemini 2.5 系列（第三方 API）
+  - id: gemini-2.5-flash
+    name: Gemini 2.5 Flash
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party]
+  - id: gemini-2.5-pro
+    name: Gemini 2.5 Pro
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party]
+  - id: gemini-2.5-flash-image-hd
+    name: Gemini 2.5 Flash Image HD
+    context_tokens: 1000000
+    capabilities: [streaming, tools, vision]
+    cost_per_1k_tokens: 0
+    tags: [third-party]
+  - id: gemini-2.5-flash-lite
+    name: Gemini 2.5 Flash Lite
+    context_tokens: 1000000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0
+    tags: [third-party]
+  - id: gemini-2.5-flash-nothinking
+    name: Gemini 2.5 Flash No Thinking
+    context_tokens: 1000000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0
+    tags: [third-party]
+  # Gemini 2.0 系列
   - id: gemini-2.0-flash-exp
     name: Gemini 2.0 Flash Experimental
     context_tokens: 1000000
     capabilities: [streaming]
     cost_per_1k_tokens: 0
-    tags: [free, experimental]
+    tags: [experimental]
+  - id: gemini-2.0-flash-thinking
+    name: Gemini 2.0 Flash Thinking
+    context_tokens: 1000000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0
+  # Gemini 1.5 系列
   - id: gemini-1.5-pro
     name: Gemini 1.5 Pro
     context_tokens: 2800000
@@ -44,6 +104,17 @@ models:
     context_tokens: 2800000
     capabilities: [streaming]
     cost_per_1k_tokens: 0.000075
+  - id: gemini-1.5-pro-001
+    name: Gemini 1.5 Pro 001
+    context_tokens: 2800000
+    capabilities: [tools, streaming, vision]
+    cost_per_1k_tokens: 0.0035
+  - id: gemini-1.5-flash-001
+    name: Gemini 1.5 Flash 001
+    context_tokens: 2800000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.000075
+  
 
 error_mapping:
   401: authentication_error
