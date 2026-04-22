@@ -420,6 +420,24 @@ export const useThreadStore = create<ThreadStore>()(
         if (state) {
           console.log('[ThreadStore] ✅ Hydration complete, activeThreadId:', state.activeThreadId);
           state.syncState({ isHydrating: false });
+
+          // 🔥 FIX: hydration 后同步 chatStore.currentThreadId
+          // 确保 currentThreadId 与 activeThreadId 保持一致
+          if (state.activeThreadId) {
+            // 延迟执行，确保 chatStore 已经初始化
+            setTimeout(async () => {
+              try {
+                const { useChatStore } = await import('./useChatStore');
+                const currentThreadId = useChatStore.getState().currentThreadId;
+                if (currentThreadId !== state.activeThreadId) {
+                  console.log('[ThreadStore] 🔀 Hydration: 同步 chatStore.currentThreadId 到 activeThreadId:', state.activeThreadId.substring(0, 20));
+                  useChatStore.setState({ currentThreadId: state.activeThreadId });
+                }
+              } catch (e) {
+                console.warn('[ThreadStore] ⚠️ 同步 chatStore.currentThreadId 失败:', e);
+              }
+            }, 50);
+          }
         } else {
           setTimeout(() => {
             useThreadStore.setState({ isHydrating: false });

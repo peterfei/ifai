@@ -189,6 +189,37 @@ export class MessageQueue {
         hasCorrelationId: !!(result as any)?.correlationId,
       });
 
+      // 🔥 FIX: 自动更新线程标题 - 如果当前线程的标题是默认标题，根据消息内容更新
+      // 因为 MessageQueue 绕过了 chatStore.sendMessage()，所以需要在这里单独处理标题更新
+      try {
+        const { useThreadStore } = await import('../threadStore');
+        const threadStore = useThreadStore.getState();
+        const threadId = threadStore.activeThreadId;
+        const currentThread = threadId ? threadStore.getThread(threadId) : null;
+
+        console.log('[MessageQueue] 🔍 标题更新检查:', {
+          threadId,
+          hasThread: !!currentThread,
+          currentTitle: currentThread?.title,
+          content: typeof nextMessage.content === 'string' ? nextMessage.content : 'Array'
+        });
+
+        if (currentThread) {
+          const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+          console.log('[MessageQueue] 🔍 是否默认标题:', isDefaultTitle);
+          if (isDefaultTitle) {
+            console.log('[MessageQueue] 🔥 调用 updateThreadTitleFromMessage');
+            threadStore.updateThreadTitleFromMessage(threadId, nextMessage.content);
+          } else {
+            console.log('[MessageQueue] ⏭️ 跳过标题更新（非默认标题）');
+          }
+        } else {
+          console.warn('[MessageQueue] ⚠️ 无法找到线程进行标题更新, threadId:', threadId);
+        }
+      } catch (err) {
+        console.error('[MessageQueue] ❌ 标题更新失败:', err);
+      }
+
       // 🔥 检查是否需要调用 generateResponse
       // 如果 result.skipped 为真，说明是工作流消息，工作流会自己处理响应
       // 如果为假，说明是普通消息，需要调用 generateResponse 生成 AI 回复

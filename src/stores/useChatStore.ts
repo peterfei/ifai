@@ -143,12 +143,25 @@ export const useChatStore = create<ChatStore>()(
             const threadStore = useThreadStore.getState();
             // 🔥 FIX: 使用 activeThreadId 作为后备，确保即使 currentThreadId 不同步也能找到正确的线程
             const threadId = get().currentThreadId || threadStore.activeThreadId;
+            console.log('[ChatStore] 🔍 标题更新检查:', {
+              currentThreadId: get().currentThreadId,
+              activeThreadId: threadStore.activeThreadId,
+              threadId,
+              content: typeof content === 'string' ? content : 'Array'
+            });
             const currentThread = threadId ? threadStore.getThread(threadId) : null;
+            console.log('[ChatStore] 🔍 找到线程:', !!currentThread, currentThread?.title);
             if (currentThread) {
               const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
+              console.log('[ChatStore] 🔍 是否默认标题:', isDefaultTitle);
               if (isDefaultTitle) {
+                console.log('[ChatStore] 🔥 调用 updateThreadTitleFromMessage');
                 threadStore.updateThreadTitleFromMessage(threadId, content as string);
+              } else {
+                console.log('[ChatStore] ⏭️ 跳过标题更新（非默认标题）');
               }
+            } else {
+              console.warn('[ChatStore] ⚠️ 无法找到线程进行标题更新, threadId:', threadId);
             }
 
             // 🏆 物理对齐：使用同一个 correlationId 启动生成
