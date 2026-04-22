@@ -229,13 +229,17 @@ impl IntelligenceRouter {
 
         // 检查明确的工具调用关键词（文件操作类）
         let tool_keywords = [
+            // 文件操作
             "读取文件", "写入文件", "创建文件", "删除文件", "搜索", "查找",
             "read file", "write file", "create file", "delete file", "search", "find",
             "打开", "关闭", "列出", "显示",
             "open", "close", "list", "show",
-            // 添加更多关键词
             "explore", "scan", "查看", "目录",
             "folder", "dir", "ls",
+            // 🔥 命令执行相关（v0.5.0 新增）
+            "执行", "运行", "命令", "command", "bash", "shell",
+            "execute", "run", "terminal",
+            "git", "npm", "yarn", "pnpm", "pip", "cargo",
         ];
 
         tool_keywords.iter().any(|kw| text_lower.contains(kw))

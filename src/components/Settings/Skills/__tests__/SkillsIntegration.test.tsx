@@ -16,6 +16,87 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+// Mock react-i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      // 简单的翻译映射，支持测试
+      const translations: Record<string, string> = {
+        'skillsManagement.title': '技能中心',
+        'skillsManagement.subtitle': '统一管理 AI 技能插件与安装流程。',
+        'skillsManagement.refresh': '刷新',
+        'skillsManagement.grid': '网格',
+        'skillsManagement.list': '列表',
+        'skillsManagement.searchPlaceholder': '搜索技能名称、ID 或描述...',
+        'skillsManagement.openInstaller': '打开技能市场',
+        'skillsManagement.filter': '筛选',
+        'skillsManagement.sortLabel': '排序：',
+        'skillsManagement.filterState': '状态：',
+        'skillsManagement.filterTags': '标签：',
+        'skillsManagement.showLessTags': '收起',
+        'skillsManagement.showMoreTags': '+{{count}} 个',
+        'skillsManagement.clearAllFilters': '清除所有筛选',
+        'skillsManagement.popularTags': '热门标签',
+        'skillsManagement.batchSelected': '已选择 {{count}} 个技能',
+        'skillsManagement.batchActivate': '批量激活',
+        'skillsManagement.clearSelection': '取消选择',
+        'skillsManagement.loading': '正在加载技能...',
+        'skillsManagement.loadFailedTitle': '加载失败',
+        'skillsManagement.retry': '重试',
+        'skillsManagement.emptyTitle': '未发现可用技能',
+        'skillsManagement.emptyDescription': '安装内置示例技能来快速开始。',
+        'skillsManagement.installSample': '安装示例技能',
+        'skillsManagement.noSkillsFound': '未找到技能',
+        'skillsManagement.noMatchingSkills': '没有匹配的技能',
+        'skillsManagement.activeSkills': '激活',
+        'skillsManagement.installedSkills': '已安装',
+        'skillsManagement.availableSkills': '可用',
+        'skillState.active': '已激活',
+        'skillState.installed': '已安装',
+        'skillState.available': '可用',
+        'skillState.error': '错误',
+        'skillState.installing': '安装中',
+        'skillState.uninstalling': '卸载中',
+        'skillState.updating': '更新中',
+        'skillDetails.title': '技能详情',
+        'skillDetails.version': '版本',
+        'skillDetails.author': '作者',
+        'skillDetails.state': '状态',
+        'skillDetails.dependencies': '依赖',
+        'skillDetails.compatibility': '兼容性',
+        'skillDetails.tags': '标签',
+        'skillDetails.description': '描述',
+        'skillDetails.close': '关闭',
+        'skillDetails.edit': '编辑',
+        'skillDetails.uninstall': '卸载',
+        'skillDetails.activate': '激活',
+        'skillDetails.deactivate': '停用',
+        // SkillsSettings 相关
+        'skillsSettings.title': '技能设置',
+        'skillsSettings.emptyTitle': '未发现可用技能',
+        'skillsSettings.emptyDescription': '安装内置示例技能来快速开始。',
+        'skillsSettings.installDemo': '安装示例技能',
+        'skillsSettings.installing': '安装中...',
+        'skillsSettings.browseLibrary': '浏览技能库',
+        'skillsSettings.demoInstallSuccess': '示例技能安装成功',
+        'skillsSettings.demoInstalledDescription': '示例技能已成功安装到您的项目中',
+        'skillsSettings.installFailed': '安装失败',
+        'skillsSettings.installSuccess': '安装成功',
+        'skillsSettings.installedDescription': '技能 {{skillId}} 已成功安装',
+        'skillsSettings.skillInstallFailed': '技能安装失败',
+        'skillsSettings.noProjectPath': '未打开项目',
+        'skillsSettings.openProjectHint': '请先打开一个项目再安装技能',
+      };
+      return translations[key] || key;
+    },
+    i18n: {
+      language: 'zh-CN',
+      changeLanguage: vi.fn(),
+    },
+  }),
+  initReactI18next: { init: vi.fn(), type: '3rdParty' },
+}));
+
 // Mock the file store
 vi.mock('@/stores/fileStore', () => ({
   useFileStore: {
@@ -406,9 +487,17 @@ describe('技能系统集成测试', () => {
   });
 
   describe('状态管理测试', () => {
-    it('应该正确显示技能状态', () => {
+    it('应该正确显示技能状态', async () => {
       render(<SkillsManagement />);
-      expect(screen.getByText('已激活')).toBeInTheDocument();
+
+      // 先点击"筛选"按钮展开筛选面板
+      const filterButton = screen.getByText('筛选');
+      fireEvent.click(filterButton);
+
+      // 现在应该能看到状态选项（使用 getAllByText 因为可能有多个匹配）
+      expect(screen.getAllByText('已激活').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('已安装').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('未激活').length).toBeGreaterThan(0);
     });
 
     it('应该正确更新状态过滤器', async () => {
