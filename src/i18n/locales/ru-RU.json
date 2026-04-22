@@ -1,642 +1,642 @@
 {
   "titlebar": {
-    "toggleSidebar": "切换侧边栏",
-    "codeAnalysis": "代码分析 (检测代码异味)",
-    "toggleTheme": "切换主题",
-    "createWindowFailed": "创建新窗口失败",
-    "folderAdded": "已添加文件夹：{{name}}",
-    "folderAddFailed": "添加文件夹失败：{{error}}",
-    "workspaceSaved": "工作区已保存到：{{path}}",
-    "workspaceSaveFailed": "保存工作区失败：{{error}}",
-    "workspaceLoaded": "工作区已加载：{{count}} 个文件夹",
-    "workspaceOpenFailed": "打开工作区失败：{{error}}"
+    "toggleSidebar": "Переключить боковую панель",
+    "codeAnalysis": "Анализ кода (обнаружение запахов кода)",
+    "toggleTheme": "Переключить тему",
+    "createWindowFailed": "Не удалось создать новое окно",
+    "folderAdded": "Папка добавлена: {{name}}",
+    "folderAddFailed": "Не удалось добавить папку: {{error}}",
+    "workspaceSaved": "Рабочая область сохранена в: {{path}}",
+    "workspaceSaveFailed": "Не удалось сохранить рабочую область: {{error}}",
+    "workspaceLoaded": "Рабочая область загружена: {{count}} папка",
+    "workspaceOpenFailed": "Не удалось открыть рабочую область: {{error}}"
   },
   "errorBoundary": {
-    "title": "应用崩溃了",
-    "description": "抱歉，应用遇到了一个错误。请尝试以下操作：",
-    "reset": "重置应用",
-    "details": "错误详情（开发模式）",
+    "title": "Приложение аварийно завершилось",
+    "description": "К сожалению, в приложении возникла ошибка. Пожалуйста, попробуйте следующее:",
+    "reset": "Сбросить приложение",
+    "details": "Подробности ошибки (режим разработки)",
     "steps": {
-      "reset": "点击下方按钮重置应用",
-      "refresh": "如果问题持续，请刷新页面",
-      "console": "检查控制台获取详细错误信息"
+      "reset": "Нажмите кнопку ниже для сброса приложения",
+      "refresh": "Если проблема сохраняется, обновите страницу",
+      "console": "Проверьте консоль для получения подробной информации об ошибке"
     }
   },
   "menu": {
-    "file": "文件",
-    "help": "帮助",
-    "newFile": "新建文件",
-    "newWindow": "新建窗口",
-    "openFile": "打开文件",
-    "save": "保存",
-    "saveAs": "另存为",
-    "addFolderToWorkspace": "添加文件夹到工作区",
-    "saveWorkspaceAs": "工作区另存为...",
-    "openWorkspace": "打开工作区..."
+    "file": "Файл",
+    "help": "Справка",
+    "newFile": "Создать файл",
+    "newWindow": "Новое окно",
+    "openFile": "Открыть файл",
+    "save": "Сохранить",
+    "saveAs": "Сохранить как",
+    "addFolderToWorkspace": "Добавить папку в рабочую область",
+    "saveWorkspaceAs": "Сохранить рабочую область как...",
+    "openWorkspace": "Открыть рабочую область..."
   },
   "approvalToolbar": {
-    "previewing": "正在预览 AI 变更",
-    "reject": "拒绝",
-    "accept": "接受修改",
-    "close": "关闭预览",
-    "approved": "已批准变更",
-    "rejected": "已拒绝变更",
-    "messageNotFound": "无法定位原始消息"
+    "previewing": "Предпросмотр изменений ИИ",
+    "reject": "Отклонить",
+    "accept": "Применить изменения",
+    "close": "Закрыть предпросмотр",
+    "approved": "Изменения одобрены",
+    "rejected": "Изменения отклонены",
+    "messageNotFound": "Не удаётся найти исходное сообщение"
   },
   "diffEditorModal": {
-    "title": "代码修改预览",
-    "addedLines": "+{{count}} 行",
-    "deletedLines": "-{{count}} 行",
-    "reject": "拒绝",
-    "accept": "接受修改",
-    "applied": "已应用代码修改"
+    "title": "Предпросмотр изменений кода",
+    "addedLines": "+{{count}} строк",
+    "deletedLines": "-{{count}} строк",
+    "reject": "Отклонить",
+    "accept": "Применить изменения",
+    "applied": "Изменения кода применены"
   },
   "sidebar": {
-    "explorer": "资源管理器",
-    "search": "搜索",
-    "snippets": "代码片段管理",
-    "tasks": "任务控制",
-    "tools": "工具浏览器",
-    "prompts": "提示词管理",
-    "promptsCommunityReadOnly": "提示词管理（社区版 - 只读）",
-    "projectFallback": "项目",
-    "skills": "技能"
+    "explorer": "Проводник",
+    "search": "Поиск",
+    "snippets": "Управление фрагментами кода",
+    "tasks": "Управление задачами",
+    "tools": "Обозреватель инструментов",
+    "prompts": "Управление промптами",
+    "promptsCommunityReadOnly": "Управление промптами (Community — только чтение)",
+    "projectFallback": "Проект",
+    "skills": "Навыки"
   },
   "editor": {
-    "welcome": "IfAI 编辑器",
+    "welcome": "Редактор IfAI",
     "shortcuts": {
-      "showCommands": "显示所有命令",
-      "goToFile": "前往文件",
-      "findInFiles": "全局搜索",
-      "toggleChat": "切换若爱助手",
-      "inlineEdit": "内联 AI 编辑",
-      "addCursorAbove": "向上添加光标",
-      "addCursorBelow": "向下添加光标",
-      "addCursorToNextFindMatch": "添加下一个匹配",
-      "selectAllOccurrences": "选择所有匹配"
+      "showCommands": "Показать все команды",
+      "goToFile": "Перейти к файлу",
+      "findInFiles": "Глобальный поиск",
+      "toggleChat": "Переключить помощника Ruai",
+      "inlineEdit": "Встроенное редактирование ИИ",
+      "addCursorAbove": "Добавить курсор выше",
+      "addCursorBelow": "Добавить курсор ниже",
+      "addCursorToNextFindMatch": "Добавить следующее совпадение",
+      "selectAllOccurrences": "Выбрать все совпадения"
     },
     "contextMenu": {
-      "explain": "若爱: 解释代码",
-      "refactor": "若爱: 重构代码"
+      "explain": "Ruai: Объяснить код",
+      "refactor": "Ruai: Рефакторинг кода"
     },
     "inlineWidget": {
-      "title": "AI 编辑",
-      "placeholder": "使用若爱编辑 (例如 '添加注释')...",
-      "processing": "IfAI 正在处理...",
-      "submit": "提交",
-      "cancel": "取消",
+      "title": "AI Редактировать",
+      "placeholder": "Используйте Ruai для редактирования (например, \"добавить комментарий\")...",
+      "processing": "IfAI обрабатывает...",
+      "submit": "Отправить",
+      "cancel": "Отмена",
       "prompt": {
-        "title": "内联 AI 任务",
-        "selectedCode": "用户选中的目标代码:",
-        "surroundingContext": "周围上下文 (供参考):",
-        "cursorContext": "光标周围上下文:",
-        "directive1": "你是一个行内编辑代理。你的目标是直接修改文件中的代码。",
-        "directive2": "你必须使用合适的工具（如 `agent_write_file` 或 `agent_replace_content`）来应用所请求的更改。",
-        "directive3": "不要只在聊天回复中提供建议或代码块。你的回复应侧重于你正在使用工具进行的操作。",
-        "directive4": "手术刀式修改：你必须严格仅修改用户选中的代码块。严禁修改选中范围之外的任何字符，包括空格、缩进或其他方法。",
-        "directive5": "保持完整性：如果需要读取更多文件来理解上下文，请先执行读取，然后再应用更改。但在应用更改时，禁止对未请求修改的区域产生任何副作用。"
+        "title": "Встроенная задача ИИ",
+        "selectedCode": "Выбранный пользователем код:",
+        "surroundingContext": "Контекст (для справки):",
+        "cursorContext": "Контекст вокруг курсора:",
+        "directive1": "Вы агент встроенного редактирования. Ваша цель - напрямую изменить код в файле.",
+        "directive2": "Вы должны использовать подходящий инструмент (например, `agent_write_file` или `agent_replace_content`) для применения запрошенных изменений.",
+        "directive3": "Не предоставляйте только предложения или блоки кода в ответе чата. Ваш ответ должен фокусироваться на операциях, которые вы выполняете с помощью инструментов.",
+        "directive4": "Точное редактирование: вы должны строго изменять только выбранный пользователем блок кода. Категорически запрещено изменять любые символы за пределами выделения, включая пробелы, отступы или другие методы.",
+        "directive5": "Сохраняйте целостность: если необходимо прочитать больше файлов для понимания контекста, сначала выполните чтение, а затем применяйте изменения. Но при применении изменений запрещено создавать какие-либо побочные эффекты в областях, где изменения не запрашивались."
       }
     },
     "inlineDiff": {
-      "title": "AI 构思的代码建议",
-      "hint": "ESC 退出 • Cmd+K 应用"
+      "title": "Предложение кода от ИИ",
+      "hint": "ESC Выход • Cmd+K Применить"
     },
-    "splitPane": "分屏",
-    "closePane": "关闭分屏",
-    "closeOtherTabs": "关闭其它",
-    "closeAllTabs": "关闭所有",
-    "splitRight": "向右分屏",
-    "splitDown": "向下分屏",
+    "splitPane": "Разделить экран",
+    "closePane": "Закрыть разделение экрана",
+    "closeOtherTabs": "Закрыть другие",
+    "closeAllTabs": "Закрыть все",
+    "splitRight": "Разделить вправо",
+    "splitDown": "Разделить вниз",
     "demo": {
-      "complete": "Agent 2.0 演示任务圆满完成！"
+      "complete": "Демонстрационная задача Agent 2.0 успешно завершена!"
     },
     "inlineEdit": {
-      "applied": "代码修改已应用"
+      "applied": "Изменения кода применены"
     }
   },
   "fileTree": {
-    "noFolderOpen": "未打开文件夹",
-    "openFolder": "打开文件夹",
-    "orClickFolderIcon": "或点击上方标题栏中的文件夹图标",
-    "addFolder": "添加文件夹",
-    "saveWorkspaceAs": "另存工作区为...",
-    "openWorkspace": "打开工作区...",
-    "workspace": "工作区",
-    "removeFolder": "移除文件夹",
-    "removeFolderConfirm": "确定要将文件夹“{{name}}”从工作区移除吗？",
-    "folderRemoved": "已移除文件夹：{{name}}",
-    "folderRemoveFailed": "移除文件夹失败：{{error}}",
-    "switchFolderFailed": "切换文件夹失败：{{error}}",
-    "openNodeFailed": "打开 {{name}} 失败：{{error}}"
+    "noFolderOpen": "Папка не открыта",
+    "openFolder": "Открыть папку",
+    "orClickFolderIcon": "или нажмите на значок папки в верхней панели заголовка",
+    "addFolder": "Добавить папку",
+    "saveWorkspaceAs": "Сохранить рабочую область как...",
+    "openWorkspace": "Открыть рабочую область...",
+    "workspace": "Рабочая область",
+    "removeFolder": "Убрать папку",
+    "removeFolderConfirm": "ОК要将Файл夹“{{name}}”从Рабочая областьУбрать吗？",
+    "folderRemoved": "Папка убрана: {{name}}",
+    "folderRemoveFailed": "Не удалось убрать папку: {{error}}",
+    "switchFolderFailed": "Не удалось переключить папку: {{error}}",
+    "openNodeFailed": "Не удалось открыть {{name}}: {{error}}"
   },
   "chat": {
-    "title": "若爱助手",
-    "settings": "设置",
+    "title": "Помощник Ruai",
+    "settings": "Настройки",
     "apiKeyLabel": "DeepSeek API 密钥",
-    "autocompleteLabel": "AI 代码补全",
-    "saveAndStart": "保存并开始对话",
-    "placeholder": "询问 DeepSeek...",
-    "errorNoKey": "请先在聊天面板设置 DeepSeek API Key"
+    "autocompleteLabel": "AI автодополнение кода",
+    "saveAndStart": "Сохранить и начать диалог",
+    "placeholder": "Спросить DeepSeek...",
+    "errorNoKey": "Сначала установите DeepSeek API ключ в панели чата"
   },
   "search": {
-    "title": "搜索",
-    "placeholder": "搜索",
-    "noResults": "无结果",
-    "openFolder": "请打开文件夹以搜索文件",
-    "summary": "{{files}} 个文件中共 {{results}} 条结果",
-    "clear": "清除",
-    "submit": "搜索",
-    "options": "选项",
-    "optionsTitle": "搜索选项",
-    "caseSensitive": "区分大小写",
-    "useRegex": "正则表达式",
-    "history": "历史",
-    "historyTitle": "搜索历史",
-    "recentSearches": "最近搜索",
-    "noHistory": "暂无搜索历史",
-    "noHistoryHint": "开始搜索后会在这里显示历史记录",
-    "regexTip": "提示：请检查正则表达式语法",
+    "title": "Поиск",
+    "placeholder": "Поиск",
+    "noResults": "Нет результатов",
+    "openFolder": "Откройте папку для поиска файлов",
+    "summary": "{{results}} результатов в {{files}} файлах",
+    "clear": "Очистить",
+    "submit": "Поиск",
+    "options": "Параметры",
+    "optionsTitle": "ПоискОпции",
+    "caseSensitive": "С учётом регистра",
+    "useRegex": "Регулярное выражение",
+    "history": "История",
+    "historyTitle": "История поиска",
+    "recentSearches": "Недавние поиски",
+    "noHistory": "История поиска пуста",
+    "noHistoryHint": "История будет отображаться здесь после начала поиска",
+    "regexTip": "Подсказка: проверьте синтаксис регулярного выражения",
     "time": {
-      "justNow": "刚刚",
-      "minutesAgo": "{{count}}分钟前",
-      "hoursAgo": "{{count}}小时前",
-      "daysAgo": "{{count}}天前"
+      "justNow": "Только что",
+      "minutesAgo": "{{count}} мин. назад",
+      "hoursAgo": "{{count}} ч. назад",
+      "daysAgo": "{{count}} дн. назад"
     }
   },
   "cacheStatsPanel": {
-    "title": "性能监控",
-    "cacheStats": "缓存统计",
-    "hitRate": "命中率",
-    "cacheSize": "缓存大小",
-    "hits": "命中次数",
-    "misses": "未命中",
-    "performanceMetrics": "性能指标",
-    "count": "{{count}} 次",
-    "average": "平均",
-    "min": "最小",
-    "max": "最大",
-    "instructionsTitle": "测试方法",
+    "title": "Мониторинг производительности",
+    "cacheStats": "Статистика кэша",
+    "hitRate": "Коэффициент попадания",
+    "cacheSize": "Размер кэша",
+    "hits": "Количество попаданий",
+    "misses": "Промахи",
+    "performanceMetrics": "Показатели производительности",
+    "count": "{{count}} раз",
+    "average": "Среднее",
+    "min": "Мин.",
+    "max": "Макс.",
+    "instructionsTitle": "Методика тестирования",
     "instructions": {
-      "expandCollapse": "展开和收起目录，观察缓存命中率变化",
-      "repeatAccess": "重复访问同一目录，验证响应是否更快",
-      "observeLatency": "观察不同操作的耗时变化"
+      "expandCollapse": "Разверните и сверните каталоги, наблюдайте за изменением коэффициента попадания в кэш",
+      "repeatAccess": "Повторно访问 тот же каталог, проверьте, быстрее ли ответ",
+      "observeLatency": "Наблюдайте за изменением времени выполнения различных операций"
     },
     "operations": {
-      "readDirectory": "读取目录",
-      "expandDirectory": "展开目录",
-      "gitStatusUpdate": "更新 Git 状态",
-      "refreshTree": "刷新目录树"
+      "readDirectory": "Читать каталог",
+      "expandDirectory": "Развернуть каталог",
+      "gitStatusUpdate": "Обновить статус Git",
+      "refreshTree": "Обновить дерево каталогов"
     }
   },
   "performancePanel": {
-    "title": "性能监控",
-    "expand": "展开性能监控",
-    "minimize": "最小化性能监控",
+    "title": "Мониторинг производительности",
+    "expand": "Развернуть мониторинг производительности",
+    "minimize": "Минимизировать мониторинг производительности",
     "metrics": {
       "fps": "FPS",
-      "memory": "内存",
+      "memory": "Память",
       "tokens": "Token"
     }
   },
   "performanceMonitor": {
-    "title": "性能",
+    "title": "Производительность",
     "fps": "FPS",
-    "avgFps": "平均 FPS"
+    "avgFps": "Среднее FPS"
   },
   "storageQuotaBanner": {
-    "title": "本地存储空间即将占满（已用 {{percentage}}%）。",
-    "description": "请尽快迁移历史记录或清理缓存，降低数据丢失风险。",
-    "dismiss": "关闭存储告警"
+    "title": "Местное хранилище почти заполнено (использовано {{percentage}}%).",
+    "description": "Пожалуйста, перенесите историю или очистите кэш как можно скорее, чтобы снизить риск потери данных.",
+    "dismiss": "Закрыть предупреждение о хранилище"
   },
   "terminal": {
-    "title": "终端",
-    "debugWithAI": "交给 AI 排查",
-    "processExited": "进程已退出",
-    "ptyError": "终端错误：{{error}}",
-    "createFailed": "创建终端失败：{{error}}",
-    "debugPrompt": "请帮我修复以下终端错误：\n\n```text\n{{error}}\n```\n\n请分析错误原因，并给出可执行的修复建议。"
+    "title": "Терминал",
+    "debugWithAI": "Передать ИИ для диагностики",
+    "processExited": "Процесс завершён",
+    "ptyError": "Ошибка терминала: {{error}}",
+    "createFailed": "Не удалось создать терминал: {{error}}",
+    "debugPrompt": "Пожалуйста, помогите исправить следующую ошибку терминала:\n\n```text\n{{error}}\n```\n\nПроанализируйте причину ошибки и дайте выполнимые рекомендации по исправлению."
   },
   "taskMonitor": {
-    "title": "任务控制",
-    "filter": "筛选",
-    "all": "全部",
-    "searchPlaceholder": "快速过滤...",
-    "noTasks": "暂无任务记录",
-    "listView": "列表视图",
-    "timelineView": "时间线视图",
-    "processing": "处理中...",
-    "clearCompleted": "清除已完成任务",
+    "title": "Управление задачами",
+    "filter": "Фильтр",
+    "all": "Все",
+    "searchPlaceholder": "Быстрый фильтр...",
+    "noTasks": "Нет записей о задачах",
+    "listView": "Список",
+    "timelineView": "Временная шкала",
+    "processing": "Обработка...",
+    "clearCompleted": "Очистить выполненные задачи",
     "summary": {
-      "runningShort": "运行",
-      "pendingShort": "等待",
-      "successShort": "完成",
-      "failedShort": "失败"
+      "runningShort": "Запуск",
+      "pendingShort": "Ожидание",
+      "successShort": "Готово",
+      "failedShort": "Ошибка"
     },
     "card": {
-      "pause": "暂停任务",
-      "resume": "继续任务",
-      "cancel": "取消任务",
-      "retry": "重试任务",
-      "remove": "移除任务",
-      "logs": "实时日志",
-      "live": "实时",
-      "progressBar": "任务进度"
+      "pause": "Приостановить задачу",
+      "resume": "Продолжить задачу",
+      "cancel": "ОтменаЗадача",
+      "retry": "Повторить задачу",
+      "remove": "УбратьЗадача",
+      "logs": "Журнал в реальном времени",
+      "live": "Реальное время",
+      "progressBar": "Прогресс задачи"
     },
     "metrics": {
-      "remaining": "剩余 {{duration}}",
-      "bytesPerSecond": "{{value}} 字节/秒",
-      "kilobytesPerSecond": "{{value}} KB/秒",
-      "megabytesPerSecond": "{{value}} MB/秒",
-      "filesPerSecond": "{{value}} 文件/秒",
-      "itemsPerSecond": "{{value}} 项/秒"
+      "remaining": "Осталось {{duration}}",
+      "bytesPerSecond": "{{value}} Б/с",
+      "kilobytesPerSecond": "{{value}} KB/секунда",
+      "megabytesPerSecond": "{{value}} MB/секунда",
+      "filesPerSecond": "{{value}} Файл/секунда",
+      "itemsPerSecond": "{{value}} элементов/с"
     },
     "duration": {
-      "secondsShort": "{{count}}秒",
-      "minutesSecondsShort": "{{minutes}}分 {{seconds}}秒",
-      "hoursMinutesShort": "{{hours}}小时 {{minutes}}分"
+      "secondsShort": "{{count}}секунда",
+      "minutesSecondsShort": "{{minutes}}минута {{seconds}}секунда",
+      "hoursMinutesShort": "{{hours}} ч {{minutes}} мин"
     },
     "categories": {
-      "scan": "扫描",
-      "build": "构建",
-      "generation": "生成",
-      "transfer": "传输",
-      "analysis": "分析",
-      "test": "测试",
-      "deploy": "部署",
-      "install": "安装",
+      "scan": "Сканирование",
+      "build": "Сборка",
+      "generation": "Генерация",
+      "transfer": "Передача",
+      "analysis": "Анализ",
+      "test": "Тест",
+      "deploy": "Развертывание",
+      "install": "Установка",
       "git": "Git",
-      "format": "格式化",
-      "refactor": "重构",
-      "document": "文档",
-      "backup": "备份",
-      "cleanup": "清理",
-      "optimize": "优化",
-      "security": "安全"
+      "format": "Форматирование",
+      "refactor": "Рефакторинг",
+      "document": "Документация",
+      "backup": "Резервное копирование",
+      "cleanup": "Очистка",
+      "optimize": "Оптимизировать",
+      "security": "Безопасность"
     },
     "stats": {
-      "total": "总任务数",
-      "successRate": "成功率",
-      "completed": "已完成",
-      "failed": "失败",
-      "running": "运行中",
-      "averageDuration": "平均耗时",
-      "byStatus": "状态分布",
-      "byCategory": "按类别统计",
-      "categoryCount": "{{count}} 个任务",
-      "empty": "暂无任务统计数据"
+      "total": "Всего задач",
+      "successRate": "Успешность",
+      "completed": "Завершено",
+      "failed": "Ошибка",
+      "running": "Выполняется",
+      "averageDuration": "Среднее время",
+      "byStatus": "Распределение по статусу",
+      "byCategory": "По категориям",
+      "categoryCount": "{{count}} Задача",
+      "empty": "Нет статистики по задачам"
     },
     "status": {
-      "pending": "等待中",
-      "running": "运行中",
-      "paused": "已暂停",
-      "success": "已完成",
-      "failed": "失败",
-      "cancelled": "已取消"
+      "pending": "Ожидает",
+      "running": "Выполняется",
+      "paused": "Приостановлено",
+      "success": "Завершено",
+      "failed": "Ошибка",
+      "cancelled": "Отменено"
     }
   },
   "todoWrite": {
-    "title": "待办任务",
-    "progress": "{{completed}}/{{total}} 已完成",
+    "title": "Задачи",
+    "progress": "{{completed}}/{{total}} выполнено",
     "status": {
-      "pending": "待办",
-      "inProgress": "进行中",
-      "completed": "已完成"
+      "pending": "Ожидает",
+      "inProgress": "В процессе",
+      "completed": "Завершено"
     },
     "stats": {
-      "pending": "待办：{{count}}",
-      "inProgress": "进行中：{{count}}",
-      "completed": "已完成：{{count}}"
+      "pending": "Ожидает: {{count}}",
+      "inProgress": "В процессе: {{count}}",
+      "completed": "Выполнено: {{count}}"
     },
     "empty": {
-      "title": "暂无任务",
-      "description": "AI 可以使用 TodoWrite 工具创建任务。"
+      "title": "Нет задач",
+      "description": "ИИ может использовать инструмент TodoWrite для создания задач."
     },
     "actions": {
-      "expand": "展开任务面板",
-      "refresh": "刷新任务",
-      "clear": "清空全部任务",
-      "startTask": "开始任务",
-      "completeTask": "完成任务"
+      "expand": "Развернуть панель задач",
+      "refresh": "ОбновитьЗадача",
+      "clear": "Очистить все задачи",
+      "startTask": "Начать задачу",
+      "completeTask": "Завершить задачу"
     },
     "toast": {
-      "statusUpdated": "任务状态已更新",
-      "statusUpdateFailed": "更新任务状态失败",
-      "deleted": "任务已删除",
-      "deleteFailed": "删除任务失败",
-      "cleared": "任务列表已清空",
-      "clearFailed": "清空任务失败",
-      "refreshed": "任务列表已刷新",
-      "refreshFailed": "刷新任务失败"
+      "statusUpdated": "Статус задачи обновлён",
+      "statusUpdateFailed": "Не удалось обновить статус задачи",
+      "deleted": "Задача удалена",
+      "deleteFailed": "УдалитьЗадачаНеудача",
+      "cleared": "Список задач очищен",
+      "clearFailed": "Не удалось очистить задачи",
+      "refreshed": "Список задач обновлён",
+      "refreshFailed": "ОбновитьЗадачаНеудача"
     }
   },
   "refactoring": {
     "preview": {
-      "title": "重构预览",
+      "title": "РефакторингПредпросмотр",
       "empty": {
-        "title": "暂无重构预览",
-        "description": "执行一次重构后，可在这里预览待应用的修改。"
+        "title": "Нет предпросмотра рефакторинга",
+        "description": "После выполнения рефакторинга вы можете просмотреть изменения, подлежащие применению."
       },
       "summary": {
-        "filesChanged": "变更文件 {{count}} 个",
-        "totalEdits": "编辑 {{count}} 处"
+        "filesChanged": "ИзменениеФайл {{count}} ",
+        "totalEdits": "Правок: {{count}}"
       },
       "diff": {
-        "created": "已创建",
-        "deleted": "已删除",
-        "updated": "已更新"
+        "created": "Создано",
+        "deleted": "Удалено",
+        "updated": "Обновлено"
       },
       "labels": {
-        "original": "原始内容",
-        "updated": "更新后内容",
-        "location": "位置",
-        "emptyValue": "（空）",
-        "deletedValue": "（已删除）"
+        "original": "Исходное содержимое",
+        "updated": "Обновлённое содержимое",
+        "location": "Позиция",
+        "emptyValue": "(пусто)",
+        "deletedValue": "(удалено)"
       },
       "actions": {
-        "executing": "应用中...",
-        "apply": "应用修改"
+        "executing": "Применение...",
+        "apply": "ПрименитьИзменение"
       }
     }
   },
   "reviewHistory": {
-    "title": "审查历史记录",
-    "empty": "暂无审查历史记录",
+    "title": "История проверок",
+    "empty": "Нет истории проверок",
     "commitFallback": "N/A",
-    "issueCount": "{{count}} 个问题",
-    "moreIssues": "还有 {{count}} 个问题",
+    "issueCount": "{{count}} проблем",
+    "moreIssues": "Ещё {{count}} проблем",
     "status": {
-      "fixed": "已修复",
-      "ignored": "已忽略",
-      "pending": "待处理"
+      "fixed": "Исправлено",
+      "ignored": "Игнорируется",
+      "pending": "Ожидает"
     }
   },
   "taskTimeline": {
-    "noActivity": "暂无活动记录",
-    "recentLog": "最近日志"
+    "noActivity": "Нет записей о деятельности",
+    "recentLog": "Последние записи"
   },
   "taskLogStream": {
-    "title": "日志（{{count}}）",
-    "searchPlaceholder": "搜索日志...",
-    "filter": "筛选日志",
-    "export": "导出日志",
-    "clear": "清除日志",
-    "allLevels": "全部",
-    "empty": "暂无日志",
-    "noMatches": "没有匹配的日志",
-    "autoScroll": "自动滚动",
-    "more": "还有 {{count}} 条...",
-    "less": "收起"
+    "title": "Журнал ({{count}})",
+    "searchPlaceholder": "Поиск в журнале...",
+    "filter": "Фильтровать журнал",
+    "export": "Экспорт журнала",
+    "clear": "Очистить日志",
+    "allLevels": "Все",
+    "empty": "暂Нет日志",
+    "noMatches": "Нет совпадающих записей",
+    "autoScroll": "Автопрокрутка",
+    "more": "Ещё {{count}}...",
+    "less": "Свернуть"
   },
   "snippetManager": {
-    "title": "代码片段管理",
-    "items": "项",
-    "storage": "IndexedDB 存储"
+    "title": "Управление фрагментами кода",
+    "items": "элементов",
+    "storage": "Хранилище IndexedDB"
   },
   "toolExplorer": {
-    "title": "工具浏览器",
-    "searchPlaceholder": "搜索工具名称或描述...",
-    "resetFilters": "重置过滤器",
-    "clearFilters": "清除过滤器",
-    "empty": "没有找到匹配的工具",
-    "loadError": "加载工具信息失败。",
-    "totalTools": "总工具数：",
+    "title": "Обозреватель инструментов",
+    "searchPlaceholder": "Поиск инструментов по названию или описанию...",
+    "resetFilters": "Сбросить фильтры",
+    "clearFilters": "Очистить фильтры",
+    "empty": "Инструменты не найдены",
+    "loadError": "Не удалось загрузить информацию об инструментах.",
+    "totalTools": "Всего инструментов:",
     "countLabel": "{{label}}：{{count}}",
-    "description": "描述",
-    "parameterDescriptions": "参数说明",
-    "inputSchema": "输入参数 JSON Schema",
-    "examples": "示例用法",
-    "copyToolName": "复制工具名称",
-    "danger": "危险",
-    "dangerousAction": "危险操作",
+    "description": "Описание",
+    "parameterDescriptions": "Описание параметров",
+    "inputSchema": "Схема JSON входных параметров",
+    "examples": "Примеры использования",
+    "copyToolName": "Копировать название инструмента",
+    "danger": "Опасно",
+    "dangerousAction": "Опасная операция",
     "filters": {
-      "category": "分类",
-      "permission": "权限级别"
+      "category": "Категория",
+      "permission": "Уровень доступа"
     },
     "categories": {
-      "File": "文件",
-      "Search": "搜索",
+      "File": "Файл",
+      "Search": "Поиск",
       "Command": "命令",
-      "Network": "网络",
-      "System": "系统",
-      "Other": "其他"
+      "Network": "Сеть",
+      "System": "Система",
+      "Other": "Другое"
     },
     "permissions": {
-      "ReadOnly": "只读",
-      "WorkspaceWrite": "写入",
-      "Prompt": "提示",
-      "DangerFullAccess": "危险",
-      "Allow": "允许"
+      "ReadOnly": "Только чтение",
+      "WorkspaceWrite": "Запись",
+      "Prompt": "Подсказка",
+      "DangerFullAccess": "Опасно",
+      "Allow": "Разрешить"
     },
     "tools": {
       "read_file": {
-        "label": "读取文件",
-        "description": "读取文件内容。",
+        "label": "ЧитатьФайл",
+        "description": "Читать содержимое файла.",
         "examples": [
-          "读取单个文件内容",
-          "查看源代码文件",
-          "读取配置文件"
+          "Читать содержимое одного файла",
+          "Посмотреть файл исходного кода",
+          "Читать файл конфигурации"
         ],
         "schema": {
           "properties": {
             "path": {
-              "description": "要读取的文件路径"
+              "description": "Путь к файлу для чтения"
             }
           }
         },
         "parameters": {
-          "path": "要读取的文件路径"
+          "path": "Путь к файлу для чтения"
         }
       },
       "write_file": {
-        "label": "写入文件",
-        "description": "将内容写入文件。",
+        "label": "Записать файл",
+        "description": "Записать содержимое в файл.",
         "examples": [
-          "创建新文件并写入内容",
-          "覆盖现有文件",
-          "保存生成的代码"
+          "Создать новый файл и записать содержимое",
+          "Перезаписать существующий файл",
+          "Сохранить сгенерированный код"
         ],
         "schema": {
           "properties": {
             "path": {
-              "description": "要写入的文件路径"
+              "description": "Путь к файлу для записи"
             },
             "content": {
-              "description": "要写入的文件内容"
+              "description": "Содержимое для записи в файл"
             }
           }
         },
         "parameters": {
-          "path": "要写入的文件路径",
-          "content": "要写入的文件内容"
+          "path": "Путь к файлу для записи",
+          "content": "Содержимое для записи в файл"
         }
       },
       "edit_file": {
-        "label": "编辑文件",
-        "description": "编辑文件中的特定部分。",
+        "label": "РедактированиеФайл",
+        "description": "Редактировать определённую часть файла.",
         "examples": [
-          "修改文件中的特定部分",
-          "替换代码片段",
-          "更新配置项"
+          "Изменить определённую часть файла",
+          "ЗаменитьКодФрагмент",
+          "Обновить параметр конфигурации"
         ],
         "schema": {
           "properties": {
             "path": {
-              "description": "要编辑的文件路径"
+              "description": "Путь к редактируемому файлу"
             },
             "old_text": {
-              "description": "要替换的原始文本内容"
+              "description": "Исходное текстовое содержимое для замены"
             },
             "new_text": {
-              "description": "替换后的新文本内容"
+              "description": "Новое текстовое содержимое для замены"
             }
           }
         },
         "parameters": {
-          "path": "要编辑的文件路径",
-          "old_text": "要替换的原始文本内容",
-          "new_text": "替换后的新文本内容"
+          "path": "Путь к редактируемому файлу",
+          "old_text": "Исходное текстовое содержимое для замены",
+          "new_text": "Новое текстовое содержимое для замены"
         }
       },
       "glob_search": {
-        "label": "Glob 搜索",
-        "description": "使用 Glob 模式搜索文件。",
+        "label": "Glob Поиск",
+        "description": "Поиск файлов с использованием шаблона Glob.",
         "examples": [
-          "查找所有 .ts 文件",
-          "搜索特定目录下的文件",
-          "按文件名模式匹配"
+          "Найти все файлы .ts",
+          "Поиск файлов в определённом каталоге",
+          "Соответствие имени файла по шаблону"
         ],
         "schema": {
           "properties": {
             "pattern": {
-              "description": "Glob 匹配模式，例如 **/*.ts"
+              "description": "Шаблон соответствия Glob, например **/*.ts"
             },
             "path": {
-              "description": "搜索目录，可选"
+              "description": "Каталог поиска (опционально)"
             }
           }
         },
         "parameters": {
-          "pattern": "Glob 匹配模式，例如 **/*.ts",
-          "path": "搜索目录，可选"
+          "pattern": "Шаблон соответствия Glob, например **/*.ts",
+          "path": "Каталог поиска (опционально)"
         }
       },
       "grep_search": {
-        "label": "Grep 搜索",
-        "description": "在文件中搜索文本。",
+        "label": "Grep Поиск",
+        "description": "Поиск текста в файлах.",
         "examples": [
-          "在文件中搜索特定文本",
-          "查找函数定义",
-          "搜索变量使用位置"
+          "Поиск определённого текста в файлах",
+          "Найти определение функции",
+          "Поиск мест использования переменных"
         ],
         "schema": {
           "properties": {
             "pattern": {
-              "description": "要搜索的文本或正则表达式"
+              "description": "Текст или регулярное выражение для поиска"
             },
             "path": {
-              "description": "搜索目录，可选"
+              "description": "Каталог поиска (опционально)"
             }
           }
         },
         "parameters": {
-          "pattern": "要搜索的文本或正则表达式",
-          "path": "搜索目录，可选"
+          "pattern": "Текст или регулярное выражение для поиска",
+          "path": "Каталог поиска (опционально)"
         }
       },
       "bash": {
         "label": "Bash",
-        "description": "执行 bash 命令。",
+        "description": "Выполнить команду bash.",
         "examples": [
-          "执行 shell 命令",
-          "运行构建脚本",
-          "执行 git 操作"
+          "Выполнить команду shell",
+          "Запустить скрипт сборки",
+          "Выполнить операцию git"
         ],
         "schema": {
           "properties": {
             "command": {
-              "description": "要执行的 bash 命令"
+              "description": "Команда bash для выполнения"
             }
           }
         },
         "parameters": {
-          "command": "要执行的 bash 命令"
+          "command": "Команда bash для выполнения"
         }
       },
       "PowerShell": {
         "label": "PowerShell",
-        "description": "在 Windows 上执行 PowerShell 命令。",
+        "description": "Выполнить команду PowerShell в Windows.",
         "examples": [
-          "执行 PowerShell 命令（Windows）",
-          "管理系统配置"
+          "Выполнить команду PowerShell (Windows)",
+          "Управление системной конфигурацией"
         ],
         "schema": {
           "properties": {
             "command": {
-              "description": "要执行的 PowerShell 命令"
+              "description": "Команда PowerShell для выполнения"
             }
           }
         },
         "parameters": {
-          "command": "要执行的 PowerShell 命令"
+          "command": "Команда PowerShell для выполнения"
         }
       },
       "WebFetch": {
-        "label": "网页抓取",
-        "description": "获取网页 URL 的内容。",
+        "label": "Получение веб-страницы",
+        "description": "Получить содержимое URL веб-страницы.",
         "examples": [
-          "获取网页内容",
-          "读取在线文档",
-          "获取 API 响应"
+          "Получить содержимое веб-страницы",
+          "Читать онлайн-документацию",
+          "Получить ответ API"
         ],
         "schema": {
           "properties": {
             "url": {
-              "description": "要获取的网页 URL"
+              "description": "URL веб-страницы для получения"
             }
           }
         },
         "parameters": {
-          "url": "要获取的网页 URL"
+          "url": "URL веб-страницы для получения"
         }
       },
       "WebSearch": {
-        "label": "网络搜索",
-        "description": "在网络上搜索信息。",
+        "label": "网络Поиск",
+        "description": "在网络上ПоискИнформация。",
         "examples": [
-          "搜索技术文档",
-          "查找问题解决方案",
-          "获取最新信息"
+          "Поиск技术Документация",
+          "Найти问题解决方案",
+          "获取最新Информация"
         ],
         "schema": {
           "properties": {
             "query": {
-              "description": "搜索关键词"
+              "description": "Поиск关键词"
             }
           }
         },
         "parameters": {
-          "query": "搜索关键词"
+          "query": "Поиск关键词"
         }
       },
       "TodoWrite": {
-        "label": "待办写入",
-        "description": "为当前会话创建或更新结构化任务列表。",
+        "label": "ОжидаетЗапись",
+        "description": "为当前会话Создать或Обновить结构化Задача列表。",
         "examples": [
-          "创建任务列表",
-          "更新任务进度",
-          "标记任务完成状态"
+          "СоздатьЗадача列表",
+          "ОбновитьПрогресс задачи",
+          "标记Задача完成状态"
         ],
         "schema": {
           "properties": {
             "todos": {
-              "description": "要管理的任务数组",
+              "description": "要管理的Задача数组",
               "items": {
                 "properties": {
                   "activeForm": {
-                    "description": "任务的进行时动词形式，例如“正在实现登录功能”"
+                    "description": "Задача的进行时动词形式，например“正在实现登录功能”"
                   },
                   "content": {
-                    "description": "任务的名词形式描述，例如“实现登录功能”"
+                    "description": "Задача的名词形式Описание，например“实现登录功能”"
                   },
                   "status": {
                     "description": "当前状态：pending、in_progress 或 completed"
@@ -647,101 +647,101 @@
           }
         },
         "parameters": {
-          "todos": "任务数组，每项包含 content、activeForm 和 status"
+          "todos": "Задача数组，每элементов包含 content、activeForm 和 status"
         }
       }
     }
   },
   "snippetList": {
-    "loading": "加载片段中...",
-    "noSnippets": "未找到片段",
-    "untitled": "未命名片段",
-    "emptyTitle": "还没有代码片段",
-    "emptyDescription": "新建一个片段，或先生成演示数据来填充列表。"
+    "loading": "加载Фрагмент中...",
+    "noSnippets": "未找到Фрагмент",
+    "untitled": "未命名Фрагмент",
+    "emptyTitle": "还没有КодФрагмент",
+    "emptyDescription": "Создать一Фрагмент，或先Генерация演示数据来填充列表。"
   },
   "snippetSearch": {
-    "placeholder": "搜索片段...",
-    "genData": "生成数据",
-    "genDataTitle": "生成 1000 个测试片段",
-    "clearAll": "清除全部",
-    "confirmGenerate": "生成 1000 个测试片段？这将清除现有片段。",
-    "confirmClear": "清除所有片段？",
-    "newSnippet": "新建片段",
-    "defaultTitle": "新建片段",
-    "defaultCode": "// 在这里开始编写代码..."
+    "placeholder": "ПоискФрагмент...",
+    "genData": "Генерация数据",
+    "genDataTitle": "Генерация 1000 ТестированиеФрагмент",
+    "clearAll": "ОчиститьВсе",
+    "confirmGenerate": "Генерация 1000 ТестированиеФрагмент？这将Очистить现有Фрагмент。",
+    "confirmClear": "Очистить所有Фрагмент？",
+    "newSnippet": "СоздатьФрагмент",
+    "defaultTitle": "СоздатьФрагмент",
+    "defaultCode": "// 在这里开始编写Код..."
   },
   "promptManager": {
     "common": {
       "technicalDetails": "技术详情"
     },
     "list": {
-      "title": "提示词管理",
-      "exportTitle": "导出提示词",
-      "importTitle": "导入提示词",
-      "refresh": "刷新",
+      "title": "Управление промптами",
+      "exportTitle": "ЭкспортПодсказка",
+      "importTitle": "ИмпортПодсказка",
+      "refresh": "Обновить",
       "expertMode": "专家模式",
       "normalMode": "普通模式",
       "enableExpertMode": "开启专家模式",
-      "disableExpertMode": "关闭专家模式",
-      "loading": "加载提示词中...",
-      "emptyTitle": "未找到提示词",
+      "disableExpertMode": "Закрыть专家模式",
+      "loading": "加载Подсказка中...",
+      "emptyTitle": "未找到Подсказка",
       "directoryLabel": "目录：{{path}}",
-      "untitledPrompt": "未命名提示词",
-      "noDescription": "暂无描述",
-      "loadFailedTitle": "提示词加载失败",
-      "loadFailedDescription": "请检查当前项目中的提示词目录和配置后重试。"
+      "untitledPrompt": "未命名Подсказка",
+      "noDescription": "暂НетОписание",
+      "loadFailedTitle": "ПодсказкаОшибка загрузки",
+      "loadFailedDescription": "请检查当前Проект中的Подсказка目录和配置后重试。"
     },
     "accessTier": {
-      "public": "可编辑",
-      "protected": "只读 + 覆盖",
+      "public": "可Редактирование",
+      "protected": "Только чтение + 覆盖",
       "private": "专家",
       "unknown": "未知"
     },
     "editor": {
-      "emptyTitle": "选择一个提示词",
-      "emptyDescription": "从左侧选择提示词开始编辑。",
-      "invalidTitle": "提示词数据无效",
-      "invalidDescription": "后端返回结果中缺少 metadata 字段。",
-      "commercialNotice": "提示词编辑功能仅在商业版中可用",
+      "emptyTitle": "选择一Подсказка",
+      "emptyDescription": "从左侧选择Подсказка开始Редактирование。",
+      "invalidTitle": "Подсказка数据Нет效",
+      "invalidDescription": "后端Назад结果中缺少 metadata 字段。",
+      "commercialNotice": "ПодсказкаРедактирование功能仅在商业版中可用",
       "learnMore": "了解更多",
-      "builtInNotice": "这是一个内置系统提示词。保存时将创建项目级覆盖文件。",
-      "infoBadge": "提示",
-      "tabEditor": "编辑",
-      "tabPreview": "预览",
-      "readOnly": "只读",
-      "versionHistory": "版本历史",
-      "validatePrompt": "验证提示词",
+      "builtInNotice": "这Да一内置СистемаПодсказка。Сохранить时将СоздатьПроект级覆盖Файл。",
+      "infoBadge": "Подсказка",
+      "tabEditor": "Редактировать",
+      "tabPreview": "Предпросмотр",
+      "readOnly": "Только чтение",
+      "versionHistory": "版本История",
+      "validatePrompt": "验证Подсказка",
       "launchAgent": "启动智能体",
-      "save": "保存",
-      "createOverride": "创建覆盖",
+      "save": "Сохранить",
+      "createOverride": "Создать覆盖",
       "variables": "变量",
-      "noPreview": "暂无预览，请先在上方输入内容。",
-      "renderFailed": "渲染失败：{{error}}",
-      "saveSuccess": "提示词保存成功",
-      "saveFailed": "保存提示词失败",
-      "overrideProjectCreated": "已创建项目级覆盖",
-      "overrideProjectCreatedDesc": "该提示词现在将在当前项目中优先使用。",
-      "overrideFileCreated": "覆盖文件创建成功",
-      "overrideFileCreatedDesc": "{{fileName}} 已创建。",
+      "noPreview": "暂НетПредпросмотр，请先在上方输入内容。",
+      "renderFailed": "渲染Неудача：{{error}}",
+      "saveSuccess": "ПодсказкаСохранитьУспешно",
+      "saveFailed": "СохранитьПодсказкаНеудача",
+      "overrideProjectCreated": "СозданоПроект级覆盖",
+      "overrideProjectCreatedDesc": "该Подсказка现在将在当前Проект中优先Использовать。",
+      "overrideFileCreated": "覆盖ФайлСоздатьУспешно",
+      "overrideFileCreatedDesc": "{{fileName}} Создано。",
       "launchStarted": "智能体“{{name}}”已启动",
-      "launchFailed": "启动失败",
+      "launchFailed": "启动Неудача",
       "rollbackSuccess": "已回滚到版本 {{version}}",
-      "sampleUser": "示例用户",
+      "sampleUser": "示例Пользователь",
       "sampleLanguage": "TypeScript",
-      "sampleProject": "IfAI 工作区",
+      "sampleProject": "IfИИ Рабочая область",
       "sampleCwd": "/workspace/project",
       "sampleValue": "示例值",
-      "launchTask": "从提示词管理器运行预览任务"
+      "launchTask": "从Управление подсказками器ЗапускПредпросмотрЗадача"
     },
     "monaco": {
-      "loading": "正在加载编辑器...",
-      "variableDetail": "提示词变量",
-      "variableDocumentation": "提示词变量：{{variable}}",
+      "loading": "正在加载Редактирование器...",
+      "variableDetail": "Подсказка变量",
+      "variableDocumentation": "Подсказка变量：{{variable}}",
       "helpers": {
-        "if": "条件判断",
-        "unless": "条件否定",
+        "if": "записей件判断",
+        "unless": "записей件Нет定",
         "each": "循环遍历数组或对象",
-        "with": "切换当前上下文",
+        "with": "Переключить当前Контекст",
         "eq": "等于比较",
         "ne": "不等于比较",
         "gt": "大于比较",
@@ -749,210 +749,210 @@
         "and": "逻辑与",
         "or": "逻辑或",
         "not": "逻辑非",
-        "concat": "字符串连接",
-        "lookup": "动态查找属性"
+        "concat": "Символ串连接",
+        "lookup": "动态Найти属性"
       }
     },
     "exportDialog": {
-      "openProjectFirstTitle": "请先打开项目",
-      "openProjectFirstDescription": "导出提示词需要先打开一个项目文件夹。",
-      "title": "导出提示词",
-      "selectTitle": "选择提示词",
-      "selectDescription": "选择要导出的提示词（{{selected}} / {{total}}）",
-      "selectAll": "全选",
-      "clearSelection": "取消全选",
-      "loadingPrompts": "正在加载可导出的提示词...",
-      "packageInfoTitle": "包信息",
-      "packageInfoDescription": "填写导出包的元数据信息。",
+      "openProjectFirstTitle": "请先ОткрытьПроект",
+      "openProjectFirstDescription": "ЭкспортПодсказка需要先Открыть一ПроектФайл夹。",
+      "title": "ЭкспортПодсказка",
+      "selectTitle": "选择Подсказка",
+      "selectDescription": "选择要Экспорт的Подсказка（{{selected}} / {{total}}）",
+      "selectAll": "Выбрать всё",
+      "clearSelection": "Отмена全选",
+      "loadingPrompts": "正在加载可Экспорт的Подсказка...",
+      "packageInfoTitle": "包Информация",
+      "packageInfoDescription": "填写Экспорт包的元数据Информация。",
       "packageName": "包名称",
-      "description": "描述",
-      "author": "作者",
-      "version": "版本",
-      "saveDialogTitle": "导出提示词包",
-      "defaultFileName": "{{name}}-提示词.json",
-      "exportSummary": "将导出 {{count}} 个提示词",
-      "namePlaceholder": "例如：my-prompts",
-      "descriptionPlaceholder": "描述这个提示词包的用途和内容",
+      "description": "Описание",
+      "author": "Автор",
+      "version": "Версия",
+      "saveDialogTitle": "ЭкспортПодсказка包",
+      "defaultFileName": "{{name}}-Подсказка.json",
+      "exportSummary": "将Экспорт {{count}} Подсказка",
+      "namePlaceholder": "например：my-prompts",
+      "descriptionPlaceholder": "Описание这Подсказка包的用途和内容",
       "authorPlaceholder": "作者名称或组织",
-      "jsonFileFilter": "JSON 文件",
-      "selectAtLeastOneError": "请至少选择一个提示词",
-      "requiredError": "请填写完整的包信息",
-      "errorTitle": "导出失败",
-      "errorDescription": "请检查所选提示词和导出包信息后重试。",
-      "next": "下一步",
-      "back": "上一步",
-      "exporting": "导出中...",
-      "export": "导出"
+      "jsonFileFilter": "JSON Файл",
+      "selectAtLeastOneError": "请至少选择一Подсказка",
+      "requiredError": "请填写完整的包Информация",
+      "errorTitle": "ЭкспортНеудача",
+      "errorDescription": "请检查所选Подсказка和Экспорт包Информация后重试。",
+      "next": "Далее",
+      "back": "Назад",
+      "exporting": "Экспорт中...",
+      "export": "Экспорт"
     },
     "importDialog": {
-      "openProjectFirstTitle": "请先打开项目",
-      "openProjectFirstDescription": "导入提示词需要先打开一个项目文件夹。",
-      "title": "导入提示词",
-      "openDialogTitle": "选择提示词包",
-      "fileStepTitle": "选择提示词包",
-      "fileStepDescription": "选择之前导出的提示词包文件（.json）。",
-      "dropzoneHint": "点击下方按钮选择文件",
-      "chooseFile": "选择文件",
-      "loadingFile": "加载中...",
-      "packageContents": "包含的提示词",
-      "author": "作者",
-      "version": "版本",
-      "ifaiVersion": "IfAI 版本",
-      "promptCount": "提示词数量",
-      "overwriteTitle": "覆盖已存在的提示词",
-      "overwriteDescription": "如果启用，导入时会替换同名提示词；否则会跳过已存在的提示词。",
-      "jsonFileFilter": "JSON 文件",
-      "loadPackageFailed": "无法加载包文件：{{error}}",
-      "errorTitle": "导入失败",
-      "errorDescription": "请检查提示词包文件内容和导入设置后重试。",
-      "successTitle": "导入完成",
-      "successDescription": "成功导入 {{count}} 个提示词",
-      "warningTitle": "导入完成（有警告）",
-      "imported": "已导入（{{count}}）",
+      "openProjectFirstTitle": "请先ОткрытьПроект",
+      "openProjectFirstDescription": "ИмпортПодсказка需要先Открыть一ПроектФайл夹。",
+      "title": "ИмпортПодсказка",
+      "openDialogTitle": "选择Подсказка包",
+      "fileStepTitle": "选择Подсказка包",
+      "fileStepDescription": "选择之前Экспорт的Подсказка包Файл（.json）。",
+      "dropzoneHint": "点击下方按钮选择Файл",
+      "chooseFile": "选择Файл",
+      "loadingFile": "Загрузка...",
+      "packageContents": "包含的Подсказка",
+      "author": "Автор",
+      "version": "Версия",
+      "ifaiVersion": "IfAI Версия",
+      "promptCount": "Подсказка数量",
+      "overwriteTitle": "覆盖已存在的Подсказка",
+      "overwriteDescription": "如果Включить，Импорт时会Заменить同名Подсказка；Нет则会跳过已存在的Подсказка。",
+      "jsonFileFilter": "JSON Файл",
+      "loadPackageFailed": "Нет法加载包Файл：{{error}}",
+      "errorTitle": "ИмпортНеудача",
+      "errorDescription": "请检查Подсказка包Файл内容和ИмпортНастройки后重试。",
+      "successTitle": "Импорт完成",
+      "successDescription": "УспешноИмпорт {{count}} Подсказка",
+      "warningTitle": "Импорт完成（有Предупреждение）",
+      "imported": "已Импорт（{{count}}）",
       "skipped": "已跳过（{{count}}）",
-      "warnings": "警告（{{count}}）",
-      "errors": "错误（{{count}}）",
-      "importing": "导入中...",
-      "startImport": "开始导入",
-      "done": "完成"
+      "warnings": "Предупреждение（{{count}}）",
+      "errors": "Ошибка（{{count}}）",
+      "importing": "Импорт中...",
+      "startImport": "开始Импорт",
+      "done": "Готово"
     },
     "validation": {
       "title": "验证结果",
       "validating": "验证中...",
       "passed": "验证通过",
-      "failed": "验证失败",
-      "errorCount": "{{count}} 个错误",
-      "warningCount": "{{count}} 个警告",
-      "validatingPrompt": "正在验证提示词...",
-      "systemErrorType": "系统错误",
-      "systemErrorMessage": "提示词验证暂时不可用，请稍后重试。",
+      "failed": "Ошибка проверки",
+      "errorCount": "{{count}} Ошибка",
+      "warningCount": "{{count}} Предупреждение",
+      "validatingPrompt": "正在验证Подсказка...",
+      "systemErrorType": "СистемаОшибка",
+      "systemErrorMessage": "Подсказка验证暂时不可用，请稍后重试。",
       "line": "行 {{line}}",
       "lineWithColumn": "行 {{line}}:{{column}}",
-      "noIssues": "提示词验证通过，没有发现错误或警告",
-      "editToValidate": "编辑提示词以开始验证",
-      "footer": "验证包括 YAML 格式、花括号平衡、Handlebars 语法和安全规则。"
+      "noIssues": "Подсказка验证通过，没有发现Ошибка或Предупреждение",
+      "editToValidate": "РедактированиеПодсказка以开始验证",
+      "footer": "验证Включая YAML 格式、花括号平衡、Handlebars 语法和Безопасность规则。"
     },
     "versionHistory": {
-      "title": "版本历史",
-      "compareSelected": "对比选中版本",
-      "rollbackConfirm": "确定要回滚到此版本吗？此操作将覆盖当前文件内容。",
-      "rollbackFailed": "回滚失败：{{error}}",
-      "loading": "正在加载版本历史...",
-      "loadFailed": "加载版本历史失败：{{error}}",
-      "errorTitle": "无法加载版本历史",
-      "loadFailedDescription": "当前无法读取该提示词的版本历史，请稍后重试。",
-      "emptyTitle": "暂无版本历史",
-      "emptyDescription": "该提示词尚未提交到 Git。",
+      "title": "版本История",
+      "compareSelected": "对比Выделенный版本",
+      "rollbackConfirm": "ОК要回滚到此版本吗？此Операция将覆盖当前Файл内容。",
+      "rollbackFailed": "回滚Неудача：{{error}}",
+      "loading": "正在加载版本История...",
+      "loadFailed": "加载版本ИсторияНеудача：{{error}}",
+      "errorTitle": "Нет法加载版本История",
+      "loadFailedDescription": "当前Нет法Читать该Подсказка的版本История，请稍后重试。",
+      "emptyTitle": "暂Нет版本История",
+      "emptyDescription": "该Подсказка尚未Отправить到 Git。",
       "latest": "最新",
-      "noCommitMessage": "无提交信息",
+      "noCommitMessage": "НетОтправитьИнформация",
       "rollback": "回滚到此版本",
-      "footer": "共显示 {{count}} 个版本，最多展示最近 20 个版本"
+      "footer": "всегоПоказать {{count}} 版本，最多展示最近 20 版本"
     },
     "versionDiff": {
       "loading": "正在加载版本对比...",
-      "loadFailed": "加载版本对比失败：{{error}}",
-      "errorTitle": "无法加载版本对比",
-      "loadFailedDescription": "当前无法生成所选版本的对比结果，请稍后重试。",
+      "loadFailed": "加载版本对比Неудача：{{error}}",
+      "errorTitle": "Нет法加载版本对比",
+      "loadFailedDescription": "当前Нет法Генерация所选版本的对比结果，请稍后重试。",
       "oldVersion": "旧版本",
       "newVersion": "新版本",
       "addedLines": "新增行",
-      "deletedLines": "删除行"
+      "deletedLines": "Удалить行"
     },
     "overrideDialog": {
-      "expertTitle": "专家模式编辑",
-      "protectedTitle": "创建覆盖文件",
-      "defaultTitle": "编辑确认",
-      "expertIntroPrefix": "您正在编辑私有提示词",
+      "expertTitle": "专家模式Редактирование",
+      "protectedTitle": "Создать覆盖Файл",
+      "defaultTitle": "Редактирование确认",
+      "expertIntroPrefix": "您正在Редактирование私有Подсказка",
       "expertModeLabel": "专家模式",
-      "expertWarningTitle": "警告",
-      "expertWarningBody": "私有提示词是系统核心组件，修改可能会影响 AI 行为。请确保您了解修改的影响。",
-      "protectedIntro": "您即将编辑受保护的提示词",
+      "expertWarningTitle": "Предупреждение",
+      "expertWarningBody": "私有ПодсказкаДаСистема核心组件，Изменение可能会影响 ИИ 行为。请确保您了解Изменение的影响。",
+      "protectedIntro": "您即将Редактирование受保护的Подсказка",
       "overrideMechanismTitle": "覆盖机制",
-      "overrideMechanismPrefix": "系统将创建文件",
-      "overrideMechanismSuffix": "原始提示词不会被修改，您的覆盖将在当前项目中优先使用。",
-      "restoreHint": "如需恢复原始提示词，只需删除覆盖文件即可。",
-      "defaultMessage": "确认要保存对提示词的修改：",
-      "saveAsExpert": "以专家模式保存",
-      "createOverrideAndSave": "创建覆盖并保存"
+      "overrideMechanismPrefix": "Система将СоздатьФайл",
+      "overrideMechanismSuffix": "ИсходныйПодсказка不会被Изменение，您的覆盖将在当前Проект中优先Использовать。",
+      "restoreHint": "如需恢复ИсходныйПодсказка，只需Удалить覆盖Файл即可。",
+      "defaultMessage": "确认要Сохранить对Подсказка的Изменение：",
+      "saveAsExpert": "以专家模式Сохранить",
+      "createOverrideAndSave": "Создать覆盖并Сохранить"
     }
   },
   "common": {
-    "thisFile": "该文件",
+    "thisFile": "该Файл",
     "untitled": "未命名",
-    "loading": "加载中...",
-    "fileSaved": "文件已保存",
-    "fileSaveFailed": "保存文件失败",
-    "fileOpenFailed": "打开文件失败",
-    "fileOpenFailedWithName": "打开 {{fileName}} 失败",
-    "folderOpenFailed": "打开文件夹失败",
-    "protectedFileOpenMessage": "无法以文本形式打开 {{fileName}}。{{categoryLabel}}文件不支持在编辑器中打开。",
+    "loading": "Загрузка...",
+    "fileSaved": "Файл已Сохранить",
+    "fileSaveFailed": "СохранитьФайлНеудача",
+    "fileOpenFailed": "Открыть файлНеудача",
+    "fileOpenFailedWithName": "Открыть {{fileName}} Неудача",
+    "folderOpenFailed": "Открыть папкуНеудача",
+    "protectedFileOpenMessage": "Нет法以文本形式Открыть {{fileName}}。{{categoryLabel}}Файл不支持在Редактирование器中Открыть。",
     "protectedFileCategories": {
       "binary": "二进制",
       "archive": "归档",
       "media": "媒体"
     },
     "emptyPane": "空窗格",
-    "newFile": "新建文件",
-    "openFile": "打开文件...",
-    "openFolder": "打开文件夹...",
-    "toggleChat": "切换若爱助手",
+    "newFile": "Создать файл",
+    "openFile": "Открыть файл...",
+    "openFolder": "Открыть папку...",
+    "toggleChat": "Переключить помощника Ruai",
     "on": "开启",
-    "off": "关闭",
-    "rename": "重命名",
-    "delete": "删除",
-    "confirmDeleteFile": "删除 {{fileName}}？",
-    "confirmDeleteMultiple": "删除选中的 {{count}} 个项目？",
-    "renameTo": "重命名为:",
-    "copiedToClipboard": "已复制到剪贴板",
-    "copyFailed": "复制失败",
-    "openTerminalFailed": "打开终端失败",
-    "openFileManagerFailed": "打开文件管理器失败",
-    "enterFileName": "输入文件名:",
-    "enterFolderName": "输入文件夹名:",
-    "fileCreated": "文件已创建",
-    "folderCreated": "文件夹已创建",
-    "createFileFailed": "创建文件失败",
-    "createFolderFailed": "创建文件夹失败",
-    "renamedSuccessfully": "{{newName}} 重命名成功",
-    "renameFailed": "重命名失败",
-    "deletedSuccessfully": "删除成功",
-    "deleteFailed": "删除失败",
-    "cancel": "取消",
-    "confirm": "确认",
-    "close": "关闭",
+    "off": "Закрыть",
+    "rename": "Переименовать",
+    "delete": "Удалить",
+    "confirmDeleteFile": "Удалить {{fileName}}？",
+    "confirmDeleteMultiple": "УдалитьВыделенный的 {{count}} Проект？",
+    "renameTo": "Переименовать为:",
+    "copiedToClipboard": "已Копировать到剪贴板",
+    "copyFailed": "КопироватьНеудача",
+    "openTerminalFailed": "ОткрытьТерминалНеудача",
+    "openFileManagerFailed": "Открыть файл管理器Неудача",
+    "enterFileName": "输入Файл名:",
+    "enterFolderName": "输入Файл夹名:",
+    "fileCreated": "ФайлСоздано",
+    "folderCreated": "Файл夹Создано",
+    "createFileFailed": "СоздатьФайлНеудача",
+    "createFolderFailed": "СоздатьФайл夹Неудача",
+    "renamedSuccessfully": "{{newName}} ПереименоватьУспешно",
+    "renameFailed": "ПереименоватьНеудача",
+    "deletedSuccessfully": "УдалитьУспешно",
+    "deleteFailed": "Ошибка удаления",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "close": "Закрыть",
     "unknown": "未知"
   },
   "tool": {
-    "executed": "工具执行成功",
-    "failed": "工具执行失败",
-    "fileRead": "读取文件",
-    "fileWritten": "写入文件",
+    "executed": "Инструмент执行Успешно",
+    "failed": "Инструмент执行Неудача",
+    "fileRead": "ЧитатьФайл",
+    "fileWritten": "Записать файл",
     "directoryListed": "列出目录",
-    "success": "{{toolName}} 执行成功",
-    "error": "{{toolName}} 执行失败: {{error}}"
+    "success": "{{toolName}} 执行Успешно",
+    "error": "{{toolName}} 执行Неудача: {{error}}"
   },
   "dialog": {
     "enterNewName": "输入新名称",
     "enterName": "输入名称",
-    "characterCount": "{{count}} 个字符"
+    "characterCount": "{{count}} Символ"
   },
   "contextMenu": {
-    "copy": "复制",
-    "copyPath": "复制路径",
-    "copyRelativePath": "复制相对路径",
-    "copyName": "复制名称",
-    "external": "外部应用",
-    "openInTerminal": "在终端中打开",
-    "revealInExplorer": "在资源管理器中显示",
-    "revealInFinder": "在 Finder 中显示",
-    "openContainingFolder": "打开所在文件夹",
-    "new": "新建",
-    "newFile": "新建文件",
-    "newFolder": "新建文件夹",
-    "refresh": "刷新",
-    "terminalOpened": "终端已打开",
-    "fileRevealed": "已在文件管理器中显示文件",
-    "folderRevealed": "已在文件管理器中显示文件夹"
+    "copy": "Копировать",
+    "copyPath": "Копировать路径",
+    "copyRelativePath": "Копировать相对路径",
+    "copyName": "Копировать名称",
+    "external": "外部Применить",
+    "openInTerminal": "在Терминал中Открыть",
+    "revealInExplorer": "在Проводник中Показать",
+    "revealInFinder": "在 Finder 中Показать",
+    "openContainingFolder": "Открыть所在Файл夹",
+    "new": "Создать",
+    "newFile": "Создать файл",
+    "newFolder": "Создать файл夹",
+    "refresh": "Обновить",
+    "terminalOpened": "Терминал已Открыть",
+    "fileRevealed": "已在Файл管理器中ПоказатьФайл",
+    "folderRevealed": "已在Файл管理器中ПоказатьФайл夹"
   },
   "settings": {
     "general": "通用",
@@ -964,9 +964,9 @@
       "kimi": "Kimi (Moonshot)",
       "openrouter": "OpenRouter"
     },
-    "editor": "编辑器",
+    "editor": "Редактор",
     "ai": "AI",
-    "theme": "主题",
+    "theme": "Тема",
     "dark": "深色",
     "light": "浅色",
     "language": {
@@ -974,69 +974,69 @@
       "enUS": "English",
       "ruRU": "Русский"
     },
-    "languageHint": "切换界面语言，立即生效无需刷新",
+    "languageHint": "Переключить界面语言，立即生效Нет需Обновить",
     "fontSize": "字体大小",
-    "showMinimap": "显示迷你地图",
-    "showLineNumbers": "显示行号",
+    "showMinimap": "Показать迷你地图",
+    "showLineNumbers": "Показать行号",
     "wordWrap": "自动换行",
-    "sidebarPosition": "侧边栏位置",
+    "sidebarPosition": "侧边栏Расположение",
     "sidebarLeft": "左侧",
     "sidebarRight": "右侧",
-    "sidebarPositionHint": "快捷键：{{shortcut}} 切换侧边栏显示/隐藏",
-    "aiProviders": "若爱提供商",
-    "apiKey": "API 密钥",
+    "sidebarPositionHint": "快捷键：{{shortcut}} Переключить боковую панельПоказать/Скрыть",
+    "aiProviders": "Ruai提供商",
+    "apiKey": "API-ключ",
     "baseUrl": "基础 URL",
-    "enableAutocomplete": "启用自动补全",
+    "enableAutocomplete": "Включить自动补全",
     "apiKeyFor": "{{providerName}} 的 API 密钥",
     "agent": "智能体",
-    "agentSettings": "智能体设置",
-    "agentAutoApprove": "自动批准工具调用",
-    "agentAutoApproveDesc": "自动执行智能体的工具调用，无需手动批准",
-    "performance": "性能",
+    "agentSettings": "智能体Настройки",
+    "agentAutoApprove": "自动ОдобритьИнструмент调用",
+    "agentAutoApproveDesc": "自动执行智能体的Инструмент调用，Нет需手动Одобрить",
+    "performance": "Производительность",
     "customProvider": "自定义提供商",
     "dataManagement": "数据管理",
-    "localModelSettings": "本地模型",
+    "localModelSettings": "本地Модель",
     "languageZhCn": "简体中文",
     "languageEnUs": "English",
     "manageCustomProvider": "管理自定义提供商",
-    "toolClassification": "工具分类",
-    "toolClassificationSettings": "工具分类设置",
-    "skills": "技能中心",
+    "toolClassification": "ИнструментКатегория",
+    "toolClassificationSettings": "ИнструментКатегорияНастройки",
+    "skills": "Навык中心",
     "builtInProviders": "内置提供商",
     "configured": "已配置",
     "currentActive": "当前激活",
     "notSelected": "未选择",
-    "modelLabel": "模型",
+    "modelLabel": "Модель",
     "current": "当前",
-    "custom": "自定义",
+    "custom": "Пользовательский",
     "endpoint": "端点",
     "notConfigured": "未配置",
     "setAsDefault": "设为默认",
     "apiKeyConfigured": "API密钥已配置",
     "currentlyActiveLabel": "当前激活",
     "clickToSetDefault": "点击下方设为默认",
-    "performanceMode": "性能模式",
+    "performanceMode": "Производительность模式",
     "performanceModeAuto": "自动",
-    "performanceModeHigh": "高性能",
+    "performanceModeHigh": "高Производительность",
     "performanceModeMedium": "均衡",
-    "performanceModeLow": "省电/低性能",
-    "targetFPS": "目标帧率",
-    "enableGPUAcceleration": "启用 GPU 加速",
-    "showPerformanceMonitor": "显示性能监控器",
-    "enableAutoDowngrade": "自动性能降级",
-    "typewriterEffect": "启用打字机效果",
-    "typewriterEffectDesc": "逐字显示 AI 响应，关闭后将直接显示完整内容",
+    "performanceModeLow": "省电/低Производительность",
+    "targetFPS": "Целевой帧率",
+    "enableGPUAcceleration": "Включить GPU 加速",
+    "showPerformanceMonitor": "ПоказатьМониторинг производительности器",
+    "enableAutoDowngrade": "自动Производительность降级",
+    "typewriterEffect": "Включить打字机效果",
+    "typewriterEffectDesc": "逐字Показать ИИ 响应，Закрыть后将НапрямуюПоказать完整内容",
     "sandboxMode": "沙箱模式",
-    "sandboxModeDesc": "控制破坏性操作（如 bash、删除文件）的自动审批策略",
+    "sandboxModeDesc": "控制破坏性Операция（如 bash、УдалитьФайл）的自动审批策略",
     "sandboxModeAuto": "自动检测",
-    "sandboxModeTauriOnly": "仅桌面应用",
-    "sandboxModeAlwaysOn": "始终启用",
-    "sandboxModeAlwaysOff": "始终禁用",
+    "sandboxModeTauriOnly": "仅桌面Применить",
+    "sandboxModeAlwaysOn": "始终Включить",
+    "sandboxModeAlwaysOff": "始终Отключить",
     "tabs": {
-      "toolClassification": "工具分类",
-      "skillsCenter": "技能中心",
-      "toolClassificationSettings": "工具分类设置",
-      "skillsCenterFull": "技能中心 (Skills Center)"
+      "toolClassification": "ИнструментКатегория",
+      "skillsCenter": "Навык中心",
+      "toolClassificationSettings": "ИнструментКатегорияНастройки",
+      "skillsCenterFull": "Навык中心 (Skills Center)"
     },
     "providers": {
       "builtIn": "内置提供商",
@@ -1048,56 +1048,56 @@
     },
     "autoUpdate": {
       "autoDetect": "自动检测",
-      "desktopOnly": "仅桌面应用",
-      "alwaysOn": "始终启用",
-      "alwaysOff": "始终禁用"
+      "desktopOnly": "仅桌面Применить",
+      "alwaysOn": "始终Включить",
+      "alwaysOff": "始终Отключить"
     }
   },
   "customProviderSettings": {
-    "custom": "自定义",
+    "custom": "Пользовательский",
     "customEndpointDesc": "完全自定义端点",
     "customEndpointPlaceholder": "https://your-endpoint.com/v1/chat/completions",
-    "pleaseEnterName": "请输入提供商名称",
-    "confirmDelete": "确定要删除提供商“{{name}}”吗？",
-    "noModelsFound": "未找到任何模型。请确保 Ollama 已安装模型。",
-    "addModelsFirst": "请先编辑此提供商并至少添加一个模型名称",
-    "refreshSuccess": "成功获取 {{count}} 个模型:\n{{models}}",
-    "refreshFailed": "刷新失败: {{error}}\n\n请确保:\n1. Ollama 正在运行\n2. 端点地址正确 ({{baseUrl}})\n3. 已安装至少一个模型",
-    "cancelEdit": "取消编辑",
-    "edit": "编辑",
-    "modelParams": "模型参数",
-    "refreshFromOllama": "从 Ollama 刷新模型列表",
-    "delete": "删除",
+    "pleaseEnterName": "Пожалуйста, введите提供商名称",
+    "confirmDelete": "ОК要Удалить提供商“{{name}}”吗？",
+    "noModelsFound": "未找到任何Модель。请确保 Ollama 已УстановкаМодель。",
+    "addModelsFirst": "请先Редактирование此提供商并至少Добавить一Модель名称",
+    "refreshSuccess": "Успешно获取 {{count}} Модель:\n{{models}}",
+    "refreshFailed": "ОбновитьНеудача: {{error}}\n\n请确保:\n1. Ollama 正在Запуск\n2. 端点地址正确 ({{baseUrl}})\n3. 已Установка至少一Модель",
+    "cancelEdit": "ОтменаРедактировать",
+    "edit": "Редактировать",
+    "modelParams": "Модель参数",
+    "refreshFromOllama": "从 Ollama ОбновитьМодель列表",
+    "delete": "Удалить",
     "providerName": "提供商名称",
     "apiUrl": "API 地址",
-    "availableModels": "可用模型（逗号分隔）",
+    "availableModels": "可用Модель（逗号分隔）",
     "modelsDelimitedHint": "用逗号分隔",
-    "modelsPlaceholder": "例如：gpt-4o, qwen2.5-coder",
-    "statusLabel": "状态",
-    "enabled": "已启用",
-    "disabled": "已禁用",
+    "modelsPlaceholder": "например：gpt-4o, qwen2.5-coder",
+    "statusLabel": "Состояние",
+    "enabled": "已Включить",
+    "disabled": "已Отключить",
     "etc": " 等",
     "parametersTitle": "参数配置",
     "temperature": "温度",
     "topP": "Top-P",
-    "maxTokens": "最大 Token",
+    "maxTokens": "Макс. Токен",
     "notConfigured": "未配置",
-    "addNewProvider": "添加新提供商",
-    "providerNamePlaceholder": "例如：我的 Ollama",
+    "addNewProvider": "Добавить新提供商",
+    "providerNamePlaceholder": "например：我的 Ollama",
     "presetTemplate": "预设模板",
     "customEndpoint": "自定义端点地址",
-    "apiKeyOptional": "API Key（可选）",
+    "apiKeyOptional": "API Key（Необязательно）",
     "apiKeyPlaceholder": "如果需要认证",
-    "customProviderDesc": "添加 Ollama、vLLM、LocalAI 等本地或自定义端点",
-    "addProvider": "添加提供商",
-    "noCustomProviders": "暂无自定义提供商，点击上方按钮添加"
+    "customProviderDesc": "Добавить Ollama、vLLM、LocalИИ 等本地或自定义端点",
+    "addProvider": "Добавить提供商",
+    "noCustomProviders": "暂Нет自定义提供商，点击上方按钮Добавить"
   },
   "modelCapsule": {
-    "selectModel": "选择模型",
-    "advancedSettings": "进阶模型设置",
+    "selectModel": "选择Модель",
+    "advancedSettings": "进阶МодельНастройки",
     "transparency": {
-      "label": "AI 透明度",
-      "minimal": "隐藏",
+      "label": "ИИ 透明度",
+      "minimal": "Скрыть",
       "standard": "标准",
       "verbose": "详细",
       "debug": "调试"
@@ -1110,7 +1110,7 @@
     "presets": {
       "fast": {
         "label": "快速",
-        "description": "较低温度，适合简单任务"
+        "description": "较低温度，适合简单Задача"
       },
       "balanced": {
         "label": "平衡",
@@ -1118,7 +1118,7 @@
       },
       "precise": {
         "label": "精确",
-        "description": "更高精度，适合复杂任务"
+        "description": "更高精度，适合复杂Задача"
       }
     },
     "temperatureRange": {
@@ -1136,199 +1136,214 @@
     }
   },
   "systemPromptCard": {
-    "title": "系统提示词",
-    "sectionsCount": "{{count}} 个部分",
-    "skillsCount": "{{count}} 个技能",
+    "title": "СистемаПодсказка",
+    "sectionsCount": "{{count}} 部分",
+    "skillsCount": "{{count}} Навыки",
     "totalTokens": "~{{count}} {{tokens}}",
-    "inactive": "未启用",
+    "inactive": "未Включить",
     "clickToLoad": "点击加载内容",
     "truncated": "...（已截断）"
   },
   "bashConsoleOutput": {
     "title": "控制台输出",
-    "empty": "暂无输出",
-    "collapse": "收起",
-    "expand": "展开",
-    "exitCode": "退出码：{{code}}"
+    "empty": "暂Нет输出",
+    "collapse": "Свернуть",
+    "expand": "Развернуть",
+    "exitCode": "Выход码：{{code}}"
   },
   "chatInput": {
-    "dropImageHint": "释放图片，AI 即刻读图",
-    "currentModel": "当前模型：{{model}}",
-    "referenceFile": "引用文件",
+    "dropImageHint": "释放图片，ИИ 即刻读图",
+    "currentModel": "当前Модель：{{model}}",
+    "referenceFile": "引用Файл",
     "referenceSymbol": "引用符号"
   },
   "fuzzyFileSearch": {
-    "title": "引用文件 (@)",
-    "noMatches": "未找到匹配文件..."
+    "title": "引用Файл (@)",
+    "noMatches": "未找到匹配Файл..."
   },
   "taskSummary": {
-    "title": "生成完成",
-    "completedOperations": "{{completed}}/{{total}} 操作已完成",
-    "filesCreated": "生成的文件 ({{count}})",
-    "filesRead": "读取的文件 ({{count}})",
-    "commandsExecuted": "执行了 {{count}} 个命令",
-    "errors": "错误 ({{count}})",
-    "operationFailed": "操作失败"
+    "title": "Генерация完成",
+    "completedOperations": "{{completed}}/{{total}} ОперацияВыполнено",
+    "filesCreated": "Генерация的Файл ({{count}})",
+    "filesRead": "Читать的Файл ({{count}})",
+    "commandsExecuted": "执行了 {{count}} 命令",
+    "errors": "Ошибка ({{count}})",
+    "operationFailed": "Операция не удалась"
   },
-  "agent_monitor_title": "任务监控器",
-  "agent_monitor_activeTasks": "{{count}} 个活动任务",
-  "agent_monitor_allTasksCompleted": "所有任务已完成",
-  "agent_monitor_totalTasks": "共 {{count}} 个",
-  "agent_monitor_clearDone": "清理已完成",
-  "agent_monitor_initializing": "正在初始化任务...",
-  "agent_monitor_stopRemove": "停止/移除任务",
+  "agent_monitor_title": "Задача监控器",
+  "agent_monitor_activeTasks": "{{count}} 活动Задача",
+  "agent_monitor_allTasksCompleted": "所有ЗадачаВыполнено",
+  "agent_monitor_totalTasks": "всего {{count}} ",
+  "agent_monitor_clearDone": "ОчисткаВыполнено",
+  "agent_monitor_initializing": "正在初始化Задача...",
+  "agent_monitor_stopRemove": "停止/Убрать задачу",
   "agent_status_idle": "空闲",
-  "agent_status_running": "运行中",
-  "agent_status_waitingfortool": "等待工具批准",
+  "agent_status_running": "Выполняется",
+  "agent_status_waitingfortool": "ОжиданиеИнструментОдобрить",
   "agent_status_stopped": "已停止",
-  "agent_status_failed": "失败",
-  "agent_status_completed": "已完成",
-  "agent_status_initializing": "初始化中",
+  "agent_status_failed": "Ошибка",
+  "agent_status_completed": "Завершено",
+  "agent_status_initializing": "Инициализация...",
   "shortcuts": {
-    "updatedSuccessfully": "快捷键更新成功",
+    "updatedSuccessfully": "快捷键ОбновитьУспешно",
     "conflict": "冲突：{{keys}} 已分配给 {{command}}",
-    "resetDefaults": "重置为默认值",
+    "resetDefaults": "Сбросить为默认值",
     "keyboardShortcuts": "键盘快捷键",
-    "searchKeybindings": "搜索快捷键...",
+    "searchKeybindings": "Поиск快捷键...",
     "command": "命令",
     "keybinding": "快捷键",
     "source": "来源",
-    "user": "用户",
-    "clickToEdit": "点击编辑",
+    "user": "Пользователь",
+    "clickToEdit": "点击Редактирование",
     "pressKeys": "按键...",
-    "ifaiScheme": "IfAI 默认",
+    "ifaiScheme": "IfИИ 默认",
     "vscodeScheme": "VS Code",
     "intellijScheme": "IntelliJ IDEA",
-    "schemeChanged": "方案已切换到 {{scheme}}",
-    "import": "导入",
-    "export": "导出",
-    "importSuccess": "快捷键导入成功",
-    "importError": "快捷键导入失败：格式无效",
-    "exportSuccess": "快捷键导出成功",
-    "exportError": "快捷键导出失败",
+    "schemeChanged": "方案已Переключить到 {{scheme}}",
+    "import": "Импорт",
+    "export": "Экспорт",
+    "importSuccess": "快捷键ИмпортУспешно",
+    "importError": "快捷键ИмпортНеудача：格式Нет效",
+    "exportSuccess": "快捷键ЭкспортУспешно",
+    "exportError": "快捷键ЭкспортНеудача",
     "category": {
-      "file": "文件操作",
-      "edit": "编辑操作",
+      "file": "ФайлОперация",
+      "edit": "РедактированиеОперация",
       "navigation": "导航",
-      "ai": "AI 功能",
+      "ai": "ИИ 功能",
       "view": "视图"
     },
-    "newFile": "新建文件",
-    "openFile": "打开文件",
-    "save": "保存",
-    "saveAs": "另存为",
-    "closeFile": "关闭文件",
-    "undo": "撤销",
-    "redo": "重做",
-    "find": "查找",
-    "replace": "替换",
+    "newFile": "Создать файл",
+    "openFile": "Открыть файл",
+    "save": "Сохранить",
+    "saveAs": "Сохранить как",
+    "closeFile": "ЗакрытьФайл",
+    "undo": "Отменить",
+    "redo": "Повторить",
+    "find": "Найти",
+    "replace": "Заменить",
     "selectWord": "选择当前单词",
-    "quickOpen": "快速打开文件",
+    "quickOpen": "快速Открыть файл",
     "commandPalette": "命令面板",
     "goToDefinition": "转到定义",
-    "findReferences": "查找所有引用",
+    "findReferences": "Найти所有引用",
     "goToLine": "跳转到行",
-    "openChat": "打开 AI 聊天",
-    "inlineEdit": "内联 AI 编辑",
-    "toggleTerminal": "切换终端",
-    "toggleSidebar": "切换侧边栏",
-    "toggleSettings": "切换设置",
-    "toggleExplorer": "切换资源管理器",
-    "tip": "提示：按 ? 键可快速打开此快捷键列表"
+    "openChat": "Открыть ИИ Чат",
+    "inlineEdit": "Встроенное редактирование ИИ",
+    "toggleTerminal": "ПереключитьТерминал",
+    "toggleSidebar": "Переключить боковую панель",
+    "toggleSettings": "ПереключитьНастройки",
+    "toggleExplorer": "ПереключитьПроводник",
+    "tip": "Подсказка：按 ? 键可快速Открыть此快捷键列表"
   },
   "toolClassificationSettings": {
-    "summaryTitle": "工具分类系统",
-    "summaryDescription": "三层分类架构：精确匹配（Layer 1）→ 规则分类（Layer 2）→ LLM 分类（Layer 3）。可根据需要调整分类行为和显示设置。",
-    "basic": "基础设置",
-    "enable": "启用工具分类",
-    "enableDescription": "使用三层分类系统识别用户意图并选择合适的工具",
-    "showIndicator": "显示分类指示器",
-    "showIndicatorDescription": "在聊天输入框下方实时显示分类结果",
-    "behavior": "分类行为",
+    "summaryTitle": "ИнструментКатегорияСистема",
+    "summaryDescription": "三层Категория架构：精确匹配（Layer 1）→ 规则Категория（Layer 2）→ LLM Категория（Layer 3）。可根据需要调整Категория行为和ПоказатьНастройки。",
+    "basic": "基础Настройки",
+    "enable": "ВключитьИнструментКатегория",
+    "enableDescription": "Использовать三层КатегорияСистема识别Пользователь意图并选择Подходящий的Инструмент",
+    "showIndicator": "ПоказатьКатегория指示器",
+    "showIndicatorDescription": "在Чат输入框下方Реальное времяПоказатьКатегория结果",
+    "behavior": "Категория行为",
     "confidenceThreshold": "置信度阈值",
     "confidenceLoose": "50%（宽松）",
-    "confidenceStrict": "95%（严格）",
-    "confidenceDescription": "低于此阈值的分类结果将触发回退策略",
+    "confidenceStrict": "95%（Строго）",
+    "confidenceDescription": "低于此阈值的Категория结果将触发回退策略",
     "fallbackStrategy": "回退策略",
-    "fallbackAlways": "始终使用回退（更保守）",
+    "fallbackAlways": "始终Использовать回退（更保守）",
     "fallbackOnLowConfidence": "低置信度时回退（推荐）",
     "fallbackNever": "从不回退（最激进）",
-    "fallbackAlwaysDescription": "即使置信度很高，也会使用回退策略进行二次验证",
-    "fallbackOnLowConfidenceDescription": "仅在置信度低于阈值时使用回退策略",
-    "fallbackNeverDescription": "完全信任分类结果，不使用回退策略",
-    "performanceReference": "性能参考",
-    "layer1": "第一层",
-    "layer2": "第二层",
-    "layer3": "第三层",
-    "openTestPage": "打开测试页面（{{shortcut}}）"
+    "fallbackAlwaysDescription": "即使置信度很高，也会Использовать回退策略进行二раз验证",
+    "fallbackOnLowConfidenceDescription": "仅在置信度低于阈值时Использовать回退策略",
+    "fallbackNeverDescription": "完全信任Категория结果，不Использовать回退策略",
+    "performanceReference": "ПроизводительностьСправка",
+    "layer1": "№一层",
+    "layer2": "№二层",
+    "layer3": "№三层",
+    "openTestPage": "ОткрытьТестированиеСтр.面（{{shortcut}}）"
   },
   "skillsSettings": {
-    "scanning": "正在扫描技能目录...",
-    "emptyTitle": "未发现可用技能",
-    "emptyDescription": "IfAI 会自动扫描项目根目录下 `.ifai/skills` 中的技能插件。您可以安装内置示例来快速开始体验。",
-    "installDemo": "安装内置示例技能",
-    "refresh": "刷新",
+    "scanning": "正在СканированиеНавык目录...",
+    "emptyTitle": "未发现可用Навык",
+    "emptyDescription": "IfИИ 会自动СканированиеПроект根目录下 `.ifai/skills` 中的Навык插件。您可以Установка内置示例来快速开始体验。",
+    "installDemo": "Установка内置示例Навык",
+    "refresh": "Обновить",
     "viewSource": "查看源码",
-    "footerTip": "提示：激活技能后，AI 将自动获得该领域的增强指令。",
-    "enabled": "已启用",
+    "footerTip": "Подсказка：激活Навык后，ИИ 将自动获得该领域的增强指令。",
+    "enabled": "已Включить",
     "disabled": "已停用",
-    "toggleSkill": "切换技能 {{name}}",
-    "openProjectFirst": "请先打开一个项目文件夹，再安装示例技能。",
-    "loadFailed": "加载技能失败：{{error}}",
-    "retry": "重试"
+    "toggleSkill": "ПереключитьНавык {{name}}",
+    "openProjectFirst": "请先Открыть一ПроектФайл夹，再Установка示例Навык。",
+    "loadFailed": "加载НавыкНеудача：{{error}}",
+    "retry": "Повторить",
+    "noProjectPath": "Нет法获取Проект路径",
+    "openProjectHint": "请先Открыть一Проект",
+    "demoInstallSuccess": "示例НавыкУстановкаУспешно！",
+    "demoInstalledDescription": "已Установка4实用Навык：Код审查、ТестированиеГенерация、Документация撰写、调试专家",
+    "installFailed": "УстановкаНеудача",
+    "installSuccess": "НавыкУстановкаУспешно",
+    "installedDescription": "{{skillId}} 已УспешноУстановка",
+    "skillInstallFailed": "НавыкУстановкаНеудача",
+    "createSuccess": "НавыкиСоздатьУспешно",
+    "createdDescription": "{{skillName}} 已УспешноСоздать",
+    "updateSuccess": "НавыкиОбновитьУспешно",
+    "updatedDescription": "{{skillName}} 已УспешноОбновить",
+    "saveFailed": "Ошибка сохранения",
+    "installing": "Установка...",
+    "browseLibrary": "浏览Навык库"
   },
   "skillShared": {
     "state": {
-      "active": "已激活",
-      "installed": "已安装",
-      "notInstalled": "未安装",
-      "installing": "安装中",
-      "inactive": "未激活",
+      "active": "Активировано",
+      "installed": "Установлено",
+      "notInstalled": "Не установлено",
+      "installing": "Установка中",
+      "inactive": "Не активировано",
       "uninstalling": "卸载中",
-      "error": "错误"
+      "error": "Ошибка"
     },
     "filters": {
-      "all": "全部",
-      "active": "已激活",
-      "installed": "已安装",
-      "inactive": "未激活",
-      "error": "错误"
+      "all": "Все",
+      "active": "Активировано",
+      "installed": "Установлено",
+      "inactive": "Не активировано",
+      "error": "Ошибка"
     },
     "sort": {
-      "name": "名称",
-      "version": "版本",
-      "status": "状态",
-      "author": "作者"
+      "name": "Название",
+      "version": "Версия",
+      "status": "Состояние",
+      "author": "Автор"
     }
   },
   "skillsPanel": {
-    "title": "技能",
-    "summary": "{{active}} 个激活 / 共 {{total}} 个",
-    "openMarket": "打开技能市场",
-    "searchPlaceholder": "搜索技能...",
-    "filter": "筛选",
-    "clearFilters": "清除筛选",
-    "loading": "正在加载技能...",
-    "emptyTitle": "未找到匹配的技能",
-    "emptyDescription": "请尝试其他关键词或状态筛选。",
+    "title": "Навыки",
+    "summary": "{{active}} 激活 / всего {{total}} ",
+    "openMarket": "ОткрытьНавык市场",
+    "searchPlaceholder": "ПоискНавыки...",
+    "filter": "Фильтр",
+    "clearFilters": "ОчиститьФильтр",
+    "loading": "正在加载Навык...",
+    "emptyTitle": "未找到匹配的Навык",
+    "emptyDescription": "请尝试其他关键词或状态Фильтр。",
     "footer": {
       "active": "激活：{{count}}",
       "total": "总计：{{count}}",
-      "filtered": "显示：{{count}}"
+      "filtered": "Показать：{{count}}"
     },
-    "processing": "处理中...",
-    "activate": "激活技能",
-    "deactivate": "停用技能",
-    "uninstall": "卸载技能",
+    "processing": "Обработка...",
+    "activate": "激活Навык",
+    "deactivate": "停用Навык",
+    "uninstall": "卸载Навык",
     "author": "作者：{{author}}",
-    "tags": "标签",
-    "noTags": "暂无标签",
-    "dependencies": "依赖",
-    "noDependencies": "无依赖",
-    "systemPrompt": "系统提示词",
-    "emptySelectionTitle": "选择一个技能",
-    "emptySelectionDescription": "从左侧列表中选择技能，查看详情并执行操作。",
-    "confirmUninstall": "确定要卸载“{{name}}”吗？",
+    "tags": "Метки",
+    "noTags": "暂Нет标签",
+    "dependencies": "Зависимость",
+    "noDependencies": "Нет зависимостей",
+    "systemPrompt": "СистемаПодсказка",
+    "emptySelectionTitle": "选择一Навык",
+    "emptySelectionDescription": "从左侧列表中选择Навык，查看详情并执行Операция。",
+    "confirmUninstall": "ОК要卸载“{{name}}”吗？",
     "toasts": {
       "activating": "正在激活 {{name}}...",
       "activated": "已激活 {{name}}",
@@ -1336,91 +1351,99 @@
       "deactivated": "已停用 {{name}}",
       "uninstalling": "正在卸载 {{name}}...",
       "uninstalled": "已卸载 {{name}}",
-      "actionFailed": "操作失败：{{error}}",
-      "uninstallFailed": "卸载失败：{{error}}",
-      "openProjectFirst": "请先打开一个项目。",
-      "unknownError": "未知错误"
+      "actionFailed": "Операция не удалась：{{error}}",
+      "uninstallFailed": "卸载Неудача：{{error}}",
+      "openProjectFirst": "请先Открыть一Проект。",
+      "unknownError": "Неизвестная ошибка"
     }
   },
   "skillMarket": {
-    "title": "技能市场",
-    "countSummary": "共 {{count}} 个内置技能",
-    "close": "关闭技能市场",
-    "back": "返回列表",
-    "searchPlaceholder": "搜索技能...",
-    "featuredBadge": "精选",
-    "installed": "已安装",
-    "installing": "安装中...",
-    "installToProject": "安装到项目",
-    "uninstall": "卸载技能",
-    "confirmUninstall": "确定要卸载“{{name}}”吗？",
-    "version": "版本 {{version}}",
-    "author": "作者：{{author}}",
-    "downloads": "{{value}} 次下载",
-    "rating": "评分 {{value}}",
-    "size": "大小 {{value}}",
-    "tags": "标签",
-    "dependencies": "依赖",
-    "noDependencies": "无依赖",
-    "requirements": "使用要求",
-    "examples": "使用场景",
-    "systemPromptPreview": "系统提示词预览",
-    "previewHint": "安装后可查看完整提示词。",
-    "welcomeTitle": "欢迎来到技能市场",
-    "welcomeDescription": "浏览内置技能目录，并按需将技能安装到当前项目中。",
-    "featuredCount": "{{count}} 个精选",
-    "totalCount": "{{count}} 个技能",
-    "emptyTitle": "未找到匹配的技能",
-    "emptyDescription": "请尝试其他搜索词或分类。",
+    "title": "Рынок навыков",
+    "countSummary": "Всего {{count}} встроенных навыков",
+    "close": "Закрыть рынок навыков",
+    "closeButton": "Закрыть",
+    "back": "Назад к списку",
+    "searchPlaceholder": "Поиск навыков...",
+    "featuredBadge": "Избранное",
+    "installed": "Установлено",
+    "installing": "Установка...",
+    "installToProject": "Установить в проект",
+    "uninstall": "Удалить навык",
+    "confirmUninstall": "Удалить '{{name}}'?",
+    "version": "Версия {{version}}",
+    "author": "Автор: {{author}}",
+    "downloads": "{{value}} загрузок",
+    "rating": "Рейтинг {{value}}",
+    "size": "Размер {{value}}",
+    "tags": "Метки",
+    "dependencies": "Зависимости",
+    "noDependencies": "Нет зависимостей",
+    "requirements": "Требования",
+    "examples": "Сценарии использования",
+    "systemPromptPreview": "Предпросмотр системного промпта",
+    "previewHint": "Полный промпт будет доступен после установки.",
+    "welcomeTitle": "Добро пожаловать на рынок навыков",
+    "welcomeDescription": "Просматривайте каталог встроенных навыков и устанавливайте их в текущий проект по мере необходимости.",
+    "featuredCount": "{{count}} избранное",
+    "totalCount": "{{count}} навыков",
+    "emptyTitle": "Ничего не найдено",
+    "emptyDescription": "Попробуйте другой поисковый запрос или категорию.",
+    "all": "Все",
     "categories": {
-      "all": "全部",
-      "featured": "精选",
-      "development": "开发",
-      "testing": "测试",
-      "documentation": "文档",
+      "featured": "Избранное",
+      "development": "Разработка",
+      "testing": "Тестирование",
+      "documentation": "Документация",
       "pivo": "PIVO"
     },
     "toasts": {
-      "openProjectFirst": "请先打开一个项目。",
-      "installing": "正在安装 {{name}}...",
-      "installed": "已安装 {{name}}",
-      "installFailed": "安装失败：{{error}}",
+      "openProjectFirst": "请先Открыть一Проект。",
+      "installing": "正在Установка {{name}}...",
+      "installed": "已Установка {{name}}",
+      "installFailed": "УстановкаНеудача：{{error}}",
       "uninstalling": "正在卸载 {{name}}...",
       "uninstalled": "已卸载 {{name}}",
-      "uninstallFailed": "卸载失败：{{error}}",
-      "unknownError": "未知错误"
-    }
+      "uninstallFailed": "卸载Неудача：{{error}}",
+      "unknownError": "Неизвестная ошибка"
+    },
+    "openProjectFirst": "Сначала откройте проект",
+    "installingMessage": "Установка навыка: {{name}}...",
+    "installSuccess": "Установка выполнена",
+    "installFailed": "Ошибка установки: {{error}}",
+    "uninstallingMessage": "Удаление навыка: {{name}}...",
+    "uninstallSuccess": "Удалено",
+    "uninstallFailed": "Ошибка удаления: {{error}}"
   },
   "skillCatalog": {
     "common": {
-      "ifaiTeam": "IfAI 团队"
+      "ifaiTeam": "IfИИ 团队"
     },
     "tags": {
-      "codeReview": "代码审查",
+      "codeReview": "Код审查",
       "quality": "质量",
-      "security": "安全",
-      "performance": "性能",
-      "testing": "测试",
+      "security": "Безопасность",
+      "performance": "Производительность",
+      "testing": "Тест",
       "automation": "自动化",
       "ciCd": "CI/CD",
-      "documentation": "文档",
+      "documentation": "Документация",
       "api": "API",
       "openapi": "OpenAPI",
       "swagger": "Swagger",
       "debugging": "调试",
       "troubleshooting": "排障",
-      "errorFixing": "错误修复",
+      "errorFixing": "Ошибка修复",
       "pivo": "PIVO",
       "diagnostics": "诊断",
       "recovery": "恢复",
       "delivery": "交付",
       "implementation": "实现",
       "verification": "验证",
-      "refactor": "重构",
+      "refactor": "Рефакторинг",
       "architecture": "架构",
       "maintainability": "可维护性",
-      "profiling": "分析",
-      "optimization": "优化",
+      "profiling": "Анализ",
+      "optimization": "Оптимизировать",
       "audit": "审计",
       "compliance": "合规",
       "guides": "指南",
@@ -1432,87 +1455,87 @@
     },
     "skills": {
       "code-review-pro": {
-        "name": "代码审查专家 Pro",
-        "description": "深度代码审查，重点关注正确性、可维护性、安全性与性能。",
-        "longDescription": "以资深工程师视角审查代码改动，优先指出高风险问题，再补充结构和质量建议。",
-        "systemPrompt": "你是一名资深代码审查工程师。请按严重程度输出问题、影响、证据和修复建议。",
+        "name": "Код审查专家 Pro",
+        "description": "深度Код审查，重点关注正确性、可维护性、Безопасность性与Производительность。",
+        "longDescription": "以资深工程师视角审查Код改动，优先指出高风险问题，再补充结构和质量Предложение。",
+        "systemPrompt": "你Да一名资深Код审查工程师。请按严重程度输出问题、影响、证据和修复Предложение。",
         "examples": [
           "审查 React 组件中的状态管理问题",
-          "排查 API 处理流程里的安全回归",
-          "检查一次重构是否引入了测试缺口"
+          "排查 API Обработка流程里的Безопасность回归",
+          "检查一разРефакторингДаНет引入了Тестирование缺口"
         ]
       },
       "test-generator-ai": {
-        "name": "AI 测试生成器",
-        "description": "根据真实代码路径与边界条件生成单元测试和集成测试。",
-        "longDescription": "围绕行为、错误路径与回归场景生成实用测试，覆盖前端与后端常见栈。",
-        "systemPrompt": "你是一名测试工程师。请输出聚焦行为、断言明确、覆盖边界场景的测试代码。",
+        "name": "ИИ ТестированиеГенерация器",
+        "description": "根据真实Код路径与边界записей件Генерация单元Тестирование和集成Тестирование。",
+        "longDescription": "围绕行为、Ошибка路径与回归场景Генерация实用Тестирование，覆盖前端与后端常见栈。",
+        "systemPrompt": "你Да一名Тестирование工程师。请输出聚焦行为、断言明确、覆盖边界场景的ТестированиеКод。",
         "examples": [
-          "为 React Hook 生成 Vitest 测试",
-          "为 Express 接口编写集成测试",
-          "为工具函数补齐异常路径测试"
+          "为 React Hook Генерация Vitest Тестирование",
+          "为 Express 接口编写集成Тестирование",
+          "为Инструмент函数补齐异常路径Тестирование"
         ]
       },
       "api-doc-writer": {
-        "name": "API 文档助手",
-        "description": "生成结构化 API 文档，覆盖请求、响应和错误说明。",
-        "longDescription": "将路由契约和代码实现整理成简洁、可交付、便于维护的接口文档。",
-        "systemPrompt": "你是一名技术文档作者。请输出准确的 API 文档，包括端点、参数、示例和错误说明。",
+        "name": "API ДокументацияАссистент",
+        "description": "Генерация结构化 API Документация，覆盖Запрос、响应和Ошибка说明。",
+        "longDescription": "将路由契约和Код实现整理成简洁、可交付、便于维护的接口Документация。",
+        "systemPrompt": "你Да一名技术Документация作者。请输出准确的 API Документация，Включая端点、参数、示例和Ошибка说明。",
         "examples": [
           "整理一组 REST API 的接口说明",
-          "总结请求与响应字段定义",
-          "为 OpenAPI 文档准备接口草稿"
+          "总结Запрос与响应字段定义",
+          "为 OpenAPI Документация准备接口草稿"
         ]
       },
       "bug-hunter": {
         "name": "Bug 猎手",
-        "description": "快速定位缺陷并给出最小可行修复方案。",
-        "longDescription": "结合日志、堆栈和代码路径识别最可能的根因，并提供低风险补丁建议。",
-        "systemPrompt": "你是一名调试专家。请定位最可能的根因，并给出最小且可靠的修复方案。",
+        "description": "快速Найти缺陷并给出Мин.可行修复方案。",
+        "longDescription": "结合日志、堆栈和Код路径识别最可能的根因，并提供低风险补丁Предложение。",
+        "systemPrompt": "你Да一名调试专家。请Найти最可能的根因，并给出Мин.且可靠的修复方案。",
         "examples": [
-          "根据生产堆栈追踪定位崩溃原因",
+          "根据生产堆栈追踪Найти崩溃原因",
           "排查状态同步类问题",
-          "解释后台任务偶发失败的根因"
+          "Объяснение后台Задача偶发Неудача的根因"
         ]
       },
       "pivo-healer": {
         "name": "PIVO 修复官",
         "description": "稳定异常流程，并用清晰诊断指导恢复。",
         "longDescription": "聚焦故障流程中的关键断点，输出恢复顺序、风险点和验证步骤。",
-        "systemPrompt": "你是一名恢复专家。请诊断失败点、稳定流程，并输出先验证后恢复的计划。",
+        "systemPrompt": "你Да一名恢复专家。请诊断Неудача点、稳定流程，并输出先验证后恢复的计划。",
         "examples": [
-          "排查失败的 proposal workflow",
+          "排查Неудача的 proposal workflow",
           "恢复损坏的持久化链路",
           "稳定跨服务交接中的异常流程"
         ]
       },
       "pivo-implementer": {
         "name": "PIVO 实施官",
-        "description": "把已批准方案转成可执行步骤和交付清单。",
-        "longDescription": "将范围明确的需求拆成执行顺序、检查点和可落地的验收标准。",
-        "systemPrompt": "你是一名实施负责人。请把方案拆成可执行步骤，明确顺序、依赖和验收标准。",
+        "description": "把已Одобрить方案转成可执行步骤和交付清单。",
+        "longDescription": "将Диапазон明确的需求拆成执行顺序、检查点和可落地的验收标准。",
+        "systemPrompt": "你Да一名实施负责人。请把方案拆成可执行步骤，明确顺序、依赖和验收标准。",
         "examples": [
-          "把设计方案转成实施任务清单",
-          "规划多文件功能开发顺序",
-          "补齐一项工作流改造的验收标准"
+          "把设计方案转成实施Задача清单",
+          "规划多Файл功能开发顺序",
+          "补齐一элементов工作流改造的验收标准"
         ]
       },
       "pivo-verifier": {
         "name": "PIVO 验证官",
-        "description": "检查执行结果是否符合计划，并在发布前标出缺口。",
-        "longDescription": "对照范围和验收标准复盘已完成工作，识别遗漏验证与偏差。",
-        "systemPrompt": "你是一名验证负责人。请对照计划检查执行结果，并要求明确的验证证据。",
+        "description": "检查执行结果ДаНет符合计划，并在发布前标出缺口。",
+        "longDescription": "对照Диапазон和验收标准复盘Выполнено工作，识别遗漏验证与偏差。",
+        "systemPrompt": "你Да一名验证负责人。请对照计划检查执行结果，并要求明确的验证证据。",
         "examples": [
-          "核对已完成功能是否符合规格",
-          "在合并前做一次发布准备检查",
-          "审查验收标准是否被完整覆盖"
+          "核对Выполнено功能ДаНет符合规格",
+          "在合并前做一раз发布准备检查",
+          "审查验收标准ДаНет被完整覆盖"
         ]
       },
       "code-refactor": {
-        "name": "代码重构专家",
+        "name": "КодРефакторинг专家",
         "description": "在不改变行为的前提下重整结构并提升可维护性。",
-        "longDescription": "优化命名、分层、重复代码和模块边界，以渐进方式改善结构质量。",
-        "systemPrompt": "你是一名重构专家。请在保持行为不变的前提下改进结构，并说明需要验证的风险点。",
+        "longDescription": "Оптимизация命名、分层、重复Код和模块边界，以渐进方式改善结构质量。",
+        "systemPrompt": "你Да一名Рефакторинг专家。请在保持行为不变的前提下改进结构，并说明需要验证的风险点。",
         "examples": [
           "拆分超大的组件或模块",
           "消除服务层中的重复逻辑",
@@ -1520,384 +1543,384 @@
         ]
       },
       "performance-optimizer": {
-        "name": "性能优化顾问",
-        "description": "发现性能瓶颈，并给出高收益的运行时优化建议。",
-        "longDescription": "聚焦慢路径、重复渲染、昂贵查询和浪费型 I/O，输出务实的优化方案。",
-        "systemPrompt": "你是一名性能工程师。请识别主要瓶颈，评估收益，并给出最低风险的优化方案。",
+        "name": "ПроизводительностьОптимизация顾问",
+        "description": "发现Производительность瓶颈，并给出高收益的Запуск时ОптимизацияПредложение。",
+        "longDescription": "聚焦慢路径、重复渲染、昂贵查询和浪费型 I/O，输出务实的Оптимизация方案。",
+        "systemPrompt": "你Да一名Производительность工程师。请识别主要瓶颈，评估收益，并给出最低风险的Оптимизация方案。",
         "examples": [
           "减少 React 重复渲染",
-          "优化慢接口的查询路径",
-          "排查桌面应用启动耗时"
+          "Оптимизация慢接口的查询路径",
+          "排查桌面Применить启动耗时"
         ]
       },
       "security-auditor": {
-        "name": "安全审计助手",
-        "description": "审查代码路径中的安全弱点和不安全假设。",
-        "longDescription": "检查输入处理、信任边界、凭证使用和运行时防护，输出可执行的安全修复建议。",
-        "systemPrompt": "你是一名安全审计工程师。请识别真实攻击面，说明严重性，并给出具体缓解方案。",
+        "name": "Безопасность审计Ассистент",
+        "description": "审查Код路径中的Безопасность弱点和不Безопасность假设。",
+        "longDescription": "检查输入Обработка、信任边界、凭证Использовать和Запуск时防护，输出可执行的Безопасность修复Предложение。",
+        "systemPrompt": "你Да一名Безопасность审计工程师。请识别真实攻击面，说明严重性，并给出具体缓解方案。",
         "examples": [
-          "审计文件系统访问控制",
-          "检查配置流程中的密钥处理",
+          "审计ФайлСистема访问控制",
+          "检查配置流程中的密钥Обработка",
           "复核 API 输入校验策略"
         ]
       },
       "tech-writer": {
-        "name": "技术写作助手",
-        "description": "撰写简洁的技术指南、交接说明和用户参考文档。",
-        "longDescription": "帮助团队输出结构清晰、可复用、便于长期维护的工程文档。",
-        "systemPrompt": "你是一名技术作者。请输出结构清晰、范围明确、假设透明的技术文档。",
+        "name": "技术写作Ассистент",
+        "description": "撰写简洁的技术指南、交接说明和ПользовательСправкаДокументация。",
+        "longDescription": "Справка团队输出结构清晰、可复用、便于长期维护的工程Документация。",
+        "systemPrompt": "你Да一名技术作者。请输出结构清晰、Диапазон明确、假设透明的技术Документация。",
         "examples": [
           "编写本地开发环境搭建指南",
-          "整理一次发布说明摘要",
-          "沉淀内部工程流程文档"
+          "整理一раз发布说明摘要",
+          "沉淀内部工程流程Документация"
         ]
       },
       "docker-expert": {
         "name": "Docker 容器专家",
-        "description": "优化 Docker、Compose 与容器交付流程。",
-        "longDescription": "围绕镜像体积、安全性、可复现性和部署便利性改进容器构建与运行配置。",
-        "systemPrompt": "你是一名容器专家。请结合部署约束，给出实用的 Docker 与编排优化建议。",
+        "description": "Оптимизация Docker、Compose 与容器交付流程。",
+        "longDescription": "围绕镜像体积、Безопасность性、可复现性和Развёртывание便利性改进容器Сборка与Запуск配置。",
+        "systemPrompt": "你Да一名容器专家。请结合Развёртывание约束，给出实用的 Docker 与编排ОптимизацияПредложение。",
         "requirements": [
-          "建议具备基础 Docker 使用经验"
+          "Предложение具备基础 Docker Использовать经验"
         ],
         "examples": [
-          "优化生产 Dockerfile",
+          "Оптимизация生产 Dockerfile",
           "配置本地开发用 docker-compose",
-          "整理 Kubernetes 部署建议"
+          "整理 Kubernetes РазвёртываниеПредложение"
         ]
       }
     }
   },
   "archivePanel": {
-    "title": "对话归档",
+    "title": "Диалог归档",
     "detailTitle": "归档详情",
-    "close": "关闭归档面板",
-    "back": "返回归档列表",
-    "errorTitle": "加载归档失败",
+    "close": "Закрыть归档面板",
+    "back": "Назад归档列表",
+    "errorTitle": "加载归档Неудача",
     "errorDescription": "{{error}}",
-    "summaryTitle": "对话总结",
+    "summaryTitle": "Диалог总结",
     "restore": "恢复此归档",
     "loading": "加载归档中...",
-    "emptyTitle": "暂无归档",
-    "emptyDescription": "对话压缩后会自动创建归档。",
-    "messageCount": "{{value}} 条消息",
-    "tokens": "{{value}} 个 tokens",
+    "emptyTitle": "暂Нет归档",
+    "emptyDescription": "Диалог压缩后会自动Создать归档。",
+    "messageCount": "{{value}} записейСообщение",
+    "tokens": "{{value}}  tokens",
     "meta": {
       "time": "时间",
-      "messages": "消息数",
-      "tokens": "Token 数",
-      "format": "格式",
-      "size": "大小"
+      "messages": "Сообщение数",
+      "tokens": "Токен 数",
+      "format": "Формат",
+      "size": "Размер"
     }
   },
   "skillsManagement": {
-    "title": "技能中心",
-    "subtitle": "统一管理 AI 技能插件与安装流程。",
-    "refresh": "刷新",
+    "title": "Навык中心",
+    "subtitle": "统一管理 ИИ Навык插件与Установка流程。",
+    "refresh": "Обновить",
     "grid": "网格",
     "list": "列表",
     "gridAria": "网格视图",
-    "listAria": "列表视图",
-    "openInstaller": "打开技能市场",
-    "searchPlaceholder": "搜索技能名称、ID 或描述...",
-    "clearSearch": "清空搜索",
-    "filter": "筛选",
-    "resultsSummary": "{{resultCount}} / {{totalCount}} 个技能",
+    "listAria": "Список",
+    "openInstaller": "ОткрытьНавык市场",
+    "searchPlaceholder": "ПоискНавык名称、ID 或Описание...",
+    "clearSearch": "清空Поиск",
+    "filter": "Фильтр",
+    "resultsSummary": "{{resultCount}} / {{totalCount}} Навыки",
     "filterState": "状态：",
     "sortLabel": "排序：",
     "sortOrderAsc": "升序",
     "sortOrderDesc": "降序",
     "filterTags": "标签：",
-    "showLessTags": "收起",
-    "showMoreTags": "+{{count}} 个",
-    "clearAllFilters": "清除所有筛选",
+    "showLessTags": "Свернуть",
+    "showMoreTags": "+{{count}} ",
+    "clearAllFilters": "Очистить所有Фильтр",
     "popularTags": "热门标签",
-    "batchSelected": "已选择 {{count}} 个技能",
+    "batchSelected": "已选择 {{count}} Навык",
     "batchActivate": "批量激活",
-    "clearSelection": "取消选择",
-    "loading": "正在加载技能...",
-    "loadFailedTitle": "加载失败",
-    "retry": "重试",
-    "emptyTitle": "未找到技能",
-    "emptyDescription": "安装内置示例技能来快速开始。",
-    "emptyFilteredDescription": "请尝试调整当前搜索或筛选条件。",
-    "installExamples": "安装示例技能",
-    "deactivate": "停用",
-    "activate": "激活",
-    "install": "安装",
+    "clearSelection": "Отмена选择",
+    "loading": "正在加载Навык...",
+    "loadFailedTitle": "Ошибка загрузки",
+    "retry": "Повторить",
+    "emptyTitle": "未找到Навык",
+    "emptyDescription": "Установка内置示例Навык来快速开始。",
+    "emptyFilteredDescription": "请尝试调整当前Поиск或Фильтрзаписей件。",
+    "installExamples": "Установка示例Навык",
+    "deactivate": "Деактивировать",
+    "activate": "Активировать",
+    "install": "Установка",
     "stats": {
-      "total": "总计",
-      "active": "激活",
-      "installed": "已安装",
-      "error": "错误"
+      "total": "Всего",
+      "active": "Активировать",
+      "installed": "Установлено",
+      "error": "Ошибка"
     }
   },
   "skillInstaller": {
-    "title": "技能市场",
-    "subtitle": "浏览和安装社区技能",
-    "close": "关闭安装器",
-    "searchPlaceholder": "搜索技能...",
-    "emptyTitle": "未找到匹配的技能",
-    "emptyDescription": "请尝试其他关键词或分类。",
-    "version": "版本 {{version}}",
-    "downloads": "{{value}} 次下载",
-    "installing": "安装中...",
-    "install": "安装技能",
-    "browseAll": "浏览全部技能库",
-    "installFromFile": "从本地文件安装",
-    "availableCount": "共 {{count}} 个技能可用",
-    "installFailed": "{{name}} 安装失败：{{error}}",
-    "unknownError": "未知错误",
+    "title": "Навык市场",
+    "subtitle": "浏览和Установка社区Навык",
+    "close": "ЗакрытьУстановка器",
+    "searchPlaceholder": "ПоискНавыки...",
+    "emptyTitle": "未找到匹配的Навык",
+    "emptyDescription": "请尝试其他关键词或Категория。",
+    "version": "Версия {{version}}",
+    "downloads": "{{value}} разСкачать",
+    "installing": "Установка...",
+    "install": "УстановкаНавык",
+    "browseAll": "浏览ВсеНавык库",
+    "installFromFile": "从本地ФайлУстановка",
+    "availableCount": "всего {{count}} Навык可用",
+    "installFailed": "{{name}} УстановкаНеудача：{{error}}",
+    "unknownError": "Неизвестная ошибка",
     "categories": {
-      "all": "全部",
+      "all": "Все",
       "official": "官方",
       "community": "社区"
     }
   },
   "skillDetail": {
-    "installing": "安装中...",
-    "install": "安装",
-    "deactivate": "停用",
-    "activate": "激活",
-    "uninstall": "卸载",
+    "installing": "Установка...",
+    "install": "Установка",
+    "deactivate": "Деактивировать",
+    "activate": "Активировать",
+    "uninstall": "Удаление",
     "source": "源码",
-    "basicInfo": "基本信息",
-    "skillId": "技能 ID",
-    "author": "作者",
+    "basicInfo": "基本Информация",
+    "skillId": "Навыки ID",
+    "author": "Автор",
     "unknownAuthor": "未知",
     "compatibility": "兼容性",
-    "systemPrompt": "系统提示词",
-    "tags": "标签",
-    "noTags": "暂无标签",
-    "dependencies": "依赖",
-    "noDependencies": "无依赖",
-    "sourceFiles": "源文件",
-    "open": "打开"
+    "systemPrompt": "СистемаПодсказка",
+    "tags": "Метки",
+    "noTags": "暂Нет标签",
+    "dependencies": "Зависимость",
+    "noDependencies": "Нет зависимостей",
+    "sourceFiles": "源Файл",
+    "open": "Открыть"
   },
   "skillEditor": {
-    "createTitle": "创建技能",
-    "createSubtitle": "创建新的 AI 技能插件",
-    "editTitle": "编辑技能",
-    "editSubtitle": "正在编辑 {{name}}",
-    "viewTitle": "查看技能",
-    "viewSubtitle": "查看技能详情",
-    "editTab": "编辑",
-    "previewTab": "预览",
-    "close": "关闭编辑器",
+    "createTitle": "СоздатьНавыки",
+    "createSubtitle": "Создать新的 ИИ Навык插件",
+    "editTitle": "РедактированиеНавыки",
+    "editSubtitle": "正在Редактирование {{name}}",
+    "viewTitle": "查看Навык",
+    "viewSubtitle": "查看Навык详情",
+    "editTab": "Редактировать",
+    "previewTab": "Предпросмотр",
+    "close": "ЗакрытьРедактирование器",
     "sections": {
-      "basic": "基本信息"
+      "basic": "基本Информация"
     },
     "fields": {
-      "id": "技能 ID",
-      "idHint": "仅允许小写字母、数字和连字符。",
-      "name": "技能名称",
-      "description": "描述",
-      "systemPrompt": "系统提示词",
-      "version": "版本",
-      "versionHint": "建议遵循语义化版本规范。",
-      "author": "作者",
-      "tags": "标签",
-      "tagsPlaceholder": "添加标签...",
-      "dependencies": "依赖技能",
-      "dependenciesPlaceholder": "添加依赖技能 ID...",
+      "id": "Навыки ID",
+      "idHint": "仅Разрешить小写字母、数字和连Символ。",
+      "name": "Навык名称",
+      "description": "Описание",
+      "systemPrompt": "СистемаПодсказка",
+      "version": "Версия",
+      "versionHint": "Предложение遵循语义化版本规范。",
+      "author": "Автор",
+      "tags": "Метки",
+      "tagsPlaceholder": "Добавить标签...",
+      "dependencies": "依赖Навык",
+      "dependenciesPlaceholder": "Добавить依赖Навык ID...",
       "compatibility": "兼容性表达式",
-      "compatibilityHint": "使用 semver 表达式描述兼容版本。"
+      "compatibilityHint": "Использовать semver 表达式Описание兼容版本。"
     },
     "placeholders": {
       "id": "my-skill",
-      "name": "我的技能",
-      "description": "简要描述这个技能的功能",
+      "name": "我的Навык",
+      "description": "简要Описание这Навык的功能",
       "systemPrompt": "You are a helpful assistant...",
       "version": "1.0.0",
       "author": "Your Name",
       "compatibility": "^1.0.0 || >=2.0.0"
     },
-    "characterCount": "{{count}} 个字符",
+    "characterCount": "{{count}} Символ",
     "validation": {
-      "id": "技能 ID 不能为空",
-      "name": "技能名称不能为空",
-      "description": "描述不能为空",
-      "systemPrompt": "系统提示词不能为空",
+      "id": "Навык ID 不能为空",
+      "name": "Навык名称不能为空",
+      "description": "Описание不能为空",
+      "systemPrompt": "СистемаПодсказка不能为空",
       "version": "版本号不能为空"
     },
-    "errorsSummary": "请修正 {{count}} 个错误",
-    "cancel": "取消",
-    "save": "保存",
-    "saving": "保存中...",
-    "previewFallbackName": "未命名技能",
-    "previewFallbackDescription": "请为这个技能补充简要说明。",
-    "previewVersion": "版本 {{version}}",
+    "errorsSummary": "请修正 {{count}} Ошибка",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "saving": "Сохранение...",
+    "previewFallbackName": "未命名Навык",
+    "previewFallbackDescription": "请为这Навык补充简要说明。",
+    "previewVersion": "Версия {{version}}",
     "previewAuthor": "作者 {{author}}",
-    "add": "添加",
-    "removeItem": "移除项"
+    "add": "Добавить",
+    "removeItem": "Убратьэлементов"
   },
   "commandPalette": {
-    "placeholder": "搜索文件...",
-    "placeholderThreads": "搜索会话...",
-    "placeholderAll": "搜索文件、会话... (@文件, #会话)",
+    "placeholder": "ПоискФайл...",
+    "placeholderThreads": "Поиск会话...",
+    "placeholderAll": "ПоискФайл、会话... (@Файл, #会话)",
     "noResults": "未找到结果",
-    "threadType": "会话",
-    "messageCount": "{{count}} 条消息",
-    "justNow": "刚刚",
+    "threadType": "Сессия",
+    "messageCount": "{{count}} записейСообщение",
+    "justNow": "Только что",
     "minutesAgo": "{{count}} 分钟前",
     "hoursAgo": "{{count}} 小时前",
     "daysAgo": "{{count}} 天前"
   },
   "threads": {
-    "now": "刚刚",
+    "now": "Только что",
     "minutesAgo": "{{m}}分钟前",
     "hoursAgo": "{{h}}小时前",
     "daysAgo": "{{d}}天前",
-    "noThreads": "暂无对话",
-    "newThread": "新建对话",
-    "new": "新对话",
-    "searchPlaceholder": "搜索对话...",
-    "clearFilters": "清除过滤",
+    "noThreads": "暂НетДиалог",
+    "newThread": "СоздатьДиалог",
+    "new": "新Диалог",
+    "searchPlaceholder": "ПоискДиалог...",
+    "clearFilters": "Очистить过滤",
     "filterByTag": "按标签过滤",
     "allTags": "所有标签",
-    "noTags": "暂无标签",
-    "filterByTagHint": "按标签筛选所有会话",
+    "noTags": "暂Нет标签",
+    "filterByTagHint": "按标签Фильтр所有会话",
     "manageCurrentThreadTags": "管理当前会话的标签",
     "manageTags": "管理标签",
     "currentThread": "当前会话",
-    "threads": "个对话",
-    "confirmDeleteTag": "确定要删除标签 \"{{tag}}\" 吗？",
+    "threads": "Диалог",
+    "confirmDeleteTag": "ОК要Удалить标签 \"{{tag}}\" 吗？",
     "tagExists": "标签已存在",
-    "noActiveThread": "无活动会话",
-    "noTagsYet": "当前会话暂无标签",
-    "createTagHint": "创建标签后可以为当前会话添加标签",
-    "save": "保存",
-    "cancel": "取消",
-    "editTag": "编辑标签",
-    "deleteTag": "删除标签",
+    "noActiveThread": "Нет活动会话",
+    "noTagsYet": "当前会话暂Нет标签",
+    "createTagHint": "Создать标签后可以为当前会话Добавить标签",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "editTag": "Редактирование标签",
+    "deleteTag": "Удалить标签",
     "newTagName": "新标签名称",
-    "create": "创建",
-    "createNewTag": "创建新标签",
+    "create": "Создать",
+    "createNewTag": "Создать新标签",
     "pin": "置顶",
-    "unpin": "取消置顶",
+    "unpin": "Отмена置顶",
     "pinned": "已置顶",
-    "unpinned": "已取消置顶",
-    "addTag": "添加标签",
-    "copyTitle": "复制标题",
+    "unpinned": "Отменено置顶",
+    "addTag": "Добавить标签",
+    "copyTitle": "Копировать标题",
     "details": "会话详情",
-    "deleteThread": "删除会话",
+    "deleteThread": "Удалить会话",
     "threadId": "会话 ID",
-    "messageCount": "消息数量",
-    "messageCountValue": "{{count}} 条",
-    "createdAt": "创建时间",
+    "messageCount": "Сообщение数量",
+    "messageCountValue": "{{count}} записей",
+    "createdAt": "Создать时间",
     "lastActive": "最后活跃",
-    "tags": "标签",
-    "description": "描述",
-    "confirmDeleteThread": "确定要删除会话 \"{{title}}\" 吗？"
+    "tags": "Метки",
+    "description": "Описание",
+    "confirmDeleteThread": "ОК要Удалить会话 \"{{title}}\" 吗？"
   },
   "toolClassificationHistory": {
-    "empty": "暂无分类历史",
-    "total": "共 {{count}} 条记录",
-    "clear": "清空历史",
-    "clearConfirm": "确定要清空所有分类历史吗？",
-    "secondsAgo": "{{count}}秒前",
-    "minutesAgo": "{{count}}分钟前",
-    "hoursAgo": "{{count}}小时前",
-    "daysAgo": "{{count}}天前",
+    "empty": "暂НетКатегорияИстория",
+    "total": "всего {{count}} записей记录",
+    "clear": "清空История",
+    "clearConfirm": "ОК要清空所有КатегорияИстория吗？",
+    "secondsAgo": "{{count}} с前",
+    "minutesAgo": "{{count}} мин. назад",
+    "hoursAgo": "{{count}} ч. назад",
+    "daysAgo": "{{count}} дн. назад",
     "categories": {
       "all": "所有类别",
-      "fileOperations": "文件操作",
-      "codeGeneration": "代码生成",
-      "codeAnalysis": "代码分析",
-      "terminalCommands": "终端命令",
-      "aiChat": "AI 对话",
-      "searchOperations": "搜索操作",
-      "noToolNeeded": "无需工具"
+      "fileOperations": "ФайлОперация",
+      "codeGeneration": "КодГенерация",
+      "codeAnalysis": "КодАнализ",
+      "terminalCommands": "Терминал命令",
+      "aiChat": "ИИ Диалог",
+      "searchOperations": "ПоискОперация",
+      "noToolNeeded": "Нет需Инструмент"
     },
     "layers": {
       "all": "所有层级",
       "layer1": "Layer 1（精确匹配）",
-      "layer2": "Layer 2（规则分类）",
-      "layer3": "Layer 3（LLM 分类）"
+      "layer2": "Layer 2（规则Категория）",
+      "layer3": "Layer 3（LLM Категория）"
     }
   },
   "toolClassificationMonitor": {
-    "title": "工具分类监控",
-    "refresh": "刷新数据",
-    "totalCalls": "总调用次数",
-    "averageAccuracy": "平均准确率",
-    "averageLatency": "平均延迟",
-    "errorCount": "错误数量",
+    "title": "ИнструментКатегория监控",
+    "refresh": "Обновить数据",
+    "totalCalls": "总调用раз数",
+    "averageAccuracy": "Среднее准确率",
+    "averageLatency": "Среднее延迟",
+    "errorCount": "Ошибка数量",
     "layerDistribution": "层级分布",
-    "recentHistory": "最近分类记录",
-    "errorLog": "错误日志（{{count}}）",
-    "expand": "展开",
-    "collapse": "收起",
-    "noErrors": "暂无错误记录",
-    "expandHint": "点击“展开”查看错误详情",
+    "recentHistory": "最近Категория记录",
+    "errorLog": "ОшибкаЖурнал ({{count}})",
+    "expand": "Развернуть",
+    "collapse": "Свернуть",
+    "noErrors": "暂НетОшибка记录",
+    "expandHint": "点击“Развернуть”查看Ошибка详情",
     "lowConfidence": "低置信度（{{confidence}}%）"
   },
   "toolClassificationIndicator": {
     "thinking": "思考中...",
     "querySimple": "简单查询",
     "queryComplex": "复杂查询",
-    "categoryAria": "工具类别",
-    "feedbackCorrect": "分类正确",
-    "feedbackIncorrect": "分类错误"
+    "categoryAria": "Инструмент类别",
+    "feedbackCorrect": "Категория正确",
+    "feedbackIncorrect": "КатегорияОшибка"
   },
   "toolClassificationPanel": {
     "tabs": {
-      "classify": "分类测试",
-      "history": "历史记录",
-      "stats": "统计信息"
+      "classify": "КатегорияТестирование",
+      "history": "История记录",
+      "stats": "统计Информация"
     },
-    "inputLabel": "输入要分类的文本",
-    "inputPlaceholder": "例如：读取文件、生成函数、git status...",
-    "classify": "分类",
-    "classifying": "分析中...",
-    "result": "分类结果",
-    "runBenchmark": "运行批量测试",
-    "clearHistory": "清空历史",
-    "benchmarkResults": "批量测试结果",
-    "totalClassifications": "总分类数",
-    "averageConfidence": "平均置信度",
+    "inputLabel": "输入要Категория的文本",
+    "inputPlaceholder": "например：Читать файл、Генерация函数、git status...",
+    "classify": "Категория",
+    "classifying": "Анализ...",
+    "result": "Категория结果",
+    "runBenchmark": "Запуск批量Тестирование",
+    "clearHistory": "清空История",
+    "benchmarkResults": "批量Тестирование结果",
+    "totalClassifications": "总Категория数",
+    "averageConfidence": "Среднее置信度",
     "highAccuracy": "高准确率",
-    "needsTuning": "需优化",
-    "latestClassification": "最近分类",
-    "justNow": "刚刚",
-    "latestClassificationDesc": "最近一次分类时间",
-    "byCategory": "按类别统计",
+    "needsTuning": "需Оптимизация",
+    "latestClassification": "最近Категория",
+    "justNow": "Только что",
+    "latestClassificationDesc": "最近一разКатегория时间",
+    "byCategory": "По категориям",
     "byLayer": "按层级统计"
   },
   "messageItem": {
-    "regenerate": "重新生成",
+    "regenerate": "重新Генерация",
     "agentLive": "智能体在线",
     "thinking": "思考中：{{summary}}",
-    "contentCopied": "内容已复制",
-    "viewDiff": "查看 Diff（{{count}} 个文件）",
-    "fixActionFallback": "应用修复",
+    "contentCopied": "内容已Копировать",
+    "viewDiff": "查看 Diff（{{count}} Файл）",
+    "fixActionFallback": "Применить修复",
     "ignoreFix": "忽略",
-    "applyFix": "应用修复",
-    "fixIgnored": "已忽略修复",
-    "fixApplied": "修复已应用",
-    "pendingActions": "有 {{count}} 个待处理的操作",
-    "approveAll": "全部批准",
-    "rejectAll": "全部拒绝",
-    "breakingDownTask": "正在拆解任务...",
+    "applyFix": "Применить修复",
+    "fixIgnored": "Игнорируется修复",
+    "fixApplied": "修复已Применить",
+    "pendingActions": "有 {{count}} Ожидает的Операция",
+    "approveAll": "ВсеОдобрить",
+    "rejectAll": "ВсеОтклонить",
+    "breakingDownTask": "正在拆解Задача...",
     "rollbackUnavailable": "回滚功能不可用",
-    "rollbackConflict": "检测到文件冲突，请单独回滚每个文件",
-    "rollbackSuccess": "已回滚 {{count}} 个文件",
-    "rollbackFailed": "回滚失败",
-    "rollbackFailedWithError": "回滚失败：{{error}}",
-    "analyzeProject": "分析项目",
-    "exploreProject": "探索项目"
+    "rollbackConflict": "检测到Файл冲突，请单独回滚每Файл",
+    "rollbackSuccess": "已回滚 {{count}} Файл",
+    "rollbackFailed": "回滚Неудача",
+    "rollbackFailedWithError": "回滚Неудача：{{error}}",
+    "exploreProject": "探索Проект",
+    "analyzeProject": "АнализПроект"
   },
   "codeAnalysisPanel": {
-    "title": "代码分析",
-    "analyzing": "分析中...",
-    "total": "总计",
-    "empty": "暂无分析结果",
-    "emptyHint": "打开文件后会自动开始分析",
-    "issueCount": "{{count}} 个问题",
+    "title": "КодАнализ",
+    "analyzing": "Анализ...",
+    "total": "Всего",
+    "empty": "暂НетАнализ结果",
+    "emptyHint": "Открыть файл后会自动开始Анализ",
+    "issueCount": "{{count}} проблем",
     "types": {
       "longFunction": "长函数",
       "complexFunction": "高复杂度",
-      "duplicateCode": "重复代码",
+      "duplicateCode": "重复Код",
       "magicNumber": "魔法数字",
       "deepNesting": "深层嵌套"
     },
@@ -1908,330 +1931,330 @@
     }
   },
   "toolApproval": {
-    "rollbackSnapshotRestored": "PIVO：文件已通过物理快照恢复",
-    "rollbackRestored": "文件已恢复",
-    "rollbackForceRestored": "文件已强制恢复",
-    "rollbackFailed": "回滚失败",
-    "rollbackFailedWithError": "回滚失败：{{error}}",
+    "rollbackSnapshotRestored": "PIVO：Файл已通过物理快照恢复",
+    "rollbackRestored": "Файл已恢复",
+    "rollbackForceRestored": "Файл已强制恢复",
+    "rollbackFailed": "回滚Неудача",
+    "rollbackFailedWithError": "回滚Неудача：{{error}}",
     "commandLabel": "exec",
     "autoApprove": {
-      "enabled": "自动批准已开启 · 工具执行中"
+      "enabled": "自动Одобрить已开启 · Инструмент执行中"
     },
     "actions": {
-      "approve": "批准执行",
-      "cancel": "取消",
+      "approve": "Одобрить执行",
+      "cancel": "Отмена",
       "confirmRollback": "确认回滚",
-      "reject": "拒绝",
-      "undo": "撤销",
+      "reject": "Отклонить",
+      "undo": "Отменить",
       "undoPending": "撤销中..."
     },
     "conflict": {
-      "title": "检测到手动修改",
-      "description": "文件在 AI 修改后又被手动编辑过。确认回滚将覆盖手动修改，此操作无法撤销。"
+      "title": "检测到手动Изменение",
+      "description": "Файл在 ИИ Изменение后又被手动Редактирование过。确认回滚将覆盖手动Изменение，此ОперацияНет法撤销。"
     },
     "diff": {
       "loadingContent": "正在加载内容...",
-      "preparing": "正在准备差异分析...",
-      "title": "变更分析"
+      "preparing": "正在准备差异Анализ...",
+      "title": "ИзменениеАнализ"
     },
     "fileTree": {
-      "title": "文件结构",
-      "access": "访问",
-      "write": "写入"
+      "title": "Файл结构",
+      "write": "Запись",
+      "access": "访问"
     },
     "preview": {
-      "collapseView": "收起视图",
-      "dangerDescription": "该命令包含敏感操作，如删除或权限修改，执行前请仔细检查。",
-      "dangerTitle": "高风险操作警示",
-      "directoryScanning": "正在扫描目录结构...",
+      "collapseView": "Свернуть视图",
+      "dangerDescription": "该命令包含敏感Операция，如Удалить或权限Изменение，执行前请仔细检查。",
+      "dangerTitle": "高风险Операция警示",
+      "directoryScanning": "正在Сканирование目录结构...",
       "lines": "{{count}} 行",
-      "preparingChanges": "正在准备变更预览...",
+      "preparingChanges": "正在准备ИзменениеПредпросмотр...",
       "queryLabel": "关键词",
-      "scopeLabel": "范围",
-      "searchTitle": "{{toolType}}预览",
-      "showAllLines": "显示全部行（{{count}}）",
-      "streaming": "流式传输",
-      "symbolDescription": "正在深度解析代码语义：{{fileName}}",
-      "symbolTitle": "{{toolType}}预览",
-      "inlinePreviewOpened": "已开启编辑器内联预览",
-      "previewInEditor": "在主编辑器中预览变更"
+      "scopeLabel": "Диапазон",
+      "searchTitle": "{{toolType}}Предпросмотр",
+      "showAllLines": "ПоказатьВсе行（{{count}}）",
+      "streaming": "流式Передача",
+      "symbolDescription": "正在深度解析Код语义：{{fileName}}",
+      "symbolTitle": "{{toolType}}Предпросмотр",
+      "inlinePreviewOpened": "已开启Редактирование器ВстроенныйПредпросмотр",
+      "previewInEditor": "在主Редактирование器中ПредпросмотрИзменение"
     },
     "result": {
-      "failedStatus": "失败",
-      "failedTitle": "执行失败",
-      "runningStatus": "运行中",
-      "successStatus": "成功",
+      "failedStatus": "Ошибка",
+      "failedTitle": "执行Неудача",
+      "runningStatus": "Выполняется",
+      "successStatus": "Успех",
       "title": "执行结果"
     },
     "risk": {
-      "high": "高风险操作",
-      "low": "低风险操作",
+      "high": "高风险Операция",
+      "low": "低风险Операция",
       "medium": "中等风险"
     },
     "sections": {
-      "parameters": "操作参数"
+      "parameters": "Операция参数"
     },
     "status": {
-      "approved": "已批准",
-      "completed": "已完成",
-      "executing": "执行中...",
-      "executingOperation": "正在执行操作...",
-      "failed": "失败",
-      "generating": "生成中...",
-      "generatingShort": "生成中",
+      "approved": "已Одобрить",
+      "completed": "Завершено",
+      "executing": "Выполнение...",
+      "executingOperation": "正在执行Операция...",
+      "failed": "Ошибка",
+      "generating": "Генерация...",
+      "generatingShort": "Генерация中",
       "pending": "待审批",
-      "rejected": "已拒绝",
-      "waitingOutput": "等待命令输出...",
-      "writingFile": "正在写入文件：{{path}}"
+      "rejected": "已Отклонить",
+      "waitingOutput": "Ожидание命令输出...",
+      "writingFile": "正在Записать файл：{{path}}"
     }
   },
   "aiChat": {
-    "externalFileOpenTitle": "打开外部文件",
-    "externalFileOpenDescription": "该路径位于当前工作区之外：\n{{path}}\n\n仍要打开吗？",
-    "composerApplySuccess": "已应用 {{count}} 个文件变更",
-    "composerApplyFailed": "应用失败：{{error}}",
-    "composerRejectAll": "已拒绝所有文件变更",
-    "composerRejectSummary": "{{message}}（回滚 {{rolledBack}} 个，删除 {{deleted}} 个）",
-    "composerFileApplied": "已应用：{{path}}",
-    "composerChangeMissing": "未找到文件变更：{{path}}",
-    "projectFolderNotOpen": "未打开项目文件夹",
-    "composerFileRejected": "已拒绝并回滚：{{path}}",
-    "rollbackFailed": "回滚失败：{{error}}",
-    "errorFixNone": "未发现可修复的错误",
-    "errorFixDetected": "检测到 {{count}} 个可修复错误",
-    "errorFixFailed": "错误检测失败",
-    "errorFixSent": "已将错误发送到 AI 助手",
+    "externalFileOpenTitle": "Открыть外部Файл",
+    "externalFileOpenDescription": "该路径位于当前Рабочая область之外：\n{{path}}\n\n仍要Открыть吗？",
+    "composerApplySuccess": "已Применить {{count}} ФайлИзменение",
+    "composerApplyFailed": "ПрименитьНеудача：{{error}}",
+    "composerRejectAll": "已Отклонить所有ФайлИзменение",
+    "composerRejectSummary": "{{message}}（回滚 {{rolledBack}} ，Удалить {{deleted}} ）",
+    "composerFileApplied": "已Применить：{{path}}",
+    "composerChangeMissing": "未找到ФайлИзменение：{{path}}",
+    "projectFolderNotOpen": "未ОткрытьПроектФайл夹",
+    "composerFileRejected": "已Отклонить并回滚：{{path}}",
+    "rollbackFailed": "回滚Неудача：{{error}}",
+    "errorFixNone": "未发现可修复的Ошибка",
+    "errorFixDetected": "检测到 {{count}} 可修复Ошибка",
+    "errorFixFailed": "Ошибка检测Неудача",
+    "errorFixSent": "已将ОшибкаОтправить到 ИИ Ассистент",
     "errorFixOpened": "已跳转到 {{path}}:{{line}}",
-    "unknownError": "未知错误",
+    "unknownError": "Неизвестная ошибка",
     "markdown": {
-      "expandHint": "展开查看全部",
-      "expandAll": "展开全部 ({{count}} 行)",
-      "collapse": "收起 ({{count}} 行)",
-      "streaming": "生成中..."
+      "expandHint": "Развернуть查看Все",
+      "expandAll": "РазвернутьВсе ({{count}} 行)",
+      "collapse": "Свернуть ({{count}} 行)",
+      "streaming": "Генерация..."
     },
     "timeline": {
-      "loading": "加载中...",
-      "user": "用户",
+      "loading": "Загрузка...",
+      "user": "Пользователь",
       "assistant": "AI",
-      "containsCode": "包含代码",
+      "containsCode": "包含Код",
       "codeLines": "({{count}} 行)",
-      "loadedSummary": "已加载 {{loaded}}/{{total}} 条消息",
-      "loadFailed": "时间线加载失败，请重试。",
+      "loadedSummary": "已加载 {{loaded}}/{{total}} записейСообщение",
+      "loadFailed": "时间线加载Неудача，请重试。",
       "loadTimeout": "时间线加载超时，请重试。",
-      "expand": "展开",
-      "collapse": "收起",
+      "expand": "Развернуть",
+      "collapse": "Свернуть",
       "loadMore": "加载更多...",
-      "retry": "重试",
+      "retry": "Повторить",
       "groups": {
-        "today": "今天",
-        "yesterday": "昨天",
+        "today": "Сегодня",
+        "yesterday": "Вчера",
         "older": "更早"
       }
     },
     "streamingBash": {
-      "waitingOutput": "等待输出...",
+      "waitingOutput": "Ожидание输出...",
       "running": "执行中... ({{lineCount}} 行)",
-      "completed": "已完成 ({{lineCount}} 行, {{elapsedMs}}ms)",
-      "failed": "失败 (退出码: {{exitCode}}, {{lineCount}} 行)",
-      "collapse": "收起输出",
-      "expand": "展开输出",
+      "completed": "Выполнено ({{lineCount}} 行, {{elapsedMs}}ms)",
+      "failed": "Неудача (Выход码: {{exitCode}}, {{lineCount}} 行)",
+      "collapse": "Свернуть输出",
+      "expand": "Развернуть输出",
       "commandOutput": "命令输出",
-      "streamError": "流式输出错误：{{error}}",
-      "commandFailed": "执行失败：{{error}}"
+      "streamError": "流式输出Ошибка：{{error}}",
+      "commandFailed": "执行Неудача：{{error}}"
     },
     "streamingToolArgs": {
-      "none": "无参数",
-      "generating": "生成中...",
+      "none": "Нет参数",
+      "generating": "Генерация...",
       "empty": "空",
-      "generatingArgs": "正在生成参数..."
+      "generatingArgs": "正在Генерация参数..."
     },
     "exploreFindings": {
       "completed": "探索完成",
       "directories": "{{count}} 目录",
-      "files": "{{count}} 文件",
+      "files": "{{count}} файлов",
       "patterns": "{{count}} 模式"
     },
     "symbolSearch": {
       "title": "引用符号 (#)",
-      "openFileFirst": "请先在编辑器中打开一个文件...",
-      "noMatches": "未在当前文件中找到匹配符号...",
-      "lineKind": "第 {{line}} 行 · {{kind}}"
+      "openFileFirst": "请先在Редактирование器中Открыть一Файл...",
+      "noMatches": "未在当前Файл中找到匹配符号...",
+      "lineKind": "№ {{line}} 行 · {{kind}}"
     },
     "toolExecution": {
       "progress": "执行进度",
-      "generatingContent": "正在生成内容...",
+      "generatingContent": "正在Генерация内容...",
       "status": {
         "pending": "待审批",
-        "approved": "已批准",
+        "approved": "已Одобрить",
         "running": "执行中",
-        "completed": "已完成",
-        "failed": "失败",
-        "rejected": "已拒绝",
+        "completed": "Завершено",
+        "failed": "Ошибка",
+        "rejected": "已Отклонить",
         "unknown": "未知"
       },
       "steps": {
         "initialize": "初始化环境",
         "execute": "执行命令",
-        "process": "处理结果"
+        "process": "Обработка结果"
       }
     },
     "taskCompletion": {
-      "completed": "任务已完成",
-      "generatedFiles": "已生成 {{count}} 个文件",
-      "characters": "{{count}} 字符"
+      "completed": "ЗадачаВыполнено",
+      "generatedFiles": "已Генерация {{count}} Файл",
+      "characters": "{{count}} символов"
     },
     "queueIndicator": {
-      "processing": "处理中",
-      "pending": "{{count}} 条等待"
+      "processing": "Обработка...",
+      "pending": "{{count}} записейОжидание"
     },
     "slashCommand": {
       "navigationHint": "↑↓ 导航",
       "enter": "Enter"
     },
     "tokenUsage": {
-      "breakdown": "Token 明细",
-      "systemTotal": "系统总计",
+      "breakdown": "Токен 明细",
+      "systemTotal": "Система总计",
       "tokens": "tokens"
     },
     "globalAgentMonitor": {
-      "switchToThread": "切换到会话: {{title}}",
-      "closeInSeconds": "{{count}} 秒后关闭",
-      "secondsElapsed": "{{count}} 秒"
+      "switchToThread": "Переключить到会话: {{title}}",
+      "closeInSeconds": "{{count}} 秒后Закрыть",
+      "secondsElapsed": "{{count}} секунда"
     },
     "projectTree": {
-      "characters": "{{count}} 字符",
-      "truncatedHint": "... (已截断，点击展开查看全部)",
-      "hidePreview": "隐藏关键文件内容",
-      "showPreview": "预览关键文件内容",
-      "topology": "项目拓扑",
-      "keyFiles": "{{count}} 个关键文件",
-      "keyFilesPreview": "关键文件预览",
-      "files": "{{count}} 个文件",
-      "moreKeyFiles": "... 还有 {{count}} 个关键文件"
+      "characters": "{{count}} символов",
+      "truncatedHint": "... (已截断，点击Развернуть查看Все)",
+      "hidePreview": "Скрыть关键Файл内容",
+      "showPreview": "Предпросмотр关键Файл内容",
+      "topology": "Проект拓扑",
+      "keyFiles": "{{count}} 关键Файл",
+      "keyFilesPreview": "关键ФайлПредпросмотр",
+      "files": "{{count}} файлов",
+      "moreKeyFiles": "... 还有 {{count}} 关键Файл"
     },
     "pivoTree": {
-      "missionExecutionPlan": "任务执行计划",
+      "missionExecutionPlan": "Задача执行计划",
       "healing": "自愈"
     },
     "diffPreview": {
-      "newFile": "新建文件预览",
-      "semantic": "语义化 Diff 预览",
+      "newFile": "Создать файлПредпросмотр",
+      "semantic": "语义化 Diff Предпросмотр",
       "remainingLines": "... 还有 {{count}} 行",
-      "analyzing": "智能引擎正在分析代码变更...",
-      "lineSummary": "检测到原始内容共 {{oldCount}} 行，即将覆盖为新内容（共 {{newCount}} 行）。",
+      "analyzing": "智能引擎正在АнализКодИзменение...",
+      "lineSummary": "检测到Исходное содержимоевсего {{oldCount}} 行，即将覆盖为新内容（всего {{newCount}} 行）。",
       "poweredBy": "由 PIVO 2.0 引擎驱动"
     },
     "toolArgsViewer": {
-      "itemsCount": "{{count}} 项",
-      "arrayCount": "[{{count}} 项]",
-      "arrayTooLarge": "数组过大，无法显示（{{count}} 项）",
-      "none": "无参数",
-      "generating": "正在生成参数...",
-      "moreParameters": "另有 {{count}} 个参数"
+      "itemsCount": "{{count}} элементов",
+      "arrayCount": "[{{count}} элементов]",
+      "arrayTooLarge": "数组过大，Нет法Показать（{{count}} элементов）",
+      "none": "Нет参数",
+      "generating": "正在Генерация参数...",
+      "moreParameters": "另有 {{count}} 参数"
     },
     "probeSymbol": {
       "pipeline": "符号探测流程",
-      "empty": "此文件中未检测到显著符号。"
+      "empty": "此Файл中未检测到显著符号。"
     },
     "exploreProgress": {
       "phase": {
-        "scanning": "扫描中",
-        "analyzing": "分析中",
-        "completed": "已完成"
+        "scanning": "Сканирование中",
+        "analyzing": "Анализ中",
+        "completed": "Завершено"
       },
       "directories": "{{current}}/{{total}} 目录",
-      "files": "{{count}} 个文件",
-      "filesPerSecond": "{{count}} 文件/秒",
-      "preparing": "正在准备扫描...",
-      "scannedFiles": "扫描文件",
-      "recentScanned": "最近扫描",
+      "files": "{{count}} файлов",
+      "filesPerSecond": "{{count}} Файл/секунда",
+      "preparing": "正在准备Сканирование...",
+      "scannedFiles": "СканированиеФайл",
+      "recentScanned": "最近Сканирование",
       "directoryTree": "目录结构 ({{count}})",
-      "scanningDirectory": "正在扫描目录...",
-      "scanningNow": "正在扫描",
-      "scanCompleted": "扫描完成 {{count}} 个文件",
-      "scanCompletedTotal": "扫描完成，共 {{count}} 个文件",
-      "scanCompletedDetailed": "扫描完成，共扫描 {{count}} 个文件"
+      "scanningDirectory": "正在Сканирование目录...",
+      "scanningNow": "正在Сканирование",
+      "scanCompleted": "Сканирование完成 {{count}} Файл",
+      "scanCompletedTotal": "Сканирование完成，всего {{count}} Файл",
+      "scanCompletedDetailed": "Сканирование完成，всегоСканирование {{count}} Файл"
     },
     "toolBatchApproval": {
       "groups": {
-        "read": "读取文件",
+        "read": "ЧитатьФайл",
         "list": "列出目录",
-        "search": "搜索内容",
-        "write": "写入文件",
-        "analyze": "分析代码",
-        "other": "其他操作"
+        "search": "Поиск内容",
+        "write": "Записать файл",
+        "analyze": "АнализКод",
+        "other": "其他Операция"
       },
       "actions": {
-        "read": "读取",
+        "read": "Чтение",
         "list": "列出",
-        "search": "搜索"
+        "search": "Поиск"
       },
       "taskTitle": {
         "privateRepo": "访问 ifainew-core 私有库",
-        "exploreProject": "探索项目整体结构",
-        "analyzeKeyFiles": "分析项目关键文件"
+        "exploreProject": "探索Проект整体结构",
+        "analyzeKeyFiles": "АнализПроект关键Файл"
       },
       "status": {
-        "running": "运行中",
-        "completed": "已完成"
+        "running": "Выполняется",
+        "completed": "Завершено"
       },
-      "headerSummary": "{{status}} {{groupCount}} 个操作分组（{{toolCount}} 个工具）...",
-      "expandHint": "Ctrl+O 展开",
-      "toolUses": "{{count}} 次工具调用",
+      "headerSummary": "{{status}} {{groupCount}} Операция分组（{{toolCount}} Инструмент）...",
+      "expandHint": "Ctrl+O Развернуть",
+      "toolUses": "{{count}} разИнструмент调用",
       "tokens": "tokens",
-      "done": "完成",
-      "showingDetails": "正在显示全部详情",
-      "approveAll": "批准全部执行 ({{count}})"
+      "done": "Готово",
+      "showingDetails": "正在ПоказатьВсе详情",
+      "approveAll": "ОдобритьВсе执行 ({{count}})"
     },
     "messageRegistry": {
       "thinking": "思考",
-      "status": "状态",
-      "exploreProject": "探索项目",
-      "scannedFiles": "扫描了 {{count}} 个文件",
-      "taskBreakdown": "任务拆解",
-      "generatedImage": "AI 生成的图片",
-      "systemMessage": "系统消息",
-      "uploadedImage": "上传的图片",
-      "unknownMessageType": "未知消息类型: {{role}}"
+      "status": "Состояние",
+      "exploreProject": "探索Проект",
+      "scannedFiles": "Сканирование了 {{count}} Файл",
+      "taskBreakdown": "Декомпозиция задач",
+      "generatedImage": "ИИ Генерация的图片",
+      "systemMessage": "СистемаСообщение",
+      "uploadedImage": "Загрузить的图片",
+      "unknownMessageType": "未知Сообщение类型: {{role}}"
     },
     "commandMessages": {
       "shared": {
         "possibleReasons": "可能的原因",
-        "suggestions": "建议",
+        "suggestions": "Рекомендации",
         "checkApiKey": "检查 API 密钥配置",
-        "retryLater": "稍后重试",
-        "none": "无",
+        "retryLater": "Повторить позже",
+        "none": "Нет",
         "reasons": {
-          "invalidResponseFormat": "AI 响应格式不正确",
+          "invalidResponseFormat": "ИИ 响应格式不正确",
           "networkIssue": "网络连接存在问题",
           "apiQuotaExceeded": "API 配额可能已不足"
         }
       },
       "index": {
-        "rebuilding": "**正在重建项目索引**\n\n系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。",
-        "initFailed": "**索引初始化失败**\n\n错误详情：{{error}}",
-        "projectNotOpen": "**未打开项目文件夹**\n\n请先打开一个项目文件夹后再使用此命令。"
+        "rebuilding": "**正在重建Проект索引**\n\nСистема正在СканированиеФайл并Сборка语义向量，这可能需要一点时间。您可以在状态栏查看Реальное время进度。",
+        "initFailed": "**索引初始化Неудача**\n\nОшибка详情：{{error}}",
+        "projectNotOpen": "**未ОткрытьПроектФайл夹**\n\n请先Открыть一ПроектФайл夹后再Использовать此命令。"
       },
       "taskDemo": {
-        "message": "### 任务拆解示例\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**提示：** 这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。\n\n任务树包含：\n- **层级结构**：主任务 → 子任务 → 子子任务\n- **状态跟踪**：待办 / 进行中 / 已完成 / 失败\n- **优先级**：紧急 / 高 / 中 / 低\n- **类别**：开发 / 测试 / 文档 / 设计 / 研究\n- **工时估算**：预估小时数\n- **验收标准**：明确的完成条件\n- **依赖关系**：任务间的依赖{{saveHint}}\n\n使用控制台测试：\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
+        "message": "### Задача拆解示例\n\n```tsx\n<SimpleTaskView taskTree={demoTaskTree.taskTree} />\n```\n\n---\n\n**Подсказка：** 这ДаЗадача拆解功能的演示。Использовать **/task:breakdown [ЗадачаОписание]** 来拆解您的实际Задача。\n\nЗадача树包含：\n- **层级结构**：主Задача → 子Задача → 子子Задача\n- **状态跟踪**：Ожидает / В процессе / Выполнено / Неудача\n- **优先级**：紧急 / 高 / 中 / 低\n- **类别**：开发 / Тестирование / Документация / 设计 / 研究\n- **工时估算**：预估小时数\n- **验收标准**：明确的完成записей件\n- **依赖关系**：Задача间的依赖{{saveHint}}\n\nИспользовать控制台Тестирование：\n```javascript\nwindow.__taskBreakdownStore.getState()\n```",
         "saveHint": {
-          "saved": "\n\n任务已保存到：`{{path}}`",
-          "memoryOnly": "\n\n未打开项目，演示任务仅保存在内存中。"
+          "saved": "\n\nЗадача已Сохранить到：`{{path}}`",
+          "memoryOnly": "\n\n未ОткрытьПроект，演示Задача仅Сохранить在Память中。"
         },
         "tree": {
-          "title": "示例：实现用户登录功能",
-          "description": "这是一个示例任务拆解，展示了任务树的结构",
+          "title": "示例：实现Пользователь登录功能",
+          "description": "这Да一示例Задача拆解，展示了Задача树的结构",
           "root": {
-            "title": "实现用户登录功能",
-            "description": "完整的用户认证系统，包括登录、注册、密码重置"
+            "title": "实现Пользователь登录功能",
+            "description": "完整的Пользователь认证Система，Включая登录、注册、密码Сбросить"
           },
           "backend": {
             "title": "后端 API 开发",
-            "description": "实现登录、注册、密码重置的后端接口",
+            "description": "实现登录、注册、密码Сбросить的后端接口",
             "acceptance": {
-              "login": "POST /api/auth/login 返回 JWT token",
-              "register": "POST /api/auth/register 创建新用户",
-              "resetPassword": "POST /api/auth/reset-password 发送重置邮件"
+              "login": "POST /api/auth/login Назад JWT token",
+              "register": "POST /api/auth/register Создать新Пользователь",
+              "resetPassword": "POST /api/auth/reset-password ОтправитьСбросить邮件"
             },
             "children": {
               "databaseSchema": "设计数据库 Schema",
@@ -2240,12 +2263,12 @@
             }
           },
           "frontend": {
-            "title": "前端登录页面",
-            "description": "实现用户登录和注册表单",
+            "title": "前端登录Стр.面",
+            "description": "实现Пользователь登录和注册表单",
             "acceptance": {
-              "responsive": "响应式设计，支持移动端",
+              "responsive": "响应式设计，支持Переместить端",
               "validation": "表单验证（邮箱格式、密码强度）",
-              "friendlyErrors": "错误提示友好",
+              "friendlyErrors": "ОшибкаПодсказка友好",
               "rememberMe": "记住我功能"
             },
             "children": {
@@ -2255,371 +2278,371 @@
             }
           },
           "testing": {
-            "title": "编写测试用例",
-            "description": "为认证系统编写单元测试和集成测试"
+            "title": "编写Тестирование用例",
+            "description": "为认证Система编写单元Тестирование和集成Тестирование"
           },
           "documentation": {
-            "title": "编写技术文档",
-            "description": "编写 API 文档和部署指南"
+            "title": "编写技术Документация",
+            "description": "编写 API Документация和Развёртывание指南"
           }
         }
       },
       "taskBreakdown": {
-        "missingDescription": "请提供要拆解的任务描述\n\n**用法**：`/task:breakdown [任务描述]`\n\n**示例**：`/task:breakdown 实现用户登录功能`",
-        "failedTitle": "任务拆解失败",
-        "simplifySuggestion": "尝试简化任务描述"
+        "missingDescription": "请提供要拆解的ЗадачаОписание\n\n**用法**：`/task:breakdown [ЗадачаОписание]`\n\n**示例**：`/task:breakdown 实现Пользователь登录功能`",
+        "failedTitle": "Задача拆解Неудача",
+        "simplifySuggestion": "尝试简化ЗадачаОписание"
       },
       "proposal": {
-        "missingDescription": "请提供要生成提案的需求描述\n\n**用法**：`/proposal [需求描述]`\n\n**示例**：`/proposal 实现用户登录功能`",
-        "starting": "_[正在生成 OpenSpec 提案...]_\n\n",
-        "failedTitle": "提案生成失败",
-        "simplifySuggestion": "尝试简化需求描述"
+        "missingDescription": "请提供要Генерация提案的需求Описание\n\n**用法**：`/proposal [需求Описание]`\n\n**示例**：`/proposal 实现Пользователь登录功能`",
+        "starting": "_[正在Генерация OpenSpec 提案...]_\n\n",
+        "failedTitle": "提案ГенерацияНеудача",
+        "simplifySuggestion": "尝试简化需求Описание"
       },
       "taskStart": {
-        "missingTaskId": "请提供任务 ID\n\n**用法**：`/task:start <任务ID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用任务**：使用 `/task:list` 查看所有任务",
-        "tasksFileMissing": "未找到 `tasks.md` 文件\n\n请先打开一个提案中的 `tasks.md` 文件。",
-        "taskNotFound": "未找到任务：{{taskId}}\n\n**可用任务**：\n{{taskList}}",
-        "failed": "任务启动失败：{{error}}"
+        "missingTaskId": "请提供Задача ID\n\n**用法**：`/task:start <ЗадачаID>`\n\n**示例**：`/task:start 1` 或 `/task:start 2-1`\n\n**查看可用Задача**：Использовать `/task:list` 查看所有Задача",
+        "tasksFileMissing": "未找到 `tasks.md` Файл\n\n请先Открыть一提案中的 `tasks.md` Файл。",
+        "taskNotFound": "未找到Задача：{{taskId}}\n\n**可用Задача**：\n{{taskList}}",
+        "failed": "Задача启动Неудача：{{error}}"
       },
       "taskList": {
-        "projectNotOpen": "未打开项目\n\n请先打开一个项目文件夹。",
-        "openFilesTitle": "当前打开的文件",
-        "tasksFileMissing": "未找到 `tasks.md` 文件{{fileList}}\n\n**解决方法**：\n1. 在文件树中找到提案目录（`.ifai/changes/xxx/`）\n2. 打开 `tasks.md` 文件\n3. 再次运行 `/task:list`",
-        "failed": "获取任务列表失败：{{error}}",
+        "projectNotOpen": "未ОткрытьПроект\n\n请先Открыть一ПроектФайл夹。",
+        "openFilesTitle": "当前Открыть的Файл",
+        "tasksFileMissing": "未找到 `tasks.md` Файл{{fileList}}\n\n**解决Метод**：\n1. 在Файл树中找到提案目录（`.ifai/changes/xxx/`）\n2. Открыть `tasks.md` Файл\n3. 再разЗапуск `/task:list`",
+        "failed": "获取Задача列表Неудача：{{error}}",
         "report": {
-          "title": "任务统计",
-          "total": "总计",
-          "todo": "待办",
-          "inProgress": "进行中",
-          "done": "已完成",
-          "todoSection": "待办任务",
-          "inProgressSection": "进行中",
-          "doneSection": "已完成",
-          "moreDone": "... 还有 {{count}} 个已完成任务",
-          "noTasksParsed": "未解析到任何任务，请检查 `tasks.md` 文件格式。"
+          "title": "Задача统计",
+          "total": "Всего",
+          "todo": "Ожидает",
+          "inProgress": "В процессе",
+          "done": "Завершено",
+          "todoSection": "Задачи",
+          "inProgressSection": "В процессе",
+          "doneSection": "Завершено",
+          "moreDone": "... 还有 {{count}} 已Завершить задачу",
+          "noTasksParsed": "未解析到任何Задача，请检查 `tasks.md` Файл格式。"
         }
       },
       "taskComplete": {
-        "missingTaskId": "请提供任务 ID\n\n**用法**：`/task:complete <任务ID>`",
-        "success": "任务 **{{taskId}}** 已标记为完成。",
-        "failed": "操作失败：{{error}}"
+        "missingTaskId": "请提供Задача ID\n\n**用法**：`/task:complete <ЗадачаID>`",
+        "success": "Задача **{{taskId}}** 已标记为完成。",
+        "failed": "Операция не удалась：{{error}}"
       },
       "taskTestAll": {
-        "starting": "_[正在启动自动化测试集成流...]_",
-        "failed": "无法启动测试 Agent：{{error}}",
-        "mission": "运行全量单元测试与 E2E 测试，并汇总报告至任务控制中心"
+        "starting": "_[正在启动自动化Тестирование集成流...]_",
+        "failed": "Нет法启动Тестирование Agent：{{error}}",
+        "mission": "Запуск全量单元Тестирование与 E2E Тестирование，并汇总报告至Управление задачами中心"
       }
     },
     "imageAttachments": {
-      "fileTooLarge": "文件过大（5MB 限制）",
-      "processingFailed": "处理失败"
+      "fileTooLarge": "Файл过大（5MB 限制）",
+      "processingFailed": "ОбработкаНеудача"
+    },
+    "imageAttachment": {
+      "fileTooLarge": "Файл过大 (5MB 限制)",
+      "processingFailed": "ОбработкаНеудача"
+    },
+    "compaction": {
+      "label": "Диалог压缩",
+      "description": "ИсходныйДиалог包含 {{originalCount}} записейСообщение，已压缩以ОптимизацияПроизводительность。压缩时间: {{time}}"
+    },
+    "viewMode": {
+      "chat": "Диалог",
+      "timeline": "时间线"
+    },
+    "searchChat": "ПоискДиалог ({{shortcut}})",
+    "sessionNotes": "会话笔记",
+    "errorFixOpenFileFailed": "Нет法Открыть файл",
+    "errorFix": {
+      "analyzePrompt": "请Анализ以下Ошибка并提供修复Предложение：",
+      "errorInfo": "ОшибкаИнформация",
+      "code": "Код",
+      "message": "Сообщение",
+      "file": "Файл",
+      "language": "Язык",
+      "codeContext": "КодКонтекст",
+      "provide": "请提供",
+      "step1": "Ошибка原因Анализ",
+      "step2": "具体的修复方案",
+      "step3": "修复后的Код示例（如果适用）",
+      "fixPrompt": "请帮我修复以下Ошибка：",
+      "errorCode": "ОшибкаКод",
+      "errorMessage": "ОшибкаСообщение",
+      "fileLocation": "ФайлРасположение",
+      "fixAndModify": "请提供修复方案并НапрямуюИзменениеФайл。"
+    },
+    "help": {
+      "codebaseHint": "在提问中加入此指令可进行ГлобальныйКод语义Поиск",
+      "indexHint": "手动强制为ПроектКод库建立 RAG 语义索引"
     },
     "commands": {
       "index": {
-        "errorDetails": "错误详情",
-        "initFailed": "索引初始化失败",
-        "noProject": "未打开项目文件夹",
-        "noProjectHint": "请先打开一个项目文件夹后再使用此命令。",
-        "rebuilding": "正在重建项目索引",
-        "rebuildingDescription": "系统正在扫描文件并构建语义向量，这可能需要一点时间。您可以在状态栏查看实时进度。"
-      },
-      "proposal": {
-        "causeBadFormat": "AI 响应格式不正确",
-        "causeNetwork": "网络连接问题",
-        "causeQuota": "API 配额不足",
-        "example": "示例",
-        "exampleRequirement": "实现用户登录功能",
-        "failed": "提案生成失败",
-        "generating": "正在生成 OpenSpec 提案...",
-        "noDescription": "请提供要生成提案的需求描述",
-        "possibleCauses": "可能的原因",
-        "requirementDescription": "需求描述",
-        "suggestion1": "尝试简化需求描述",
-        "suggestion2": "检查 API 密钥配置",
-        "suggestion3": "稍后重试",
-        "suggestions": "建议",
-        "usage": "用法"
+        "rebuilding": "正在重建Проект索引",
+        "rebuildingDescription": "Система正在СканированиеФайл并Сборка语义向量，这可能需要一点时间。您可以在状态栏查看Реальное время进度。",
+        "initFailed": "索引初始化Неудача",
+        "errorDetails": "Ошибка详情",
+        "noProject": "未ОткрытьПроектФайл夹",
+        "noProjectHint": "请先Открыть一ПроектФайл夹后再Использовать此命令。"
       },
       "taskBreakdown": {
-        "causeBadFormat": "AI 响应格式不正确",
+        "noDescription": "请提供要拆解的ЗадачаОписание",
+        "usage": "Использование",
+        "taskDescription": "ЗадачаОписание",
+        "example": "Пример",
+        "exampleTask": "实现Пользователь登录功能",
+        "failed": "Задача拆解Неудача",
+        "possibleCauses": "可能的原因",
+        "causeBadFormat": "ИИ 响应格式不正确",
         "causeNetwork": "网络连接问题",
         "causeQuota": "API 配额不足",
-        "example": "示例",
-        "exampleTask": "实现用户登录功能",
-        "failed": "任务拆解失败",
-        "noDescription": "请提供要拆解的任务描述",
-        "possibleCauses": "可能的原因",
-        "suggestion1": "尝试简化任务描述",
+        "suggestions": "Рекомендации",
+        "suggestion1": "尝试简化ЗадачаОписание",
         "suggestion2": "检查 API 密钥配置",
-        "suggestion3": "稍后重试",
-        "suggestions": "建议",
-        "taskDescription": "任务描述",
-        "usage": "用法"
-      },
-      "taskComplete": {
-        "completed": "任务 **{{taskId}}** 已标记为完成。",
-        "noTaskId": "请提供任务 ID",
-        "operationFailed": "操作失败",
-        "taskId": "任务ID",
-        "usage": "用法"
+        "suggestion3": "Повторить позже"
       },
       "taskDemo": {
-        "apiLogin": "POST /api/auth/login 返回 JWT token",
-        "apiRegister": "POST /api/auth/register 创建新用户",
-        "apiResetPassword": "POST /api/auth/reset-password 发送重置邮件",
-        "backendApiDescription": "实现登录、注册、密码重置的后端接口",
-        "backendApiTitle": "后端 API 开发",
-        "consoleTest": "使用控制台测试",
-        "description": "这是任务拆解功能的演示。使用 **/task:breakdown [任务描述]** 来拆解您的实际任务。",
-        "designPrototype": "设计 UI 原型",
-        "designSchema": "设计数据库 Schema",
-        "featureAcceptance": "验收标准：明确的完成条件",
-        "featureCategory": "类别：开发 / 测试 / 文档 / 设计 / 研究",
-        "featureDependencies": "依赖关系：任务间的依赖",
-        "featureEstimate": "工时估算：预估小时数",
-        "featureHierarchy": "层级结构：主任务 → 子任务 → 子子任务",
+        "title": "Задача拆解示例",
+        "hint": "Подсказка",
+        "description": "这ДаЗадача拆解功能的演示。Использовать **/task:breakdown [ЗадачаОписание]** 来拆解您的实际Задача。",
+        "features": "Задача树包含：",
+        "featureHierarchy": "层级结构：主Задача → 子Задача → 子子Задача",
+        "featureStatus": "状态跟踪：Ожидает ○ / В процессе ◐ / 完成 ● / Неудача ✕",
         "featurePriority": "优先级：紧急 / 高 / 中 / 低",
-        "featureStatus": "状态跟踪：待办 ○ / 进行中 ◐ / 完成 ● / 失败 ✕",
-        "features": "任务树包含：",
-        "formValidation": "表单验证（邮箱格式、密码强度）",
-        "friendlyErrors": "错误提示友好",
-        "frontendLoginDescription": "实现用户登录和注册表单",
-        "frontendLoginTitle": "前端登录页面",
-        "hint": "提示",
-        "integrateBackend": "集成后端 API",
+        "featureCategory": "类别：开发 / Тестирование / Документация / 设计 / 研究",
+        "featureEstimate": "工时估算：预估小时数",
+        "featureAcceptance": "验收标准：明确的完成записей件",
+        "featureDependencies": "依赖关系：Задача间的依赖",
+        "consoleTest": "Использовать控制台Тестирование",
+        "savedTo": "Задача已Сохранить到：`{{path}}`",
+        "notSaved": "未ОткрытьПроект，Задача仅Сохранить在Память中",
+        "treeTitle": "示例：实现Пользователь登录功能",
+        "treeDescription": "这Да一示例Задача拆解，展示了Задача树的结构",
+        "rootTitle": "实现Пользователь登录功能",
+        "rootDescription": "完整的Пользователь认证Система，Включая登录、注册、密码Сбросить",
+        "backendApiTitle": "后端 API 开发",
+        "backendApiDescription": "实现登录、注册、密码Сбросить的后端接口",
+        "apiLogin": "POST /api/auth/login Назад JWT token",
+        "apiRegister": "POST /api/auth/register Создать新Пользователь",
+        "apiResetPassword": "POST /api/auth/reset-password ОтправитьСбросить邮件",
+        "designSchema": "设计数据库 Schema",
         "jwtMiddleware": "实现 JWT 认证中间件",
-        "loginFormComponent": "实现登录表单组件",
-        "notSaved": "未打开项目，任务仅保存在内存中",
-        "rememberMe": "记住我功能",
-        "responsiveDesign": "响应式设计，支持移动端",
-        "rootDescription": "完整的用户认证系统，包括登录、注册、密码重置",
-        "rootTitle": "实现用户登录功能",
-        "savedTo": "任务已保存到：`{{path}}`",
-        "title": "任务拆解示例",
-        "treeDescription": "这是一个示例任务拆解，展示了任务树的结构",
-        "treeTitle": "示例：实现用户登录功能",
-        "writeDocsDescription": "编写 API 文档和部署指南",
-        "writeDocsTitle": "编写技术文档",
         "writeEndpoints": "编写 API 端点",
-        "writeTestsDescription": "为认证系统编写单元测试和集成测试",
-        "writeTestsTitle": "编写测试用例"
+        "frontendLoginTitle": "前端登录Стр.面",
+        "frontendLoginDescription": "实现Пользователь登录和注册表单",
+        "responsiveDesign": "响应式设计，支持Переместить端",
+        "formValidation": "表单验证（邮箱格式、密码强度）",
+        "friendlyErrors": "ОшибкаПодсказка友好",
+        "rememberMe": "记住我功能",
+        "designPrototype": "设计 UI 原型",
+        "loginFormComponent": "实现登录表单组件",
+        "integrateBackend": "集成后端 API",
+        "writeTestsTitle": "编写Тестирование用例",
+        "writeTestsDescription": "为认证Система编写单元Тестирование和集成Тестирование",
+        "writeDocsTitle": "编写技术Документация",
+        "writeDocsDescription": "编写 API Документация和Развёртывание指南"
       },
-      "taskList": {
-        "completedTasks": "已完成",
-        "currentlyOpened": "当前打开的文件",
-        "done": "已完成",
-        "fetchFailed": "获取任务列表失败",
-        "inProgress": "进行中",
-        "inProgressTasks": "进行中",
-        "moreCompleted": "还有 {{count}} 个已完成任务",
-        "noProject": "未打开项目",
-        "noProjectHint": "请先打开一个项目文件夹",
-        "noTasksFile": "未找到 tasks.md 文件",
-        "noTasksParsed": "未解析到任何任务，请检查 tasks.md 文件格式",
-        "solution": "解决方法",
-        "solutionStep1": "在文件树中找到提案目录（.ifai/changes/xxx/）",
-        "solutionStep2": "打开 tasks.md 文件",
-        "solutionStep3": "再次运行 /task:list",
-        "taskStats": "任务统计",
-        "todo": "待办",
-        "todoTasks": "待办任务",
-        "total": "总计"
+      "proposal": {
+        "noDescription": "请提供要Генерация提案的需求Описание",
+        "usage": "Использование",
+        "requirementDescription": "需求Описание",
+        "example": "Пример",
+        "exampleRequirement": "实现Пользователь登录功能",
+        "generating": "正在Генерация OpenSpec 提案...",
+        "failed": "提案ГенерацияНеудача",
+        "possibleCauses": "可能的原因",
+        "causeBadFormat": "ИИ 响应格式不正确",
+        "causeNetwork": "网络连接问题",
+        "causeQuota": "API 配额不足",
+        "suggestions": "Рекомендации",
+        "suggestion1": "尝试简化需求Описание",
+        "suggestion2": "检查 API 密钥配置",
+        "suggestion3": "Повторить позже"
       },
       "taskStart": {
-        "availableTasks": "可用任务",
-        "example": "示例",
-        "noProject": "未打开项目",
-        "noTaskId": "请提供任务 ID",
-        "noTasksFile": "未找到 tasks.md 文件",
-        "noTasksFileHint": "请先打开一个提案中的 tasks.md 文件",
-        "none": "无",
+        "noTaskId": "请提供Задача ID",
+        "usage": "Использование",
+        "taskId": "ЗадачаID",
+        "example": "Пример",
         "orExample": "或",
-        "startFailed": "任务启动失败",
-        "taskExecutionPrompt": "我需要协助实施以下开发任务：\n\n**任务 ID**: {{taskId}}\n**任务标题**: {{taskTitle}}\n**任务描述**: {{taskContent}}\n\n**任务路径**:\n{{context}}\n\n请帮助我完成这个任务的实施工作。请：\n1. 首先查看项目结构，了解现有代码\n2. 然后读取相关文件，分析实现方案\n3. 创建或修改所需的文件\n4. 最后总结完成的工作\n\n你可以使用 agent_list_dir、agent_read_file、agent_write_file 等工具来完成这些工作。",
-        "taskId": "任务ID",
-        "taskNotFound": "未找到任务: {{taskId}}",
-        "usage": "用法",
-        "useTaskList": "使用 `/task:list` 查看所有任务",
-        "viewAvailable": "查看可用任务"
+        "viewAvailable": "查看可用Задача",
+        "useTaskList": "Использовать `/task:list` 查看所有Задача",
+        "noProject": "未ОткрытьПроект",
+        "noTasksFile": "未找到 tasks.md Файл",
+        "noTasksFileHint": "请先Открыть一提案中的 tasks.md Файл",
+        "taskNotFound": "未找到Задача: {{taskId}}",
+        "availableTasks": "可用Задача",
+        "none": "Нет",
+        "startFailed": "Задача启动Неудача",
+        "taskExecutionPrompt": "我需要协助实施以下开发Задача：\n\n**Задача ID**: {{taskId}}\n**Задача标题**: {{taskTitle}}\n**ЗадачаОписание**: {{taskContent}}\n\n**Задача路径**:\n{{context}}\n\n请Справка我完成这Задача的实施工作。请：\n1. 首先查看Проект结构，了解现有Код\n2. 然后Читать相关Файл，Анализ实现方案\n3. Создать或Изменение所需的Файл\n4. 最后总结完成的工作\n\n你可以Использовать agent_list_dir、agent_read_file、agent_write_file 等Инструмент来完成这些工作。"
+      },
+      "taskList": {
+        "noProject": "未ОткрытьПроект",
+        "noProjectHint": "请先Открыть一ПроектФайл夹",
+        "currentlyOpened": "当前Открыть的Файл",
+        "noTasksFile": "未找到 tasks.md Файл",
+        "solution": "解决Метод",
+        "solutionStep1": "在Файл树中找到提案目录（.ifai/changes/xxx/）",
+        "solutionStep2": "Открыть tasks.md Файл",
+        "solutionStep3": "再разЗапуск /task:list",
+        "taskStats": "Задача统计",
+        "total": "Всего",
+        "todo": "Ожидает",
+        "inProgress": "В процессе",
+        "done": "Завершено",
+        "todoTasks": "Задачи",
+        "inProgressTasks": "В процессе",
+        "completedTasks": "Завершено",
+        "moreCompleted": "还有 {{count}} 已Завершить задачу",
+        "noTasksParsed": "未解析到任何Задача，请检查 tasks.md Файл格式",
+        "fetchFailed": "获取Задача列表Неудача"
+      },
+      "taskComplete": {
+        "noTaskId": "请提供Задача ID",
+        "usage": "Использование",
+        "taskId": "ЗадачаID",
+        "completed": "Задача **{{taskId}}** 已标记为完成。",
+        "operationFailed": "Операция не удалась"
       },
       "taskTestAll": {
-        "agentLaunchFailed": "无法启动测试 Agent",
-        "starting": "正在启动自动化测试集成流...",
-        "systemPrompt": "运行全量单元测试与 E2E 测试，并汇总报告至 Mission Control"
+        "starting": "正在启动自动化Тестирование集成流...",
+        "agentLaunchFailed": "Нет法启动Тестирование Agent",
+        "systemPrompt": "Запуск全量单元Тестирование与 E2E Тестирование，并汇总报告至 Mission Control"
       }
-    },
-    "compaction": {
-      "description": "原始对话包含 {{originalCount}} 条消息，已压缩以优化性能。压缩时间: {{time}}",
-      "label": "对话压缩"
-    },
-    "errorFix": {
-      "analyzePrompt": "请分析以下错误并提供修复建议：",
-      "code": "代码",
-      "codeContext": "代码上下文",
-      "errorCode": "错误代码",
-      "errorInfo": "错误信息",
-      "errorMessage": "错误消息",
-      "file": "文件",
-      "fileLocation": "文件位置",
-      "fixAndModify": "请提供修复方案并直接修改文件。",
-      "fixPrompt": "请帮我修复以下错误：",
-      "language": "语言",
-      "message": "消息",
-      "provide": "请提供",
-      "step1": "错误原因分析",
-      "step2": "具体的修复方案",
-      "step3": "修复后的代码示例（如果适用）"
-    },
-    "errorFixOpenFileFailed": "无法打开文件",
-    "help": {
-      "codebaseHint": "在提问中加入此指令可进行全局代码语义搜索",
-      "indexHint": "手动强制为项目代码库建立 RAG 语义索引"
-    },
-    "imageAttachment": {
-      "fileTooLarge": "文件过大 (5MB 限制)",
-      "processingFailed": "处理失败"
-    },
-    "searchChat": "搜索对话 ({{shortcut}})",
-    "sessionNotes": "会话笔记",
-    "viewMode": {
-      "chat": "对话",
-      "timeline": "时间线"
     }
   },
   "ghostTaskList": {
-    "active": "进行中"
+    "active": "В процессе"
   },
   "commands": {
-    "title": "系统命令",
-    "scanResult": "扫描 {{count}} 项 ({{time}}ms)",
+    "title": "Система命令",
+    "scanResult": "Сканирование {{count}} элементов ({{time}}ms)",
     "explore": {
-      "label": "代码探索",
-      "description": "深度代码库搜索与上下文分析"
+      "label": "Код探索",
+      "description": "深度Код库Поиск与КонтекстАнализ"
     },
     "review": {
-      "label": "代码审查",
-      "description": "审查代码质量、安全与最佳实践"
+      "label": "Код审查",
+      "description": "审查Код质量、Безопасность与最佳实践"
     },
     "test": {
-      "label": "测试生成",
-      "description": "自动生成单元测试与集成案例"
+      "label": "ТестированиеГенерация",
+      "description": "自动Генерация单元Тестирование与集成案例"
     },
     "doc": {
-      "label": "文档生成",
-      "description": "编写技术文档、README 与注释"
+      "label": "ДокументацияГенерация",
+      "description": "编写技术Документация、README 与Комментарий"
     },
     "refactor": {
-      "label": "重构建议",
-      "description": "提供代码改进与架构重构方案"
+      "label": "РефакторингПредложение",
+      "description": "提供Код改进与架构Рефакторинг方案"
     },
     "proposal": {
-      "label": "提案生成",
-      "description": "生成 OpenSpec 规范的提案"
+      "label": "提案Генерация",
+      "description": "Генерация OpenSpec 规范的提案"
     },
     "help": {
-      "label": "系统帮助",
-      "description": "显示功能指南与快捷键说明"
+      "label": "СистемаСправка",
+      "description": "Показать功能指南与快捷键说明"
     },
     "index": {
       "label": "重建索引",
-      "description": "手动强制为项目代码库建立 RAG 语义索引"
+      "description": "手动强制为ПроектКод库建立 RAG 语义索引"
     },
     "task": {
-      "label": "任务拆解",
-      "description": "AI 驱动的任务分解与可视化"
+      "label": "Декомпозиция задач",
+      "description": "ИИ 驱动的Задача分解与可视化"
     }
   },
   "help_message": {
-    "title": "欢迎使用 若爱 (IfAI) v0.2.0",
-    "intro": "我是您的 AI 编程伙伴，旨在通过深度集成的智能体（Agents）提升您的开发效率。",
+    "title": "欢迎Использовать Ruai (IfИИ) v0.2.0",
+    "intro": "我Да您的 ИИ 编程伙伴，旨在通过深度集成的智能体（Agents）提升您的开发效率。",
     "commands_title": "智能指令",
     "commands": [
-      "**@codebase** - 在提问中加入此指令可进行全局代码语义搜索",
-      "**/explore** - 深度探索代码库，分析架构与逻辑",
-      "**/review** - 审查当前文件的代码质量与安全建议",
-      "**/test** - 自动为代码生成单元测试用例",
-      "**/doc** - 编写技术文档、README 或详细代码注释",
-      "**/index** - 手动为项目代码库重建 RAG 语义索引"
+      "**@codebase** - 在提问中加入此指令可进行ГлобальныйКод语义Поиск",
+      "**/explore** - 深度探索Код库，Анализ架构与逻辑",
+      "**/review** - 审查当前Файл的Код质量与БезопасностьПредложение",
+      "**/test** - 自动为КодГенерация单元Тестирование用例",
+      "**/doc** - 编写技术Документация、README 或详细КодКомментарий",
+      "**/index** - 手动为ПроектКод库重建 RAG 语义索引"
     ],
     "shortcuts_title": "核心快捷键",
     "shortcuts": [
-      "**{{quickOpenShortcut}}** - 快速搜索并打开项目文件",
-      "**{{inlineEditShortcut}}** - 在编辑器中唤起内联 AI 编辑",
-      "**{{toggleChatShortcut}}** - 快速切换/显示聊天面板",
-      "**{{performanceMonitorShortcut}}** - 开启/关闭性能监控面板",
-      "**↑ / ↓** - 在输入框中快速唤回历史提问"
+      "**{{quickOpenShortcut}}** - 快速Поиск并ОткрытьПроектФайл",
+      "**{{inlineEditShortcut}}** - 在Редактирование器中唤起Встроенное редактирование ИИ",
+      "**{{toggleChatShortcut}}** - 快速Переключить/ПоказатьЧат面板",
+      "**{{performanceMonitorShortcut}}** - 开启/ЗакрытьМониторинг производительности面板",
+      "**↑ / ↓** - 在输入框中快速唤回История提问"
     ],
-    "footer": "您可以直接对我下达指令，或使用上述斜杠命令启动特定的智能体。祝您编程愉快！"
+    "footer": "您可以Напрямую对我下达指令，或Использовать上述斜杠命令启动特定的智能体。祝您编程愉快！"
   },
   "inlineAIWidget": {
-    "title": "内联助手",
-    "placeholder": "优化这段内容、补充注释，或直接提问...",
-    "targetLabel": "目标",
-    "currentContext": "当前上下文",
-    "modifiedFiles": "已修改文件（{{count}}）",
-    "openModifiedFile": "打开已修改文件 {{file}}",
+    "title": "ВстроенныйАссистент",
+    "placeholder": "Оптимизация这段内容、补充Комментарий，或Напрямую提问...",
+    "targetLabel": "Целевой",
+    "currentContext": "当前Контекст",
+    "modifiedFiles": "已ИзменениеФайл（{{count}}）",
+    "openModifiedFile": "Открыть已ИзменениеФайл {{file}}",
     "newLineHint": "{{shortcut}} 换行",
-    "processing": "处理中",
-    "readyToApply": "修改已准备好应用",
-    "applied": "修改已成功应用",
-    "accept": "接受",
-    "acceptAndClose": "接受并关闭",
+    "processing": "Обработка...",
+    "readyToApply": "Изменение已准备好Применить",
+    "applied": "Изменение已УспешноПрименить",
+    "accept": "Принять",
+    "acceptAndClose": "Принять并Закрыть",
     "discard": "丢弃",
     "stage": {
       "plan": "规划中...",
       "implement": "实施中...",
       "verify": "验证中...",
-      "optimize": "优化中..."
+      "optimize": "Оптимизация中..."
     }
   },
   "composerDiff": {
     "rootDirectory": "根目录",
-    "empty": "没有文件变更",
-    "close": "关闭",
-    "closeTitle": "关闭",
-    "title": "代码变更预览",
-    "fileCount": "{{count}} 个文件",
-    "acceptAll": "全部接受",
-    "acceptAllTitle": "接受所有变更",
-    "rejectAll": "全部拒绝",
-    "rejectAllTitle": "拒绝所有变更",
-    "appliedBadge": "已应用",
-    "acceptFileTitle": "接受此文件变更",
-    "rejectFileTitle": "拒绝此文件变更",
-    "rejectFileRollbackTitle": "拒绝此文件变更（回滚）",
-    "selectFile": "选择一个文件查看变更",
-    "appliedSummary": "已应用：{{applied}}/{{total}}",
-    "allApplied": "所有变更已应用",
-    "original": "原始内容",
+    "empty": "没有ФайлИзменение",
+    "close": "Закрыть",
+    "closeTitle": "Закрыть",
+    "title": "КодИзменениеПредпросмотр",
+    "fileCount": "{{count}} файлов",
+    "acceptAll": "ВсеПринять",
+    "acceptAllTitle": "Принять所有Изменение",
+    "rejectAll": "ВсеОтклонить",
+    "rejectAllTitle": "Отклонить所有Изменение",
+    "appliedBadge": "已Применить",
+    "acceptFileTitle": "Принять此ФайлИзменение",
+    "rejectFileTitle": "Отклонить此ФайлИзменение",
+    "rejectFileRollbackTitle": "Отклонить此ФайлИзменение（回滚）",
+    "selectFile": "选择一Файл查看Изменение",
+    "appliedSummary": "已Применить：{{applied}}/{{total}}",
+    "allApplied": "所有Изменение已Применить",
+    "original": "Исходное содержимое",
     "modified": "新内容",
-    "emptyFile": "<空文件>"
+    "emptyFile": "<空Файл>"
   },
   "help": {
     "keyboardShortcuts": "键盘快捷键",
-    "about": "关于",
-    "tagline": "AI 驱动的代码编辑器",
-    "description": "一款由 AI 驱动的智能代码编辑器，旨在帮助您更快速地编写更好的代码。",
-    "repository": "源代码仓库",
-    "documentation": "文档",
+    "about": "О программе",
+    "tagline": "ИИ 驱动的КодРедактирование器",
+    "description": "一款由 ИИ 驱动的智能КодРедактирование器，旨在Справка您更快速地编写更好的Код。",
+    "repository": "源Код仓库",
+    "documentation": "Документация",
     "githubRepository": "GitHub 仓库",
     "reportIssue": "报告问题",
-    "changelog": "更新日志",
+    "changelog": "Обновить日志",
     "community": "社区讨论",
     "allRightsReserved": "版权所有",
     "madeBy": "由 {{name}} 打造"
   },
   "layout": {
     "switcher": {
-      "toggleLayout": "切换布局模式",
+      "toggleLayout": "Переключить布局模式",
       "selectLayout": "选择布局模式",
       "layoutMode": "布局模式",
-      "default": "默认",
-      "custom": "自定义",
+      "default": "По умолчанию",
+      "custom": "Пользовательский",
       "defaultLayout": "默认布局",
-      "defaultLayoutDesc": "聊天面板在右侧",
+      "defaultLayoutDesc": "Чат面板在右侧",
       "customLayout": "自定义布局",
-      "customLayoutDesc": "聊天面板在左侧",
-      "autoSave": "设置会自动保存"
+      "customLayoutDesc": "Чат面板在左侧",
+      "autoSave": "Настройки会自动Сохранить"
     },
     "modeSwitch": {
       "vibe": "灵感",
@@ -2628,230 +2651,230 @@
   },
   "onboarding": {
     "steps": {
-      "welcome": "欢迎使用 IfAI Editor！这是一个功能强大的 AI 代码编辑器，让我们花一点时间了解核心功能。",
-      "welcomeTitle": "欢迎使用 IfAI Editor",
-      "commandBar": "CommandBar 命令行\n\n这是类似 Vim 的命令行模式。按 **:** 键即可唤起。\n\n常用命令：\n• **:w** - 保存当前文件\n• **:q** - 关闭当前文件\n• **:wq** - 保存并关闭\n• **:grep 关键词** - 在文件中搜索",
+      "welcome": "欢迎Использовать IfИИ Editor！这Да一功能强大的 ИИ КодРедактирование器，让我们花一点时间了解核心功能。",
+      "welcomeTitle": "欢迎Использовать IfИИ Editor",
+      "commandBar": "CommandBar 命令行\n\n这Да类似 Vim 的命令行模式。按 **:** 键即可唤起。\n\n常用命令：\n• **:w** - Сохранить当前Файл\n• **:q** - Закрыть当前Файл\n• **:wq** - Сохранить并Закрыть\n• **:grep 关键词** - 在Файл中Поиск",
       "commandBarTitle": "Vim 风格命令行",
-      "settingsGuide": "设置面板\n\n在这里您可以：\n• 配置 AI 提供商和 API 密钥\n• 调整编辑器外观和行为\n• 查看和自定义快捷键\n• 管理性能和显示选项",
-      "settingsGuideTitle": "设置说明",
-      "layoutSwitcher": "点击这里可以切换不同的布局模式，适应不同的工作场景。",
-      "layoutSwitcherTitle": "布局切换"
+      "settingsGuide": "Настройки面板\n\n在这里您可以：\n• 配置 ИИ 提供商和 API 密钥\n• 调整Редактирование器外观和行为\n• 查看和自定义快捷键\n• 管理Производительность和ПоказатьПараметры",
+      "settingsGuideTitle": "Настройки说明",
+      "layoutSwitcher": "点击这里可以Переключить不同的布局模式，适应不同的工作场景。",
+      "layoutSwitcherTitle": "布局Переключить"
     },
     "buttons": {
-      "back": "上一步",
-      "close": "关闭",
-      "last": "完成",
-      "next": "下一步",
-      "open": "打开对话框",
-      "skip": "跳过"
+      "back": "Назад",
+      "close": "Закрыть",
+      "last": "Готово",
+      "next": "Далее",
+      "open": "ОткрытьДиалог框",
+      "skip": "Пропустить"
     },
-    "progress": "第 {{current}} / {{total}} 步",
-    "resetTutorial": "重置新手引导",
-    "resetConfirm": "确定要重置新手引导吗？",
-    "resetMessage": "页面将重新加载以显示新手引导"
+    "progress": "№ {{current}} / {{total}} 步",
+    "resetTutorial": "Сбросить新手引导",
+    "resetConfirm": "ОК要Сбросить新手引导吗？",
+    "resetMessage": "Стр.面将重新加载以Показать新手引导"
   },
   "apiKeyGuide": {
-    "title": "配置 AI 提供商",
-    "description": "要使用 AI 功能，需要配置 API 密钥。我们推荐智谱 AI 的 GLM-4.7-Flash - 快速且对新用户免费！",
+    "title": "配置 ИИ 提供商",
+    "description": "要Использовать ИИ 功能，需要配置 API 密钥。我们推荐智谱 ИИ 的 GLM-4.7-Flash - 快速且对新Пользователь免费！",
     "zhipuSection": {
-      "title": "推荐：智谱 AI",
-      "description": "GLM-4.7-Flash 是快速高效的模型，新用户可享免费额度",
-      "step1": "访问智谱 AI 开放平台",
+      "title": "推荐：智谱 ИИ",
+      "description": "GLM-4.7-Flash Да快速高效的Модель，新Пользователь可享免费额度",
+      "step1": "访问智谱 ИИ 开放平台",
       "step2": "注册新账号（需要手机验证）",
-      "step3": "进入设置中的 API Keys 页面",
-      "step4": "创建新的 API Key",
-      "step5": "复制并粘贴密钥到下方"
+      "step3": "进入Настройки中的 API Keys Стр.面",
+      "step4": "Создать新的 API Key",
+      "step5": "Копировать并粘贴密钥到下方"
     },
     "benefits": {
-      "title": "为什么选择智谱 AI？",
+      "title": "为什么选择智谱 ИИ？",
       "fast": "闪电般快速响应",
-      "free": "新用户免费额度",
+      "free": "新Пользователь免费额度",
       "stable": "稳定可靠的服务"
     },
     "apiKeyLabel": "在此粘贴您的 API Key",
     "apiKeyPlaceholder": "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
-    "saveAndContinue": "保存并继续",
-    "skipForNow": "稍后设置",
-    "skipWarning": "您可以稍后在设置中配置",
-    "securityNote": "您的 API Key 仅会安全存储在本地，不会上传到任何服务器。",
-    "openZhipuPlatform": "打开智谱 AI 平台 →",
+    "saveAndContinue": "Сохранить并继续",
+    "skipForNow": "稍后Настройки",
+    "skipWarning": "您可以稍后在Настройки中配置",
+    "securityNote": "您的 API Key 仅会Безопасность存储在本地，不会Загрузить到任何服务器。",
+    "openZhipuPlatform": "Открыть智谱 ИИ 平台 →",
     "otherProviders": "其他提供商",
-    "otherProvidersDesc": "您也可以在设置中使用 OpenAI、DeepSeek、Kimi 或自定义提供商。"
+    "otherProvidersDesc": "您也可以在Настройки中Использовать OpenИИ、DeepSeek、Kimi 或自定义提供商。"
   },
   "welcomeDialog": {
-    "title": "欢迎使用 IfAI Editor",
-    "description": "是否下载本地 AI 模型？使用本地模型可以获得更快的响应速度和更好的隐私保护。",
-    "advantagesTitle": "本地模型优势",
+    "title": "欢迎Использовать IfИИ Editor",
+    "description": "ДаНетСкачать本地 ИИ Модель？Использовать本地Модель可以获得更快的响应速度和更好的隐私保护。",
+    "advantagesTitle": "本地Модель优势",
     "advantages": {
-      "offline": "离线使用：",
-      "offlineDesc": "无需联网，完全本地运行",
-      "autocomplete": "代码补全：",
-      "autocompleteDesc": "实时代码补全和智能建议",
+      "offline": "离线Использовать：",
+      "offlineDesc": "Нет需联网，完全本地Запуск",
+      "autocomplete": "Код补全：",
+      "autocompleteDesc": "Реальное времяКод补全和智能Предложение",
       "free": "完全免费：",
-      "freeDesc": "无 token 消耗，无使用限制"
+      "freeDesc": "Нет token 消耗，НетИспользовать限制"
     },
-    "noticeTitle": "注意事项",
-    "noticeDesc": "需要下载约 379MB 的模型文件，下载时间取决于网络速度。",
-    "downloadNow": "立即下载",
+    "noticeTitle": "注意事элементов",
+    "noticeDesc": "需要Скачать约 379MB 的МодельФайл，Скачать时间取决于网络速度。",
+    "downloadNow": "立即Скачать",
     "remindLater": "稍后提醒我",
-    "skipCloud": "跳过，使用云端",
-    "footerText": "您可以随时在设置中手动下载本地模型"
+    "skipCloud": "跳过，Использовать云端",
+    "footerText": "您可以随时在Настройки中手动Скачать本地Модель"
   },
   "localModel": {
-    "downloading": "正在下载本地模型",
-    "view": "查看",
-    "downloadFailed": "下载失败",
-    "cancelFailed": "取消失败",
-    "backgroundDownloadNotice": "下载正在后台进行，完成后将通知您",
-    "downloadComplete": "本地模型下载完成！",
-    "downloadCompleteTitle": "下载完成！",
-    "downloadCompleteMessage": "本地模型已成功下载并启用，您现在可以享受本地 AI 功能了。",
-    "start": "开始使用",
-    "downloadFailedTitle": "下载失败",
-    "downloadCancelledTitle": "下载已取消",
-    "downloadFailedMessage": "下载过程中出现错误，请稍后重试或在设置中手动下载。",
-    "downloadCancelledMessage": "您可以稍后在设置中手动下载本地模型。",
-    "continue": "继续",
-    "downloadingModel": "正在下载本地 AI 模型",
-    "pleaseWait": "请稍候，这可能需要几分钟...",
-    "downloadProgress": "下载进度",
-    "downloaded": "已下载",
-    "downloadSpeed": "下载速度",
+    "downloading": "正在Скачать本地Модель",
+    "view": "Просмотр",
+    "downloadFailed": "СкачатьНеудача",
+    "cancelFailed": "ОтменаНеудача",
+    "backgroundDownloadNotice": "Скачать正在后台进行，完成后将通知您",
+    "downloadComplete": "本地МодельСкачать完成！",
+    "downloadCompleteTitle": "Скачать完成！",
+    "downloadCompleteMessage": "本地Модель已УспешноСкачать并Включить，您现在可以享受本地 ИИ 功能了。",
+    "start": "开始Использовать",
+    "downloadFailedTitle": "СкачатьНеудача",
+    "downloadCancelledTitle": "СкачатьОтменено",
+    "downloadFailedMessage": "Скачать过程中出现Ошибка，请稍后重试或在Настройки中手动Скачать。",
+    "downloadCancelledMessage": "您可以稍后在Настройки中手动Скачать本地Модель。",
+    "continue": "Продолжить",
+    "downloadingModel": "正在Скачать本地 ИИ Модель",
+    "pleaseWait": "Подождите...，这可能需要几分钟...",
+    "downloadProgress": "Скачать进度",
+    "downloaded": "已Скачать",
+    "downloadSpeed": "Скачать速度",
     "estimatedTime": "预计剩余时间",
-    "background": "后台下载",
-    "cancel": "取消"
+    "background": "后台Скачать",
+    "cancel": "Отмена"
   },
   "localModelSettings": {
-    "title": "本地模型设置",
-    "description": "配置 Qwen2.5-Coder 微调模型，支持本地推理和工具调用",
-    "modelStatus": "模型状态",
-    "downloaded": "已下载",
-    "downloading": "下载中",
-    "notDownloaded": "未下载",
-    "file": "文件",
-    "size": "大小",
-    "format": "格式",
-    "model": "模型",
-    "downloadProgress": "下载进度",
-    "modelNotFound": "模型文件未找到。点击下方按钮下载模型（约 379MB）。",
-    "refresh": "刷新",
-    "openDir": "打开目录",
-    "downloadModel": "下载模型",
-    "cancel": "取消",
-    "enableLocalModel": "启用本地模型",
-    "enableLocalModelDesc": "启用后，简单的代码问答和工具解析将使用本地模型处理",
-    "systemInfo": "系统信息",
-    "os": "操作系统",
+    "title": "本地МодельНастройки",
+    "description": "配置 Qwen2.5-Coder 微调Модель，支持本地推理和Инструмент调用",
+    "modelStatus": "Модель状态",
+    "downloaded": "已Скачать",
+    "downloading": "Скачать中",
+    "notDownloaded": "未Скачать",
+    "file": "Файл",
+    "size": "Размер",
+    "format": "Формат",
+    "model": "Модель",
+    "downloadProgress": "Скачать进度",
+    "modelNotFound": "МодельФайл未找到。点击下方按钮СкачатьМодель（约 379MB）。",
+    "refresh": "Обновить",
+    "openDir": "Открыть目录",
+    "downloadModel": "СкачатьМодель",
+    "cancel": "Отмена",
+    "enableLocalModel": "Включить本地Модель",
+    "enableLocalModelDesc": "Включить后，简单的Код问答和Инструмент解析将Использовать本地МодельОбработка",
+    "systemInfo": "СистемаИнформация",
+    "os": "ОперацияСистема",
     "arch": "架构",
-    "modelDir": "模型目录",
+    "modelDir": "Модель目录",
     "inferenceParams": "推理参数",
     "temperature": "温度",
     "topP": "Top P",
     "temperatureDesc": "控制随机性 (0.0 - 2.0)",
     "topPDesc": "核采样参数 (0.0 - 1.0)",
-    "testFeatures": "测试功能",
-    "testToolParse": "测试工具调用解析",
+    "testFeatures": "Тестирование功能",
+    "testToolParse": "ТестированиеИнструмент调用解析",
     "currentlySupported": "当前支持",
-    "supportFeature1": "模型文件验证",
-    "supportFeature2": "模型下载管理",
-    "supportFeature3": "工具调用解析测试",
+    "supportFeature1": "МодельФайл验证",
+    "supportFeature2": "МодельСкачать管理",
+    "supportFeature3": "Инструмент调用解析Тестирование",
     "comingSoon": "即将推出",
-    "comingFeature1": "纯 Rust 本地推理（无需外部依赖）",
-    "comingFeature2": "流式生成",
-    "comingFeature3": "Agent 工具调用集成",
-    "comingFeature4": "智能代码补全（FIM）",
-    "downloadComplete": "本地模型下载完成！",
-    "downloadFailed": "下载失败: {{error}}",
-    "cancelFailed": "取消失败: {{error}}",
-    "enabled": "本地模型已启用",
-    "disabled": "本地模型已禁用",
-    "validateSuccess": "模型验证成功",
-    "parseSuccess": "解析成功！",
-    "parseFailed": "解析失败",
-    "loadFailed": "加载本地模型设置失败：{{error}}",
-    "validateFailed": "模型验证失败：{{error}}",
-    "openDirFailed": "打开模型目录失败：{{error}}",
-    "toggleLabel": "启用或禁用本地模型",
+    "comingFeature1": "纯 Rust 本地推理（Нет需外部依赖）",
+    "comingFeature2": "流式Генерация",
+    "comingFeature3": "Agent Инструмент调用集成",
+    "comingFeature4": "智能Код补全（FIM）",
+    "downloadComplete": "本地МодельСкачать完成！",
+    "downloadFailed": "СкачатьНеудача: {{error}}",
+    "cancelFailed": "ОтменаНеудача: {{error}}",
+    "enabled": "本地Модель已Включить",
+    "disabled": "本地Модель已Отключить",
+    "validateSuccess": "Модель验证Успешно",
+    "parseSuccess": "解析Успешно！",
+    "parseFailed": "解析Неудача",
+    "loadFailed": "加载本地МодельНастройкиНеудача：{{error}}",
+    "validateFailed": "МодельОшибка проверки：{{error}}",
+    "openDirFailed": "ОткрытьМодель目录Неудача：{{error}}",
+    "toggleLabel": "Включить或Отключить本地Модель",
     "etaUnknown": "--",
-    "etaSeconds": "{{count}}秒",
-    "etaMinutesSeconds": "{{minutes}}分{{seconds}}秒",
+    "etaSeconds": "{{count}}секунда",
+    "etaMinutesSeconds": "{{minutes}}минута{{seconds}}секунда",
     "etaHoursMinutes": "{{hours}}小时{{minutes}}分"
   },
   "dataManagement": {
     "statistics": "数据统计",
-    "activeThreads": "活跃对话",
+    "activeThreads": "活跃Диалог",
     "archivedThreads": "已归档",
-    "totalMessages": "总消息数",
-    "exportImport": "导出/导入",
-    "exportImportDesc": "导出可将所有对话数据保存为 JSON 文件，用于备份或迁移。导入可从备份文件恢复对话。",
-    "exportThreads": "导出对话",
-    "importThreads": "导入对话",
-    "exporting": "导出中...",
-    "importing": "导入中...",
-    "exportSuccess": "导出成功",
-    "exportSuccessDesc": "对话数据已成功导出到文件",
-    "exportFailed": "导出失败",
-    "importSuccess": "导入成功",
-    "importSuccessDesc": "对话数据已成功导入",
-    "importFailed": "导入失败",
-    "unknownError": "未知错误",
-    "fileFormatError": "文件格式错误或数据损坏",
+    "totalMessages": "总Сообщение数",
+    "exportImport": "Экспорт/Импорт",
+    "exportImportDesc": "Экспорт可将所有Диалог数据Сохранить为 JSON Файл，用于Резервное копирование或迁移。Импорт可从Резервное копированиеФайл恢复Диалог。",
+    "exportThreads": "ЭкспортДиалог",
+    "importThreads": "ИмпортДиалог",
+    "exporting": "Экспорт中...",
+    "importing": "Импорт中...",
+    "exportSuccess": "ЭкспортУспешно",
+    "exportSuccessDesc": "Диалог数据已УспешноЭкспорт到Файл",
+    "exportFailed": "ЭкспортНеудача",
+    "importSuccess": "ИмпортУспешно",
+    "importSuccessDesc": "Диалог数据已УспешноИмпорт",
+    "importFailed": "ИмпортНеудача",
+    "unknownError": "Неизвестная ошибка",
+    "fileFormatError": "Файл格式Ошибка或数据损坏",
     "storageManagement": "存储管理",
-    "storageManagementDesc": "删除的对话会被标记为已删除但仍占用存储空间。您可以永久清除这些对话。",
-    "clearDeletedThreads": "清除已删除对话",
-    "clearing": "清理中...",
-    "clearSuccess": "清理完成",
-    "clearSuccessDesc": "已删除的对话已被永久清除",
-    "autoSave": "自动保存",
-    "autoSaveDesc": "对话数据会自动保存到浏览器存储中。即使关闭浏览器，您的对话也会被保留。"
+    "storageManagementDesc": "Удалить的Диалог会被标记为Удалено但仍占用存储空间。您可以永久Очистить这些Диалог。",
+    "clearDeletedThreads": "ОчиститьУдаленоДиалог",
+    "clearing": "Очистка中...",
+    "clearSuccess": "Очистка完成",
+    "clearSuccessDesc": "Удалено的Диалог已被永久Очистить",
+    "autoSave": "自动Сохранить",
+    "autoSaveDesc": "Диалог数据会自动Сохранить到浏览器存储中。即使Закрыть浏览器，您的Диалог也会被保留。"
   },
   "errors": {
-    "ERR_FILE_NOT_FOUND": "文件未找到",
-    "ERR_FILE_READ_FAILED": "读取文件失败",
-    "ERR_FILE_WRITE_FAILED": "写入文件失败",
-    "ERR_FOLDER_OPEN_FAILED": "打开文件夹失败",
-    "ERR_FILE_CREATE_FAILED": "创建文件失败",
-    "ERR_FILE_DELETE_FAILED": "删除文件失败",
-    "ERR_NETWORK": "网络错误",
+    "ERR_FILE_NOT_FOUND": "Файл未找到",
+    "ERR_FILE_READ_FAILED": "ЧитатьФайлНеудача",
+    "ERR_FILE_WRITE_FAILED": "Записать файлНеудача",
+    "ERR_FOLDER_OPEN_FAILED": "Открыть папкуНеудача",
+    "ERR_FILE_CREATE_FAILED": "СоздатьФайлНеудача",
+    "ERR_FILE_DELETE_FAILED": "УдалитьФайлНеудача",
+    "ERR_NETWORK": "Ошибка сети",
     "ERR_UNAUTHORIZED": "未授权",
     "ERR_FORBIDDEN": "禁止访问",
-    "ERR_TIMEOUT": "请求超时",
-    "ERR_SERVER_ERROR": "服务器错误",
-    "ERR_PARSE_FAILED": "解析失败",
-    "ERR_VALIDATION_FAILED": "验证失败",
-    "ERR_INVALID_JSON": "无效的 JSON 格式",
-    "ERR_INVALID_FORMAT": "无效的格式",
-    "ERR_OPERATION_FAILED": "操作失败",
-    "ERR_UNKNOWN_ERROR": "未知错误",
-    "ERR_FILE_OPERATION_FAILED": "文件 {{fileName}} {{operation}} 失败",
-    "ERR_GENERIC": "发生错误: {{message}}"
+    "ERR_TIMEOUT": "ЗапросТайм-аут",
+    "ERR_SERVER_ERROR": "Ошибка сервера",
+    "ERR_PARSE_FAILED": "解析Неудача",
+    "ERR_VALIDATION_FAILED": "Ошибка проверки",
+    "ERR_INVALID_JSON": "Нет效的 JSON 格式",
+    "ERR_INVALID_FORMAT": "Нет效的格式",
+    "ERR_OPERATION_FAILED": "Операция не удалась",
+    "ERR_UNKNOWN_ERROR": "Неизвестная ошибка",
+    "ERR_FILE_OPERATION_FAILED": "Файл {{fileName}} {{operation}} Неудача",
+    "ERR_GENERIC": "发生Ошибка: {{message}}"
   },
   "conversation": {
     "notes": {
       "title": "会话笔记",
-      "loading": "加载中...",
-      "noNotes": "暂无会话笔记",
-      "error": "错误",
-      "export": "导出",
-      "generateSummary": "生成摘要",
-      "save": "保存",
+      "loading": "Загрузка...",
+      "noNotes": "暂Нет会话笔记",
+      "error": "Ошибка",
+      "export": "Экспорт",
+      "generateSummary": "Генерация摘要",
+      "save": "Сохранить",
       "techConcepts": "技术概念",
-      "fileChanges": "文件变更",
-      "errorFixes": "错误修复",
-      "todoTasks": "待办任务",
+      "fileChanges": "ФайлИзменение",
+      "errorFixes": "Ошибка修复",
+      "todoTasks": "Задачи",
       "summary": "摘要",
       "mentions": "提及",
       "solution": "解决方案",
-      "extractFromMessages": "从消息中重新提取笔记",
-      "startedAt": "开始时间",
+      "extractFromMessages": "从Сообщение中重新提取笔记",
+      "startedAt": "Время начала",
       "exportFormats": {
         "markdown": "Markdown",
         "json": "JSON"
       },
       "stats": {
         "techConcepts": "技术概念：{{count}}",
-        "fileChanges": "文件变更：{{count}}",
-        "todoTasks": "待办任务：{{count}}"
+        "fileChanges": "ФайлИзменение：{{count}}",
+        "todoTasks": "Задачи：{{count}}"
       },
       "categories": {
         "concept": "概念",
@@ -2865,24 +2888,24 @@
         "high": "高"
       },
       "fileAction": {
-        "created": "已创建",
-        "modified": "已修改",
-        "deleted": "已删除"
+        "created": "Создано",
+        "modified": "已Изменение",
+        "deleted": "Удалено"
       },
       "taskStatus": {
-        "pending": "待处理",
-        "inProgress": "进行中",
-        "completed": "已完成"
+        "pending": "Ожидает",
+        "inProgress": "В процессе",
+        "completed": "Завершено"
       }
     },
     "summary": {
-      "title": "对话总结",
+      "title": "Диалог总结",
       "tokens": "tokens",
-      "messages": "条消息",
-      "copy": "复制",
-      "copied": "已复制",
-      "export": "导出",
-      "compacted": "对话已压缩",
+      "messages": "записейСообщение",
+      "copy": "Копировать",
+      "copied": "已Копировать",
+      "export": "Экспорт",
+      "compacted": "Диалог已压缩",
       "estimatedCost": "预估费用 ¥{{value}}"
     }
   },
@@ -2890,121 +2913,121 @@
     "title": "提案审核",
     "loading": "正在加载提案...",
     "notFound": "未找到提案",
-    "closeWindow": "关闭",
-    "saved": "提案已保存",
+    "closeWindow": "Закрыть",
+    "saved": "提案已Сохранить",
     "validated": "规范已校验",
-    "pendingReview": "待审核",
-    "edit": "编辑",
-    "save": "保存",
-    "cancel": "取消",
-    "reject": "拒绝",
-    "approve": "批准",
-    "taskLabel": "任务 {{index}}",
+    "pendingReview": "На рассмотрении",
+    "edit": "Редактировать",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "reject": "Отклонить",
+    "approve": "Одобрить",
+    "taskLabel": "Задача {{index}}",
     "hours": "{{count}} 小时",
     "tabs": {
       "overview": "概览",
-      "tasks": "任务",
+      "tasks": "Задача",
       "specs": "规范"
     },
     "sections": {
       "background": "背景",
-      "changes": "变更内容"
+      "changes": "Изменение内容"
     },
     "impact": {
       "affectedSpecs": "受影响规范",
-      "filesToChange": "待修改文件",
-      "breaking": "破坏性变更",
+      "filesToChange": "待ИзменениеФайл",
+      "breaking": "破坏性Изменение",
       "estimated": "预估",
-      "yes": "是",
-      "no": "否"
+      "yes": "Да",
+      "no": "Нет"
     },
     "specTypes": {
       "added": "新增",
-      "modified": "修改",
-      "removed": "移除"
+      "modified": "Изменение",
+      "removed": "Убрать"
     },
     "errors": {
-      "save": "保存失败：{{error}}",
-      "approve": "批准失败：{{error}}",
-      "reject": "拒绝失败：{{error}}"
+      "save": "СохранитьНеудача：{{error}}",
+      "approve": "ОдобритьНеудача：{{error}}",
+      "reject": "ОтклонитьНеудача：{{error}}"
     }
   },
   "codeReviewModal": {
-    "title": "代码审查结果",
-    "issueCount": "{{count}} 个问题",
+    "title": "Код审查结果",
+    "issueCount": "{{count}} проблем",
     "viewFix": "查看修复",
-    "apply": "应用",
-    "cancel": "取消",
-    "commitAnyway": "仍然提交",
-    "forceCommit": "强制提交",
+    "apply": "Применить",
+    "cancel": "Отмена",
+    "commitAnyway": "仍然Отправить",
+    "forceCommit": "强制Отправить",
     "ignoreIssues": "忽略问题",
-    "ignoreIssuesSuffix": "继续提交",
-    "applyAllFixes": "应用全部修复",
-    "fixSuggestion": "修复建议",
-    "currentCode": "当前代码",
-    "suggestedFix": "建议修复",
-    "description": "说明",
-    "cancelFix": "关闭",
-    "applyFix": "应用修复",
-    "committed": "更改已提交",
-    "fixAppliedSuccessfully": "修复已成功应用",
-    "fixApplied": "已应用修复：{{message}}",
-    "originalCodeFallback": "暂无原始代码",
-    "fixedCodeFallback": "暂无建议修复代码",
+    "ignoreIssuesSuffix": "继续Отправить",
+    "applyAllFixes": "ПрименитьВсе修复",
+    "fixSuggestion": "修复Предложение",
+    "currentCode": "当前Код",
+    "suggestedFix": "Предложение修复",
+    "description": "Описание",
+    "cancelFix": "Закрыть",
+    "applyFix": "Применить修复",
+    "committed": "Изменение已Отправить",
+    "fixAppliedSuccessfully": "修复已УспешноПрименить",
+    "fixApplied": "已Применить修复：{{message}}",
+    "originalCodeFallback": "暂НетИсходныйКод",
+    "fixedCodeFallback": "暂НетПредложение修复Код",
     "types": {
-      "security": "安全",
-      "performance": "性能",
+      "security": "Безопасность",
+      "performance": "Производительность",
       "style": "风格",
-      "error": "错误",
-      "custom": "自定义"
+      "error": "Ошибка",
+      "custom": "Пользовательский"
     },
     "severities": {
       "critical": "严重",
-      "error": "错误",
-      "warning": "警告",
-      "info": "提示"
+      "error": "Ошибка",
+      "warning": "Предупреждение",
+      "info": "Подсказка"
     }
   },
   "taskBreakdown": {
     "stats": {
-      "completed": "已完成：{{count}}",
-      "inProgress": "进行中：{{count}}",
-      "failed": "失败：{{count}}",
-      "total": "总计：{{count}} 个任务"
+      "completed": "Выполнено: {{count}}",
+      "inProgress": "В процессе: {{count}}",
+      "failed": "Неудача：{{count}}",
+      "total": "总计：{{count}} задач"
     },
     "actions": {
       "viewFull": "查看完整",
-      "searchPlaceholder": "搜索任务...",
-      "expandAll": "展开全部",
-      "collapseAll": "折叠全部",
-      "exportJson": "导出 JSON",
+      "searchPlaceholder": "ПоискЗадача...",
+      "expandAll": "Развернуть всё",
+      "collapseAll": "Свернуть всё",
+      "exportJson": "Экспорт JSON",
       "enterFullscreen": "全屏",
-      "exitFullscreen": "退出全屏",
-      "copyId": "复制 ID"
+      "exitFullscreen": "Выход全屏",
+      "copyId": "Копировать ID"
     },
     "labels": {
-      "taskTree": "任务树",
+      "taskTree": "Задача树",
       "totalEstimatedHours": "预估总工时：{{hours}}",
       "id": "ID：{{id}}",
-      "status": "任务状态",
-      "description": "描述",
-      "taskId": "任务 ID",
+      "status": "Задача状态",
+      "description": "Описание",
+      "taskId": "Задача ID",
       "priority": "优先级",
       "category": "类别",
       "estimatedHours": "预估工时",
       "dependencies": "依赖关系（{{count}}）",
       "dependenciesTitle": "依赖：{{items}}",
       "acceptanceCriteria": "验收标准",
-      "subtasks": "子任务"
+      "subtasks": "Подзадача"
     },
     "feedback": {
-      "copied": "已复制"
+      "copied": "已Копировать"
     },
     "status": {
-      "pending": "待办",
-      "inProgress": "进行中",
-      "completed": "已完成",
-      "failed": "失败"
+      "pending": "Ожидает",
+      "inProgress": "В процессе",
+      "completed": "Завершено",
+      "failed": "Ошибка"
     },
     "priority": {
       "low": "低",
@@ -3015,12 +3038,12 @@
     },
     "categories": {
       "development": "开发",
-      "testing": "测试",
-      "documentation": "文档",
+      "testing": "Тест",
+      "documentation": "Документация",
       "design": "设计",
       "research": "研究",
-      "deployment": "部署",
-      "other": "其他"
+      "deployment": "Развертывание",
+      "other": "Другое"
     },
     "units": {
       "hoursShort": "{{count}}h",
@@ -3030,89 +3053,89 @@
   "workflow": {
     "shared": {
       "status": {
-        "completed": "完成",
-        "failed": "失败",
-        "running": "运行中",
-        "skipped": "跳过",
-        "waiting": "等待"
+        "completed": "Готово",
+        "failed": "Ошибка",
+        "running": "Выполняется",
+        "skipped": "Пропустить",
+        "waiting": "Ожидание"
       }
     },
     "page": {
       "title": "多智能体工作流",
-      "description": "自动化代码分析、审查、重构和测试。",
-      "back": "返回",
-      "running": "运行中的工作流（{{count}}）",
+      "description": "自动化КодАнализ、审查、Рефакторинг和Тестирование。",
+      "back": "Назад",
+      "running": "Выполняется的工作流（{{count}}）",
       "startedAt": "开始于：{{time}}",
-      "view": "查看",
-      "targetPath": "目标路径",
+      "view": "Просмотр",
+      "targetPath": "Целевой路径",
       "targetPathPlaceholder": "./src",
       "browse": "浏览",
       "tabs": {
         "select": "快速工作流",
         "templates": "工作流模板",
-        "editor": "自定义编辑器",
+        "editor": "自定义Редактирование器",
         "monitor": "执行监控"
       },
-      "idleTitle": "没有正在运行的工作流",
-      "idleDescription": "从“快速工作流”或“工作流模板”启动一个工作流。",
-      "completed": "已完成的工作流（{{count}}）",
+      "idleTitle": "没有正在Запуск的工作流",
+      "idleDescription": "从“快速工作流”或“工作流模板”启动一工作流。",
+      "completed": "Выполнено的工作流（{{count}}）",
       "viewResults": "查看结果",
       "nodes": {
-        "explore": "探索代码",
-        "review": "代码审查",
-        "refactor": "重构建议",
+        "explore": "探索Код",
+        "review": "Код审查",
+        "refactor": "РефакторингПредложение",
         "quickExplore": "快速探索",
-        "security": "安全检查"
+        "security": "Безопасность检查"
       }
     },
     "monitor": {
       "title": "工作流执行中",
       "workflowId": "工作流 ID: {{id}}",
-      "duration": "运行时间",
-      "durationSeconds": "{{count}}秒",
+      "duration": "Запуск时间",
+      "durationSeconds": "{{count}}секунда",
       "completedNodes": "{{completed}} / {{total}} 节点",
-      "progress": "进度",
+      "progress": "Прогресс",
       "nodeResults": "节点执行结果",
       "output": "输出：",
-      "error": "错误：",
-      "waitingForResults": "等待节点执行结果...",
-      "executionFailed": "执行失败"
+      "error": "Ошибка:",
+      "waitingForResults": "Ожидание节点执行结果...",
+      "executionFailed": "执行Неудача"
     },
     "results": {
       "title": "工作流执行结果",
       "workflowId": "工作流 ID: {{id}}",
-      "export": "导出",
+      "export": "Экспорт",
       "share": "分享",
-      "retry": "重试",
-      "status": "状态",
+      "retry": "Повторить",
+      "status": "Состояние",
       "totalDuration": "总耗时",
       "completedNodesLabel": "完成节点",
-      "failedNodesLabel": "失败节点",
-      "startedAt": "开始时间",
+      "failedNodesLabel": "Неудача节点",
+      "startedAt": "Время начала",
       "completedAt": "完成时间",
       "nodeDetails": "节点执行详情",
       "output": "输出：",
-      "error": "错误：",
+      "error": "Ошибка:",
       "metadata": "元数据：",
-      "exportOptions": "导出选项",
+      "exportOptions": "ЭкспортОпции",
       "exportFormats": {
-        "json": "导出为 JSON",
-        "markdown": "导出为 Markdown",
-        "pdf": "导出为 PDF"
+        "json": "Экспорт为 JSON",
+        "markdown": "Экспорт为 Markdown",
+        "pdf": "Экспорт为 PDF"
       },
       "tabs": {
-        "all": "全部 ({{count}})",
-        "completed": "成功 ({{count}})",
-        "failed": "失败 ({{count}})",
+        "all": "Все ({{count}})",
+        "completed": "Успешно ({{count}})",
+        "failed": "Неудача ({{count}})",
         "skipped": "跳过 ({{count}})"
       }
     },
     "selector": {
       "loading": "加载工作流...",
       "title": "多智能体工作流",
-      "description": "选择一个工作流模板来自动化您的代码任务。",
-      "run": "运行工作流",
-      "executing": "执行中...",
+      "description": "选择一工作流模板来自动化您的КодЗадача。",
+      "run": "Запуск工作流",
+      "executing": "Выполнение...",
       "templateNodes": "{{count}} 节点",
       "tabs": {
         "quick": "快速工作流",
@@ -3121,159 +3144,159 @@
       },
       "quick": {
         "codeReview": {
-          "title": "代码审查",
-          "description": "自动探索、审查、测试和生成文档。"
+          "title": "Код审查",
+          "description": "自动探索、审查、Тестирование和ГенерацияДокументация。"
         },
         "exploration": {
-          "title": "代码探索",
-          "description": "快速探索和分析项目结构。"
+          "title": "Код探索",
+          "description": "快速探索和АнализПроект结构。"
         },
         "qualityCheck": {
           "title": "质量检查",
-          "description": "全面的代码质量检查和分析。"
+          "description": "全面的Код质量检查和Анализ。"
         }
       },
       "custom": {
         "title": "自定义工作流",
-        "description": "创建您自己的多智能体工作流。",
-        "comingSoonDescription": "自定义工作流编辑器即将推出...",
+        "description": "Создать您自己的多智能体工作流。",
+        "comingSoonDescription": "自定义工作流Редактирование器即将推出...",
         "comingSoon": "即将推出"
       }
     },
     "editor": {
       "configuration": "工作流配置",
       "nodes": "节点",
-      "connections": "连接",
-      "addNode": "添加节点",
-      "save": "保存工作流",
+      "connections": "Соединение",
+      "addNode": "Добавить节点",
+      "save": "Сохранить工作流",
       "run": "执行工作流",
-      "executing": "执行中...",
+      "executing": "Выполнение...",
       "defaultNodeLabel": "节点 {{index}}",
       "fields": {
         "id": "工作流 ID",
         "name": "工作流名称",
-        "description": "描述",
+        "description": "Описание",
         "agentType": "智能体类型",
         "nodeId": "节点 ID"
       },
       "placeholders": {
         "id": "custom-workflow",
         "name": "我的工作流",
-        "description": "描述这个工作流的作用..."
+        "description": "Описание这工作流的作用..."
       },
       "empty": {
-        "nodes": "还没有节点，先添加一个开始搭建工作流。",
+        "nodes": "还没有节点，先Добавить一开始搭建工作流。",
         "connections": "还没有连接。"
       },
       "agentTypes": {
         "explore": "探索",
         "review": "审查",
-        "refactor": "重构",
-        "test": "测试",
-        "doc": "文档",
-        "taskBreakdown": "任务拆解",
-        "proposalGenerator": "提案生成",
+        "refactor": "Рефакторинг",
+        "test": "Тест",
+        "doc": "Документация",
+        "taskBreakdown": "Декомпозиция задач",
+        "proposalGenerator": "提案Генерация",
         "generalPurpose": "通用"
       }
     },
     "floatingMonitor": {
       "title": "工作流监控器",
-      "runningCount": "{{count}} 个运行中",
-      "expand": "展开",
-      "minimize": "最小化",
-      "close": "关闭",
+      "runningCount": "{{count}} Выполняется",
+      "expand": "Развернуть",
+      "minimize": "Мин.化",
+      "close": "Закрыть",
       "runningFallback": "工作流执行中",
-      "defaultWorkflowName": "工作流",
-      "completedNodes": "已完成 {{completed}} / {{total}} 个节点",
-      "showDetails": "显示详情",
-      "hideDetails": "隐藏详情",
+      "defaultWorkflowName": "Рабочий процесс",
+      "completedNodes": "Выполнено {{completed}} / {{total}} 节点",
+      "showDetails": "Показать详情",
+      "hideDetails": "Скрыть详情",
       "status": {
-        "running": "运行中",
-        "completed": "已完成",
-        "failed": "失败"
+        "running": "Выполняется",
+        "completed": "Завершено",
+        "failed": "Ошибка"
       }
     },
     "inlineMonitor": {
       "duration": {
-        "secondsShort": "{{value}}秒",
+        "secondsShort": "{{value}}секунда",
         "millisecondsShort": "{{value}}毫秒",
         "minutesShort": "{{value}}分钟"
       },
       "operations": {
-        "search": "搜索",
-        "read": "读取",
-        "write": "写入",
+        "search": "Поиск",
+        "read": "Чтение",
+        "write": "Запись",
         "agent": "智能体"
       },
       "toolSummary": {
         "lines": "{{count}} 行",
-        "files": "{{count}} 个文件",
-        "chars": "{{count}} 个字符",
-        "replacements": "{{count}} 次替换",
-        "matches": "{{count}} 个匹配",
+        "files": "{{count}} файлов",
+        "chars": "{{count}} Символ",
+        "replacements": "{{count}} разЗаменить",
+        "matches": "{{count}} 匹配",
         "separator": "，"
       },
       "toolTitles": {
-        "read": "读取",
-        "write": "写入",
-        "edit": "编辑",
-        "glob": "全局匹配",
-        "grep": "内容搜索",
+        "read": "Чтение",
+        "write": "Запись",
+        "edit": "Редактировать",
+        "glob": "Глобальный匹配",
+        "grep": "内容Поиск",
         "list": "列出",
         "bash": "Bash"
       },
       "workflow": {
-        "defaultLabel": "工作流",
+        "defaultLabel": "Рабочий процесс",
         "embeddedRunningName": "{{type}}执行中",
         "runningName": "工作流执行中",
-        "completedName": "工作流已完成",
-        "failedName": "工作流失败",
+        "completedName": "工作流Выполнено",
+        "failedName": "工作流Неудача",
         "initializing": "初始化..."
       },
       "status": {
-        "completed": "已完成",
-        "failed": "失败",
-        "running": "执行中..."
+        "completed": "Завершено",
+        "failed": "Ошибка",
+        "running": "Выполнение..."
       },
       "node": {
         "details": {
-          "pending": "等待执行...",
+          "pending": "Ожидание执行...",
           "streamingCompleted": "流式输出完成",
-          "streamingGenerating": "正在生成内容..."
+          "streamingGenerating": "正在Генерация内容..."
         }
       },
       "streaming": {
-        "summaryLabel": "生成总结"
+        "summaryLabel": "Генерация总结"
       },
       "stepsCount": "{{count}} 步",
       "viewModes": {
-        "switchToDag": "切换到 DAG 视图",
-        "switchToList": "切换到列表视图",
+        "switchToDag": "Переключить到 DAG 视图",
+        "switchToList": "Переключить到Список",
         "dag": "DAG视图",
-        "list": "列表视图"
+        "list": "Список"
       },
       "toolDetails": {
-        "summary": "详情",
+        "summary": "Подробнее",
         "input": "输入：",
         "output": "输出："
       },
       "nodeStatus": {
-        "completed": "完成",
-        "failed": "失败",
-        "generating": "正在生成...",
-        "pending": "等待中",
-        "running": "运行中"
+        "completed": "Готово",
+        "failed": "Ошибка",
+        "generating": "正在Генерация...",
+        "pending": "Ожидает",
+        "running": "Выполняется"
       },
       "toolStatus": {
-        "error": "失败",
-        "success": "成功"
+        "error": "Ошибка",
+        "success": "Успех"
       },
       "content": {
-        "length": "内容长度：{{count}} 字符"
+        "length": "内容长度：{{count}} Символ"
       },
       "empty": {
         "preparing": "正在准备工作流...",
-        "waitingForNodes": "等待节点信息..."
+        "waitingForNodes": "Ожидание节点Информация..."
       },
       "labels": {
         "workflowId": "工作流 ID"
@@ -3283,30 +3306,30 @@
       },
       "footer": {
         "completed": "工作流执行完成",
-        "failed": "工作流执行失败"
+        "failed": "工作流执行Неудача"
       },
       "dagVisualizer": {
         "empty": {
-          "title": "暂无节点数据",
-          "description": "执行工作流后将显示 DAG 可视化"
+          "title": "暂Нет节点数据",
+          "description": "执行工作流后将Показать DAG 可视化"
         }
       },
       "dagMonitor": {
         "workflow": {
           "titleRunning": "工作流执行中",
           "titleCompleted": "工作流执行完成",
-          "titleFailed": "工作流执行失败",
-          "statusRunning": "执行中...",
+          "titleFailed": "工作流执行Неудача",
+          "statusRunning": "Выполнение...",
           "statusCompleted": "执行完成",
-          "statusFailed": "执行失败",
-          "executionFailedGeneric": "工作流执行失败",
-          "durationLabel": "运行时间",
-          "progressLabel": "进度"
+          "statusFailed": "执行Неудача",
+          "executionFailedGeneric": "工作流执行Неудача",
+          "durationLabel": "Запуск时间",
+          "progressLabel": "Прогресс"
         },
         "summary": {
-          "runningCount": "运行中 {{count}}",
+          "runningCount": "Выполняется {{count}}",
           "completedCount": "完成 {{count}}",
-          "failedCount": "失败 {{count}}"
+          "failedCount": "Неудача {{count}}"
         },
         "sections": {
           "visualization": "工作流可视化",
@@ -3314,61 +3337,113 @@
           "timeline": "执行时间线"
         },
         "viewMode": {
-          "switchToReactFlow": "切换到 React Flow",
-          "switchToSvg": "切换到 SVG"
+          "switchToReactFlow": "Переключить到 React Flow",
+          "switchToSvg": "Переключить到 SVG"
         },
         "timeline": {
-          "empty": "等待事件...",
+          "empty": "Ожидание事件...",
           "started": "▶ 开始",
-          "completed": "完成",
-          "progress": "进度",
-          "toolCall": "工具调用"
+          "completed": "Готово",
+          "progress": "Прогресс",
+          "toolCall": "Инструмент调用"
         },
         "status": {
-          "running": "运行中",
-          "completed": "完成",
-          "pending": "等待",
-          "failed": "失败",
-          "skipped": "跳过"
+          "running": "Выполняется",
+          "completed": "Готово",
+          "pending": "Ожидание",
+          "failed": "Ошибка",
+          "skipped": "Пропустить"
         },
         "nodeTypes": {
-          "search": "搜索",
-          "read": "读取",
-          "write": "写入",
+          "search": "Поиск",
+          "read": "Чтение",
+          "write": "Запись",
           "agent": "智能体",
           "command": "命令",
           "explore": "探索",
           "review": "审查",
-          "refactor": "重构",
-          "test": "测试",
-          "build": "构建",
-          "deploy": "部署"
+          "refactor": "Рефакторинг",
+          "test": "Тест",
+          "build": "Сборка",
+          "deploy": "Развертывание"
         },
         "nodeDetails": {
           "nodeId": "节点 ID",
-          "status": "状态",
-          "type": "类型",
-          "startedAt": "开始时间",
+          "status": "Состояние",
+          "type": "Тип",
+          "startedAt": "Время начала",
           "completedAt": "完成时间",
           "duration": "执行时长",
-          "toolCalls": "工具调用 ({{count}})",
-          "toolFailed": "失败",
-          "toolSuccess": "成功",
+          "toolCalls": "Инструмент调用 ({{count}})",
+          "toolFailed": "Ошибка",
+          "toolSuccess": "Успех",
           "toolDuration": "耗时: {{count}}ms",
-          "toolOutputLength": "输出: {{count}} 字符",
+          "toolOutputLength": "输出: {{count}} Символ",
           "toolInput": "输入参数",
           "toolOutput": "输出结果",
-          "output": "输出",
-          "error": "错误"
+          "output": "Вывод",
+          "error": "Ошибка"
         }
       }
     }
   },
+  "skillsDock": {
+    "openButtonTitle": "Открыть список навыков",
+    "skillsLabel": "Навыки",
+    "closeButtonTitle": "Закрыть",
+    "idLabel": "ID",
+    "versionLabel": "Версия",
+    "statusLabel": "Статус",
+    "activated": "Активирован",
+    "notActivated": "Не активирован",
+    "descriptionLabel": "Описание",
+    "tagsLabel": "Метки",
+    "deactivateButton": "Деактивировать",
+    "activateButton": "Активировать",
+    "createNewSkillTitle": "Создать новый навык",
+    "idFieldLabel": "ID *",
+    "idFieldPlaceholder": "например: my-skill",
+    "nameLabel": "Название *",
+    "namePlaceholder": "например: Мой навык",
+    "descriptionPlaceholder": "Краткое описание навыка",
+    "versionFieldLabel": "Версия",
+    "tagPlaceholder": "Нажмите Enter после ввода метки",
+    "addButton": "Добавить",
+    "systemPromptLabel": "System Prompt *",
+    "systemPromptPlaceholder": "Подробный промпт, определяющий роль ИИ...",
+    "saveButton": "Сохранить",
+    "cancelButton": "Отмена",
+    "skillsCenterTitle": "Центр навыков",
+    "skillMarketTitle": "Рынок навыков",
+    "createSkillTooltip": "Создать новый навык",
+    "refreshTooltip": "Обновить",
+    "searchPlaceholder": "Поиск навыков...",
+    "allFilter": "Все",
+    "loadingText": "Загрузка...",
+    "noSkillsFound": "Навыки не найдены",
+    "uninstallSkillTooltip": "Удалить навык",
+    "activateTooltip": "Активировать",
+    "deactivateTooltip": "Деактивировать",
+    "toast": {
+      "deactivating": "Деактивация навыка: {{name}}...",
+      "deactivated": "Навык \"{{name}}\" деактивирован",
+      "activating": "Активация навыка: {{name}}...",
+      "activated": "Навык \"{{name}}\" активирован",
+      "actionFailed": "Действие не удалось: {{error}}",
+      "openProjectFirst": "Сначала откройте проект",
+      "confirmUninstall": "Удалить навык \"{{name}}\"?",
+      "uninstalling": "Удаление навыка: {{name}}...",
+      "uninstalled": "Навык \"{{name}}\" удален",
+      "uninstallFailed": "Ошибка удаления: {{error}}",
+      "fillRequiredFields": "Заполните все обязательные поля",
+      "createFailed": "Ошибка создания: {{error}}"
+    }
+  },
   "statusbar": {
     "ready": "就绪",
-    "noFileOpen": "未打开文件",
+    "noFileOpen": "未Открыть файл",
     "plainText": "纯文本",
     "tokens": "Token",
-    "filesCount": "{{count}} 个文件"
+    "filesCount": "{{count}} файлов"
   }
 }

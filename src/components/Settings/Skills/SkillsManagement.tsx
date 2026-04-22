@@ -21,6 +21,7 @@ import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { SkillStateIndicator, StateStatsCard, StateTransitionDiagram } from './SkillStateIndicator';
 import { SkillSearchBar, TagCloud } from './SkillSearchBar';
 import { SkillDetailPanel } from './SkillDetailPanel';
+import { useTranslation } from 'react-i18next';
 import type { Skill } from './types';
 
 interface SkillsManagementProps {
@@ -28,6 +29,7 @@ interface SkillsManagementProps {
 }
 
 export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className }) => {
+  const { t } = useTranslation();
   const {
     availableSkills,
     activeSkillIds,
@@ -96,8 +98,8 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
         <div className="flex items-center gap-3">
           <Puzzle size={24} className="text-blue-400" />
           <div>
-            <h1 className="text-xl font-bold text-white">技能中心</h1>
-            <p className="text-xs text-gray-500">管理 AI 技能插件</p>
+            <h1 className="text-xl font-bold text-white">{t('skillsManagement.title')}</h1>
+            <p className="text-xs text-gray-500">{t('skillsManagement.subtitle')}</p>
           </div>
         </div>
 
@@ -113,7 +115,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
             )}
           >
             <RefreshCw size={18} className={cn(isRefreshing && 'animate-spin')} />
-            <span>刷新</span>
+            <span>{t('skillsManagement.refresh')}</span>
           </button>
 
           {/* 视图切换 */}
@@ -181,7 +183,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
       {ui.searchQuery === '' && ui.selectedTags.length === 0 && (
         <div className="px-6 pb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-400">热门标签</h3>
+            <h3 className="text-sm font-medium text-gray-400">{t('skillsManagement.popularTags')}</h3>
           </div>
           <TagCloud
             tags={allTags}
@@ -207,17 +209,17 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
               className="w-4 h-4 rounded"
             />
             <span className="text-sm text-blue-400">
-              已选择 {selectedForBatch.size} 个技能
+              {t('skillsManagement.batchSelected', { count: selectedForBatch.size })}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-all">
               <Check size={16} />
-              批量激活
+              {t('skillsManagement.batchActivate')}
             </button>
             <button className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-all">
               <X size={16} />
-              取消选择
+              {t('skillsManagement.clearSelection')}
             </button>
           </div>
         </div>
@@ -228,28 +230,28 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
         {isLoading && availableSkills.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <RefreshCw size={32} className="animate-spin text-gray-600 mb-4" />
-            <p className="text-gray-500">正在加载技能...</p>
+            <p className="text-gray-500">{t('skillsManagement.loading')}</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12">
             <AlertCircle size={48} className="text-red-500 mb-4" />
-            <p className="text-red-400 mb-2">加载失败</p>
+            <p className="text-red-400 mb-2">{t('skillsManagement.loadFailedTitle')}</p>
             <p className="text-sm text-gray-500 mb-4">{error}</p>
             <button
               onClick={() => fetchSkills()}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
             >
-              重试
+              {t('skillsManagement.retry')}
             </button>
           </div>
         ) : filteredSkills.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 border border-dashed border-gray-700 rounded-lg bg-[#1e1e1e]">
             <Puzzle size={48} className="text-gray-600 mb-4" />
-            <p className="text-gray-400 mb-2">未找到技能</p>
+            <p className="text-gray-400 mb-2">{t('skillsManagement.emptyTitle')}</p>
             <p className="text-xs text-gray-500 mb-6 text-center">
               {ui.searchQuery || ui.selectedTags.length > 0 || ui.stateFilter !== 'all'
-                ? '尝试调整筛选条件'
-                : '安装内置示例技能来快速开始'}
+                ? t('skillsManagement.emptyFilteredDescription')
+                : t('skillsManagement.emptyDescription')}
             </p>
             {ui.searchQuery === '' && ui.selectedTags.length === 0 && ui.stateFilter === 'all' && (
               <button
@@ -257,7 +259,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-all"
               >
                 <Download size={18} />
-                安装示例技能
+                {t('skillsManagement.installExamples')}
               </button>
             )}
           </div>
@@ -292,7 +294,7 @@ export const SkillsManagement: React.FC<SkillsManagementProps> = ({ className })
         <div className="border-t border-gray-800">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium text-white">技能详情</h2>
+              <h2 className="text-lg font-medium text-white">{t('skillDetail.basicInfo')}</h2>
               <button
                 onClick={() => setSelectedSkill(null)}
                 className="text-gray-500 hover:text-white transition-colors"
@@ -332,6 +334,7 @@ const SkillCard: React.FC<SkillCardProps> = ({
   onToggle,
   onBatchToggle,
 }) => {
+  const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
 
   return (
@@ -411,7 +414,7 @@ const SkillCard: React.FC<SkillCardProps> = ({
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
               )}
             >
-              {isActive ? '已激活' : '激活'}
+              {isActive ? t('skillsManagement.deactivate') : t('skillsManagement.activate')}
             </button>
           </div>
         </div>

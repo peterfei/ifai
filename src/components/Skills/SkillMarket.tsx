@@ -25,6 +25,7 @@ import { useSkillStore } from '@/stores/skillStore.enhanced';
 import { useFileStore } from '@/stores/fileStore';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 interface BuiltinSkill {
   id: string;
@@ -49,6 +50,7 @@ interface BuiltinSkill {
 export const SkillMarket: React.FC<{
   onClose: () => void;
 }> = ({ onClose }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<BuiltinSkill | null>(null);
@@ -89,23 +91,23 @@ export const SkillMarket: React.FC<{
 
   // 分类标签
   const categories = [
-    { id: 'featured', name: '精选', icon: Award, color: 'text-yellow-400' },
-    { id: 'development', name: '开发', icon: Code, color: 'text-blue-400' },
-    { id: 'testing', name: '测试', icon: BookOpen, color: 'text-green-400' },
-    { id: 'documentation', name: '文档', icon: BookOpen, color: 'text-purple-400' },
+    { id: 'featured', name: t('skillMarket.categories.featured'), icon: Award, color: 'text-yellow-400' },
+    { id: 'development', name: t('skillMarket.categories.development'), icon: Code, color: 'text-blue-400' },
+    { id: 'testing', name: t('skillMarket.categories.testing'), icon: BookOpen, color: 'text-green-400' },
+    { id: 'documentation', name: t('skillMarket.categories.documentation'), icon: BookOpen, color: 'text-purple-400' },
     { id: 'pivo', name: 'PIVO', icon: Users, color: 'text-orange-400' },
   ];
 
   // 安装技能
   const handleInstall = async (skill: BuiltinSkill) => {
     if (!rootPath) {
-      toast.error('请先打开一个项目');
+      toast.error(t('skillMarket.openProjectFirst'));
       return;
     }
 
     setInstalling(skill.id);
     try {
-      toast.loading(`正在安装技能: ${skill.displayName}...`, { id: `install-${skill.id}` });
+      toast.loading(t('skillMarket.installingMessage', { name: skill.displayName }), { id: `install-${skill.id}` });
       await invoke('install_skill', {
         projectRoot: rootPath,
         skillId: skill.id,
@@ -118,9 +120,9 @@ export const SkillMarket: React.FC<{
       const { fetchSkills } = useSkillStore.getState();
       await fetchSkills();
 
-      toast.success(`✅ "${skill.displayName}" 安装成功！`, { id: `install-${skill.id}` });
+      toast.success(`✅ "${skill.displayName}" ${t('skillMarket.installSuccess')}!`, { id: `install-${skill.id}` });
     } catch (error: any) {
-      toast.error(`❌ 安装失败: ${error.message || error}`, { id: `install-${skill.id}` });
+      toast.error(`❌ ${t('skillMarket.installFailed', { error: error.message || error })}`, { id: `install-${skill.id}` });
     } finally {
       setInstalling(null);
     }
@@ -129,17 +131,17 @@ export const SkillMarket: React.FC<{
   // 卸载技能
   const handleUninstall = async (skill: BuiltinSkill) => {
     if (!rootPath) {
-      toast.error('请先打开一个项目');
+      toast.error(t('skillMarket.openProjectFirst'));
       return;
     }
 
     // 确认对话框
-    const confirmed = confirm(`确定要卸载 "${skill.displayName}" 技能吗？`);
+    const confirmed = confirm(t('skillMarket.confirmUninstall', { name: skill.displayName }));
     if (!confirmed) return;
 
     setUninstalling(skill.id);
     try {
-      toast.loading(`正在卸载技能: ${skill.displayName}...`, { id: `uninstall-${skill.id}` });
+      toast.loading(t('skillMarket.uninstallingMessage', { name: skill.displayName }), { id: `uninstall-${skill.id}` });
       await invoke('uninstall_skill', {
         projectRoot: rootPath,
         skillId: skill.id,
@@ -156,9 +158,9 @@ export const SkillMarket: React.FC<{
       const { fetchSkills } = useSkillStore.getState();
       await fetchSkills();
 
-      toast.success(`✅ "${skill.displayName}" 已卸载`, { id: `uninstall-${skill.id}` });
+      toast.success(`✅ "${skill.displayName}" ${t('skillMarket.uninstallSuccess')}`, { id: `uninstall-${skill.id}` });
     } catch (error: any) {
-      toast.error(`❌ 卸载失败: ${error.message || error}`, { id: `uninstall-${skill.id}` });
+      toast.error(`❌ ${t('skillMarket.uninstallFailed', { error: error.message || error })}`, { id: `uninstall-${skill.id}` });
     } finally {
       setUninstalling(null);
     }
@@ -176,7 +178,7 @@ export const SkillMarket: React.FC<{
             <div className="flex items-center gap-2">
               <Puzzle size={16} className="text-purple-400" />
               <span className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.1em]">
-                技能市场
+                {t('skillMarket.title')}
               </span>
               <span className="text-gray-600 text-[10px]">
                 ({builtinSkills.length})
@@ -185,7 +187,7 @@ export const SkillMarket: React.FC<{
             <button
               onClick={onClose}
               className="p-1 rounded hover:bg-gray-800 text-gray-400"
-              title="关闭"
+              title={t('skillMarket.close')}
             >
               <X size={14} />
             </button>
@@ -199,7 +201,7 @@ export const SkillMarket: React.FC<{
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索技能..."
+                placeholder={t('skillMarket.searchPlaceholder')}
                 className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -218,7 +220,7 @@ export const SkillMarket: React.FC<{
                 )}
               >
                 <Award size={10} />
-                全部
+                {t('skillMarket.all')}
               </button>
               {categories.map(cat => (
                 <button
@@ -243,7 +245,7 @@ export const SkillMarket: React.FC<{
             {filteredSkills.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-gray-500">
                 <Search size={24} className="mb-2 opacity-50" />
-                <p className="text-xs">未找到匹配的技能</p>
+                <p className="text-xs">{t('skillMarket.emptyTitle')}</p>
               </div>
             ) : (
               filteredSkills.map((skill) => {
@@ -297,7 +299,7 @@ export const SkillMarket: React.FC<{
             <button
               onClick={() => setSelectedSkill(null)}
               className="p-1 rounded hover:bg-gray-800 text-gray-400"
-              title="返回"
+              title={t('skillMarket.back')}
             >
               <ChevronLeft size={18} />
             </button>
@@ -336,12 +338,12 @@ export const SkillMarket: React.FC<{
             {/* 作者 */}
             <div className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded">
               <Users size={14} className="text-gray-500" />
-              <span className="text-xs text-gray-400">作者: {selectedSkill.author}</span>
+              <span className="text-xs text-gray-400">{t('skillMarket.author', { author: selectedSkill.author })}</span>
             </div>
 
             {/* 标签 */}
             <div>
-              <h4 className="text-xs font-medium text-gray-400 mb-2">标签</h4>
+              <h4 className="text-xs font-medium text-gray-400 mb-2">{t('skillMarket.tags')}</h4>
               <div className="flex flex-wrap gap-1.5">
                 {selectedSkill.tags.map(tag => (
                   <span
@@ -358,7 +360,7 @@ export const SkillMarket: React.FC<{
             {/* 依赖 */}
             {selectedSkill.dependencies.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-400 mb-2">依赖</h4>
+                <h4 className="text-xs font-medium text-gray-400 mb-2">{t('skillMarket.dependencies')}</h4>
                 <div className="flex flex-wrap gap-1">
                   {selectedSkill.dependencies.map(dep => (
                     <span
@@ -375,7 +377,7 @@ export const SkillMarket: React.FC<{
             {/* 要求 */}
             {selectedSkill.requirements && (
               <div>
-                <h4 className="text-xs font-medium text-gray-400 mb-2">使用要求</h4>
+                <h4 className="text-xs font-medium text-gray-400 mb-2">{t('skillMarket.requirements')}</h4>
                 <ul className="space-y-1">
                   {selectedSkill.requirements.map(req => (
                     <li key={req} className="text-xs text-gray-400 flex items-start gap-2">
@@ -389,7 +391,7 @@ export const SkillMarket: React.FC<{
 
             {/* 使用示例 */}
             <div>
-              <h4 className="text-xs font-medium text-gray-400 mb-2">使用场景</h4>
+              <h4 className="text-xs font-medium text-gray-400 mb-2">{t('skillMarket.examples')}</h4>
               <div className="space-y-1">
                 {selectedSkill.examples.map((example, i) => (
                   <div key={i} className="text-xs text-gray-400 flex items-start gap-2">
@@ -402,7 +404,7 @@ export const SkillMarket: React.FC<{
 
             {/* System Prompt 预览 */}
             <div>
-              <h4 className="text-xs font-medium text-gray-400 mb-2">System Prompt 预览</h4>
+              <h4 className="text-xs font-medium text-gray-400 mb-2">{t('skillMarket.systemPromptPreview')}</h4>
               <div className="bg-gray-800 rounded p-3 max-h-40 overflow-y-auto">
                 <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
                   {selectedSkill.systemPrompt.substring(0, 500)}
@@ -410,7 +412,7 @@ export const SkillMarket: React.FC<{
                 </pre>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                完整内容将在安装后可用
+                {t('skillMarket.previewHint')}
               </p>
             </div>
 
@@ -422,7 +424,7 @@ export const SkillMarket: React.FC<{
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600/20 text-green-400 rounded-lg text-sm font-medium cursor-not-allowed"
                 >
                   <Check size={16} />
-                  已安装
+                  {t('skillMarket.installed')}
                 </button>
               ) : (
                 <button
@@ -436,12 +438,12 @@ export const SkillMarket: React.FC<{
                   {installing === selectedSkill.id ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      安装中...
+                      {t('skillMarket.installing')}
                     </>
                   ) : (
                     <>
                       <Download size={16} />
-                      安装到项目
+                      {t('skillMarket.installToProject')}
                     </>
                   )}
                 </button>
@@ -454,7 +456,7 @@ export const SkillMarket: React.FC<{
                     'flex items-center justify-center gap-2 px-3 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-all',
                     'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
-                  title="卸载技能"
+                  title={t('skillMarket.uninstall')}
                 >
                   {uninstalling === selectedSkill.id ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -480,7 +482,7 @@ export const SkillMarket: React.FC<{
           <div className="flex items-center gap-2">
             <Puzzle size={16} className="text-purple-400" />
             <span className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.1em]">
-              技能市场
+              {t('skillMarket.title')}
             </span>
             <span className="text-gray-600 text-[10px]">
               ({builtinSkills.length})
@@ -489,7 +491,7 @@ export const SkillMarket: React.FC<{
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-gray-800 text-gray-400"
-            title="关闭"
+            title={t('skillMarket.closeButton')}
           >
             <X size={14} />
           </button>
@@ -503,7 +505,7 @@ export const SkillMarket: React.FC<{
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索技能..."
+              placeholder={t('skillMarket.searchPlaceholder')}
               className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-xs focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -522,7 +524,7 @@ export const SkillMarket: React.FC<{
               )}
             >
               <Award size={10} />
-              全部
+              {t('skillMarket.all')}
             </button>
             {categories.map(cat => (
               <button
@@ -547,7 +549,7 @@ export const SkillMarket: React.FC<{
           {filteredSkills.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-500">
               <Search size={24} className="mb-2 opacity-50" />
-              <p className="text-xs">未找到匹配的技能</p>
+              <p className="text-xs">{t('skillMarket.emptyTitle')}</p>
             </div>
           ) : (
             filteredSkills.map((skill) => {
@@ -600,18 +602,18 @@ export const SkillMarket: React.FC<{
       <div className="flex-1 flex flex-col h-full bg-gray-900 items-center justify-center p-8">
         <div className="max-w-md text-center">
           <Puzzle size={64} className="text-purple-400 mx-auto mb-4 opacity-50" />
-          <h2 className="text-2xl font-bold text-white mb-2">欢迎来到技能市场</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">{t('skillMarket.welcomeTitle')}</h2>
           <p className="text-gray-400 mb-6">
-            从左侧选择一个技能查看详情，或直接点击安装按钮将技能添加到您的项目中。
+            {t('skillMarket.welcomeDescription')}
           </p>
           <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
             <div className="flex items-center gap-2">
               <Award size={16} className="text-yellow-400" />
-              <span>{builtinSkills.filter(s => s.featured).length} 个精选</span>
+              <span>{t('skillMarket.featuredCount', { count: builtinSkills.filter(s => s.featured).length })}</span>
             </div>
             <div className="flex items-center gap-2">
               <Download size={16} className="text-blue-400" />
-              <span>{builtinSkills.length} 个技能</span>
+              <span>{t('skillMarket.totalCount', { count: builtinSkills.length })}</span>
             </div>
           </div>
         </div>

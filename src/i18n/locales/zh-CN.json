@@ -80,22 +80,22 @@
       "refactor": "若爱: 重构代码"
     },
     "inlineWidget": {
-        "title": "AI 编辑",
-        "placeholder": "使用若爱编辑 (例如 '添加注释')...",
-        "processing": "IfAI 正在处理...",
-        "submit": "提交",
-        "cancel": "取消",
-        "prompt": {
-            "title": "内联 AI 任务",
-            "selectedCode": "用户选中的目标代码:",
-            "surroundingContext": "周围上下文 (供参考):",
-            "cursorContext": "光标周围上下文:",
-            "directive1": "你是一个行内编辑代理。你的目标是直接修改文件中的代码。",
-            "directive2": "你必须使用合适的工具（如 `agent_write_file` 或 `agent_replace_content`）来应用所请求的更改。",
-            "directive3": "不要只在聊天回复中提供建议或代码块。你的回复应侧重于你正在使用工具进行的操作。",
-            "directive4": "手术刀式修改：你必须严格仅修改用户选中的代码块。严禁修改选中范围之外的任何字符，包括空格、缩进或其他方法。",
-            "directive5": "保持完整性：如果需要读取更多文件来理解上下文，请先执行读取，然后再应用更改。但在应用更改时，禁止对未请求修改的区域产生任何副作用。"
-        }
+      "title": "AI 编辑",
+      "placeholder": "使用若爱编辑 (例如 '添加注释')...",
+      "processing": "IfAI 正在处理...",
+      "submit": "提交",
+      "cancel": "取消",
+      "prompt": {
+        "title": "内联 AI 任务",
+        "selectedCode": "用户选中的目标代码:",
+        "surroundingContext": "周围上下文 (供参考):",
+        "cursorContext": "光标周围上下文:",
+        "directive1": "你是一个行内编辑代理。你的目标是直接修改文件中的代码。",
+        "directive2": "你必须使用合适的工具（如 `agent_write_file` 或 `agent_replace_content`）来应用所请求的更改。",
+        "directive3": "不要只在聊天回复中提供建议或代码块。你的回复应侧重于你正在使用工具进行的操作。",
+        "directive4": "手术刀式修改：你必须严格仅修改用户选中的代码块。严禁修改选中范围之外的任何字符，包括空格、缩进或其他方法。",
+        "directive5": "保持完整性：如果需要读取更多文件来理解上下文，请先执行读取，然后再应用更改。但在应用更改时，禁止对未请求修改的区域产生任何副作用。"
+      }
     },
     "inlineDiff": {
       "title": "AI 构思的代码建议",
@@ -969,7 +969,11 @@
     "theme": "主题",
     "dark": "深色",
     "light": "浅色",
-    "language": "语言",
+    "language": {
+      "zhCN": "简体中文",
+      "enUS": "English",
+      "ruRU": "Русский"
+    },
     "languageHint": "切换界面语言，立即生效无需刷新",
     "fontSize": "字体大小",
     "showMinimap": "显示迷你地图",
@@ -1033,11 +1037,6 @@
       "skillsCenter": "技能中心",
       "toolClassificationSettings": "工具分类设置",
       "skillsCenterFull": "技能中心 (Skills Center)"
-    },
-    "language": {
-      "zhCN": "简体中文",
-      "enUS": "English",
-      "ruRU": "Русский"
     },
     "providers": {
       "builtIn": "内置提供商",
@@ -1276,7 +1275,22 @@
     "toggleSkill": "切换技能 {{name}}",
     "openProjectFirst": "请先打开一个项目文件夹，再安装示例技能。",
     "loadFailed": "加载技能失败：{{error}}",
-    "retry": "重试"
+    "retry": "重试",
+    "noProjectPath": "无法获取项目路径",
+    "openProjectHint": "请先打开一个项目",
+    "demoInstallSuccess": "示例技能安装成功！",
+    "demoInstalledDescription": "已安装4个实用技能：代码审查、测试生成、文档撰写、调试专家",
+    "installFailed": "安装失败",
+    "installSuccess": "技能安装成功",
+    "installedDescription": "{{skillId}} 已成功安装",
+    "skillInstallFailed": "技能安装失败",
+    "createSuccess": "技能创建成功",
+    "createdDescription": "{{skillName}} 已成功创建",
+    "updateSuccess": "技能更新成功",
+    "updatedDescription": "{{skillName}} 已成功更新",
+    "saveFailed": "保存失败",
+    "installing": "安装中...",
+    "browseLibrary": "浏览技能库"
   },
   "skillShared": {
     "state": {
@@ -1347,6 +1361,7 @@
     "title": "技能市场",
     "countSummary": "共 {{count}} 个内置技能",
     "close": "关闭技能市场",
+    "closeButton": "关闭",
     "back": "返回列表",
     "searchPlaceholder": "搜索技能...",
     "featuredBadge": "精选",
@@ -1354,7 +1369,7 @@
     "installing": "安装中...",
     "installToProject": "安装到项目",
     "uninstall": "卸载技能",
-    "confirmUninstall": "确定要卸载“{{name}}”吗？",
+    "confirmUninstall": "确定要卸载 \"{{name}}\" 吗？",
     "version": "版本 {{version}}",
     "author": "作者：{{author}}",
     "downloads": "{{value}} 次下载",
@@ -1373,8 +1388,8 @@
     "totalCount": "{{count}} 个技能",
     "emptyTitle": "未找到匹配的技能",
     "emptyDescription": "请尝试其他搜索词或分类。",
+    "all": "全部",
     "categories": {
-      "all": "全部",
       "featured": "精选",
       "development": "开发",
       "testing": "测试",
@@ -1390,7 +1405,14 @@
       "uninstalled": "已卸载 {{name}}",
       "uninstallFailed": "卸载失败：{{error}}",
       "unknownError": "未知错误"
-    }
+    },
+    "openProjectFirst": "请先打开一个项目",
+    "installingMessage": "正在安装技能: {{name}}...",
+    "installSuccess": "安装成功",
+    "installFailed": "安装失败: {{error}}",
+    "uninstallingMessage": "正在卸载技能: {{name}}...",
+    "uninstallSuccess": "已卸载",
+    "uninstallFailed": "卸载失败: {{error}}"
   },
   "skillCatalog": {
     "common": {
@@ -2493,15 +2515,42 @@
   "commands": {
     "title": "系统命令",
     "scanResult": "扫描 {{count}} 项 ({{time}}ms)",
-    "explore": { "label": "代码探索", "description": "深度代码库搜索与上下文分析" },
-    "review": { "label": "代码审查", "description": "审查代码质量、安全与最佳实践" },
-    "test": { "label": "测试生成", "description": "自动生成单元测试与集成案例" },
-    "doc": { "label": "文档生成", "description": "编写技术文档、README 与注释" },
-    "refactor": { "label": "重构建议", "description": "提供代码改进与架构重构方案" },
-    "proposal": { "label": "提案生成", "description": "生成 OpenSpec 规范的提案" },
-    "help": { "label": "系统帮助", "description": "显示功能指南与快捷键说明" },
-    "index": { "label": "重建索引", "description": "手动强制为项目代码库建立 RAG 语义索引" },
-    "task": { "label": "任务拆解", "description": "AI 驱动的任务分解与可视化" }
+    "explore": {
+      "label": "代码探索",
+      "description": "深度代码库搜索与上下文分析"
+    },
+    "review": {
+      "label": "代码审查",
+      "description": "审查代码质量、安全与最佳实践"
+    },
+    "test": {
+      "label": "测试生成",
+      "description": "自动生成单元测试与集成案例"
+    },
+    "doc": {
+      "label": "文档生成",
+      "description": "编写技术文档、README 与注释"
+    },
+    "refactor": {
+      "label": "重构建议",
+      "description": "提供代码改进与架构重构方案"
+    },
+    "proposal": {
+      "label": "提案生成",
+      "description": "生成 OpenSpec 规范的提案"
+    },
+    "help": {
+      "label": "系统帮助",
+      "description": "显示功能指南与快捷键说明"
+    },
+    "index": {
+      "label": "重建索引",
+      "description": "手动强制为项目代码库建立 RAG 语义索引"
+    },
+    "task": {
+      "label": "任务拆解",
+      "description": "AI 驱动的任务分解与可视化"
+    }
   },
   "help_message": {
     "title": "欢迎使用 若爱 (IfAI) v0.2.0",
@@ -3336,6 +3385,58 @@
           "error": "错误"
         }
       }
+    }
+  },
+  "skillsDock": {
+    "openButtonTitle": "打开技能列表",
+    "skillsLabel": "技能",
+    "closeButtonTitle": "关闭",
+    "idLabel": "ID",
+    "versionLabel": "版本",
+    "statusLabel": "状态",
+    "activated": "已激活",
+    "notActivated": "未激活",
+    "descriptionLabel": "描述",
+    "tagsLabel": "标签",
+    "deactivateButton": "停用",
+    "activateButton": "激活",
+    "createNewSkillTitle": "创建新技能",
+    "idFieldLabel": "ID *",
+    "idFieldPlaceholder": "例如: my-skill",
+    "nameLabel": "名称 *",
+    "namePlaceholder": "例如: 我的技能",
+    "descriptionPlaceholder": "技能的简短描述",
+    "versionFieldLabel": "版本",
+    "tagPlaceholder": "输入标签后按回车",
+    "addButton": "添加",
+    "systemPromptLabel": "System Prompt *",
+    "systemPromptPlaceholder": "定义AI角色的详细提示词...",
+    "saveButton": "保存",
+    "cancelButton": "取消",
+    "skillsCenterTitle": "技能中心",
+    "skillMarketTitle": "技能市场",
+    "createSkillTooltip": "创建新技能",
+    "refreshTooltip": "刷新",
+    "searchPlaceholder": "搜索技能...",
+    "allFilter": "全部",
+    "loadingText": "加载中...",
+    "noSkillsFound": "未找到技能",
+    "uninstallSkillTooltip": "卸载技能",
+    "activateTooltip": "激活",
+    "deactivateTooltip": "停用",
+    "toast": {
+      "deactivating": "正在停用技能: {{name}}...",
+      "deactivated": "技能 \"{{name}}\" 已停用",
+      "activating": "正在激活技能: {{name}}...",
+      "activated": "技能 \"{{name}}\" 已激活",
+      "actionFailed": "操作失败: {{error}}",
+      "openProjectFirst": "请先打开一个项目",
+      "confirmUninstall": "确定要卸载 \"{{name}}\" 技能吗？",
+      "uninstalling": "正在卸载技能: {{name}}...",
+      "uninstalled": "技能 \"{{name}}\" 已卸载",
+      "uninstallFailed": "卸载失败: {{error}}",
+      "fillRequiredFields": "请填写所有必填字段",
+      "createFailed": "创建失败: {{error}}"
     }
   },
   "statusbar": {

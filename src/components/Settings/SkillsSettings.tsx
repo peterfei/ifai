@@ -14,9 +14,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { useFileStore } from '@/stores/fileStore';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import type { SkillEditorMode, Skill } from './Skills/types';
 
 export const SkillsSettings: React.FC = () => {
+  const { t } = useTranslation();
   // 🔥 FIX: 使用选择器确保订阅正确
   const availableSkills = useSkillStore(state => state.availableSkills);
   const isLoading = useSkillStore(state => state.isLoading);
@@ -42,8 +44,8 @@ export const SkillsSettings: React.FC = () => {
   const installDemo = async () => {
     const rootPath = useFileStore.getState().rootPath;
     if (!rootPath) {
-      toast.error('无法获取项目路径', {
-        description: '请先打开一个项目'
+      toast.error(t('skillsSettings.noProjectPath'), {
+        description: t('skillsSettings.openProjectHint')
       });
       return;
     }
@@ -58,8 +60,8 @@ export const SkillsSettings: React.FC = () => {
       });
 
       // 显示成功提示
-      toast.success('示例技能安装成功！', {
-        description: '已安装4个实用技能：代码审查、测试生成、文档撰写、调试专家'
+      toast.success(t('skillsSettings.demoInstallSuccess'), {
+        description: t('skillsSettings.demoInstalledDescription')
       });
 
       // 刷新技能列表
@@ -67,7 +69,7 @@ export const SkillsSettings: React.FC = () => {
     } catch (e) {
       console.error('Failed to install demo skills:', e);
       // 显示错误提示
-      toast.error('安装失败', {
+      toast.error(t('skillsSettings.installFailed'), {
         description: String(e)
       });
     } finally {
@@ -79,13 +81,13 @@ export const SkillsSettings: React.FC = () => {
   const handleInstall = async (skillId: string, version?: string) => {
     try {
       await installSkill(skillId, version);
-      toast.success('技能安装成功', {
-        description: `${skillId} 已成功安装`
+      toast.success(t('skillsSettings.installSuccess'), {
+        description: t('skillsSettings.installedDescription', { skillId })
       });
       setShowInstaller(false);
     } catch (error) {
       console.error('Failed to install skill:', error);
-      toast.error('技能安装失败', {
+      toast.error(t('skillsSettings.skillInstallFailed'), {
         description: error instanceof Error ? error.message : String(error)
       });
       throw error;
@@ -97,20 +99,20 @@ export const SkillsSettings: React.FC = () => {
     try {
       if (editorMode.type === 'create') {
         await createSkill(skill);
-        toast.success('技能创建成功', {
-          description: `${skill.name} 已成功创建`
+        toast.success(t('skillsSettings.createSuccess'), {
+          description: t('skillsSettings.createdDescription', { skillName: skill.name })
         });
       } else if (editorMode.type === 'edit' && selectedSkill) {
         await updateSkill(selectedSkill.id, skill);
-        toast.success('技能更新成功', {
-          description: `${skill.name} 已成功更新`
+        toast.success(t('skillsSettings.updateSuccess'), {
+          description: t('skillsSettings.updatedDescription', { skillName: skill.name })
         });
       }
       setShowEditor(false);
       setSelectedSkill(undefined);
     } catch (error) {
       console.error('Failed to save skill:', error);
-      toast.error('保存失败', {
+      toast.error(t('skillsSettings.saveFailed'), {
         description: error instanceof Error ? error.message : String(error)
       });
     }
@@ -130,10 +132,9 @@ export const SkillsSettings: React.FC = () => {
         <div className="flex items-center justify-center h-full p-6">
           <div className="flex flex-col items-center justify-center py-12 border border-dashed border-gray-700 rounded-lg bg-[#1e1e1e] max-w-md">
             <ShieldCheck size={48} className="text-gray-600 mb-4" />
-            <p className="text-gray-400 mb-2">未发现可用技能</p>
+            <p className="text-gray-400 mb-2">{t('skillsSettings.emptyTitle')}</p>
             <p className="text-xs text-gray-500 mb-6 text-center">
-              IfAI 会自动扫描项目根目录下 .ifai/skills 中的技能插件。
-              您可以安装内置示例来快速开始体验。
+              {t('skillsSettings.emptyDescription')}
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -148,12 +149,12 @@ export const SkillsSettings: React.FC = () => {
                 {isInstallingDemo ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    安装中...
+                    {t('skillsSettings.installing')}
                   </>
                 ) : (
                   <>
                     <Download size={16} />
-                    安装示例技能
+                    {t('skillsSettings.installDemo')}
                   </>
                 )}
               </button>
@@ -165,7 +166,7 @@ export const SkillsSettings: React.FC = () => {
                 )}
               >
                 <Download size={16} />
-                浏览技能库
+                {t('skillsSettings.browseLibrary')}
               </button>
             </div>
           </div>

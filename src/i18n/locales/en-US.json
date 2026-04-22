@@ -80,28 +80,27 @@
       "refactor": "IfAI: Refactor Code"
     },
     "inlineWidget": {
-        "title": "AI Edit",
-        "placeholder": "Edit with IfAI (e.g. 'Add comments')...",
-        "processing": "IfAI is processing...",
-        "submit": "Submit",
-        "cancel": "Cancel",
-        "prompt": {
-            "title": "Inline AI Task",
-            "selectedCode": "User Selected Code to Modify:",
-            "surroundingContext": "Surrounding Context (for reference):",
-            "cursorContext": "Context around cursor:",
-            "directive1": "You are an INLINE EDIT agent. Your goal is to DIRECTLY MODIFY the code in the file.",
-            "directive2": "You MUST use appropriate tools (e.g., `agent_write_file` or `agent_replace_content`) to apply the requested changes.",
-            "directive3": "DO NOT just provide suggestions or code blocks in the chat response. Your response should focus on what you are doing with the tools.",
-            "directive4": "SURGICAL MODIFICATION: You must strictly modify ONLY the user-selected code block. Do not touch any characters, spaces, or surrounding methods outside the selection.",
-            "directive5": "NO SIDE EFFECTS: Maintain the integrity of the rest of the file. If using tools to write, ensure zero collateral damage to unrelated code areas."
-        }
+      "title": "AI Edit",
+      "placeholder": "Edit with IfAI (e.g. 'Add comments')...",
+      "processing": "IfAI is processing...",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "prompt": {
+        "title": "Inline AI Task",
+        "selectedCode": "User Selected Code to Modify:",
+        "surroundingContext": "Surrounding Context (for reference):",
+        "cursorContext": "Context around cursor:",
+        "directive1": "You are an INLINE EDIT agent. Your goal is to DIRECTLY MODIFY the code in the file.",
+        "directive2": "You MUST use appropriate tools (e.g., `agent_write_file` or `agent_replace_content`) to apply the requested changes.",
+        "directive3": "DO NOT just provide suggestions or code blocks in the chat response. Your response should focus on what you are doing with the tools.",
+        "directive4": "SURGICAL MODIFICATION: You must strictly modify ONLY the user-selected code block. Do not touch any characters, spaces, or surrounding methods outside the selection.",
+        "directive5": "NO SIDE EFFECTS: Maintain the integrity of the rest of the file. If using tools to write, ensure zero collateral damage to unrelated code areas."
+      }
     },
     "inlineDiff": {
       "title": "AI Drafted Code Suggestion",
       "hint": "Esc to dismiss • Cmd+K to apply"
     },
-
     "splitPane": "Split Pane",
     "closePane": "Close Pane",
     "closeOtherTabs": "Close Others",
@@ -970,7 +969,11 @@
     "theme": "Theme",
     "dark": "Dark",
     "light": "Light",
-    "language": "Language",
+    "language": {
+      "zhCN": "简体中文",
+      "enUS": "English",
+      "ruRU": "Русский"
+    },
     "languageHint": "Switch interface language, takes effect immediately",
     "fontSize": "Font Size",
     "showMinimap": "Show Minimap",
@@ -1034,11 +1037,6 @@
       "skillsCenter": "Skills Center",
       "toolClassificationSettings": "Tool Classification Settings",
       "skillsCenterFull": "Skills Center"
-    },
-    "language": {
-      "zhCN": "简体中文",
-      "enUS": "English",
-      "ruRU": "Русский"
     },
     "providers": {
       "builtIn": "Built-in Providers",
@@ -1241,15 +1239,42 @@
   "commands": {
     "title": "System Commands",
     "scanResult": "Scanned {{count}} items ({{time}}ms)",
-    "explore": { "label": "Explore", "description": "Deep codebase search and analysis" },
-    "review": { "label": "Review", "description": "Review code quality and security" },
-    "test": { "label": "Test", "description": "Generate unit and integration tests" },
-    "doc": { "label": "Document", "description": "Write documentation and READMEs" },
-    "refactor": { "label": "Refactor", "description": "Suggest code improvements" },
-    "proposal": { "label": "Proposal", "description": "Generate OpenSpec-compliant proposals" },
-    "help": { "label": "System Help", "description": "Show feature guide and shortcuts" },
-    "index": { "label": "Rebuild Index", "description": "Manually force a RAG semantic index rebuild" },
-    "task": { "label": "Task Breakdown", "description": "AI-powered task decomposition and visualization" }
+    "explore": {
+      "label": "Explore",
+      "description": "Deep codebase search and analysis"
+    },
+    "review": {
+      "label": "Review",
+      "description": "Review code quality and security"
+    },
+    "test": {
+      "label": "Test",
+      "description": "Generate unit and integration tests"
+    },
+    "doc": {
+      "label": "Document",
+      "description": "Write documentation and READMEs"
+    },
+    "refactor": {
+      "label": "Refactor",
+      "description": "Suggest code improvements"
+    },
+    "proposal": {
+      "label": "Proposal",
+      "description": "Generate OpenSpec-compliant proposals"
+    },
+    "help": {
+      "label": "System Help",
+      "description": "Show feature guide and shortcuts"
+    },
+    "index": {
+      "label": "Rebuild Index",
+      "description": "Manually force a RAG semantic index rebuild"
+    },
+    "task": {
+      "label": "Task Breakdown",
+      "description": "AI-powered task decomposition and visualization"
+    }
   },
   "help_message": {
     "title": "Welcome to IfAI v0.2.0",
@@ -1369,7 +1394,22 @@
     "toggleSkill": "Toggle skill {{name}}",
     "openProjectFirst": "Open a project folder before installing demo skills.",
     "loadFailed": "Failed to load skills: {{error}}",
-    "retry": "Retry"
+    "retry": "Retry",
+    "noProjectPath": "Unable to get project path",
+    "openProjectHint": "Please open a project first",
+    "demoInstallSuccess": "Demo skills installed successfully!",
+    "demoInstalledDescription": "4 practical skills installed: Code Review, Test Generation, Documentation, Debugging Expert",
+    "installFailed": "Installation failed",
+    "installSuccess": "Skill installed successfully",
+    "installedDescription": "{{skillId}} has been installed successfully",
+    "skillInstallFailed": "Skill installation failed",
+    "createSuccess": "Skill created successfully",
+    "createdDescription": "{{skillName}} has been created successfully",
+    "updateSuccess": "Skill updated successfully",
+    "updatedDescription": "{{skillName}} has been updated successfully",
+    "saveFailed": "Failed to save",
+    "installing": "Installing...",
+    "browseLibrary": "Browse Skill Library"
   },
   "skillShared": {
     "state": {
@@ -1422,7 +1462,7 @@
     "systemPrompt": "System Prompt",
     "emptySelectionTitle": "Select a skill",
     "emptySelectionDescription": "Choose a skill from the list to inspect details and actions.",
-    "confirmUninstall": "Uninstall \"{{name}}\"?",
+    "confirmUninstall": "Uninstall '{{name}}'?",
     "toasts": {
       "activating": "Activating {{name}}...",
       "activated": "{{name}} activated",
@@ -1440,6 +1480,7 @@
     "title": "Skill Market",
     "countSummary": "{{count}} built-in skills",
     "close": "Close skill market",
+    "closeButton": "Close",
     "back": "Back to list",
     "searchPlaceholder": "Search skills...",
     "featuredBadge": "Featured",
@@ -1447,7 +1488,7 @@
     "installing": "Installing...",
     "installToProject": "Install to project",
     "uninstall": "Uninstall skill",
-    "confirmUninstall": "Uninstall \"{{name}}\"?",
+    "confirmUninstall": "Uninstall '{{name}}'?",
     "version": "Version {{version}}",
     "author": "Author: {{author}}",
     "downloads": "{{value}} downloads",
@@ -1466,8 +1507,8 @@
     "totalCount": "{{count}} skills",
     "emptyTitle": "No matching skills",
     "emptyDescription": "Try a different search term or category.",
+    "all": "All",
     "categories": {
-      "all": "All",
       "featured": "Featured",
       "development": "Development",
       "testing": "Testing",
@@ -1483,7 +1524,14 @@
       "uninstalled": "{{name}} uninstalled",
       "uninstallFailed": "Uninstall failed: {{error}}",
       "unknownError": "Unknown error"
-    }
+    },
+    "openProjectFirst": "Please open a project first",
+    "installingMessage": "Installing skill: {{name}}...",
+    "installSuccess": "Installation successful",
+    "installFailed": "Installation failed: {{error}}",
+    "uninstallingMessage": "Uninstalling skill: {{name}}...",
+    "uninstallSuccess": "Uninstalled",
+    "uninstallFailed": "Uninstallation failed: {{error}}"
   },
   "skillCatalog": {
     "common": {
@@ -3337,6 +3385,58 @@
           "error": "Error"
         }
       }
+    }
+  },
+  "skillsDock": {
+    "openButtonTitle": "Open skill list",
+    "skillsLabel": "Skills",
+    "closeButtonTitle": "Close",
+    "idLabel": "ID",
+    "versionLabel": "Version",
+    "statusLabel": "Status",
+    "activated": "Activated",
+    "notActivated": "Not activated",
+    "descriptionLabel": "Description",
+    "tagsLabel": "Tags",
+    "deactivateButton": "Deactivate",
+    "activateButton": "Activate",
+    "createNewSkillTitle": "Create new skill",
+    "idFieldLabel": "ID *",
+    "idFieldPlaceholder": "e.g.: my-skill",
+    "nameLabel": "Name *",
+    "namePlaceholder": "e.g.: My Skill",
+    "descriptionPlaceholder": "Brief description of the skill",
+    "versionFieldLabel": "Version",
+    "tagPlaceholder": "Press Enter after typing tag",
+    "addButton": "Add",
+    "systemPromptLabel": "System Prompt *",
+    "systemPromptPlaceholder": "Detailed prompt defining the AI role...",
+    "saveButton": "Save",
+    "cancelButton": "Cancel",
+    "skillsCenterTitle": "Skills Center",
+    "skillMarketTitle": "Skill Market",
+    "createSkillTooltip": "Create new skill",
+    "refreshTooltip": "Refresh",
+    "searchPlaceholder": "Search skills...",
+    "allFilter": "All",
+    "loadingText": "Loading...",
+    "noSkillsFound": "No skills found",
+    "uninstallSkillTooltip": "Uninstall skill",
+    "activateTooltip": "Activate",
+    "deactivateTooltip": "Deactivate",
+    "toast": {
+      "deactivating": "Deactivating skill: {{name}}...",
+      "deactivated": "Skill \"{{name}}\" deactivated",
+      "activating": "Activating skill: {{name}}...",
+      "activated": "Skill \"{{name}}\" activated",
+      "actionFailed": "Action failed: {{error}}",
+      "openProjectFirst": "Please open a project first",
+      "confirmUninstall": "Are you sure you want to uninstall skill \"{{name}}\"?",
+      "uninstalling": "Uninstalling skill: {{name}}...",
+      "uninstalled": "Skill \"{{name}}\" uninstalled",
+      "uninstallFailed": "Uninstall failed: {{error}}",
+      "fillRequiredFields": "Please fill all required fields",
+      "createFailed": "Create failed: {{error}}"
     }
   },
   "statusbar": {

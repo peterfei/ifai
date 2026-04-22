@@ -28,8 +28,11 @@ import { SkillMarket } from './SkillMarket';
 import { toast } from 'sonner';
 import { useFileStore } from '@/stores/fileStore';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 
 export const SkillsDock: React.FC = () => {
+  const { t } = useTranslation();
+
   const {
     availableSkills,
     activeSkillIds,
@@ -119,17 +122,17 @@ export const SkillsDock: React.FC = () => {
     try {
       if (isActive) {
         // 停用技能
-        toast.loading(`正在停用技能: ${skill.name}...`, { id: `skill-${skillId}` });
+        toast.loading(t('skillsDock.toast.deactivating', { name: skill.name }), { id: `skill-${skillId}` });
         await deactivateSkill(skillId);
-        toast.success(`技能 "${skill.name}" 已停用`, { id: `skill-${skillId}` });
+        toast.success(t('skillsDock.toast.deactivated', { name: skill.name }), { id: `skill-${skillId}` });
       } else {
         // 激活技能
-        toast.loading(`正在激活技能: ${skill.name}...`, { id: `skill-${skillId}` });
+        toast.loading(t('skillsDock.toast.activating', { name: skill.name }), { id: `skill-${skillId}` });
         await activateSkill(skillId);
-        toast.success(`技能 "${skill.name}" 已激活`, { id: `skill-${skillId}` });
+        toast.success(t('skillsDock.toast.activated', { name: skill.name }), { id: `skill-${skillId}` });
       }
     } catch (error) {
-      toast.error(`操作失败: ${error}`, { id: `skill-${skillId}` });
+      toast.error(t('skillsDock.toast.actionFailed', { error }), { id: `skill-${skillId}` });
     } finally {
       setActivatingSkillId(null);
     }
@@ -143,12 +146,12 @@ export const SkillsDock: React.FC = () => {
     if (!skill) return;
 
     if (!rootPath) {
-      toast.error('请先打开一个项目');
+      toast.error(t('skillsDock.toast.openProjectFirst'));
       return;
     }
 
     // 确认对话框
-    const confirmed = confirm(`确定要卸载 "${skill.name}" 技能吗？`);
+    const confirmed = confirm(t('skillsDock.toast.confirmUninstall', { name: skill.name }));
     if (!confirmed) return;
 
     // 如果技能是激活状态，先停用
@@ -159,7 +162,7 @@ export const SkillsDock: React.FC = () => {
     setUninstallingSkillId(skillId);
 
     try {
-      toast.loading(`正在卸载技能: ${skill.name}...`, { id: `uninstall-${skillId}` });
+      toast.loading(t('skillsDock.toast.uninstalling', { name: skill.name }), { id: `uninstall-${skillId}` });
       await invoke('uninstall_skill', {
         projectRoot: rootPath,
         skillId: skillId,
@@ -168,9 +171,9 @@ export const SkillsDock: React.FC = () => {
       // 刷新技能列表
       await fetchSkills();
 
-      toast.success(`技能 "${skill.name}" 已卸载`, { id: `uninstall-${skillId}` });
+      toast.success(t('skillsDock.toast.uninstalled', { name: skill.name }), { id: `uninstall-${skillId}` });
     } catch (error) {
-      toast.error(`卸载失败: ${error}`, { id: `uninstall-${skillId}` });
+      toast.error(t('skillsDock.toast.uninstallFailed', { error }), { id: `uninstall-${skillId}` });
     } finally {
       setUninstallingSkillId(null);
     }
@@ -184,7 +187,7 @@ export const SkillsDock: React.FC = () => {
   // 创建新技能
   const handleCreateSkill = async () => {
     if (!newSkill.id || !newSkill.name || !newSkill.system_prompt) {
-      alert('请填写所有必填字段');
+      alert(t('skillsDock.toast.fillRequiredFields'));
       return;
     }
 
@@ -202,7 +205,7 @@ export const SkillsDock: React.FC = () => {
       });
       await fetchSkills();
     } catch (error) {
-      alert(`创建失败: ${error}`);
+      alert(t('skillsDock.toast.createFailed', { error }));
     }
   };
 
@@ -229,10 +232,10 @@ export const SkillsDock: React.FC = () => {
             'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600',
             'hover:border-blue-500'
           )}
-          title="打开技能列表"
+          title={t('skillsDock.openButtonTitle')}
         >
           <Puzzle size={16} />
-          <span className="text-sm font-medium">技能 ({availableSkills.length})</span>
+          <span className="text-sm font-medium">{t('skillsDock.skillsLabel')} ({availableSkills.length})</span>
         </button>
       </div>
     );
@@ -251,7 +254,7 @@ export const SkillsDock: React.FC = () => {
           <button
             onClick={() => setSelectedSkill(null)}
             className="p-1 rounded hover:bg-gray-700 text-gray-400"
-            title="关闭"
+            title={t('skillsDock.closeButtonTitle')}
           >
             <X size={14} />
           </button>
@@ -262,33 +265,33 @@ export const SkillsDock: React.FC = () => {
           {/* 基本信息 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-400">ID</h4>
+              <h4 className="text-sm font-medium text-gray-400">{t('skillsDock.idLabel')}</h4>
               <span className="text-xs text-gray-300 font-mono">{selectedSkill.id}</span>
             </div>
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-400">版本</h4>
+              <h4 className="text-sm font-medium text-gray-400">{t('skillsDock.versionLabel')}</h4>
               <span className="text-xs text-gray-300">v{selectedSkill.version}</span>
             </div>
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-400">状态</h4>
+              <h4 className="text-sm font-medium text-gray-400">{t('skillsDock.statusLabel')}</h4>
               <span className={cn(
                 'text-xs font-medium',
                 activeSkillIds.includes(selectedSkill.id) ? 'text-green-400' : 'text-gray-500'
               )}>
-                {activeSkillIds.includes(selectedSkill.id) ? '已激活' : '未激活'}
+                {activeSkillIds.includes(selectedSkill.id) ? t('skillsDock.activated') : t('skillsDock.notActivated')}
               </span>
             </div>
           </div>
 
           {/* 描述 */}
           <div>
-            <h4 className="text-sm font-medium text-gray-400 mb-2">描述</h4>
+            <h4 className="text-sm font-medium text-gray-400 mb-2">{t('skillsDock.descriptionLabel')}</h4>
             <p className="text-xs text-gray-300 leading-relaxed">{selectedSkill.description}</p>
           </div>
 
           {/* 标签 */}
           <div>
-            <h4 className="text-sm font-medium text-gray-400 mb-2">标签</h4>
+            <h4 className="text-sm font-medium text-gray-400 mb-2">{t('skillsDock.tagsLabel')}</h4>
             <div className="flex flex-wrap gap-1">
               {selectedSkill.tags.map(tag => (
                 <span
@@ -328,12 +331,12 @@ export const SkillsDock: React.FC = () => {
               {activeSkillIds.includes(selectedSkill.id) ? (
                 <>
                   <XCircle size={14} />
-                  停用
+                  {t('skillsDock.deactivateButton')}
                 </>
               ) : (
                 <>
                   <Zap size={14} />
-                  激活
+                  {t('skillsDock.activateButton')}
                 </>
               )}
             </button>
@@ -356,12 +359,12 @@ export const SkillsDock: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-[#1e1e1e] rounded-t-lg">
           <div className="flex items-center gap-2">
             <Plus size={18} className="text-green-400" />
-            <h3 className="text-sm font-bold text-white">创建新技能</h3>
+            <h3 className="text-sm font-bold text-white">{t('skillsDock.createNewSkillTitle')}</h3>
           </div>
           <button
             onClick={() => setShowCreateForm(false)}
             className="p-1 rounded hover:bg-gray-700 text-gray-400"
-            title="关闭"
+            title={t('skillsDock.closeButtonTitle')}
           >
             <X size={14} />
           </button>
@@ -371,35 +374,35 @@ export const SkillsDock: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* ID */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">ID *</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">{t('skillsDock.idFieldLabel')}</label>
             <input
               type="text"
               value={newSkill.id}
               onChange={(e) => setNewSkill({ ...newSkill, id: e.target.value })}
-              placeholder="例如: my-skill"
+              placeholder={t('skillsDock.idFieldPlaceholder')}
               className="w-full px-3 py-2 bg-[#1e1e1e] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
 
           {/* 名称 */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">名称 *</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">{t('skillsDock.nameLabel')}</label>
             <input
               type="text"
               value={newSkill.name}
               onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
-              placeholder="例如: 我的技能"
+              placeholder={t('skillsDock.namePlaceholder')}
               className="w-full px-3 py-2 bg-[#1e1e1e] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
 
           {/* 描述 */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">描述</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">{t('skillsDock.descriptionLabel')}</label>
             <textarea
               value={newSkill.description}
               onChange={(e) => setNewSkill({ ...newSkill, description: e.target.value })}
-              placeholder="技能的简短描述"
+              placeholder={t('skillsDock.descriptionPlaceholder')}
               rows={2}
               className="w-full px-3 py-2 bg-[#1e1e1e] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
             />
@@ -407,7 +410,7 @@ export const SkillsDock: React.FC = () => {
 
           {/* 版本 */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">版本</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">{t('skillsDock.versionFieldLabel')}</label>
             <input
               type="text"
               value={newSkill.version}
@@ -419,21 +422,21 @@ export const SkillsDock: React.FC = () => {
 
           {/* 标签 */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2">标签</label>
+            <label className="block text-xs font-medium text-gray-400 mb-2">{t('skillsDock.tagsLabel')}</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                placeholder="输入标签后按回车"
+                placeholder={t('skillsDock.tagPlaceholder')}
                 className="flex-1 px-3 py-2 bg-[#1e1e1e] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
               />
               <button
                 onClick={handleAddTag}
                 className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-sm"
               >
-                添加
+                {t('skillsDock.addButton')}
               </button>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -456,11 +459,11 @@ export const SkillsDock: React.FC = () => {
 
           {/* System Prompt */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">System Prompt *</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">{t('skillsDock.systemPromptLabel')}</label>
             <textarea
               value={newSkill.system_prompt}
               onChange={(e) => setNewSkill({ ...newSkill, system_prompt: e.target.value })}
-              placeholder="定义AI角色的详细提示词..."
+              placeholder={t('skillsDock.systemPromptPlaceholder')}
               rows={6}
               className="w-full px-3 py-2 bg-[#1e1e1e] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500 resize-none font-mono"
             />
@@ -473,13 +476,13 @@ export const SkillsDock: React.FC = () => {
               className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-white text-sm font-medium transition-all"
             >
               <Save size={14} />
-              保存
+              {t('skillsDock.saveButton')}
             </button>
             <button
               onClick={() => setShowCreateForm(false)}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 text-sm font-medium transition-all"
             >
-              取消
+              {t('skillsDock.cancelButton')}
             </button>
           </div>
         </div>
@@ -494,7 +497,7 @@ export const SkillsDock: React.FC = () => {
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-[#1e1e1e] rounded-t-lg">
         <div className="flex items-center gap-2">
           <Puzzle size={18} className="text-blue-400" />
-          <h3 className="text-sm font-bold text-white">技能中心</h3>
+          <h3 className="text-sm font-bold text-white">{t('skillsDock.skillsCenterTitle')}</h3>
           <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white text-xs font-bold">
             {filteredSkills.length}
           </span>
@@ -503,14 +506,14 @@ export const SkillsDock: React.FC = () => {
           <button
             onClick={() => setShowMarketplace(true)}
             className="p-1 rounded hover:bg-gray-700 text-purple-400"
-            title="技能市场"
+            title={t('skillsDock.skillMarketTitle')}
           >
             <ShoppingBag size={14} />
           </button>
           <button
             onClick={() => setShowCreateForm(true)}
             className="p-1 rounded hover:bg-gray-700 text-gray-400"
-            title="创建新技能"
+            title={t('skillsDock.createSkillTooltip')}
           >
             <Plus size={14} />
           </button>
@@ -518,14 +521,14 @@ export const SkillsDock: React.FC = () => {
             onClick={() => fetchSkills()}
             disabled={isLoading}
             className="p-1 rounded hover:bg-gray-700 text-gray-400 disabled:opacity-50"
-            title="刷新"
+            title={t('skillsDock.refreshTooltip')}
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={() => setIsOpen(false)}
             className="p-1 rounded hover:bg-gray-700 text-gray-400"
-            title="关闭"
+            title={t('skillsDock.closeButtonTitle')}
           >
             <X size={14} />
           </button>
@@ -541,7 +544,7 @@ export const SkillsDock: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQueryLocal(e.target.value)}
-            placeholder="搜索技能..."
+            placeholder={t('skillsDock.searchPlaceholder')}
             className="w-full pl-9 pr-3 py-2 bg-[#1e1e1e] border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
@@ -558,7 +561,7 @@ export const SkillsDock: React.FC = () => {
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               )}
             >
-              全部
+              {t('skillsDock.allFilter')}
             </button>
             {allTags.map(tag => (
               <button
@@ -584,12 +587,12 @@ export const SkillsDock: React.FC = () => {
         {isLoading && availableSkills.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-gray-500">
             <RefreshCw size={20} className="animate-spin mr-2" />
-            <span className="text-sm">加载中...</span>
+            <span className="text-sm">{t('skillsDock.loadingText')}</span>
           </div>
         ) : filteredSkills.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-gray-500">
             <Puzzle size={32} className="mb-2 opacity-50" />
-            <span className="text-sm">未找到技能</span>
+            <span className="text-sm">{t('skillsDock.noSkillsFound')}</span>
           </div>
         ) : (
           filteredSkills.map((skill) => {
@@ -610,7 +613,7 @@ export const SkillsDock: React.FC = () => {
                       {isActive && (
                         <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-600/20 text-green-400 text-xs">
                           <Zap size={10} />
-                          激活
+                          {t('skillsDock.activated')}
                         </span>
                       )}
                     </div>
@@ -625,7 +628,7 @@ export const SkillsDock: React.FC = () => {
                         'disabled:opacity-50 disabled:cursor-not-allowed',
                         'bg-gray-600 hover:bg-gray-700 text-white'
                       )}
-                      title="卸载技能"
+                      title={t('skillsDock.uninstallSkillTooltip')}
                     >
                       {uninstallingSkillId === skill.id ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -643,7 +646,7 @@ export const SkillsDock: React.FC = () => {
                           ? 'bg-red-600 hover:bg-red-700 text-white'
                           : 'bg-green-600 hover:bg-green-700 text-white'
                       )}
-                      title={isActive ? '停用' : '激活'}
+                      title={isActive ? t('skillsDock.deactivateTooltip') : t('skillsDock.activateTooltip')}
                     >
                       {activatingSkillId === skill.id ? (
                         <Loader2 size={12} className="animate-spin" />
