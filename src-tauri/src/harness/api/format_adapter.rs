@@ -45,7 +45,7 @@ use std::collections::HashMap;
 /// - **手动实现**：为特殊格式手动实现（如 Gemini）
 /// - **元数据生成**：从 YAML 配置自动生成（如 OpenAI 兼容）
 #[async_trait]
-pub trait FormatAdapter: Send + Sync {
+pub trait FormatAdapter: Send + Sync + Clone {
     /// 获取提供商规格
     fn spec(&self) -> &ProviderSpec;
 

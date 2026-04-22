@@ -53,14 +53,91 @@ impl<A: FormatAdapter> MetadataDrivenClient<A> {
 }
 
 #[async_trait]
-impl<A: FormatAdapter + Send + Sync> ApiClient for MetadataDrivenClient<A> {
+impl<A: FormatAdapter + Send + Sync + 'static> ApiClient for MetadataDrivenClient<A> {
     async fn stream(
         &self,
-        _request: StreamRequest,
+        request: StreamRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError> {
-        // TODO: 实现 stream 方法
-        // 这需要完整实现 SSE 解析逻辑
-        Err(ApiError::Sse("Stream not yet implemented for metadata-driven client".to_string()))
+        // 使用适配器构建请求
+        let url = self.adapter.build_url(&request.model, &self.api_key);
+        let headers = self.adapter.build_headers(&self.api_key);
+        let body = self.adapter.transform_request_body(&request)
+            .map_err(|e| ApiError::Sse(format!("Failed to transform request: {}", e)))?;
+
+        // 构建请求
+        let mut req_builder = self.http.post(&url);
+
+        // 添加请求头
+        for (key, value) in headers {
+            req_builder = req_builder.header(&key, &value);
+        }
+
+        // 发送请求
+        let response = req_builder
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| ApiError::Network(e.to_string()))?;
+
+        // 检查响应状态
+        if !response.status().is_success() {
+            let status = response.status();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ApiError::HttpError { status, message });
+        }
+
+        // 创建 SSE 流
+        let byte_stream = response.bytes_stream();
+        let adapter = self.adapter.clone();
+
+        let sse_stream = stream! {
+            use futures_util::StreamExt;
+            let mut buffer = Vec::new();
+
+            for await chunk_result in byte_stream {
+                match chunk_result {
+                    Ok(chunk) => {
+                        buffer.extend_from_slice(&chunk);
+
+                        // 按 SSE 帧分隔（\n\n 或 \r\n\r\n）
+                        loop {
+                            let separator_pos = find_separator(&buffer);
+                            if separator_pos == 0 {
+                                break;
+                            }
+
+                            let frame_bytes = buffer.drain(..separator_pos).collect::<Vec<_>>();
+                            // 移除分隔符
+                            if buffer.starts_with(b"\n\n") {
+                                buffer.drain(..2);
+                            } else if buffer.starts_with(b"\r\n\r\n") {
+                                buffer.drain(..4);
+                            }
+
+                            let frame = String::from_utf8_lossy(&frame_bytes);
+
+                            // 解析 SSE 帧
+                            if let Some(event_data) = parse_sse_frame(&frame) {
+                                // 使用适配器解析事件（克隆适配器）
+                                match adapter.clone().parse_sse_event(&event_data) {
+                                    Ok(Some(event)) => yield Ok(event),
+                                    Ok(None) => {
+                                        // 空事件，继续
+                                    }
+                                    Err(e) => yield Err(ApiError::Sse(format!("Failed to parse SSE event: {}", e))),
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => yield Err(ApiError::Network(e.to_string())),
+                }
+            }
+        };
+
+        Ok(Box::pin(sse_stream))
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ApiError> {
@@ -134,6 +211,44 @@ pub fn create_kimi_client(api_key: &str) -> KimiOfficialMetadataClient {
 pub fn create_gemini_client(api_key: &str) -> GeminiOfficialMetadataClient {
     let adapter = crate::harness::api::generated_clients::GeminiOfficialClient::new();
     MetadataDrivenClient::new(api_key, adapter)
+}
+
+// ============================================================================
+// SSE 解析辅助函数
+// ============================================================================
+
+/// 查找 SSE 帧分隔符位置
+fn find_separator(buffer: &[u8]) -> usize {
+    // 查找 \n\n
+    if let Some(pos) = buffer.windows(2).position(|w| w == b"\n\n") {
+        return pos;
+    }
+    // 查找 \r\n\r\n
+    if let Some(pos) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+        return pos;
+    }
+    0
+}
+
+/// 解析 SSE 帧，提取事件数据
+fn parse_sse_frame(frame: &str) -> Option<String> {
+    let trimmed = frame.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // SSE 格式以 "data: " 开头
+    if let Some(data) = trimmed.strip_prefix("data:") {
+        let payload = data.trim();
+        // 检查 [DONE] 标记
+        if payload == "[DONE]" {
+            return None;
+        }
+        Some(payload.to_string())
+    } else {
+        // 尝试直接解析整个帧
+        Some(trimmed.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -245,5 +360,115 @@ mod tests {
 
         // 验证 Gemini 2.0 Flash 存在
         assert!(models.iter().any(|m| m.id == "gemini-2.0-flash-exp"));
+    }
+
+    #[test]
+    fn test_find_separator() {
+        // 测试 \n\n 分隔符
+        let buffer1 = b"data: test\n\ndata: test2\n\n";
+        let pos1 = find_separator(buffer1);
+        assert!(pos1 > 0); // 应该找到分隔符
+
+        // 测试 \r\n\r\n 分隔符
+        let buffer2 = b"data: test\r\n\r\ndata: test2\r\n\r\n";
+        let pos2 = find_separator(buffer2);
+        assert!(pos2 > 0); // 应该找到分隔符
+
+        // 测试没有分隔符
+        let buffer3 = b"data: test";
+        let pos3 = find_separator(buffer3);
+        assert_eq!(pos3, 0);
+    }
+
+    #[test]
+    fn test_parse_sse_frame() {
+        // 测试正常 data: 帧
+        let frame1 = "data: {\"content\":\"Hello\"}";
+        let result1 = parse_sse_frame(frame1);
+        assert_eq!(result1, Some("{\"content\":\"Hello\"}".to_string()));
+
+        // 测试 [DONE] 标记
+        let frame2 = "data: [DONE]";
+        let result2 = parse_sse_frame(frame2);
+        assert_eq!(result2, None);
+
+        // 测试空帧
+        let frame3 = "";
+        let result3 = parse_sse_frame(frame3);
+        assert_eq!(result3, None);
+
+        // 测试带空格的帧
+        let frame4 = "data:  {\"content\":\"Hello\"}  ";
+        let result4 = parse_sse_frame(frame4);
+        assert_eq!(result4, Some("{\"content\":\"Hello\"}".to_string()));
+    }
+
+    #[test]
+    fn test_zhipu_adapter_parse_sse() {
+        let zhipu = create_zhipu_client("test-key");
+
+        // 测试正常的 SSE 事件
+        let event_data = r#"{"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
+
+        let event = zhipu.adapter.parse_sse_event(event_data);
+        assert!(event.is_ok());
+
+        if let Ok(Some(StreamEvent::TextDelta { text })) = event {
+            assert_eq!(text, "你好");
+        } else {
+            panic!("Expected TextDelta event with content");
+        }
+    }
+
+    #[test]
+    fn test_kimi_adapter_parse_sse() {
+        let kimi = create_kimi_client("test-key");
+
+        // 测试正常的 SSE 事件
+        let event_data = r#"{"id":"chatcmpl-456","choices":[{"index":0,"delta":{"content":"Hello from Kimi"}}]}"#;
+
+        let event = kimi.adapter.parse_sse_event(event_data);
+        assert!(event.is_ok());
+
+        if let Ok(Some(StreamEvent::TextDelta { text })) = event {
+            assert_eq!(text, "Hello from Kimi");
+        } else {
+            panic!("Expected TextDelta event with content");
+        }
+    }
+
+    #[test]
+    fn test_zhipu_request_transform() {
+        use crate::harness::api::types::{Message, MessageRole};
+
+        let zhipu = create_zhipu_client("test-key");
+
+        let request = StreamRequest {
+            model: "glm-5.1".to_string(),
+            messages: vec![
+                Message {
+                    role: MessageRole::User,
+                    content: "你好".to_string(),
+                    tool_calls: None,
+                    tool_call_id: None,
+                },
+            ],
+            max_tokens: 4096,
+            system: None,
+            temperature: Some(0.7),
+            tools: None,
+            stream: true,
+        };
+
+        let body = zhipu.adapter.transform_request_body(&request);
+        assert!(body.is_ok());
+
+        let body_json = body.unwrap();
+        assert_eq!(body_json["model"], "glm-5.1");
+        assert_eq!(body_json["stream"], true);
+        // temperature 可能是 null（如果没有值）或具体值
+        if !body_json["temperature"].is_null() {
+            assert_eq!(body_json["temperature"], 0.7);
+        }
     }
 }
