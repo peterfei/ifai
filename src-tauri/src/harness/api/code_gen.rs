@@ -164,6 +164,53 @@ macro_rules! generate_provider_client {
                 Self::new()
             }
         }
+
+        // 🏛️ 实现 From<ProviderSpec> 以便在 MetadataDrivenClient 中使用
+        impl From<$crate::harness::api::provider_metadata::ProviderSpec> for $client_name {
+            fn from(spec: $crate::harness::api::provider_metadata::ProviderSpec) -> Self {
+                let adapter = $crate::harness::api::format_adapter::$adapter::new(spec);
+                Self { adapter }
+            }
+        }
+
+        // 🏛️ 实现 FormatAdapter trait，将所有方法委托给内部适配器
+        impl $crate::harness::api::format_adapter::FormatAdapter for $client_name {
+            fn spec(&self) -> &$crate::harness::api::provider_metadata::ProviderSpec {
+                use $crate::harness::api::format_adapter::FormatAdapter;
+                self.adapter.spec()
+            }
+
+            fn build_url(&self, model_id: &str, api_key: &str) -> String {
+                use $crate::harness::api::format_adapter::FormatAdapter;
+                self.adapter.build_url(model_id, api_key)
+            }
+
+            fn build_headers(&self, api_key: &str) -> Vec<(String, String)> {
+                use $crate::harness::api::format_adapter::FormatAdapter;
+                self.adapter.build_headers(api_key)
+            }
+
+            fn transform_request_body(
+                &self,
+                request: &$crate::harness::api::types::StreamRequest,
+            ) -> Result<::serde_json::Value, String> {
+                use $crate::harness::api::format_adapter::FormatAdapter;
+                self.adapter.transform_request_body(request)
+            }
+
+            fn parse_sse_event(
+                &self,
+                event_data: &str,
+            ) -> Result<Option<$crate::harness::api::types::StreamEvent>, String> {
+                use $crate::harness::api::format_adapter::FormatAdapter;
+                self.adapter.parse_sse_event(event_data)
+            }
+
+            fn map_error(&self, status_code: u16) -> String {
+                use $crate::harness::api::format_adapter::FormatAdapter;
+                self.adapter.map_error(status_code)
+            }
+        }
     };
 }
 

@@ -26,6 +26,11 @@ use crate::harness::api::format_adapter::{OpenAIFormatAdapter, GeminiFormatAdapt
 // OpenAI 兼容提供商（使用 OpenAIFormatAdapter）
 // ============================================================================
 
+/// 🏛️ 自动生成：OpenAI 官方客户端
+///
+/// 从 `providers/registry/openai.yaml` 配置生成
+crate::generate_provider_client!("openai-official", OpenAIOfficialClient, OpenAIFormatAdapter);
+
 /// 🏛️ 自动生成：Zhipu AI 客户端
 ///
 /// 从 `providers/registry/zhipu.yaml` 配置生成
@@ -49,10 +54,26 @@ crate::generate_provider_client!("gemini-official", GeminiOfficialClient, Gemini
 #[cfg(test)]
 mod tests {
     // 导入宏生成的客户端类型（完整路径）
+    use crate::harness::api::generated_clients::OpenAIOfficialClient;
     use crate::harness::api::generated_clients::ZhipuOfficialClient;
     use crate::harness::api::generated_clients::KimiOfficialClient;
     use crate::harness::api::generated_clients::GeminiOfficialClient;
     use crate::harness::api::types::{StreamRequest, Message, MessageRole};
+
+    #[test]
+    fn test_openai_client_creation() {
+        // 测试 OpenAI 客户端创建
+        let client = OpenAIOfficialClient::new();
+
+        // 验证客户端有正确的配置
+        let spec = client.spec();
+        assert_eq!(spec.metadata.id, "openai-official");
+        assert_eq!(spec.metadata.name, "OpenAI");
+        assert_eq!(spec.metadata.protocol, "openai");
+
+        // 验证模型列表包含 GPT-4o
+        assert!(spec.models.iter().any(|m| m.id == "gpt-4o"));
+    }
 
     #[test]
     fn test_zhipu_client_creation() {
