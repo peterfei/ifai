@@ -1,0 +1,51 @@
+# Google Gemini Provider Specification
+metadata:
+  id: gemini-official
+  name: Google Gemini
+  protocol: gemini
+
+api_spec:
+  base_url: https://generativelanguage.googleapis.com/v1beta
+  endpoint: /models/{model}:streamGenerateContent
+  auth:
+    type: query_param
+    param_name: key
+
+request_format:
+  type: gemini_custom
+  messages_wrapper: contents
+  system_prompt_handling: prefix_in_user
+  system_prompt_prefix: "System: "
+  content_wrapper: parts
+  role_mapping:
+    user: user
+    assistant: model
+    system: user
+
+response_format:
+  type: sse
+  stream_parser: gemini_sse
+  content_extraction: parts.0.text
+
+models:
+  - id: gemini-2.0-flash-exp
+    name: Gemini 2.0 Flash Experimental
+    context_tokens: 1000000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0
+    tags: [free, experimental]
+  - id: gemini-1.5-pro
+    name: Gemini 1.5 Pro
+    context_tokens: 2800000
+    capabilities: [tools, streaming, vision]
+    cost_per_1k_tokens: 0.0035
+  - id: gemini-1.5-flash
+    name: Gemini 1.5 Flash
+    context_tokens: 2800000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.000075
+
+error_mapping:
+  401: authentication_error
+  429: rate_limit_error
+  500: server_error

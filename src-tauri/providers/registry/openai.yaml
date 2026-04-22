@@ -1,0 +1,51 @@
+# OpenAI Provider Specification
+metadata:
+  id: openai-official
+  name: OpenAI
+  protocol: openai
+
+api_spec:
+  base_url: https://api.openai.com/v1
+  endpoint: /chat/completions
+  auth:
+    type: bearer_header
+    header_name: Authorization
+    format: "Bearer {key}"
+
+request_format:
+  type: openai_standard
+  messages_wrapper: messages
+  system_prompt_handling: separate_message
+  tools_field: tools
+
+response_format:
+  type: sse
+  stream_parser: openai_sse
+  content_extraction: delta.content
+
+models:
+  - id: gpt-4o
+    name: GPT-4o
+    context_tokens: 128000
+    capabilities: [vision, tools, streaming]
+    cost_per_1k_tokens: 0.005
+  - id: gpt-4o-mini
+    name: GPT-4o Mini
+    context_tokens: 128000
+    capabilities: [tools, streaming]
+    cost_per_1k_tokens: 0.00015
+  - id: o1-mini
+    name: O1 Mini
+    context_tokens: 128000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.003
+  - id: o1-preview
+    name: O1 Preview
+    context_tokens: 128000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.015
+
+error_mapping:
+  401: authentication_error
+  429: rate_limit_error
+  500: server_error

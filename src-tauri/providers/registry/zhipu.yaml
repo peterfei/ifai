@@ -1,0 +1,64 @@
+# Zhipu AI (智谱) Provider Specification
+metadata:
+  id: zhipu-official
+  name: Zhipu AI (智谱)
+  protocol: openai
+
+api_spec:
+  base_url: https://open.bigmodel.cn/api/paas/v4
+  endpoint: /chat/completions
+  auth:
+    type: bearer_header
+    header_name: Authorization
+    format: "Bearer {key}"
+
+request_format:
+  type: openai_standard
+  messages_wrapper: messages
+  system_prompt_handling: separate_message
+  tools_field: tools
+
+response_format:
+  type: sse
+  stream_parser: openai_sse
+  content_extraction: delta.content
+
+models:
+  - id: glm-5.1
+    name: GLM-5.1
+    context_tokens: 128000
+    capabilities: [tools, streaming, vision]
+    cost_per_1k_tokens: 0.012
+    tags: [latest, premium]
+  - id: glm-4.7
+    name: GLM-4.7
+    context_tokens: 128000
+    capabilities: [tools, streaming]
+    cost_per_1k_tokens: 0.005
+  - id: glm-4.7-flash
+    name: GLM-4.7 Flash
+    context_tokens: 128000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.0001
+    tags: [fast]
+  - id: glm-4-plus
+    name: GLM-4 Plus
+    context_tokens: 128000
+    capabilities: [tools, streaming]
+    cost_per_1k_tokens: 0.002
+  - id: glm-4.6
+    name: GLM-4.6
+    context_tokens: 128000
+    capabilities: [tools, streaming]
+    cost_per_1k_tokens: 0.003
+  - id: glm-4-flash
+    name: GLM-4 Flash
+    context_tokens: 128000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.0001
+
+error_mapping:
+  401: authentication_error
+  402: quota_exceeded
+  429: rate_limit_error
+  500: server_error
