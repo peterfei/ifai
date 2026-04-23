@@ -61,12 +61,34 @@ impl ApiClient for ZhipuClient {
         if let Some(system) = &request.system {
             messages.push(Message {
                 role: MessageRole::System,
-                content: system.clone(),
+                content: system.clone().into(),
                 tool_calls: None,
                 tool_call_id: None,
             });
         }
         messages.extend(request.messages.clone());
+
+        // 🔥 FIX P0: 检测多模态内容并自动切换到视觉模型
+        // glm-4.7 不支持视觉能力，只有 glm-4.5v 和 glm-4v 支持图像
+        let has_multimodal = messages.iter().any(|m| m.content.is_multimodal());
+
+        // 🔥 FIX P0: 模型名称自动选择
+        // 如果消息包含图像，自动使用 glm-4.5v（最新的视觉模型）
+        let model_name = if has_multimodal {
+            // 检查原始模型是否已经是视觉模型
+            let original_model = request.model.to_lowercase();
+            if original_model.contains("4v") || original_model.contains("5v") || original_model.contains("vision") {
+                println!("[Zhipu] ✅ User selected vision-compatible model: {}", original_model);
+                request.model.clone()
+            } else {
+                println!("[Zhipu] 🔄 Multimodal content detected, auto-switching from {} to glm-4.5v (vision model)", request.model);
+                "glm-4.5v".to_string()
+            }
+        } else {
+            request.model.clone()
+        };
+
+        println!("[Zhipu] Using model: {} (multimodal: {})", model_name, has_multimodal);
 
         // 🔥 FIX P0: 限制 max_tokens 以避免 1210 错误
         // 根据 Zhipu GLM-4 文档：
@@ -74,12 +96,6 @@ impl ApiClient for ZhipuClient {
         // - GLM-4-plus: 最大 8192 tokens
         // 对于 glm-4.x 系列（除 plus 外），使用 4096 作为安全上限
         let max_tokens = request.max_tokens.min(4096);
-
-        // 🔥 FIX P0: 模型名称保持小写格式
-        // 根据 OpenAI 兼容性文档，官方示例使用小写模型名称（如 glm-5、glm-4.7）
-        // 参考: https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
-        let model_name = request.model.clone();
-        println!("[Zhipu] Using model: {}", model_name);
 
         // 智谱使用 OpenAI 兼容的 API 格式
         // 🔥 FIX P0: 总是使用 stream=true，因为代码使用流式响应处理
@@ -100,16 +116,13 @@ impl ApiClient for ZhipuClient {
 
         // 🔥 DEBUG: 打印 messages 内容（特别是 system prompt）
         for (i, msg) in messages.iter().enumerate() {
-            // 安全截断：按字符而非字节截取（避免 UTF-8 中文字符边界错误）
-            let preview = if msg.content.chars().count() > 50 {
-                format!("{}...", msg.content.chars().take(50).collect::<String>())
-            } else {
-                msg.content.clone()
-            };
-            println!("[Zhipu] Message [{}] role: {:?}, content preview: {}",
+            let preview = msg.content.preview();
+            let is_multimodal = msg.content.is_multimodal();
+            println!("[Zhipu] Message [{}] role: {:?}, content preview: {}, multimodal: {}",
                 i,
                 msg.role,
-                preview
+                preview,
+                is_multimodal
             );
         }
 
