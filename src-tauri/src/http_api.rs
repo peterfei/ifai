@@ -622,8 +622,6 @@ async fn ai_chat_stream_http(
 
     // 创建 callback 来接收 AI 服务的事件
     let callback = move |event_json: String| {
-        println!("[HttpAPI] 📨 Received AI event: {}", event_json);
-
         // 解析 AI 服务的事件
         if let Ok(event_value) = serde_json::from_str::<serde_json::Value>(&event_json) {
             // 转换为 SSE 事件

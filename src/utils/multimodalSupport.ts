@@ -42,9 +42,18 @@ export const PROVIDER_MULTIMODAL_CAPABILITIES: Record<string, {
     // Claude 所有模型都支持视觉
   },
   kimi: {
-    multimodal: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
-    nonMultimodal: [],
-    // Kimi 所有模型都支持视觉（待确认）
+    multimodal: [
+      // Kimi K2 系列（原生多模态架构）
+      'kimi-k2.6', 'kimi-k2.5', 'kimi-k2-0905-preview', 'kimi-k2-0711-preview',
+      'kimi-k2-turbo-preview', 'kimi-k2-thinking', 'kimi-k2-thinking-turbo',
+      // Moonshot V1 Vision Preview 系列
+      'moonshot-v1-128k-vision-preview', 'moonshot-v1-32k-vision-preview', 'moonshot-v1-8k-vision-preview',
+    ],
+    nonMultimodal: [
+      // Moonshot V1 系列（仅文本）
+      'moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k',
+    ],
+    recommendedVisionModel: 'kimi-k2.6',
   },
   custom: {
     multimodal: [],

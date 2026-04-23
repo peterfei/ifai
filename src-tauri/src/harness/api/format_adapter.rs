@@ -229,12 +229,61 @@ impl FormatAdapter for OpenAIFormatAdapter {
         let json: JsonValue = serde_json::from_str(event_data)
             .map_err(|e| format!("Failed to parse SSE JSON: {}", e))?;
 
-        // 提取内容
-        let content = extract_content_by_path(&json, &self.spec.response_format.content_extraction)?;
+        // 🔥 FIX: 检查是否是结束事件（支持多种格式）
+        // 格式 1: 标准 OpenAI - choices[0].finish_reason
+        // 格式 2: Kimi - 顶层 finish_reason
+        //
+        // ⚠️ CRITICAL: finish_reason: null 不应该被视为结束事件！
+        // 只有当 finish_reason 存在且不为 null 时才是结束事件
+        let is_finish_event = if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
+            // 标准 OpenAI 格式
+            choices.first()
+                .and_then(|c| c.get("finish_reason"))
+                .and_then(|v| v.as_str())  // 🔥 关键：获取字符串值，null 不会通过
+                .is_some()
+        } else {
+            // Kimi 格式：顶层 finish_reason
+            json.get("finish_reason")
+                .and_then(|v| v.as_str())  // 🔥 关键：获取字符串值，null 不会通过
+                .is_some()
+        };
 
-        Ok(Some(StreamEvent::TextDelta {
-            text: content,
-        }))
+        if is_finish_event {
+            // 结束事件，返回 None
+            return Ok(None);
+        }
+
+        // 备选路径列表（按优先级）
+        let fallback_paths = vec![
+            "choices.0.delta.content",           // 标准 OpenAI 内容
+            "choices.0.delta.reasoning_content", // Kimi K2 thinking 模式
+            "delta.content",                     // Kimi 简化格式
+            "message.content",                   // 某些提供商的非流式格式
+        ];
+
+        let mut content = String::new();
+        for path in fallback_paths {
+            match extract_content_by_path(&json, path) {
+                Ok(text) => {
+                    if !text.is_empty() {
+                        content = text;
+                        break;
+                    }
+                }
+                Err(_) => {
+                    // 继续尝试下一个路径
+                }
+            }
+        }
+
+        if content.is_empty() {
+            // 没有内容的事件（如工具调用开始等）
+            Ok(None)
+        } else {
+            Ok(Some(StreamEvent::TextDelta {
+                text: content,
+            }))
+        }
     }
 }
 
@@ -437,28 +486,60 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
 /// ## 路径语法
 /// - `delta.content` → `json["delta"]["content"]`
 /// - `parts.0.text` → `json["parts"][0]["text"]`
-fn extract_content_by_path(json: &JsonValue, path: &str) -> Result<String, String> {
+pub fn extract_content_by_path(json: &JsonValue, path: &str) -> Result<String, String> {
+    println!("[extract_content_by_path] 🔍 Extracting path: {}", path);
+    println!("[extract_content_by_path] JSON: {}", serde_json::to_string(json).unwrap_or_else(|_| "Cannot serialize".to_string()));
+
     let parts: Vec<&str> = path.split('.').collect();
+    println!("[extract_content_by_path] Path parts: {:?}", parts);
 
     let mut current = json;
-    for part in parts {
+    for (i, part) in parts.iter().enumerate() {
+        println!("[extract_content_by_path] Step {}: current key/index = '{}'", i, part);
         current = if let Ok(idx) = part.parse::<usize>() {
             // 数组索引
-            current
-                .get(idx)
-                .ok_or_else(|| format!("Index {} out of bounds", idx))?
+            match current.get(idx) {
+                Some(val) => {
+                    println!("[extract_content_by_path] ✅ Got array index {}, value: {}", idx, serde_json::to_string(val).unwrap_or_else(|_| "?".to_string()));
+                    val
+                }
+                None => {
+                    println!("[extract_content_by_path] ❌ Array index {} out of bounds", idx);
+                    return Err(format!("Index {} out of bounds", idx));
+                }
+            }
         } else {
             // 对象键
-            current
-                .get(part)
-                .ok_or_else(|| format!("Key '{}' not found", part))?
+            match current.get(*part) {
+                Some(val) => {
+                    println!("[extract_content_by_path] ✅ Got key '{}', value: {}", part, serde_json::to_string(val).unwrap_or_else(|_| "?".to_string()));
+                    val
+                }
+                None => {
+                    println!("[extract_content_by_path] ❌ Key '{}' not found", part);
+                    return Err(format!("Key '{}' not found", part));
+                }
+            }
         };
     }
 
-    current
+    let result = current
         .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Value is not a string".to_string())
+        .map(|s| {
+            println!("[extract_content_by_path] ✅ Final value as string: '{}'", s);
+            s.to_string()
+        })
+        .ok_or_else(|| {
+            println!("[extract_content_by_path] ❌ Value is not a string, type: {:?}", current);
+            "Value is not a string".to_string()
+        });
+
+    match &result {
+        Ok(s) => println!("[extract_content_by_path] ✨ SUCCESS: extracted '{}' from path '{}'", s, path),
+        Err(e) => println!("[extract_content_by_path] 💥 FAILURE: {}", e),
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -851,5 +932,116 @@ error_mapping: {}
         let event_data = "[DONE]";
         let event = adapter.parse_sse_event(event_data).unwrap();
         assert!(event.is_none());
+    }
+
+    /// 🧪 测试 JSON 路径提取逻辑（包括 Kimi reasoning_content）
+    #[test]
+    fn test_extract_content_by_path_with_kimi_format() {
+        use serde_json::json;
+
+        println!("\n🧪 测试 JSON 路径提取逻辑\n");
+
+        // 1. 测试标准 OpenAI 格式
+        let openai_json = json!({
+            "choices": [{
+                "delta": {
+                    "content": "你好"
+                }
+            }]
+        });
+
+        println!("测试 1: choices.0.delta.content");
+        let result = extract_content_by_path(&openai_json, "choices.0.delta.content");
+        assert!(result.is_ok(), "应该成功提取 content");
+        assert_eq!(result.unwrap(), "你好");
+        println!("✅ 通过\n");
+
+        // 2. 测试 Kimi reasoning_content 格式
+        let kimi_json = json!({
+            "choices": [{
+                "delta": {
+                    "reasoning_content": "用户说你好"
+                }
+            }]
+        });
+
+        println!("测试 2: choices.0.delta.reasoning_content (Kimi K2 thinking)");
+        let result = extract_content_by_path(&kimi_json, "choices.0.delta.reasoning_content");
+        assert!(result.is_ok(), "应该成功提取 reasoning_content");
+        assert_eq!(result.unwrap(), "用户说你好");
+        println!("✅ 通过\n");
+
+        // 3. 测试空 content（应该返回空字符串而不是错误）
+        let empty_json = json!({
+            "choices": [{
+                "delta": {
+                    "content": ""
+                }
+            }]
+        });
+
+        println!("测试 3: 空 content 字段");
+        let result = extract_content_by_path(&empty_json, "choices.0.delta.content");
+        assert!(result.is_ok(), "空 content 应该返回 Ok");
+        assert_eq!(result.unwrap(), "");
+        println!("✅ 通过\n");
+
+        // 4. 测试缺失的键（应该返回错误）
+        let missing_json = json!({
+            "choices": [{
+                "delta": {}
+            }]
+        });
+
+        println!("测试 4: 缺失的 content 键");
+        let result = extract_content_by_path(&missing_json, "choices.0.delta.content");
+        assert!(result.is_err(), "缺失的键应该返回错误");
+        println!("✅ 通过\n");
+
+        // 5. 测试真实 Kimi 事件格式（reasoning_content）
+        let real_kimi_event = json!({
+            "id": "chatcmpl-123",
+            "object": "chat.completion.chunk",
+            "created": 1776942760,
+            "model": "kimi-k2.5",
+            "choices": [{
+                "index": 0,
+                "delta": {
+                    "reasoning_content": "用"
+                },
+                "finish_reason": null
+            }],
+            "system_fingerprint": "fpv0_cc548f90"
+        });
+
+        println!("测试 5: 真实 Kimi reasoning_content 事件");
+        let result = extract_content_by_path(&real_kimi_event, "choices.0.delta.reasoning_content");
+        assert!(result.is_ok(), "应该成功从真实事件中提取");
+        assert_eq!(result.unwrap(), "用");
+        println!("✅ 通过\n");
+
+        // 6. 测试真实 Kimi 事件格式（content）
+        let real_kimi_content_event = json!({
+            "id": "chatcmpl-123",
+            "object": "chat.completion.chunk",
+            "created": 1776942760,
+            "model": "kimi-k2.5",
+            "choices": [{
+                "index": 0,
+                "delta": {
+                    "content": "你好！"
+                },
+                "finish_reason": null
+            }],
+            "system_fingerprint": "fpv0_cc548f90"
+        });
+
+        println!("测试 6: 真实 Kimi content 事件");
+        let result = extract_content_by_path(&real_kimi_content_event, "choices.0.delta.content");
+        assert!(result.is_ok(), "应该成功从真实事件中提取 content");
+        assert_eq!(result.unwrap(), "你好！");
+        println!("✅ 通过\n");
+
+        println!("🎉 所有路径提取测试通过！");
     }
 }

@@ -1,0 +1,67 @@
+# ===================================================================
+# Kimi Provider E2E 测试配置
+# ===================================================================
+#
+# 使用说明：
+# 1. 复制此文件到 tests/e2e/kimi-e2e.local：
+#    cp tests/e2e/kimi-e2e.example tests/e2e/kimi-e2e.local
+#
+# 2. 编辑 kimi-e2e.local，填入你的 Kimi API Key
+#
+# 3. 运行测试：
+#    npm run test:e2e -- tests/e2e/providers/kimi-provider-e2e.spec.ts
+#
+# 获取 Kimi API Key:
+# https://platform.moonshot.cn/console/api-keys
+#
+# ===================================================================
+
+# Kimi API Key（必需）
+E2E_AI_API_KEY=your-kimi-api-key-here
+
+# Kimi API Base URL
+E2E_AI_BASE_URL=https://api.moonshot.cn/v1
+
+# Kimi 模型选择
+# 推荐模型（按优先级）：
+#   kimi-k2.6      - 最新 K2 系列，256K 上下文，支持 multimodal 和 thinking
+#   kimi-k2.5      - K2.5 版本，256K 上下文，支持 multimodal 和 thinking
+#   moonshot-v1-128k  - 经典 V1 系列，128K 上下文
+E2E_AI_MODEL=kimi-k2.6
+
+# ===================================================================
+# 其他配置（保持默认值即可）
+# ===================================================================
+
+E2E_AI_TIMEOUT=30000
+E2E_AI_DEBUG=true
+E2E_SKIP_WELCOME=true
+
+# ===================================================================
+# 测试场景说明
+# ===================================================================
+#
+# KIMI-E2E-01: 基础 SSE 流解析
+#   - 验证基本的 SSE 流能够正确解析
+#   - 验证 content 字段能够正确提取
+#   - 简单的问候消息
+#
+# KIMI-E2E-02: Reasoning Content 支持
+#   - 验证 K2 thinking 模式的 reasoning_content 字段
+#   - 需要使用 K2 系列模型
+#   - 深度思考类问题
+#
+# KIMI-E2E-03: 代码生成和工具调用
+#   - 验证 Kimi 的代码生成能力
+#   - 验证工具调用正确性
+#   - 文件读取和修改
+#
+# KIMI-E2E-04: 多轮对话
+#   - 验证上下文保持
+#   - 验证多轮对话流畅性
+#
+# KIMI-E2E-05: 长文本处理
+#   - 验证长请求处理能力
+#   - 验证长响应生成能力
+#
+# ===================================================================

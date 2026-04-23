@@ -3,6 +3,7 @@
 pub mod anthropic;
 pub mod custom;
 pub mod deepseek;
+pub mod kimi;
 pub mod openai;
 pub mod openai_format;
 pub mod zhipu;
@@ -13,6 +14,7 @@ mod tests;
 pub use anthropic::AnthropicClient;
 pub use custom::CustomClient;
 pub use deepseek::DeepSeekClient;
+pub use kimi::KimiClient;
 pub use openai::OpenAIClient;
 pub use zhipu::ZhipuClient;
 

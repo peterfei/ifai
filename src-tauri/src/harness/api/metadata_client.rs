@@ -123,11 +123,15 @@ impl<A: FormatAdapter + Send + Sync + 'static> ApiClient for MetadataDrivenClien
                             if let Some(event_data) = parse_sse_frame(&frame) {
                                 // 使用适配器解析事件（克隆适配器）
                                 match adapter.clone().parse_sse_event(&event_data) {
-                                    Ok(Some(event)) => yield Ok(event),
+                                    Ok(Some(event)) => {
+                                        yield Ok(event);
+                                    }
                                     Ok(None) => {
                                         // 空事件，继续
                                     }
-                                    Err(e) => yield Err(ApiError::Sse(format!("Failed to parse SSE event: {}", e))),
+                                    Err(e) => {
+                                        yield Err(ApiError::Sse(format!("Failed to parse SSE event: {}", e)));
+                                    }
                                 }
                             }
                         }

@@ -442,6 +442,27 @@ export const useChatStore = create<ChatStore>()(
           console.log('[useChatStore] 🎯 providerId:', providerId);
           console.log('[useChatStore] 🎯 modelName:', modelName);
           console.log('[useChatStore] 🎯 history length:', history.length);
+
+          // 🔥 FIX: 自动修复无效的 Kimi 模型名称
+          let fixedModelName = modelName;
+          if (providerId === 'kimi') {
+            // 修复旧模型名称
+            const modelFixes: Record<string, string> = {
+              'moonshot-v1-k2.6': 'kimi-k2.6',
+              'moonshot-v1-k2.5': 'kimi-k2.5',
+            };
+            if (modelFixes[modelName]) {
+              console.warn(`[useChatStore] ⚠️ 检测到无效模型名称: ${modelName}，自动修复为: ${modelFixes[modelName]}`);
+              fixedModelName = modelFixes[modelName];
+
+              // 延迟更新设置存储（避免循环依赖）
+              setTimeout(() => {
+                const { useSettingsStore } = require('./settingsStore');
+                useSettingsStore.getState().setCurrentProviderAndModel(providerId, fixedModelName);
+              }, 0);
+            }
+          }
+
           const { streamingResponseController } = await import('./chat/generateResponse/StreamingResponseController');
           const { useSettingsStore } = await import('./settingsStore');
           const { useFileStore } = await import('./fileStore');
@@ -546,7 +567,7 @@ export const useChatStore = create<ChatStore>()(
                       ...providerConfig,
                       api_key: (providerConfig as any).apiKey || "",
                       base_url: (providerConfig as any).baseUrl || "",
-                      models: [modelName]
+                      models: [fixedModelName]  // 🔥 FIX: 使用修复后的模型名称
                   },
                   messages: sanitizedMessages,
                   eventId: `chat_${correlationId}`,

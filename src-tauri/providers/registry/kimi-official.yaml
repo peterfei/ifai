@@ -1,4 +1,6 @@
 # Kimi (Moonshot AI) Provider Specification
+# 官方文档: https://platform.kimi.ai/docs/models
+# 更新时间: 2025/2026 - Kimi K2.6 系列
 metadata:
   id: kimi-official
   name: Kimi (Moonshot AI)
@@ -24,27 +26,114 @@ response_format:
   content_extraction: choices.0.delta.content
 
 models:
-  - id: moonshot-v1-k2.6
-    name: Moonshot V1 K2.6
-    context_tokens: 128000
-    capabilities: [tools, streaming, vision]
+  # ============================================
+  # Kimi K2 系列（最新多模态模型）
+  # ============================================
+  # 注意: kimi-k2 系列模型将于 2026年5月25日停止服务
+
+  - id: kimi-k2.6
+    name: Kimi K2.6
+    context_tokens: 256000
+    capabilities: [tools, streaming, vision, thinking, json_output]
+    tags: [latest, premium, multimodal, k2]
+    description: "Kimi 目前最智能的模型，原生多模态架构，支持视觉和文本输入"
     cost_per_1k_tokens: 0.012
-    tags: [latest, premium]
+
+  - id: kimi-k2.5
+    name: Kimi K2.5
+    context_tokens: 256000
+    capabilities: [tools, streaming, vision, thinking, json_output]
+    tags: [premium, multimodal, k2]
+    description: "Kimi 智能模型，原生多模态架构"
+    cost_per_1k_tokens: 0.012
+
+  - id: kimi-k2-0905-preview
+    name: Kimi K2 0905 Preview
+    context_tokens: 256000
+    capabilities: [tools, streaming, vision, thinking]
+    tags: [preview, k2, coding]
+    description: "增强 Agent 编码能力和前端代码美学"
+
+  - id: kimi-k2-0711-preview
+    name: Kimi K2 0711 Preview
+    context_tokens: 128000
+    capabilities: [tools, streaming, vision, thinking]
+    tags: [preview, k2, moe]
+    description: "MoE 架构基础模型，1T 总参数，32B 激活参数"
+
+  - id: kimi-k2-turbo-preview
+    name: Kimi K2 Turbo Preview
+    context_tokens: 256000
+    capabilities: [tools, streaming, vision, thinking]
+    tags: [preview, k2, fast]
+    description: "K2 高速版本，输出速度 60-100 tokens/秒"
+
+  - id: kimi-k2-thinking
+    name: Kimi K2 Thinking
+    context_tokens: 256000
+    capabilities: [tools, streaming, vision, thinking]
+    tags: [k2, thinking, reasoning]
+    description: "K2 长期思考模型，支持多步工具使用和推理"
+
+  - id: kimi-k2-thinking-turbo
+    name: Kimi K2 Thinking Turbo
+    context_tokens: 256000
+    capabilities: [tools, streaming, vision, thinking]
+    tags: [k2, thinking, reasoning, fast]
+    description: "K2 思考模型高速版，输出速度 60-100 tokens/秒"
+
+  # ============================================
+  # Moonshot V1 系列（经典生成模型）
+  # ============================================
+
   - id: moonshot-v1-128k
     name: Moonshot V1 128K
     context_tokens: 128000
     capabilities: [tools, streaming]
+    tags: [text, v1]
+    description: "适合生成长文本，上下文 128K"
     cost_per_1k_tokens: 0.012
+
   - id: moonshot-v1-32k
     name: Moonshot V1 32K
     context_tokens: 32000
     capabilities: [tools, streaming]
+    tags: [text, v1]
+    description: "适合生成长文本，上下文 32K"
     cost_per_1k_tokens: 0.008
+
   - id: moonshot-v1-8k
     name: Moonshot V1 8K
     context_tokens: 8000
     capabilities: [tools, streaming]
+    tags: [text, v1]
+    description: "适合生成短文本，上下文 8K"
     cost_per_1k_tokens: 0.003
+
+  # ============================================
+  # Moonshot V1 视觉模型（Preview）
+  # ============================================
+
+  - id: moonshot-v1-128k-vision-preview
+    name: Moonshot V1 128K Vision Preview
+    context_tokens: 128000
+    capabilities: [vision, streaming]
+    tags: [vision, v1, preview]
+    description: "视觉模型，理解图片内容并输出文本，上下文 128K"
+
+  - id: moonshot-v1-32k-vision-preview
+    name: Moonshot V1 32K Vision Preview
+    context_tokens: 32000
+    capabilities: [vision, streaming]
+    tags: [vision, v1, preview]
+    description: "视觉模型，理解图片内容并输出文本，上下文 32K"
+
+  - id: moonshot-v1-8k-vision-preview
+    name: Moonshot V1 8K Vision Preview
+    context_tokens: 8000
+    capabilities: [vision, streaming]
+    tags: [vision, v1, preview]
+    description: "视觉模型，理解图片内容并输出文本，上下文 8K"
 
 error_mapping:
   401: authentication_error

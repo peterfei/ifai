@@ -102,10 +102,23 @@ export function getModelMaxTokens(model: string): number {
     // DeepSeek (v0.4.3: 更新为 DeepSeek-V3.2 官方 API 模型)
     'deepseek-chat': 128000, // DeepSeek-V3.2
 
-    // Kimi
-    'moonshot-v1-8k': 8192,
-    'moonshot-v1-32k': 32768,
+    // Kimi (v0.4.3: 更新为 K2.6 系列和 V1 系列官方 API 模型)
+    // Kimi K2 系列（最新多模态模型，256K 上下文）
+    'kimi-k2.6': 256000,
+    'kimi-k2.5': 256000,
+    'kimi-k2-0905-preview': 256000,
+    'kimi-k2-0711-preview': 128000,
+    'kimi-k2-turbo-preview': 256000,
+    'kimi-k2-thinking': 256000,
+    'kimi-k2-thinking-turbo': 256000,
+    // Moonshot V1 系列
     'moonshot-v1-128k': 128000,
+    'moonshot-v1-32k': 32768,
+    'moonshot-v1-8k': 8192,
+    // Moonshot V1 Vision Preview 系列
+    'moonshot-v1-128k-vision-preview': 128000,
+    'moonshot-v1-32k-vision-preview': 32768,
+    'moonshot-v1-8k-vision-preview': 8192,
 
     // 本地模型（默认值）
     'default': 4096,

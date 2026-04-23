@@ -205,7 +205,25 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://api.moonshot.cn/v1/chat/completions',
           apiKey: '',
-          models: ['moonshot-v1-k2.6', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+          // 🔥 v0.4.3: Kimi K2.6 系列 - 从后端元数据获取完整模型列表（12个模型）
+          models: [
+            // Kimi K2 系列（最新多模态模型）
+            'kimi-k2.6',
+            'kimi-k2.5',
+            'kimi-k2-0905-preview',
+            'kimi-k2-0711-preview',
+            'kimi-k2-turbo-preview',
+            'kimi-k2-thinking',
+            'kimi-k2-thinking-turbo',
+            // Moonshot V1 系列
+            'moonshot-v1-128k',
+            'moonshot-v1-32k',
+            'moonshot-v1-8k',
+            // Moonshot V1 Vision Preview 系列
+            'moonshot-v1-128k-vision-preview',
+            'moonshot-v1-32k-vision-preview',
+            'moonshot-v1-8k-vision-preview',
+          ],
           enabled: false,
         },
         {
@@ -377,7 +395,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 13, // v0.4.3: 元数据驱动架构 - 更新 DeepSeek/Zhipu 模型列表
+      version: 14, // v0.4.3: 元数据驱动架构 - 更新 Kimi K2.6 系列模型列表
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -425,7 +443,39 @@ export const useSettingsStore = create<SettingsState>()(
         enableTypewriterEffect: state.enableTypewriterEffect,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 13`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 14`);
+
+        // v0.4.3: 版本 13 -> 14：更新 Kimi K2.6 系列模型列表
+        if (version < 14 && persistedState.providers) {
+          // 更新 Kimi 模型：使用 K2.6 系列官方模型名称
+          const kimiProvider = persistedState.providers.find((p: any) => p.id === 'kimi');
+          if (kimiProvider && kimiProvider.models) {
+            const newModels = [
+              // Kimi K2 系列（最新多模态模型）
+              'kimi-k2.6',
+              'kimi-k2.5',
+              'kimi-k2-0905-preview',
+              'kimi-k2-0711-preview',
+              'kimi-k2-turbo-preview',
+              'kimi-k2-thinking',
+              'kimi-k2-thinking-turbo',
+              // Moonshot V1 系列
+              'moonshot-v1-128k',
+              'moonshot-v1-32k',
+              'moonshot-v1-8k',
+              // Moonshot V1 Vision Preview 系列
+              'moonshot-v1-128k-vision-preview',
+              'moonshot-v1-32k-vision-preview',
+              'moonshot-v1-8k-vision-preview',
+            ];
+            // 清理旧的无效模型
+            const invalidModels = ['moonshot-v1-k2.6'];
+            kimiProvider.models = kimiProvider.models.filter((m: string) => !invalidModels.includes(m));
+            // 添加新模型
+            kimiProvider.models = Array.from(new Set([...newModels, ...kimiProvider.models]));
+            console.log('[SettingsStore] Updated Kimi models to K2.6 series:', kimiProvider.models);
+          }
+        }
 
         // v0.4.3: 版本 12 -> 13：更新 DeepSeek-V3.2 和 Zhipu 模型列表
         if (version < 13 && persistedState.providers) {
