@@ -14,9 +14,15 @@ import { getThreadMessages } from '../../useChatStore';
 import { intentHandler } from './IntentHandler';
 import { messageBuilder } from './MessageBuilder';
 import { contextSelector } from './ContextSelector';
+import { LogDataFlow } from '../decorators/LogDataFlow';
+import { ValidateMultiModal } from '../decorators/ValidateMultiModal';
 
 console.log('[SendMessageOrchestrator] 🔧🔧🔧 Module loaded!');
 
+/**
+ * 消息发送编排器（应用元编程装饰器）
+ */
+@LogDataFlow({ trackFields: ['multiModalContent', 'content', 'messageId'] })
 export class SendMessageOrchestrator {
   private instanceId: string;
 
@@ -231,11 +237,43 @@ export class SendMessageOrchestrator {
       
       console.log(`[SendMessageOrchestrator] Context selected: ${context.length} messages (including current)`);
 
+      // 🔴🟢 高保真日志点1：MessageBuilder → EventBus
+      const multiModalContent = (builtMessage as any).multiModalContent;
+      console.log('[SendMessageOrchestrator] 🔴🟢 POINT-1: Emitting chat:message:sent event');
+      console.log('[SendMessageOrchestrator] ========================================');
+      console.log('[SendMessageOrchestrator] 📤 builtMessage details:', {
+          messageId: builtMessage.id,
+          role: builtMessage.role,
+          contentLength: builtMessage.content?.length || 0,
+          contentPreview: builtMessage.content?.substring(0, 100),
+          hasMultiModalContent: !!multiModalContent,
+          multiModalContentType: typeof multiModalContent,
+          multiModalContentConstructor: multiModalContent?.constructor?.name,
+          isArray: Array.isArray(multiModalContent),
+          itemCount: Array.isArray(multiModalContent) ? multiModalContent.length : 0,
+          // 🔥 详细记录 multiModalContent 结构
+          multiModalContentStructure: Array.isArray(multiModalContent)
+              ? multiModalContent.map((part: any, idx: number) => ({
+                    index: idx,
+                    type: part.type,
+                    hasImageUrl: !!part.image_url,
+                    hasText: !!part.text,
+                    imageUrlPreview: part.image_url?.url?.substring(0, 50) + '...',
+                    textPreview: part.text?.substring(0, 50) + '...',
+                }))
+              : null,
+          // 🔥 JSON 序列化测试
+          jsonSerialized: JSON.stringify(multiModalContent),
+      });
+      console.log('[SendMessageOrchestrator] ========================================');
+
       // 6. 最终分发 (保险丝 2: 事务持久化触发点)
       chatEventBus.emit('chat:message:sent', {
         ...basePayload,
-        messageId: builtMessage.id, 
-        content: builtMessage.content
+        messageId: builtMessage.id,
+        content: builtMessage.content,
+        // ✅ 元编程：自动包含 multiModalContent
+        multiModalContent: (builtMessage as any).multiModalContent
       });
 
       return { correlationId, sessionId, messageId: builtMessage.id, context };

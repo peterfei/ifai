@@ -178,8 +178,31 @@ impl AIService for HarnessAIService {
                     _ => MessageRole::User,
                 },
                 content: match &msg.content {
-                    crate::core_traits::ai::Content::Text(text) => text.clone(),
-                    _ => String::new(),
+                    crate::core_traits::ai::Content::Text(text) => {
+                        crate::harness::api::types::MessageContent::Text(text.clone())
+                    }
+                    crate::core_traits::ai::Content::Parts(parts) => {
+                        // 🔥 v0.4.3: 支持多模态内容
+                        let content_parts = parts.iter().map(|part| match part {
+                            crate::core_traits::ai::ContentPart::Text { text, .. } => {
+                                crate::harness::api::types::ContentPart {
+                                    part_type: "text".to_string(),
+                                    text: Some(text.clone()),
+                                    image_url: None,
+                                }
+                            }
+                            crate::core_traits::ai::ContentPart::ImageUrl { image_url, .. } => {
+                                crate::harness::api::types::ContentPart {
+                                    part_type: "image_url".to_string(),
+                                    text: None,
+                                    image_url: Some(crate::harness::api::types::ImageUrl {
+                                        url: image_url.url.clone(),
+                                    }),
+                                }
+                            }
+                        }).collect();
+                        crate::harness::api::types::MessageContent::MultiModal(content_parts)
+                    }
                 },
                 tool_calls: None,
                 tool_call_id: None,
@@ -975,7 +998,7 @@ impl AIService for HarnessAIService {
 
             stream_messages.push(HarnessMessage {
                 role: MessageRole::Assistant,
-                content: loop_text.clone(),
+                content: crate::harness::api::types::MessageContent::Text(loop_text.clone()),
                 tool_calls: Some(tool_calls_for_msg),
                 tool_call_id: None,
             });
@@ -984,7 +1007,7 @@ impl AIService for HarnessAIService {
             for tc in &collected_tool_calls {
                 stream_messages.push(HarnessMessage {
                     role: MessageRole::Tool,
-                    content: tc.execution_result.clone(),
+                    content: crate::harness::api::types::MessageContent::Text(tc.execution_result.clone()),
                     tool_calls: None,
                     tool_call_id: Some(tc.tool_id.clone()),
                 });

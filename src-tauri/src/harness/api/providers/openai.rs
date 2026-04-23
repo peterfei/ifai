@@ -63,7 +63,7 @@ impl ApiClient for OpenAIClient {
         if let Some(system) = &request.system {
             messages.push(Message {
                 role: MessageRole::System,
-                content: system.clone(),
+                content: system.clone().into(),
                 tool_calls: None,
                 tool_call_id: None,
             });

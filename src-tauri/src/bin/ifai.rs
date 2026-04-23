@@ -314,7 +314,7 @@ impl Session {
     fn add_message(&mut self, role: ifainew_lib::harness::api::MessageRole, content: String) {
         self.messages.push(ifainew_lib::harness::api::Message {
             role,
-            content,
+            content: ifainew_lib::harness::api::types::MessageContent::Text(content),
             tool_calls: None,
             tool_call_id: None,
         });
@@ -520,7 +520,7 @@ impl Session {
 
             self.messages.push(ifainew_lib::harness::api::Message {
                 role: ifainew_lib::harness::api::MessageRole::Assistant,
-                content: assistant_msg.to_string(),
+                content: ifainew_lib::harness::api::types::MessageContent::Text(assistant_msg.to_string()),
                 tool_calls: tool_calls_value,
                 tool_call_id: None,
             });
@@ -529,7 +529,7 @@ impl Session {
             for (tool_id, result) in tool_results {
                 self.messages.push(ifainew_lib::harness::api::Message {
                     role: ifainew_lib::harness::api::MessageRole::Tool,
-                    content: result,
+                    content: ifainew_lib::harness::api::types::MessageContent::Text(result),
                     tool_calls: None,
                     tool_call_id: Some(tool_id),
                 });

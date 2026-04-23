@@ -11,6 +11,7 @@ import { persist as zustandPersist } from 'zustand/middleware';
 import { chatEventBus, StreamPhase } from './chat/eventBus/ChatEventBus';
 import { ensureTauriInitialized } from '../utils/tauriInitializer';
 import { persist, PersistenceStrategies } from './persistence/PersistenceDecorator';
+import { selectAPIMessageContent } from '../types/multimodal';
 
 // -------------------------------------------------------------------
 // 1. 类型定义
@@ -521,9 +522,68 @@ export const useChatStore = create<ChatStore>()(
                         }
                     }));
 
+                    // ✅ 元编程：使用类型安全的内容选择器
+                    const content = selectAPIMessageContent(m);
+
+                    // 🔧 后端兼容层：确保多模态内容被正确序列化
+                    // 智谱 API 需要格式化的多模态内容，不能直接传递数组
+                    let apiContent: any = content;
+                    if (Array.isArray(content)) {
+                        // 🔍 高保真日志：完整的 multiModalContent 结构
+                        console.log('[ChatStore] 🔍 multiModalContent 原始结构:', {
+                            messageId: m.id,
+                            isArray: Array.isArray(content),
+                            itemCount: content.length,
+                            fullStructure: JSON.stringify(content, null, 2),
+                        });
+
+                        // 确保多模态内容格式正确
+                        apiContent = content.map(part => {
+                            if (part.type === 'image_url') {
+                                // 确保图片 URL 格式正确
+                                const imagePart = {
+                                    type: 'image_url',
+                                    image_url: {
+                                        url: part.image_url.url
+                                    }
+                                };
+                                console.log('[ChatStore] 🖼️ 图片部分:', {
+                                    originalType: typeof part,
+                                    hasImageUrl: !!(part as any).image_url,
+                                    urlLength: (part as any).image_url?.url?.length || 0,
+                                    urlPreview: (part as any).image_url?.url?.substring(0, 50) + '...',
+                                    reconstructed: imagePart,
+                                });
+                                return imagePart;
+                            }
+                            if (part.type === 'text') {
+                                console.log('[ChatStore] 📝 文本部分:', {
+                                    textLength: (part as any).text?.length || 0,
+                                    textPreview: (part as any).text?.substring(0, 100) + '...',
+                                });
+                            }
+                            return part;
+                        });
+
+                        // 🔍 调试日志：最终发送的结构
+                        console.log('[ChatStore] 📤 MultiModal content for API:', {
+                            partsCount: apiContent.length,
+                            hasText: apiContent.some((p: any) => p.type === 'text'),
+                            hasImage: apiContent.some((p: any) => p.type === 'image_url'),
+                            fullApiContent: JSON.stringify(apiContent, null, 2),
+                            jsonStringifyResult: JSON.stringify({ content: apiContent }),
+                        });
+                    } else {
+                        // 纯文本内容
+                        console.log('[ChatStore] 📝 纯文本内容:', {
+                            length: content.length,
+                            preview: (content as string).substring(0, 100),
+                        });
+                    }
+
                     return {
                         role: m.role,
-                        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+                        content: apiContent,
                         tool_calls: tool_calls && tool_calls.length > 0 ? tool_calls : undefined,
                         tool_call_id: m.tool_call_id
                     };
@@ -534,10 +594,35 @@ export const useChatStore = create<ChatStore>()(
                     return true;
                 });
 
-              // 🔥 FIX: 防御性检查 — 确保至少有一条 user 消息
-              // 场景：前端工具（TodoWrite）执行后产生 role:'tool' 消息，
-              // 后端 continuation loop 结束后用户发新消息，如果 sanitizedMessages 中
-              // 意外丢失了 user 消息（去重/过滤逻辑边界情况），从原始 history 中恢复
+              // 🔍 高保真调试日志：检查最终发送的消息格式
+              console.log('[ChatStore] 📤 Final messages to invoke:', {
+                count: sanitizedMessages.length,
+                messages: sanitizedMessages.map((m, index) => {
+                  const isMultiModal = Array.isArray(m.content);
+                  let contentDetails: any = {
+                    role: m.role,
+                    contentType: typeof m.content,
+                  };
+
+                  if (isMultiModal) {
+                    contentDetails.contentPreview = `Array(${(m.content as any).length} items)`;
+                    contentDetails.hasMultiModal = true;
+                    contentDetails.multiModalStructure = (m.content as any).map((part: any) => ({
+                      type: part.type,
+                      hasData: !!part.image_url?.url || !!part.text,
+                    }));
+                    contentDetails.fullJson = JSON.stringify(m.content, null, 2);
+                  } else {
+                    contentDetails.contentPreview = (m.content as string).substring(0, 100);
+                    contentDetails.hasMultiModal = false;
+                  }
+
+                  console.log(`[ChatStore]   [${index}] ${m.role} message:`, contentDetails);
+                  return contentDetails;
+                })
+              });
+
+              // 🔧 确保至少有一条 user 消息
               const hasUserMessage = sanitizedMessages.some(m => m.role === 'user');
               if (!hasUserMessage) {
                 console.warn('[ChatStore] ⚠️ No user message in sanitizedMessages! Attempting recovery...');
@@ -567,6 +652,63 @@ export const useChatStore = create<ChatStore>()(
                 console.log('[ChatStore] 🔍 Last message has tool_calls:', !!lastMsg.tool_calls);
                 console.log('[ChatStore] 🔍 Last message content preview:', typeof lastMsg.content === 'string' ? lastMsg.content.substring(0, 100) : 'non-string');
               }
+
+              // 🔴🟢 高保真边界点日志：前端 → Rust 后端
+              console.log('[ChatStore] 🔴🟢 BOUNDARY: Frontend → Rust Backend');
+              console.log('[ChatStore] ========================================');
+              console.log('[ChatStore] 📦 Full invoke payload:', {
+                  eventId: `chat_${correlationId}`,
+                  messageCount: sanitizedMessages.length,
+                  providerName: providerConfig.name,
+                  modelName: modelName,
+                  enableTools: true,
+                  timestamp: new Date().toISOString(),
+              });
+
+              // 详细记录每个消息的完整结构
+              sanitizedMessages.forEach((msg, idx) => {
+                  const isMultiModal = Array.isArray(msg.content);
+                  console.log(`[ChatStore] 📨 Message [${idx}] details:`, {
+                      index: idx,
+                      role: msg.role,
+                      contentType: typeof msg.content,
+                      contentConstructor: msg.content?.constructor?.name,
+                      isArray: Array.isArray(msg.content),
+                      hasMultiModal: isMultiModal,
+                      contentLength: isMultiModal ? (msg.content as any).length : (msg.content as string)?.length,
+                      // 🔥 关键：记录完整的 content 结构
+                      fullContent: isMultiModal
+                          ? (msg.content as any).map((part: any, pIdx: number) => ({
+                                partIndex: pIdx,
+                                type: part.type,
+                                hasImageUrl: !!part.image_url,
+                                hasText: !!part.text,
+                                imageUrlLength: part.image_url?.url?.length || 0,
+                                imageUrlPreview: part.image_url?.url?.substring(0, 50) + '...',
+                                textLength: part.text?.length || 0,
+                                textPreview: part.text?.substring(0, 50) + '...',
+                            }))
+                          : (msg.content as string)?.substring(0, 200),
+                      // 🔥 关键：JSON 序列化测试
+                      jsonStringify: JSON.stringify(msg.content),
+                      jsonStringLength: JSON.stringify(msg.content).length,
+                      tool_calls: msg.tool_calls,
+                      tool_call_id: msg.tool_call_id,
+                  });
+              });
+
+              // 🔥 测试：完整序列化整个 messages 数组
+              const fullSerialized = JSON.stringify(sanitizedMessages);
+              console.log('[ChatStore] 🔥 Full serialization test:', {
+                  messagesSerializedLength: fullSerialized.length,
+                  messagesSerializedPreview: fullSerialized.substring(0, 500) + '...',
+                  serializationSuccess: fullSerialized !== undefined && fullSerialized !== null,
+                  firstChar: fullSerialized[0],
+                  lastChar: fullSerialized[fullSerialized.length - 1],
+              });
+
+              console.log('[ChatStore] ========================================');
+              console.log('[ChatStore] 🚀 Invoking Tauri command: ai_chat');
 
               const invokeStart = Date.now();
               await invoke('ai_chat', {

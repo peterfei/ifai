@@ -19,6 +19,9 @@ import { createLogger } from '../../utils/logger';
 // 🔥 Logger instance for StoreMapper
 const logger = createLogger('StoreMapper');
 
+// ✅ 元编程：数据流追踪（当元数据启用时）
+const MULTI_MODAL_LOGGING_ENABLED = true;
+
 export const initStoreMapper = () => {
     // 🔥 CRITICAL: 防止同一页面重复初始化（HMR）
     // 仅检查 window 级别，不检查 globalThis，避免跨 page 隔离问题
@@ -366,7 +369,46 @@ export const initStoreMapper = () => {
     // 1. 映射用户消息发送
     console.log('[StoreMapper] 🔍 Registering chat:message:sent listener, EventBus instance:', (chatEventBus as any).constructor.name);
     chatEventBus.on('chat:message:sent', (payload) => {
-      const { messageId, content, correlationId, isAssistantOnly, isWorkflowMessage } = payload as any;
+      const payloadData = payload as any;
+      const { messageId, content, correlationId, isAssistantOnly, isWorkflowMessage } = payloadData;
+
+      // 🔴🟢 高保真日志点2：EventBus → StoreMapper
+      const multiModalContent = payloadData.multiModalContent;
+      console.log('[StoreMapper] 🔴🟢 POINT-2: Received chat:message:sent event');
+      console.log('[StoreMapper] ========================================');
+      console.log('[StoreMapper] 📨 Event payload details:', {
+          messageId,
+          correlationId,
+          hasMultiModalContent: !!multiModalContent,
+          multiModalContentType: typeof multiModalContent,
+          multiModalContentConstructor: multiModalContent?.constructor?.name,
+          isArray: Array.isArray(multiModalContent),
+          itemCount: Array.isArray(multiModalContent) ? multiModalContent.length : 0,
+          // 🔥 详细记录 multiModalContent 结构
+          multiModalContentStructure: Array.isArray(multiModalContent)
+              ? multiModalContent.map((part: any, idx: number) => ({
+                    index: idx,
+                    type: part.type,
+                    hasImageUrl: !!part.image_url,
+                    hasText: !!part.text,
+                    imageUrlPreview: part.image_url?.url?.substring(0, 50) + '...',
+                    textPreview: part.text?.substring(0, 50) + '...',
+                }))
+              : null,
+          // 🔥 JSON 序列化测试
+          jsonSerialized: JSON.stringify(multiModalContent),
+      });
+      console.log('[StoreMapper] ========================================');
+
+      // ✅ 元编程：追踪 multiModalContent 字段
+      if (MULTI_MODAL_LOGGING_ENABLED && payloadData.multiModalContent) {
+        console.log('[StoreMapper] 📸 multiModalContent received:', {
+          messageId,
+          hasMultiModal: true,
+          itemCount: payloadData.multiModalContent.length,
+          types: payloadData.multiModalContent.map((c: any) => c.type)
+        });
+      }
       const assistantId = correlationId;
 
       console.log('[StoreMapper] 📨 chat:message:sent received:', {
@@ -486,6 +528,30 @@ export const initStoreMapper = () => {
             timestamp: userTimestamp
         }];
 
+        // 🔴🟢 高保真日志点3：StoreMapper → Message Storage
+        console.log('[StoreMapper] 🔴🟢 POINT-3: Creating user message with multiModalContent');
+        console.log('[StoreMapper] ========================================');
+        console.log('[StoreMapper] 💾 User message details:', {
+            id: messageId,
+            role: 'user',
+            contentLength: content?.length || 0,
+            contentPreview: content?.substring(0, 100),
+            hasMultiModalContent: !!payloadData.multiModalContent,
+            multiModalContent: payloadData.multiModalContent
+                ? payloadData.multiModalContent.map((part: any, idx: number) => ({
+                      index: idx,
+                      type: part.type,
+                      hasImageUrl: !!part.image_url,
+                      hasText: !!part.text,
+                      imageUrlPreview: part.image_url?.url?.substring(0, 50) + '...',
+                      textPreview: part.text?.substring(0, 50) + '...',
+                  }))
+                : null,
+            timestamp: userTimestamp,
+            segmentCount: userSegments.length,
+        });
+        console.log('[StoreMapper] ========================================');
+
         const result = {
             messages: [
                 ...filtered,
@@ -493,6 +559,8 @@ export const initStoreMapper = () => {
                     id: messageId,
                     role: 'user',
                     content,
+                    // ✅ 元编程：自动包含 multiModalContent
+                    multiModalContent: payloadData.multiModalContent,
                     timestamp: userTimestamp,
                     segments: userSegments // 物理注入
                 },

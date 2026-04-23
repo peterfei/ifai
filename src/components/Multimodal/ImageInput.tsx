@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Image } from 'lucide-react';
 import type { ImageAttachment } from '../../types/multimodal';
+import { compressImage, formatFileSize } from '../../utils/imageCompression';
 
 interface ImageInputProps {
   /** 当前图片附件列表 */
@@ -63,11 +64,30 @@ export const ImageInput: React.FC<ImageInputProps> = ({
         });
 
         const base64 = await base64Promise;
-        const previewUrl = `data:${file.type};base64,${base64}`;
+        const originalDataUrl = `data:${file.type};base64,${base64}`;
+
+        // 🔥 FIX: 添加图片压缩，避免智谱 API 1210 错误（请求体过大）
+        // 智谱 API 对请求体大小限制较严格，需要压缩图片
+        // 参考: https://github.com/anthropics/claude-code/issues/XXX
+        const compressionResult = await compressImage(originalDataUrl, {
+          maxWidth: 1280,    // 限制宽度
+          maxHeight: 1280,   // 限制高度
+          quality: 0.75,     // 压缩质量
+          maxSizeMB: 2,      // 最大 2MB
+        });
+
+        const compressedBase64 = compressionResult.data;
+        const previewUrl = `data:image/jpeg;base64,${compressedBase64}`;
+
+        console.log('[ImageInput] 图片压缩完成:', {
+          原始大小: formatFileSize(compressionResult.originalSize),
+          压缩后大小: formatFileSize(compressionResult.compressedSize),
+          压缩率: `${compressionResult.compressionRatio.toFixed(1)}%`,
+        });
 
         onAddAttachment({
           id: crypto.randomUUID(),
-          content: { data: base64, mime_type: file.type, name: file.name, size: file.size },
+          content: { data: compressedBase64, mime_type: 'image/jpeg', name: file.name, size: compressionResult.compressedSize },
           previewUrl,
           status: 'ready',
         });

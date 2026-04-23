@@ -20,17 +20,138 @@ pub struct StreamRequest {
     pub tools: Option<Vec<serde_json::Value>>,
 }
 
+/// 🔥 v0.4.3: 多模态内容支持
+/// OpenAI 兼容格式：content 可以是字符串或数组
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MessageContent {
+    /// 纯文本消息
+    Text(String),
+    /// 多模态消息（文本 + 图片）
+    MultiModal(Vec<ContentPart>),
+}
+
+impl MessageContent {
+    /// 获取文本预览（用于日志）
+    pub fn preview(&self) -> String {
+        match self {
+            MessageContent::Text(s) => {
+                if s.chars().count() > 50 {
+                    format!("{}...", s.chars().take(50).collect::<String>())
+                } else {
+                    s.clone()
+                }
+            }
+            MessageContent::MultiModal(parts) => {
+                format!("Parts({} items)", parts.len())
+            }
+        }
+    }
+
+    /// 检查是否为多模态
+    pub fn is_multimodal(&self) -> bool {
+        matches!(self, MessageContent::MultiModal(_))
+    }
+
+    /// 🔥 获取文本内容（用于多模态时提取文本部分）
+    pub fn get_text(&self) -> String {
+        match self {
+            MessageContent::Text(s) => s.clone(),
+            MessageContent::MultiModal(parts) => {
+                parts.iter()
+                    .filter(|p| p.part_type == "text")
+                    .filter_map(|p| p.text.as_ref())
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+        }
+    }
+}
+
+/// 🔥 实现 Display trait for MessageContent
+impl std::fmt::Display for MessageContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MessageContent::Text(s) => write!(f, "{}", s),
+            MessageContent::MultiModal(parts) => {
+                write!(f, "[多模态内容: {} 个部分]", parts.len())
+            }
+        }
+    }
+}
+
+/// 🔥 自动转换：String → MessageContent::Text
+impl From<String> for MessageContent {
+    fn from(s: String) -> Self {
+        MessageContent::Text(s)
+    }
+}
+
+/// 🔥 自动转换：&str → MessageContent::Text
+impl From<&str> for MessageContent {
+    fn from(s: &str) -> Self {
+        MessageContent::Text(s.to_string())
+    }
+}
+
+/// 🔥 v0.4.3: 多模态内容部分（OpenAI 格式）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentPart {
+    /// 类型：text 或 image_url
+    #[serde(rename = "type")]
+    pub part_type: String,
+
+    /// 文本内容（type=text 时）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+
+    /// 图片 URL（type=image_url 时）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<ImageUrl>,
+}
+
+/// 🔥 v0.4.3: 图片 URL（OpenAI 格式）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageUrl {
+    /// 图片 URL（支持 base64 data: URLs）
+    pub url: String,
+}
+
 /// 消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub role: MessageRole,
-    pub content: String,
+    /// 🔥 v0.4.3: 支持多模态内容（字符串或数组）
+    pub content: MessageContent,
     /// 🆕 P3: 工具调用（仅用于 Assistant 消息）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCall>>,
     /// 🆕 P3: 工具调用 ID（仅用于 Tool 消息）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+}
+
+impl Message {
+    /// 🔥 v0.4.3: 辅助构造函数 - 从字符串创建文本消息
+    pub fn text(role: MessageRole, content: impl Into<MessageContent>) -> Self {
+        Self {
+            role,
+            content: content.into(),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
+    /// 🔥 v0.4.3: 辅助构造函数 - 创建多模态消息
+    pub fn multimodal(role: MessageRole, parts: Vec<ContentPart>) -> Self {
+        Self {
+            role,
+            content: MessageContent::MultiModal(parts),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
 }
 
 /// 🆕 P3: 工具调用（OpenAI 格式）

@@ -119,6 +119,10 @@ export default defineConfig(async ({ mode }) => {
         ? []  // E2E: 允许所有 Tauri API 被处理（应用别名）
         : ['@tauri-apps/api', '@tauri-apps/plugin-fs'],  // 非E2E: 排除真实 Tauri API
       include: ['monaco-editor'],
+      // 🔥 禁用强制优化来避免 504 错误
+      force: false,
+      // 🔥 增加缓存目录
+      cacheDir: 'node_modules/.vite',
     },
     // Build options for Tauri
     build: {

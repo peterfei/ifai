@@ -325,7 +325,7 @@ fn transform_messages_openai(
             let content = if handling == "prefix_in_user"
                 && matches!(msg.role, crate::harness::api::types::MessageRole::System) {
                 // 系统提示词前缀模式：添加 "System: " 前缀
-                format!("System: {}", msg.content)
+                crate::harness::api::types::MessageContent::Text(format!("System: {}", msg.content))
             } else {
                 msg.content.clone()
             };
@@ -352,7 +352,7 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
 
             let content = if matches!(msg.role, crate::harness::api::types::MessageRole::System) {
                 // 系统提示词添加 "System: " 前缀
-                format!("System: {}", msg.content)
+                crate::harness::api::types::MessageContent::Text(format!("System: {}", msg.content))
             } else {
                 msg.content.clone()
             };

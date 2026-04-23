@@ -1,19 +1,24 @@
 /**
  * MessageBuilder - 消息构建器 (Phase 3)
- * 
+ *
  * 负责解析多模态内容、注入符号引用并构建标准 Message 对象。
- * 
+ *
  * @version v1.0.0
  */
 
 import { v4 as uuidv4 } from 'uuid';
 import { readFileContent } from '../../../utils/fileSystem';
 import type { Message, ContentPart } from 'ifainew-core';
+import { LogDataFlow } from '../decorators/LogDataFlow';
 
 // 🏆 v0.3.6: 工业级多模态数据缓存
 // 将大体积图片保留在内存中，不存入受限的持久化存储
 const multimodalCache = new Map<string, ContentPart[]>();
 
+/**
+ * 消息构建器（应用元编程装饰器）
+ */
+@LogDataFlow({ trackFields: ['multiModalContent', 'content'] })
 export class MessageBuilder {
   /**
    * 构建富文本消息
