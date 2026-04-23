@@ -16,6 +16,7 @@ use super::super::types::{
 };
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
+use super::super::provider_metadata; // 🔥 元编程：从元数据获取模型列表
 use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
 
 pub struct ZhipuClient {
@@ -208,58 +209,9 @@ impl ApiClient for ZhipuClient {
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ApiError> {
-        Ok(vec![
-            ModelInfo {
-                id: "glm-4.7".to_string(),
-                name: "GLM-4.7".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4.7-flash".to_string(),
-                name: "GLM-4.7 Flash".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4.6".to_string(),
-                name: "GLM-4.6".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4.5v".to_string(),
-                name: "GLM-4.5V".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4-plus".to_string(),
-                name: "GLM-4 Plus".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4-air".to_string(),
-                name: "GLM-4 Air".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4-flash".to_string(),
-                name: "GLM-4 Flash".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4".to_string(),
-                name: "GLM-4".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-4v".to_string(),
-                name: "GLM-4V".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "glm-3-turbo".to_string(),
-                name: "GLM-3 Turbo".to_string(),
-                context_tokens: 32000,
-            },
-        ])
+        // 🔥 元编程：从配置文件读取模型列表，而非硬编码
+        provider_metadata::get_models_for_provider("zhipu-official")
+            .ok_or_else(|| ApiError::Network("Zhipu provider metadata not found".to_string()))
     }
 
     fn estimate_tokens(&self, content: &str) -> usize {

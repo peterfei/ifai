@@ -22,14 +22,14 @@ export const PROVIDER_MULTIMODAL_CAPABILITIES: Record<string, {
     recommendedVisionModel: 'gpt-4o',
   },
   zhipu: {
-    multimodal: ['glm-4.5v', 'glm-4v', 'glm-4v-plus'],
-    nonMultimodal: ['glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4-plus'],
+    multimodal: ['glm-4.5v', 'glm-4v'],
+    nonMultimodal: ['glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4-plus', 'glm-4-flash', 'glm-4-air', 'glm-4', 'glm-3-turbo', 'glm-5.1'],
     recommendedVisionModel: 'glm-4.5v',
   },
   deepseek: {
-    multimodal: ['deepseek-vl', 'deepseek-vl-plus'],
-    nonMultimodal: ['deepseek-chat', 'deepseek-coder'],
-    recommendedVisionModel: 'deepseek-vl',
+    multimodal: [], // DeepSeek 官方 API 目前不支持视觉模型
+    nonMultimodal: ['deepseek-chat'],
+    // 注意: DeepSeek-VL2 仅通过第三方平台提供，不在官方 API 中
   },
   gemini: {
     multimodal: ['gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro'],

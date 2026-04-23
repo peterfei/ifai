@@ -164,7 +164,8 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://api.deepseek.com/chat/completions',
           apiKey: '',
-          models: ['deepseek-chat', 'deepseek-coder'],
+          // 🔥 v0.4.3: DeepSeek-V3.2 官方 API 模型（不支持视觉）
+          models: ['deepseek-chat'],
           enabled: true,
         },
         {
@@ -188,7 +189,14 @@ export const useSettingsStore = create<SettingsState>()(
           protocol: 'openai',
           baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
           apiKey: '',
-          models: ['glm-5.1', 'glm-4.7', 'glm-4.7-flash', 'glm-4.6', 'glm-4.5v', 'glm-4.5-air', 'glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4', 'glm-4v', 'glm-3-turbo'],
+          // 🔥 v0.4.3: 从后端元数据获取完整模型列表（11个模型）
+          models: [
+            'glm-5.1',
+            'glm-4.7', 'glm-4.7-flash',
+            'glm-4.5v', 'glm-4v',
+            'glm-4-plus', 'glm-4.6', 'glm-4-flash', 'glm-4-air', 'glm-4',
+            'glm-3-turbo'
+          ],
           enabled: true,
         },
         {
@@ -369,7 +377,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => PersistenceManager.getInstance()),
-      version: 12, // v0.5.6: Add Gemini 3.1/3 series models
+      version: 13, // v0.4.3: 元数据驱动架构 - 更新 DeepSeek/Zhipu 模型列表
       partialize: (state) => ({
         theme: state.theme,
         fontSize: state.fontSize,
@@ -417,7 +425,44 @@ export const useSettingsStore = create<SettingsState>()(
         enableTypewriterEffect: state.enableTypewriterEffect,
       }),
       migrate: (persistedState: any, version: number) => {
-        console.log(`[SettingsStore] Migrating from version ${version} to 12`);
+        console.log(`[SettingsStore] Migrating from version ${version} to 13`);
+
+        // v0.4.3: 版本 12 -> 13：更新 DeepSeek-V3.2 和 Zhipu 模型列表
+        if (version < 13 && persistedState.providers) {
+          // 更新 DeepSeek 模型：使用 DeepSeek-V3.2 官方 API 模型（不支持视觉）
+          const deepseekProvider = persistedState.providers.find((p: any) => p.id === 'deepseek');
+          if (deepseekProvider && deepseekProvider.models) {
+            const newModels = ['deepseek-chat'];
+            // 清理旧的无效模型
+            const invalidModels = ['deepseek-vl-plus', 'deepseek-vl', 'deepseek-coder', 'deepseek-reasoner'];
+            deepseekProvider.models = deepseekProvider.models.filter((m: string) => !invalidModels.includes(m));
+            // 添加新模型
+            deepseekProvider.models = Array.from(new Set([...newModels, ...deepseekProvider.models]));
+            console.log('[SettingsStore] Updated DeepSeek models to V3.2:', deepseekProvider.models);
+          }
+
+          // 更新 Zhipu 模型：移除无效的 glm-4.5-air，确保视觉模型存在
+          const zhipuProvider = persistedState.providers.find((p: any) => p.id === 'zhipu');
+          if (zhipuProvider && zhipuProvider.models) {
+            const newModels = [
+              'glm-5.1',
+              'glm-4.7',
+              'glm-4.7-flash',
+              'glm-4.5v',
+              'glm-4v',
+              'glm-4-plus',
+              'glm-4.6',
+              'glm-4-flash',
+              'glm-4-air',
+              'glm-4',
+              'glm-3-turbo'
+            ];
+            zhipuProvider.models = Array.from(new Set([...newModels, ...zhipuProvider.models]));
+            // 移除无效模型
+            zhipuProvider.models = zhipuProvider.models.filter((m: string) => m !== 'glm-4.5-air');
+            console.log('[SettingsStore] Updated Zhipu models:', zhipuProvider.models);
+          }
+        }
 
         // v0.5.6: 版本 11 -> 12：添加 Gemini 3.1/3 系列模型
         if (version < 12 && persistedState.providers) {

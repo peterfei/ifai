@@ -99,11 +99,8 @@ export function getModelMaxTokens(model: string): number {
     'glm-4.7': 128000,
     'glm-5': 128000,
 
-    // DeepSeek (v0.3.5: 统一提升到 128K)
-    'deepseek-chat': 128000,
-    'deepseek-coder': 128000,
-    'deepseek-reasoner': 128000,
-    'deepseek-v3': 128000,
+    // DeepSeek (v0.4.3: 更新为 DeepSeek-V3.2 官方 API 模型)
+    'deepseek-chat': 128000, // DeepSeek-V3.2
 
     // Kimi
     'moonshot-v1-8k': 8192,

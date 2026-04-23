@@ -20,6 +20,7 @@ fn init_provider_registry() -> &'static HashMap<String, ProviderSpec> {
         let yaml_files = vec![
             ("openai-official", include_str!("../../../providers/registry/openai-official.yaml")),
             ("zhipu-official", include_str!("../../../providers/registry/zhipu-official.yaml")),
+            ("deepseek-official", include_str!("../../../providers/registry/deepseek-official.yaml")),
             ("kimi-official", include_str!("../../../providers/registry/kimi-official.yaml")),
             ("gemini-official", include_str!("../../../providers/registry/gemini-official.yaml")),
         ];
@@ -62,6 +63,18 @@ pub fn get_all_models_from_specs() -> Vec<crate::harness::api::types::ModelInfo>
             })
         })
         .collect()
+}
+
+/// 🏛️ 元编程：根据提供商 ID 获取模型列表
+/// 🔥 用途：替换各个 provider 中硬编码的 list_models() 实现
+pub fn get_models_for_provider(provider_id: &str) -> Option<Vec<crate::harness::api::types::ModelInfo>> {
+    get_provider_spec(provider_id).map(|spec| {
+        spec.models.iter().map(|m| crate::harness::api::types::ModelInfo {
+            id: m.id.clone(),
+            name: m.name.clone(),
+            context_tokens: m.context_tokens,
+        }).collect()
+    })
 }
 
 
@@ -637,10 +650,11 @@ models:
 
         let specs = get_all_provider_specs();
 
-        // 验证加载了所有 4 个提供商
-        assert_eq!(specs.len(), 4);
+        // 验证加载了所有 5 个提供商
+        assert_eq!(specs.len(), 5);
         assert!(specs.contains_key("openai-official"));
         assert!(specs.contains_key("zhipu-official"));
+        assert!(specs.contains_key("deepseek-official"));
         assert!(specs.contains_key("kimi-official"));
         assert!(specs.contains_key("gemini-official"));
 
@@ -653,6 +667,11 @@ models:
         let zhipu = specs.get("zhipu-official").unwrap();
         assert!(zhipu.models.iter().any(|m| m.id == "glm-5.1"));
         assert!(zhipu.models.iter().any(|m| m.tags.contains(&"latest".to_string())));
+
+        // 验证 DeepSeek VL
+        let deepseek = specs.get("deepseek-official").unwrap();
+        assert!(deepseek.models.iter().any(|m| m.id == "deepseek-vl"));
+        assert!(deepseek.models.iter().any(|m| m.tags.contains(&"vision".to_string())));
 
         // 验证 Kimi K2.6
         let kimi = specs.get("kimi-official").unwrap();
@@ -678,6 +697,7 @@ models:
         let model_ids: Vec<_> = all_models.iter().map(|m| &m.id).collect();
         assert!(model_ids.contains(&&"gpt-4o".to_string()));
         assert!(model_ids.contains(&&"glm-5.1".to_string()));
+        assert!(model_ids.contains(&&"deepseek-vl".to_string()));
         assert!(model_ids.contains(&&"moonshot-v1-k2.6".to_string()));
         assert!(model_ids.contains(&&"gemini-2.0-flash-exp".to_string()));
     }
@@ -694,7 +714,37 @@ models:
         assert!(zhipu.is_some());
         assert_eq!(zhipu.unwrap().metadata.name, "Zhipu AI (智谱)");
 
+        let deepseek = get_provider_spec("deepseek-official");
+        assert!(deepseek.is_some());
+        assert_eq!(deepseek.unwrap().metadata.name, "DeepSeek");
+
         let nonexistent = get_provider_spec("nonexistent-provider");
+        assert!(nonexistent.is_none());
+    }
+
+    #[test]
+    fn test_get_models_for_provider() {
+        // 🏛️ 元编程：测试根据提供商 ID 获取模型列表
+
+        // 测试 OpenAI
+        let openai_models = get_models_for_provider("openai-official");
+        assert!(openai_models.is_some());
+        let models = openai_models.unwrap();
+        assert!(models.len() > 0);
+        let model_ids: Vec<_> = models.iter().map(|m| &m.id).collect();
+        assert!(model_ids.contains(&&"gpt-4o".to_string()));
+
+        // 测试 DeepSeek
+        let deepseek_models = get_models_for_provider("deepseek-official");
+        assert!(deepseek_models.is_some());
+        let models = deepseek_models.unwrap();
+        assert!(models.len() > 0);
+        let model_ids: Vec<_> = models.iter().map(|m| &m.id).collect();
+        assert!(model_ids.contains(&&"deepseek-vl".to_string()));
+        assert!(model_ids.contains(&&"deepseek-chat".to_string()));
+
+        // 测试不存在的提供商
+        let nonexistent = get_models_for_provider("nonexistent-provider");
         assert!(nonexistent.is_none());
     }
 }

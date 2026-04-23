@@ -24,12 +24,14 @@ response_format:
   content_extraction: choices.0.delta.content
 
 models:
+  # GLM-5 系列（最新）
   - id: glm-5.1
     name: GLM-5.1
     context_tokens: 128000
     capabilities: [tools, streaming, vision]
     cost_per_1k_tokens: 0.012
     tags: [latest, premium]
+  # GLM-4.7 系列
   - id: glm-4.7
     name: GLM-4.7
     context_tokens: 128000
@@ -41,21 +43,56 @@ models:
     capabilities: [streaming]
     cost_per_1k_tokens: 0.0001
     tags: [fast]
+  # GLM-4.5V 系列（视觉模型）
+  - id: glm-4.5v
+    name: GLM-4.5V
+    context_tokens: 128000
+    capabilities: [vision, tools, streaming]
+    tags: [vision]
+    cost_per_1k_tokens: 0.005
+  # GLM-4V 系列（视觉模型）
+  - id: glm-4v
+    name: GLM-4V
+    context_tokens: 128000
+    capabilities: [vision, tools, streaming]
+    tags: [vision]
+    cost_per_1k_tokens: 0.005
+  # GLM-4 Plus 系列
   - id: glm-4-plus
     name: GLM-4 Plus
     context_tokens: 128000
     capabilities: [tools, streaming]
     cost_per_1k_tokens: 0.002
+  # GLM-4.6 系列
   - id: glm-4.6
     name: GLM-4.6
     context_tokens: 128000
     capabilities: [tools, streaming]
     cost_per_1k_tokens: 0.003
+  # GLM-4 Flash 系列
   - id: glm-4-flash
     name: GLM-4 Flash
     context_tokens: 128000
     capabilities: [streaming]
     cost_per_1k_tokens: 0.0001
+  # GLM-4 Air 系列
+  - id: glm-4-air
+    name: GLM-4 Air
+    context_tokens: 128000
+    capabilities: [tools, streaming]
+    cost_per_1k_tokens: 0.001
+  # GLM-4 基础版
+  - id: glm-4
+    name: GLM-4
+    context_tokens: 128000
+    capabilities: [tools, streaming]
+    cost_per_1k_tokens: 0.003
+  # GLM-3 Turbo（轻量级）
+  - id: glm-3-turbo
+    name: GLM-3 Turbo
+    context_tokens: 32000
+    capabilities: [streaming]
+    cost_per_1k_tokens: 0.0005
 
 error_mapping:
   401: authentication_error

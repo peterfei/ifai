@@ -1,0 +1,48 @@
+# DeepSeek Provider Specification
+# 官方文档: https://api-docs.deepseek.com/
+# 更新时间: 2025/2026 - DeepSeek-V3.2 正式版
+metadata:
+  id: deepseek-official
+  name: DeepSeek
+  protocol: openai
+
+api_spec:
+  base_url: https://api.deepseek.com
+  endpoint: /chat/completions
+  auth:
+    type: bearer_header
+    header_name: Authorization
+    format: "Bearer {key}"
+
+request_format:
+  type: openai_standard
+  messages_wrapper: messages
+  system_prompt_handling: separate_message
+  tools_field: tools
+
+response_format:
+  type: sse
+  stream_parser: openai_sse
+  content_extraction: choices.0.delta.content
+
+models:
+  # DeepSeek-V3.2 系列（2025/2026 当前版本）
+  # 注意: DeepSeek 官方 API 目前不提供视觉模型
+  - id: deepseek-chat
+    name: DeepSeek Chat (V3.2)
+    context_tokens: 128000
+    capabilities: [tools, streaming, json_output, function_calling]
+    tags: [text, popular, latest, v3.2]
+    # 定价（每百万 tokens）
+    cost_per_1k_tokens_input_cache_hit: 0.028
+    cost_per_1k_tokens_input_cache_miss: 0.28
+    cost_per_1k_tokens_output: 0.42
+    max_output_default: 4096
+    max_output_maximum: 8192
+    description: "DeepSeek-V3.2 非思维模式，适合通用对话、Agent 任务、工具调用"
+
+error_mapping:
+  400: invalid_request_error
+  401: authentication_error
+  429: rate_limit_error
+  500: server_error

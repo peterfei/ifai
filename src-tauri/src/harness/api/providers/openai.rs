@@ -10,6 +10,7 @@ use super::super::client::ApiClient;
 use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
+use super::super::provider_metadata; // 🔥 元编程：从元数据获取模型列表
 use super::openai_format::parse_openai_frame;
 
 pub struct OpenAIClient {
@@ -136,29 +137,9 @@ impl ApiClient for OpenAIClient {
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>, ApiError> {
-        // OpenAI 可用模型
-        Ok(vec![
-            ModelInfo {
-                id: "gpt-4o".to_string(),
-                name: "GPT-4o".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "gpt-4o-mini".to_string(),
-                name: "GPT-4o Mini".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "gpt-4-turbo".to_string(),
-                name: "GPT-4 Turbo".to_string(),
-                context_tokens: 128000,
-            },
-            ModelInfo {
-                id: "o1-preview".to_string(),
-                name: "o1-preview".to_string(),
-                context_tokens: 128000,
-            },
-        ])
+        // 🔥 元编程：从配置文件读取模型列表，而非硬编码
+        provider_metadata::get_models_for_provider("openai-official")
+            .ok_or_else(|| ApiError::Network("OpenAI provider metadata not found".to_string()))
     }
 
     fn estimate_tokens(&self, content: &str) -> usize {
