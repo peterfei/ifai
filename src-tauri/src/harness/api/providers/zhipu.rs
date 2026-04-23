@@ -14,6 +14,8 @@ use super::super::client::ApiClient;
 use super::super::types::{
     ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest,
 };
+use super::super::client_factory::{create_standard_client, normalize_base_url};
+use super::super::message_builder::{MessageBuilder, MultimodalDetector};
 use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
 
 pub struct ZhipuClient {
@@ -24,21 +26,12 @@ pub struct ZhipuClient {
 
 impl ZhipuClient {
     pub fn new(config: &super::super::types::ProviderConfig) -> Self {
-        let base_url = if let Some(url) = &config.base_url {
-            if url.contains("/chat/completions") || url.contains("/v4/") {
-                url.clone()
-            } else {
-                format!("{}/chat/completions", url.trim_end_matches('/'))
-            }
-        } else {
-            "https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string()
-        };
-
-        use std::time::Duration;
-        let http = HttpClient::builder()
-            .connect_timeout(Duration::from_secs(30))
-            .read_timeout(Duration::from_secs(600))
-            .build()
+        // 🔥 使用工厂函数替代手动实现
+        let base_url = normalize_base_url(
+            &config.base_url,
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        );
+        let http = create_standard_client(None::<super::super::client_factory::HttpClientConfig>)
             .expect("Failed to create HTTP client");
 
         Self {
@@ -56,50 +49,28 @@ impl ApiClient for ZhipuClient {
         request: StreamRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError>
     {
-        // 构建 messages 数组
-        let mut messages = Vec::new();
-        if let Some(system) = &request.system {
-            messages.push(Message {
-                role: MessageRole::System,
-                content: system.clone().into(),
-                tool_calls: None,
-                tool_call_id: None,
-            });
-        }
-        messages.extend(request.messages.clone());
+        // 🔥 使用 MessageBuilder trait 消除重复代码
+        let messages = request.build_messages_with_system();
 
-        // 🔥 FIX P0: 检测多模态内容并自动切换到视觉模型
-        // glm-4.7 不支持视觉能力，只有 glm-4.5v 和 glm-4v 支持图像
-        let has_multimodal = messages.iter().any(|m| m.content.is_multimodal());
+        // 🔥 使用 MultimodalDetector trait 检测多模态内容
+        let has_multimodal = request.has_multimodal();
 
-        // 🔥 FIX P0: 模型名称自动选择
-        // 如果消息包含图像，自动使用 glm-4.5v（最新的视觉模型）
+        // 🔥 FIX P0: 模型名称自动选择（多模态 → 视觉模型）
         let model_name = if has_multimodal {
-            // 检查原始模型是否已经是视觉模型
             let original_model = request.model.to_lowercase();
             if original_model.contains("4v") || original_model.contains("5v") || original_model.contains("vision") {
-                println!("[Zhipu] ✅ User selected vision-compatible model: {}", original_model);
                 request.model.clone()
             } else {
-                println!("[Zhipu] 🔄 Multimodal content detected, auto-switching from {} to glm-4.5v (vision model)", request.model);
                 "glm-4.5v".to_string()
             }
         } else {
             request.model.clone()
         };
 
-        println!("[Zhipu] Using model: {} (multimodal: {})", model_name, has_multimodal);
-
-        // 🔥 FIX P0: 限制 max_tokens 以避免 1210 错误
-        // 根据 Zhipu GLM-4 文档：
-        // - GLM-4 / GLM-4-flash / GLM-4-air: 最大 4096 tokens
-        // - GLM-4-plus: 最大 8192 tokens
-        // 对于 glm-4.x 系列（除 plus 外），使用 4096 作为安全上限
+        // 限制 max_tokens 以避免 1210 错误
         let max_tokens = request.max_tokens.min(4096);
 
-        // 智谱使用 OpenAI 兼容的 API 格式
-        // 🔥 FIX P0: 总是使用 stream=true，因为代码使用流式响应处理
-        // temperature 现在是 f64 类型，可以精确表示 0.7
+        // 构建请求体
         let mut zhipu_request = serde_json::json!({
             "model": model_name,
             "messages": messages,
@@ -108,52 +79,13 @@ impl ApiClient for ZhipuClient {
             "stream": true
         });
 
-        // 🔥 DEBUG: 打印完整请求体以诊断 1210 错误
-        println!("[Zhipu] === Request Body ===");
-        println!("[Zhipu] Model: {}", model_name);
-        println!("[Zhipu] Messages count: {}", messages.len());
-        println!("[Zhipu] Stream: enabled (always)");
-
-        // 🔥 DEBUG: 打印 messages 内容（特别是 system prompt）
-        for (i, msg) in messages.iter().enumerate() {
-            let preview = msg.content.preview();
-            let is_multimodal = msg.content.is_multimodal();
-            println!("[Zhipu] Message [{}] role: {:?}, content preview: {}, multimodal: {}",
-                i,
-                msg.role,
-                preview,
-                is_multimodal
-            );
-        }
-
         // 添加 tools 参数（如果存在）
-        // 🔥 FIX P0: 根据 Zhipu 官方 OpenAI 兼容文档
-        // 参考: https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
-        // 官方示例使用 tool_choice="auto" 参数
-        // 注意：虽然官方示例没有使用 stream，但我们的代码需要流式响应处理
         if let Some(tools) = request.tools {
-            println!("[Zhipu] Tools count: {}", tools.len());
-
-            for (i, tool) in tools.iter().enumerate() {
-                println!("[Zhipu] Tool [{}]: {}", i, serde_json::to_string_pretty(tool).unwrap_or_else(|_| "Invalid JSON".to_string()));
-            }
-
             if let Some(obj) = zhipu_request.as_object_mut() {
                 obj.insert("tools".to_string(), serde_json::Value::Array(tools));
-                // ✅ 添加 tool_choice="auto"（官方推荐用法）
                 obj.insert("tool_choice".to_string(), serde_json::json!("auto"));
-                // ❌ 不添加 tool_stream 参数 - 可能导致 1210 错误
             }
         }
-
-        println!("[Zhipu] Full request: {}", serde_json::to_string_pretty(&zhipu_request).unwrap_or_else(|_| "Invalid JSON".to_string()));
-
-        // 🔥 DEBUG: 打印请求体的字节大小和 API key 信息
-        let request_body_str = serde_json::to_string(&zhipu_request).unwrap_or_default();
-        println!("[Zhipu] Request body size: {} bytes", request_body_str.len());
-        println!("[Zhipu] API key length: {} chars", self.api_key.len());
-        println!("[Zhipu] API key preview: {}...{}", &self.api_key[..8.min(self.api_key.len())], &self.api_key[self.api_key.len().saturating_sub(8)..]);
-        println!("[Zhipu] Sending request to: {}", self.base_url);
 
         let response = self
             .http
@@ -165,8 +97,6 @@ impl ApiClient for ZhipuClient {
             .await
             .map_err(|e| ApiError::Network(e.to_string()))?;
 
-        println!("[Zhipu] Response status: {}", response.status());
-        println!("[Zhipu] Response headers: {:?}", response.headers().iter().collect::<Vec<_>>());
 
         if !response.status().is_success() {
             let status = response.status();
@@ -174,7 +104,6 @@ impl ApiClient for ZhipuClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            println!("[Zhipu] ❌ Error response body: {}", message);
             return Err(ApiError::HttpError { status, message });
         }
 
@@ -208,7 +137,6 @@ impl ApiClient for ZhipuClient {
                             frame_count += 1;
 
                             if frame_count <= 3 || frame_count % 50 == 0 {
-                                println!("[Zhipu] Frame {}: {} bytes", frame_count, frame_bytes.len());
                             }
 
                             if let Ok(Some(data)) = parse_openai_frame(&frame) {
@@ -230,7 +158,6 @@ impl ApiClient for ZhipuClient {
                                                     });
                                                     tool_started.insert(index, true);
                                                     tool_args_buffer.insert(index, (id.clone(), String::new()));
-                                                    println!("[Zhipu] ToolStart: index={}, id={}, name={}", index, id, name);
                                                 }
                                             }
 
@@ -270,16 +197,13 @@ impl ApiClient for ZhipuClient {
                         }
                     }
                     Err(e) => {
-                        println!("[Zhipu] Network error after {} frames: {:?}", frame_count, e);
                         yield Err(ApiError::Network(e.to_string()));
                     }
                 }
             }
 
             if !tool_args_buffer.is_empty() {
-                println!("[Zhipu] Stream ended with {} incomplete tool calls", tool_args_buffer.len());
             }
-            println!("[Zhipu] Stream completed: frames={}, finish_reason={:?}", frame_count, last_finish_reason);
         }))
     }
 
@@ -368,13 +292,11 @@ fn convert_zhipu_data(data: &super::openai_format::OpenAiSseData) -> Option<Stre
                 // 🔥 FIX P0: 检查 content 是否包含 JSON 控制数据
                 // 防止智谱 API 返回异常格式导致 JSON 泄漏到消息内容中
                 if content.contains("\"choices\":") && content.contains("\"delta\":") {
-                    println!("[Zhipu] ⚠️ Detected JSON control data in content field, skipping: {}", &content[..80.min(content.len())]);
                     return None;
                 }
 
                 // 🔥 FIX P0: 检查 content 是否以 { 开头（可能是被错误包装的 JSON）
                 if content.trim_start().starts_with('{') && content.len() > 100 {
-                    println!("[Zhipu] ⚠️ Suspicious JSON-like content detected, skipping: {}", &content[..80.min(content.len())]);
                     return None;
                 }
 

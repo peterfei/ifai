@@ -12,6 +12,7 @@ import { chatEventBus, StreamPhase } from './chat/eventBus/ChatEventBus';
 import { ensureTauriInitialized } from '../utils/tauriInitializer';
 import { persist, PersistenceStrategies } from './persistence/PersistenceDecorator';
 import { selectAPIMessageContent } from '../types/multimodal';
+import { ToolCallConverter } from '../utils/ToolCallConverter';
 
 // -------------------------------------------------------------------
 // 1. 类型定义
@@ -144,17 +145,14 @@ export const useChatStore = create<ChatStore>()(
             const threadStore = useThreadStore.getState();
             // 🔥 FIX: 使用 activeThreadId 作为后备，确保即使 currentThreadId 不同步也能找到正确的线程
             const threadId = get().currentThreadId || threadStore.activeThreadId;
-            console.log('[ChatStore] 🔍 标题更新检查:', {
               currentThreadId: get().currentThreadId,
               activeThreadId: threadStore.activeThreadId,
               threadId,
               content: typeof content === 'string' ? content : 'Array'
             });
             const currentThread = threadId ? threadStore.getThread(threadId) : null;
-            console.log('[ChatStore] 🔍 找到线程:', !!currentThread, currentThread?.title);
             if (currentThread) {
               const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
-              console.log('[ChatStore] 🔍 是否默认标题:', isDefaultTitle);
               if (isDefaultTitle) {
                 console.log('[ChatStore] 🔥 调用 updateThreadTitleFromMessage');
                 threadStore.updateThreadTitleFromMessage(threadId, content as string);
@@ -491,7 +489,6 @@ export const useChatStore = create<ChatStore>()(
               await ensureTauriInitialized();
 
               // 🔥 DEBUG: 诊断 Tauri 环境状态
-              console.log('[ChatStore] 🔍 Tauri Environment Check:', {
                 hasTAURI_INTERNALS: !!(window as any).__TAURI_INTERNALS__,
                 hasInvoke: !!(window as any).__TAURI_INTERNALS__?.invoke,
                 hasCoreInvoke: !!(window as any).__TAURI__?.core?.invoke,
@@ -511,16 +508,10 @@ export const useChatStore = create<ChatStore>()(
                     return hasContent || hasTools || m.role === 'tool';
                 })
                 .map(m => {
-                    // 🔥 FIX: 转换 tool_calls 到 OpenAI API 格式
-                    // 前端格式: { id, tool, args, status, function } -> API 格式: { id, type: 'function', function: { name, arguments } }
-                    const tool_calls = m.toolCalls?.map((tc: any) => ({
-                        id: tc.id,
-                        type: 'function' as const,
-                        function: {
-                            name: tc.function?.name || tc.tool,
-                            arguments: tc.function?.arguments || (typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args || {}))
-                        }
-                    }));
+                    // 🔥 元编程：使用 ToolCallConverter 统一转换逻辑
+                    const tool_calls = m.toolCalls
+                        ? ToolCallConverter.toAPIFormat(m.toolCalls as any[])
+                        : undefined;
 
                     // ✅ 元编程：使用类型安全的内容选择器
                     const content = selectAPIMessageContent(m);
@@ -530,7 +521,6 @@ export const useChatStore = create<ChatStore>()(
                     let apiContent: any = content;
                     if (Array.isArray(content)) {
                         // 🔍 高保真日志：完整的 multiModalContent 结构
-                        console.log('[ChatStore] 🔍 multiModalContent 原始结构:', {
                             messageId: m.id,
                             isArray: Array.isArray(content),
                             itemCount: content.length,
@@ -547,7 +537,6 @@ export const useChatStore = create<ChatStore>()(
                                         url: part.image_url.url
                                     }
                                 };
-                                console.log('[ChatStore] 🖼️ 图片部分:', {
                                     originalType: typeof part,
                                     hasImageUrl: !!(part as any).image_url,
                                     urlLength: (part as any).image_url?.url?.length || 0,
@@ -557,7 +546,6 @@ export const useChatStore = create<ChatStore>()(
                                 return imagePart;
                             }
                             if (part.type === 'text') {
-                                console.log('[ChatStore] 📝 文本部分:', {
                                     textLength: (part as any).text?.length || 0,
                                     textPreview: (part as any).text?.substring(0, 100) + '...',
                                 });
@@ -566,7 +554,6 @@ export const useChatStore = create<ChatStore>()(
                         });
 
                         // 🔍 调试日志：最终发送的结构
-                        console.log('[ChatStore] 📤 MultiModal content for API:', {
                             partsCount: apiContent.length,
                             hasText: apiContent.some((p: any) => p.type === 'text'),
                             hasImage: apiContent.some((p: any) => p.type === 'image_url'),
@@ -575,7 +562,6 @@ export const useChatStore = create<ChatStore>()(
                         });
                     } else {
                         // 纯文本内容
-                        console.log('[ChatStore] 📝 纯文本内容:', {
                             length: content.length,
                             preview: (content as string).substring(0, 100),
                         });
@@ -595,7 +581,6 @@ export const useChatStore = create<ChatStore>()(
                 });
 
               // 🔍 高保真调试日志：检查最终发送的消息格式
-              console.log('[ChatStore] 📤 Final messages to invoke:', {
                 count: sanitizedMessages.length,
                 messages: sanitizedMessages.map((m, index) => {
                   const isMultiModal = Array.isArray(m.content);
@@ -648,15 +633,11 @@ export const useChatStore = create<ChatStore>()(
               // 🔍 DEBUG: 检查续播时的消息历史
               if (existingCorrelationId && sanitizedMessages.length > 0) {
                 const lastMsg = sanitizedMessages[sanitizedMessages.length - 1];
-                console.log('[ChatStore] 🔍 Last message role:', lastMsg.role);
-                console.log('[ChatStore] 🔍 Last message has tool_calls:', !!lastMsg.tool_calls);
-                console.log('[ChatStore] 🔍 Last message content preview:', typeof lastMsg.content === 'string' ? lastMsg.content.substring(0, 100) : 'non-string');
               }
 
               // 🔴🟢 高保真边界点日志：前端 → Rust 后端
               console.log('[ChatStore] 🔴🟢 BOUNDARY: Frontend → Rust Backend');
               console.log('[ChatStore] ========================================');
-              console.log('[ChatStore] 📦 Full invoke payload:', {
                   eventId: `chat_${correlationId}`,
                   messageCount: sanitizedMessages.length,
                   providerName: providerConfig.name,

@@ -3,6 +3,8 @@
 //! 统一的 AI API 客户端接口，支持多提供商和流式响应。
 
 pub mod client;
+pub mod client_factory;     // 🔥 元编程：HTTP客户端工厂
+pub mod message_builder;    // 🔥 元编程：消息构建辅助
 pub mod providers;
 pub mod provider_metadata;  // 🏛️ 元编程：提供商元数据
 pub mod format_adapter;     // 🏛️ 元编程：格式适配器
