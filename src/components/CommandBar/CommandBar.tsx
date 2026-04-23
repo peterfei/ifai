@@ -18,9 +18,11 @@ import { openFileFromPath } from '../../utils/fileActions';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { SimpleMarkdownRenderer } from '../AIChat/MarkdownRenderer';
+import { useTranslation } from 'react-i18next';
 import './CommandBar.css';
 
 export const CommandBar = () => {
+  const { t } = useTranslation();
   const { isCommandBarOpen, setCommandBarOpen, setSidebarActiveTab } = useLayoutStore();
   const { activeFileId, openedFiles, setFileDirty, rootPath } = useFileStore();
   const { getActiveEditor } = useEditorStore();
@@ -53,14 +55,14 @@ export const CommandBar = () => {
         file: {
           saveCurrentFile: async () => {
             if (!activeFile || !activeFile.path) {
-              return { success: false, error: '没有活动的文件' };
+              return { success: false, error: t('commandPalette.errors.noActiveFile') };
             }
             try {
               await writeFileContent(activeFile.path, activeFile.content || '');
               setFileDirty(activeFileId, false);
               return { success: true, path: activeFile.path };
             } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : '保存失败' };
+              return { success: false, error: error instanceof Error ? error.message : t('commandPalette.errors.saveFailed') };
             }
           },
           saveAllFiles: async () => {
@@ -88,36 +90,36 @@ export const CommandBar = () => {
           getActiveEditor: () => editor,
           formatDocument: async () => {
             if (!editor) {
-              return { success: false, error: '没有活动的编辑器' };
+              return { success: false, error: t('commandPalette.errors.noActiveEditor') };
             }
             try {
               // 使用 Monaco 的 formatDocument action
               const action = editor.getAction('editor.action.formatDocument');
               if (!action || !action.isSupported()) {
-                return { success: false, error: '格式化不支持' };
+                return { success: false, error: t('commandPalette.errors.formatNotSupported') };
               }
               action.run();
               return { success: true };
             } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : '格式化失败' };
+              return { success: false, error: error instanceof Error ? error.message : t('commandPalette.errors.formatFailed') };
             }
           },
           executeAction: async (actionId: string) => {
             if (!editor) {
-              return { success: false, error: '没有活动的编辑器' };
+              return { success: false, error: t('commandPalette.errors.noActiveEditor') };
             }
             try {
               const action = editor.getAction(actionId);
               if (!action) {
-                return { success: false, error: `操作不存在: ${actionId}` };
+                return { success: false, error: t('commandPalette.errors.actionNotExist', { actionId }) };
               }
               if (!action.isSupported()) {
-                return { success: false, error: `操作不支持: ${actionId}` };
+                return { success: false, error: t('commandPalette.errors.actionNotSupported', { actionId }) };
               }
               action.run();
               return { success: true };
             } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : '执行失败' };
+              return { success: false, error: error instanceof Error ? error.message : t('commandPalette.errors.executionFailed') };
             }
           },
         },
@@ -134,7 +136,7 @@ export const CommandBar = () => {
         search: {
           searchInProject: async (pattern: string) => {
             if (!rootPath) {
-              return { success: false, error: '未打开项目' };
+              return { success: false, error: t('commandPalette.errors.projectNotOpened') };
             }
             try {
               // 调用 Tauri 后端搜索
@@ -147,7 +149,7 @@ export const CommandBar = () => {
               sessionStorage.setItem('commandbar-search-query', pattern);
               return { success: true, count: matches.length };
             } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : '搜索失败' };
+              return { success: false, error: error instanceof Error ? error.message : t('commandPalette.errors.searchFailed') };
             }
           },
           showSearchPanel: async () => {
@@ -161,7 +163,7 @@ export const CommandBar = () => {
         build: {
           executeBuild: async (target?: string) => {
             if (!rootPath) {
-              return { success: false, error: '未打开项目' };
+              return { success: false, error: t('commandPalette.errors.projectNotOpened') };
             }
 
             try {
@@ -183,22 +185,22 @@ export const CommandBar = () => {
               if (exitCode === 0) {
                 return { success: true };
               } else {
-                return { success: false, error: `构建失败 (退出码: ${exitCode})` };
+                return { success: false, error: t('commandPalette.errors.buildFailed', { exitCode }) };
               }
             } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : '构建失败' };
+              return { success: false, error: error instanceof Error ? error.message : t('commandPalette.errors.buildFailedGeneric') };
             }
           },
           showBuildOutput: async () => {
             // TODO: 显示构建输出面板
             // 可以打开一个 Terminal 或显示构建日志
-            return { success: false, error: '构建输出面板未实现' };
+            return { success: false, error: t('commandPalette.errors.buildOutputNotImplemented') };
           },
         },
         settings: {
           set: async (key: string, value: unknown) => {
             // TODO: 实现配置设置
-            return { success: false, error: '配置功能未实现' };
+            return { success: false, error: t('commandPalette.errors.configNotImplemented') };
           },
         },
       },
@@ -398,7 +400,7 @@ export const CommandBar = () => {
     } catch (error) {
       setResult({
         success: false,
-        message: `执行错误: ${error instanceof Error ? error.message : String(error)}`,
+        message: t('commandPalette.errors.executionError', { error: error instanceof Error ? error.message : String(error) }),
         outputType: 'error',
         timestamp: Date.now(),
       });
@@ -441,7 +443,7 @@ export const CommandBar = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="输入命令..."
+              placeholder={t('commandPalette.input')}
               disabled={isLoading}
               data-test-id="quick-command-input"
             />
@@ -486,7 +488,7 @@ export const CommandBar = () => {
 
         {isLoading && (
           <div className="command-bar-feedback">
-            <div className="command-bar-loading">执行中...</div>
+            <div className="command-bar-loading">{t('commandPalette.status.executing')}</div>
           </div>
         )}
 
@@ -524,8 +526,8 @@ export const CommandBar = () => {
         {!isLoading && searchResults.length > 0 && (
           <div className="command-bar-search-preview">
             <div className="search-preview-header">
-              <span className="search-preview-title">搜索结果</span>
-              <span className="search-preview-count">{searchResults.length}+ 个结果</span>
+              <span className="search-preview-title">{t('commandPalette.results.searchResults')}</span>
+              <span className="search-preview-count">{t('commandPalette.results.resultCount', { count: searchResults.length })}</span>
             </div>
             <div className="search-preview-results">
               {searchResults.map((match, index) => (
@@ -553,7 +555,7 @@ export const CommandBar = () => {
         {/* 搜索中状态 */}
         {isSearching && (
           <div className="command-bar-feedback">
-            <div className="command-bar-loading">搜索中...</div>
+            <div className="command-bar-loading">{t('commandPalette.status.searching')}</div>
           </div>
         )}
       </div>

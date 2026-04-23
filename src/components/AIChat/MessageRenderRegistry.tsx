@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Message, ContentPart, ContentSegment } from '../../stores/useChatStore';
 import {
   MessageKind,
@@ -121,14 +122,15 @@ export const AssistantToolRenderer: MessageRendererComponent = ({ message, conte
  * 探索消息渲染器
  */
 export const ExploreMessageRenderer: MessageRendererComponent = ({ message, context }) => {
+  const { t } = useTranslation();
   const exploreProgress = (message as any).exploreProgress;
 
   return (
     <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
-      <div className="text-sm font-medium text-gray-400 mb-2">探索项目</div>
+      <div className="text-sm font-medium text-gray-400 mb-2">{t('messageRender.exploreProject')}</div>
       {exploreProgress && (
         <div className="text-xs text-gray-500">
-          扫描了 {exploreProgress.fileCount || 0} 个文件
+          {t('messageRender.scannedFiles', { count: exploreProgress.fileCount || 0 })}
         </div>
       )}
     </div>
@@ -139,10 +141,11 @@ export const ExploreMessageRenderer: MessageRendererComponent = ({ message, cont
  * 任务拆解消息渲染器
  */
 export const TaskBreakdownRenderer: MessageRendererComponent = ({ message, context }) => {
+  const { t } = useTranslation();
   // 这里需要导入 TaskBreakdownViewer 组件
   return (
     <div className="w-full rounded-2xl p-4 bg-[#252526] text-gray-200 border border-gray-700/50 shadow-sm">
-      <div className="text-sm text-gray-400">任务拆解</div>
+      <div className="text-sm text-gray-400">{t('messageRender.taskBreakdown')}</div>
     </div>
   );
 };
@@ -183,11 +186,12 @@ export const MultimodalMessageRenderer: MessageRendererComponent = ({ message, c
  * 系统消息渲染器
  */
 export const SystemMessageRenderer: MessageRendererComponent = ({ message }) => {
+  const { t } = useTranslation();
   const content = typeof message.content === 'string' ? message.content : '';
 
   return (
     <div className="w-full rounded-lg p-3 bg-yellow-900/20 border border-yellow-700/50 text-yellow-200 text-sm">
-      <div className="font-medium mb-1">系统消息</div>
+      <div className="font-medium mb-1">{t('messageRender.systemMessage')}</div>
       <div className="whitespace-pre-wrap break-words">{content}</div>
     </div>
   );
@@ -205,11 +209,12 @@ export const ToolMessageRenderer: MessageRendererComponent = ({ message }) => {
  * 未知类型渲染器
  */
 export const UnknownMessageRenderer: MessageRendererComponent = ({ message }) => {
+  const { t } = useTranslation();
   const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
 
   return (
     <div className="w-full rounded-2xl p-4 bg-gray-800/50 border border-gray-700 text-gray-400 text-sm">
-      <div className="mb-2 text-gray-500">未知消息类型: {message.role}</div>
+      <div className="mb-2 text-gray-500">{t('messageRender.unknownMessageType')}: {message.role}</div>
       <div className="whitespace-pre-wrap break-words">{content}</div>
     </div>
   );

@@ -9,6 +9,7 @@ import { Play, Terminal, GitMerge, Zap, Shield, CheckCircle2, AlertCircle } from
 import { TaskCard } from './TaskCard';
 import { useTaskStore, createTask } from '../../stores/taskStore';
 import { TaskCategory, TaskStatus, TaskPriority, LogLevel } from './types';
+import { useTranslation } from 'react-i18next';
 
 const exampleCardClass = 'theme-panel-muted theme-border rounded border p-4';
 const exampleTitleClass = 'theme-text mb-3 text-sm font-semibold';
@@ -19,6 +20,7 @@ const exampleTextClass = 'theme-text-subtle mt-2 text-[10px]';
 // ============================================================================
 
 export const TestRunnerExample: React.FC = () => {
+  const { t } = useTranslation();
   const { addTask, updateTask } = useTaskStore();
   const [isRunning, setIsRunning] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -28,8 +30,8 @@ export const TestRunnerExample: React.FC = () => {
 
     // 创建测试任务
     const task = createTask({
-      title: '单元测试 - Auth 组件',
-      description: '运行 50 个单元测试用例',
+      title: t('taskMonitor.integrationExamples.testRunner.taskTitle'),
+      description: t('taskMonitor.integrationExamples.testRunner.taskDesc'),
       category: TaskCategory.TEST,
       status: TaskStatus.RUNNING,
       priority: TaskPriority.HIGH,
@@ -60,7 +62,7 @@ export const TestRunnerExample: React.FC = () => {
           progress: { current: 50, total: 50, percentage: 100 },
           completedAt: Date.now(),
           result: {
-            summary: '✅ 所有 50 个测试通过',
+            summary: t('taskMonitor.integrationExamples.testRunner.summary'),
           },
         });
         setIsRunning(false);
@@ -82,7 +84,7 @@ export const TestRunnerExample: React.FC = () => {
   return (
     <div className={exampleCardClass}>
       <h3 className={exampleTitleClass}>
-        🧪 测试运行器示例
+        🧪 {t('taskMonitor.integrationExamples.testRunner.title')}
       </h3>
 
       <button
@@ -95,7 +97,7 @@ export const TestRunnerExample: React.FC = () => {
         }`}
       >
         <Play size={12} />
-        {isRunning ? '运行中...' : '运行测试'}
+        {isRunning ? t('taskMonitor.integrationExamples.testRunner.running') : t('taskMonitor.integrationExamples.testRunner.runTest')}
       </button>
 
       {currentTaskId && (
@@ -115,13 +117,14 @@ export const TestRunnerExample: React.FC = () => {
 // ============================================================================
 
 export const DeploymentPipelineExample: React.FC = () => {
+  const { t } = useTranslation();
   const { addTask, updateTask } = useTaskStore();
 
   const deploy = async () => {
     // 创建部署任务
     const deployTask = createTask({
-      title: '部署到生产环境',
-      description: 'AWS ECS - us-east-1',
+      title: t('taskMonitor.integrationExamples.deployment.deployTask'),
+      description: t('taskMonitor.integrationExamples.deployment.deployDesc'),
       category: TaskCategory.DEPLOY,
       status: TaskStatus.RUNNING,
       priority: TaskPriority.URGENT,
@@ -137,7 +140,7 @@ export const DeploymentPipelineExample: React.FC = () => {
         {
           timestamp: Date.now(),
           level: LogLevel.INFO,
-          message: '🚀 开始部署流程...',
+          message: t('taskMonitor.integrationExamples.deployment.starting'),
         },
       ],
       startedAt: Date.now(),
@@ -147,11 +150,11 @@ export const DeploymentPipelineExample: React.FC = () => {
 
     // 模拟部署步骤
     const steps = [
-      { name: '构建 Docker 镜像', duration: 3000 },
-      { name: '推送到 ECR', duration: 5000 },
-      { name: '更新 ECS 服务', duration: 4000 },
-      { name: '健康检查', duration: 3000 },
-      { name: '部署完成', duration: 1000 },
+      { name: t('taskMonitor.integrationExamples.deployment.steps.build'), duration: 3000 },
+      { name: t('taskMonitor.integrationExamples.deployment.steps.push'), duration: 5000 },
+      { name: t('taskMonitor.integrationExamples.deployment.steps.update'), duration: 4000 },
+      { name: t('taskMonitor.integrationExamples.deployment.steps.health'), duration: 3000 },
+      { name: t('taskMonitor.integrationExamples.deployment.steps.complete'), duration: 1000 },
     ];
 
     for (let i = 0; i < steps.length; i++) {
@@ -180,7 +183,7 @@ export const DeploymentPipelineExample: React.FC = () => {
       status: TaskStatus.SUCCESS,
       completedAt: Date.now(),
       result: {
-        summary: '🎉 部署成功！',
+        summary: t('taskMonitor.integrationExamples.deployment.success'),
       },
     });
   };
@@ -188,7 +191,7 @@ export const DeploymentPipelineExample: React.FC = () => {
   return (
     <div className={exampleCardClass}>
       <h3 className={exampleTitleClass}>
-        🚀 CI/CD 部署管道示例
+        🚀 {t('taskMonitor.integrationExamples.deployment.title')}
       </h3>
 
       <button
@@ -196,11 +199,11 @@ export const DeploymentPipelineExample: React.FC = () => {
         className="theme-button-danger flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <Terminal size={12} />
-        部署到生产环境
+        {t('taskMonitor.integrationExamples.deployment.deployBtn')}
       </button>
 
       <p className={exampleTextClass}>
-        点击按钮模拟完整的 CI/CD 部署流程
+        {t('taskMonitor.integrationExamples.deployment.clickDeploy')}
       </p>
     </div>
   );
@@ -211,12 +214,13 @@ export const DeploymentPipelineExample: React.FC = () => {
 // ============================================================================
 
 export const GitOperationsExample: React.FC = () => {
+  const { t } = useTranslation();
   const { addTask, updateTask } = useTaskStore();
 
   const gitPull = async () => {
     const task = createTask({
-      title: 'Git Pull - main 分支',
-      description: '拉取最新代码',
+      title: t('taskMonitor.integrationExamples.git.pullTask'),
+      description: t('taskMonitor.integrationExamples.git.pullDesc'),
       category: TaskCategory.GIT,
       status: TaskStatus.RUNNING,
       priority: TaskPriority.NORMAL,
@@ -238,12 +242,12 @@ export const GitOperationsExample: React.FC = () => {
         {
           timestamp: Date.now(),
           level: LogLevel.INFO,
-          message: 'From github.com:user/repo',
+          message: t('taskMonitor.integrationExamples.git.from'),
         },
         {
           timestamp: Date.now(),
           level: LogLevel.INFO,
-          message: '   * [new branch]      feature-branch',
+          message: t('taskMonitor.integrationExamples.git.newBranch'),
         },
       ],
     });
@@ -257,7 +261,7 @@ export const GitOperationsExample: React.FC = () => {
         {
           timestamp: Date.now(),
           level: LogLevel.INFO,
-          message: 'Fast-forwarding...',
+          message: t('taskMonitor.integrationExamples.git.fastForward'),
         },
       ],
     });
@@ -269,7 +273,7 @@ export const GitOperationsExample: React.FC = () => {
       progress: { current: 3, total: 3, percentage: 100 },
       completedAt: Date.now(),
       result: {
-        summary: '已更新到 latest commit',
+        summary: t('taskMonitor.integrationExamples.git.updated'),
       },
     });
   };
@@ -277,7 +281,7 @@ export const GitOperationsExample: React.FC = () => {
   return (
     <div className={exampleCardClass}>
       <h3 className={exampleTitleClass}>
-        🔀 Git 操作示例
+        🔀 {t('taskMonitor.integrationExamples.git.title')}
       </h3>
 
       <button
@@ -285,7 +289,7 @@ export const GitOperationsExample: React.FC = () => {
         className="theme-button-danger flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <GitMerge size={12} />
-        Git Pull
+        {t('taskMonitor.integrationExamples.git.gitPull')}
       </button>
     </div>
   );
@@ -296,12 +300,13 @@ export const GitOperationsExample: React.FC = () => {
 // ============================================================================
 
 export const SecurityScannerExample: React.FC = () => {
+  const { t } = useTranslation();
   const { addTask, updateTask } = useTaskStore();
 
   const scan = async () => {
     const task = createTask({
-      title: '依赖安全扫描',
-      description: '检查 npm 依赖漏洞',
+      title: t('taskMonitor.integrationExamples.security.scanTask'),
+      description: t('taskMonitor.integrationExamples.security.scanDesc'),
       category: TaskCategory.SECURITY,
       status: TaskStatus.RUNNING,
       priority: TaskPriority.HIGH,
@@ -339,7 +344,7 @@ export const SecurityScannerExample: React.FC = () => {
       status: TaskStatus.FAILED,
       completedAt: Date.now(),
       result: {
-        summary: `发现 ${vulnerabilities.length} 个漏洞`,
+        summary: t('taskMonitor.integrationExamples.security.foundVuln', { count: vulnerabilities.length }),
         error: new Error(
           vulnerabilities.map(v =>
             `${v.name}: ${v.severity} (${v.count})`
@@ -357,7 +362,7 @@ export const SecurityScannerExample: React.FC = () => {
   return (
     <div className={exampleCardClass}>
       <h3 className={exampleTitleClass}>
-        🔒 安全扫描示例
+        🔒 {t('taskMonitor.integrationExamples.security.title')}
       </h3>
 
       <button
@@ -365,11 +370,11 @@ export const SecurityScannerExample: React.FC = () => {
         className="theme-button-danger flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <Shield size={12} />
-        运行安全扫描
+        {t('taskMonitor.integrationExamples.security.runScan')}
       </button>
 
       <p className={exampleTextClass}>
-        扫描 npm 依赖的安全漏洞
+        {t('taskMonitor.integrationExamples.security.scanNpm')}
       </p>
     </div>
   );
@@ -380,12 +385,13 @@ export const SecurityScannerExample: React.FC = () => {
 // ============================================================================
 
 export const PerformanceOptimizationExample: React.FC = () => {
+  const { t } = useTranslation();
   const { addTask, updateTask } = useTaskStore();
 
   const optimize = async () => {
     const task = createTask({
-      title: '性能优化 - 代码分割',
-      description: '优化前端资源加载性能',
+      title: t('taskMonitor.integrationExamples.performance.optTask'),
+      description: t('taskMonitor.integrationExamples.performance.optDesc'),
       category: TaskCategory.OPTIMIZE,
       status: TaskStatus.RUNNING,
       priority: TaskPriority.NORMAL,
@@ -403,10 +409,10 @@ export const PerformanceOptimizationExample: React.FC = () => {
     addTask(task);
 
     const steps = [
-      { name: '分析 bundle 大小', duration: 2000 },
-      { name: '配置代码分割', duration: 3000 },
-      { name: '优化懒加载', duration: 4000 },
-      { name: '测试性能提升', duration: 2000 },
+      { name: t('taskMonitor.integrationExamples.performance.steps.analyze'), duration: 2000 },
+      { name: t('taskMonitor.integrationExamples.performance.steps.config'), duration: 3000 },
+      { name: t('taskMonitor.integrationExamples.performance.steps.lazy'), duration: 4000 },
+      { name: t('taskMonitor.integrationExamples.performance.steps.test'), duration: 2000 },
     ];
 
     for (let i = 0; i < steps.length; i++) {
@@ -433,19 +439,19 @@ export const PerformanceOptimizationExample: React.FC = () => {
       status: TaskStatus.SUCCESS,
       completedAt: Date.now(),
       result: {
-        summary: '性能提升 45%',
+        summary: t('taskMonitor.integrationExamples.performance.improved'),
       },
       logs: [
         ...(useTaskStore.getState().getTask(task.id)?.logs || []),
         {
           timestamp: Date.now(),
           level: LogLevel.INFO,
-          message: '✨ Bundle size: 2.5MB → 1.4MB',
+          message: t('taskMonitor.integrationExamples.performance.bundle'),
         },
         {
           timestamp: Date.now(),
           level: LogLevel.INFO,
-          message: '⚡ First paint: 1.2s → 0.6s',
+          message: t('taskMonitor.integrationExamples.performance.firstPaint'),
         },
       ],
     });
@@ -454,7 +460,7 @@ export const PerformanceOptimizationExample: React.FC = () => {
   return (
     <div className={exampleCardClass}>
       <h3 className={exampleTitleClass}>
-        ⚡ 性能优化示例
+        ⚡ {t('taskMonitor.integrationExamples.performance.title')}
       </h3>
 
       <button
@@ -462,11 +468,11 @@ export const PerformanceOptimizationExample: React.FC = () => {
         className="theme-button-primary flex items-center gap-2 rounded px-3 py-2 text-xs font-medium"
       >
         <Zap size={12} />
-        运行优化
+        {t('taskMonitor.integrationExamples.performance.runOpt')}
       </button>
 
       <p className={exampleTextClass}>
-        优化前端资源加载性能
+        {t('taskMonitor.integrationExamples.performance.optPerf')}
       </p>
     </div>
   );
@@ -477,13 +483,15 @@ export const PerformanceOptimizationExample: React.FC = () => {
 // ============================================================================
 
 export const IntegrationExamples: React.FC = () => {
+  const { t } = useTranslation();
+
   return (
     <div className="integration-examples theme-panel p-6">
       <h2 className="theme-text mb-4 text-lg font-bold">
-        TaskMonitor 集成示例
+        {t('taskMonitor.integrationExamples.main.title')}
       </h2>
       <p className="theme-text-subtle mb-6 text-xs">
-        这些示例展示了如何在现有项目中集成和使用 TaskMonitor 系统
+        {t('taskMonitor.integrationExamples.main.desc')}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -497,10 +505,10 @@ export const IntegrationExamples: React.FC = () => {
       {/* Task Monitor */}
       <div className="mt-6">
         <h3 className="theme-text mb-3 text-sm font-semibold">
-          📊 任务监控面板
+          {t('taskMonitor.integrationExamples.main.monitorTitle')}
         </h3>
         <p className="theme-text-subtle mb-3 text-[10px]">
-          点击上方按钮后，任务会自动添加到这里
+          {t('taskMonitor.integrationExamples.main.monitorDesc')}
         </p>
         <div className="theme-panel-muted theme-border rounded p-4">
           {/* 使用 taskStore 的 getAllTasks 显示所有任务 */}

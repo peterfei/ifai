@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, FileImage, AlertCircle, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ImageAttachment } from '../../types/multimodal';
 
 interface ImagePreviewProps {
@@ -19,6 +20,7 @@ interface ImagePreviewProps {
  * - 提供删除按钮
  */
 export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove }) => {
+  const { t } = useTranslation();
   const { id, content, previewUrl, status, error } = attachment;
 
   // 格式化文件大小
@@ -88,7 +90,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ attachment, onRemove
       <button
         onClick={() => onRemove(id)}
         className="theme-button-danger absolute -top-2 -right-2 rounded-full p-1 opacity-0 transition-opacity group-hover:opacity-100"
-        title="删除图片"
+        title={t('imagePreview.removeImage')}
       >
         <X size={14} />
       </button>

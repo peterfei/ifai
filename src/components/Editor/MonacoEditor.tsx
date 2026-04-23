@@ -361,7 +361,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     // 重命名符号
     editor.addAction({
       id: 'refactor.rename',
-      label: '重命名符号',
+      label: t('editor.refactor.rename'),
       contextMenuGroupId: 'modification',
       contextMenuOrder: 1.5,
       run: async (ed) => {
@@ -378,7 +378,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
 
         // 简化版：使用 prompt 获取新名称
         // TODO: 实现内联重命名 UI
-        const newName = prompt(`重命名 "${word}" 为:`, word);
+        const newName = prompt(t('editor.refactor.renamePrompt', { word }), word);
         if (!newName || newName === word) return;
 
         const { previewRename } = useRefactoringStore.getState();
@@ -394,7 +394,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
     // 提取函数
     editor.addAction({
       id: 'refactor.extractFunction',
-      label: '提取函数',
+      label: t('editor.refactor.extractFunction'),
       contextMenuGroupId: 'modification',
       contextMenuOrder: 1.6,
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
@@ -413,7 +413,7 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({ paneId }) => {
         if (!currentFile?.path) return;
 
         // 简化版：使用 prompt 获取函数名
-        const functionName = prompt('新函数名称:', 'extractedFunction');
+        const functionName = prompt(t('editor.refactor.extractFunctionPrompt'), 'extractedFunction');
         if (!functionName) return;
 
         const { previewExtractFunction } = useRefactoringStore.getState();
@@ -951,7 +951,7 @@ ${textBefore}[CURSOR]${textAfter}
             lineCount = Math.min(Math.max(codeLines + 6, 10), 35); // 增加缓冲区
         }
 
-        const displayContent = modifiedCode || '✨ AI 正在构思并生成代码...';
+        const displayContent = modifiedCode || t('editor.inlineDiff.generatingCode');
 
         // 如果是全量替换且行数极多，锚定在第一行展示，防止在文件末尾重叠
         const targetLine = isFullFile ? 0 : position.lineNumber;

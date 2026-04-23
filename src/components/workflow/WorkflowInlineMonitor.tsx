@@ -10,10 +10,10 @@ import { Card } from '../UI/card';
 import { Badge } from '../UI/badge';
 import { ChevronDown, ChevronUp, CheckCircle, XCircle, Clock, Zap, Search, FileText, Edit, Code, Play, Network } from 'lucide-react';
 import { WorkflowDAGMonitor, type DAGNode, type DAGEdge, type ToolCallDetails } from './WorkflowDAGMonitor';
-// 🔥 CRITICAL FIX: 直接导入 chatEventBus，避免访问时机问题
 import { chatEventBus } from '../../stores/chat/eventBus/ChatEventBus';
-// 🔥 导入 useThreadStore 用于标签页隔离
 import { useThreadStore } from '../../stores/threadStore';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n/config';
 
 // ==================== 工具函数 ====================
 
@@ -638,7 +638,7 @@ if (typeof window !== 'undefined') {
 export function updateGlobalWorkflowState(workflowId: string, updates: Partial<WorkflowInfo>) {
   const current = globalWorkflowStates.get(workflowId) || {
     id: workflowId,
-    name: '工作流执行中',
+    name: i18n.t('workflowInline.running'),
     status: 'running' as const,
     startTime: Date.now(),
     progress: 0,
@@ -738,6 +738,8 @@ export function WorkflowInlineMonitor({
   embedded = false,
   onComplete
 }: WorkflowInlineMonitorProps) {
+  const { t } = useTranslation();
+
   // 🔥 FIX: 移除高频组件调用日志
   // console.log('[WorkflowInlineMonitor] 🔧 Component function called, workflowId:', workflowId, 'embedded:', embedded);
 
@@ -749,11 +751,11 @@ export function WorkflowInlineMonitor({
       // 内嵌模式：创建初始状态，不从全局获取
       return {
         id: actualWorkflowId,
-        name: `${workflowType || '工作流'}执行中`,
+        name: `${workflowType || t('workflowInline.workflow')}${t('workflowInline.statusRunning')}`,
         status: initialStatus,
         startTime: Date.now(),
         progress: 0,
-        currentNode: '初始化...',
+        currentNode: t('workflowInline.initializing'),
         nodes: []
       };
     }
@@ -765,11 +767,11 @@ export function WorkflowInlineMonitor({
     }
     return {
       id: actualWorkflowId,
-      name: '工作流执行中',
+      name: t('workflowInline.running'),
       status: 'running',
       startTime: Date.now(),
       progress: 0,
-      currentNode: '初始化...',
+      currentNode: t('workflowInline.initializing'),
       nodes: []
     };
   });
@@ -978,7 +980,7 @@ export function WorkflowInlineMonitor({
             label: plannedNode.label || plannedNode.id,
             parsedInfo,
             status: 'pending' as const,  // 🔥 关键：所有节点初始为 pending 状态
-            details: '等待执行...',
+            details: t('workflowInline.waiting'),
             timestamp: undefined,
           };
         });
@@ -991,7 +993,7 @@ export function WorkflowInlineMonitor({
         // 🔥 使用 flushSync 强制立即渲染（避免 React 批处理延迟）
         flushSync(() => {
           updateGlobalWorkflowState(workflowId, {
-            name: payload.workflowType || payload.workflow_type || '工作流执行中',
+            name: payload.workflowType || payload.workflow_type || t('workflowInline.running'),
             status: 'running',
             startTime: Date.now(),
             nodes: initialNodes,  // 🔥 包含所有计划节点（pending 状态）
@@ -1059,7 +1061,7 @@ export function WorkflowInlineMonitor({
               is_streaming: !isFinished,  // 完成后设置 is_streaming = false
               // 如果流式输出完成，将节点标记为 completed
               status: isFinished ? 'completed' : existingNode.status,
-              details: isFinished ? '流式输出完成' : (existingNode.details || '正在生成内容...'),
+              details: isFinished ? t('workflowInline.streamingDone') : (existingNode.details || t('workflowInline.generating')),
               // 完成时计算 duration
               duration: isFinished ? (Date.now() - (existingNode.timestamp || Date.now())) : existingNode.duration,
             };
@@ -1088,7 +1090,7 @@ export function WorkflowInlineMonitor({
             const newNode: WorkflowNode = {
               id: nodeId,
               type: 'agent',  // Doc agent 使用 agent 类型
-              label: '生成总结',
+              label: t('workflowInline.generateSummary'),
               status: isFinished ? 'completed' : 'running',
               streaming_content: contentDelta,
               is_streaming: !isFinished,
@@ -1413,7 +1415,7 @@ export function WorkflowInlineMonitor({
             status: 'completed' as const,
             progress: 100,
             endTime: Date.now(),
-            name: '工作流已完成',  // 🔥 强制更新名称
+            name: t('workflowInline.completed'),  // 🔥 强制更新名称
             nodes: (currentGlobalState?.nodes || []).map(n => {
               // 如果还有 running 节点，标记为 completed
               if (n.status === 'running') {
@@ -1447,7 +1449,7 @@ export function WorkflowInlineMonitor({
         updateGlobalWorkflowState(workflowId, {
           status: 'failed' as const,
           endTime: Date.now(),
-          name: '工作流失败',  // 🔥 强制更新名称
+          name: t('workflowInline.failed'),  // 🔥 强制更新名称
           nodes: (currentGlobalState?.nodes || []).map(n => ({
             ...n,
             status: n.status === 'running' ? 'failed' as const : n.status
@@ -1519,11 +1521,11 @@ export function WorkflowInlineMonitor({
   const getStatusText = () => {
     switch (workflow.status) {
       case 'completed':
-        return '已完成';
+        return t('workflowInline.statusCompleted');
       case 'failed':
-        return '失败';
+        return t('workflowInline.statusFailed');
       default:
-        return '执行中...';
+        return t('workflowInline.statusRunning');
     }
   };
 
@@ -1537,9 +1539,9 @@ export function WorkflowInlineMonitor({
 
   // 🔥 根据状态更新工作流名称
   const displayName = workflow.status === 'completed'
-    ? '工作流已完成'
+    ? t('workflowInline.completed')
     : workflow.status === 'failed'
-    ? '工作流失败'
+    ? t('workflowInline.failed')
     : workflow.name;
 
   // 🔥 FIX: 移除高频渲染日志，避免控制台刷屏
@@ -1582,7 +1584,7 @@ export function WorkflowInlineMonitor({
             </Badge>
             {workflow.nodes && workflow.nodes.length > 0 && (
               <Badge variant="outline" className="!text-gray-300 border-gray-600 bg-gray-800">
-                {workflow.nodes.length} 步
+                {workflow.nodes.length} {t('workflowInline.steps')}
               </Badge>
             )}
           </div>
@@ -1595,17 +1597,17 @@ export function WorkflowInlineMonitor({
                   setViewMode(viewMode === 'list' ? 'dag' : 'list');
                 }}
                 className="flex items-center gap-1 text-xs text-gray-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-gray-800"
-                title={viewMode === 'list' ? '切换到 DAG 视图' : '切换到列表视图'}
+                title={viewMode === 'list' ? t('workflowInline.switchToDag') : t('workflowInline.switchToList')}
               >
                 {viewMode === 'list' ? (
                   <>
                     <Network className="w-3 h-3" />
-                    DAG视图
+                    {t('workflowInline.dagView')}
                   </>
                 ) : (
                   <>
                     <Zap className="w-3 h-3" />
-                    列表视图
+                    {t('workflowInline.listView')}
                   </>
                 )}
               </button>
@@ -1714,12 +1716,12 @@ export function WorkflowInlineMonitor({
                                   {(tool.tool_input || tool.tool_output) && (
                                     <details className="mt-1 group" open={false}>
                                       <summary className="cursor-pointer text-gray-400 hover:text-gray-200 text-xs">
-                                        详情
+                                        {t('workflowInline.details')}
                                       </summary>
                                       <div className="mt-1 space-y-1">
                                         {tool.tool_input && (
                                           <div className="text-xs">
-                                            <span className="text-gray-400 font-medium">输入:</span>
+                                            <span className="text-gray-400 font-medium">{t('workflowInline.input')}</span>
                                             <pre className="mt-0.5 text-xs text-gray-200 overflow-x-auto bg-black p-2 rounded border border-gray-700">
                                               {tool.tool_input}
                                             </pre>
@@ -1727,7 +1729,7 @@ export function WorkflowInlineMonitor({
                                         )}
                                         {tool.tool_output && (
                                           <div className="text-xs">
-                                            <span className="text-gray-400 font-medium">输出:</span>
+                                            <span className="text-gray-400 font-medium">{t('workflowInline.output')}</span>
                                             <pre className="mt-0.5 text-xs text-gray-200 overflow-x-auto bg-black p-2 rounded border border-gray-700 max-h-32 overflow-y-auto">
                                               {tool.tool_output}
                                             </pre>
@@ -1754,10 +1756,10 @@ export function WorkflowInlineMonitor({
 
                                   {/* 流式输出状态指示器 */}
                                   {node.is_streaming && (
-                                    <span className="text-xs text-blue-400 animate-pulse">正在生成...</span>
+                                    <span className="text-xs text-blue-400 animate-pulse">{t('workflowInline.generatingDot')}</span>
                                   )}
                                   {!node.is_streaming && node.status === 'completed' && (
-                                    <span className="text-xs text-green-400">完成</span>
+                                    <span className="text-xs text-green-400">{t('workflowInline.done')}</span>
                                   )}
 
                                   {/* 执行时长 */}
@@ -1778,7 +1780,7 @@ export function WorkflowInlineMonitor({
                                 {/* 流式内容完成时的提示 */}
                                 {!node.is_streaming && (
                                   <div className="text-xs text-gray-400 mt-1">
-                                    内容长度: {node.streaming_content.length} 字符
+                                    {t('workflowInline.contentLength')}: {node.streaming_content.length} {t('workflowInline.chars')}
                                   </div>
                                 )}
                               </>
@@ -1793,16 +1795,16 @@ export function WorkflowInlineMonitor({
 
                               {/* 状态标签 - 亮色文字 */}
                               {node.status === 'pending' && (
-                                <span className="text-xs text-gray-400">等待中</span>
+                                <span className="text-xs text-gray-400">{t('workflowInline.waitingDot')}</span>
                               )}
                               {node.status === 'running' && (
-                                <span className="text-xs text-white animate-pulse">运行中</span>
+                                <span className="text-xs text-white animate-pulse">{t('workflowInline.runningDot')}</span>
                               )}
                               {node.status === 'completed' && (
-                                <span className="text-xs text-green-400">完成</span>
+                                <span className="text-xs text-green-400">{t('workflowInline.done')}</span>
                               )}
                               {node.status === 'failed' && (
-                                <span className="text-xs text-red-400">✗ 失败</span>
+                                <span className="text-xs text-red-400">{t('workflowInline.failedMark')}</span>
                               )}
 
                               {/* 执行时长 */}
@@ -1836,7 +1838,7 @@ export function WorkflowInlineMonitor({
                     <div className="w-3 h-3 bg-gray-500 rounded-full animate-pulse" />
                   </div>
                   <p className="text-sm text-gray-400">
-                    {workflow.status === 'running' ? '正在准备工作流...' : '等待节点信息...'}
+                    {workflow.status === 'running' ? t('workflowInline.preparing') : t('workflowInline.waitingNodeInfo')}
                   </p>
                   <p className="text-xs text-gray-500">
                     workflowId: {workflowId}
@@ -1851,7 +1853,7 @@ export function WorkflowInlineMonitor({
                 <div className="w-4 h-4 flex items-center justify-center">
                   <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse" />
                 </div>
-                <span>正在执行: {workflow.currentNode}</span>
+                <span>{t('workflowInline.executing')}: {workflow.currentNode}</span>
               </div>
             )}
 
@@ -1859,7 +1861,7 @@ export function WorkflowInlineMonitor({
             {workflow.status === 'completed' && (
               <div className="flex items-center gap-2 text-xs text-green-400 mt-2">
                 <CheckCircle className="w-3 h-3" />
-                <span className="text-green-400">工作流执行完成</span>
+                <span className="text-green-400">{t('workflowInline.execCompleted')}</span>
               </div>
             )}
 
@@ -1867,7 +1869,7 @@ export function WorkflowInlineMonitor({
             {workflow.status === 'failed' && (
               <div className="flex items-center gap-2 text-xs text-red-400 mt-2">
                 <XCircle className="w-3 h-3" />
-                <span className="text-red-400">工作流执行失败</span>
+                <span className="text-red-400">{t('workflowInline.execFailed')}</span>
               </div>
             )}
               </>
@@ -1886,6 +1888,8 @@ export function WorkflowInlineMonitor({
 const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContainer() {
   // 🔥 FIX: 移除高频组件调用日志
   // console.log('[WorkflowInlineMonitorContainer] 🔧 Component function called');
+
+  const { t } = useTranslation();
 
   const [activeWorkflows, setActiveWorkflows] = useState<string[]>(() => {
     // 🔥 CRITICAL FIX: 初始化时从全局状态获取
@@ -1970,7 +1974,7 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
 
       // 初始化全局状态
       updateGlobalWorkflowState(workflowId, {
-        name: payload.workflowType || payload.workflow_type || '工作流执行中',
+        name: payload.workflowType || payload.workflow_type || t('workflowInline.running'),
         status: 'running' as const,
         startTime: Date.now(),
         nodes: payload.nodes || [],
@@ -2000,7 +2004,7 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
 
         // 初始化全局状态
         updateGlobalWorkflowState(workflowId, {
-          name: '工作流执行中',
+          name: t('workflowInline.running'),
           status: 'running' as const,
           startTime: Date.now(),
         });
@@ -2023,7 +2027,7 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
         status: 'completed' as const,
         progress: 100,
         endTime: Date.now(),
-        name: '工作流已完成',
+        name: t('workflowInline.completed'),
       });
 
       // 通知完成回调
@@ -2045,7 +2049,7 @@ const WorkflowInlineMonitorContainerMemo = function WorkflowInlineMonitorContain
       updateGlobalWorkflowState(workflowId, {
         status: 'failed' as const,
         endTime: Date.now(),
-        name: '工作流失败',
+        name: t('workflowInline.failed'),
       });
     });
 

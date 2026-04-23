@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Image } from 'lucide-react';
 import type { ImageAttachment } from '../../types/multimodal';
 import { compressImage, formatFileSize } from '../../utils/imageCompression';
+import { useTranslation } from 'react-i18next';
 
 interface ImageInputProps {
   /** 当前图片附件列表 */
@@ -29,6 +30,7 @@ export const ImageInput: React.FC<ImageInputProps> = ({
   maxImages = 3,
   maxFileSize = 5,
 }) => {
+  const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,7 +52,7 @@ export const ImageInput: React.FC<ImageInputProps> = ({
           content: { data: '', mime_type: file.type, name: file.name, size: file.size },
           previewUrl: '',
           status: 'error',
-          error: `文件过大 (${maxFileSize}MB 限制)`,
+          error: t('imageInput.fileTooLarge', { maxSize: maxFileSize }),
         });
         continue;
       }
@@ -154,7 +156,7 @@ export const ImageInput: React.FC<ImageInputProps> = ({
         onClick={triggerFileSelect}
         disabled={!canAddMore || disabled}
         className="theme-button-ghost rounded-xl p-2 hover:text-blue-400 disabled:cursor-not-allowed disabled:opacity-30"
-        title={canAddMore ? '上传图片' : `最多 ${maxImages} 张图片`}
+        title={canAddMore ? t('imageInput.uploadImage') : t('imageInput.maxImages', { count: maxImages })}
         data-testid="image-input-button"
       >
         <Image size={18} />

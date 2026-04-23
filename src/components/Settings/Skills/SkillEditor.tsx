@@ -16,6 +16,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 import type { Skill, SkillEditorMode, SkillValidationError } from './types';
 
 interface SkillEditorProps {
@@ -33,6 +34,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
   onCancel,
   className,
 }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState<Partial<Skill>>(
     skill || {
       id: '',
@@ -57,23 +59,23 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
     const validationErrors: SkillValidationError[] = [];
 
     if (!formData.id?.trim()) {
-      validationErrors.push({ field: 'id', message: '技能 ID 不能为空' });
+      validationErrors.push({ field: 'id', message: t('settings.skillEditor.validation.id') });
     }
 
     if (!formData.name?.trim()) {
-      validationErrors.push({ field: 'name', message: '技能名称不能为空' });
+      validationErrors.push({ field: 'name', message: t('settings.skillEditor.validation.name') });
     }
 
     if (!formData.description?.trim()) {
-      validationErrors.push({ field: 'description', message: '技能描述不能为空' });
+      validationErrors.push({ field: 'description', message: t('settings.skillEditor.validation.description') });
     }
 
     if (!formData.system_prompt?.trim()) {
-      validationErrors.push({ field: 'system_prompt', message: '系统提示词不能为空' });
+      validationErrors.push({ field: 'system_prompt', message: t('settings.skillEditor.validation.systemPrompt') });
     }
 
     if (!formData.version?.trim()) {
-      validationErrors.push({ field: 'version', message: '版本号不能为空' });
+      validationErrors.push({ field: 'version', message: t('settings.skillEditor.validation.version') });
     }
 
     setErrors(validationErrors);
@@ -140,12 +142,12 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div>
             <h2 className="text-xl font-bold text-white">
-              {mode.type === 'create' ? '创建技能' : mode.type === 'edit' ? '编辑技能' : '查看技能'}
+              {mode.type === 'create' ? t('settings.skillEditor.createTitle') : mode.type === 'edit' ? t('settings.skillEditor.editTitle') : t('settings.skillEditor.viewTitle')}
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              {mode.type === 'create' && '创建新的 AI 技能插件'}
-              {mode.type === 'edit' && `编辑技能: ${skill?.name}`}
-              {mode.type === 'view' && '查看技能详情'}
+              {mode.type === 'create' && t('settings.skillEditor.createSubtitle')}
+              {mode.type === 'edit' && t('settings.skillEditor.editSubtitle', { name: skill?.name })}
+              {mode.type === 'view' && t('settings.skillEditor.viewSubtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -160,7 +162,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
                 )}
               >
                 <Eye size={16} />
-                {showPreview ? '编辑' : '预览'}
+                {showPreview ? t('settings.skillEditor.editTab') : t('settings.skillEditor.previewTab')}
               </button>
             )}
             <button
@@ -191,6 +193,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
               setNewDependency={setNewDependency}
               addDependency={addDependency}
               removeDependency={removeDependency}
+              t={t}
             />
           )}
         </div>
@@ -202,7 +205,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
               {errors.length > 0 && (
                 <>
                   <AlertCircle size={16} className="text-red-500" />
-                  <span>请修正 {errors.length} 个错误</span>
+                  <span>{t('settings.skillEditor.errorsSummary', { count: errors.length })}</span>
                 </>
               )}
             </div>
@@ -211,7 +214,7 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
                 onClick={onCancel}
                 className="px-6 py-2.5 rounded-lg text-sm font-medium bg-gray-800 hover:bg-gray-700 text-gray-400 border border-gray-700 transition-all"
               >
-                取消
+                {t('settings.skillEditor.cancel')}
               </button>
               <button
                 onClick={handleSave}
@@ -225,12 +228,12 @@ export const SkillEditor: React.FC<SkillEditorProps> = ({
                 {isSaving ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    保存中...
+                    {t('settings.skillEditor.saving')}
                   </>
                 ) : (
                   <>
                     <Save size={16} />
-                    保存
+                    {t('settings.skillEditor.save')}
                   </>
                 )}
               </button>
@@ -258,6 +261,7 @@ interface EditModeProps {
   setNewDependency: (dep: string) => void;
   addDependency: () => void;
   removeDependency: (dep: string) => void;
+  t: (key: string) => string;
 }
 
 const EditMode: React.FC<EditModeProps> = ({
@@ -274,6 +278,7 @@ const EditMode: React.FC<EditModeProps> = ({
   setNewDependency,
   addDependency,
   removeDependency,
+  t,
 }) => {
   const disabled = mode.type === 'view';
 
@@ -281,33 +286,33 @@ const EditMode: React.FC<EditModeProps> = ({
     <div className="space-y-6">
       {/* 基本信息 */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium text-gray-400">基本信息</h3>
+        <h3 className="text-sm font-medium text-gray-400">{t('settings.skillEditor.sections.basic')}</h3>
         <div className="grid grid-cols-2 gap-4">
           <FormField
-            label="技能 ID"
+            label={t('settings.skillEditor.fields.id')}
             value={formData.id}
             onChange={(v) => setFormData({ ...formData, id: v })}
             disabled={disabled}
             error={getFieldError('id')}
-            placeholder="my-skill"
-            description="唯一标识符，只能包含小写字母、数字和连字符"
+            placeholder={t('settings.skillEditor.placeholders.id')}
+            description={t('settings.skillEditor.fields.idHint')}
           />
           <FormField
-            label="技能名称"
+            label={t('settings.skillEditor.fields.name')}
             value={formData.name}
             onChange={(v) => setFormData({ ...formData, name: v })}
             disabled={disabled}
             error={getFieldError('name')}
-            placeholder="我的技能"
+            placeholder={t('settings.skillEditor.placeholders.name')}
           />
         </div>
         <FormField
-          label="描述"
+          label={t('settings.skillEditor.fields.description')}
           value={formData.description}
           onChange={(v) => setFormData({ ...formData, description: v })}
           disabled={disabled}
           error={getFieldError('description')}
-          placeholder="简要描述这个技能的功能"
+          placeholder={t('settings.skillEditor.placeholders.description')}
           textarea
         />
       </div>
@@ -315,9 +320,9 @@ const EditMode: React.FC<EditModeProps> = ({
       {/* 系统提示词 */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-400">系统提示词</h3>
+          <h3 className="text-sm font-medium text-gray-400">{t('settings.skillEditor.fields.systemPrompt')}</h3>
           <span className="text-xs text-gray-500">
-            {formData.system_prompt?.length || 0} / 10000 字符
+            {t('settings.skillEditor.characterCount', { count: formData.system_prompt?.length || 0 })}
           </span>
         </div>
         <FormField
@@ -325,7 +330,7 @@ const EditMode: React.FC<EditModeProps> = ({
           onChange={(v) => setFormData({ ...formData, system_prompt: v })}
           disabled={disabled}
           error={getFieldError('system_prompt')}
-          placeholder="You are a helpful assistant..."
+          placeholder={t('settings.skillEditor.placeholders.systemPrompt')}
           textarea
           rows={8}
           monospace
@@ -335,26 +340,26 @@ const EditMode: React.FC<EditModeProps> = ({
       {/* 版本和作者 */}
       <div className="grid grid-cols-2 gap-4">
         <FormField
-          label="版本"
+          label={t('settings.skillEditor.fields.version')}
           value={formData.version}
           onChange={(v) => setFormData({ ...formData, version: v })}
           disabled={disabled}
           error={getFieldError('version')}
-          placeholder="1.0.0"
-          description="遵循语义化版本规范 (semver)"
+          placeholder={t('settings.skillEditor.placeholders.version')}
+          description={t('settings.skillEditor.fields.versionHint')}
         />
         <FormField
-          label="作者"
+          label={t('settings.skillEditor.fields.author')}
           value={formData.author || ''}
           onChange={(v) => setFormData({ ...formData, author: v })}
           disabled={disabled}
-          placeholder="Your Name"
+          placeholder={t('settings.skillEditor.placeholders.author')}
         />
       </div>
 
       {/* 标签 */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">标签</h3>
+        <h3 className="text-sm font-medium text-gray-400">{t('settings.skillEditor.fields.tags')}</h3>
         <div className="flex flex-wrap gap-2">
           {formData.tags?.map(tag => (
             <span
@@ -380,7 +385,7 @@ const EditMode: React.FC<EditModeProps> = ({
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addTag()}
-              placeholder="添加标签..."
+              placeholder={t('settings.skillEditor.placeholders.tagsPlaceholder')}
               className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
             />
             <button
@@ -395,7 +400,7 @@ const EditMode: React.FC<EditModeProps> = ({
 
       {/* 依赖 */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">依赖技能</h3>
+        <h3 className="text-sm font-medium text-gray-400">{t('settings.skillEditor.fields.dependencies')}</h3>
         <div className="space-y-2">
           {formData.dependencies?.map(dep => (
             <div
@@ -421,7 +426,7 @@ const EditMode: React.FC<EditModeProps> = ({
               value={newDependency}
               onChange={(e) => setNewDependency(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addDependency()}
-              placeholder="添加依赖技能 ID..."
+              placeholder={t('settings.skillEditor.placeholders.dependenciesPlaceholder')}
               className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
             />
             <button
@@ -436,12 +441,12 @@ const EditMode: React.FC<EditModeProps> = ({
 
       {/* 兼容性 */}
       <FormField
-        label="兼容性表达式"
+        label={t('settings.skillEditor.fields.compatibility')}
         value={formData.compatibility || ''}
         onChange={(v) => setFormData({ ...formData, compatibility: v })}
         disabled={disabled}
-        placeholder="^1.0.0 || >=2.0.0"
-        description="使用 semver 表达式指定兼容版本"
+        placeholder={t('settings.skillEditor.placeholders.compatibility')}
+        description={t('settings.skillEditor.fields.compatibilityHint')}
       />
     </div>
   );
@@ -450,26 +455,28 @@ const EditMode: React.FC<EditModeProps> = ({
 // ==================== 预览模式 ====================
 
 const PreviewMode: React.FC<{ skill: Partial<Skill> }> = ({ skill }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6">
       <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-        <h3 className="text-lg font-bold text-white mb-2">{skill.name}</h3>
-        <p className="text-sm text-gray-400 mb-4">{skill.description}</p>
+        <h3 className="text-lg font-bold text-white mb-2">{skill.name || t('settings.skillEditor.previewFallbackName')}</h3>
+        <p className="text-sm text-gray-400 mb-4">{skill.description || t('settings.skillEditor.previewFallbackDescription')}</p>
         <div className="flex items-center gap-3 text-xs text-gray-500">
           <span>ID: {skill.id}</span>
           <span>•</span>
-          <span>版本: {skill.version}</span>
+          <span>{t('settings.skillEditor.previewVersion', { version: skill.version })}</span>
           {skill.author && (
             <>
               <span>•</span>
-              <span>作者: {skill.author}</span>
+              <span>{t('settings.skillEditor.previewAuthor', { author: skill.author })}</span>
             </>
           )}
         </div>
       </div>
 
       <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-        <h4 className="text-sm font-medium text-gray-400 mb-2">系统提示词</h4>
+        <h4 className="text-sm font-medium text-gray-400 mb-2">{t('settings.skillEditor.fields.systemPrompt')}</h4>
         <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
           {skill.system_prompt}
         </pre>
@@ -477,7 +484,7 @@ const PreviewMode: React.FC<{ skill: Partial<Skill> }> = ({ skill }) => {
 
       {(skill.tags?.length || 0) > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-gray-400 mb-2">标签</h4>
+          <h4 className="text-sm font-medium text-gray-400 mb-2">{t('settings.skillEditor.fields.tags')}</h4>
           <div className="flex flex-wrap gap-2">
             {skill.tags?.map(tag => (
               <span

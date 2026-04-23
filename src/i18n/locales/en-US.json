@@ -99,7 +99,8 @@
     },
     "inlineDiff": {
       "title": "AI Drafted Code Suggestion",
-      "hint": "Esc to dismiss • Cmd+K to apply"
+      "hint": "Esc to dismiss • Cmd+K to apply",
+      "generatingCode": "AI is generating code..."
     },
     "splitPane": "Split Pane",
     "closePane": "Close Pane",
@@ -112,6 +113,12 @@
     },
     "inlineEdit": {
       "applied": "Code changes applied"
+    },
+    "refactor": {
+      "rename": "Rename Symbol",
+      "renamePrompt": "Rename \"{{word}}\" to:",
+      "extractFunction": "Extract Function",
+      "extractFunctionPrompt": "New function name:"
     }
   },
   "fileTree": {
@@ -292,6 +299,166 @@
       "success": "Completed",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "autoUpdate": "Auto Update",
+    "resetDemo": "Reset Demo",
+    "demo": {
+      "mainMonitorTitle": "TaskMonitor - Main Monitor View",
+      "mainMonitorDesc": "Complete task monitoring interface with filtering and summary",
+      "statsTitle": "TaskStats - Statistics Charts",
+      "statsDesc": "Task execution statistics and performance metrics",
+      "timelineTitle": "TaskTimeline - Execution Timeline",
+      "timelineDesc": "Task execution history and timeline view",
+      "groupByCategory": "Group by Category",
+      "groupByStatus": "Group by Status",
+      "cardVariantsTitle": "TaskCard - Card Variants",
+      "cardVariantsDesc": "Task cards in different display modes",
+      "compactMode": "Compact Mode",
+      "normalMode": "Normal Mode",
+      "detailedMode": "Detailed Mode",
+      "progressBarTitle": "ProgressBar - Progress Bars",
+      "progressBarDesc": "Various progress bar styles and animations",
+      "linearProgress": "Linear Progress",
+      "blueDefault": "Blue (Default)",
+      "greenComplete": "Green (Complete)",
+      "redFailed": "Red (Failed)",
+      "orangeWarning": "Orange (Warning)",
+      "circularProgress": "Circular Progress",
+      "segmentedProgress": "Segmented Progress",
+      "statusBadgeTitle": "TaskStatusBadge - Status Badges",
+      "statusBadgeDesc": "Badges in all statuses and sizes",
+      "allStatuses": "All Statuses",
+      "allSizes": "All Sizes",
+      "withIcon": "With/Without Icon",
+      "animation": "Animation",
+      "logComponentsTitle": "Log Components",
+      "logComponentsDesc": "TaskLogStream and TaskLogCompact",
+      "logStreamTitle": "TaskLogStream - Full Features",
+      "logCompactTitle": "TaskLogCompact - Compact Mode",
+      "defaultStyle": "Default Style",
+      "withTimestamp": "With Timestamp",
+      "subtleTheme": "Subtle Theme",
+      "categories": {
+        "scan": "Scan",
+        "analysis": "Analysis",
+        "generation": "Generate",
+        "deployment": "Deploy"
+      },
+      "statusBadges": {
+        "title": "TaskStatusBadge - Status Badges",
+        "desc": "Badges for all statuses and sizes",
+        "allStatuses": "All Statuses",
+        "allSizes": "All Sizes"
+      },
+      "iconsAndAnimation": {
+        "withIcons": "With Icons / Without Icons",
+        "animated": "Animation Effects"
+      },
+      "logComponents": {
+        "title": "Log Components",
+        "desc": "TaskLogStream and TaskLogCompact",
+        "streamFull": "TaskLogStream - Full Featured",
+        "compactMode": "TaskLogCompact - Compact Mode",
+        "defaultStyle": "Default Style",
+        "withTimestamp": "With Timestamp",
+        "subtleTheme": "Subtle Theme"
+      },
+      "footer": {
+        "title": "TaskMonitor Industrial-Grade Task Monitoring System",
+        "subtitle": "Complete Demo - All Components, Modes, and Interactions",
+        "phase": "TaskMonitor Industrial-Grade Task Monitoring System - Phase 3 Complete",
+        "components": "Includes 8 core components + 2 visualization components + Complete state management system"
+      },
+      "demoTasks": {
+        "scanTitle": "Scanning Project Files",
+        "scanDesc": "Recursively scan all files in src directory",
+        "buildTitle": "Production Build",
+        "buildDesc": "Build optimized code bundle for production",
+        "genTitle": "AI Code Generation",
+        "genDesc": "Generate React components using AI",
+        "transferTitle": "Uploading Files to Server",
+        "transferDesc": "Upload dist directory to CDN",
+        "analysisTitle": "Code Quality Analysis",
+        "analysisDesc": "Analyze code complexity and potential issues",
+        "genFailed": "Generation failed: API rate limit"
+      },
+      "logs": {
+        "starting": "\u001b[36mStarting\u001b[0m build process...",
+        "compiling": "Compiling TypeScript files...",
+        "warning": "\u001b[33mWarning:\u001b[0m Deprecated API in utils/old.ts",
+        "bundling": "Bundling assets...",
+        "completed": "\u001b[32m✓ Build completed\u001b[0m successfully",
+        "initModel": "Initializing AI model...",
+        "modelLoaded": "Model loaded: gpt-4",
+        "apiError": "\u001b[31m✗ API Error:\u001b[0m Rate limit exceeded",
+        "failedGen": "Failed to generate component"
+      }
+    },
+    "integrationExamples": {
+      "testRunner": {
+        "title": "Test Runner Example",
+        "taskTitle": "Unit Tests - Auth Component",
+        "taskDesc": "Running 50 unit test cases",
+        "running": "Running...",
+        "runTest": "Run Tests",
+        "summary": "✅ All 50 tests passed"
+      },
+      "deployment": {
+        "title": "CI/CD Deployment Pipeline Example",
+        "deployTask": "Deploy to Production",
+        "deployDesc": "AWS ECS - us-east-1",
+        "deployBtn": "Deploy to Production",
+        "clickDeploy": "Click button to simulate complete CI/CD deployment process",
+        "steps": {
+          "build": "Build Docker image",
+          "push": "Push to ECR",
+          "update": "Update ECS service",
+          "health": "Health check",
+          "complete": "Deployment complete"
+        },
+        "starting": "🚀 Starting deployment...",
+        "success": "🎉 Deployment successful!"
+      },
+      "git": {
+        "title": "Git Operations Example",
+        "pullTask": "Git Pull - main branch",
+        "pullDesc": "Pull latest code",
+        "gitPull": "Git Pull",
+        "updated": "Updated to latest commit",
+        "from": "From github.com:user/repo",
+        "newBranch": "   * [new branch]      feature-branch",
+        "fastForward": "Fast-forwarding..."
+      },
+      "security": {
+        "title": "Security Scanner Example",
+        "scanTask": "Dependency Security Scan",
+        "scanDesc": "Check npm dependencies for vulnerabilities",
+        "runScan": "Run Security Scan",
+        "scanNpm": "Scan npm dependencies for security vulnerabilities",
+        "foundVuln": "Found {{count}} vulnerabilities"
+      },
+      "performance": {
+        "title": "Performance Optimization Example",
+        "optTask": "Performance Optimization - Code Splitting",
+        "optDesc": "Optimize frontend resource loading performance",
+        "runOpt": "Run Optimization",
+        "optPerf": "Optimize frontend resource loading performance",
+        "improved": "Performance improved by 45%",
+        "steps": {
+          "analyze": "Analyze bundle size",
+          "config": "Configure code splitting",
+          "lazy": "Optimize lazy loading",
+          "test": "Test performance improvements"
+        },
+        "bundle": "✨ Bundle size: 2.5MB → 1.4MB",
+        "firstPaint": "⚡ First paint: 1.2s → 0.6s"
+      },
+      "main": {
+        "title": "TaskMonitor Integration Examples",
+        "desc": "These examples show how to integrate and use the TaskMonitor system in existing projects",
+        "monitorTitle": "📊 Task Monitor Panel",
+        "monitorDesc": "After clicking the buttons above, tasks will be automatically added here"
+      }
     }
   },
   "todoWrite": {
@@ -1884,7 +2051,33 @@
     "justNow": "Just now",
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
-    "daysAgo": "{{count}}d ago"
+    "daysAgo": "{{count}}d ago",
+    "errors": {
+      "noActiveFile": "No active file",
+      "saveFailed": "Save failed",
+      "noActiveEditor": "No active editor",
+      "formatNotSupported": "Format not supported",
+      "formatFailed": "Format failed",
+      "actionNotExist": "Action does not exist: {{actionId}}",
+      "actionNotSupported": "Action not supported: {{actionId}}",
+      "executionFailed": "Execution failed",
+      "projectNotOpened": "Project not opened",
+      "searchFailed": "Search failed",
+      "buildFailed": "Build failed (exit code: {{exitCode}})",
+      "buildFailedGeneric": "Build failed",
+      "buildOutputNotImplemented": "Build output panel not implemented",
+      "configNotImplemented": "Configuration feature not implemented",
+      "executionError": "Execution error: {{error}}"
+    },
+    "status": {
+      "executing": "Executing...",
+      "searching": "Searching..."
+    },
+    "results": {
+      "searchResults": "Search Results",
+      "resultCount": "{{count}}+ results"
+    },
+    "input": "Enter command..."
   },
   "threads": {
     "now": "Just now",
@@ -3446,5 +3639,94 @@
     "plainText": "Plain Text",
     "tokens": "Tokens",
     "filesCount": "{{count}} files"
+  },
+  "archive": {
+    "title": "Conversation Archives",
+    "detailTitle": "Archive Details",
+    "back": "Back",
+    "restore": "Restore Archive",
+    "labels": {
+      "time": "Time",
+      "messageCount": "Messages",
+      "tokenCount": "Tokens",
+      "format": "Format",
+      "size": "Size"
+    },
+    "summary": "Conversation Summary",
+    "loading": "Loading...",
+    "empty": "No archives",
+    "emptyHint": "Archives will be created automatically when conversations are compressed",
+    "error": "Failed to load archives",
+    "messages": "messages"
+  },
+  "agentDecoration": {
+    "workingHere": "AI is working here..."
+  },
+  "imageInput": {
+    "fileTooLarge": "File too large ({{maxSize}}MB limit)",
+    "originalSize": "Original size",
+    "compressedSize": "Compressed size",
+    "compressionRatio": "Compression ratio",
+    "uploadImage": "Upload Image",
+    "maxImages": "Maximum {{count}} images"
+  },
+  "workflowInline": {
+    "running": "Workflow Running",
+    "workflow": "Workflow",
+    "initializing": "Initializing...",
+    "waiting": "Waiting to execute...",
+    "streamingDone": "Streaming completed",
+    "generating": "Generating content...",
+    "generateSummary": "Generate Summary",
+    "completed": "Workflow Completed",
+    "failed": "Workflow Failed",
+    "statusCompleted": "Completed",
+    "statusFailed": "Failed",
+    "statusRunning": "Running...",
+    "steps": "steps",
+    "switchToDag": "Switch to DAG View",
+    "switchToList": "Switch to List View",
+    "dagView": "DAG View",
+    "listView": "List View",
+    "details": "Details",
+    "input": "Input:",
+    "output": "Output:",
+    "generatingDot": "Generating...",
+    "done": "Done",
+    "contentLength": "Content length:",
+    "chars": "chars",
+    "waitingDot": "Waiting",
+    "runningDot": "Running",
+    "failedMark": "✗ Failed",
+    "preparing": "Preparing workflow...",
+    "waitingNodeInfo": "Waiting for node info...",
+    "executing": "Executing:",
+    "execCompleted": "Workflow completed",
+    "execFailed": "Workflow failed"
+  },
+  "exploreTaskAdapter": {
+    "scanComplete": "Scan complete - {{count}} files",
+    "processingResults": "Processing scan results",
+    "scanningProject": "Scanning project files ({{scanned}}/{{total}} directories)",
+    "scanFinished": "Finished scanning {{total}} directories",
+    "analyzingResults": "Analyzing scan results, please wait...",
+    "currentFile": "Current: {{file}}",
+    "scanningDirectories": "Scanning {{total}} directories..."
+  },
+  "messageRender": {
+    "exploreProject": "Explore Project",
+    "scannedFiles": "Scanned {{count}} files",
+    "taskBreakdown": "Task Breakdown",
+    "systemMessage": "System Message",
+    "unknownMessageType": "Unknown Message Type"
+  },
+  "multimodal": {
+    "recommended": "Recommended"
+  },
+  "dslRenderer": {
+    "loadingChat": "Loading chat..."
+  },
+  "imagePreview": {
+    "removeImage": "Remove Image"
   }
 }

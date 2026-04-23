@@ -6,6 +6,7 @@
  */
 
 import React, { useMemo, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   SkeletonNode,
   SkeletonBlockNode,
@@ -273,6 +274,7 @@ export const DSLRenderer: React.FC<DSLRendererProps> = memo(({
   className,
   style,
 }) => {
+  const { t } = useTranslation();
   // 创建渲染上下文（确保每次渲染时随机值一致）
   const context = useMemo(() => createRenderContext(), []);
 
@@ -313,7 +315,7 @@ export const DSLRenderer: React.FC<DSLRendererProps> = memo(({
       style={containerStyle}
       role="status"
       aria-live="polite"
-      aria-label="正在加载聊天..."
+      aria-label={t('dslRenderer.loadingChat')}
     >
       {design.structure.map((node, index) => (
         <SkeletonNodeRenderer key={index} node={node} context={context} />

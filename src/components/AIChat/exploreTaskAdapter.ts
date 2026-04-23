@@ -8,6 +8,7 @@
 import type { ExploreProgressData } from './ExploreProgress';
 import type { TaskMetadata, TaskCategory, TaskStatus, TaskPriority } from '../TaskMonitor/types';
 import { generateTaskId } from '../../stores/taskStore';
+import i18n from 'i18next';
 
 /**
  * Convert ExploreProgress phase to TaskStatus
@@ -62,13 +63,13 @@ export function exploreToTaskMetadata(
   // Generate title based on phase and progress
   const getTitle = () => {
     if (isComplete) {
-      return `扫描完成 - ${scannedFilesCount} 个文件`;
+      return i18n.t('exploreTaskAdapter.scanComplete', { count: scannedFilesCount });
     }
     if (exploreData.phase === 'analyzing') {
-      return '处理扫描结果';
+      return i18n.t('exploreTaskAdapter.processingResults');
     }
     // Always show project scan title with progress
-    return `扫描项目文件 (${scanned}/${total} 目录)`;
+    return i18n.t('exploreTaskAdapter.scanningProject', { scanned, total });
   };
 
   const scannedFilesCount = exploreData.scannedFiles?.length || 0;
@@ -76,14 +77,14 @@ export function exploreToTaskMetadata(
   // Generate description based on phase
   const getDescription = () => {
     if (isComplete) {
-      return `已完成 ${total} 个目录的扫描`;
+      return i18n.t('exploreTaskAdapter.scanFinished', { total });
     }
     if (exploreData.phase === 'analyzing') {
-      return '正在分析扫描结果，请稍候...';
+      return i18n.t('exploreTaskAdapter.analyzingResults');
     }
     return exploreData.currentFile
-      ? `当前: ${exploreData.currentFile}`
-      : `正在扫描 ${total} 个目录...`;
+      ? i18n.t('exploreTaskAdapter.currentFile', { file: exploreData.currentFile })
+      : i18n.t('exploreTaskAdapter.scanningDirectories', { total });
   };
 
   return {

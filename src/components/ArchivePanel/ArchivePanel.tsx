@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useConversationStore } from '../../stores/conversationStore';
 import type { ArchiveInfo, ArchiveDetail } from '../../types/conversation';
+import { useTranslation } from 'react-i18next';
 import './ArchivePanel.css';
 
 export interface ArchivePanelProps {
@@ -18,6 +19,7 @@ export interface ArchivePanelProps {
 }
 
 export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }) => {
+  const { t, i18n } = useTranslation();
   const { archives, isLoading, error, loadArchives, loadArchiveDetail } = useConversationStore();
   const [selectedArchive, setSelectedArchive] = useState<ArchiveDetail | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
@@ -47,7 +49,7 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString('zh-CN');
+    return new Date(timestamp * 1000).toLocaleString(i18n.language);
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -61,7 +63,7 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
     return (
       <div className="archive-panel archive-panel--error">
         <div className="archive-panel__error">
-          <p>加载归档失败: {error}</p>
+          <p>{t('archive.error')}: {error}</p>
           <button onClick={onClose} className="archive-panel__close">×</button>
         </div>
       </div>
@@ -74,9 +76,9 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
         <div className="archive-panel__header">
           <div className="archive-panel__header-left">
             <button onClick={handleBack} className="archive-panel__back">
-              ← 返回
+              ← {t('archive.back')}
             </button>
-            <h3 className="archive-panel__title">归档详情</h3>
+            <h3 className="archive-panel__title">{t('archive.detailTitle')}</h3>
           </div>
           <button onClick={onClose} className="archive-panel__close">×</button>
         </div>
@@ -84,29 +86,29 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
         <div className="archive-panel__detail">
           <div className="archive-detail__meta">
             <div className="archive-detail__meta-item">
-              <span className="archive-detail__label">时间</span>
+              <span className="archive-detail__label">{t('archive.labels.time')}</span>
               <span className="archive-detail__value">{formatDate(selectedArchive.timestamp)}</span>
             </div>
             <div className="archive-detail__meta-item">
-              <span className="archive-detail__label">消息数</span>
+              <span className="archive-detail__label">{t('archive.labels.messageCount')}</span>
               <span className="archive-detail__value">{selectedArchive.message_count}</span>
             </div>
             <div className="archive-detail__meta-item">
-              <span className="archive-detail__label">Token 数</span>
+              <span className="archive-detail__label">{t('archive.labels.tokenCount')}</span>
               <span className="archive-detail__value">{selectedArchive.token_count.toLocaleString()}</span>
             </div>
             <div className="archive-detail__meta-item">
-              <span className="archive-detail__label">格式</span>
+              <span className="archive-detail__label">{t('archive.labels.format')}</span>
               <span className="archive-detail__value">{selectedArchive.format?.toUpperCase()}</span>
             </div>
             <div className="archive-detail__meta-item">
-              <span className="archive-detail__label">大小</span>
+              <span className="archive-detail__label">{t('archive.labels.size')}</span>
               <span className="archive-detail__value">{formatFileSize(selectedArchive.size)}</span>
             </div>
           </div>
 
           <div className="archive-detail__summary">
-            <h4>对话总结</h4>
+            <h4>{t('archive.summary')}</h4>
             <p>{selectedArchive.summary}</p>
           </div>
 
@@ -115,7 +117,7 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
               onClick={handleRestore}
               className="archive-panel__button archive-panel__button--primary"
             >
-              恢复此归档
+              {t('archive.restore')}
             </button>
           </div>
         </div>
@@ -126,17 +128,17 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
   return (
     <div className="archive-panel">
       <div className="archive-panel__header">
-        <h3 className="archive-panel__title">对话归档</h3>
+        <h3 className="archive-panel__title">{t('archive.title')}</h3>
         <button onClick={onClose} className="archive-panel__close">×</button>
       </div>
 
       <div className="archive-panel__content">
         {isLoading ? (
-          <div className="archive-panel__loading">加载中...</div>
+          <div className="archive-panel__loading">{t('archive.loading')}</div>
         ) : archives.length === 0 ? (
           <div className="archive-panel__empty">
-            <p>暂无归档</p>
-            <p className="archive-panel__empty-hint">对话压缩后会自动创建归档</p>
+            <p>{t('archive.empty')}</p>
+            <p className="archive-panel__empty-hint">{t('archive.emptyHint')}</p>
           </div>
         ) : (
           <div className="archive-list">
@@ -155,7 +157,7 @@ export const ArchivePanel: React.FC<ArchivePanelProps> = ({ onRestore, onClose }
                   </div>
                 </div>
                 <div className="archive-list__item-meta">
-                  <span className="archive-list__item-count">{archive.message_count} 条消息</span>
+                  <span className="archive-list__item-count">{archive.message_count} {t('archive.messages')}</span>
                   <span className="archive-list__item-tokens">
                     {archive.token_count.toLocaleString()} tokens
                   </span>

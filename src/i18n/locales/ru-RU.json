@@ -99,7 +99,8 @@
     },
     "inlineDiff": {
       "title": "Предложения по коду для идей ИИ",
-      "hint": "ESC для выхода • Cmd+K Применить"
+      "hint": "ESC для выхода • Cmd+K Применить",
+      "generatingCode": "ИИ генерирует код..."
     },
     "splitPane": "разделенный экран",
     "closePane": "Отключить разделенный экран",
@@ -112,6 +113,12 @@
     },
     "inlineEdit": {
       "applied": "Применены изменения кода"
+    },
+    "refactor": {
+      "rename": "Переименовать символ",
+      "renamePrompt": "Переименовать \"{{word}}\" в:",
+      "extractFunction": "Извлечь функцию",
+      "extractFunctionPrompt": "Имя новой функции:"
     }
   },
   "fileTree": {
@@ -292,6 +299,166 @@
       "success": "Завершенный",
       "failed": "неудача",
       "cancelled": "Отменено"
+    },
+    "autoUpdate": "Автообновление",
+    "resetDemo": "Сбросить демо",
+    "demo": {
+      "mainMonitorTitle": "TaskMonitor - Главная панель мониторинга",
+      "mainMonitorDesc": "Полный интерфейс мониторинга задач с фильтрацией и сводкой",
+      "statsTitle": "TaskStats - Графики статистики",
+      "statsDesc": "Статистика выполнения задач и показатели производительности",
+      "timelineTitle": "TaskTimeline - Временная шкала",
+      "timelineDesc": "История выполнения задач и временная шкала",
+      "groupByCategory": "Группировать по категории",
+      "groupByStatus": "Группировать по статусу",
+      "cardVariantsTitle": "TaskCard - Варианты карточек",
+      "cardVariantsDesc": "Карточки задач в различных режимах отображения",
+      "compactMode": "Компактный режим",
+      "normalMode": "Обычный режим",
+      "detailedMode": "Подробный режим",
+      "progressBarTitle": "ProgressBar - Индикаторы прогресса",
+      "progressBarDesc": "Различные стили и анимации индикаторов прогресса",
+      "linearProgress": "Линейный прогресс",
+      "blueDefault": "Синий (по умолчанию)",
+      "greenComplete": "Зеленый (завершено)",
+      "redFailed": "Красный (Ошибка)",
+      "orangeWarning": "Оранжевый (Предупреждение)",
+      "circularProgress": "Круговой прогресс",
+      "segmentedProgress": "Сегментный прогресс",
+      "statusBadgeTitle": "TaskStatusBadge - Значки статуса",
+      "statusBadgeDesc": "Значки во всех статусах и размерах",
+      "allStatuses": "Все статусы",
+      "allSizes": "Все размеры",
+      "withIcon": "С иконкой / Без иконки",
+      "animation": "Анимация",
+      "logComponentsTitle": "Компоненты журнала",
+      "logComponentsDesc": "TaskLogStream и TaskLogCompact",
+      "logStreamTitle": "TaskLogStream - Полные функции",
+      "logCompactTitle": "TaskLogCompact - Компактный режим",
+      "defaultStyle": "Стиль по умолчанию",
+      "withTimestamp": "С меткой времени",
+      "subtleTheme": "Тема Subtle",
+      "categories": {
+        "scan": "Сканирование",
+        "analysis": "Анализ",
+        "generation": "Генерация",
+        "deployment": "Развертывание"
+      },
+      "statusBadges": {
+        "title": "TaskStatusBadge - Значки состояния",
+        "desc": "Значки для всех статусов и размеров",
+        "allStatuses": "Все статусы",
+        "allSizes": "Все размеры"
+      },
+      "iconsAndAnimation": {
+        "withIcons": "С иконками / Без иконок",
+        "animated": "Эффекты анимации"
+      },
+      "logComponents": {
+        "title": "Компоненты журнала",
+        "desc": "TaskLogStream и TaskLogCompact",
+        "streamFull": "TaskLogStream - Полный функционал",
+        "compactMode": "TaskLogCompact - Компактный режим",
+        "defaultStyle": "Стиль по умолчанию",
+        "withTimestamp": "С меткой времени",
+        "subtleTheme": "Subtle тема"
+      },
+      "footer": {
+        "title": "TaskMonitor Промышленная система мониторинга задач",
+        "subtitle": "Полная демонстрация - Все компоненты, режимы и взаимодействия",
+        "phase": "TaskMonitor Промышленная система мониторинга задач - Phase 3 завершен",
+        "components": "Включает 8 основных компонентов + 2 компонента визуализации + Полная система управления состоянием"
+      },
+      "demoTasks": {
+        "scanTitle": "Сканирование файлов проекта",
+        "scanDesc": "Рекурсивное сканирование всех файлов в каталоге src",
+        "buildTitle": "Сборка для продакшена",
+        "buildDesc": "Сборка оптимизированного пакета кода для продакшена",
+        "genTitle": "Генерация кода AI",
+        "genDesc": "Генерация компонентов React с использованием AI",
+        "transferTitle": "Загрузка файлов на сервер",
+        "transferDesc": "Загрузка каталога dist на CDN",
+        "analysisTitle": "Анализ качества кода",
+        "analysisDesc": "Анализ сложности кода и потенциальных проблем",
+        "genFailed": "Генерация не удалась: лимит API"
+      },
+      "logs": {
+        "starting": "\u001b[36mStarting\u001b[0m build process...",
+        "compiling": "Compiling TypeScript files...",
+        "warning": "\u001b[33mWarning:\u001b[0m Deprecated API in utils/old.ts",
+        "bundling": "Bundling assets...",
+        "completed": "\u001b[32m✓ Build completed\u001b[0m successfully",
+        "initModel": "Initializing AI model...",
+        "modelLoaded": "Model loaded: gpt-4",
+        "apiError": "\u001b[31m✗ API Error:\u001b[0m Rate limit exceeded",
+        "failedGen": "Failed to generate component"
+      }
+    },
+    "integrationExamples": {
+      "testRunner": {
+        "title": "Пример тестового запуска",
+        "taskTitle": "Модульные тесты - Auth компонент",
+        "taskDesc": "Выполнение 50 модульных тестов",
+        "running": "Выполняется...",
+        "runTest": "Запустить тесты",
+        "summary": "✅ Все 50 тестов пройдены"
+      },
+      "deployment": {
+        "title": "Пример конвейера CI/CD",
+        "deployTask": "Развертывание в продакшене",
+        "deployDesc": "AWS ECS - us-east-1",
+        "deployBtn": "Развернуть в продакшен",
+        "clickDeploy": "Нажмите кнопку для имитации полного процесса CI/CD",
+        "steps": {
+          "build": "Сборка Docker образа",
+          "push": "Отправка в ECR",
+          "update": "Обновление ECS сервиса",
+          "health": "Проверка здоровья",
+          "complete": "Развертывание завершено"
+        },
+        "starting": "🚀 Начало развертывания...",
+        "success": "🎉 Развертывание успешно!"
+      },
+      "git": {
+        "title": "Пример Git операций",
+        "pullTask": "Git Pull - ветка main",
+        "pullDesc": "Получить последний код",
+        "gitPull": "Git Pull",
+        "updated": "Обновлено до последнего коммита",
+        "from": "From github.com:user/repo",
+        "newBranch": "   * [new branch]      feature-branch",
+        "fastForward": "Fast-forwarding..."
+      },
+      "security": {
+        "title": "Пример сканера безопасности",
+        "scanTask": "Сканирование зависимостей",
+        "scanDesc": "Проверка npm зависимостей на уязвимости",
+        "runScan": "Запустить сканирование",
+        "scanNpm": "Сканировать npm зависимости на уязвимости",
+        "foundVuln": "Найдено {{count}} уязвимостей"
+      },
+      "performance": {
+        "title": "Пример оптимизации производительности",
+        "optTask": "Оптимизация производительности - Разделение кода",
+        "optDesc": "Оптимизация загрузки ресурсов фронтенда",
+        "runOpt": "Запустить оптимизацию",
+        "optPerf": "Оптимизировать загрузку ресурсов фронтенда",
+        "improved": "Производительность улучшена на 45%",
+        "steps": {
+          "analyze": "Анализ размера bundle",
+          "config": "Настройка разделения кода",
+          "lazy": "Оптимизация ленивой загрузки",
+          "test": "Тест улучшений производительности"
+        },
+        "bundle": "✨ Размер bundle: 2.5MB → 1.4MB",
+        "firstPaint": "⚡ First paint: 1.2s → 0.6s"
+      },
+      "main": {
+        "title": "Примеры интеграции TaskMonitor",
+        "desc": "Эти примеры показывают, как интегрировать и использовать систему TaskMonitor в существующих проектах",
+        "monitorTitle": "📊 Панель мониторинга задач",
+        "monitorDesc": "После нажатия кнопок выше, задачи будут автоматически добавляться сюда"
+      }
     }
   },
   "todoWrite": {
@@ -1765,7 +1932,33 @@
     "justNow": "Только что",
     "minutesAgo": "{{count}} минут назад",
     "hoursAgo": "{{count}} часов назад",
-    "daysAgo": "{{count}} дней назад"
+    "daysAgo": "{{count}} дней назад",
+    "errors": {
+      "noActiveFile": "Нет активного файла",
+      "saveFailed": "Не удалось сохранить",
+      "noActiveEditor": "Нет активного редактора",
+      "formatNotSupported": "Форматирование не поддерживается",
+      "formatFailed": "Не удалось отформатировать",
+      "actionNotExist": "Действие не существует: {{actionId}}",
+      "actionNotSupported": "Действие не поддерживается: {{actionId}}",
+      "executionFailed": "Сбой выполнения",
+      "projectNotOpened": "Проект не открыт",
+      "searchFailed": "Поиск не удался",
+      "buildFailed": "Сборка не удалась (код выхода: {{exitCode}})",
+      "buildFailedGeneric": "Сборка не удалась",
+      "buildOutputNotImplemented": "Панель вывода сборки не реализована",
+      "configNotImplemented": "Функция конфигурации не реализована",
+      "executionError": "Ошибка выполнения: {{error}}"
+    },
+    "status": {
+      "executing": "Выполнение...",
+      "searching": "Поиск..."
+    },
+    "results": {
+      "searchResults": "Результаты поиска",
+      "resultCount": "{{count}}+ результатов"
+    },
+    "input": "Введите команду..."
   },
   "threads": {
     "now": "Только что",
@@ -3446,5 +3639,94 @@
     "plainText": "простой текст",
     "tokens": "Token",
     "filesCount": "{{count}} файлов"
+  },
+  "archive": {
+    "title": "Архивы диалогов",
+    "detailTitle": "Детали архива",
+    "back": "Назад",
+    "restore": "Восстановить архив",
+    "labels": {
+      "time": "Время",
+      "messageCount": "Сообщения",
+      "tokenCount": "Токены",
+      "format": "Формат",
+      "size": "Размер"
+    },
+    "summary": "Сводка диалога",
+    "loading": "Загрузка...",
+    "empty": "Нет архивов",
+    "emptyHint": "Архивы будут созданы автоматически при сжатии диалогов",
+    "error": "Не удалось загрузить архивы",
+    "messages": "сообщений"
+  },
+  "agentDecoration": {
+    "workingHere": "AI работает здесь..."
+  },
+  "imageInput": {
+    "fileTooLarge": "Файл слишком большой (предел {{maxSize}}МБ)",
+    "originalSize": "Исходный размер",
+    "compressedSize": "Сжатый размер",
+    "compressionRatio": "Коэффициент сжатия",
+    "uploadImage": "Загрузить изображение",
+    "maxImages": "Максимум {{count}} изображений"
+  },
+  "workflowInline": {
+    "running": "Выполнение рабочего процесса",
+    "workflow": "Рабочий процесс",
+    "initializing": "Инициализация...",
+    "waiting": "Ожидание выполнения...",
+    "streamingDone": "Потоковая передача завершена",
+    "generating": "Генерация содержимого...",
+    "generateSummary": "Создание сводки",
+    "completed": "Рабочий процесс завершен",
+    "failed": "Ошибка рабочего процесса",
+    "statusCompleted": "Завершено",
+    "statusFailed": "Ошибка",
+    "statusRunning": "Выполнение...",
+    "steps": "шагов",
+    "switchToDag": "Переключить на DAG",
+    "switchToList": "Переключить на список",
+    "dagView": "DAG",
+    "listView": "Список",
+    "details": "Подробности",
+    "input": "Ввод:",
+    "output": "Вывод:",
+    "generatingDot": "Генерация...",
+    "done": "Готово",
+    "contentLength": "Длина содержимого:",
+    "chars": "символов",
+    "waitingDot": "Ожидание",
+    "runningDot": "Выполнение",
+    "failedMark": "✗ Ошибка",
+    "preparing": "Подготовка рабочего процесса...",
+    "waitingNodeInfo": "Ожидание информации об узлах...",
+    "executing": "Выполнение:",
+    "execCompleted": "Рабочий процесс завершен",
+    "execFailed": "Ошибка рабочего процесса"
+  },
+  "exploreTaskAdapter": {
+    "scanComplete": "Сканирование завершено - {{count}} файлов",
+    "processingResults": "Обработка результатов сканирования",
+    "scanningProject": "Сканирование файлов проекта ({{scanned}}/{{total}} каталогов)",
+    "scanFinished": "Завершено сканирование {{total}} каталогов",
+    "analyzingResults": "Анализ результатов сканирования, пожалуйста подождите...",
+    "currentFile": "Текущий: {{file}}",
+    "scanningDirectories": "Сканирование {{total}} каталогов..."
+  },
+  "messageRender": {
+    "exploreProject": "Исследование проекта",
+    "scannedFiles": "Отсканировано {{count}} файлов",
+    "taskBreakdown": "Разбор задач",
+    "systemMessage": "Системное сообщение",
+    "unknownMessageType": "Неизвестный тип сообщения"
+  },
+  "multimodal": {
+    "recommended": "Рекомендуется"
+  },
+  "dslRenderer": {
+    "loadingChat": "Загрузка чата..."
+  },
+  "imagePreview": {
+    "removeImage": "Удалить изображение"
   }
 }

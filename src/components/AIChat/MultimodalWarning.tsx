@@ -8,6 +8,7 @@ import React from 'react';
 import { AlertCircle, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 export interface MultimodalWarningProps {
   /** 警告标题 */
@@ -49,6 +50,7 @@ export const MultimodalWarning: React.FC<MultimodalWarningProps> = ({
   showSwitchButton = false,
   onSwitchModel,
 }) => {
+  const { t } = useTranslation();
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -111,7 +113,7 @@ export const MultimodalWarning: React.FC<MultimodalWarningProps> = ({
             <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-500/10 border border-orange-500/20">
               <Sparkles size={10} className="text-orange-600 dark:text-orange-400" strokeWidth={2} />
               <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
-                推荐: {recommendedModel}
+                {t('multimodal.recommended')}: {recommendedModel}
               </span>
             </div>
           )}

@@ -391,10 +391,10 @@ export const SettingsModal = () => {
                 <div className="flex items-center justify-between pt-4">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-gray-300">
-                      启用打字机效果
+                      {t('settings.typewriterEffect')}
                     </label>
                     <p className="text-xs text-gray-400 mt-1">
-                      逐字显示 AI 响应，关闭后将直接显示完整内容
+                      {t('settings.typewriterEffectDesc')}
                     </p>
                   </div>
                   <input
@@ -436,10 +436,10 @@ export const SettingsModal = () => {
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-300">
-                        沙箱模式
+                        {t('settings.sandboxMode')}
                       </label>
                       <p className="text-xs text-gray-400 mt-1">
-                        控制破坏性操作（如 bash、删除文件）的自动审批策略
+                        {t('settings.sandboxModeDesc')}
                       </p>
                     </div>
                     <select

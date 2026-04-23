@@ -99,7 +99,8 @@
     },
     "inlineDiff": {
       "title": "AI 构思的代码建议",
-      "hint": "ESC 退出 • Cmd+K 应用"
+      "hint": "ESC 退出 • Cmd+K 应用",
+      "generatingCode": "AI 正在构思并生成代码..."
     },
     "splitPane": "分屏",
     "closePane": "关闭分屏",
@@ -112,6 +113,12 @@
     },
     "inlineEdit": {
       "applied": "代码修改已应用"
+    },
+    "refactor": {
+      "rename": "重命名符号",
+      "renamePrompt": "重命名 \"{{word}}\" 为:",
+      "extractFunction": "提取函数",
+      "extractFunctionPrompt": "新函数名称:"
     }
   },
   "fileTree": {
@@ -292,6 +299,167 @@
       "success": "已完成",
       "failed": "失败",
       "cancelled": "已取消"
+    },
+    "autoUpdate": "自动更新",
+    "paused": "已暂停",
+    "resetDemo": "重置演示",
+    "demo": {
+      "mainMonitorTitle": "TaskMonitor - 主监控视图",
+      "mainMonitorDesc": "完整的任务监控界面，包含筛选、过滤和汇总",
+      "statsTitle": "TaskStats - 统计图表",
+      "statsDesc": "任务执行统计和性能指标",
+      "timelineTitle": "TaskTimeline - 执行时间线",
+      "timelineDesc": "任务执行历史和时间线视图",
+      "groupByCategory": "按类别分组",
+      "groupByStatus": "按状态分组",
+      "cardVariantsTitle": "TaskCard - 卡片变体",
+      "cardVariantsDesc": "不同显示模式的任务卡片",
+      "compactMode": "Compact 模式",
+      "normalMode": "Normal 模式",
+      "detailedMode": "Detailed 模式",
+      "progressBarTitle": "ProgressBar - 进度条",
+      "progressBarDesc": "各种进度条样式和动画",
+      "linearProgress": "线性进度条",
+      "blueDefault": "蓝色 (默认)",
+      "greenComplete": "绿色 (完成)",
+      "redFailed": "红色 (失败)",
+      "orangeWarning": "橙色 (警告)",
+      "circularProgress": "环形进度",
+      "segmentedProgress": "分段进度",
+      "statusBadgeTitle": "TaskStatusBadge - 状态徽章",
+      "statusBadgeDesc": "所有状态和尺寸的徽章",
+      "allStatuses": "所有状态",
+      "allSizes": "所有尺寸",
+      "withIcon": "带图标/不带图标",
+      "animation": "动画效果",
+      "logComponentsTitle": "日志组件",
+      "logComponentsDesc": "TaskLogStream 和 TaskLogCompact",
+      "logStreamTitle": "TaskLogStream - 完整功能",
+      "logCompactTitle": "TaskLogCompact - 紧凑模式",
+      "defaultStyle": "默认样式",
+      "withTimestamp": "带时间戳",
+      "subtleTheme": "Subtle 主题",
+      "categories": {
+        "scan": "扫描",
+        "analysis": "分析",
+        "generation": "生成",
+        "deployment": "部署"
+      },
+      "statusBadges": {
+        "title": "TaskStatusBadge - 状态徽章",
+        "desc": "所有状态和尺寸的徽章",
+        "allStatuses": "所有状态",
+        "allSizes": "所有尺寸"
+      },
+      "iconsAndAnimation": {
+        "withIcons": "带图标/不带图标",
+        "animated": "动画效果"
+      },
+      "logComponents": {
+        "title": "日志组件",
+        "desc": "TaskLogStream 和 TaskLogCompact",
+        "streamFull": "TaskLogStream - 完整功能",
+        "compactMode": "TaskLogCompact - 紧凑模式",
+        "defaultStyle": "默认样式",
+        "withTimestamp": "带时间戳",
+        "subtleTheme": "Subtle 主题"
+      },
+      "footer": {
+        "title": "TaskMonitor 工业级任务监控系统",
+        "subtitle": "完整功能演示 - 所有组件、模式和交互",
+        "phase": "TaskMonitor 工业级任务监控系统 - Phase 3 完成",
+        "components": "包含 8 个核心组件 + 2 个可视化组件 + 完整的状态管理系统"
+      },
+      "demoTasks": {
+        "scanTitle": "扫描项目文件",
+        "scanDesc": "递归扫描 src 目录下的所有文件",
+        "buildTitle": "生产环境构建",
+        "buildDesc": "构建生产环境的优化代码包",
+        "genTitle": "AI 代码生成",
+        "genDesc": "使用 AI 生成 React 组件",
+        "transferTitle": "上传文件到服务器",
+        "transferDesc": "上传 dist 目录到 CDN",
+        "analysisTitle": "代码质量分析",
+        "analysisDesc": "分析代码复杂度和潜在问题",
+        "genFailed": "生成失败：API 速率限制"
+      },
+      "logs": {
+        "starting": "\u001b[36mStarting\u001b[0m build process...",
+        "compiling": "Compiling TypeScript files...",
+        "warning": "\u001b[33mWarning:\u001b[0m Deprecated API in utils/old.ts",
+        "bundling": "Bundling assets...",
+        "completed": "\u001b[32m✓ Build completed\u001b[0m successfully",
+        "initModel": "Initializing AI model...",
+        "modelLoaded": "Model loaded: gpt-4",
+        "apiError": "\u001b[31m✗ API Error:\u001b[0m Rate limit exceeded",
+        "failedGen": "Failed to generate component"
+      }
+    },
+    "integrationExamples": {
+      "testRunner": {
+        "title": "测试运行器示例",
+        "taskTitle": "单元测试 - Auth 组件",
+        "taskDesc": "运行 50 个单元测试用例",
+        "running": "运行中...",
+        "runTest": "运行测试",
+        "summary": "✅ 所有 50 个测试通过"
+      },
+      "deployment": {
+        "title": "CI/CD 部署管道示例",
+        "deployTask": "部署到生产环境",
+        "deployDesc": "AWS ECS - us-east-1",
+        "deployBtn": "部署到生产环境",
+        "clickDeploy": "点击按钮模拟完整的 CI/CD 部署流程",
+        "steps": {
+          "build": "构建 Docker 镜像",
+          "push": "推送到 ECR",
+          "update": "更新 ECS 服务",
+          "health": "健康检查",
+          "complete": "部署完成"
+        },
+        "starting": "🚀 开始部署流程...",
+        "success": "🎉 部署成功！"
+      },
+      "git": {
+        "title": "Git 操作示例",
+        "pullTask": "Git Pull - main 分支",
+        "pullDesc": "拉取最新代码",
+        "gitPull": "Git Pull",
+        "updated": "已更新到 latest commit",
+        "from": "From github.com:user/repo",
+        "newBranch": "   * [new branch]      feature-branch",
+        "fastForward": "Fast-forwarding..."
+      },
+      "security": {
+        "title": "安全扫描示例",
+        "scanTask": "依赖安全扫描",
+        "scanDesc": "检查 npm 依赖漏洞",
+        "runScan": "运行安全扫描",
+        "scanNpm": "扫描 npm 依赖的安全漏洞",
+        "foundVuln": "发现 {{count}} 个漏洞"
+      },
+      "performance": {
+        "title": "性能优化示例",
+        "optTask": "性能优化 - 代码分割",
+        "optDesc": "优化前端资源加载性能",
+        "runOpt": "运行优化",
+        "optPerf": "优化前端资源加载性能",
+        "improved": "性能提升 45%",
+        "steps": {
+          "analyze": "分析 bundle 大小",
+          "config": "配置代码分割",
+          "lazy": "优化懒加载",
+          "test": "测试性能提升"
+        },
+        "bundle": "✨ Bundle size: 2.5MB → 1.4MB",
+        "firstPaint": "⚡ First paint: 1.2s → 0.6s"
+      },
+      "main": {
+        "title": "TaskMonitor 集成示例",
+        "desc": "这些示例展示了如何在现有项目中集成和使用 TaskMonitor 系统",
+        "monitorTitle": "📊 任务监控面板",
+        "monitorDesc": "点击上方按钮后，任务会自动添加到这里"
+      }
     }
   },
   "todoWrite": {
@@ -1765,7 +1933,33 @@
     "justNow": "刚刚",
     "minutesAgo": "{{count}} 分钟前",
     "hoursAgo": "{{count}} 小时前",
-    "daysAgo": "{{count}} 天前"
+    "daysAgo": "{{count}} 天前",
+    "errors": {
+      "noActiveFile": "没有活动的文件",
+      "saveFailed": "保存失败",
+      "noActiveEditor": "没有活动的编辑器",
+      "formatNotSupported": "格式化不支持",
+      "formatFailed": "格式化失败",
+      "actionNotExist": "操作不存在: {{actionId}}",
+      "actionNotSupported": "操作不支持: {{actionId}}",
+      "executionFailed": "执行失败",
+      "projectNotOpened": "未打开项目",
+      "searchFailed": "搜索失败",
+      "buildFailed": "构建失败 (退出码: {{exitCode}})",
+      "buildFailedGeneric": "构建失败",
+      "buildOutputNotImplemented": "构建输出面板未实现",
+      "configNotImplemented": "配置功能未实现",
+      "executionError": "执行错误: {{error}}"
+    },
+    "status": {
+      "executing": "执行中...",
+      "searching": "搜索中..."
+    },
+    "results": {
+      "searchResults": "搜索结果",
+      "resultCount": "{{count}}+ 个结果"
+    },
+    "input": "输入命令..."
   },
   "threads": {
     "now": "刚刚",
@@ -3446,5 +3640,94 @@
     "plainText": "纯文本",
     "tokens": "Token",
     "filesCount": "{{count}} 个文件"
+  },
+  "archive": {
+    "title": "对话归档",
+    "detailTitle": "归档详情",
+    "back": "返回",
+    "restore": "恢复此归档",
+    "labels": {
+      "time": "时间",
+      "messageCount": "消息数",
+      "tokenCount": "Token 数",
+      "format": "格式",
+      "size": "大小"
+    },
+    "summary": "对话总结",
+    "loading": "加载中...",
+    "empty": "暂无归档",
+    "emptyHint": "对话压缩后会自动创建归档",
+    "error": "加载归档失败",
+    "messages": "条消息"
+  },
+  "agentDecoration": {
+    "workingHere": "AI 正在此处工作..."
+  },
+  "imageInput": {
+    "fileTooLarge": "文件过大 ({{maxSize}}MB 限制)",
+    "originalSize": "原始大小",
+    "compressedSize": "压缩后大小",
+    "compressionRatio": "压缩率",
+    "uploadImage": "上传图片",
+    "maxImages": "最多 {{count}} 张图片"
+  },
+  "workflowInline": {
+    "running": "工作流执行中",
+    "workflow": "工作流",
+    "initializing": "初始化...",
+    "waiting": "等待执行...",
+    "streamingDone": "流式输出完成",
+    "generating": "正在生成内容...",
+    "generateSummary": "生成总结",
+    "completed": "工作流已完成",
+    "failed": "工作流失败",
+    "statusCompleted": "已完成",
+    "statusFailed": "失败",
+    "statusRunning": "执行中...",
+    "steps": "步",
+    "switchToDag": "切换到 DAG 视图",
+    "switchToList": "切换到列表视图",
+    "dagView": "DAG视图",
+    "listView": "列表视图",
+    "details": "详情",
+    "input": "输入:",
+    "output": "输出:",
+    "generatingDot": "正在生成...",
+    "done": "完成",
+    "contentLength": "内容长度:",
+    "chars": "字符",
+    "waitingDot": "等待中",
+    "runningDot": "运行中",
+    "failedMark": "✗ 失败",
+    "preparing": "正在准备工作流...",
+    "waitingNodeInfo": "等待节点信息...",
+    "executing": "正在执行:",
+    "execCompleted": "工作流执行完成",
+    "execFailed": "工作流执行失败"
+  },
+  "exploreTaskAdapter": {
+    "scanComplete": "扫描完成 - {{count}} 个文件",
+    "processingResults": "处理扫描结果",
+    "scanningProject": "扫描项目文件 ({{scanned}}/{{total}} 目录)",
+    "scanFinished": "已完成 {{total}} 个目录的扫描",
+    "analyzingResults": "正在分析扫描结果，请稍候...",
+    "currentFile": "当前: {{file}}",
+    "scanningDirectories": "正在扫描 {{total}} 个目录..."
+  },
+  "messageRender": {
+    "exploreProject": "探索项目",
+    "scannedFiles": "扫描了 {{count}} 个文件",
+    "taskBreakdown": "任务拆解",
+    "systemMessage": "系统消息",
+    "unknownMessageType": "未知消息类型"
+  },
+  "multimodal": {
+    "recommended": "推荐"
+  },
+  "dslRenderer": {
+    "loadingChat": "正在加载聊天..."
+  },
+  "imagePreview": {
+    "removeImage": "删除图片"
   }
 }
