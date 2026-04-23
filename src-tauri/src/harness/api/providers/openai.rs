@@ -8,6 +8,8 @@ use std::pin::Pin;
 
 use super::super::client::ApiClient;
 use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+use super::super::client_factory::{create_standard_client, normalize_base_url};
+use super::super::message_builder::{MessageBuilder, MultimodalDetector};
 use super::openai_format::parse_openai_frame;
 
 pub struct OpenAIClient {
@@ -18,28 +20,12 @@ pub struct OpenAIClient {
 
 impl OpenAIClient {
     pub fn new(config: &super::super::types::ProviderConfig) -> Self {
-        // 🆕 P2: 规范化 base_url，移除可能存在的路径后缀
-        let base_url = if let Some(url) = &config.base_url {
-            // 如果用户配置的 base_url 已经包含完整路径（如 /chat/completions），使用它
-            // 否则添加标准路径
-            if url.contains("/chat/completions") || url.contains("/v1/") {
-                url.clone()
-            } else {
-                format!("{}/v1/chat/completions", url.trim_end_matches('/'))
-            }
-        } else {
-            "https://api.openai.com/v1/chat/completions".to_string()
-        };
-
-        // 🔥 FIX: 超时配置优化（同 DeepSeek）
-        // - 不设总 timeout：长 continuation 多轮审批可能持续 10+ 分钟
-        // - read_timeout 600s：仅限制两次数据读取之间的空闲间隔
-        // - connect_timeout 30s：连接建立超时
-        use std::time::Duration;
-        let http = HttpClient::builder()
-            .connect_timeout(Duration::from_secs(30))
-            .read_timeout(Duration::from_secs(600))
-            .build()
+        // 🔥 使用工厂函数替代手动实现
+        let base_url = normalize_base_url(
+            &config.base_url,
+            "https://api.openai.com/v1/chat/completions"
+        );
+        let http = create_standard_client(None::<super::super::client_factory::HttpClientConfig>)
             .expect("Failed to create HTTP client");
 
         Self {
@@ -56,32 +42,36 @@ impl ApiClient for OpenAIClient {
         &self,
         request: StreamRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError> {
-        // 🔧 CLI: 构建 messages 数组，system prompt 作为第一条消息
-        let mut messages = Vec::new();
+        // 🔥 使用 MessageBuilder trait 消除重复代码
+        let messages = request.build_messages_with_system();
 
-        // 如果有 system prompt，作为第一条消息添加
-        if let Some(system) = &request.system {
-            messages.push(Message {
-                role: MessageRole::System,
-                content: system.clone().into(),
-                tool_calls: None,
-                tool_call_id: None,
-            });
-        }
+        // 🔥 使用 MultimodalDetector trait 检测多模态内容
+        let has_multimodal = request.has_multimodal();
 
-        // 添加所有原始消息
-        messages.extend(request.messages.clone());
+        // 🔥 FIX P0: 模型名称自动选择（多模态 → 视觉模型）
+        let model_name = if has_multimodal {
+            let original_model = request.model.to_lowercase();
+            // 检查是否已经是视觉模型
+            if is_vision_model(&original_model) {
+                request.model.clone()
+            } else {
+                // 自动切换到 GPT-4o（支持多模态）
+                "gpt-4o".to_string()
+            }
+        } else {
+            request.model.clone()
+        };
 
         // OpenAI 使用标准的 chat completions 格式
         let mut openai_request = serde_json::json!({
-            "model": request.model,
+            "model": model_name,
             "messages": messages,
             "max_tokens": request.max_tokens,
             "temperature": request.temperature,
             "stream": true
         });
 
-        // 🆕 P2: 添加 tools 参数（如果存在）
+        // 添加 tools 参数（如果存在）
         if let Some(tools) = request.tools {
             if let Some(obj) = openai_request.as_object_mut() {
                 obj.insert("tools".to_string(), serde_json::Value::Array(tools));
@@ -90,7 +80,7 @@ impl ApiClient for OpenAIClient {
 
         let response = self
             .http
-            .post(&self.base_url)  // 🆕 P2: 直接使用 base_url，不再添加路径
+            .post(&self.base_url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&openai_request)
@@ -216,4 +206,14 @@ fn convert_openai_data(data: &super::openai_format::OpenAiSseData) -> Option<Str
     }
 
     None
+}
+
+/// 🔥 检查模型是否支持视觉能力
+///
+/// OpenAI 支持多模态的模型：
+/// - gpt-4o 系列
+/// - gpt-4-vision 系列
+fn is_vision_model(model: &str) -> bool {
+    let model_lower = model.to_lowercase();
+    model_lower.contains("gpt-4o") || model_lower.contains("gpt-4-vision")
 }
