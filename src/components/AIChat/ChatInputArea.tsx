@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Send, Hash, Image, AtSign, X, Cpu } from 'lucide-react';
 // 🔥 FIX: 使用 CoreStoreProxy 的代理版本，确保工作流意图识别生效
 import { useChatStore } from '../../stores/chat/CoreStoreProxy';
@@ -12,6 +12,8 @@ import { SlashCommandList } from './SlashCommandList';
 import { ContextHUD } from './ContextHUD';
 import { ToolClassificationIndicator } from '../ToolClassification';
 import { ModelCapsulePanel } from './ModelCapsulePanel';
+import { MultimodalWarning } from './MultimodalWarning';
+import { checkMultimodalSupport, getMultimodalWarning } from '../../utils/multimodalSupport';
 import type { ImageAttachment } from '../../types/multimodal';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,6 +38,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
   const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isModelPanelOpen, setIsModelPanelOpen] = useState(false);
+  const [dismissedWarning, setDismissedWarning] = useState(false);
   const modelPanelRef = useRef<HTMLDivElement>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -51,6 +54,24 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
 
   // 🔥 FIX: 使用默认值而不是早期返回，避免违反 React Hooks 规则
   const messages = chatStoreState?.messages || [];
+
+  // 🔥 UX 改进：多模态支持检测和警告
+  const multimodalWarning = useMemo(() => {
+    // 当用户关闭警告或没有图片时，不显示警告
+    if (dismissedWarning || imageAttachments.length === 0) {
+      return null;
+    }
+
+    // 检查当前模型是否支持多模态
+    return getMultimodalWarning(currentProviderId, currentModel);
+  }, [dismissedWarning, imageAttachments.length, currentProviderId, currentModel]);
+
+  // 当图片附件变化时，重置警告关闭状态
+  useEffect(() => {
+    if (imageAttachments.length > 0) {
+      setDismissedWarning(false);
+    }
+  }, [imageAttachments.length]);
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -325,6 +346,21 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({ isLoading: _isLoad
         data-testid="chat-input-container"
         className="theme-panel-elevated theme-border theme-shadow group-focus-within:border-[var(--accent-soft-border)] relative flex w-full flex-col rounded-2xl border shadow-2xl backdrop-blur-3xl transition-all duration-500"
       >
+        {/* 0. 多模态支持警告 (在预览流之前) */}
+        <AnimatePresence mode="popLayout">
+          {multimodalWarning && (
+            <div className="p-2 pt-3">
+              <MultimodalWarning
+                title={multimodalWarning.title}
+                message={multimodalWarning.message}
+                suggestion={multimodalWarning.suggestion}
+                recommendedModel={multimodalWarning.recommendedModel}
+                onClose={() => setDismissedWarning(true)}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* 1. 顶部预览流 (附件与图片) */}
         <AnimatePresence mode="popLayout">
           {(imageAttachments.length > 0 || activeReferences.length > 0) && (
