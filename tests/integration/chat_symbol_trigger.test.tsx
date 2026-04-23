@@ -47,7 +47,7 @@ describe('ChatInputArea Symbol Trigger (#) High-Fidelity', () => {
 
   it('SHOULD trigger symbol search panel when user types #', async () => {
     render(<ChatInputArea isLoading={false} />);
-    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i) as HTMLTextAreaElement;
     
     const val = 'help #';
     fireEvent.change(textarea, { target: { value: val, selectionStart: val.length } });

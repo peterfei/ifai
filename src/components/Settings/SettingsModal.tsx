@@ -9,14 +9,13 @@ import { DataManagementPanel } from './DataManagementPanel';
 import { LocalModelSettings } from './LocalModelSettings';
 import { CustomProviderSettings } from './CustomProviderSettings';
 import { ToolClassificationSettings } from './ToolClassificationSettings';
-import { SkillsSettings } from './SkillsSettings';
 
 export const SettingsModal = () => {
   const { t, i18n } = useTranslation();
   const { isSettingsOpen, setSettingsOpen, sidebarPosition, setSidebarPosition, activeSettingsTab } = useLayoutStore();
   const settings = useSettingsStore();
   // 🔥 FIX: 使用layoutStore的activeSettingsTab作为初始值
-  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification' | 'skills'>(
+  const [activeTab, setActiveTab] = useState<'general' | 'editor' | 'ai' | 'performance' | 'keybindings' | 'data' | 'localModel' | 'customProvider' | 'toolClassification'>(
     (activeSettingsTab || 'general') as any
   );
 
@@ -76,7 +75,6 @@ export const SettingsModal = () => {
     { id: 'data', label: t('settings.dataManagement'), icon: Database },
     { id: 'localModel', label: t('settings.localModelSettings'), icon: LocalLLM },
     { id: 'toolClassification', label: t('settings.tabs.toolClassification'), icon: Target },
-    { id: 'skills', label: t('settings.tabs.skillsCenter'), icon: Zap },
   ] as const;
 
   return (
@@ -111,7 +109,6 @@ export const SettingsModal = () => {
                activeTab === 'localModel' ? t('settings.localModelSettings') :
                activeTab === 'customProvider' ? t('settings.customProvider') :
                activeTab === 'toolClassification' ? t('settings.tabs.toolClassificationSettings') :
-               activeTab === 'skills' ? t('settings.tabs.skillsCenterFull') :
                `${t(`settings.${activeTab}`)} ${t('chat.settings')}`}
             </h2>
             <button onClick={() => setSettingsOpen(false)} className="text-gray-400 hover:text-white" data-testid="close-settings">
@@ -526,7 +523,6 @@ export const SettingsModal = () => {
             {activeTab === 'localModel' && <LocalModelSettings />}
             {activeTab === 'customProvider' && <CustomProviderSettings />}
             {activeTab === 'toolClassification' && <ToolClassificationSettings />}
-            {activeTab === 'skills' && <SkillsSettings />}
           </div>
         </div>
       </div>

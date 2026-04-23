@@ -349,7 +349,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
         expect(visibility.rejectButton.visible).toBe(true);
 
         // 状态徽章必须显示"待审批"
-        expect(visibility.statusBadge.text).toContain('待审批');
+        expect(visibility.statusBadge.text).toMatch(/待审批|Pending approval/i);
       });
 
       test(`${tool.toolName}: 刷新后(isLoading=false)审批按钮仍然可见`, async ({ page }) => {
@@ -389,7 +389,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
         expect(visibility.approveButton.visible).toBe(true);
         expect(visibility.rejectButton.exists).toBe(true);
         expect(visibility.rejectButton.visible).toBe(true);
-        expect(visibility.statusBadge.text).toContain('待审批');
+        expect(visibility.statusBadge.text).toMatch(/待审批|Pending approval/i);
       });
     }
   });
@@ -730,7 +730,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
       expect(visibility.rejectButton.exists).toBe(false);
 
       // 状态应显示"生成中..."
-      expect(visibility.statusBadge.text).toContain('生成中');
+      expect(visibility.statusBadge.text).toMatch(/生成中|Generating/i);
     });
 
     test('工具状态流转：pending → approved → completed 各阶段 UI 正确', async ({ page }) => {
@@ -773,7 +773,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
       // 验证 pending 状态
       let visibility = await checkApprovalVisibility(page);
       expect(visibility.approveButton.visible).toBe(true);
-      expect(visibility.statusBadge.text).toContain('待审批');
+      expect(visibility.statusBadge.text).toMatch(/待审批|Pending approval/i);
 
       // 阶段 2: approved（模拟用户点击批准）
       await page.evaluate(({ correlationId, testId }) => {
@@ -797,7 +797,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
       visibility = await checkApprovalVisibility(page);
       // approved 后不再有审批按钮
       expect(visibility.approveButton.exists).toBe(false);
-      expect(visibility.statusBadge.text).toContain('已批准');
+      expect(visibility.statusBadge.text).toMatch(/已批准|Approved/i);
 
       // 阶段 3: completed
       await page.evaluate(({ correlationId, testId }) => {
@@ -823,7 +823,7 @@ test.describe('Dangerous Tool Approval Visibility', () => {
       await page.waitForTimeout(150);
 
       visibility = await checkApprovalVisibility(page);
-      expect(visibility.statusBadge.text).toContain('已完成');
+      expect(visibility.statusBadge.text).toMatch(/已完成|Completed/i);
     });
   });
 
@@ -961,7 +961,7 @@ MIT License
 
       // 状态应该显示"待审批"
       expect(visibility.statusBadge.exists).toBe(true);
-      expect(visibility.statusBadge.text).toContain('待审批');
+      expect(visibility.statusBadge.text).toMatch(/待审批|Pending approval/i);
     });
 
     test('用户说"重构 auth 模块" → edit_file 需要审批', async ({ page }) => {
@@ -1084,7 +1084,7 @@ MIT License
       expect(visibility.rejectButton.exists).toBe(true);
 
       // 高风险工具，状态徽章应包含"待审批"
-      expect(visibility.statusBadge.text).toContain('待审批');
+      expect(visibility.statusBadge.text).toMatch(/待审批|Pending approval/i);
     });
   });
 });

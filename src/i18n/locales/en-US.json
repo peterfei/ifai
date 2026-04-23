@@ -459,7 +459,8 @@
         "monitorTitle": "📊 Task Monitor Panel",
         "monitorDesc": "After clicking the buttons above, tasks will be automatically added here"
       }
-    }
+    },
+    "paused": "Paused"
   },
   "todoWrite": {
     "title": "Todo list",

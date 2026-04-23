@@ -24,7 +24,7 @@ interface FieldMappingConfig {
   wildcard?: boolean;
 
   /** 字段转换函数 */
-  transform?: Record<string, (value: any) => any>;
+  transform?: Record<string, ((value: any) => any) | string>;
 }
 
 /**
@@ -81,12 +81,13 @@ export class AutoFieldMapper {
     // 指定字段映射
     if (config?.fields) {
       for (const key of config.fields) {
-        if (key in source) {
+        if (key in (source as object)) {
           const value = (source as any)[key];
 
           // 应用转换函数
           if (config.transform && key in config.transform) {
-            result[key] = config.transform[key](value);
+            const transformer = config.transform[key];
+            result[key] = typeof transformer === 'function' ? transformer(value) : value;
           } else {
             result[key] = value;
           }
@@ -96,7 +97,7 @@ export class AutoFieldMapper {
 
     // 自动继承字段（从元数据）
     for (const field of this.schema.fieldPropagation.autoInherit) {
-      if (field in source) {
+      if (field in (source as object)) {
         result[field] = (source as any)[field];
       }
     }

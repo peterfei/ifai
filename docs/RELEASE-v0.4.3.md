@@ -27,9 +27,11 @@ v0.4.3 是一个**架构重构与功能增强版本**，主要亮点包括：
 
 ### 国际化
 
-- **新增俄语支持**：100% UI 翻译覆盖
+- **新增俄语支持**：2,749 键 100% 翻译覆盖
 - **3 种语言**：中文、英文、俄语
 - **智能语言检测**：localStorage → navigator 自动回退
+- **硬编码提取**：15 个组件完成 i18n 改造，采用率从 60.7% 提升至 66.2%
+- **CI 质量门禁**：GitHub Actions CI、husky pre-commit hook 自动校验语言包一致性
 
 ---
 
@@ -286,6 +288,51 @@ i18n.changeLanguage('ru-RU');
 
 ---
 
+### 6. CI 集成与质量门禁 🔒
+
+#### GitHub Actions CI
+
+新增 `.github/workflows/ci.yml`，在每次 push 和 PR 时自动运行：
+
+```yaml
+jobs:
+  check:    # ESLint + TypeScript 类型检查 + i18n 一致性校验
+  test:     # 单元测试（依赖 check 通过）
+```
+
+#### Pre-commit Hook
+
+使用 husky + lint-staged 配置本地 Git hooks：
+
+- **语言包变更**：修改 `src/i18n/locales/*.json` 时自动运行 `check-i18n-parity.mjs --quiet`
+- **提交拦截**：i18n 一致性检查失败时阻止提交
+
+#### npm scripts
+
+```bash
+npm run i18n:check      # 语言包键一致性校验（退出码 0=通过）
+npm run i18n:scan       # 硬编码中文字符串扫描
+npm run i18n:report     # 综合覆盖率报告
+npm run i18n:report:md  # Markdown 格式报告
+```
+
+#### i18n 验证工具链
+
+| 脚本 | 用途 | 退出码 |
+|------|------|--------|
+| `check-i18n-parity.mjs` | 语言包键一致性校验 | 0=一致, 1=差异 |
+| `scan-hardcoded-strings.mjs` | 硬编码字符串扫描 | 0=无问题, 1=发现硬编码 |
+| `i18n-coverage-report.mjs` | 综合覆盖率报告 | 始终 0 |
+
+---
+
+### 7. UI 精简 🧹
+
+- **移除 Settings 技能中心**：从 SettingsModal 中移除 Skills tab（SkillsSettings），技能功能将在后续版本以新架构重构
+- **修复 useTranslation 导入路径**：6 个文件从错误的 `@/i18n/config` 修正为 `react-i18next`
+
+---
+
 ## 🐛 关键 Bug 修复：SSE finish_reason 检测
 
 ### 问题
@@ -408,12 +455,13 @@ npm run test:e2e -- tests/e2e/providers/kimi-provider-e2e.spec.ts
 
 | 类别 | 修改 |
 |------|------|
-| **新增文件** | 8 |
-| **修改文件** | 18 |
-| **代码行数** | +3,200 / -1,500 |
+| **新增文件** | 12 |
+| **修改文件** | 25 |
+| **代码行数** | +5,500 / -2,000 |
 | **测试文件** | +3 |
 | **翻译文件** | +1 (ru-RU.json) |
 | **YAML 配置** | +1 (kimi-official.yaml) |
+| **CI 配置** | +1 (ci.yml) + pre-commit hook |
 
 ---
 

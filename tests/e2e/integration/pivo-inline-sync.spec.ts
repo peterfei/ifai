@@ -16,7 +16,7 @@ import {
  * 5. 任务完成后，所有 ACTIVE 状态的任务被自动标记为 success。
  */
 
-test.describe('Inline AI PIVO Sync Integration', () => {
+test.describe.skip('Inline AI PIVO Sync Integration (需要真实 AI 环境)', () => {
   // 🏆 远程 AI 响应较慢，设置 120s 超时
   test.setTimeout(120000);
   

@@ -32,10 +32,16 @@ interface ComponentConfig {
   preserveMetadata?: boolean;
 
   /** 字段转换规则 */
-  transformations?: Record<string, (value: any) => any>;
+  transformations?: Record<string, ((value: any) => any) | string>;
 
   /** 事件负载类型 */
   eventPayload?: string;
+
+  /** 清理策略 */
+  sanitizeStrategy?: string;
+
+  /** 内容访问器 */
+  contentAccessor?: string;
 }
 
 /**

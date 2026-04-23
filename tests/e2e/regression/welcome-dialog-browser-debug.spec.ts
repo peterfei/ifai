@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 
-test.describe('WelcomeDialog Browser-Specific Debugging', () => {
+test.describe.skip('WelcomeDialog Browser-Specific Debugging (调试专用用例)', () => {
   test('debug: capture detailed browser state and errors', async ({ page, context }) => {
     console.log('[DEBUG] Starting detailed browser debugging...');
 

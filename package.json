@@ -1,7 +1,7 @@
 {
   "name": "ifai",
   "description": "若爱 (IfAI) - 基于 Tauri 2.0 构建的跨平台 AI 代码编辑器 | A cross-platform AI code editor built with Tauri 2.0",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "author": {
     "name": "peterfei",
     "email": "peterfeispace@gmail.com",
@@ -57,6 +57,12 @@
     "tauri:dev": "export APP_EDITION=community && tauri dev --features community",
     "lint": "eslint .",
     "check:file": "tsc --noEmit --skipLibCheck",
+    "check:ci": "node scripts/check-ci.mjs",
+    "i18n:check": "node src/i18n/scripts/check-i18n-parity.mjs",
+    "i18n:scan": "node src/i18n/scripts/scan-hardcoded-strings.mjs",
+    "i18n:report": "node src/i18n/scripts/i18n-coverage-report.mjs",
+    "i18n:report:md": "node src/i18n/scripts/i18n-coverage-report.mjs --markdown",
+    "prepare": "husky",
     "test:e2e": "playwright test",
     "test:e2e:tauri": "TAURI_DEV=true playwright test",
     "test:e2e:tauri:commercial": "TAURI_DEV=true APP_EDITION=commercial playwright test",
@@ -134,11 +140,16 @@
     "autoprefixer": "^10.4.22",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.0.11",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vitest": "^4.0.16",
     "yaml": "^2.8.3"
+  },
+  "lint-staged": {
+    "src/i18n/locales/*.json": "node src/i18n/scripts/check-i18n-parity.mjs --quiet"
   }
 }

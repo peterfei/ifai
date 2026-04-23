@@ -71,7 +71,7 @@ test.describe('工作流 DAG 视图 - 代码验证测试', () => {
     }
   });
 
-  test('✅ 验证 WorkflowInlineMonitor 包含 DAG 视图集成', async ({ page }) => {
+  test.skip('✅ 验证 WorkflowInlineMonitor 包含 DAG 视图集成 (文件已移除)', async ({ page }) => {
     const projectRoot = process.cwd();
     const inlineMonitorPath = join(projectRoot, 'src/components/workflow/WorkflowInlineMonitor.tsx');
 

@@ -42,7 +42,7 @@ describe('ChatInputArea High-Fidelity Integration', () => {
   it('SHOULD trigger fuzzy search when user types @', async () => {
     render(<ChatInputArea isLoading={false} />);
     
-    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i);
+    const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i);
     
     // 模拟用户输入 @
     fireEvent.change(textarea, { target: { value: '@' } });
@@ -58,7 +58,7 @@ describe('ChatInputArea High-Fidelity Integration', () => {
 
   it('SHOULD insert file reference when a result is selected', async () => {
     render(<ChatInputArea isLoading={false} />);
-    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i) as HTMLTextAreaElement;
     
     fireEvent.change(textarea, { target: { value: '请帮我解释下 @ma' } });
     
@@ -75,7 +75,7 @@ describe('ChatInputArea High-Fidelity Integration', () => {
   it('SHOULD maintain high-tech button states (Send Button Glow)', async () => {
     render(<ChatInputArea isLoading={false} />);
     const sendButton = screen.getByTestId('chat-send-button');
-    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i);
+    const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i);
     
     // 初始状态：按钮应该是禁用样式
     expect(sendButton.className).toContain('theme-button-secondary');

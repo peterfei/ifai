@@ -108,7 +108,7 @@ function applyLogDecorator(
  */
 export function LogDataFlow(
   config: LogDataFlowConfig = {}
-): ClassDecorator | MethodDecorator {
+): any {
   const finalConfig: Required<LogDataFlowConfig> = {
     level: config.level || 'debug',
     trackFields: config.trackFields || ['multiModalContent'],

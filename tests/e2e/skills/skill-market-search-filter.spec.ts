@@ -14,7 +14,7 @@
 import { test, expect } from '@playwright/test';
 import { setupE2ETestEnvironment } from '../setup-utils';
 
-test.describe('🧪 技能市场搜索和过滤功能', () => {
+test.describe.skip('🧪 技能市场搜索和过滤功能 (Settings 技能中心已移除)', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
   test.beforeEach(async ({ page }) => {

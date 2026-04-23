@@ -11,8 +11,10 @@
  * - Markdown 内容渲染支持
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Joyride, CallBackProps, STATUS, Step } from 'react-joyride';
+import React, { useState, useEffect, useCallback, Component, ErrorInfo, ReactNode } from 'react';
+import { Joyride, STATUS, Step } from 'react-joyride';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CallBackProps = any;
 import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../stores/layoutStore';
 import ReactMarkdown from 'react-markdown';
@@ -116,7 +118,7 @@ export const resetTourState = () => {
 // Tour Steps Definition
 // ============================================================================
 
-const getTourSteps = (t: (key: string) => string): Step[] => {
+function getTourSteps(t: (key: string) => string): any[] {
   // 创建 Markdown 渲染组件的辅助函数
   const renderMarkdown = (content: string) => (
     <ReactMarkdown
@@ -129,7 +131,8 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
         // 自定义 strong/b 样式
         strong: ({ children }) => <strong style={{ fontWeight: '600', color: '#fff' }}>{children}</strong>,
         // 自定义代码样式
-        code: ({ inline, children }) => inline ? (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        code: ({ inline: _inline, children }: any) => _inline ? (
           <code style={{
             backgroundColor: 'rgba(255,255,255,0.1)',
             padding: '0.2em 0.4em',
@@ -146,10 +149,11 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
     </ReactMarkdown>
   );
 
-  return [
+  // react-joyride v3 Step 类型不完整，使用 any 绕过 disableBeacon 等缺失属性
+  // 注意：v3 中居中步骤不能设 target 为 'body'，否则 portal 容器内 querySelector 会抛 NotFoundError
+  const steps: any[] = [
     // 步骤 1: 欢迎屏幕（居中显示）
     {
-      target: 'body',
       content: renderMarkdown(t('onboarding.steps.welcome')),
       title: t('onboarding.steps.welcomeTitle'),
       disableBeacon: true,
@@ -157,7 +161,6 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
     },
     // 步骤 2: CommandBar 演示（居中显示，动态打开）
     {
-      target: 'body',
       content: renderMarkdown(t('onboarding.steps.commandBar')),
       title: t('onboarding.steps.commandBarTitle'),
       disableBeacon: true,
@@ -165,7 +168,6 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
     },
     // 步骤 3: Settings 演示（居中显示，动态打开）
     {
-      target: 'body',
       content: renderMarkdown(t('onboarding.steps.settingsGuide')),
       title: t('onboarding.steps.settingsGuideTitle'),
       disableBeacon: true,
@@ -173,13 +175,48 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
     },
     // 步骤 4: 布局切换器
     {
-      target: '[data-testid="layout-switcher"]',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
-      placement: 'bottom' as const,
+      disableBeacon: true,
+      placement: 'center' as const,
     },
   ];
-};
+
+  return steps;
+}
+
+// ============================================================================
+// Joyride Error Boundary — react-joyride@3.0.0-7 在 DOM 元素不存在时会抛 NotFoundError
+// ============================================================================
+
+interface JoyrideErrorBoundaryState {
+  hasError: boolean;
+}
+
+class JoyrideErrorBoundary extends Component<
+  { children: ReactNode },
+  JoyrideErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): JoyrideErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.warn('[OnboardingTour] Joyride error caught, tour disabled:', error.message);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
 
 // ============================================================================
 // Component
@@ -422,34 +459,38 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
   const steps = getTourSteps(t);
 
+  // react-joyride v3 类型定义不完整，使用 any 绕过类型检查
+  const JoyrideComponent = Joyride as any;
   return (
-    <Joyride
-      key={`onboarding-${i18n.language}`}
-      steps={steps}
-      run={run}
-      continuous
-      showSkipButton
-      showProgress
-      onEvent={handleCallback}
-      styles={tooltipStyles}
-      locale={{
-        back: t('onboarding.buttons.back') || 'Back',
-        close: t('onboarding.buttons.close') || 'Close',
-        last: t('onboarding.buttons.last') || 'Finish',
-        next: t('onboarding.buttons.next') || 'Next',
-        open: t('onboarding.buttons.open') || 'Open the dialog',
-        skip: t('onboarding.buttons.skip') || 'Skip',
-      }}
-      floaterProps={{
-        disableAnimation: false,
-      }}
-      disableCloseOnEsc={true}
-      disableOverlayClose={true}
-      hideBackButton={false}
-      scrollToFirstStep={false}
-      spotlightClicks={false}
-      debug={false}
-    />
+    <JoyrideErrorBoundary>
+      <JoyrideComponent
+        key={`onboarding-${i18n.language}`}
+        steps={steps}
+        run={run}
+        continuous
+        showSkipButton
+        showProgress
+        onEvent={handleCallback}
+        styles={tooltipStyles}
+        locale={{
+          back: t('onboarding.buttons.back') || 'Back',
+          close: t('onboarding.buttons.close') || 'Close',
+          last: t('onboarding.buttons.last') || 'Finish',
+          next: t('onboarding.buttons.next') || 'Next',
+          open: t('onboarding.buttons.open') || 'Open the dialog',
+          skip: t('onboarding.buttons.skip') || 'Skip',
+        }}
+        floaterProps={{
+          disableAnimation: false,
+        }}
+        disableCloseOnEsc={true}
+        disableOverlayClose={true}
+        hideBackButton={false}
+        scrollToFirstStep={false}
+        spotlightClicks={false}
+        debug={false}
+      />
+    </JoyrideErrorBoundary>
   );
 };
 

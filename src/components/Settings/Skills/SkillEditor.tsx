@@ -322,7 +322,7 @@ const EditMode: React.FC<EditModeProps> = ({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-gray-400">{t('settings.skillEditor.fields.systemPrompt')}</h3>
           <span className="text-xs text-gray-500">
-            {t('settings.skillEditor.characterCount', { count: formData.system_prompt?.length || 0 })}
+            {(t as any)('settings.skillEditor.characterCount', { count: formData.system_prompt?.length || 0 })}
           </span>
         </div>
         <FormField

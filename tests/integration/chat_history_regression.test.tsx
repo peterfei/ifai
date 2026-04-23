@@ -48,7 +48,7 @@ describe('Chat Input History Regression (v0.3.5)', () => {
 
   it('SHOULD cycle through history using ArrowUp and ArrowDown keys', async () => {
     render(<ChatInputArea isLoading={false} />);
-    const textarea = screen.getByPlaceholderText(/Ask DeepSeek/i) as HTMLTextAreaElement;
+    const textarea = screen.getByPlaceholderText(/输入消息|Type a message/i) as HTMLTextAreaElement;
 
     // 1. 按向上键
     // 预期：显示最后一条用户消息 "Second message"

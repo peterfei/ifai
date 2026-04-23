@@ -229,7 +229,7 @@ function resetMockStore(overrides: Partial<typeof mockStoreState> = {}) {
   });
 }
 
-describe('技能系统集成测试', () => {
+describe.skip('技能系统集成测试 (Settings 技能中心已移除)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetMockStore();
