@@ -145,22 +145,12 @@ export const useChatStore = create<ChatStore>()(
             const threadStore = useThreadStore.getState();
             // 🔥 FIX: 使用 activeThreadId 作为后备，确保即使 currentThreadId 不同步也能找到正确的线程
             const threadId = get().currentThreadId || threadStore.activeThreadId;
-              currentThreadId: get().currentThreadId,
-              activeThreadId: threadStore.activeThreadId,
-              threadId,
-              content: typeof content === 'string' ? content : 'Array'
-            });
             const currentThread = threadId ? threadStore.getThread(threadId) : null;
             if (currentThread) {
               const isDefaultTitle = /^(上午|下午|晚上)(的新对话|的对话 \d+)$/.test(currentThread.title);
               if (isDefaultTitle) {
-                console.log('[ChatStore] 🔥 调用 updateThreadTitleFromMessage');
                 threadStore.updateThreadTitleFromMessage(threadId, content as string);
-              } else {
-                console.log('[ChatStore] ⏭️ 跳过标题更新（非默认标题）');
               }
-            } else {
-              console.warn('[ChatStore] ⚠️ 无法找到线程进行标题更新, threadId:', threadId);
             }
 
             // 🏆 物理对齐：使用同一个 correlationId 启动生成
@@ -488,14 +478,6 @@ export const useChatStore = create<ChatStore>()(
               // 🔥 FIX: 确保 Tauri bridge 已初始化
               await ensureTauriInitialized();
 
-              // 🔥 DEBUG: 诊断 Tauri 环境状态
-                hasTAURI_INTERNALS: !!(window as any).__TAURI_INTERNALS__,
-                hasInvoke: !!(window as any).__TAURI_INTERNALS__?.invoke,
-                hasCoreInvoke: !!(window as any).__TAURI__?.core?.invoke,
-                isE2E: !!(window as any).__E2E__,
-                e2eRealTauriMode: (window as any).__E2E_REAL_TAURI_MODE__
-              });
-
               const { invoke } = await import('@tauri-apps/api/core');
               
               // 🏆 核级脱敏：1. 过滤空消息 2. 压缩重复角色 3. 角色交替校验
@@ -517,53 +499,20 @@ export const useChatStore = create<ChatStore>()(
                     const content = selectAPIMessageContent(m);
 
                     // 🔧 后端兼容层：确保多模态内容被正确序列化
-                    // 智谱 API 需要格式化的多模态内容，不能直接传递数组
                     let apiContent: any = content;
                     if (Array.isArray(content)) {
-                        // 🔍 高保真日志：完整的 multiModalContent 结构
-                            messageId: m.id,
-                            isArray: Array.isArray(content),
-                            itemCount: content.length,
-                            fullStructure: JSON.stringify(content, null, 2),
-                        });
-
                         // 确保多模态内容格式正确
                         apiContent = content.map(part => {
                             if (part.type === 'image_url') {
                                 // 确保图片 URL 格式正确
-                                const imagePart = {
+                                return {
                                     type: 'image_url',
                                     image_url: {
                                         url: part.image_url.url
                                     }
                                 };
-                                    originalType: typeof part,
-                                    hasImageUrl: !!(part as any).image_url,
-                                    urlLength: (part as any).image_url?.url?.length || 0,
-                                    urlPreview: (part as any).image_url?.url?.substring(0, 50) + '...',
-                                    reconstructed: imagePart,
-                                });
-                                return imagePart;
-                            }
-                            if (part.type === 'text') {
-                                    textLength: (part as any).text?.length || 0,
-                                    textPreview: (part as any).text?.substring(0, 100) + '...',
-                                });
                             }
                             return part;
-                        });
-
-                        // 🔍 调试日志：最终发送的结构
-                            partsCount: apiContent.length,
-                            hasText: apiContent.some((p: any) => p.type === 'text'),
-                            hasImage: apiContent.some((p: any) => p.type === 'image_url'),
-                            fullApiContent: JSON.stringify(apiContent, null, 2),
-                            jsonStringifyResult: JSON.stringify({ content: apiContent }),
-                        });
-                    } else {
-                        // 纯文本内容
-                            length: content.length,
-                            preview: (content as string).substring(0, 100),
                         });
                     }
 
@@ -580,118 +529,18 @@ export const useChatStore = create<ChatStore>()(
                     return true;
                 });
 
-              // 🔍 高保真调试日志：检查最终发送的消息格式
-                count: sanitizedMessages.length,
-                messages: sanitizedMessages.map((m, index) => {
-                  const isMultiModal = Array.isArray(m.content);
-                  let contentDetails: any = {
-                    role: m.role,
-                    contentType: typeof m.content,
-                  };
-
-                  if (isMultiModal) {
-                    contentDetails.contentPreview = `Array(${(m.content as any).length} items)`;
-                    contentDetails.hasMultiModal = true;
-                    contentDetails.multiModalStructure = (m.content as any).map((part: any) => ({
-                      type: part.type,
-                      hasData: !!part.image_url?.url || !!part.text,
-                    }));
-                    contentDetails.fullJson = JSON.stringify(m.content, null, 2);
-                  } else {
-                    contentDetails.contentPreview = (m.content as string).substring(0, 100);
-                    contentDetails.hasMultiModal = false;
-                  }
-
-                  console.log(`[ChatStore]   [${index}] ${m.role} message:`, contentDetails);
-                  return contentDetails;
-                })
-              });
-
               // 🔧 确保至少有一条 user 消息
               const hasUserMessage = sanitizedMessages.some(m => m.role === 'user');
               if (!hasUserMessage) {
-                console.warn('[ChatStore] ⚠️ No user message in sanitizedMessages! Attempting recovery...');
-                console.warn('[ChatStore] ⚠️ History roles:', history.map(m => m.role));
-                console.warn('[ChatStore] ⚠️ Sanitized roles:', sanitizedMessages.map(m => m.role));
                 const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
                 if (lastUserMsg) {
                   sanitizedMessages.push({
                     role: 'user',
                     content: typeof lastUserMsg.content === 'string' ? lastUserMsg.content : JSON.stringify(lastUserMsg.content),
                   });
-                  console.log('[ChatStore] ✅ Recovered user message from history');
-                } else {
-                  console.error('[ChatStore] ❌ No user message found in history either!');
                 }
               }
 
-              console.log('[ChatStore] 🚀 About to invoke ai_chat with eventId:', `chat_${correlationId}`);
-              console.log('[ChatStore] 🚀 Message count:', sanitizedMessages.length);
-              console.log('[ChatStore] 🚀 Is continuation:', !!existingCorrelationId);
-              console.log('[ChatStore] 🚀 Calling invoke at:', new Date().toISOString());
-
-              // 🔍 DEBUG: 检查续播时的消息历史
-              if (existingCorrelationId && sanitizedMessages.length > 0) {
-                const lastMsg = sanitizedMessages[sanitizedMessages.length - 1];
-              }
-
-              // 🔴🟢 高保真边界点日志：前端 → Rust 后端
-              console.log('[ChatStore] 🔴🟢 BOUNDARY: Frontend → Rust Backend');
-              console.log('[ChatStore] ========================================');
-                  eventId: `chat_${correlationId}`,
-                  messageCount: sanitizedMessages.length,
-                  providerName: providerConfig.name,
-                  modelName: modelName,
-                  enableTools: true,
-                  timestamp: new Date().toISOString(),
-              });
-
-              // 详细记录每个消息的完整结构
-              sanitizedMessages.forEach((msg, idx) => {
-                  const isMultiModal = Array.isArray(msg.content);
-                  console.log(`[ChatStore] 📨 Message [${idx}] details:`, {
-                      index: idx,
-                      role: msg.role,
-                      contentType: typeof msg.content,
-                      contentConstructor: msg.content?.constructor?.name,
-                      isArray: Array.isArray(msg.content),
-                      hasMultiModal: isMultiModal,
-                      contentLength: isMultiModal ? (msg.content as any).length : (msg.content as string)?.length,
-                      // 🔥 关键：记录完整的 content 结构
-                      fullContent: isMultiModal
-                          ? (msg.content as any).map((part: any, pIdx: number) => ({
-                                partIndex: pIdx,
-                                type: part.type,
-                                hasImageUrl: !!part.image_url,
-                                hasText: !!part.text,
-                                imageUrlLength: part.image_url?.url?.length || 0,
-                                imageUrlPreview: part.image_url?.url?.substring(0, 50) + '...',
-                                textLength: part.text?.length || 0,
-                                textPreview: part.text?.substring(0, 50) + '...',
-                            }))
-                          : (msg.content as string)?.substring(0, 200),
-                      // 🔥 关键：JSON 序列化测试
-                      jsonStringify: JSON.stringify(msg.content),
-                      jsonStringLength: JSON.stringify(msg.content).length,
-                      tool_calls: msg.tool_calls,
-                      tool_call_id: msg.tool_call_id,
-                  });
-              });
-
-              // 🔥 测试：完整序列化整个 messages 数组
-              const fullSerialized = JSON.stringify(sanitizedMessages);
-              console.log('[ChatStore] 🔥 Full serialization test:', {
-                  messagesSerializedLength: fullSerialized.length,
-                  messagesSerializedPreview: fullSerialized.substring(0, 500) + '...',
-                  serializationSuccess: fullSerialized !== undefined && fullSerialized !== null,
-                  firstChar: fullSerialized[0],
-                  lastChar: fullSerialized[fullSerialized.length - 1],
-              });
-
-              console.log('[ChatStore] ========================================');
-              console.log('[ChatStore] 🚀 Invoking Tauri command: ai_chat');
-
-              const invokeStart = Date.now();
               await invoke('ai_chat', {
                   providerConfig: {
                       ...providerConfig,
@@ -700,30 +549,19 @@ export const useChatStore = create<ChatStore>()(
                       models: [modelName]
                   },
                   messages: sanitizedMessages,
-                  // 🏆 FIX: 使用私有库的 eventId 格式 "chat_${correlationId}"
                   eventId: `chat_${correlationId}`,
-                  // 🔥 FIX: 优先使用多工作区模式的 getActiveRoot()，否则回退到 rootPath
                   projectRoot: useFileStore.getState().getActiveRoot()?.path || useFileStore.getState().rootPath,
                   enableTools: true,
                   mode: (window as any).__IFAI_EDITOR_MODE__ || "vibe"
               });
-
-              const invokeElapsed = Date.now() - invokeStart;
-              console.log('[ChatStore] ✅ ai_chat invoke completed after', invokeElapsed, 'ms');
          } catch (e) {
-              console.error('[ChatStore] AI Chat Invoke failed:', e);
               // 🔥 FIX: 避免重复处理 API 错误
-              // 后端已经通过 callback 发送了错误事件，StreamingResponseController 会转发到 EventBus
-              // 这里只处理没有被 callback 处理的错误（如网络错误、参数错误等）
               const errorMsg = e instanceof Error ? e.message : String(e);
-
-              // 检查是否是 API 错误（已被后端 callback 处理）
               const isApiError = errorMsg.includes('API stream error:') ||
                                 errorMsg.includes('API request timeout') ||
                                 (errorMsg.includes('"code":') && errorMsg.includes('"message":'));
 
               if (!isApiError) {
-                // 只有非 API 错误才发送事件
                 chatEventBus.emit('chat:error', {
                   correlationId: correlationId,
                   error: {
@@ -731,8 +569,6 @@ export const useChatStore = create<ChatStore>()(
                     message: errorMsg
                   }
                 });
-              } else {
-                console.log('[ChatStore] API error already handled by backend callback, skipping duplicate error event');
               }
               set({ isLoading: false });
           } finally {

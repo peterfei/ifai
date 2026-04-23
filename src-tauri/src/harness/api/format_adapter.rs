@@ -340,6 +340,8 @@ fn transform_messages_openai(
 
 /// 转换消息格式（Gemini 格式）
 fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, String> {
+    use crate::harness::api::types::MessageContent;
+
     messages
         .iter()
         .map(|msg| {
@@ -350,16 +352,81 @@ fn transform_messages_gemini(messages: &[Message]) -> Result<Vec<JsonValue>, Str
                 _ => "user",
             };
 
+            // 处理系统提示词前缀
             let content = if matches!(msg.role, crate::harness::api::types::MessageRole::System) {
-                // 系统提示词添加 "System: " 前缀
-                crate::harness::api::types::MessageContent::Text(format!("System: {}", msg.content))
+                match &msg.content {
+                    MessageContent::Text(text) => {
+                        MessageContent::Text(format!("System: {}", text))
+                    }
+                    MessageContent::MultiModal(parts) => {
+                        // 如果系统消息是多模态，在第一个文本部分添加前缀
+                        let mut new_parts = parts.clone();
+                        if let Some(first_text) = new_parts.iter_mut().find(|p| p.part_type == "text") {
+                            if let Some(text) = &first_text.text {
+                                first_text.text = Some(format!("System: {}", text));
+                            }
+                        }
+                        MessageContent::MultiModal(new_parts)
+                    }
+                }
             } else {
                 msg.content.clone()
             };
 
+            // 根据 content 类型构建 parts
+            let parts = match &content {
+                MessageContent::Text(text) => {
+                    serde_json::json!([{"text": text}])
+                }
+                MessageContent::MultiModal(content_parts) => {
+                    // 转换 OpenAI 格式的 ContentPart 为 Gemini 格式
+                    let gemini_parts: Result<Vec<JsonValue>, String> = content_parts
+                        .iter()
+                        .map(|part| {
+                            if part.part_type == "text" {
+                                Ok(serde_json::json!({
+                                    "text": part.text.as_ref().unwrap_or(&String::new())
+                                }))
+                            } else if part.part_type == "image_url" {
+                                // 从 data:image/jpeg;base64,<data> 提取 mime type 和 data
+                                if let Some(image_url) = &part.image_url {
+                                    let url = &image_url.url;
+                                    // 解析 data URL 格式: data:image/jpeg;base64,<data>
+                                    if url.starts_with("data:") {
+                                        let parts: Vec<&str> = url.splitn(3, ':').collect();
+                                        if parts.len() >= 2 {
+                                            let mime_part = parts[1]; // image/jpeg
+                                            let remaining = parts.get(2).unwrap_or(&"");
+                                            let data_parts: Vec<&str> = remaining.splitn(2, ',').collect();
+                                            if data_parts.len() == 2 {
+                                                let base64_data = data_parts[1];
+                                                return Ok(serde_json::json!({
+                                                    "inline_data": {
+                                                        "mime_type": mime_part,
+                                                        "data": base64_data
+                                                    }
+                                                }));
+                                            }
+                                        }
+                                    }
+                                    Err(format!("Invalid image_url format"))
+                                } else {
+                                    Err(format!("Missing image_url"))
+                                }
+                            } else {
+                                Err(format!("Unknown content part type: {}", part.part_type))
+                            }
+                        })
+                        .collect();
+
+                    serde_json::to_value(gemini_parts?)
+                        .map_err(|e| format!("Failed to serialize Gemini parts: {}", e))?
+                }
+            };
+
             Ok(serde_json::json!({
                 "role": role,
-                "parts": [{"text": content}],
+                "parts": parts,
             }))
         })
         .collect()
