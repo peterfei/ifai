@@ -136,8 +136,8 @@ impl ApiClient for DeepSeekClient {
                             frame_count += 1;
 
                             // 🔥 FIX: 移除高频日志，避免流式输出卡顿
-                            // 仅保留前 3 帧用于连接诊断
-                            if frame_count <= 3 {
+                            // 仅保留前 3 帧用于连接诊断（可通过 IFAI_QUIET 禁用）
+                            if frame_count <= 3 && std::env::var("IFAI_QUIET").is_err() {
                                 println!("[DeepSeek] 📨 Frame {}: {} bytes", frame_count, frame_bytes.len());
                             }
 
@@ -247,9 +247,11 @@ impl ApiClient for DeepSeekClient {
                     );
                 }
             }
-            println!("[DeepSeek] 🏁 Stream completed: frames={}, finish_reason={:?}",
-                frame_count, last_finish_reason
-            );
+            if std::env::var("IFAI_QUIET").is_err() {
+                println!("[DeepSeek] 🏁 Stream completed: frames={}, finish_reason={:?}",
+                    frame_count, last_finish_reason
+                );
+            }
         }))
     }
 

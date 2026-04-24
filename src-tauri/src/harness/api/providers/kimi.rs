@@ -258,9 +258,11 @@ impl ApiClient for KimiClient {
                     );
                 }
             }
-            println!("[Kimi] 🏁 Stream completed: frames={}, finish_reason={:?}",
-                frame_count, last_finish_reason
-            );
+            if std::env::var("IFAI_QUIET").is_err() {
+                println!("[Kimi] 🏁 Stream completed: frames={}, finish_reason={:?}",
+                    frame_count, last_finish_reason
+                );
+            }
         }))
     }
 

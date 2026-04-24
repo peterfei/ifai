@@ -254,7 +254,7 @@ fn run_prompt(text: &str) -> Result<(), String> {
 }
 
 /// 🔄 运行 REPL 循环
-fn run_repl(resume_name: Option<String>) -> Result<(), String> {
+async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 解析有效配置
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
     let theme = render::default_theme();
@@ -309,14 +309,31 @@ fn run_repl(resume_name: Option<String>) -> Result<(), String> {
                 Err(e) => eprintln!("{}Error: {}{}", render::color_256(167), e, render::RESET),
             }
         } else {
-            // 用户消息 → 添加到 session
-            session.add_message(input.to_string());
-            println!("{}User message added ({} total){}", theme.muted, session.messages.len(), render::RESET);
-            println!("{}(TODO: Send to AI and stream response){}", theme.dim, render::RESET);
+            // 用户消息 → 发送给 AI（流式响应）
+            match session.stream_prompt(input).await {
+                Ok(_) => {
+                    // 流式响应已在 stream_prompt 中打印
+                }
+                Err(e) => {
+                    eprintln!("{}Error: {}{}", theme.error, e, render::RESET);
+                }
+            }
         }
     }
 
     Ok(())
+}
+
+/// 🔄 运行 REPL 循环（同步包装）
+fn run_repl(resume_name: Option<String>) -> Result<(), String> {
+    // 创建 tokio runtime
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+
+    // 在 async runtime 中运行 REPL
+    rt.block_on(async {
+        run_repl_async(resume_name).await
+    })
 }
 
 // ============================================================================

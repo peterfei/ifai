@@ -8,7 +8,12 @@
 //!
 //! ToolDone 事件不再用于参数解析，参数仅来自 ToolStart.input
 
+use std::io::{self, Write};
+use futures_util::stream::StreamExt;
 use ifainew_lib::harness::api::types::StreamEvent;
+use crate::provider::resolve_provider;
+use crate::render::{self, RESET};
+use crate::prompts::build_system_prompt;
 
 // ============================================================================
 // Pending Tool Call (Collect Phase)
@@ -211,6 +216,147 @@ impl Session {
 
     pub fn clear_history(&mut self) {
         self.messages.clear();
+    }
+
+    /// 🤖 执行流式 AI 调用（单轮对话，无 Tool 支持）
+    ///
+    /// **Future**: 扩展支持 Tool 调用和续播循环
+    pub async fn stream_prompt(&mut self, prompt: &str) -> Result<String, String> {
+        // 🔇 禁用调试日志（设置环境变量）
+        std::env::set_var("IFAI_QUIET", "1");
+
+        // 解析 provider spec
+        let spec = resolve_provider(&self.provider)
+            .map_err(|e| format!("Failed to resolve provider: {}", e))?;
+
+        // 构建系统提示词
+        let system_prompt = build_system_prompt(&spec);
+
+        // 根据 provider spec 确定 AiProvider 类型
+        let provider = match spec.metadata.id.as_str() {
+            "anthropic-official" => ifainew_lib::harness::api::AiProvider::Anthropic,
+            "deepseek-official" => ifainew_lib::harness::api::AiProvider::DeepSeek,
+            "openai-official" => ifainew_lib::harness::api::AiProvider::OpenAI,
+            "zhipu-official" => ifainew_lib::harness::api::AiProvider::Zhipu,
+            "kimi-official" => ifainew_lib::harness::api::AiProvider::Kimi,
+            "gemini-official" => ifainew_lib::harness::api::AiProvider::Gemini,
+            _ => return Err(format!("Unsupported provider: {}", spec.metadata.id)),
+        };
+
+        // 确定 API key 环境变量名
+        let env_key = match spec.metadata.id.as_str() {
+            "anthropic-official" => "ANTHROPIC_API_KEY",
+            "deepseek-official" => "DEEPSEEK_API_KEY",
+            "openai-official" => "OPENAI_API_KEY",
+            "zhipu-official" => "ZHIPU_API_KEY",
+            "kimi-official" => "KIMI_API_KEY",
+            "gemini-official" => "GEMINI_API_KEY",
+            _ => "API_KEY",
+        };
+
+        // 创建 provider 配置
+        let provider_config = ifainew_lib::harness::api::ProviderConfig {
+            api_key: std::env::var(env_key)
+                .unwrap_or_else(|_| {
+                    // 回退：尝试从 spec.metadata.name 推导
+                    let fallback_key = format!("{}_API_KEY",
+                        spec.metadata.name.to_uppercase().replace(" ", "_").replace("-", "_"));
+                    std::env::var(&fallback_key).unwrap_or_else(|_| "".to_string())
+                }),
+            base_url: None, // 使用默认 base_url
+            organization: None,
+        };
+
+        let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(
+            provider,
+            &provider_config
+        ).map_err(|e| format!("Failed to create client: {:?}", e))?;
+
+        // 构建消息列表
+        let mut messages = Vec::new();
+        for msg in &self.messages {
+            messages.push(ifainew_lib::harness::api::Message {
+                role: ifainew_lib::harness::api::MessageRole::User,
+                content: ifainew_lib::harness::api::types::MessageContent::Text(msg.clone()),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+        }
+        // 添加当前 prompt
+        messages.push(ifainew_lib::harness::api::Message {
+            role: ifainew_lib::harness::api::MessageRole::User,
+            content: ifainew_lib::harness::api::types::MessageContent::Text(prompt.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        // 构建请求
+        let request = ifainew_lib::harness::api::StreamRequest {
+            model: self.model.clone(),
+            messages,
+            max_tokens: 4096,
+            system: Some(system_prompt),
+            temperature: Some(0.7),
+            stream: true,
+            tools: None, // 暂不支持工具
+        };
+
+        // 发送流式请求
+        let mut stream = client.stream(request).await
+            .map_err(|e| format!("Failed to start stream: {:?}", e))?;
+
+        let theme = render::default_theme();
+        let mut full_response = String::new();
+
+        // 🎨 显示加载动画（如果是首次响应）
+        let mut spinner = render::Spinner::new("thinking");
+        let mut first_delta = true;
+
+        // 处理流式响应
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(event) => {
+                    match &event {
+                        StreamEvent::TextDelta { text } => {
+                            // 首次响应：清除 spinner 并显示文本
+                            if first_delta {
+                                spinner.finish(true);
+                                first_delta = false;
+                            }
+                            print!("{}", text);
+                            io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+                            full_response.push_str(text);
+                        }
+                        StreamEvent::Error { code, message } => {
+                            if first_delta {
+                                spinner.finish(false);
+                                first_delta = false;
+                            }
+                            eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
+                        }
+                        _ => {
+                            // 其他事件暂时忽略
+                        }
+                    }
+                }
+                Err(e) => {
+                    if first_delta {
+                        spinner.finish(false);
+                        first_delta = false;
+                    }
+                    eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
+                    break;
+                }
+            }
+        }
+
+        println!(); // 结束后换行
+
+        // 添加用户消息和助手响应到历史
+        self.messages.push(prompt.to_string());
+        self.messages.push(full_response.clone());
+
+        Ok(full_response)
     }
 }
 
