@@ -214,6 +214,10 @@ pub struct Session {
     pub cumulative_input_tokens: u32,
     /// 🔥 累积输出 token 数
     pub cumulative_output_tokens: u32,
+    /// 🔥 API key（从配置读取，优先级：CLI > Env > TOML > Default）
+    api_key: Option<String>,
+    /// 🔥 Base URL（可选，从 TOML 配置读取）
+    base_url: Option<String>,
 }
 
 impl Session {
@@ -229,7 +233,31 @@ impl Session {
             tool_router,
             cumulative_input_tokens: 0,
             cumulative_output_tokens: 0,
+            api_key: None,
+            base_url: None,
         }
+    }
+
+    /// 🔥 设置 API key（从 EffectiveConfig 读取）
+    pub fn set_api_key(&mut self, api_key: String) {
+        self.api_key = Some(api_key);
+    }
+
+    /// 🔥 设置 Base URL（从 EffectiveConfig 读取）
+    pub fn set_base_url(&mut self, base_url: String) {
+        self.base_url = Some(base_url);
+    }
+
+    /// 🔥 获取 API key（优先返回已设置的，否则从环境变量读取）
+    fn get_api_key(&self, env_key: &str) -> Result<String, String> {
+        // 优先使用已设置的 API key
+        if let Some(key) = &self.api_key {
+            return Ok(key.clone());
+        }
+
+        // 从环境变量读取
+        std::env::var(env_key)
+            .map_err(|_| format!("API key not found. Set {} environment variable or add api_key to ~/.ifai/config.toml [providers.{}]", env_key, self.provider))
     }
 
     pub fn add_message(&mut self, msg: String) {
@@ -288,15 +316,13 @@ impl Session {
             _ => "API_KEY",
         };
 
+        // 🔥 优先从 Session 配置获取 API key，否则从环境变量读取
+        let api_key = self.get_api_key(env_key)?;
+
         // 创建 provider 配置
         let provider_config = ifainew_lib::harness::api::ProviderConfig {
-            api_key: std::env::var(env_key)
-                .unwrap_or_else(|_| {
-                    let fallback_key = format!("{}_API_KEY",
-                        spec.metadata.name.to_uppercase().replace(" ", "_").replace("-", "_"));
-                    std::env::var(&fallback_key).unwrap_or_else(|_| "".to_string())
-                }),
-            base_url: None,
+            api_key,
+            base_url: self.base_url.clone(), // 使用配置的 base_url
             organization: None,
         };
 

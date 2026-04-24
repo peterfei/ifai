@@ -288,6 +288,16 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 初始化 Session
     let mut session = session::Session::new(config.provider().to_string(), config.model().to_string());
 
+    // 🔥 从配置读取 API key（优先级：CLI > Env > TOML > Default）
+    if let Some(api_key) = config.api_key() {
+        session.set_api_key(api_key.to_string());
+    }
+
+    // 🔥 从配置读取 Base URL（优先级：CLI > TOML > Default）
+    if let Some(base_url) = config.base_url() {
+        session.set_base_url(base_url.to_string());
+    }
+
     // 🔥 FIX: 设置项目根目录为当前工作目录
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current directory: {}", e))?;

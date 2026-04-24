@@ -557,4 +557,37 @@ mod tests {
         // 清理
         std::env::remove_var("IFAI_PROVIDER");
     }
+
+    #[test]
+    fn test_toml_config_parsing() {
+        // 测试 TOML 配置解析
+        let toml_content = r#"
+[default]
+provider = "openai"
+model = "gpt-4o"
+
+[providers.openai-official]
+api_key = "sk-test-key"
+base_url = "https://api.custom.com"
+"#;
+
+        let config: TomlConfig = toml::from_str(toml_content).unwrap();
+        assert_eq!(config.default.provider, Some("openai".to_string()));
+        assert_eq!(config.default.model, Some("gpt-4o".to_string()));
+        assert_eq!(config.providers.get("openai-official").unwrap().api_key, Some("sk-test-key".to_string()));
+        assert_eq!(config.providers.get("openai-official").unwrap().base_url, Some("https://api.custom.com".to_string()));
+    }
+
+    #[test]
+    fn test_generate_toml_template() {
+        // 测试 TOML 模板生成
+        let template = generate_toml_template();
+
+        // 验证包含关键部分
+        assert!(template.contains("[default]"));
+        assert!(template.contains("provider ="));
+        assert!(template.contains("[providers."));
+        assert!(template.contains("# API key"));
+        assert!(template.contains("Precedence"));
+    }
 }
