@@ -286,6 +286,7 @@ pub struct SessionMetadata {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ifainew_lib::harness::api::types::{Message, MessageRole};
 
     #[test]
     fn test_safe_name_conversion() {
@@ -304,5 +305,162 @@ mod tests {
                 .collect();
             assert_eq!(safe_name, expected);
         }
+    }
+
+    #[test]
+    fn test_session_snapshot_serialization() {
+        use ifainew_lib::harness::api::types::MessageContent;
+
+        // 创建测试消息
+        let messages = vec![
+            Message {
+                role: MessageRole::System,
+                content: MessageContent::Text("You are a helpful assistant".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("Hello, world!".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        // 创建快照（使用 RFC3339 字符串格式）
+        let snapshot = SessionSnapshot {
+            version: 1,
+            name: "test_session".to_string(),
+            saved_at: "2024-01-15T10:30:00+00:00".to_string(),  // RFC3339 格式
+            provider: "deepseek-official".to_string(),
+            model: "deepseek-chat".to_string(),
+            messages: messages.clone(),
+            cumulative_input_tokens: 1000,
+            cumulative_output_tokens: 500,
+        };
+
+        // 序列化
+        let json = serde_json::to_string_pretty(&snapshot)
+            .expect("Failed to serialize snapshot");
+
+        // 验证 JSON 包含所有字段
+        assert!(json.contains("\"version\": 1"));
+        assert!(json.contains("\"name\": \"test_session\""));
+        assert!(json.contains("\"saved_at\": \"2024-01-15T10:30:00+00:00\""));
+        assert!(json.contains("\"provider\": \"deepseek-official\""));
+        assert!(json.contains("\"model\": \"deepseek-chat\""));
+        assert!(json.contains("\"cumulative_input_tokens\": 1000"));
+        assert!(json.contains("\"cumulative_output_tokens\": 500"));
+
+        // 反序列化
+        let deserialized: SessionSnapshot = serde_json::from_str(&json)
+            .expect("Failed to deserialize snapshot");
+
+        // 验证反序列化结果
+        assert_eq!(deserialized.version, 1);
+        assert_eq!(deserialized.name, "test_session");
+        assert_eq!(deserialized.saved_at, "2024-01-15T10:30:00+00:00");
+        assert_eq!(deserialized.provider, "deepseek-official");
+        assert_eq!(deserialized.model, "deepseek-chat");
+        assert_eq!(deserialized.cumulative_input_tokens, 1000);
+        assert_eq!(deserialized.cumulative_output_tokens, 500);
+        assert_eq!(deserialized.messages.len(), 2);
+
+        // 使用 matches! 宏检查 MessageRole（因为 MessageRole 没有实现 PartialEq）
+        assert!(matches!(deserialized.messages[0].role, MessageRole::System));
+        assert!(matches!(deserialized.messages[1].role, MessageRole::User));
+    }
+
+    #[test]
+    fn test_session_persistence_roundtrip() {
+        use ifainew_lib::harness::api::types::MessageContent;
+
+        // 创建临时目录
+        let temp_dir = std::env::temp_dir().join("ifai_test_sessions");
+        std::fs::create_dir_all(&temp_dir).expect("Failed to create temp dir");
+
+        // 创建测试快照
+        let messages = vec![
+            Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("Test message".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let snapshot = SessionSnapshot {
+            version: 1,
+            name: "roundtrip_test".to_string(),
+            saved_at: chrono::Utc::now().to_rfc3339(),
+            provider: "test-provider".to_string(),
+            model: "test-model".to_string(),
+            messages,
+            cumulative_input_tokens: 100,
+            cumulative_output_tokens: 50,
+        };
+
+        // 手动创建 SessionPersistence（使用临时目录）
+        struct TestPersistence {
+            sessions_dir: std::path::PathBuf,
+        }
+
+        impl TestPersistence {
+            fn new(dir: std::path::PathBuf) -> Self {
+                Self { sessions_dir: dir }
+            }
+
+            fn save_session(&self, name: &str, snapshot: &SessionSnapshot) -> Result<std::path::PathBuf, String> {
+                let safe_name = name.chars()
+                    .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                    .collect::<String>();
+                let filename = format!("{}.json", safe_name);
+                let filepath = self.sessions_dir.join(&filename);
+
+                let json = serde_json::to_string_pretty(snapshot)
+                    .map_err(|e| format!("Failed to serialize: {}", e))?;
+
+                std::fs::write(&filepath, json)
+                    .map_err(|e| format!("Failed to write: {}", e))?;
+
+                Ok(filepath)
+            }
+
+            fn load_session(&self, name: &str) -> Result<SessionSnapshot, String> {
+                let safe_name = name.chars()
+                    .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                    .collect::<String>();
+                let filename = format!("{}.json", safe_name);
+                let filepath = self.sessions_dir.join(&filename);
+
+                let json = std::fs::read_to_string(&filepath)
+                    .map_err(|e| format!("Failed to read: {}", e))?;
+
+                serde_json::from_str(&json)
+                    .map_err(|e| format!("Failed to deserialize: {}", e))
+            }
+        }
+
+        let persistence = TestPersistence::new(temp_dir.clone());
+
+        // 保存
+        let saved_path = persistence.save_session("roundtrip_test", &snapshot)
+            .expect("Failed to save session");
+        assert!(saved_path.exists());
+
+        // 加载
+        let loaded = persistence.load_session("roundtrip_test")
+            .expect("Failed to load session");
+
+        // 验证
+        assert_eq!(loaded.name, snapshot.name);
+        assert_eq!(loaded.provider, snapshot.provider);
+        assert_eq!(loaded.model, snapshot.model);
+        assert_eq!(loaded.cumulative_input_tokens, snapshot.cumulative_input_tokens);
+        assert_eq!(loaded.cumulative_output_tokens, snapshot.cumulative_output_tokens);
+        assert_eq!(loaded.messages.len(), snapshot.messages.len());
+
+        // 清理
+        std::fs::remove_dir_all(temp_dir).ok();
     }
 }

@@ -226,8 +226,24 @@ fn show_version() {
 
 /// 配置初始化
 fn config_init() -> Result<(), String> {
-    println!("Config initialization...");
-    println!("(TODO: Implement config init)");
+    println!("Initializing IfAI CLI configuration...");
+
+    let filepath = config::init_config_file()?;
+
+    println!();
+    println!("Configuration file created: {}", filepath.display());
+    println!();
+    println!("Edit the file to customize your settings:");
+    println!("  - Default provider and model");
+    println!("  - API keys (or use environment variables)");
+    println!("  - Custom base URLs");
+    println!();
+    println!("Configuration precedence (highest to lowest):");
+    println!("  1. CLI arguments (--provider, --model, --api-key)");
+    println!("  2. Environment variables (IFAI_PROVIDER, IFAI_MODEL, {{PROVIDER}}_API_KEY)");
+    println!("  3. Config file ({})", filepath.display());
+    println!("  4. YAML defaults (embedded in binary)");
+
     Ok(())
 }
 

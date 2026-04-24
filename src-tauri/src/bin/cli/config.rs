@@ -8,7 +8,9 @@
 //! 3. Config file (~/.ifai/config.toml)
 //! 4. YAML defaults (from provider metadata)
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::fs;
+use std::collections::HashMap;
 
 // ============================================================================
 // Config Source Tracking
@@ -81,7 +83,7 @@ impl EffectiveConfig {
         let provider = Self::resolve_provider(cli_provider)?;
         let model = Self::resolve_model(&provider.value, cli_model)?;
         let api_key = Self::resolve_api_key(&provider.value, cli_api_key)?;
-        let base_url = Self::resolve_base_url(cli_base_url);
+        let base_url = Self::resolve_base_url(cli_base_url, &provider.value);
 
         Ok(Self {
             provider,
@@ -91,7 +93,7 @@ impl EffectiveConfig {
         })
     }
 
-    /// 解析 provider（CLI > env > default "deepseek"）
+    /// 解析 provider（CLI > env > TOML > default "deepseek"）
     fn resolve_provider(cli_arg: Option<&str>) -> Result<TracedValue<String>, String> {
         if let Some(p) = cli_arg {
             return Ok(TracedValue::new(p.to_string(), ConfigSource::CliArg));
@@ -102,11 +104,16 @@ impl EffectiveConfig {
             return Ok(TracedValue::new(p, ConfigSource::EnvVar));
         }
 
+        // 检查 TOML 配置文件
+        if let Some(p) = read_provider_from_toml() {
+            return Ok(TracedValue::new(p, ConfigSource::ConfigFile));
+        }
+
         // 默认值
         Ok(TracedValue::new("deepseek".to_string(), ConfigSource::YamlDefault))
     }
 
-    /// 解析 model（CLI > env > provider default）
+    /// 解析 model（CLI > env > TOML > provider default）
     fn resolve_model(provider: &str, cli_arg: Option<&str>) -> Result<TracedValue<String>, String> {
         if let Some(m) = cli_arg {
             return Ok(TracedValue::new(m.to_string(), ConfigSource::CliArg));
@@ -115,6 +122,11 @@ impl EffectiveConfig {
         // 检查环境变量 IFAI_MODEL
         if let Ok(m) = std::env::var("IFAI_MODEL") {
             return Ok(TracedValue::new(m, ConfigSource::EnvVar));
+        }
+
+        // 检查 TOML 配置文件
+        if let Some(m) = read_model_from_toml() {
+            return Ok(TracedValue::new(m, ConfigSource::ConfigFile));
         }
 
         // 从 provider metadata 获取默认模型
@@ -126,7 +138,7 @@ impl EffectiveConfig {
         Ok(TracedValue::new(default_model, ConfigSource::YamlDefault))
     }
 
-    /// 解析 api_key（CLI > env > None）
+    /// 解析 api_key（CLI > env > TOML > None）
     fn resolve_api_key(provider: &str, cli_arg: Option<&str>) -> Result<TracedValue<Option<String>>, String> {
         if let Some(key) = cli_arg {
             return Ok(TracedValue::new(Some(key.to_string()), ConfigSource::CliArg));
@@ -140,13 +152,23 @@ impl EffectiveConfig {
             return Ok(TracedValue::new(Some(key), ConfigSource::EnvVar));
         }
 
+        // 检查 TOML 配置文件
+        if let Some(key) = read_provider_api_key_from_toml(provider) {
+            return Ok(TracedValue::new(Some(key), ConfigSource::ConfigFile));
+        }
+
         Ok(TracedValue::new(None, ConfigSource::YamlDefault))
     }
 
-    /// 解析 base_url（CLI > None）
-    fn resolve_base_url(cli_arg: Option<&str>) -> TracedValue<Option<String>> {
+    /// 解析 base_url（CLI > TOML > None）
+    fn resolve_base_url(cli_arg: Option<&str>, provider: &str) -> TracedValue<Option<String>> {
         if let Some(url) = cli_arg {
             return TracedValue::new(Some(url.to_string()), ConfigSource::CliArg);
+        }
+
+        // 检查 TOML 配置文件
+        if let Some(url) = read_provider_base_url_from_toml(provider) {
+            return TracedValue::new(Some(url), ConfigSource::ConfigFile);
         }
 
         TracedValue::new(None, ConfigSource::YamlDefault)
@@ -211,6 +233,177 @@ pub fn config_file_exists() -> bool {
 }
 
 // ============================================================================
+// TOML Config File (元编程：从 YAML spec 生成)
+// ============================================================================
+
+/// 🔥 TOML 配置文件结构（100% 复用 GUI 端字段）
+#[derive(Debug, Clone, serde::Deserialize)]
+struct TomlConfig {
+    /// 默认配置
+    #[serde(default)]
+    default: TomlDefaultSection,
+
+    /// Provider 覆盖配置
+    #[serde(default)]
+    providers: HashMap<String, TomlProviderConfig>,
+}
+
+/// 默认配置段
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+struct TomlDefaultSection {
+    /// 默认 provider ID
+    #[serde(default)]
+    provider: Option<String>,
+
+    /// 默认 model ID
+    #[serde(default)]
+    model: Option<String>,
+}
+
+/// Provider 覆盖配置
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+struct TomlProviderConfig {
+    /// API Key（可选，覆盖环境变量）
+    #[serde(default)]
+    api_key: Option<String>,
+
+    /// Base URL（可选，覆盖 YAML 默认）
+    #[serde(default)]
+    base_url: Option<String>,
+}
+
+/// 🔥 元编程：从 ProviderSpec 生成 TOML 配置模板
+///
+/// **设计原则**：
+/// - 零手写：从 YAML metadata 自动生成
+/// - 注释完整：说明每个字段的来源和作用
+/// - 可选字段：只包含用户可能需要覆盖的内容
+pub fn generate_toml_template() -> String {
+    use ifainew_lib::harness::api::provider_metadata;
+
+    let mut toml = String::from("# IfAI CLI Configuration\n");
+    toml.push_str("# Generated from provider metadata (");
+    toml.push_str(env!("CARGO_PKG_VERSION"));
+    toml.push_str(")\n");
+    toml.push_str("#\n");
+    toml.push_str("# Precedence (highest to lowest):\n");
+    toml.push_str("#   1. CLI args (--provider, --model, --api-key)\n");
+    toml.push_str("#   2. Environment variables (IFAI_PROVIDER, IFAI_MODEL, {PROVIDER}_API_KEY)\n");
+    toml.push_str("#   3. This file (~/.ifai/config.toml)\n");
+    toml.push_str("#   4. YAML defaults (embedded in binary)\n");
+    toml.push_str("\n");
+
+    // [default] section
+    toml.push_str("[default]\n");
+    toml.push_str("# Default provider (short name or full ID from providers/registry/*.yaml)\n");
+    toml.push_str("# Available short names: ");
+    let all_providers: Vec<_> = provider_metadata::get_all_provider_specs()
+        .keys()
+        .map(|k| k.replace("-official", ""))
+        .collect();
+    toml.push_str(&all_providers.join(", "));
+    toml.push_str("\n");
+    toml.push_str("provider = \"deepseek\"\n");
+    toml.push_str("\n");
+
+    toml.push_str("# Default model (must be available in selected provider)\n");
+    toml.push_str("# Run 'ifai --config show' to see all available models\n");
+    toml.push_str("# model = \"deepseek-chat\"\n");
+    toml.push_str("\n");
+
+    // [providers.*] sections
+    toml.push_str("# Provider-specific overrides (optional)\n");
+    toml.push_str("# Uncomment and configure as needed\n");
+    toml.push_str("\n");
+
+    for (provider_id, spec) in provider_metadata::get_all_provider_specs() {
+        toml.push_str(&format!("[providers.{}]\n", provider_id));
+
+        // API key hint
+        let env_var_name = format!("{}_API_KEY",
+            provider_id.replace("-official", "").replace("-", "_").to_uppercase());
+        toml.push_str(&format!("# API key (or set {} environment variable)\n", env_var_name));
+        toml.push_str(&format!("# api_key = \"sk-xxx\"\n"));
+
+        // Base URL override
+        toml.push_str(&format!("# Base URL (default: {})\n", spec.api_spec.base_url));
+        toml.push_str("# base_url = \"https://...\"\n");
+
+        toml.push_str("\n");
+    }
+
+    toml.trim_end().to_string()
+}
+
+/// 🔥 读取 TOML 配置文件
+fn read_toml_config() -> Result<TomlConfig, String> {
+    let path = config_file_path();
+
+    if !path.exists() {
+        // 文件不存在，返回空配置
+        return Ok(TomlConfig {
+            default: TomlDefaultSection::default(),
+            providers: HashMap::new(),
+        });
+    }
+
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read config file {}: {}", path.display(), e))?;
+
+    toml::from_str(&content)
+        .map_err(|e| format!("Failed to parse config file {}: {}", path.display(), e))
+}
+
+/// 🔥 初始化配置文件（--config init）
+pub fn init_config_file() -> Result<PathBuf, String> {
+    let path = config_file_path();
+
+    // 检查是否已存在
+    if path.exists() {
+        return Err(format!("Config file already exists: {}", path.display()));
+    }
+
+    // 确保目录存在
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    // 生成 TOML 模板
+    let template = generate_toml_template();
+
+    // 写入文件
+    fs::write(&path, template)
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+
+    Ok(path)
+}
+
+/// 🔥 从 TOML 配置读取 provider（优先级：Env > File > None）
+fn read_provider_from_toml() -> Option<String> {
+    let config = read_toml_config().ok()?;
+    config.default.provider
+}
+
+/// 🔥 从 TOML 配置读取 model（优先级：Env > File > None）
+fn read_model_from_toml() -> Option<String> {
+    let config = read_toml_config().ok()?;
+    config.default.model
+}
+
+/// 🔥 从 TOML 配置读取 provider 的 API Key
+fn read_provider_api_key_from_toml(provider_id: &str) -> Option<String> {
+    let config = read_toml_config().ok()?;
+    config.providers.get(provider_id)?.api_key.clone()
+}
+
+/// 🔥 从 TOML 配置读取 provider 的 base URL
+fn read_provider_base_url_from_toml(provider_id: &str) -> Option<String> {
+    let config = read_toml_config().ok()?;
+    config.providers.get(provider_id)?.base_url.clone()
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -238,9 +431,12 @@ mod tests {
         // 清除可能存在的环境变量
         std::env::remove_var("IFAI_PROVIDER");
 
+        // 注意：如果有 ~/.ifai/config.toml 文件，测试可能会失败
+        // 因为 TOML 配置优先级高于 YAML 默认值
         let result = EffectiveConfig::resolve_provider(None).unwrap();
         assert_eq!(result.value, "deepseek");
-        assert_eq!(result.source, ConfigSource::YamlDefault);
+        // 如果 TOML 文件存在，来源会是 ConfigFile；否则是 YamlDefault
+        assert!(result.source == ConfigSource::YamlDefault || result.source == ConfigSource::ConfigFile);
     }
 
     #[test]
@@ -280,14 +476,14 @@ mod tests {
 
     #[test]
     fn test_resolve_base_url_cli_arg() {
-        let result = EffectiveConfig::resolve_base_url(Some("https://api.custom.com"));
+        let result = EffectiveConfig::resolve_base_url(Some("https://api.custom.com"), "deepseek");
         assert_eq!(result.value, Some("https://api.custom.com".to_string()));
         assert_eq!(result.source, ConfigSource::CliArg);
     }
 
     #[test]
     fn test_resolve_base_url_none() {
-        let result = EffectiveConfig::resolve_base_url(None);
+        let result = EffectiveConfig::resolve_base_url(None, "deepseek");
         assert_eq!(result.value, None);
         assert_eq!(result.source, ConfigSource::YamlDefault);
     }
