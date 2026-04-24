@@ -236,7 +236,7 @@ fn find_separator(buffer: &[u8]) -> usize {
     0
 }
 
-/// 转换智谱/OpenAI 格式的数据为统一事件
+/// 🔥 转换智谱/OpenAI 格式的数据为统一事件（支持 usage 追踪）
 fn convert_zhipu_data(data: &super::openai_format::OpenAiSseData) -> Option<StreamEvent> {
     if let Some(choice) = data.choices.first() {
         if let Some(content) = &choice.delta.content {
@@ -258,7 +258,16 @@ fn convert_zhipu_data(data: &super::openai_format::OpenAiSseData) -> Option<Stre
             }
         }
         if choice.finish_reason.is_some() {
-            return Some(StreamEvent::MessageDone { tokens_used: 0 });
+            // 🔥 提取 token 使用量
+            let (input_tokens, output_tokens) = if let Some(usage) = &data.usage {
+                (usage.prompt_tokens, usage.completion_tokens)
+            } else {
+                (0, 0)
+            };
+            return Some(StreamEvent::MessageDone {
+                input_tokens,
+                output_tokens,
+            });
         }
     }
     None

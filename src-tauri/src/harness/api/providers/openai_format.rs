@@ -12,6 +12,16 @@ pub struct OpenAiSseData {
     pub created: Option<u64>,
     pub model: Option<String>,
     pub choices: Vec<Choice>,
+    /// 🔥 Token 使用量（在最后一个 chunk 中提供）
+    pub usage: Option<Usage>,
+}
+
+/// 🔥 Token 使用量（OpenAI 格式）
+#[derive(Debug, Deserialize)]
+pub struct Usage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
 }
 
 #[derive(Debug, Deserialize)]

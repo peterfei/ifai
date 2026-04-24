@@ -202,13 +202,17 @@ impl Default for ContinuationCounter {
 // Session State (Placeholder)
 // ============================================================================
 
-/// 会话状态
+/// 🔥 会话状态（支持 token 追踪）
 pub struct Session {
     pub messages: Vec<Message>,
     pub provider: String,
     pub model: String,
     pub tool_registry: ToolRegistry,
     pub tool_router: Arc<ToolRouter>,
+    /// 🔥 累积输入 token 数
+    pub cumulative_input_tokens: u32,
+    /// 🔥 累积输出 token 数
+    pub cumulative_output_tokens: u32,
 }
 
 impl Session {
@@ -222,6 +226,8 @@ impl Session {
             model,
             tool_registry,
             tool_router,
+            cumulative_input_tokens: 0,
+            cumulative_output_tokens: 0,
         }
     }
 
@@ -400,6 +406,12 @@ impl Session {
                                             print!("\r{}  \r", " ".repeat(30));
                                         }
                                         eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
+                                    }
+                                    StreamEvent::MessageDone { input_tokens, output_tokens } => {
+                                        // 🔥 记录 token 使用量
+                                        self.cumulative_input_tokens += input_tokens;
+                                        self.cumulative_output_tokens += output_tokens;
+                                        collector.dispatch(&event);
                                     }
                                     _ => {
                                         collector.dispatch(&event);
@@ -658,7 +670,7 @@ mod tests {
         let mut collector = EventCollector::new();
         assert!(!collector.is_done());
 
-        collector.dispatch(&StreamEvent::MessageDone { tokens_used: 100 });
+        collector.dispatch(&StreamEvent::MessageDone { input_tokens: 100, output_tokens: 50 });
         assert!(collector.is_done());
     }
 
@@ -796,7 +808,7 @@ mod tests {
         });
 
         // MessageDone - 标记完成
-        collector.dispatch(&StreamEvent::MessageDone { tokens_used: 100 });
+        collector.dispatch(&StreamEvent::MessageDone { input_tokens: 100, output_tokens: 50 });
 
         // Error - 显式处理（虽然不操作）
         collector.dispatch(&StreamEvent::Error {
