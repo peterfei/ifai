@@ -2853,7 +2853,9 @@
       "settingsGuide": "Settings Panel\n\nHere you can:\n• Configure AI providers and API keys\n• Adjust editor appearance and behavior\n• View and customize keyboard shortcuts\n• Manage performance and display options",
       "settingsGuideTitle": "Settings Guide",
       "layoutSwitcher": "Click here to switch between different layout modes to adapt to different work scenarios.",
-      "layoutSwitcherTitle": "Layout Switcher"
+      "layoutSwitcherTitle": "Layout Switcher",
+      "skillsMarketplace": "Skills Marketplace\n\nIfAI offers rich skill extensions to make your AI assistant even more powerful:\n• **Built-in Skills** — Code review, documentation generation, refactoring suggestions, and more\n• **Custom Skills** — Create your own AI workflows\n• Manage and configure skills in the Settings panel under the Skills tab",
+      "skillsMarketplaceTitle": "Skills Marketplace"
     },
     "buttons": {
       "back": "Back",

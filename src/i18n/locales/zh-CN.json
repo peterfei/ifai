@@ -2853,7 +2853,9 @@
       "settingsGuide": "设置面板\n\n在这里您可以：\n• 配置 AI 提供商和 API 密钥\n• 调整编辑器外观和行为\n• 查看和自定义快捷键\n• 管理性能和显示选项",
       "settingsGuideTitle": "设置说明",
       "layoutSwitcher": "点击这里可以切换不同的布局模式，适应不同的工作场景。",
-      "layoutSwitcherTitle": "布局切换"
+      "layoutSwitcherTitle": "布局切换",
+      "skillsMarketplace": "技能商城\n\nIfAI 提供丰富的技能扩展，让 AI 助手能力更强大：\n• **内置技能** — 代码审查、文档生成、重构建议等\n• **自定义技能** — 创建专属的 AI 工作流\n• 在设置面板的「技能」标签页中管理和配置技能",
+      "skillsMarketplaceTitle": "技能商城"
     },
     "buttons": {
       "back": "上一步",
