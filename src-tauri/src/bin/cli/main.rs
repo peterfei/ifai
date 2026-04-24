@@ -255,6 +255,9 @@ fn run_prompt(text: &str) -> Result<(), String> {
 
 /// 🔄 运行 REPL 循环
 async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
+    // 🔇 全局禁用调试日志（必须在最前面）
+    std::env::set_var("IFAI_QUIET", "1");
+
     // 解析有效配置
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
     let theme = render::default_theme();

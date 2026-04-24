@@ -222,9 +222,6 @@ impl Session {
     ///
     /// **Future**: 扩展支持 Tool 调用和续播循环
     pub async fn stream_prompt(&mut self, prompt: &str) -> Result<String, String> {
-        // 🔇 禁用调试日志（设置环境变量）
-        std::env::set_var("IFAI_QUIET", "1");
-
         // 解析 provider spec
         let spec = resolve_provider(&self.provider)
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
@@ -301,15 +298,17 @@ impl Session {
             tools: None, // 暂不支持工具
         };
 
+        let theme = render::default_theme();
+
+        // 🎨 显示加载提示（在发送请求前）
+        print!("{}{}▊{} {}thinking...{} ", theme.brand, render::BOLD, render::RESET, theme.dim, render::RESET);
+        io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+
         // 发送流式请求
         let mut stream = client.stream(request).await
             .map_err(|e| format!("Failed to start stream: {:?}", e))?;
 
-        let theme = render::default_theme();
         let mut full_response = String::new();
-
-        // 🎨 显示加载动画（如果是首次响应）
-        let mut spinner = render::Spinner::new("thinking");
         let mut first_delta = true;
 
         // 处理流式响应
@@ -318,9 +317,11 @@ impl Session {
                 Ok(event) => {
                     match &event {
                         StreamEvent::TextDelta { text } => {
-                            // 首次响应：清除 spinner 并显示文本
+                            // 首次响应：清除加载提示并显示文本
                             if first_delta {
-                                spinner.finish(true);
+                                // 回退清除 "▊ thinking... "
+                                print!("\r{}  \r", " ".repeat(20)); // 清除加载提示
+                                io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
                                 first_delta = false;
                             }
                             print!("{}", text);
@@ -329,8 +330,8 @@ impl Session {
                         }
                         StreamEvent::Error { code, message } => {
                             if first_delta {
-                                spinner.finish(false);
-                                first_delta = false;
+                                print!("\r{}  \r", " ".repeat(20));
+                                io::stdout().flush().ok();
                             }
                             eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
                         }
@@ -341,8 +342,8 @@ impl Session {
                 }
                 Err(e) => {
                     if first_delta {
-                        spinner.finish(false);
-                        first_delta = false;
+                        print!("\r{}  \r", " ".repeat(20));
+                        io::stdout().flush().ok();
                     }
                     eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
                     break;

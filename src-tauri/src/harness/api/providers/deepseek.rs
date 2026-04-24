@@ -220,17 +220,21 @@ impl ApiClient for DeepSeekClient {
                                     yield Ok(event);
                                 }
                             } else {
-                                // 🔥 DIAGNOSTIC: 记录无法解析的帧
-                                println!("[DeepSeek] ⚠️ Frame {} could not be parsed, preview=\"{}\"",
-                                    frame_count,
-                                    frame.chars().take(100).collect::<String>()
-                                );
+                                // 🔥 DIAGNOSTIC: 记录无法解析的帧（可通过 IFAI_QUIET 禁用）
+                                if std::env::var("IFAI_QUIET").is_err() {
+                                    println!("[DeepSeek] ⚠️ Frame {} could not be parsed, preview=\"{}\"",
+                                        frame_count,
+                                        frame.chars().take(100).collect::<String>()
+                                    );
+                                }
                             }
                         }
                     }
                     Err(e) => {
-                        // 🔥 DIAGNOSTIC: 记录网络错误
-                        println!("[DeepSeek] ❌ Network error after {} frames: {:?}", frame_count, e);
+                        // 🔥 DIAGNOSTIC: 记录网络错误（可通过 IFAI_QUIET 禁用）
+                        if std::env::var("IFAI_QUIET").is_err() {
+                            println!("[DeepSeek] ❌ Network error after {} frames: {:?}", frame_count, e);
+                        }
                         yield Err(ApiError::Network(e.to_string()));
                     }
                 }
