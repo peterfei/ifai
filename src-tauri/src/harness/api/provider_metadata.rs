@@ -174,9 +174,16 @@ pub struct ModelSpec {
     /// 能力列表
     #[serde(default)]
     pub capabilities: Vec<String>,
-    /// 每 1K tokens 成本（可选）
+    /// 每 1K tokens 成本（可选，简单定价如 OpenAI/Kimi）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_per_1k_tokens: Option<f64>,
+    /// 🔥 详细定价（可选，支持 DeepSeek/Gemini 分离定价）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_per_1k_tokens_input_cache_hit: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_per_1k_tokens_input_cache_miss: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_per_1k_tokens_output: Option<f64>,
     /// 标签
     #[serde(default)]
     pub tags: Vec<String>,

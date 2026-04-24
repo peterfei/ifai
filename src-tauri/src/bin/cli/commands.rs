@@ -8,6 +8,8 @@
 //! - Dispatch 路由
 //! - 权限检查
 
+use super::session::Session;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -15,9 +17,8 @@
 /// 命令执行结果
 pub type CommandResult = Result<Option<String>, String>;
 
-/// 命令 Handler 函数指针类型
-/// &mut Session 将在 session.rs 实现后添加
-pub type Handler = fn(arg: Option<&str>) -> CommandResult;
+/// 🔥 命令 Handler 函数指针类型（支持 Session 访问）
+pub type Handler = fn(&mut Session, Option<&str>) -> CommandResult;
 
 /// 权限级别（预留接口）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -148,8 +149,8 @@ pub fn find_command(name: &str) -> Option<&'static CommandSpec> {
     COMMAND_SPECS.iter().find(|spec| spec.name == name)
 }
 
-/// Dispatch 命令到 handler（从 COMMAND_SPECS[].handler 直接调用）
-pub fn dispatch_command(name: &str, arg: Option<&str>) -> CommandResult {
+/// 🔥 Dispatch 命令到 handler（支持 Session 参数）
+pub fn dispatch_command(session: &mut Session, name: &str, arg: Option<&str>) -> CommandResult {
     let spec = find_command(name)
         .ok_or_else(|| unknown_command_error(name))?;
 
@@ -157,7 +158,7 @@ pub fn dispatch_command(name: &str, arg: Option<&str>) -> CommandResult {
     // TODO: 集成 permission 系统
 
     // 调用 handler（spec 的核心 - spec 即 handler）
-    (spec.handler)(arg)
+    (spec.handler)(session, arg)
 }
 
 /// 生成未知命令错误消息（包含建议）
@@ -191,23 +192,51 @@ pub fn render_help() -> String {
 // Command Handlers (Placeholder Implementations)
 // ============================================================================
 
-fn cmd_help(_arg: Option<&str>) -> CommandResult {
+fn cmd_help(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some(render_help()))
 }
 
-fn cmd_clear(_arg: Option<&str>) -> CommandResult {
+fn cmd_clear(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("✅ 对话历史已清空".to_string()))
 }
 
-fn cmd_compact(_arg: Option<&str>) -> CommandResult {
+fn cmd_compact(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("🔄 对话已压缩".to_string()))
 }
 
-fn cmd_cost(_arg: Option<&str>) -> CommandResult {
-    Ok(Some("💰 Token 使用: 0 (估算成本: $0.00)".to_string()))
+/// 🔥 显示 token 使用和成本统计（复用 GUI 端定价数据）
+fn cmd_cost(session: &mut Session, _arg: Option<&str>) -> CommandResult {
+    use super::token;
+    use super::render::{default_theme, RESET};
+
+    let theme = default_theme();
+
+    // 🔥 使用 token display 模块格式化输出（包含进度条）
+    let cost_display = if session.cumulative_input_tokens == 0 && session.cumulative_output_tokens == 0 {
+        format!("{}No token usage recorded yet.{}", theme.muted, RESET)
+    } else {
+        // 🔥 显示成本 + Token 进度条
+        let cost_line = token::format_cost(
+            &session.messages,
+            &session.model,
+            session.cumulative_input_tokens,
+            session.cumulative_output_tokens,
+            &theme
+        );
+
+        let token_warning = token::format_token_warning(
+            &session.messages,
+            &session.model,
+            &theme
+        );
+
+        format!("{}\n{}", cost_line, token_warning)
+    };
+
+    Ok(Some(cost_display))
 }
 
-fn cmd_provider(arg: Option<&str>) -> CommandResult {
+fn cmd_provider(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     match arg {
         Some(name) => {
             // 验证 provider 是否存在
@@ -218,18 +247,18 @@ fn cmd_provider(arg: Option<&str>) -> CommandResult {
     }
 }
 
-fn cmd_model(arg: Option<&str>) -> CommandResult {
+fn cmd_model(session: &mut Session, arg: Option<&str>) -> CommandResult {
     match arg {
         Some(name) => Ok(Some(format!("✅ Model 切换为: {}", name))),
         None => Ok(Some("当前 Model: deepseek-chat".to_string())),
     }
 }
 
-fn cmd_permissions(_arg: Option<&str>) -> CommandResult {
+fn cmd_permissions(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("当前权限: None (无限制)".to_string()))
 }
 
-fn cmd_resume(arg: Option<&str>) -> CommandResult {
+fn cmd_resume(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     match arg {
         Some("list") => Ok(Some("已保存会话: 无".to_string())),
         Some("save") | Some("load") => Ok(Some("用法: /resume save <name> 或 /resume load <name>".to_string())),
@@ -237,15 +266,15 @@ fn cmd_resume(arg: Option<&str>) -> CommandResult {
     }
 }
 
-fn cmd_export(_arg: Option<&str>) -> CommandResult {
+fn cmd_export(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("用法: /export <file>".to_string()))
 }
 
-fn cmd_undo(_arg: Option<&str>) -> CommandResult {
+fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("✅ 已撤销上一轮对话".to_string()))
 }
 
-fn cmd_config(arg: Option<&str>) -> CommandResult {
+fn cmd_config(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     match arg {
         Some("init") => Ok(Some("✅ 配置模板已生成: ~/.ifai/config.toml".to_string())),
         Some("show") | None => Ok(Some("配置: provider=deepseek, model=deepseek-chat".to_string())),
@@ -253,7 +282,7 @@ fn cmd_config(arg: Option<&str>) -> CommandResult {
     }
 }
 
-fn cmd_exit(_arg: Option<&str>) -> CommandResult {
+fn cmd_exit(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("👋 再见！".to_string()))
 }
 
@@ -289,7 +318,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_help() {
-        let result = dispatch_command("help", None);
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "help", None);
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -301,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_clear() {
-        let result = dispatch_command("clear", None);
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "clear", None);
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -311,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_unknown_command() {
-        let result = dispatch_command("nonexistent", None);
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "nonexistent", None);
         assert!(result.is_err());
 
         let err = result.unwrap_err();
@@ -321,7 +353,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_provider_valid() {
-        let result = dispatch_command("provider", Some("deepseek"));
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "provider", Some("deepseek"));
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -331,13 +364,15 @@ mod tests {
 
     #[test]
     fn test_dispatch_provider_invalid() {
-        let result = dispatch_command("provider", Some("nonexistent"));
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "provider", Some("nonexistent"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_dispatch_model_with_arg() {
-        let result = dispatch_command("model", Some("gpt-4o"));
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "model", Some("gpt-4o"));
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -347,7 +382,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_model_without_arg() {
-        let result = dispatch_command("model", None);
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "model", None);
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -357,7 +393,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_config_init() {
-        let result = dispatch_command("config", Some("init"));
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let result = dispatch_command(&mut session, "config", Some("init"));
         assert!(result.is_ok());
 
         let output = result.unwrap();
