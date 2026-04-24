@@ -14,7 +14,7 @@ mod git;
 mod lsp;
 mod prompt_manager;
 pub mod agent_system; // 🔥 公开 agent_system 供 CLI 使用
-mod conversation;
+pub mod conversation; // 🔥 公开 conversation 供 CLI 使用（token_counter）
 mod ai_utils;
 mod file_cache;
 mod commands;

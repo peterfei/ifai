@@ -9,6 +9,7 @@ mod commands;
 mod session;
 mod prompts;
 mod permission;  // 🔥 元编程权限引擎
+mod token;       // 🔥 元编程 Token 显示层
 
 use std::env;
 use std::io::{self, Write};
@@ -312,7 +313,7 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
             let cmd = &parts[0][1..]; // 去掉 '/'
             let arg = parts.get(1).map(|s| s.to_string());
 
-            match commands::dispatch_command(cmd, arg.as_deref()) {
+            match commands::dispatch_command(&mut session, cmd, arg.as_deref()) {
                 Ok(Some(output)) => println!("{}", output),
                 Ok(None) => {}
                 Err(e) => eprintln!("{}Error: {}{}", render::color_256(167), e, render::RESET),

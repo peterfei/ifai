@@ -879,7 +879,7 @@ impl AIService for HarnessAIService {
                                     execution_result: exec_result,
                                 });
                             }
-                            crate::harness::api::StreamEvent::MessageDone { tokens_used: _ } => {
+                            crate::harness::api::StreamEvent::MessageDone { input_tokens: _, output_tokens: _ } => {
                                 if !batch_buffer.is_empty() {
                                     for batched_chunk in batch_buffer.drain(..) {
                                         callback(batched_chunk);
