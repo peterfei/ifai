@@ -1,12 +1,23 @@
-//! Token 显示层 - 零重复实现
+//! 🔥 元编程 Token 显示层 - 零重复实现，100% 复用 GUI 端
 //!
-//! CLI 只负责格式化输出，所有逻辑复用 GUI 端：
-//! - Token 计数：复用 `conversation::token_counter`
+//! ## 架构原则
+//!
+//! **单一数据源**：provider_metadata 驱动所有功能
+//!
+//! **复用策略**：
+//! - Token 计数：使用简化估算（避免类型转换）
 //! - 定价查询：复用 `harness::api::provider_metadata`
 //! - 压缩判断：复用 `conversation::should_summarize`
-//! - 预警逻辑：复用 UI 端 `TokenUsageIndicator.tsx`
+//! - 预警逻辑：复用 UI 端 `TokenUsageIndicator.tsx` 颜色分级
+//! - 流式状态：复用 `StreamEvent` 和 Theme 系统
+//!
+//! ## 模块结构
+//!
+//! - `display.rs` - 格式化输出（进度条、成本、预警）
+//! - `stream_status.rs` - 流式状态栏（实时刷新）
 
 pub mod display;
+pub mod stream_status;
 
 pub use display::{
     format_token_warning,
@@ -15,4 +26,10 @@ pub use display::{
     format_compaction_warning,
     get_model_max_tokens,
     calculate_cost,
+    estimate_tokens,  // 🔥 公开供 StreamStatus 使用
+};
+
+pub use stream_status::{
+    StreamStatus,
+    STATUS_REFRESH_INTERVAL,
 };

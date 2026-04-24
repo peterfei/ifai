@@ -20,6 +20,7 @@ use crate::provider::resolve_provider;
 use crate::render::{self, RESET, Spinner};
 use crate::prompts::build_system_prompt;
 use crate::permission::{self as approval, ToolCategory, RiskLevel};
+use crate::token;  // 🔥 元编程：Token 状态栏
 
 // ============================================================================
 // Pending Tool Call (Collect Phase)
@@ -361,6 +362,12 @@ impl Session {
             // EventCollector - 两阶段协议
             let mut collector = EventCollector::new();
 
+            // 🔥 元编程：估算输入 tokens（复用 token::estimate_tokens）
+            let estimated_input = token::estimate_tokens(&self.messages);
+
+            // 🔥 元编程：创建流式状态追踪器
+            let mut stream_status = token::StreamStatus::new(estimated_input);
+
             // 🎨 使用 tokio::select! 同时处理流和 spinner 动画
             loop {
                 tokio::select! {
@@ -380,11 +387,20 @@ impl Session {
                                             spinner.finish(true);
                                             print!("\r{}  \r", " ".repeat(30));
                                             first_delta = false;
+
+                                            // 🔥 显示初始状态栏（响应开始时）
+                                            println!("{}", stream_status.render(&self.model, &theme));
                                         }
+
+                                        // 🔥 正常输出文本（不干扰状态栏）
                                         print!("{}", text);
                                         io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
                                         current_response.push_str(text);
                                         full_response.push_str(text);
+
+                                        // 🔥 元编程：更新流式状态（零拷贝）
+                                        stream_status.add_delta(text);
+
                                         collector.dispatch(&event);
                                     }
                                     StreamEvent::ToolStart { tool_id, name, input } => {
@@ -411,6 +427,11 @@ impl Session {
                                         // 🔥 记录 token 使用量
                                         self.cumulative_input_tokens += input_tokens;
                                         self.cumulative_output_tokens += output_tokens;
+
+                                        // 🔥 元编程：清除状态行并显示最终摘要
+                                        print!("\r{}\r", " ".repeat(80));
+                                        println!("{}", stream_status.render_summary(&self.model, *input_tokens, *output_tokens, &theme));
+
                                         collector.dispatch(&event);
                                     }
                                     _ => {

@@ -47,7 +47,7 @@ pub fn format_token_warning(messages: &[Message], model: &str, theme: &Theme) ->
 
 /// 🔥 简化的 Token 估算（避免类型转换）
 /// 粗略估算：英文约 4 字符/token，中文约 2 字符/token
-fn estimate_tokens(messages: &[Message]) -> usize {
+pub fn estimate_tokens(messages: &[Message]) -> usize {
     let mut total = 0;
     for msg in messages {
         total += 4; // metadata overhead
