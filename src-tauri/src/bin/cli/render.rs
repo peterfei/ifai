@@ -292,14 +292,9 @@ pub fn render_tool_result(name: &str, result: &str, success: bool, theme: &Theme
     let icon = if success { "✔" } else { "✘" };
     let color = if success { theme.success } else { theme.error };
 
-    // 预览：取前 50 个字符
-    let preview = if result.len() > 50 {
-        format!("{}...", &result[..47])
-    } else {
-        result.to_string()
-    };
-
-    format!("{border}╰─{reset} {color}{icon} {name}: {preview}{reset}\n")
+    // 🔥 FIX: 显示完整输出，而非截断预览
+    // 对于长输出，保留换行符以保持格式
+    format!("{border}╰─{reset} {color}{icon} {name}{reset}\n{result}\n")
 }
 
 // ============================================================================

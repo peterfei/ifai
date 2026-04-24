@@ -8,6 +8,7 @@ mod config;
 mod commands;
 mod session;
 mod prompts;
+mod permission;  // 🔥 元编程权限引擎
 
 use std::env;
 use std::io::{self, Write};
@@ -157,7 +158,7 @@ fn main() {
     let action = match parse_args() {
         Ok(action) => action,
         Err(e) => {
-            eprintln!("❌ Error: {}", e);
+            eprintln!("Error: {}", e);
             eprintln!("\nUsage:");
             eprintln!("  ifai                    # Start REPL");
             eprintln!("  ifai \"your prompt\"       # Single-shot mode");
@@ -175,7 +176,7 @@ fn main() {
 
     // 执行动作
     if let Err(e) = run_action(action) {
-        eprintln!("❌ Error: {}", e);
+        eprintln!("Error: {}", e);
         std::process::exit(1);
     }
 }
@@ -221,9 +222,9 @@ fn show_version() {
     println!("Industrial-grade AI code assistant");
 }
 
-/// 🔧 配置初始化
+/// 配置初始化
 fn config_init() -> Result<(), String> {
-    println!("🔧 Config initialization...");
+    println!("Config initialization...");
     println!("(TODO: Implement config init)");
     Ok(())
 }
@@ -246,9 +247,9 @@ fn config_show() -> Result<(), String> {
     Ok(())
 }
 
-/// 💬 运行单次提示词模式
+/// 运行单次提示词模式
 fn run_prompt(text: &str) -> Result<(), String> {
-    println!("🤖 Prompt mode: {}", text);
+    println!("Prompt mode: {}", text);
     println!("(TODO: Implement prompt mode)");
     Ok(())
 }
@@ -268,6 +269,11 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
     // 初始化 Session
     let mut session = session::Session::new(config.provider().to_string(), config.model().to_string());
+
+    // 🔥 FIX: 设置项目根目录为当前工作目录
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    session.set_project_root(current_dir.to_string_lossy().to_string());
 
     // 显示欢迎信息
     println!("{}", theme.muted);
@@ -295,7 +301,7 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
         // 退出命令
         if input == "/exit" || input == "/quit" || input == "exit" || input == "quit" {
-            println!("{}👋 Goodbye!{}", theme.success, render::RESET);
+            println!("{}Goodbye!{}", theme.success, render::RESET);
             break;
         }
 

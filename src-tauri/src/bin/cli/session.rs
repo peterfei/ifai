@@ -10,11 +10,16 @@
 
 use std::io::{self, Write};
 use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::Arc;
 use futures_util::stream::StreamExt;
-use ifainew_lib::harness::api::types::StreamEvent;
+use serde_json::json;
+use ifainew_lib::harness::api::types::{StreamEvent, Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
 use crate::provider::resolve_provider;
 use crate::render::{self, RESET, Spinner};
 use crate::prompts::build_system_prompt;
+use crate::permission::{self as approval, ToolCategory, RiskLevel};
 
 // ============================================================================
 // Pending Tool Call (Collect Phase)
@@ -28,21 +33,6 @@ pub struct PendingToolCall {
     pub args: String,
 }
 
-impl PendingToolCall {
-    fn from_event(event: &StreamEvent) -> Option<Self> {
-        match event {
-            StreamEvent::ToolStart { tool_id, name, input } => {
-                Some(PendingToolCall {
-                    tool_id: tool_id.clone(),
-                    name: name.clone(),
-                    args: input.clone(),
-                })
-            }
-            _ => None,
-        }
-    }
-}
-
 // ============================================================================
 // Event Collector (Two-Phase Protocol)
 // ============================================================================
@@ -50,7 +40,8 @@ impl PendingToolCall {
 /// 🏛️ 元编程：EventCollector — 两阶段工具调用协议
 ///
 /// **Collect 阶段**：
-/// - 累积 ToolStart 事件 → PendingToolCall
+/// - ToolStart 事件创建工具占位符
+/// - ToolDone 事件更新工具参数（完整参数在 ToolDone 中）
 /// - 累积 TextDelta 事件 → response 文本
 ///
 /// **Execute 阶段**：
@@ -61,6 +52,8 @@ impl PendingToolCall {
 pub struct EventCollector {
     /// 待执行的工具调用
     pending_tools: Vec<PendingToolCall>,
+    /// 工具 ID 到索引的映射（用于 ToolDone 更新参数）
+    tool_index_map: HashMap<String, usize>,
     /// 响应文本
     response_text: String,
     /// 是否收集完成
@@ -72,6 +65,7 @@ impl EventCollector {
     pub fn new() -> Self {
         Self {
             pending_tools: Vec::new(),
+            tool_index_map: HashMap::new(),
             response_text: String::new(),
             done: false,
         }
@@ -82,13 +76,28 @@ impl EventCollector {
     /// **消除 `_ => {}`**：每个事件变体都有明确的处理逻辑
     pub fn dispatch(&mut self, event: &StreamEvent) {
         match &event {
-            // Collect 阶段：累积文本和工具调用
+            // Collect 阶段：累积文本
             StreamEvent::TextDelta { text } => {
                 self.response_text.push_str(text);
             }
-            StreamEvent::ToolStart { .. } => {
-                if let Some(tool) = PendingToolCall::from_event(event) {
-                    self.pending_tools.push(tool);
+
+            // 🔥 FIX: ToolStart 创建占位符（input 是空的）
+            StreamEvent::ToolStart { tool_id, name, input } => {
+                let index = self.pending_tools.len();
+                self.tool_index_map.insert(tool_id.clone(), index);
+                self.pending_tools.push(PendingToolCall {
+                    tool_id: tool_id.clone(),
+                    name: name.clone(),
+                    args: String::new(), // 初始为空，等待 ToolDone 更新
+                });
+            }
+
+            // 🔥 FIX: ToolDone 更新完整参数
+            StreamEvent::ToolDone { tool_id, result } => {
+                if let Some(&index) = self.tool_index_map.get(tool_id) {
+                    if let Some(tool) = self.pending_tools.get_mut(index) {
+                        tool.args = result.clone();
+                    }
                 }
             }
 
@@ -96,9 +105,7 @@ impl EventCollector {
             StreamEvent::MessageStart { .. } => {
                 // 消息开始 - 无需处理
             }
-            StreamEvent::ToolDone { .. } => {
-                // ToolDone 不再用于参数解析 - 参数来自 ToolStart.input
-            }
+
             StreamEvent::MessageDone { .. } => {
                 // 消息完成 - 标记收集阶段结束
                 self.done = true;
@@ -134,6 +141,7 @@ impl EventCollector {
     /// 清空状态（用于下一轮）
     pub fn clear(&mut self) {
         self.pending_tools.clear();
+        self.tool_index_map.clear();
         self.response_text.clear();
         self.done = false;
     }
@@ -194,34 +202,55 @@ impl Default for ContinuationCounter {
 // Session State (Placeholder)
 // ============================================================================
 
-/// 会话状态（占位符，完整实现在 main.rs 整合时）
-#[derive(Debug)]
+/// 会话状态
 pub struct Session {
-    pub messages: Vec<String>,
+    pub messages: Vec<Message>,
     pub provider: String,
     pub model: String,
+    pub tool_registry: ToolRegistry,
+    pub tool_router: Arc<ToolRouter>,
 }
 
 impl Session {
     pub fn new(provider: String, model: String) -> Self {
+        let tool_registry = ToolRegistry::new();
+        let tool_router = Arc::new(ToolRouter::new());
+
         Self {
             messages: Vec::new(),
             provider,
             model,
+            tool_registry,
+            tool_router,
         }
     }
 
     pub fn add_message(&mut self, msg: String) {
-        self.messages.push(msg);
+        // 将简单字符串消息转换为 Message 格式
+        self.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text(msg),
+            tool_calls: None,
+            tool_call_id: None,
+        });
     }
 
     pub fn clear_history(&mut self) {
         self.messages.clear();
     }
 
-    /// 🤖 执行流式 AI 调用（单轮对话，无 Tool 支持）
+    /// 设置项目根目录（用于 agent_* 工具）
+    pub fn set_project_root(&self, root: String) {
+        self.tool_router.set_project_root(root);
+    }
+
+    /// 🤖 执行流式 AI 调用（支持 Tool 调用和续播循环）
     ///
-    /// **Future**: 扩展支持 Tool 调用和续播循环
+    /// **两阶段协议**：
+    /// 1. **Collect 阶段**：累积 ToolStart 和 TextDelta 事件
+    /// 2. **Execute 阶段**：执行工具并发送结果回模型
+    ///
+    /// **续播循环**：最多 5 次续播，避免无限循环
     pub async fn stream_prompt(&mut self, prompt: &str) -> Result<String, String> {
         // 解析 provider spec
         let spec = resolve_provider(&self.provider)
@@ -256,12 +285,11 @@ impl Session {
         let provider_config = ifainew_lib::harness::api::ProviderConfig {
             api_key: std::env::var(env_key)
                 .unwrap_or_else(|_| {
-                    // 回退：尝试从 spec.metadata.name 推导
                     let fallback_key = format!("{}_API_KEY",
                         spec.metadata.name.to_uppercase().replace(" ", "_").replace("-", "_"));
                     std::env::var(&fallback_key).unwrap_or_else(|_| "".to_string())
                 }),
-            base_url: None, // 使用默认 base_url
+            base_url: None,
             organization: None,
         };
 
@@ -270,112 +298,252 @@ impl Session {
             &provider_config
         ).map_err(|e| format!("Failed to create client: {:?}", e))?;
 
-        // 构建消息列表
-        let mut messages = Vec::new();
-        for msg in &self.messages {
-            messages.push(ifainew_lib::harness::api::Message {
-                role: ifainew_lib::harness::api::MessageRole::User,
-                content: ifainew_lib::harness::api::types::MessageContent::Text(msg.clone()),
-                tool_calls: None,
-                tool_call_id: None,
-            });
-        }
-        // 添加当前 prompt
-        messages.push(ifainew_lib::harness::api::Message {
-            role: ifainew_lib::harness::api::MessageRole::User,
-            content: ifainew_lib::harness::api::types::MessageContent::Text(prompt.to_string()),
+        // 获取工具定义
+        let tools: Vec<serde_json::Value> = self.tool_registry.all()
+            .into_iter()
+            .map(|tool| {
+                json!({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.input_schema
+                    }
+                })
+            })
+            .collect();
+
+        // 添加用户消息
+        self.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text(prompt.to_string()),
             tool_calls: None,
             tool_call_id: None,
         });
 
-        // 构建请求
-        let request = ifainew_lib::harness::api::StreamRequest {
-            model: self.model.clone(),
-            messages,
-            max_tokens: 4096,
-            system: Some(system_prompt),
-            temperature: Some(0.7),
-            stream: true,
-            tools: None, // 暂不支持工具
-        };
-
         // 🎨 创建 Spinner 和定时器
         let mut spinner = Spinner::new("thinking");
-        let mut interval = tokio::time::interval(Duration::from_millis(150)); // 每 150ms tick 一次
-        interval.tick().await; // 跳过第一个立即触发的 tick
+        let mut interval = tokio::time::interval(Duration::from_millis(150));
+        interval.tick().await;
 
-        // 发送流式请求
-        let mut stream = client.stream(request).await
-            .map_err(|e| format!("Failed to start stream: {:?}", e))?;
-
+        // 🔥 元编程：从配置获取最大续播次数（而非硬编码）
+        let current_category = approval::ToolCategory::Safe;  // 初始为 safe，会动态调整
+        let max_continuations = approval::max_iterations(current_category);
+        let mut continuation_count = 0;
         let mut full_response = String::new();
-        let mut first_delta = true;
-        let theme = render::default_theme();
 
-        // 🎨 使用 tokio::select! 同时处理流和 spinner 动画
         loop {
-            tokio::select! {
-                // Spinner 动画 tick
-                _ = interval.tick() => {
-                    if first_delta {
-                        // 首次响应前，显示动画
-                        let frame = spinner.tick();
-                        print!("\r{}", frame);
-                        io::stdout().flush().ok();
+            // 构建请求
+            let request = ifainew_lib::harness::api::StreamRequest {
+                model: self.model.clone(),
+                messages: self.messages.clone(),
+                max_tokens: 4096,
+                system: Some(system_prompt.clone()),
+                temperature: Some(0.7),
+                stream: true,
+                tools: if tools.is_empty() { None } else { Some(tools.clone()) },
+            };
+
+            // 发送流式请求
+            let mut stream = client.stream(request).await
+                .map_err(|e| format!("Failed to start stream: {:?}", e))?;
+
+            let theme = render::default_theme();
+            let mut first_delta = true;
+            let mut current_response = String::new();
+
+            // EventCollector - 两阶段协议
+            let mut collector = EventCollector::new();
+
+            // 🎨 使用 tokio::select! 同时处理流和 spinner 动画
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        if first_delta {
+                            let frame = spinner.tick();
+                            print!("\r{}", frame);
+                            io::stdout().flush().ok();
+                        }
                     }
-                }
-                // 流式事件
-                result = stream.next() => {
-                    match result {
-                        Some(Ok(event)) => {
-                            match &event {
-                                StreamEvent::TextDelta { text } => {
-                                    if first_delta {
-                                        // 首次响应：完成 spinner，清除动画
-                                        spinner.finish(true);
-                                        print!("\r{}  \r", " ".repeat(30)); // 清除 spinner 行
-                                        first_delta = false;
+                    result = stream.next() => {
+                        match result {
+                            Some(Ok(event)) => {
+                                match &event {
+                                    StreamEvent::TextDelta { text } => {
+                                        if first_delta {
+                                            spinner.finish(true);
+                                            print!("\r{}  \r", " ".repeat(30));
+                                            first_delta = false;
+                                        }
+                                        print!("{}", text);
+                                        io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+                                        current_response.push_str(text);
+                                        full_response.push_str(text);
+                                        collector.dispatch(&event);
                                     }
-                                    print!("{}", text);
-                                    io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
-                                    full_response.push_str(text);
-                                }
-                                StreamEvent::Error { code, message } => {
-                                    if first_delta {
-                                        spinner.finish(false);
-                                        print!("\r{}  \r", " ".repeat(30));
+                                    StreamEvent::ToolStart { tool_id, name, input } => {
+                                        if first_delta {
+                                            spinner.finish(true);
+                                            print!("\r{}  \r", " ".repeat(30));
+                                            first_delta = false;
+                                        }
+                                        // 渲染工具开始
+                                        println!("\n{}", render::render_tool_start(name, input, &theme));
+                                        collector.dispatch(&event);
                                     }
-                                    eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
-                                }
-                                _ => {
-                                    // 其他事件暂时忽略
+                                    StreamEvent::ToolDone { tool_id, result } => {
+                                        collector.dispatch(&event);
+                                    }
+                                    StreamEvent::Error { code, message } => {
+                                        if first_delta {
+                                            spinner.finish(false);
+                                            print!("\r{}  \r", " ".repeat(30));
+                                        }
+                                        eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
+                                    }
+                                    _ => {
+                                        collector.dispatch(&event);
+                                    }
                                 }
                             }
-                        }
-                        Some(Err(e)) => {
-                            if first_delta {
-                                spinner.finish(false);
-                                print!("\r{}  \r", " ".repeat(30));
+                            Some(Err(e)) => {
+                                if first_delta {
+                                    spinner.finish(false);
+                                    print!("\r{}  \r", " ".repeat(30));
+                                }
+                                eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
+                                return Err(format!("Stream error: {:?}", e));
                             }
-                            eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
-                            return Err(format!("Stream error: {:?}", e));
-                        }
-                        None => {
-                            // 流结束
-                            break;
+                            None => {
+                                break;
+                            }
                         }
                     }
                 }
             }
+
+            // 检查是否有工具调用需要执行
+            if !collector.has_pending_tools() {
+                // 没有工具调用，正常结束
+                self.messages.push(Message {
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(current_response.clone()),
+                    tool_calls: None,
+                    tool_call_id: None,
+                });
+                break;
+            }
+
+            // Execute 阶段：执行工具
+            println!(); // 换行
+            let tool_results = self.execute_tools(collector.pending_tools())?;
+
+            // 构建 tool_calls 和 tool 结果消息
+            let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _)| {
+                ToolCall {
+                    id: id.clone(),
+                    call_type: "function".to_string(),
+                    function: ToolCallFunction {
+                        name: name.clone(),
+                        arguments: String::new(), // 将在下面填充
+                    },
+                }
+            }).collect();
+
+            // 添加 assistant 消息（带 tool_calls）
+            self.messages.push(Message {
+                role: MessageRole::Assistant,
+                content: MessageContent::Text(current_response.clone()),
+                tool_calls: Some(tool_calls_value.clone()),
+                tool_call_id: None,
+            });
+
+            // 添加工具结果消息
+            for (tool_id, _name, result) in &tool_results {
+                self.messages.push(Message {
+                    role: MessageRole::Tool,
+                    content: MessageContent::Text(result.clone()),
+                    tool_calls: None,
+                    tool_call_id: Some(tool_id.clone()),
+                });
+            }
+
+            // 渲染工具结果
+            for (tool_id, name, result) in &tool_results {
+                let success = !result.contains("Error") && !result.contains("error");
+                println!("{}", render::render_tool_result(name, result, success, &theme));
+            }
+
+            // 🔥 元编程：根据工具类别动态获取最大迭代次数
+            let current_category = collector.pending_tools()
+                .first()
+                .map(|t| approval::categorize_tool(&t.name))
+                .unwrap_or(approval::ToolCategory::Safe);
+            let dynamic_max = approval::max_iterations(current_category);
+
+            // 续播检查
+            continuation_count += 1;
+            if continuation_count >= dynamic_max {
+                eprintln!("\n{}Maximum tool iterations reached ({}) for {:?} tools{}",
+                    theme.warning, dynamic_max, current_category, RESET);
+                break;
+            }
+
+            // 继续续播
+            println!("\n{}Continuing... ({}/{}){}", theme.dim, continuation_count, dynamic_max, RESET);
         }
 
         println!(); // 结束后换行
-
-        // 添加用户消息和助手响应到历史
-        self.messages.push(prompt.to_string());
-        self.messages.push(full_response.clone());
-
         Ok(full_response)
+    }
+
+    /// 🔧 执行工具列表（Execute 阶段）- 使用元编程权限引擎
+    fn execute_tools(&self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String)>, String> {
+        let mut results = Vec::new();
+
+        for tool in tools {
+            // 🔥 元编程：使用配置驱动的权限判断
+            let category = approval::categorize_tool(&tool.name);
+            let risk = approval::calculate_risk(&tool.name, &serde_json::from_str::<serde_json::Value>(&tool.args).unwrap_or(serde_json::json!({})));
+            let auto_approve = approval::should_auto_approve(&tool.name, false);  // CLI 中无沙箱
+
+            // 🔥 DEBUG: 输出权限检查信息
+            eprintln!("[DEBUG] Tool: {}, Category: {:?}, AutoApprove: {}", tool.name, category, auto_approve);
+
+            if !auto_approve {
+                // 🔥 在 CLI 中，所有需要审批的工具都需要用户确认（Safe 除外）
+                if !matches!(category, approval::ToolCategory::Safe) {
+                    println!("\nWarning: Tool '{}' requires confirmation.", tool.name);
+                    print!("Execute? (y/n): ");
+                    io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+
+                    // 简单的用户输入（生产环境应使用更健壮的方法）
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input).map_err(|e| format!("Failed to read input: {}", e))?;
+
+                    if input.trim() != "y" && input.trim() != "Y" {
+                        let error_msg = format!("Tool '{}' execution denied by user", tool.name);
+                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg));
+                        continue;
+                    }
+                }
+            }
+
+            let args_json: serde_json::Value = serde_json::from_str(&tool.args)
+                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+
+            match self.tool_router.execute(&tool.name, &args_json) {
+                Ok(result) => {
+                    results.push((tool.tool_id.clone(), tool.name.clone(), result));
+                }
+                Err(e) => {
+                    let error_msg = format!("Error: {:?}", e);
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg));
+                }
+            }
+        }
+
+        Ok(results)
     }
 }
 
@@ -411,10 +579,16 @@ mod tests {
     #[test]
     fn test_collect_single_tool() {
         let mut collector = EventCollector::new();
+        // ToolStart: 创建占位符（args 为空）
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "bash".to_string(),
-            input: r#"{"command":"ls"}"#.to_string(),
+            input: String::new(), // 初始为空
+        });
+        // ToolDone: 更新完整参数
+        collector.dispatch(&StreamEvent::ToolDone {
+            tool_id: "call_1".to_string(),
+            result: r#"{"command":"ls"}"#.to_string(),
         });
 
         assert!(collector.has_pending_tools());
@@ -429,15 +603,25 @@ mod tests {
     #[test]
     fn test_collect_multiple_tools() {
         let mut collector = EventCollector::new();
+        // Tool 1
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "bash".to_string(),
-            input: r#"{"command":"ls"}"#.to_string(),
+            input: String::new(),
         });
+        collector.dispatch(&StreamEvent::ToolDone {
+            tool_id: "call_1".to_string(),
+            result: r#"{"command":"ls"}"#.to_string(),
+        });
+        // Tool 2
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_2".to_string(),
             name: "TodoWrite".to_string(),
-            input: r#"{"todos":[{"content":"test"}]}"#.to_string(),
+            input: String::new(),
+        });
+        collector.dispatch(&StreamEvent::ToolDone {
+            tool_id: "call_2".to_string(),
+            result: r#"{"todos":[{"content":"test"}]}"#.to_string(),
         });
 
         assert_eq!(collector.pending_tools().len(), 2);
@@ -454,7 +638,11 @@ mod tests {
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "bash".to_string(),
-            input: r#"{"command":"pwd"}"#.to_string(),
+            input: String::new(),
+        });
+        collector.dispatch(&StreamEvent::ToolDone {
+            tool_id: "call_1".to_string(),
+            result: r#"{"command":"pwd"}"#.to_string(),
         });
         collector.dispatch(&StreamEvent::TextDelta {
             text: "...".to_string(),
@@ -475,33 +663,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_start_creates_pending_tool() {
-        let event = StreamEvent::ToolStart {
-            tool_id: "test_id".to_string(),
-            name: "test_tool".to_string(),
-            input: "test_args".to_string(),
-        };
-
-        let pending = PendingToolCall::from_event(&event);
-        assert!(pending.is_some());
-
-        let tool = pending.unwrap();
-        assert_eq!(tool.tool_id, "test_id");
-        assert_eq!(tool.name, "test_tool");
-        assert_eq!(tool.args, "test_args");
-    }
-
-    #[test]
-    fn test_non_tool_event_returns_none() {
-        let event = StreamEvent::TextDelta {
-            text: "test".to_string(),
-        };
-
-        let pending = PendingToolCall::from_event(&event);
-        assert!(pending.is_none());
-    }
-
-    #[test]
     fn test_collector_clear() {
         let mut collector = EventCollector::new();
         collector.dispatch(&StreamEvent::TextDelta {
@@ -510,7 +671,11 @@ mod tests {
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "bash".to_string(),
-            input: "{}".to_string(),
+            input: String::new(),
+        });
+        collector.dispatch(&StreamEvent::ToolDone {
+            tool_id: "call_1".to_string(),
+            result: r#"{"command":"ls"}"#.to_string(),
         });
 
         assert!(collector.has_pending_tools());
@@ -577,8 +742,18 @@ mod tests {
         session.add_message("World".to_string());
 
         assert_eq!(session.messages.len(), 2);
-        assert_eq!(session.messages[0], "Hello");
-        assert_eq!(session.messages[1], "World");
+        assert!(matches!(session.messages[0].role, MessageRole::User));
+        assert!(matches!(session.messages[1].role, MessageRole::User));
+
+        // 检查文本内容
+        match &session.messages[0].content {
+            MessageContent::Text(text) => assert_eq!(text, "Hello"),
+            _ => panic!("Expected Text content"),
+        }
+        match &session.messages[1].content {
+            MessageContent::Text(text) => assert_eq!(text, "World"),
+            _ => panic!("Expected Text content"),
+        }
     }
 
     #[test]
@@ -607,17 +782,17 @@ mod tests {
             text: "test".to_string(),
         });
 
-        // ToolStart - 累积工具
+        // ToolStart - 创建占位符（args 为空）
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "test".to_string(),
-            input: "{}".to_string(),
+            input: String::new(),
         });
 
-        // ToolDone - 显式忽略
+        // ToolDone - 更新完整参数
         collector.dispatch(&StreamEvent::ToolDone {
             tool_id: "call_1".to_string(),
-            result: "ok".to_string(),
+            result: r#"{"arg":"value"}"#.to_string(),
         });
 
         // MessageDone - 标记完成
@@ -632,6 +807,7 @@ mod tests {
         // 验证状态
         assert_eq!(collector.response_text(), "test");
         assert!(collector.has_pending_tools());
+        assert_eq!(collector.pending_tools()[0].args, r#"{"arg":"value"}"#);
         assert!(collector.is_done());
     }
 }

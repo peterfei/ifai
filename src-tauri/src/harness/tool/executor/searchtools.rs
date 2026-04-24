@@ -83,14 +83,14 @@ impl SearchToolsExecutor {
 
         if matches.is_empty() {
             return Ok(format!(
-                "🔍 Glob search: '{}'\n📂 Base: {}\n❌ No matches found",
+                "Glob search: '{}'\nBase: {}\nNo matches found",
                 pattern, base_path
             ));
         }
 
         // 格式化结果
         let mut result = format!(
-            "🔍 Glob search: '{}'\n📂 Base: {}\n\n✅ Found {} file(s):\n",
+            "Glob search: '{}'\nBase: {}\n\nFound {} file(s):\n",
             pattern,
             base_path,
             matches.len()
@@ -101,7 +101,7 @@ impl SearchToolsExecutor {
         }
 
         if error_count > 0 {
-            result.push_str(&format!("\n⚠️  {} error(s) occurred during search", error_count));
+            result.push_str(&format!("\n{} error(s) occurred during search", error_count));
         }
 
         Ok(result)
@@ -147,7 +147,7 @@ impl SearchToolsExecutor {
 
         if results.is_empty() {
             return Ok(format!(
-                "🔍 Grep search: '{}'\n📂 Path: {}\n❌ No matches found",
+                "Grep search: '{}'\nPath: {}\nNo matches found",
                 pattern, base_path
             ));
         }
@@ -155,12 +155,12 @@ impl SearchToolsExecutor {
         // 格式化结果
         let mut total_matches = 0;
         let mut output = format!(
-            "🔍 Grep search: '{}'\n📂 Path: {}\n\n",
+            "Grep search: '{}'\nPath: {}\n\n",
             pattern, base_path
         );
 
         for result in &results {
-            output.push_str(&format!("📄 {} ({} matches):\n", result.file, result.matches.len()));
+            output.push_str(&format!("{} ({} matches):\n", result.file, result.matches.len()));
             total_matches += result.matches.len();
 
             for (line_num, line) in &result.matches {
@@ -169,7 +169,7 @@ impl SearchToolsExecutor {
             output.push('\n');
         }
 
-        output.push_str(&format!("📊 Total: {} matches in {} file(s)", total_matches, results.len()));
+        output.push_str(&format!("Total: {} matches in {} file(s)", total_matches, results.len()));
 
         Ok(output)
     }

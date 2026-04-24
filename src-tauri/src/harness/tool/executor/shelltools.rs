@@ -39,9 +39,9 @@ impl ShellToolsExecutor {
 
         // 🔥 DIAGNOSTIC: 打印工作目录信息
         if let Some(dir) = working_dir {
-            println!("[Bash] 🔧 Executing in working_dir: {}", dir);
+            println!("[Bash] Executing in working_dir: {}", dir);
         } else {
-            println!("[Bash] ⚠️ No working_dir specified, using default");
+            println!("[Bash] No working_dir specified, using default");
         }
 
         // 检测操作系统
@@ -70,19 +70,27 @@ impl ShellToolsExecutor {
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let exit_code = output.status.code().unwrap_or(-1);
 
-        // 构建结果
-        let mut result = format!("💻 Command: {}\n", command);
+        // 构建结果 - 专业格式
+        let mut result = format!("> {}\n", command);
 
         if !stdout.is_empty() {
-            result.push_str(&format!("📤 Output:\n{}\n", stdout));
+            result.push_str(&stdout);
+            // 确保以换行结尾
+            if !stdout.ends_with('\n') {
+                result.push('\n');
+            }
         }
 
         if !stderr.is_empty() {
-            result.push_str(&format!("⚠️  Stderr:\n{}\n", stderr));
+            result.push_str(&format!("Error: {}", stderr));
         }
 
-        result.push_str(&format!("📊 Exit code: {}", output.status.code().unwrap_or(-1)));
+        // 只在非零退出码时显示
+        if exit_code != 0 {
+            result.push_str(&format!("Exit code: {}", exit_code));
+        }
 
         Ok(result)
     }
@@ -107,19 +115,25 @@ impl ShellToolsExecutor {
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let exit_code = output.status.code().unwrap_or(-1);
 
-        // 构建结果
-        let mut result = format!("💻 PowerShell: {}\n", command);
+        // 构建结果 - 专业格式
+        let mut result = format!("> {}\n", command);
 
         if !stdout.is_empty() {
-            result.push_str(&format!("📤 Output:\n{}\n", stdout));
+            result.push_str(&stdout);
+            if !stdout.ends_with('\n') {
+                result.push('\n');
+            }
         }
 
         if !stderr.is_empty() {
-            result.push_str(&format!("⚠️  Stderr:\n{}\n", stderr));
+            result.push_str(&format!("Error: {}", stderr));
         }
 
-        result.push_str(&format!("📊 Exit code: {}", output.status.code().unwrap_or(-1)));
+        if exit_code != 0 {
+            result.push_str(&format!("Exit code: {}", exit_code));
+        }
 
         Ok(result)
     }
@@ -129,7 +143,16 @@ impl ToolExecutor for ShellToolsExecutor {
     fn execute(&mut self, name: &str, input: &Value) -> Result<String, ToolError> {
         match name {
             "bash" => self.handle_bash(input),
-            "PowerShell" => self.handle_powershell(input),
+            "PowerShell" => {
+                // 🔥 FIX: 仅在 Windows 上执行 PowerShell
+                #[cfg(target_os = "windows")]
+                return self.handle_powershell(input);
+
+                #[cfg(not(target_os = "windows"))]
+                return Err(ToolError::Execution(
+                    "PowerShell is only available on Windows".to_string()
+                ));
+            }
             _ => Err(ToolError::NotFound {
                 name: name.to_string(),
             }),
@@ -137,6 +160,13 @@ impl ToolExecutor for ShellToolsExecutor {
     }
 
     fn is_available(&self, name: &str) -> bool {
+        // 🔥 FIX: PowerShell 仅在 Windows 上可用
+        if name == "PowerShell" {
+            #[cfg(target_os = "windows")]
+            return self.allowed_tools.contains(name);
+            #[cfg(not(target_os = "windows"))]
+            return false;
+        }
         self.allowed_tools.contains(name)
     }
 

@@ -1,0 +1,256 @@
+{
+  "tools": [
+    {
+      "name": "agent_read_file",
+      "aliases": [
+        "read_file",
+        "agent_read_file_range"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "agent_list_dir",
+      "aliases": [
+        "list_dir",
+        "list_directory"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "agent_scan_project",
+      "aliases": [
+        "scan_project",
+        "scan_directory",
+        "get_file_tree"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "get_file_symbols",
+      "aliases": [
+        "agent_list_functions",
+        "agent_probe_symbols"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "agent_search",
+      "aliases": [
+        "search_file_content",
+        "grep_search",
+        "search",
+        "search_semantic",
+        "glob",
+        "list_files",
+        "ls",
+        "agent_batch_read"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "TodoWrite",
+      "aliases": [
+        "todowrite",
+        "todo_write"
+      ],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": false,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "init_rag_index",
+      "aliases": [],
+      "category": "safe",
+      "riskLevel": "low",
+      "requiresApproval": false,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "agent_write_file",
+      "aliases": [
+        "write_file",
+        "agent_create_file"
+      ],
+      "category": "dangerous",
+      "riskLevel": "medium",
+      "requiresApproval": true,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": [
+        {
+          "pattern": "^\\.?env",
+          "risk": "high"
+        },
+        {
+          "pattern": "^package\\.json$",
+          "risk": "high"
+        },
+        {
+          "pattern": "^tauri\\.conf\\.json$",
+          "risk": "high"
+        },
+        {
+          "pattern": "^src-tauri\\/tauri\\.conf\\.json$",
+          "risk": "high"
+        },
+        {
+          "pattern": "^\\.git\\/",
+          "risk": "high"
+        },
+        {
+          "pattern": "^\\.ifai\\/",
+          "risk": "high"
+        },
+        {
+          "pattern": "^vite\\.config\\.(js|ts)$",
+          "risk": "high"
+        },
+        {
+          "pattern": "^tsconfig\\.json$",
+          "risk": "high"
+        },
+        {
+          "pattern": "\\.md$",
+          "risk": "low"
+        },
+        {
+          "pattern": "^docs\\/",
+          "risk": "low"
+        },
+        {
+          "pattern": "^tests?\\/",
+          "risk": "low"
+        },
+        {
+          "pattern": "^\\.gitignore$",
+          "risk": "low"
+        },
+        {
+          "pattern": "^LICENSE$",
+          "risk": "low"
+        }
+      ]
+    },
+    {
+      "name": "agent_replace_text",
+      "aliases": [
+        "agent_replace_content",
+        "agent_edit_file",
+        "edit_file"
+      ],
+      "category": "dangerous",
+      "riskLevel": "medium",
+      "requiresApproval": true,
+      "requireSandbox": false,
+      "aggregatable": true,
+      "maxIterations": 5,
+      "pathRiskRules": []
+    },
+    {
+      "name": "agent_delete_file",
+      "aliases": [
+        "delete_file",
+        "remove_file",
+        "agent_rename_file",
+        "agent_move_file"
+      ],
+      "category": "destructive",
+      "riskLevel": "high",
+      "requiresApproval": true,
+      "requireSandbox": true,
+      "aggregatable": true,
+      "maxIterations": 3,
+      "pathRiskRules": []
+    },
+    {
+      "name": "agent_bash",
+      "aliases": [
+        "bash",
+        "execute_bash_command",
+        "agent_execute_command",
+        "execute_command",
+        "agent_run_shell_command",
+        "run_shell_command",
+        "agent_run_command"
+      ],
+      "category": "destructive",
+      "riskLevel": "high",
+      "requiresApproval": true,
+      "requireSandbox": false,
+      "aggregatable": false,
+      "maxIterations": 3,
+      "pathRiskRules": []
+    }
+  ],
+  "autoApprovalRules": [
+    {
+      "priority": 1,
+      "name": "safe-tools-auto-approve",
+      "when": {
+        "category": "safe"
+      },
+      "then": {
+        "approve": true,
+        "reason": "Safe tools auto-approved in CLI"
+      }
+    },
+    {
+      "priority": 10,
+      "name": "destructive-require-confirmation",
+      "when": {
+        "category": "destructive"
+      },
+      "then": {
+        "approve": false,
+        "reason": "Destructive tools require user confirmation in CLI"
+      }
+    },
+    {
+      "priority": 99,
+      "name": "default-require-confirmation",
+      "then": {
+        "approve": false,
+        "reason": "Default: require confirmation for unknown tools"
+      }
+    }
+  ],
+  "globalPathRiskRules": []
+}
