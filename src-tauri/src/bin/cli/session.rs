@@ -9,10 +9,11 @@
 //! ToolDone 事件不再用于参数解析，参数仅来自 ToolStart.input
 
 use std::io::{self, Write};
+use std::time::Duration;
 use futures_util::stream::StreamExt;
 use ifainew_lib::harness::api::types::StreamEvent;
 use crate::provider::resolve_provider;
-use crate::render::{self, RESET};
+use crate::render::{self, RESET, Spinner};
 use crate::prompts::build_system_prompt;
 
 // ============================================================================
@@ -298,11 +299,10 @@ impl Session {
             tools: None, // 暂不支持工具
         };
 
-        let theme = render::default_theme();
-
-        // 🎨 显示加载提示（在发送请求前）
-        print!("{}{}▊{} {}thinking...{} ", theme.brand, render::BOLD, render::RESET, theme.dim, render::RESET);
-        io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+        // 🎨 创建 Spinner 和定时器
+        let mut spinner = Spinner::new("thinking");
+        let mut interval = tokio::time::interval(Duration::from_millis(150)); // 每 150ms tick 一次
+        interval.tick().await; // 跳过第一个立即触发的 tick
 
         // 发送流式请求
         let mut stream = client.stream(request).await
@@ -310,43 +310,61 @@ impl Session {
 
         let mut full_response = String::new();
         let mut first_delta = true;
+        let theme = render::default_theme();
 
-        // 处理流式响应
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(event) => {
-                    match &event {
-                        StreamEvent::TextDelta { text } => {
-                            // 首次响应：清除加载提示并显示文本
-                            if first_delta {
-                                // 回退清除 "▊ thinking... "
-                                print!("\r{}  \r", " ".repeat(20)); // 清除加载提示
-                                io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
-                                first_delta = false;
-                            }
-                            print!("{}", text);
-                            io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
-                            full_response.push_str(text);
-                        }
-                        StreamEvent::Error { code, message } => {
-                            if first_delta {
-                                print!("\r{}  \r", " ".repeat(20));
-                                io::stdout().flush().ok();
-                            }
-                            eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
-                        }
-                        _ => {
-                            // 其他事件暂时忽略
-                        }
-                    }
-                }
-                Err(e) => {
+        // 🎨 使用 tokio::select! 同时处理流和 spinner 动画
+        loop {
+            tokio::select! {
+                // Spinner 动画 tick
+                _ = interval.tick() => {
                     if first_delta {
-                        print!("\r{}  \r", " ".repeat(20));
+                        // 首次响应前，显示动画
+                        let frame = spinner.tick();
+                        print!("\r{}", frame);
                         io::stdout().flush().ok();
                     }
-                    eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
-                    break;
+                }
+                // 流式事件
+                result = stream.next() => {
+                    match result {
+                        Some(Ok(event)) => {
+                            match &event {
+                                StreamEvent::TextDelta { text } => {
+                                    if first_delta {
+                                        // 首次响应：完成 spinner，清除动画
+                                        spinner.finish(true);
+                                        print!("\r{}  \r", " ".repeat(30)); // 清除 spinner 行
+                                        first_delta = false;
+                                    }
+                                    print!("{}", text);
+                                    io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+                                    full_response.push_str(text);
+                                }
+                                StreamEvent::Error { code, message } => {
+                                    if first_delta {
+                                        spinner.finish(false);
+                                        print!("\r{}  \r", " ".repeat(30));
+                                    }
+                                    eprintln!("\n{}Error [{}]: {}{}", theme.error, code, message, RESET);
+                                }
+                                _ => {
+                                    // 其他事件暂时忽略
+                                }
+                            }
+                        }
+                        Some(Err(e)) => {
+                            if first_delta {
+                                spinner.finish(false);
+                                print!("\r{}  \r", " ".repeat(30));
+                            }
+                            eprintln!("\n{}Stream error: {:?}{}", theme.error, e, RESET);
+                            return Err(format!("Stream error: {:?}", e));
+                        }
+                        None => {
+                            // 流结束
+                            break;
+                        }
+                    }
                 }
             }
         }
