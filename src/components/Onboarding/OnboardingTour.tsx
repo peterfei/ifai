@@ -170,10 +170,18 @@ const getTourSteps = (t: (key: string) => string): Step[] => {
       placement: 'center' as const,
     },
     {
-      target: '[data-testid="layout-switcher"]',
+      target: 'body',
+      content: renderMarkdown(t('onboarding.steps.skillsMarketplace')),
+      title: t('onboarding.steps.skillsMarketplaceTitle'),
+      disableBeacon: true,
+      placement: 'center' as const,
+    },
+    {
+      target: 'body',
       content: renderMarkdown(t('onboarding.steps.layoutSwitcher')),
       title: t('onboarding.steps.layoutSwitcherTitle'),
-      placement: 'bottom' as const,
+      disableBeacon: true,
+      placement: 'center' as const,
     },
   ];
 };
@@ -189,7 +197,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 }) => {
   const { t } = useTranslation();
   const [run, setRun] = useState(false);
-  const { setCommandBarOpen, setSettingsOpen } = useLayoutStore();
+  const { setCommandBarOpen, setSettingsOpen, setSkillMarketOpen } = useLayoutStore();
 
   // 检查是否应该启动引导
   useEffect(() => {
@@ -198,8 +206,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
 
       // 目标元素选择器（只检查静态元素）
       const targets = [
-        'body',
-        '[data-testid="layout-switcher"]'
+        'body'
       ];
 
       // 轮询检测目标元素是否存在
@@ -262,6 +269,18 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         console.log('[OnboardingTour] Opening Settings');
         setSettingsOpen(true);
       }
+      // 步骤 4 (index 3): 打开技能市场
+      if (index === 3) {
+        console.log('[OnboardingTour] Opening Skill Market');
+        setSettingsOpen(false);
+        setSkillMarketOpen(true);
+      }
+      // 步骤 5 (index 4): 打开布局切换下拉菜单
+      if (index === 4) {
+        console.log('[OnboardingTour] Opening Layout Switcher');
+        const btn = document.querySelector('.layout-trigger') as HTMLElement;
+        if (btn) btn.click();
+      }
     }
 
     // 步骤结束后：关闭组件
@@ -278,6 +297,17 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
         console.log('[OnboardingTour] Closing Settings');
         setSettingsOpen(false);
       }
+      // 离开步骤 4 (index 3): 关闭技能市场
+      if (index === 3) {
+        console.log('[OnboardingTour] Closing Skill Market');
+        setSkillMarketOpen(false);
+      }
+      // 离开步骤 5 (index 4): 关闭布局切换下拉菜单
+      if (index === 4) {
+        console.log('[OnboardingTour] Closing Layout Switcher');
+        const btn = document.querySelector('.layout-trigger') as HTMLElement;
+        if (btn) btn.click();
+      }
     }
 
     // 处理完成状态
@@ -287,17 +317,28 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
       // 确保所有组件都已关闭
       setCommandBarOpen(false);
       setSettingsOpen(false);
+      setSkillMarketOpen(false);
       markTourCompleted();
       onTourComplete?.();
+      // 延迟关闭布局菜单，等 joyride 遮罩移除
+      setTimeout(() => {
+        const layoutBtn = document.querySelector('.layout-trigger.active') as HTMLElement;
+        if (layoutBtn) layoutBtn.click();
+      }, 300);
     } else if (status === STATUS.SKIPPED) {
       console.log('[OnboardingTour] Tour skipped');
       setRun(false);
       setCommandBarOpen(false);
       setSettingsOpen(false);
+      setSkillMarketOpen(false);
       markTourSkipped();
       onTourSkip?.();
+      setTimeout(() => {
+        const layoutBtn = document.querySelector('.layout-trigger.active') as HTMLElement;
+        if (layoutBtn) layoutBtn.click();
+      }, 300);
     }
-  }, [onTourComplete, onTourSkip, setCommandBarOpen, setSettingsOpen]);
+  }, [onTourComplete, onTourSkip, setCommandBarOpen, setSettingsOpen, setSkillMarketOpen]);
 
   // 自定义深色主题样式
   const tooltipStyles = {
