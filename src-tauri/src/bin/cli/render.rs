@@ -178,6 +178,374 @@ pub fn bold_color_256(code: u8) -> String {
 }
 
 // ============================================================================
+// Unicode Box Drawing Constants
+// ============================================================================
+
+const H: &str = "─"; // Horizontal
+const V: &str = "│"; // Vertical
+const TL: &str = "╭"; // Top-Left
+const TR: &str = "╮"; // Top-Right
+const BL: &str = "╰"; // Bottom-Left
+const BR: &str = "╯"; // Bottom-Right
+const LJ: &str = "├"; // Left-Join
+const RJ: &str = "┤"; // Right-Join
+const TJ: &str = "┴"; // Top-Join
+const BJ: &str = "┬"; // Bottom-Join
+const XJ: &str = "┼"; // Cross-Join
+
+// ============================================================================
+// IfAI Brand Cursor Spinner (4.0.7)
+// ============================================================================
+
+/// 🎨 IfAI Brand Cursor — `▊` 循环 "IfAI" 四个字母
+///
+/// **循环模式**：`▊fAI` → `I▊AI` → `If▊I` → `IfA▊`
+/// - Cursor: `▊` (theme.brand 颜色)
+/// - Letters: theme.muted 颜色
+/// - 完成后：`✔` (success) 或 `✘` (error)
+pub struct Spinner {
+    cursor_pos: usize,
+    label: String,
+    theme: Theme,
+    finished: bool,
+    success: bool,
+}
+
+impl Spinner {
+    /// 创建新的 Spinner
+    pub fn new(label: &str) -> Self {
+        Self {
+            cursor_pos: 0,
+            label: label.to_string(),
+            theme: default_theme(),
+            finished: false,
+            success: false,
+        }
+    }
+
+    /// Tick 一次（循环 cursor 位置）
+    pub fn tick(&mut self) -> String {
+        if self.finished {
+            return self.render_finished();
+        }
+
+        const BRAND_NAME: &str = "IfAI";
+        let before = &BRAND_NAME[..self.cursor_pos];
+        let after = &BRAND_NAME[self.cursor_pos..];
+
+        let cursor = self.theme.brand;
+        let muted = self.theme.muted;
+        let dim = self.theme.dim;
+        let reset = RESET;
+
+        let output = format!("\r{cursor}▊{reset}{muted}{before}{after}{reset} {dim}{}{reset}   ", self.label);
+
+        self.cursor_pos = (self.cursor_pos + 1) % BRAND_NAME.len();
+        output
+    }
+
+    /// 标记完成（成功）
+    pub fn finish(&mut self, success: bool) -> String {
+        self.finished = true;
+        self.success = success;
+        self.render_finished()
+    }
+
+    /// 渲染完成状态
+    fn render_finished(&self) -> String {
+        let icon = if self.success { "✔" } else { "✘" };
+        let color = if self.success { self.theme.success } else { self.theme.error };
+        let reset = RESET;
+
+        format!("\r{color}{icon} IfAI{reset} {}   ", self.label)
+    }
+}
+
+// ============================================================================
+// Tool Call Rendering (4.0.8/4.0.9)
+// ============================================================================
+
+/// 🎨 渲染 Tool Start — `╭─ Tool: <name>` + JSON args
+pub fn render_tool_start(name: &str, args: &str, theme: &Theme) -> String {
+    let border = theme.table_border;
+    let muted = theme.muted;
+    let reset = RESET;
+
+    // 第一行：╭─ Tool: <name>
+    let header = format!("{border}╭─{border} Tool: {name}{{{reset}\n");
+
+    // 后续行：│ <indented JSON>
+    let json_lines: Vec<&str> = args.lines().collect();
+    let mut body = String::new();
+    for line in json_lines {
+        body.push_str(&format!("{border}│{reset} {line}\n"));
+    }
+
+    header + &body
+}
+
+/// 🎨 渲染 Tool Result — `╰─ ✔/✘ <preview>`
+pub fn render_tool_result(name: &str, result: &str, success: bool, theme: &Theme) -> String {
+    let border = theme.table_border;
+    let reset = RESET;
+
+    let icon = if success { "✔" } else { "✘" };
+    let color = if success { theme.success } else { theme.error };
+
+    // 预览：取前 50 个字符
+    let preview = if result.len() > 50 {
+        format!("{}...", &result[..47])
+    } else {
+        result.to_string()
+    };
+
+    format!("{border}╰─{reset} {color}{icon} {name}: {preview}{reset}\n")
+}
+
+// ============================================================================
+// Status Bar & Config Chain (4.0.10/4.0.11)
+// ============================================================================
+
+/// 🎨 渲染 Session Status Bar
+pub fn render_status_bar(
+    messages: usize,
+    tools: usize,
+    provider: &str,
+    model: &str,
+    theme: &Theme,
+) -> String {
+    let border = theme.table_border;
+    let muted = theme.muted;
+    let reset = RESET;
+
+    format!(
+        "{border}┌─{border} Session Status{reset}\n\
+         {border}│{reset} Messages: {messages}  {border}│{reset} Tools: {tools}  {border}│{reset} Provider: {provider} {border}│{reset}\n\
+         {border}│{reset} Model: {model} {muted}(...){reset}\n\
+         {border}└{border}──────────────────────────────────────────────{border}┘{reset}\n"
+    )
+}
+
+/// 🎨 渲染 Config Precedence Chain (4 层)
+pub fn render_config_chain(
+    cli_val: Option<&str>,
+    env_val: Option<&str>,
+    file_val: Option<&str>,
+    default_val: &str,
+    theme: &Theme,
+) -> String {
+    let border = theme.table_border;
+    let dim = theme.dim;
+    let reset = RESET;
+
+    let mut output = String::from(&format!("{border}┌─{border} Config Chain{reset}\n"));
+
+    // CLI args (highest)
+    if let Some(v) = cli_val {
+        output.push_str(&format!("{border}│{reset} ► cli-arg:    {v}\n"));
+    } else if env_val.is_some() || file_val.is_some() {
+        output.push_str(&format!("{border}│{reset} {dim}cli-arg:    (not set){reset}\n"));
+    }
+
+    // Env var
+    if let Some(v) = env_val {
+        if cli_val.is_some() {
+            output.push_str(&format!("{border}│{reset} {dim}env-var:    {v} (overridden){reset}\n"));
+        } else {
+            output.push_str(&format!("{border}│{reset} ► env-var:    {v}\n"));
+        }
+    } else {
+        output.push_str(&format!("{border}│{reset} {dim}env-var:    (not set){reset}\n"));
+    }
+
+    // Config file
+    if let Some(v) = file_val {
+        if cli_val.is_some() || env_val.is_some() {
+            output.push_str(&format!("{border}│{reset} {dim}file:       {v} (overridden){reset}\n"));
+        } else {
+            output.push_str(&format!("{border}│{reset} ► file:       {v}\n"));
+        }
+    } else {
+        output.push_str(&format!("{border}│{reset} {dim}file:       (not set){reset}\n"));
+    }
+
+    // YAML defaults
+    if cli_val.is_some() || env_val.is_some() || file_val.is_some() {
+        output.push_str(&format!("{border}│{reset} {dim}default:    {default_val} (overridden){reset}\n"));
+    } else {
+        output.push_str(&format!("{border}│{reset} ► default:    {default_val}\n"));
+    }
+
+    output.push_str(&format!("{border}└{border}──────────────────────{border}┘{reset}\n"));
+    output
+}
+
+// ============================================================================
+// Markdown Stream State (4.0.12)
+// ============================================================================
+
+/// 🎨 Markdown 代码块流式状态
+pub struct MarkdownStreamState {
+    in_code_block: bool,
+    buffer: String,
+    lang: Option<String>,
+}
+
+impl MarkdownStreamState {
+    pub fn new() -> Self {
+        Self {
+            in_code_block: false,
+            buffer: String::new(),
+            lang: None,
+        }
+    }
+
+    /// 处理文本 delta，检测代码块边界
+    pub fn process_delta(&mut self, delta: &str, theme: &Theme) -> String {
+        let mut output = String::new();
+
+        for line in delta.split('\n') {
+            if self.in_code_block {
+                if line.trim().starts_with("```") {
+                    // 代码块结束
+                    output.push_str(&format!("{}\n", theme.table_border));
+                    output.push_str(&format!("{}│{RESET}{}\n", theme.box_bg, self.buffer.trim()));
+                    output.push_str(&format!("{}\n", theme.table_border));
+                    self.in_code_block = false;
+                    self.buffer.clear();
+                    self.lang = None;
+                } else {
+                    // 代码块内容
+                    self.buffer.push_str(line);
+                    self.buffer.push('\n');
+                }
+            } else if line.trim().starts_with("```") {
+                // 代码块开始
+                self.in_code_block = true;
+                self.lang = Some(line.trim()[3..].trim().to_string());
+                output.push_str(&format!("{}\n", theme.table_border));
+                output.push_str(&format!("{}│{RESET}╭─ {} language code block\n", theme.table_border, self.lang.as_deref().unwrap_or("text")));
+            } else {
+                // 普通文本
+                output.push_str(line);
+                output.push('\n');
+            }
+        }
+
+        output
+    }
+}
+
+impl Default for MarkdownStreamState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// Codex-Style Minimalist Banner (4.0.13)
+// ============================================================================
+
+/// 🎨 渲染启动 Banner — Codex 风格极简主义
+///
+/// **设计原则**：
+/// - 无 ASCII art
+/// - 粗体 "IfAI" + 版本号
+/// - 缩进的 model/provider/directory 行
+/// - "Tip:" 行
+pub fn render_banner(version: &str, provider: &str, model: &str, theme: &Theme) -> String {
+    let brand = theme.brand;
+    let heading = theme.heading;
+    let muted = theme.muted;
+    let dim = theme.dim;
+    let reset = RESET;
+
+    format!(
+        "{heading}{bold}IfAI {version}{reset}\n\
+         {dim}Provider:{reset} {brand}{provider}{reset}  {dim}Model:{reset} {brand}{model}{reset}\n\
+         {muted}Tip: Press Ctrl+D to exit{reset}\n",
+        bold = BOLD
+    )
+}
+
+// ============================================================================
+// Table Rendering (Auto-Width)
+// ============================================================================
+
+/// 🎨 渲染 Unicode 表格（自动列宽）
+pub fn render_table(headers: &[&str], rows: &[Vec<String>]) -> String {
+    if rows.is_empty() {
+        return String::new();
+    }
+
+    // 计算每列宽度
+    let col_count = headers.len();
+    let mut widths = vec![0usize; col_count];
+
+    // Headers width
+    for (i, header) in headers.iter().enumerate() {
+        widths[i] = header.len().max(widths[i]);
+    }
+
+    // Rows width
+    for row in rows {
+        for (i, cell) in row.iter().enumerate() {
+            widths[i] = cell.len().max(widths[i]);
+        }
+    }
+
+    let mut output = String::new();
+
+    // Top border
+    output.push_str("┌");
+    for (i, width) in widths.iter().enumerate() {
+        output.push_str(&"─".repeat(*width + 2));
+        if i < col_count - 1 {
+            output.push_str("┬");
+        }
+    }
+    output.push_str("┐\n");
+
+    // Headers
+    output.push_str("│");
+    for (i, header) in headers.iter().enumerate() {
+        output.push_str(&format!(" {:width$} │", header, width = widths[i]));
+    }
+    output.push('\n');
+
+    // Separator
+    output.push_str("├");
+    for (i, width) in widths.iter().enumerate() {
+        output.push_str(&"─".repeat(*width + 2));
+        if i < col_count - 1 {
+            output.push_str("┼");
+        }
+    }
+    output.push_str("┤\n");
+
+    // Rows
+    for row in rows {
+        output.push_str("│");
+        for (i, cell) in row.iter().enumerate() {
+            output.push_str(&format!(" {:width$} │", cell, width = widths[i]));
+        }
+        output.push('\n');
+    }
+
+    // Bottom border
+    output.push_str("└");
+    for (i, width) in widths.iter().enumerate() {
+        output.push_str(&"─".repeat(*width + 2));
+        if i < col_count - 1 {
+            output.push_str("┴");
+        }
+    }
+    output.push_str("┘\n");
+
+    output
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -276,5 +644,387 @@ mod tests {
     fn test_ansi_constants() {
         assert_eq!(RESET, "\x1b[0m");
         assert_eq!(BOLD, "\x1b[1m");
+    }
+
+    // ========================================================================
+    // Spinner Tests (4.0.7)
+    // ========================================================================
+
+    #[test]
+    fn test_spinner_new() {
+        let spinner = Spinner::new("Test Task");
+        assert_eq!(spinner.label, "Test Task");
+        assert!(!spinner.finished);
+        assert!(!spinner.success);
+        assert_eq!(spinner.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_spinner_tick_cycle() {
+        let mut spinner = Spinner::new("Loading");
+
+        // Tick 1: cursor_pos=0 → "▊fAI"
+        let tick1 = spinner.tick();
+        assert!(tick1.contains("▊"));
+        assert!(tick1.contains("Loading"));
+
+        // Tick 2: cursor_pos=1 → "I▊AI"
+        let tick2 = spinner.tick();
+        assert!(tick2.contains("▊"));
+
+        // Tick 3: cursor_pos=2 → "If▊I"
+        let tick3 = spinner.tick();
+        assert!(tick3.contains("▊"));
+
+        // Tick 4: cursor_pos=3 → "IfA▊"
+        let tick4 = spinner.tick();
+        assert!(tick4.contains("▊"));
+
+        // Tick 5: cursor_pos=0 → 循环回 "▊fAI"
+        let tick5 = spinner.tick();
+        assert!(tick5.contains("▊"));
+    }
+
+    #[test]
+    fn test_spinner_finish_success() {
+        let mut spinner = Spinner::new("Success Task");
+        spinner.finish(true);
+        assert!(spinner.finished);
+        assert!(spinner.success);
+
+        let output = spinner.tick(); // 已完成时调用 tick 返回完成状态
+        assert!(output.contains("✔"));
+        assert!(output.contains("Success Task"));
+    }
+
+    #[test]
+    fn test_spinner_finish_error() {
+        let mut spinner = Spinner::new("Error Task");
+        spinner.finish(false);
+        assert!(spinner.finished);
+        assert!(!spinner.success);
+
+        let output = spinner.tick();
+        assert!(output.contains("✘"));
+        assert!(output.contains("Error Task"));
+    }
+
+    // ========================================================================
+    // Tool Rendering Tests (4.0.8/4.0.9)
+    // ========================================================================
+
+    #[test]
+    fn test_render_tool_start_simple() {
+        let theme = default_theme();
+        let output = render_tool_start("Read", r#"{"path": "test.rs"}"#, &theme);
+
+        assert!(output.contains("Tool: Read"));
+        assert!(output.contains(r#"{"path": "test.rs"}"#));
+        assert!(output.contains("╭"));
+    }
+
+    #[test]
+    fn test_render_tool_start_multiline() {
+        let theme = default_theme();
+        let args = r#"{
+  "path": "test.rs",
+  "offset": 10
+}"#;
+        let output = render_tool_start("Edit", args, &theme);
+
+        assert!(output.contains("Tool: Edit"));
+        assert!(output.contains("│"));
+        assert!(output.contains(r#""path": "test.rs""#));
+    }
+
+    #[test]
+    fn test_render_tool_result_success() {
+        let theme = default_theme();
+        let result = "File content loaded successfully";
+        let output = render_tool_result("Read", result, true, &theme);
+
+        assert!(output.contains("✔"));
+        assert!(output.contains("Read"));
+        assert!(output.contains("File content loaded"));
+        assert!(output.contains("╰"));
+    }
+
+    #[test]
+    fn test_render_tool_result_error() {
+        let theme = default_theme();
+        let result = "File not found";
+        let output = render_tool_result("Read", result, false, &theme);
+
+        assert!(output.contains("✘"));
+        assert!(output.contains("Read"));
+        assert!(output.contains("File not found"));
+    }
+
+    #[test]
+    fn test_render_tool_result_truncation() {
+        let theme = default_theme();
+        let long_result = "This is a very long result that should be truncated to 50 characters with ellipsis";
+        let output = render_tool_result("Test", long_result, true, &theme);
+
+        // 应该被截断并添加 "..."
+        assert!(output.contains("..."));
+        assert!(!output.contains(long_result)); // 原始内容不应完全包含
+    }
+
+    // ========================================================================
+    // Status Bar Tests (4.0.10)
+    // ========================================================================
+
+    #[test]
+    fn test_render_status_bar() {
+        let theme = default_theme();
+        let output = render_status_bar(5, 3, "DeepSeek", "deepseek-chat", &theme);
+
+        assert!(output.contains("Session Status"));
+        assert!(output.contains("Messages: 5"));
+        assert!(output.contains("Tools: 3"));
+        assert!(output.contains("Provider: DeepSeek"));
+        assert!(output.contains("Model: deepseek-chat"));
+        assert!(output.contains("┌"));
+        assert!(output.contains("└"));
+        assert!(output.contains("│"));
+    }
+
+    // ========================================================================
+    // Config Chain Tests (4.0.11)
+    // ========================================================================
+
+    #[test]
+    fn test_render_config_chain_cli_only() {
+        let theme = default_theme();
+        let output = render_config_chain(Some("gpt-4"), None, None, "deepseek-chat", &theme);
+
+        assert!(output.contains("Config Chain"));
+        assert!(output.contains("► cli-arg:    gpt-4")); // Active
+        assert!(output.contains("env-var:    (not set)"));
+        assert!(output.contains("file:       (not set)"));
+        assert!(output.contains("default:    deepseek-chat (overridden)"));
+    }
+
+    #[test]
+    fn test_render_config_chain_env_overrides_default() {
+        let theme = default_theme();
+        let output = render_config_chain(None, Some("gpt-4"), None, "deepseek-chat", &theme);
+
+        assert!(output.contains("cli-arg:    (not set)"));
+        assert!(output.contains("► env-var:    gpt-4")); // Active
+        assert!(output.contains("file:       (not set)"));
+        assert!(output.contains("default:    deepseek-chat (overridden)"));
+    }
+
+    #[test]
+    fn test_render_config_chain_file_overrides_default() {
+        let theme = default_theme();
+        let output = render_config_chain(None, None, Some("gpt-4"), "deepseek-chat", &theme);
+
+        assert!(output.contains("cli-arg:    (not set)"));
+        assert!(output.contains("env-var:    (not set)"));
+        assert!(output.contains("► file:       gpt-4")); // Active
+        assert!(output.contains("default:    deepseek-chat (overridden)"));
+    }
+
+    #[test]
+    fn test_render_config_chain_default_only() {
+        let theme = default_theme();
+        let output = render_config_chain(None, None, None, "deepseek-chat", &theme);
+
+        // 验证结构
+        assert!(output.contains("Config Chain"));
+        assert!(output.contains("► default:    deepseek-chat")); // Active
+        // 验证 env-var 和 file 层显示 "(not set)"
+        assert!(output.contains("env-var:    (not set)"));
+        assert!(output.contains("file:       (not set)"));
+        // CLI arg 层不显示（因为只有 default 值时，该层被省略）
+        assert!(!output.contains("cli-arg"));
+    }
+
+    #[test]
+    fn test_render_config_chain_precedence_order() {
+        let theme = default_theme();
+        // CLI 覆盖所有
+        let output = render_config_chain(
+            Some("cli-model"),
+            Some("env-model"),
+            Some("file-model"),
+            "default-model",
+            &theme
+        );
+
+        assert!(output.contains("► cli-arg:    cli-model")); // CLI 最高优先级
+        assert!(output.contains("env-var:    env-model (overridden)"));
+        assert!(output.contains("file:       file-model (overridden)"));
+        assert!(output.contains("default:    default-model (overridden)"));
+    }
+
+    // ========================================================================
+    // Markdown Stream Tests (4.0.12)
+    // ========================================================================
+
+    #[test]
+    fn test_markdown_stream_new() {
+        let state = MarkdownStreamState::new();
+        assert!(!state.in_code_block);
+        assert!(state.buffer.is_empty());
+        assert!(state.lang.is_none());
+    }
+
+    #[test]
+    fn test_markdown_stream_default() {
+        let state = MarkdownStreamState::default();
+        assert!(!state.in_code_block);
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn test_markdown_detect_code_block_start() {
+        let mut state = MarkdownStreamState::new();
+        let theme = default_theme();
+
+        let delta = "```rust\nfn main() {}\n";
+        let output = state.process_delta(delta, &theme);
+
+        assert!(state.in_code_block);
+        assert_eq!(state.lang.as_deref(), Some("rust"));
+        assert!(output.contains("rust language code block"));
+    }
+
+    #[test]
+    fn test_markdown_detect_code_block_end() {
+        let mut state = MarkdownStreamState::new();
+        let theme = default_theme();
+
+        // 开始代码块
+        state.process_delta("```rust\n", &theme);
+        assert!(state.in_code_block);
+
+        // 添加内容
+        state.process_delta("let x = 42;\n", &theme);
+
+        // 结束代码块
+        let output = state.process_delta("```\n", &theme);
+        assert!(!state.in_code_block);
+        assert!(state.buffer.is_empty());
+        assert!(output.contains("let x = 42;")); // 内容应被输出
+    }
+
+    #[test]
+    fn test_markdown_plain_text_passthrough() {
+        let mut state = MarkdownStreamState::new();
+        let theme = default_theme();
+
+        let delta = "This is plain text\nNo code blocks here\n";
+        let output = state.process_delta(delta, &theme);
+
+        assert!(!state.in_code_block);
+        assert!(output.contains("This is plain text"));
+        assert!(output.contains("No code blocks here"));
+    }
+
+    // ========================================================================
+    // Banner Tests (4.0.13)
+    // ========================================================================
+
+    #[test]
+    fn test_render_banner() {
+        let theme = default_theme();
+        let output = render_banner("v0.4.3", "DeepSeek", "deepseek-chat", &theme);
+
+        assert!(output.contains("IfAI v0.4.3"));
+        assert!(output.contains("Provider:"));
+        assert!(output.contains("DeepSeek"));
+        assert!(output.contains("Model:"));
+        assert!(output.contains("deepseek-chat"));
+        assert!(output.contains("Tip: Press Ctrl+D to exit"));
+    }
+
+    #[test]
+    fn test_render_banner_no_ascii_art() {
+        let theme = default_theme();
+        let output = render_banner("v0.1.0", "OpenAI", "gpt-4", &theme);
+
+        // 不应该有 ASCII art（没有多行的图形）
+        let line_count = output.lines().count();
+        assert!(line_count <= 3); // 最多3行
+    }
+
+    // ========================================================================
+    // Table Rendering Tests
+    // ========================================================================
+
+    #[test]
+    fn test_render_table_empty() {
+        let output = render_table(&["A", "B"], &[]);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn test_render_table_single_row() {
+        let headers = vec!["Name", "Age"];
+        let rows = vec![
+            vec!["Alice".to_string(), "30".to_string()]
+        ];
+        let output = render_table(&headers, &rows);
+
+        assert!(output.contains("┌"));
+        assert!(output.contains("┐"));
+        assert!(output.contains("│"));
+        assert!(output.contains("Name"));
+        assert!(output.contains("Age"));
+        assert!(output.contains("Alice"));
+        assert!(output.contains("30"));
+        assert!(output.contains("├"));
+        assert!(output.contains("┤"));
+        assert!(output.contains("└"));
+        assert!(output.contains("┘"));
+    }
+
+    #[test]
+    fn test_render_table_auto_width() {
+        let headers = vec!["ID", "Description"];
+        let rows = vec![
+            vec!["1".to_string(), "Short".to_string()],
+            vec!["2".to_string(), "A very long description".to_string()],
+        ];
+        let output = render_table(&headers, &rows);
+
+        // 验证第二列自动扩展以适应长内容
+        assert!(output.contains("A very long description"));
+    }
+
+    #[test]
+    fn test_render_table_multiple_columns() {
+        let headers = vec!["A", "B", "C"];
+        let rows = vec![
+            vec!["1".to_string(), "2".to_string(), "3".to_string()],
+            vec!["4".to_string(), "5".to_string(), "6".to_string()],
+        ];
+        let output = render_table(&headers, &rows);
+
+        assert!(output.contains("│ 1 │ 2 │ 3 │"));
+        assert!(output.contains("│ 4 │ 5 │ 6 │"));
+    }
+
+    // ========================================================================
+    // Unicode Box Drawing Tests
+    // ========================================================================
+
+    #[test]
+    fn test_unicode_box_constants() {
+        assert_eq!(H, "─");
+        assert_eq!(V, "│");
+        assert_eq!(TL, "╭");
+        assert_eq!(TR, "╮");
+        assert_eq!(BL, "╰");
+        assert_eq!(BR, "╯");
+        assert_eq!(LJ, "├");
+        assert_eq!(RJ, "┤");
+        assert_eq!(TJ, "┴");
+        assert_eq!(BJ, "┬");
+        assert_eq!(XJ, "┼");
     }
 }
