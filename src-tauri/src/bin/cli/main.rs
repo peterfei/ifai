@@ -319,6 +319,19 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 Err(e) => eprintln!("{}Error: {}{}", render::color_256(167), e, render::RESET),
             }
         } else {
+            // 🔥 元编程：检查是否需要压缩（复用 GUI 端 should_summarize 逻辑）
+            use crate::token;
+            let token_count = token::estimate_tokens(&session.messages);
+            let max_tokens = token::get_model_max_tokens(&session.model);
+
+            // 警告阈值：80% 的上下文窗口
+            if token_count > (max_tokens * 80 / 100) && session.messages.len() >= 10 {
+                eprintln!("{}Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).{}",
+                    render::color_256(208), token_count, session.messages.len(), max_tokens, render::RESET);
+                eprintln!("{}Consider using /compact to reduce context size, or /clear to start fresh.{}",
+                    render::color_256(208), render::RESET);
+            }
+
             // 用户消息 → 发送给 AI（流式响应）
             match session.stream_prompt(input).await {
                 Ok(_) => {
@@ -326,6 +339,12 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 }
                 Err(e) => {
                     eprintln!("{}Error: {}{}", theme.error, e, render::RESET);
+
+                    // 🔥 如果是 token 超限错误，提示解决方案
+                    if e.contains("maximum context length") || e.contains("tokens") {
+                        eprintln!("{}💡 Tip: Use /compact to compress conversation or /clear to start over.{}",
+                            render::color_256(71), render::RESET);
+                    }
                 }
             }
         }

@@ -200,8 +200,67 @@ fn cmd_clear(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("✅ 对话历史已清空".to_string()))
 }
 
-fn cmd_compact(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
-    Ok(Some("🔄 对话已压缩".to_string()))
+fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
+    use super::render::{default_theme, RESET};
+
+    let theme = default_theme();
+
+    // 🔥 检查是否需要压缩
+    if session.messages.len() < 10 {
+        return Ok(Some(format!(
+            "{}对话太短（{} 条消息），无需压缩。{}",
+            theme.muted, session.messages.len(), RESET
+        )));
+    }
+
+    let before_count = session.messages.len();
+    let before_tokens = super::token::estimate_tokens(&session.messages);
+
+    println!("{}🔄 压缩对话...{}",
+        theme.heading, RESET
+    );
+    println!("{}压缩前：{} 条消息，约 {} tokens{}",
+        theme.muted, before_count, before_tokens, RESET
+    );
+
+    // 🔥 简化压缩：保留系统提示词 + 最后 20 条消息
+    let keep_last_n = 20;
+    let mut new_messages = Vec::new();
+
+    // 1. 保留系统提示词
+    use ifainew_lib::harness::api::types::MessageRole;
+    if let Some(first) = session.messages.first() {
+        if matches!(first.role, MessageRole::System) {
+            new_messages.push(first.clone());
+        }
+    }
+
+    // 2. 保留最后 N 条消息
+    let tail_size = std::cmp::min(session.messages.len(), keep_last_n);
+    let start_idx = session.messages.len() - tail_size;
+    for i in start_idx..session.messages.len() {
+        new_messages.push(session.messages[i].clone());
+    }
+
+    session.messages = new_messages;
+
+    let after_count = session.messages.len();
+    let after_tokens = super::token::estimate_tokens(&session.messages);
+
+    println!("{}压缩后：{} 条消息，约 {} tokens{}",
+        theme.success, after_count, after_tokens, RESET
+    );
+    println!("{}减少了：{} 条消息，约 {} tokens{}",
+        theme.brand,
+        before_count - after_count,
+        before_tokens - after_tokens,
+        RESET
+    );
+
+    Ok(Some(format!(
+        "{}✓ 对话已压缩（保留最近 {} 条消息）{}",
+        theme.success, keep_last_n, RESET
+    )))
 }
 
 /// 🔥 显示 token 使用和成本统计（复用 GUI 端定价数据）
