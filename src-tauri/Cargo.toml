@@ -32,7 +32,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # CLI binary configuration
 [[bin]]
 name = "ifai"
-path = "src/bin/ifai.rs"
+path = "src/bin/cli/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
