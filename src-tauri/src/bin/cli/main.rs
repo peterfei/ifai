@@ -10,6 +10,7 @@ mod session;
 mod prompts;
 mod permission;  // 🔥 元编程权限引擎
 mod token;       // 🔥 元编程 Token 显示层
+mod persistence; // 🔥 元编程会话持久化
 
 use std::env;
 use std::io::{self, Write};

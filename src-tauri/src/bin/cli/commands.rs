@@ -104,9 +104,16 @@ const COMMAND_SPECS: &[CommandSpec] = &[
         handler: cmd_permissions,
     },
     CommandSpec {
+        name: "save",
+        summary: "保存当前会话",
+        arg_hint: Some("<name>"),
+        min_permission: PermissionMode::Config,
+        handler: cmd_save,
+    },
+    CommandSpec {
         name: "resume",
-        summary: "会话持久化（save/load/list）",
-        arg_hint: Some("<save|load|list> [name]"),
+        summary: "恢复或列出已保存的会话",
+        arg_hint: Some("[<name> | list]"),
         min_permission: PermissionMode::Config,
         handler: cmd_resume,
     },
@@ -205,11 +212,14 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
     let theme = default_theme();
 
-    // 🔥 检查是否需要压缩
-    if session.messages.len() < 10 {
+    // 🔥 简化压缩：保留系统提示词 + 最后 20 条消息
+    let keep_last_n = 20;
+
+    // 🔥 检查是否需要压缩（消息数必须明显超过保留数）
+    if session.messages.len() <= keep_last_n + 2 {
         return Ok(Some(format!(
-            "{}对话太短（{} 条消息），无需压缩。{}",
-            theme.muted, session.messages.len(), RESET
+            "{}对话无需压缩（{} 条消息 < {} 条阈值）。使用 /clear 清空所有对话。{}",
+            theme.muted, session.messages.len(), keep_last_n + 2, RESET
         )));
     }
 
@@ -223,8 +233,6 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
         theme.muted, before_count, before_tokens, RESET
     );
 
-    // 🔥 简化压缩：保留系统提示词 + 最后 20 条消息
-    let keep_last_n = 20;
     let mut new_messages = Vec::new();
 
     // 1. 保留系统提示词
@@ -317,11 +325,127 @@ fn cmd_permissions(_session: &mut Session, _arg: Option<&str>) -> CommandResult 
     Ok(Some("当前权限: None (无限制)".to_string()))
 }
 
-fn cmd_resume(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+/// 🔥 保存当前会话
+fn cmd_save(session: &mut Session, arg: Option<&str>) -> CommandResult {
+    use super::render::{default_theme, RESET};
+    use super::persistence::{SessionPersistence, SessionSnapshot};
+
+    let name = arg.ok_or("用法: /save <name>".to_string())?;
+
+    let theme = default_theme();
+
+    // 🔥 创建会话快照
+    let snapshot = SessionSnapshot {
+        version: 1,
+        name: name.to_string(),
+        saved_at: chrono::Utc::now().to_rfc3339(),
+        provider: session.provider.clone(),
+        model: session.model.clone(),
+        messages: session.messages.clone(),
+        cumulative_input_tokens: session.cumulative_input_tokens,
+        cumulative_output_tokens: session.cumulative_output_tokens,
+    };
+
+    // 🔥 保存会话
+    let persistence = SessionPersistence::new()
+        .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
+
+    let filepath = persistence.save_session(name, snapshot)
+        .map_err(|e| format!("Failed to save session: {}", e))?;
+
+    Ok(Some(format!(
+        "{}✓ 会话已保存到：{}{} ({} 条消息)",
+        theme.success,
+        filepath.display(),
+        RESET,
+        session.messages.len()
+    )))
+}
+
+fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
+    use super::render::{default_theme, RESET};
+    use super::persistence::{SessionPersistence, SessionSnapshot};
+
+    let theme = default_theme();
+
     match arg {
-        Some("list") => Ok(Some("已保存会话: 无".to_string())),
-        Some("save") | Some("load") => Ok(Some("用法: /resume save <name> 或 /resume load <name>".to_string())),
-        Some(_) | None => Ok(Some("用法: /resume <save|load|list> [name]".to_string())),
+        Some("list") => {
+            // 🔥 列出所有保存的会话
+            let persistence = SessionPersistence::new()
+                .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
+
+            let sessions = persistence.list_sessions()
+                .map_err(|e| format!("Failed to list sessions: {}", e))?;
+
+            if sessions.is_empty() {
+                return Ok(Some(format!("{}未找到已保存的会话。使用 /save <name> 保存当前会话。{}", theme.muted, RESET)));
+            }
+
+            let mut output = format!("{}已保存的会话（{}）：{}\n", theme.heading, sessions.len(), RESET);
+
+            for (i, meta) in sessions.iter().enumerate() {
+                output.push_str(&format!(
+                    "  {}. {}{}{} - {} 条消息 - {} - {}{}{}\n",
+                    i + 1,
+                    theme.brand, meta.name, RESET,
+                    meta.message_count,
+                    meta.model,
+                    RESET,
+                    format_time_ago(meta.saved_at.clone()),
+                    RESET
+                ));
+            }
+
+            Ok(Some(output))
+        }
+        Some(name) => {
+            // 🔥 恢复指定会话
+            let persistence = SessionPersistence::new()
+                .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
+
+            let snapshot = persistence.load_session(name)
+                .map_err(|e| format!("Failed to load session '{}': {}", name, e))?;
+
+            // 🔥 恢复会话状态
+            session.messages = snapshot.messages;
+            session.provider = snapshot.provider;
+            session.model = snapshot.model;
+            session.cumulative_input_tokens = snapshot.cumulative_input_tokens;
+            session.cumulative_output_tokens = snapshot.cumulative_output_tokens;
+
+            Ok(Some(format!(
+                "{}✓ 会话已恢复：{}{}（{} 条消息）",
+                theme.success, name, RESET,
+                session.messages.len()
+            )))
+        }
+        None => Ok(Some(format!(
+            "{}用法: /resume <name> 恢复会话，或 /resume list 列出所有会话{}",
+            theme.muted, RESET
+        ))),
+    }
+}
+
+/// 🔥 格式化时间差（如 "5分钟前"）
+fn format_time_ago(timestamp: String) -> String {
+    // 解析 RFC3339 格式的时间戳
+    let saved_at = chrono::DateTime::parse_from_rfc3339(&timestamp)
+        .map_err(|_| "Invalid timestamp format".to_string())
+        .unwrap();
+
+    let now = chrono::Utc::now();
+    let duration = now.signed_duration_since(saved_at);
+
+    if duration.num_seconds() < 60 {
+        format!("{}秒前", duration.num_seconds())
+    } else if duration.num_minutes() < 60 {
+        format!("{}分钟前", duration.num_minutes())
+    } else if duration.num_hours() < 24 {
+        format!("{}小时前", duration.num_hours())
+    } else if duration.num_days() < 7 {
+        format!("{}天前", duration.num_days())
+    } else {
+        format!("{}", saved_at.format("%Y-%m-%d"))
     }
 }
 
