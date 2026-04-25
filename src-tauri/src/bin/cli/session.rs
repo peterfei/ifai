@@ -310,6 +310,8 @@ pub struct Session {
     animation_stop: Arc<std::sync::atomic::AtomicBool>,
     /// 🎬 当前动画任务句柄
     animation_task: Option<tokio::task::JoinHandle<()>>,
+    /// 🎨 Markdown 代码块流式渲染器
+    markdown_state: crate::markdown_stream::MarkdownStreamState,
 }
 
 impl Session {
@@ -352,6 +354,7 @@ impl Session {
             render_pipeline,
             animation_stop,
             animation_task: None,
+            markdown_state: crate::markdown_stream::MarkdownStreamState::new(),
         }
     }
 
@@ -670,8 +673,11 @@ impl Session {
                                         // 🔥 静默更新 token 统计（不打断内容）
                                         let _current_output = self.bottom_status_bar.update_streaming_output(text);
 
-                                        // 🔥 输出内容（正常流式显示，不打断）
-                                        print!("{}", text);
+                                        // 🎨 通过 Markdown 渲染器处理代码块
+                                        let rendered_outputs = self.markdown_state.process_delta(text);
+                                        for output in rendered_outputs {
+                                            print!("{}", output);
+                                        }
                                         io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
                                         current_response.push_str(text);
                                         full_response.push_str(text);
@@ -715,6 +721,12 @@ impl Session {
                                         // 🔥 记录 token 使用量
                                         self.cumulative_input_tokens += *input_tokens;
                                         self.cumulative_output_tokens += *output_tokens;
+
+                                        // 🎨 刷新 Markdown 渲染器（处理未闭合的代码块）
+                                        if let Some(flushed) = self.markdown_state.flush() {
+                                            print!("{}", flushed);
+                                            io::stdout().flush().ok();
+                                        }
 
                                         // 🎯 重置底部状态栏为空闲状态
                                         use token::StatusBarState;
