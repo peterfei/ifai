@@ -3013,6 +3013,7 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "portable-pty",
+ "rand 0.8.6",
  "rayon",
  "regex",
  "reqwest 0.12.28",

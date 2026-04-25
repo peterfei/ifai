@@ -106,6 +106,7 @@ tree-sitter-python = "0.23.0"
 # SmartScanner 极简元编程框架依赖
 rayon = "1.10"  # 并行处理
 lru = "0.12"    # LRU 缓存
+rand = "0.8"    # 随机采样
 
 # llama.cpp Rust bindings for local LLM inference
 # Supports GGUF format natively (user's model: qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf)

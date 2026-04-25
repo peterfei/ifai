@@ -9,6 +9,7 @@
 //! - 权限检查
 
 use super::session::Session;
+use super::render::RESET;
 
 // ============================================================================
 // Types
@@ -158,6 +159,13 @@ const COMMAND_SPECS: &[CommandSpec] = &[
         arg_hint: None,
         min_permission: PermissionMode::None,
         handler: cmd_view,
+    },
+    CommandSpec {
+        name: "glob",
+        summary: "智能文件搜索（自动防止上下文爆炸）",
+        arg_hint: Some("<pattern>"),
+        min_permission: PermissionMode::None,
+        handler: cmd_glob,
     },
 ];
 
@@ -640,6 +648,73 @@ fn cmd_view(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("✅ 已切换视图".to_string()))
 }
 
+/// 🔥 智能 Glob 搜索（元编程架构：防止上下文爆炸）
+fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+    use crate::smart_glob_summary::SmartGlob;
+    use crate::render::default_theme;
+
+    // 默认搜索当前目录
+    let pattern = arg.unwrap_or(".");
+
+    // 获取主题
+    let theme = default_theme();
+
+    // 🔥 自动检测宽泛搜索，自动启用智能模式
+    let is_broad_search = pattern.contains("**/*")
+        || pattern == "*"
+        || pattern == "."
+        || pattern.ends_with("/**");
+
+    let (results, mode) = if is_broad_search {
+        // 宽泛搜索：使用智能 Glob，限制结果
+        (
+            SmartGlob::search(pattern)
+                .with_limit(100)
+                .execute(),
+            "smart"
+        )
+    } else {
+        // 精确搜索：使用较宽松的限制
+        (
+            SmartGlob::search(pattern)
+                .with_limit(1000)
+                .execute(),
+            "normal"
+        )
+    };
+
+    // 生成输出
+    let mut output = String::new();
+
+    if mode == "smart" {
+        output.push_str(&format!(
+            "{}⚠️  检测到宽泛搜索模式，使用智能 Glob（显示前 100 个结果）{}\n\n",
+            theme.warning, RESET
+        ));
+    }
+
+    // 显示摘要
+    output.push_str(&results.render_summary());
+    output.push_str("\n\n");
+
+    // 显示详细结果（受限制）
+    output.push_str(&results.render_results());
+
+    // 如果被截断，提示使用完整模式
+    if results.summary.truncated {
+        output.push_str(&format!(
+            "\n\n{}💡 提示：仅显示前 {} 个文件（共 {} 个）{}\n",
+            theme.muted, results.results.len(), results.summary.total_files, RESET
+        ));
+        output.push_str(&format!(
+            "{}   使用更具体的搜索模式查看更多结果{}",
+            theme.dim, RESET
+        ));
+    }
+
+    Ok(Some(output))
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -650,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_find_all_commands() {
-        // 验证所有 13 个命令都能找到
+        // 验证所有 16 个命令都能找到
         assert!(find_command("help").is_some());
         assert!(find_command("clear").is_some());
         assert!(find_command("compact").is_some());
@@ -663,7 +738,9 @@ mod tests {
         assert!(find_command("undo").is_some());
         assert!(find_command("config").is_some());
         assert!(find_command("exit").is_some());
-        assert!(find_command("status").is_some()); // 🆕 新增
+        assert!(find_command("status").is_some());
+        assert!(find_command("view").is_some());
+        assert!(find_command("glob").is_some()); // 🆕 新增
     }
 
     #[test]
@@ -794,8 +871,8 @@ mod tests {
 
     #[test]
     fn test_command_registry_size() {
-        // 验证注册表包含所有 15 个命令（包含 status）
-        assert_eq!(COMMAND_SPECS.len(), 15);
+        // 验证注册表包含所有 16 个命令
+        assert_eq!(COMMAND_SPECS.len(), 16);
     }
 
     #[test]
