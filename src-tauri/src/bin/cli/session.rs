@@ -16,9 +16,10 @@ use futures_util::stream::StreamExt;
 use serde_json::json;
 use ifainew_lib::harness::api::types::{StreamEvent, Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
 use ifainew_lib::harness::tool::{ToolRegistry, ToolRouter};
+use ifainew_lib::prompt_manager;
 use crate::provider::resolve_provider;
 use crate::render::{self, RESET, Spinner};
-use crate::prompts::build_system_prompt;
+use crate::prompt_vars::collect_cli_variables;
 use crate::permission::{self as approval, ToolCategory, RiskLevel};
 use crate::token;  // 🔥 元编程：Token 状态栏
 
@@ -299,8 +300,8 @@ impl Session {
         let spec = resolve_provider(&self.provider)
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
 
-        // 构建系统提示词
-        let system_prompt = build_system_prompt(&spec);
+        // 🏛️ 元编程：构建 CLI 系统提示词（复用 prompt_manager）
+        let system_prompt = build_cli_system_prompt(&spec);
 
         // 根据 provider spec 确定 AiProvider 类型
         let provider = match spec.metadata.id.as_str() {
@@ -612,6 +613,43 @@ impl Session {
         }
 
         Ok(results)
+    }
+}
+
+// ============================================================================
+// CLI System Prompt Builder (元编程)
+// ============================================================================
+
+/// 🏛️ 元编程：构建 CLI 系统提示词
+///
+/// **零重复**：复用 GUI 的 prompt_manager
+/// **编译时嵌入**：从 BuiltinPrompts 加载模板
+/// **运行时渲染**：Handlebars 变量插值
+fn build_cli_system_prompt(spec: &ifainew_lib::harness::api::provider_metadata::ProviderSpec) -> String {
+    // 1. 收集 CLI 特定变量（元编程）
+    let mut variables = collect_cli_variables(spec);
+
+    // 2. 从 BuiltinPrompts 加载 CLI 模板（编译时嵌入）
+    let template_content = if let Some(content_file) = prompt_manager::BuiltinPrompts::get("system/cli.md") {
+        std::str::from_utf8(content_file.data.as_ref())
+            .unwrap_or("You are IfAI CLI.")
+            .to_string()
+    } else {
+        // Fallback: 使用旧模板（过渡期）
+        return format!(
+            "你是 IfAI CLI，一个专业的 AI 代码助手，由 {} 模型驱动。\n\n## 你的身份\n- 名字：IfAI CLI\n- 角色：AI 代码助手和开发伙伴\n\n## 注意事项\n- 你是 IfAI CLI，不是 {}",
+            spec.metadata.name, spec.metadata.name
+        );
+    };
+
+    // 3. 使用 Handlebars 渲染（元编程）
+    match prompt_manager::template::render_template(&template_content, &variables) {
+        Ok(rendered) => rendered,
+        Err(e) => {
+            // 渲染失败时返回原始模板
+            eprintln!("Warning: Failed to render prompt template: {}", e);
+            template_content
+        }
     }
 }
 

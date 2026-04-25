@@ -7,7 +7,8 @@ mod provider;
 mod config;
 mod commands;
 mod session;
-mod prompts;
+// ✅ prompts.rs 已删除：CLI 现在使用 ifainew_lib::prompt_manager
+mod prompt_vars; // 🏛️ 元编程：变量自动收集器
 mod permission;  // 🔥 元编程权限引擎
 mod token;       // 🔥 元编程 Token 显示层
 mod persistence; // 🔥 元编程会话持久化

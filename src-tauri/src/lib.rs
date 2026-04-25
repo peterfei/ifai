@@ -12,7 +12,7 @@ mod analysis; // 🏆 PIVO 3.0: 物理感知与符号探测
 mod terminal;
 mod git;
 mod lsp;
-mod prompt_manager;
+pub mod prompt_manager; // 🔥 公开 prompt_manager 供 CLI 使用
 pub mod agent_system; // 🔥 公开 agent_system 供 CLI 使用
 pub mod conversation; // 🔥 公开 conversation 供 CLI 使用（token_counter）
 mod ai_utils;
