@@ -78,6 +78,7 @@ text-splitter = "0.28.0"
 anyhow = "1.0.100"
 once_cell = "1.21.3"
 uuid = { version = "1.19.0", features = ["v4"] }
+libc = "0.2"  # 🔥 终端尺寸查询（Unix 平台）
 notify = "8.2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 

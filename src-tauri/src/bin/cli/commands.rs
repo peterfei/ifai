@@ -152,6 +152,13 @@ const COMMAND_SPECS: &[CommandSpec] = &[
         min_permission: PermissionMode::None,
         handler: cmd_status,
     },
+    CommandSpec {
+        name: "view",
+        summary: "切换备用屏幕视图（固定底部状态栏）",
+        arg_hint: None,
+        min_permission: PermissionMode::None,
+        handler: cmd_view,
+    },
 ];
 
 // ============================================================================
@@ -625,6 +632,12 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     output.push_str(&format!("{}╰─────────────────────────────────────{}\n", theme.table_border, RESET));
 
     Ok(Some(output))
+}
+
+/// 🔥 切换备用屏幕视图（固定底部状态栏）
+fn cmd_view(session: &mut Session, _arg: Option<&str>) -> CommandResult {
+    session.toggle_alt_view();
+    Ok(Some("✅ 已切换视图".to_string()))
 }
 
 // ============================================================================

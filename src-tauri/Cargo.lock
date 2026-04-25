@@ -3004,6 +3004,7 @@ dependencies = [
  "ifai-render-macro",
  "ifainew-core",
  "ignore",
+ "libc",
  "llama-cpp-2",
  "log",
  "lru",

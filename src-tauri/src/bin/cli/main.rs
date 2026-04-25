@@ -14,6 +14,9 @@ mod token;       // 🔥 元编程 Token 显示层
 mod persistence; // 🔥 元编程会话持久化
 mod pipeline;    // 🎨 元编程 Pipeline 可视化
 mod loop_detector; // 🎨 元编程循环检测引擎
+mod terminal;    // 🔥 终端抽象层（ANSI 光标定位）
+mod tui_layout;  // 🔥 声明式 TUI 布局层
+mod stream_render; // 🔥 声明式流式渲染管道
 
 use std::env;
 use std::io::{self, IsTerminal, Write};

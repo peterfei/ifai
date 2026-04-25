@@ -31,5 +31,8 @@ pub use display::{
 
 pub use stream_status::{
     StreamStatus,
+    StatusBarState,
+    BottomStatusBar,
     STATUS_REFRESH_INTERVAL,
+    format_number,  // 🔥 公开供会话摘要使用
 };

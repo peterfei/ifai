@@ -297,12 +297,41 @@ pub struct Session {
     tools_disabled: bool,
     /// 🎨 Pipeline 跟踪器
     pipeline_tracker: PipelineTracker,
+    /// 🎯 统一底部状态栏
+    bottom_status_bar: token::BottomStatusBar,
+    /// 🔥 会话开始时间（用于计算总时长）
+    session_start: Instant,
+    /// 🎯 备用屏幕视图是否激活
+    alt_view_active: bool,
+    /// 🎨 声明式渲染管道
+    render_pipeline: crate::stream_render::RenderPipeline,
+    /// 🎬 动画任务停止标志
+    animation_stop: Arc<std::sync::atomic::AtomicBool>,
+    /// 🎬 当前动画任务句柄
+    animation_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Session {
     pub fn new(provider: String, model: String) -> Self {
         let tool_registry = ToolRegistry::new();
         let tool_router = Arc::new(ToolRouter::new());
+
+        // 🔥 重置循环检测器（新会话开始）
+        approval::reset_loop_detector();
+
+        // 🎯 初始化底部状态栏
+        let bottom_status_bar = token::BottomStatusBar::new(model.clone());
+
+        // 🔥 记录会话开始时间
+        let session_start = Instant::now();
+
+        // 🎨 创建渲染管道（启用动画模式）
+        use crate::stream_render::{RenderPipeline, RenderMode};
+        let render_pipeline = RenderPipeline::new(RenderMode::Animated);
+
+        // 🎬 创建动画停止标志
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let animation_stop = Arc::new(AtomicBool::new(false));
 
         Self {
             messages: Vec::new(),
@@ -316,6 +345,12 @@ impl Session {
             base_url: None,
             tools_disabled: false,
             pipeline_tracker: PipelineTracker::new(),
+            bottom_status_bar,
+            session_start,
+            alt_view_active: false,
+            render_pipeline,
+            animation_stop,
+            animation_task: None,
         }
     }
 
@@ -332,6 +367,11 @@ impl Session {
     /// 🔥 禁用工具调用（--no-tool 标志）
     pub fn disable_tools(&mut self) {
         self.tools_disabled = true;
+    }
+
+    /// 🔥 获取会话持续时间
+    fn get_session_duration(&self) -> Duration {
+        self.session_start.elapsed()
     }
 
     /// 🔥 获取 API key（优先返回已设置的，否则从环境变量读取）
@@ -363,6 +403,30 @@ impl Session {
     /// 设置项目根目录（用于 agent_* 工具）
     pub fn set_project_root(&self, root: String) {
         self.tool_router.set_project_root(root);
+    }
+
+    /// 🔥 切换备用屏幕视图（Ctrl+O）
+    pub fn toggle_alt_view(&mut self) {
+        use crate::tui_layout::TuiLayout;
+
+        self.alt_view_active = !self.alt_view_active;
+
+        if self.alt_view_active {
+            // 进入备用屏幕
+            print!("{}", TuiLayout::enter_alt_screen());
+
+            // 显示当前状态
+            let status = self.bottom_status_bar.render_silent();
+            let layout = TuiLayout::from_terminal();
+
+            print!("\n{}", layout.render_status(&status));
+            print!("{}", layout.render_input("按 Ctrl+O 返回主屏幕"));
+            io::stdout().flush().ok();
+        } else {
+            // 退出备用屏幕
+            print!("{}", TuiLayout::exit_alt_screen());
+            io::stdout().flush().ok();
+        }
     }
 
     /// 🤖 执行流式 AI 调用（支持 Tool 调用和续播循环）
@@ -440,8 +504,9 @@ impl Session {
             tool_call_id: None,
         });
 
-        // 🎨 创建 Spinner 和定时器
-        let mut spinner = Spinner::new("thinking");
+        // 🎨 创建 Spinner（立即完成，不显示，使用进度动画代替）
+        let mut spinner = Spinner::new("");
+        spinner.finish(true);  // 立即完成，避免显示
         let mut interval = tokio::time::interval(Duration::from_millis(150));
         interval.tick().await;
 
@@ -450,6 +515,7 @@ impl Session {
         let max_continuations = approval::max_iterations(current_category);
         let mut continuation_count = 0;
         let mut full_response = String::new();
+        let start_time = Instant::now();  // 🔥 记录开始时间
 
         loop {
             // 构建请求
@@ -468,6 +534,39 @@ impl Session {
             let mut stream = client.stream(request).await
                 .map_err(|e| format!("Failed to start stream: {:?}", e))?;
 
+            // 🎬 启动进度动画任务（每 100ms 更新一帧）
+            let model_clone = self.model.clone();
+            let stop_flag = self.animation_stop.clone();
+            let animation_task = tokio::spawn(async move {
+                use std::sync::atomic::Ordering;
+
+                let mut pipeline = crate::stream_render::RenderPipeline::new(
+                    crate::stream_render::RenderMode::Animated
+                );
+                let mut interval = tokio::time::interval(Duration::from_millis(100));
+
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            // 🔥 检查停止标志（在输出前检查）
+                            if stop_flag.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            let frame = pipeline.render_progress(&model_clone);
+                            print!("{}", frame);
+                            io::stdout().flush().ok();
+                        }
+                        _ = tokio::time::sleep(Duration::from_millis(10)) => {
+                            // 定期检查停止标志
+                            if stop_flag.load(Ordering::Relaxed) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+            self.animation_task = Some(animation_task);
+
             let theme = render::default_theme();
             let mut first_delta = true;
             let mut current_response = String::new();
@@ -481,15 +580,12 @@ impl Session {
             // 🔥 元编程：创建流式状态追踪器
             let mut stream_status = token::StreamStatus::new(estimated_input);
 
-            // 🎨 使用 tokio::select! 同时处理流和 spinner 动画
+            // 🎨 处理流式事件（移除 spinner 动画，避免与进度动画冲突）
             loop {
                 tokio::select! {
+                    // spinner 动画已禁用（使用进度动画代替）
                     _ = interval.tick() => {
-                        if first_delta {
-                            let frame = spinner.tick();
-                            print!("\r{}", frame);
-                            io::stdout().flush().ok();
-                        }
+                        // 空操作：spinner 已被进度动画替代
                     }
                     result = stream.next() => {
                         match result {
@@ -497,15 +593,36 @@ impl Session {
                                 match &event {
                                     StreamEvent::TextDelta { text } => {
                                         if first_delta {
-                                            spinner.finish(true);
-                                            print!("\r{}  \r", " ".repeat(30));
+                                            // 🎬 停止动画任务（先设置标志）
+                                            use std::sync::atomic::Ordering;
+                                            self.animation_stop.store(true, Ordering::Relaxed);
+
+                                            // 给动画任务一点时间退出
+                                            tokio::time::sleep(Duration::from_millis(50)).await;
+
+                                            if let Some(task) = self.animation_task.take() {
+                                                task.abort();
+                                            }
+
+                                            // 🎬 清除动画行并换行
+                                            print!("\r{}\r", " ".repeat(80));  // 清除整行
+                                            io::stdout().flush().ok();
+
                                             first_delta = false;
 
-                                            // 🔥 显示初始状态栏（响应开始时）
-                                            println!("{}", stream_status.render(&self.model, &theme));
+                                            // 🎯 启动底部状态栏（用于统计）
+                                            use token::StatusBarState;
+                                            self.bottom_status_bar.transition(StatusBarState::Streaming {
+                                                estimated_input,
+                                                current_output: 0,
+                                                current_tool: None,
+                                            });
                                         }
 
-                                        // 🔥 正常输出文本（不干扰状态栏）
+                                        // 🔥 静默更新 token 统计（不打断内容）
+                                        let _current_output = self.bottom_status_bar.update_streaming_output(text);
+
+                                        // 🔥 输出内容（正常流式显示，不打断）
                                         print!("{}", text);
                                         io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
                                         current_response.push_str(text);
@@ -521,6 +638,14 @@ impl Session {
                                             spinner.finish(true);
                                             print!("\r{}  \r", " ".repeat(30));
                                             first_delta = false;
+
+                                            // 🎯 启动底部状态栏（流式响应）
+                                            use token::StatusBarState;
+                                            self.bottom_status_bar.transition(StatusBarState::Streaming {
+                                                estimated_input,
+                                                current_output: 0,
+                                                current_tool: Some(name.clone()),
+                                            });
                                         }
 
                                         // 🎨 元编程：不在流式阶段创建步骤（此时 input 为空）
@@ -540,12 +665,12 @@ impl Session {
                                     }
                                     StreamEvent::MessageDone { input_tokens, output_tokens } => {
                                         // 🔥 记录 token 使用量
-                                        self.cumulative_input_tokens += input_tokens;
-                                        self.cumulative_output_tokens += output_tokens;
+                                        self.cumulative_input_tokens += *input_tokens;
+                                        self.cumulative_output_tokens += *output_tokens;
 
-                                        // 🔥 元编程：清除状态行并显示最终摘要
-                                        print!("\r{}\r", " ".repeat(80));
-                                        println!("{}", stream_status.render_summary(&self.model, *input_tokens, *output_tokens, &theme));
+                                        // 🎯 重置底部状态栏为空闲状态
+                                        use token::StatusBarState;
+                                        self.bottom_status_bar.transition(StatusBarState::Idle);
 
                                         collector.dispatch(&event);
                                     }
@@ -579,6 +704,16 @@ impl Session {
                     tool_calls: None,
                     tool_call_id: None,
                 });
+
+                // 🎨 符合提案规范：渲染完成统计
+                let elapsed_secs = start_time.elapsed().as_secs_f64();
+                let summary = self.render_pipeline.render_summary(
+                    elapsed_secs,
+                    self.cumulative_input_tokens,
+                    self.cumulative_output_tokens,
+                );
+                println!("{}", summary);
+
                 break;
             }
 
@@ -672,7 +807,8 @@ impl Session {
             println!("\n{}Continuing... ({}/{}){}", theme.dim, continuation_count, dynamic_max, RESET);
         }
 
-        println!(); // 结束后换行
+        // 结束后换行
+        println!();
         Ok(full_response)
     }
 
@@ -737,28 +873,46 @@ impl Session {
 
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
                         results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+
                         continue;
                     }
                 }
             }
 
-            // 🎬 元编程：显示进行中状态（带动画）
-            let args_preview = if tool.args.len() > 50 {
-                format!("{}...", &tool.args[..47])
-            } else {
-                tool.args.clone()
-            };
+            // 🎬 元编程：循环检测（执行前检测，预防性阻止）
+            let loop_status = approval::check_loop(&tool.name, &tool.args);
+            if loop_status.should_stop() {
+                if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+                    eprintln!("\n{}⚠️  循环检测触发: {}{}",
+                        theme.warning, reason, render::RESET);
 
-            // 使用当前动画帧显示进行中状态
-            let progress_frame = render::current_progress_frame();
-            println!("\n{}{} {}({}{})  [进行中]{}",
-                render::BOLD,
-                render::color_256(69),  // brand color
-                progress_frame,
-                tool.name,
-                args_preview,
-                render::RESET
-            );
+                    // 🎨 元编程：标记步骤为跳过（循环阻止）
+                    self.pipeline_tracker.skip_step(
+                        &tool.tool_id,
+                        format!("循环检测阻止: {}", reason),
+                    );
+
+                    // 返回错误给 AI，让 AI 知道这个工具调用被阻止了
+                    let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+
+                    continue;  // 跳过当前工具，继续处理下一个
+                }
+            } else if loop_status.should_warn() {
+                if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status {
+                    eprintln!("\n{}⚠️  循环检测警告: {} (已执行 {} 次){}",
+                        theme.warning, pattern, count, render::RESET);
+                }
+            }
+
+            // 🎯 更新底部状态栏状态（但不显示，避免干扰对话）
+            use token::StatusBarState;
+            self.bottom_status_bar.transition(StatusBarState::ExecutingTool {
+                tool_name: tool.name.clone(),
+                tool_count: results.len(),
+                tool_success: results.iter().filter(|r| !r.2.starts_with("Error:")).count(),
+                tool_errors: results.iter().filter(|r| r.2.starts_with("Error:")).count(),
+            });
 
             let args_json: serde_json::Value = serde_json::from_str(&tool.args)
                 .map_err(|e| format!("Failed to parse tool args: {}", e))?;
@@ -776,22 +930,6 @@ impl Session {
                         result.clone(),
                         duration,
                     );
-
-                    // 🎬 元编程：循环检测（声明式 API）
-                    let loop_status = approval::check_loop(&tool.name, &tool.args);
-                    if loop_status.should_stop() {
-                        if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
-                            eprintln!("\n{}⚠️  循环检测: {}{}",
-                                theme.warning, reason, render::RESET);
-                            // 跳出工具循环
-                            break;
-                        }
-                    } else if loop_status.should_warn() {
-                        if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status {
-                            eprintln!("\n{}⚠️  警告: {} ({} 次){}",
-                                theme.warning, pattern, count, render::RESET);
-                        }
-                    }
 
                     results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
                 }
