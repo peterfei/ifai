@@ -4,13 +4,30 @@
 //! - 检测 Markdown 代码块（```lang ... ```）
 //! - 缓冲代码内容，直到检测到闭合标记
 //! - 渲染带边框、行号、语言标识的代码块
+//! - 支持 Unicode 和 ASCII 两种边框样式
 //!
 //! **架构**：
 //! - 状态机驱动（Text → CodeBlockStart → CodeBlockBody → CodeBlockEnd）
-//! - Unicode box-drawing 字符（╭ ╰ │ ─）
+//! - Unicode box-drawing 字符（╭ ╰ │ ─）或 ASCII（+ - |）
 //! - ANSI 256 色主题
 
 use std::fmt;
+
+/// 🎯 边框样式
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoxStyle {
+    /// Unicode 边框（╭ ╰ │ ─）
+    Unicode,
+    /// ASCII 边框（+ - |）
+    Ascii,
+}
+
+impl Default for BoxStyle {
+    fn default() -> Self {
+        // 默认尝试 Unicode，如果不支持会自动降级到 ASCII
+        Self::Unicode
+    }
+}
 
 /// 🎯 流式状态枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +86,12 @@ pub struct MarkdownStreamState {
     backtick_count: usize,
     /// 输出缓冲区（累积待输出内容）
     output_buffer: String,
+    /// 边框样式
+    box_style: BoxStyle,
+    /// 是否显示复制提示
+    show_copy_hint: bool,
+    /// 最后渲染的代码块（用于复制）
+    last_code_block: String,
 }
 
 impl MarkdownStreamState {
@@ -81,6 +104,9 @@ impl MarkdownStreamState {
             theme: TerminalTheme::default(),
             backtick_count: 0,
             output_buffer: String::new(),
+            box_style: BoxStyle::default(),
+            show_copy_hint: true, // 默认显示复制提示
+            last_code_block: String::new(),
         }
     }
 
@@ -90,6 +116,23 @@ impl MarkdownStreamState {
             theme,
             ..Self::new()
         }
+    }
+
+    /// 使用指定边框样式创建
+    pub fn with_box_style(mut self, box_style: BoxStyle) -> Self {
+        self.box_style = box_style;
+        self
+    }
+
+    /// 启用或禁用复制提示
+    pub fn with_copy_hint(mut self, show_copy: bool) -> Self {
+        self.show_copy_hint = show_copy;
+        self
+    }
+
+    /// 获取最后渲染的代码块（用于复制）
+    pub fn last_code_block(&self) -> &str {
+        &self.last_code_block
     }
 
     /// 🔥 处理流式 delta，返回渲染输出
@@ -192,7 +235,18 @@ impl MarkdownStreamState {
     }
 
     /// 🔥 渲染代码块
-    fn render_code_block(&self) -> String {
+    fn render_code_block(&mut self) -> String {
+        // 保存代码块内容（用于复制）
+        self.last_code_block = self.code_buffer.clone();
+
+        match self.box_style {
+            BoxStyle::Unicode => self.render_code_block_unicode(),
+            BoxStyle::Ascii => self.render_code_block_ascii(),
+        }
+    }
+
+    /// 🔥 渲染代码块（Unicode 边框）
+    fn render_code_block_unicode(&self) -> String {
         let lines: Vec<&str> = self.code_buffer.lines().collect();
 
         // 计算最大宽度（用于对齐），空代码块默认最小宽度 20
@@ -218,12 +272,33 @@ impl MarkdownStreamState {
             t.reset
         );
 
-        let header = format!("{}│ {} {}{}",
-            t.box_border,
-            t.box_header,
-            lang,
-            t.reset
-        );
+        // 标题行（带 [Copy] 提示）
+        let copy_hint = if self.show_copy_hint {
+            format!("{}[Copy]{}", t.box_header, t.reset)
+        } else {
+            String::new()
+        };
+
+        let copy_hint_len = if self.show_copy_hint { 8 } else { 0 }; // "[Copy]" 的长度包括颜色代码
+        let lang_padding = (max_width + 2).saturating_sub(lang.len()).saturating_sub(copy_hint_len);
+        let header = if self.show_copy_hint {
+            format!("{}│ {}{}{}{} {}{}",
+                t.box_border,
+                t.box_header,
+                lang,
+                " ".repeat(lang_padding.max(0)),
+                t.reset,
+                copy_hint,
+                t.reset
+            )
+        } else {
+            format!("{}│ {} {}{}",
+                t.box_border,
+                t.box_header,
+                lang,
+                t.reset
+            )
+        };
 
         // 渲染代码行
         let body_lines: Vec<String> = lines.iter()
@@ -243,6 +318,95 @@ impl MarkdownStreamState {
         let bottom_border = format!("{}╰─{}─{}",
             t.box_dim,
             "─".repeat(max_width + 2),
+            t.reset
+        );
+
+        // 组合输出（添加换行）
+        vec![
+            top_border,
+            header,
+            body_lines.join("\n"),
+            bottom_border,
+            "\n".to_string(), // 代码块后换行
+        ].join("\n")
+    }
+
+    /// 🔥 渲染代码块（ASCII 边框）
+    fn render_code_block_ascii(&self) -> String {
+        let lines: Vec<&str> = self.code_buffer.lines().collect();
+
+        // 计算最大宽度（用于对齐），空代码块默认最小宽度 20
+        let max_width = if lines.is_empty() {
+            20
+        } else {
+            lines.iter().map(|l| l.len()).max().unwrap_or(0)
+        }.min(100); // 限制最大宽度
+
+        // 语言标识
+        let lang = if self.code_lang.is_empty() {
+            "text".to_string()
+        } else {
+            self.code_lang.clone()
+        };
+
+        let t = &self.theme;
+
+        // ASCII 边框
+        let top_border = format!("{}+{}+{}",
+            t.box_dim,
+            "-".repeat(max_width + 3),
+            t.reset
+        );
+
+        // 标题行（带 [Copy] 提示）
+        let copy_hint = if self.show_copy_hint {
+            format!("{}[Copy]{}", t.box_header, t.reset)
+        } else {
+            String::new()
+        };
+
+        let copy_hint_len = if self.show_copy_hint { 8 } else { 0 };
+        let lang_padding = (max_width + 1).saturating_sub(lang.len()).saturating_sub(copy_hint_len);
+        let header = if self.show_copy_hint {
+            format!("{}|{} {}{}{}{} {}|{}",
+                t.box_border,
+                t.reset,
+                t.box_header,
+                lang,
+                " ".repeat(lang_padding.max(0)),
+                copy_hint,
+                t.box_border,
+                t.reset
+            )
+        } else {
+            format!("{}|{} {}{}{}|{}",
+                t.box_border,
+                t.reset,
+                t.box_header,
+                lang,
+                t.box_border,
+                t.reset
+            )
+        };
+
+        // 渲染代码行
+        let body_lines: Vec<String> = lines.iter()
+            .enumerate()
+            .map(|(i, line)| {
+                let line_num = format!("{:>3}", i + 1);
+                let padded_line = format!("{:width$}", line, width = max_width);
+                format!("{}|{}{} {}{}{}",
+                    t.box_border,
+                    t.line_num, line_num,
+                    t.code_content, padded_line,
+                    t.reset
+                )
+            })
+            .collect();
+
+        let bottom_border = format!("{}+{}+{}",
+            t.box_dim,
+            "-".repeat(max_width + 3),
             t.reset
         );
 
