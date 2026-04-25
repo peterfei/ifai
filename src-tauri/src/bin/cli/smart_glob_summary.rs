@@ -95,12 +95,24 @@ impl SmartGlob {
         let mut sample = Vec::new();
         let mut all_results = Vec::new();
 
-        for entry in WalkDir::new(&self.pattern.replace("**", "."))
+        // 🔥 解析 glob 模式
+        let (base_path, ext_filter) = self.parse_glob_pattern(&self.pattern);
+
+        // 使用 WalkDir 递归搜索
+        for entry in WalkDir::new(&base_path)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.path().is_file())
         {
             let path = entry.path();
+
+            // 应用扩展名过滤
+            if let Some(ref expected_ext) = ext_filter {
+                if path.extension().and_then(|e| e.to_str()) != Some(expected_ext.as_str()) {
+                    continue;
+                }
+            }
+
             total_files += 1;
 
             // 收集文件类型
@@ -141,6 +153,45 @@ impl SmartGlob {
                 truncated,
             },
             results: all_results,
+        }
+    }
+
+    /// 🔥 解析 glob 模式（元编程：自动提取路径和扩展名）
+    fn parse_glob_pattern(&self, pattern: &str) -> (String, Option<String>) {
+        // 处理常见的 glob 模式
+        if pattern == "." || pattern == "*" || pattern == "**/*" {
+            // 搜索当前目录，所有文件
+            (".".to_string(), None)
+        } else if pattern.contains("*.") {
+            // 提取扩展名，如 "**/*.rs" -> ("..", "rs")
+            if let Some(star_pos) = pattern.find("*.") {
+                let ext = pattern[star_pos + 2..].to_string();
+                // 提取基础路径
+                let base = if pattern.starts_with("**/") {
+                    // "**/*.rs" -> "."
+                    ".".to_string()
+                } else if pattern.contains("/**/*.") {
+                    // "src/**/*.rs" -> "src"
+                    pattern[..pattern.find("/**").unwrap()].to_string()
+                } else if pattern.contains("/*.") {
+                    // "src/*.rs" -> "src"
+                    pattern[..pattern.find("/*.").unwrap()].to_string()
+                } else {
+                    // 默认当前目录
+                    ".".to_string()
+                };
+                (base, Some(ext))
+            } else {
+                (".".to_string(), None)
+            }
+        } else {
+            // 精确路径或目录
+            let path = if pattern.starts_with("./") {
+                pattern[2..].to_string()
+            } else {
+                pattern.to_string()
+            };
+            (path, None)
         }
     }
 }
@@ -245,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_execute_search() {
-        let result = SmartGlob::search("*.rs")
+        let result = SmartGlob::search(".")
             .with_limit(10)
             .execute();
 
@@ -253,5 +304,25 @@ mod tests {
         assert!(result.summary.total_files >= 0);
         // 结果数量不超过限制
         assert!(result.results.len() <= 10);
+    }
+
+    #[test]
+    fn test_glob_pattern_parsing() {
+        let glob = SmartGlob::search(".");
+
+        // 测试 "**/*.rs" 模式
+        let (base, ext) = glob.parse_glob_pattern("**/*.rs");
+        assert_eq!(base, ".");
+        assert_eq!(ext, Some("rs".to_string()));
+
+        // 测试 "src/**/*.rs" 模式
+        let (base, ext) = glob.parse_glob_pattern("src/**/*.rs");
+        assert_eq!(base, "src");
+        assert_eq!(ext, Some("rs".to_string()));
+
+        // 测试 "." 模式
+        let (base, ext) = glob.parse_glob_pattern(".");
+        assert_eq!(base, ".");
+        assert_eq!(ext, None);
     }
 }
