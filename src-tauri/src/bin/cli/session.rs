@@ -463,18 +463,12 @@ impl Session {
                                             first_delta = false;
                                         }
 
-                                        // 🎨 元编程：创建 pipeline 步骤
+                                        // 🎨 元编程：创建 pipeline 步骤（不显示，等待执行完成）
                                         self.pipeline_tracker.start_step(
                                             tool_id.clone(),
                                             name.clone(),
                                             input.clone(),
                                         );
-
-                                        // 渲染工具开始（使用派生宏生成的方法）
-                                        if let Some(step) = self.pipeline_tracker.get_active_step(tool_id) {
-                                            let status_render = step.status.render_with_theme("en", &theme, RESET);
-                                            println!("\n{} {}({})", status_render, name, input);
-                                        }
 
                                         collector.dispatch(&event);
                                     }
