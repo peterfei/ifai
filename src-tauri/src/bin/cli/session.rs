@@ -22,6 +22,7 @@ use crate::render::{self, RESET, Spinner};
 use crate::prompt_vars::collect_cli_variables;
 use crate::permission::{self as approval, ToolCategory, RiskLevel};
 use crate::token;  // 🔥 元编程：Token 状态栏
+use crate::token::format_number;  // 🔥 格式化数字（用于压缩统计）
 use crate::pipeline::PipelineTracker;  // 🎨 元编程：Pipeline 可视化
 use crate::loop_detector;  // 🎬 元编程：循环检测引擎
 
@@ -516,6 +517,53 @@ impl Session {
         let mut continuation_count = 0;
         let mut full_response = String::new();
         let start_time = Instant::now();  // 🔥 记录开始时间
+
+        // 🎯 自动压缩：检查 token 数量并在超过阈值时压缩
+        let estimated_input = token::estimate_tokens(&self.messages);
+        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;  // 100k tokens
+        const COMPRESS_MESSAGE_THRESHOLD: usize = 100;     // 100 messages
+
+        let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
+            || self.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
+
+        if need_compress {
+            let theme = render::default_theme();
+            eprintln!(
+                "{}⚠️  对话过长 ({} tokens, {} messages)，正在自动压缩...{}",
+                theme.warning, estimated_input, self.messages.len(), render::RESET
+            );
+
+            // 自动压缩：保留最后 50 条消息
+            let keep_last_n = 50.min(self.messages.len());
+            let total_messages = self.messages.len();
+            self.messages = self.messages.split_off(total_messages.saturating_sub(keep_last_n));
+
+            // 保留第一条系统消息（如果有）
+            let has_system = self.messages.first()
+                .map(|m| matches!(m.role, MessageRole::System))
+                .unwrap_or(false);
+
+            if !has_system && !system_prompt.is_empty() {
+                self.messages.insert(0, Message {
+                    role: MessageRole::System,
+                    content: MessageContent::Text(
+                        format!("(对话历史已压缩，保留最近 {} 条消息)", keep_last_n)
+                    ),
+                    tool_calls: None,
+                    tool_call_id: None,
+                });
+            }
+
+            let new_tokens = token::estimate_tokens(&self.messages);
+            eprintln!(
+                "{}✓ 压缩完成：{} → {} tokens (减少 {:.1}%){}",
+                theme.success,
+                format_number(estimated_input),
+                format_number(new_tokens),
+                ((estimated_input.saturating_sub(new_tokens)) as f64 / estimated_input as f64) * 100.0,
+                render::RESET
+            );
+        }
 
         loop {
             // 构建请求
