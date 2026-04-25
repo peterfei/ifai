@@ -5,7 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{RwLock, OnceLock};
+use crate::loop_detector::{LoopDetector, LoopDetectionConfig, LoopDetectionStatus};
 
 // ═══════════════════════════════════════════════════════════
 // 类型定义（与 UI 对齐）
@@ -132,6 +133,10 @@ pub struct RuleAction {
 pub struct ApprovalConfig {
     pub tools: Vec<ToolConfig>,
     pub auto_approval_rules: Vec<AutoApprovalRule>,
+    #[serde(default)]
+    pub loop_detection: Option<LoopDetectionConfig>,
+    #[serde(rename = "globalPathRiskRules")]
+    pub global_path_risk_rules: Vec<PathRiskRule>,
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -187,6 +192,11 @@ impl ToolApprovalEngine {
         }
     }
 
+    /// 获取循环检测配置
+    pub fn loop_detection_config(&self) -> Option<LoopDetectionConfig> {
+        None  // 暂时返回 None，由全局函数提供
+    }
+
     /// 🔥 元编程 API：工具分类（O(1) 查询）
     pub fn categorize_tool(&self, name: &str) -> ToolCategory {
         self.tool_by_name
@@ -231,11 +241,14 @@ impl ToolApprovalEngine {
         false  // 默认：需要手动审批
     }
 
-    /// 🔥 元编程 API：最大迭代次数（按类别）
-    pub fn max_iterations(&self, category: ToolCategory) -> usize {
-        *self.max_iterations_by_category
-            .get(&category)
-            .unwrap_or(&5)  // 默认：5 次
+    /// 🔥 元编程 API：最大迭代次数（统一策略）
+    ///
+    /// **策略变更**: 参考 claw-code 和 GUI，统一限制为 100 次
+    /// - 不再区分 Safe/Destructive 类别
+    /// - 依赖循环检测机制提供额外保护（参考 GUI）
+    /// - 100 次足够支持复杂任务（如创建多文件、完整功能开发）
+    pub fn max_iterations(&self, _category: ToolCategory) -> usize {
+        100  // 统一限制：100 次（参考 GUI 的 1000 次，CLI 保守设为 100）
     }
 
     /// 获取工具完整配置
@@ -258,6 +271,26 @@ static APPROVAL_ENGINE: Lazy<ToolApprovalEngine> = Lazy::new(|| {
     ToolApprovalEngine::from_config(config)
 });
 
+/// 全局循环检测器（使用 RwLock 实现内部可变性）
+static LOOP_DETECTOR: OnceLock<RwLock<LoopDetector>> = OnceLock::new();
+
+/// 初始化全局循环检测器
+fn init_loop_detector() {
+    let config_json = include_str!("tool_approval_config.json");
+    let config: ApprovalConfig = serde_json::from_str(config_json)
+        .expect("Failed to parse tool_approval_config.json");
+
+    let loop_config = config.loop_detection.unwrap_or_default();
+    LOOP_DETECTOR.get_or_init(|| RwLock::new(LoopDetector::from_config(loop_config)));
+}
+
+// 确保在首次使用时初始化
+fn ensure_loop_detector_initialized() {
+    if LOOP_DETECTOR.get().is_none() {
+        init_loop_detector();
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // 便捷 API（直接调用全局单例）
 // ═══════════════════════════════════════════════════════════
@@ -276,6 +309,32 @@ pub fn should_auto_approve(tool_name: &str, is_sandbox: bool) -> bool {
 
 pub fn max_iterations(category: ToolCategory) -> usize {
     APPROVAL_ENGINE.max_iterations(category)
+}
+
+/// 🎯 声明式循环检测 API
+///
+/// 返回检测状态，调用方根据状态决定行为
+pub fn check_loop(tool_name: &str, args: &str) -> LoopDetectionStatus {
+    ensure_loop_detector_initialized();
+
+    if let Some(detector) = LOOP_DETECTOR.get() {
+        if let Ok(mut detector) = detector.write() {
+            return detector.check(tool_name, args);
+        }
+    }
+
+    LoopDetectionStatus::Normal
+}
+
+/// 重置循环检测器（新的对话开始时调用）
+pub fn reset_loop_detector() {
+    ensure_loop_detector_initialized();
+
+    if let Some(detector) = LOOP_DETECTOR.get() {
+        if let Ok(mut detector) = detector.write() {
+            detector.reset();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -301,7 +360,9 @@ mod tests {
 
     #[test]
     fn test_max_iterations() {
-        assert_eq!(max_iterations(ToolCategory::Safe), 5);
-        assert_eq!(max_iterations(ToolCategory::Destructive), 3);
+        // 统一策略：所有类别都是 100 次
+        assert_eq!(max_iterations(ToolCategory::Safe), 100);
+        assert_eq!(max_iterations(ToolCategory::Destructive), 100);
+        assert_eq!(max_iterations(ToolCategory::Dangerous), 100);
     }
 }

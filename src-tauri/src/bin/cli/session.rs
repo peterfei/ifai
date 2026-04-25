@@ -23,6 +23,7 @@ use crate::prompt_vars::collect_cli_variables;
 use crate::permission::{self as approval, ToolCategory, RiskLevel};
 use crate::token;  // 🔥 元编程：Token 状态栏
 use crate::pipeline::PipelineTracker;  // 🎨 元编程：Pipeline 可视化
+use crate::loop_detector;  // 🎬 元编程：循环检测引擎
 
 /// 格式化持续时间
 fn format_duration(seconds: f64) -> String {
@@ -619,6 +620,7 @@ impl Session {
     /// 🔧 执行工具列表（Execute 阶段）- 使用元编程权限引擎
     fn execute_tools(&mut self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
+        let theme = render::default_theme();  // 🎨 主题（用于循环检测警告）
 
         // 🎨 元编程：为所有工具创建 PipelineStep（使用完整参数）
         for tool in tools {
@@ -663,6 +665,24 @@ impl Session {
                 }
             }
 
+            // 🎬 元编程：显示进行中状态（带动画）
+            let args_preview = if tool.args.len() > 50 {
+                format!("{}...", &tool.args[..47])
+            } else {
+                tool.args.clone()
+            };
+
+            // 使用当前动画帧显示进行中状态
+            let progress_frame = render::current_progress_frame();
+            println!("\n{}{} {}({}{})  [进行中]{}",
+                render::BOLD,
+                render::color_256(69),  // brand color
+                progress_frame,
+                tool.name,
+                args_preview,
+                render::RESET
+            );
+
             let args_json: serde_json::Value = serde_json::from_str(&tool.args)
                 .map_err(|e| format!("Failed to parse tool args: {}", e))?;
 
@@ -679,6 +699,22 @@ impl Session {
                         result.clone(),
                         duration,
                     );
+
+                    // 🎬 元编程：循环检测（声明式 API）
+                    let loop_status = approval::check_loop(&tool.name, &tool.args);
+                    if loop_status.should_stop() {
+                        if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+                            eprintln!("\n{}⚠️  循环检测: {}{}",
+                                theme.warning, reason, render::RESET);
+                            // 跳出工具循环
+                            break;
+                        }
+                    } else if loop_status.should_warn() {
+                        if let loop_detector::LoopDetectionStatus::Warning { count, pattern } = loop_status {
+                            eprintln!("\n{}⚠️  警告: {} ({} 次){}",
+                                theme.warning, pattern, count, render::RESET);
+                        }
+                    }
 
                     results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
                 }

@@ -24,6 +24,42 @@ const BRAND_PALETTE: &[(&str, u8, bool, bool)] = &[
 ];
 
 // ============================================================================
+// Progress Animation (进度动画)
+// ============================================================================
+
+/// 🎬 进度动画帧 — 旋转效果
+///
+/// 方案 1：旋转箭头（推荐）
+/// Unicode: U+27F3, U+27F2, U+22B6, U+22B7
+const PROGRESS_FRAMES_SPIN: &[char] = &['⟳', '⟲', '⊶', '⊷'];
+
+/// 🎬 进度动画帧 — 点阵效果
+///
+/// 方案 2：Braille 点阵（备选）
+/// Unicode: U+2808, U+2802, U+2804, U+2820
+const PROGRESS_FRAMES_DOT: &[char] = &['⠁', '⠂', '⠄', '⠠'];
+
+/// 🎬 动画帧间隔（毫秒）
+///
+/// 每帧显示 200ms，形成 2Hz 动画（人类视觉舒适度最佳）
+const ANIMATION_FRAME_INTERVAL_MS: u64 = 200;
+
+/// 🎬 获取当前动画帧
+///
+/// 基于时间计算当前应显示的帧索引
+pub fn current_progress_frame() -> char {
+    let elapsed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+
+    let frame_index = (elapsed as u64 / ANIMATION_FRAME_INTERVAL_MS) as usize
+        % PROGRESS_FRAMES_SPIN.len();
+
+    PROGRESS_FRAMES_SPIN[frame_index]
+}
+
+// ============================================================================
 // Theme System
 // ============================================================================
 
@@ -1036,5 +1072,77 @@ mod tests {
         assert_eq!(TJ, "┴");
         assert_eq!(BJ, "┬");
         assert_eq!(XJ, "┼");
+    }
+
+    // ========================================================================
+    // Progress Animation Tests (进度动画测试)
+    // ========================================================================
+
+    #[test]
+    fn test_progress_frames_spin_defined() {
+        // 验证旋转动画帧已定义
+        assert_eq!(PROGRESS_FRAMES_SPIN.len(), 4);
+        assert_eq!(PROGRESS_FRAMES_SPIN[0], '⟳');
+        assert_eq!(PROGRESS_FRAMES_SPIN[1], '⟲');
+        assert_eq!(PROGRESS_FRAMES_SPIN[2], '⊶');
+        assert_eq!(PROGRESS_FRAMES_SPIN[3], '⊷');
+    }
+
+    #[test]
+    fn test_progress_frames_dot_defined() {
+        // 验证点阵动画帧已定义
+        assert_eq!(PROGRESS_FRAMES_DOT.len(), 4);
+        assert_eq!(PROGRESS_FRAMES_DOT[0], '⠁');
+        assert_eq!(PROGRESS_FRAMES_DOT[1], '⠂');
+        assert_eq!(PROGRESS_FRAMES_DOT[2], '⠄');
+        assert_eq!(PROGRESS_FRAMES_DOT[3], '⠠');
+    }
+
+    #[test]
+    fn test_animation_frame_interval() {
+        // 验证帧间隔为 200ms
+        assert_eq!(ANIMATION_FRAME_INTERVAL_MS, 200);
+    }
+
+    #[test]
+    fn test_current_progress_frame_returns_valid_char() {
+        // 验证当前帧函数返回有效字符
+        let frame = current_progress_frame();
+        assert!(PROGRESS_FRAMES_SPIN.contains(&frame));
+    }
+
+    #[test]
+    fn test_current_progress_frame_cycles() {
+        // 验证帧循环（通过多次调用检查返回不同的帧）
+        let mut frames = std::collections::HashSet::new();
+        let mut seen_different = false;
+
+        // 连续采样 20 次（跨越至少一个完整周期）
+        for _ in 0..20 {
+            let frame = current_progress_frame();
+            frames.insert(frame);
+
+            // 如果帧间隔够长，应该能看到不同的帧
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+
+        // 验证至少看到了 2 个不同的帧（证明动画在工作）
+        assert!(frames.len() >= 2, "Expected at least 2 different frames, got {}", frames.len());
+    }
+
+    #[test]
+    fn test_progress_frames_unicode() {
+        // 验证 Unicode 字符正确
+        // 旋转箭头: U+27F3, U+27F2, U+22B6, U+22B7
+        assert_eq!(PROGRESS_FRAMES_SPIN[0] as u32, 0x27F3);
+        assert_eq!(PROGRESS_FRAMES_SPIN[1] as u32, 0x27F2);
+        assert_eq!(PROGRESS_FRAMES_SPIN[2] as u32, 0x22B6);
+        assert_eq!(PROGRESS_FRAMES_SPIN[3] as u32, 0x22B7);
+
+        // Braille 点阵: U+2808, U+2802, U+2804, U+2820
+        assert_eq!(PROGRESS_FRAMES_DOT[0] as u32, 0x2808);
+        assert_eq!(PROGRESS_FRAMES_DOT[1] as u32, 0x2802);
+        assert_eq!(PROGRESS_FRAMES_DOT[2] as u32, 0x2804);
+        assert_eq!(PROGRESS_FRAMES_DOT[3] as u32, 0x2820);
     }
 }

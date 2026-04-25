@@ -11,7 +11,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -25,7 +25,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -40,7 +40,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -54,7 +54,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -74,7 +74,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -88,7 +88,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": false,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -99,7 +99,7 @@
       "requiresApproval": false,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -113,7 +113,7 @@
       "requiresApproval": true,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": [
         {
           "pattern": "^\\.?env",
@@ -181,7 +181,7 @@
       "requiresApproval": true,
       "requireSandbox": false,
       "aggregatable": true,
-      "maxIterations": 5,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -197,7 +197,7 @@
       "requiresApproval": true,
       "requireSandbox": true,
       "aggregatable": true,
-      "maxIterations": 3,
+      "maxIterations": 100,
       "pathRiskRules": []
     },
     {
@@ -216,7 +216,7 @@
       "requiresApproval": true,
       "requireSandbox": false,
       "aggregatable": false,
-      "maxIterations": 3,
+      "maxIterations": 100,
       "pathRiskRules": []
     }
   ],
@@ -252,5 +252,11 @@
       }
     }
   ],
-  "globalPathRiskRules": []
+  "globalPathRiskRules": [],
+  "loopDetection": {
+    "enabled": true,
+    "maxConsecutiveSameTool": 10,
+    "maxIdenticalCalls": 3,
+    "windowSize": 20
+  }
 }
