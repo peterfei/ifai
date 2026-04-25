@@ -652,12 +652,18 @@ fn cmd_view(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     use crate::smart_glob_summary::SmartGlob;
     use crate::render::default_theme;
+    use std::env;
 
     // 默认搜索当前目录
     let pattern = arg.unwrap_or(".");
 
     // 获取主题
     let theme = default_theme();
+
+    // 🔥 显示当前工作目录（调试信息）
+    let current_dir = env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "<unknown>".to_string());
 
     // 🔥 自动检测宽泛搜索，自动启用智能模式
     let is_broad_search = pattern.contains("**/*")
@@ -686,6 +692,16 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     // 生成输出
     let mut output = String::new();
 
+    // 🔥 显示当前工作目录
+    output.push_str(&format!(
+        "{}📂 Working Directory: {}{}\n",
+        theme.dim, current_dir, RESET
+    ));
+    output.push_str(&format!(
+        "{}🔍 Pattern: {}{}\n\n",
+        theme.dim, pattern, RESET
+    ));
+
     if mode == "smart" {
         output.push_str(&format!(
             "{}⚠️  检测到宽泛搜索模式，使用智能 Glob（显示前 100 个结果）{}\n\n",
@@ -699,6 +715,34 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
 
     // 显示详细结果（受限制）
     output.push_str(&results.render_results());
+
+    // 🔥 如果没有找到文件，显示提示信息
+    if results.summary.total_files == 0 {
+        output.push_str(&format!(
+            "\n{}❌ 未找到文件{}{}\n",
+            theme.error, RESET, RESET
+        ));
+        output.push_str(&format!(
+            "{}   可能原因：\n",
+            theme.dim
+        ));
+        output.push_str(&format!(
+            "{}   1. 路径不存在：请检查路径是否正确\n",
+            theme.dim
+        ));
+        output.push_str(&format!(
+            "{}   2. 工作目录：当前工作目录是 {}\n",
+            theme.dim, current_dir
+        ));
+        output.push_str(&format!(
+            "{}   3. 搜索模式：尝试使用更具体的模式{}\n",
+            theme.dim, RESET
+        ));
+        output.push_str(&format!(
+            "{}   示例：{} /glob \"src/**/*.rs\" {} 或 {} /glob \"Cargo.toml\"{}\n\n",
+            theme.dim, theme.code, RESET, theme.code, RESET
+        ));
+    }
 
     // 如果被截断，提示使用完整模式
     if results.summary.truncated {

@@ -98,12 +98,26 @@ impl SmartGlob {
         // 🔥 解析 glob 模式
         let (base_path, ext_filter) = self.parse_glob_pattern(&self.pattern);
 
+        // 🔥 调试：检查基础路径是否存在
+        let path_obj = std::path::Path::new(&base_path);
+        if !path_obj.exists() {
+            // 路径不存在，返回空结果
+            return GlobResult {
+                summary: GlobSummary {
+                    total_files: 0,
+                    total_size: 0,
+                    file_types: HashMap::new(),
+                    sample: Vec::new(),
+                    truncated: false,
+                },
+                results: Vec::new(),
+            };
+        }
+
         // 使用 WalkDir 递归搜索
-        for entry in WalkDir::new(&base_path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_file())
-        {
+        let walk_dir = WalkDir::new(&base_path).into_iter();
+
+        for entry in walk_dir.filter_map(|e| e.ok()).filter(|e| e.path().is_file()) {
             let path = entry.path();
 
             // 应用扩展名过滤
