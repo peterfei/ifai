@@ -9,7 +9,7 @@
 //! ToolDone 事件不再用于参数解析，参数仅来自 ToolStart.input
 
 use std::io::{self, Write};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::sync::Arc;
 use futures_util::stream::StreamExt;
@@ -22,6 +22,20 @@ use crate::render::{self, RESET, Spinner};
 use crate::prompt_vars::collect_cli_variables;
 use crate::permission::{self as approval, ToolCategory, RiskLevel};
 use crate::token;  // 🔥 元编程：Token 状态栏
+use crate::pipeline::PipelineTracker;  // 🎨 元编程：Pipeline 可视化
+
+/// 格式化持续时间
+fn format_duration(seconds: f64) -> String {
+    if seconds < 1.0 {
+        format!("{:.1}ms", seconds * 1000.0)
+    } else if seconds < 60.0 {
+        format!("{:.1}s", seconds)
+    } else {
+        let mins = (seconds / 60.0).floor();
+        let secs = seconds % 60.0;
+        format!("{}m {:.0}s", mins, secs)
+    }
+}
 
 // ============================================================================
 // Pending Tool Call (Collect Phase)
@@ -221,6 +235,8 @@ pub struct Session {
     base_url: Option<String>,
     /// 🔥 禁用工具调用（--no-tool 标志）
     tools_disabled: bool,
+    /// 🎨 Pipeline 跟踪器
+    pipeline_tracker: PipelineTracker,
 }
 
 impl Session {
@@ -239,6 +255,7 @@ impl Session {
             api_key: None,
             base_url: None,
             tools_disabled: false,
+            pipeline_tracker: PipelineTracker::new(),
         }
     }
 
@@ -445,8 +462,20 @@ impl Session {
                                             print!("\r{}  \r", " ".repeat(30));
                                             first_delta = false;
                                         }
-                                        // 渲染工具开始
-                                        println!("\n{}", render::render_tool_start(name, input, &theme));
+
+                                        // 🎨 元编程：创建 pipeline 步骤
+                                        self.pipeline_tracker.start_step(
+                                            tool_id.clone(),
+                                            name.clone(),
+                                            input.clone(),
+                                        );
+
+                                        // 渲染工具开始（使用派生宏生成的方法）
+                                        if let Some(step) = self.pipeline_tracker.get_active_step(tool_id) {
+                                            let status_render = step.status.render_with_theme("en", &theme, RESET);
+                                            println!("\n{} {}({})", status_render, name, input);
+                                        }
+
                                         collector.dispatch(&event);
                                     }
                                     StreamEvent::ToolDone { tool_id, result } => {
@@ -508,7 +537,7 @@ impl Session {
             let tool_results = self.execute_tools(collector.pending_tools())?;
 
             // 构建 tool_calls 和 tool 结果消息
-            let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _)| {
+            let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
                 ToolCall {
                     id: id.clone(),
                     call_type: "function".to_string(),
@@ -528,7 +557,7 @@ impl Session {
             });
 
             // 添加工具结果消息
-            for (tool_id, _name, result) in &tool_results {
+            for (tool_id, _name, result, _) in &tool_results {
                 self.messages.push(Message {
                     role: MessageRole::Tool,
                     content: MessageContent::Text(result.clone()),
@@ -537,10 +566,34 @@ impl Session {
                 });
             }
 
-            // 渲染工具结果
-            for (tool_id, name, result) in &tool_results {
-                let success = !result.contains("Error") && !result.contains("error");
-                println!("{}", render::render_tool_result(name, result, success, &theme));
+            // 🎨 元编程：渲染工具结果（使用 PipelineStep）
+            for (tool_id, name, _result, _duration) in &tool_results {
+                // 从 pipeline_tracker 获取完成后的步骤
+                let completed_steps = self.pipeline_tracker.completed_steps();
+                if let Some(step) = completed_steps.iter().find(|s| s.tool_name == *name) {
+                    // 使用派生宏生成的方法渲染最终状态
+                    let status_render = step.status.render_with_theme("zh", &theme, RESET);
+
+                    // 添加时间信息
+                    if let Some(duration) = step.metadata.duration {
+                        let duration_str = format_duration(duration.as_secs_f64());
+                        println!("\n{} {}  [{}]", status_render, name, duration_str);
+                    } else {
+                        println!("\n{} {}", status_render, name);
+                    }
+
+                    // 渲染输出
+                    match &step.output {
+                        crate::pipeline::StepOutput::Empty => {}
+                        crate::pipeline::StepOutput::Full { content } => {
+                            println!("   ╾ {}", content.lines().collect::<Vec<_>>().join("\n   ╾ "));
+                        }
+                        crate::pipeline::StepOutput::Truncated { preview, total_lines } => {
+                            println!("   ╾ {}", preview.lines().collect::<Vec<_>>().join("\n   ╾ "));
+                            println!("   ╾ (共 {} 行，使用 --verbose 查看完整输出)", total_lines);
+                        }
+                    }
+                }
             }
 
             // 🔥 元编程：根据工具类别动态获取最大迭代次数
@@ -567,7 +620,7 @@ impl Session {
     }
 
     /// 🔧 执行工具列表（Execute 阶段）- 使用元编程权限引擎
-    fn execute_tools(&self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String)>, String> {
+    fn execute_tools(&mut self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
 
         for tool in tools {
@@ -591,8 +644,14 @@ impl Session {
                     io::stdin().read_line(&mut input).map_err(|e| format!("Failed to read input: {}", e))?;
 
                     if input.trim() != "y" && input.trim() != "Y" {
+                        // 🎨 元编程：标记步骤为跳过
+                        self.pipeline_tracker.skip_step(
+                            &tool.tool_id,
+                            format!("User denied execution of '{}'", tool.name),
+                        );
+
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
-                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg));
+                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
                         continue;
                     }
                 }
@@ -601,13 +660,34 @@ impl Session {
             let args_json: serde_json::Value = serde_json::from_str(&tool.args)
                 .map_err(|e| format!("Failed to parse tool args: {}", e))?;
 
+            // 🎨 元编程：记录执行时间
+            let start = Instant::now();
+
             match self.tool_router.execute(&tool.name, &args_json) {
                 Ok(result) => {
-                    results.push((tool.tool_id.clone(), tool.name.clone(), result));
+                    let duration = start.elapsed();
+
+                    // 🎨 元编程：标记步骤为成功
+                    self.pipeline_tracker.finish_step_success(
+                        &tool.tool_id,
+                        result.clone(),
+                        duration,
+                    );
+
+                    results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
                 }
                 Err(e) => {
+                    let duration = start.elapsed();
                     let error_msg = format!("Error: {:?}", e);
-                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg));
+
+                    // 🎨 元编程：标记步骤为失败
+                    self.pipeline_tracker.finish_step_error(
+                        &tool.tool_id,
+                        error_msg.clone(),
+                        duration,
+                    );
+
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, duration));
                 }
             }
         }

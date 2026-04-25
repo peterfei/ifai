@@ -60,6 +60,21 @@ impl Theme {
     }
 }
 
+// 🎨 元编程：实现 ThemeAccessor trait
+// 由 ifai-render-macro 派生宏自动生成
+impl crate::pipeline::ThemeAccessor for Theme {
+    fn get_color(&self, field: &str) -> &str {
+        match field {
+            "success" => self.success,
+            "error" => self.error,
+            "warning" => self.warning,
+            "brand" => self.brand,
+            "heading" => self.heading,
+            _ => self.muted,
+        }
+    }
+}
+
 /// 默认主题（IfAI Brand Palette）
 pub fn default_theme() -> Theme {
     Theme::from_palette()

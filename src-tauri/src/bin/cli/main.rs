@@ -12,6 +12,7 @@ mod prompt_vars; // 🏛️ 元编程：变量自动收集器
 mod permission;  // 🔥 元编程权限引擎
 mod token;       // 🔥 元编程 Token 显示层
 mod persistence; // 🔥 元编程会话持久化
+mod pipeline;    // 🎨 元编程 Pipeline 可视化
 
 use std::env;
 use std::io::{self, IsTerminal, Write};

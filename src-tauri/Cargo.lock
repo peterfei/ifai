@@ -2970,6 +2970,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ifai-render-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "ifainew"
 version = "0.4.3"
 dependencies = [
@@ -2992,6 +3001,7 @@ dependencies = [
  "glob",
  "grep",
  "handlebars",
+ "ifai-render-macro",
  "ifainew-core",
  "ignore",
  "llama-cpp-2",
