@@ -463,12 +463,8 @@ impl Session {
                                             first_delta = false;
                                         }
 
-                                        // 🎨 元编程：创建 pipeline 步骤（不显示，等待执行完成）
-                                        self.pipeline_tracker.start_step(
-                                            tool_id.clone(),
-                                            name.clone(),
-                                            input.clone(),
-                                        );
+                                        // 🎨 元编程：不在流式阶段创建步骤（此时 input 为空）
+                                        // 在 execute_tools() 中使用完整参数创建
 
                                         collector.dispatch(&event);
                                     }
@@ -568,12 +564,19 @@ impl Session {
                     // 使用派生宏生成的方法渲染最终状态
                     let status_render = step.status.render_with_theme("zh", &theme, RESET);
 
+                    // 格式化工具参数（截断过长的参数）
+                    let args_preview = if step.tool_args.len() > 50 {
+                        format!("{}...", &step.tool_args[..47])
+                    } else {
+                        step.tool_args.clone()
+                    };
+
                     // 添加时间信息
                     if let Some(duration) = step.metadata.duration {
                         let duration_str = format_duration(duration.as_secs_f64());
-                        println!("\n{} {}  [{}]", status_render, name, duration_str);
+                        println!("\n{} {}({})  [{}]", status_render, name, args_preview, duration_str);
                     } else {
-                        println!("\n{} {}", status_render, name);
+                        println!("\n{} {}({})", status_render, name, args_preview);
                     }
 
                     // 渲染输出
@@ -616,6 +619,15 @@ impl Session {
     /// 🔧 执行工具列表（Execute 阶段）- 使用元编程权限引擎
     fn execute_tools(&mut self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
+
+        // 🎨 元编程：为所有工具创建 PipelineStep（使用完整参数）
+        for tool in tools {
+            self.pipeline_tracker.start_step(
+                tool.tool_id.clone(),
+                tool.name.clone(),
+                tool.args.clone(),
+            );
+        }
 
         for tool in tools {
             // 🔥 元编程：使用配置驱动的权限判断
