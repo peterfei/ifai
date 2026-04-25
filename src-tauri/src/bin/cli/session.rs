@@ -38,6 +38,65 @@ fn format_duration(seconds: f64) -> String {
     }
 }
 
+/// 格式化工具参数以便友好显示
+fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
+    match tool_name {
+        "bash" => {
+            if let Some(cmd) = args.get("cmd").and_then(|v| v.as_str()) {
+                if cmd.len() > 80 {
+                    format!("命令: {}...", &cmd[..77])
+                } else {
+                    format!("命令: {}", cmd)
+                }
+            } else {
+                format!("参数: {}", args)
+            }
+        }
+        "write_file" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
+            let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let preview = if content.len() > 40 {
+                format!("{}... ({} 字符)", &content[..37], content.len())
+            } else {
+                format!("{}", content)
+            };
+            format!("路径: {}\n内容: {}", path, preview)
+        }
+        "read_file" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
+            format!("读取文件: {}", path)
+        }
+        "edit_file" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
+            let edit = args.get("edit").and_then(|v| v.as_str()).unwrap_or("?");
+            let preview = if edit.len() > 40 {
+                format!("{}...", &edit[..37])
+            } else {
+                format!("{}", edit)
+            };
+            format!("编辑文件: {}\n变更: {}", path, preview)
+        }
+        _ => {
+            // 通用格式化
+            let json_str = serde_json::to_string_pretty(args).unwrap_or_default();
+            if json_str.len() > 200 {
+                format!("{}...", &json_str[..197])
+            } else {
+                json_str
+            }
+        }
+    }
+}
+
+/// 格式化风险等级显示
+fn format_risk_level(risk: approval::RiskLevel) -> String {
+    match risk {
+        approval::RiskLevel::Low => "⚠️  低风险".to_string(),
+        approval::RiskLevel::Medium => "🔶 中风险".to_string(),
+        approval::RiskLevel::High => "🔴 高风险".to_string(),
+    }
+}
+
 // ============================================================================
 // Pending Tool Call (Collect Phase)
 // ============================================================================
@@ -637,14 +696,32 @@ impl Session {
             let risk = approval::calculate_risk(&tool.name, &serde_json::from_str::<serde_json::Value>(&tool.args).unwrap_or(serde_json::json!({})));
             let auto_approve = approval::should_auto_approve(&tool.name, false);  // CLI 中无沙箱
 
-            // 🔥 DEBUG: 输出权限检查信息
-            eprintln!("[DEBUG] Tool: {}, Category: {:?}, AutoApprove: {}", tool.name, category, auto_approve);
-
             if !auto_approve {
                 // 🔥 在 CLI 中，所有需要审批的工具都需要用户确认（Safe 除外）
                 if !matches!(category, approval::ToolCategory::Safe) {
-                    println!("\nWarning: Tool '{}' requires confirmation.", tool.name);
-                    print!("Execute? (y/n): ");
+                    // 解析参数以便友好显示
+                    let args_json = serde_json::from_str::<serde_json::Value>(&tool.args)
+                        .unwrap_or(serde_json::json!({}));
+
+                    // 构建友好的工具参数显示
+                    let args_preview = format_tool_args(&tool.name, &args_json);
+
+                    println!();
+                    println!("┌─────────────────────────────────────────────────────────┐");
+                    println!("│ 🔔 工具执行请求                                          │");
+                    println!("├─────────────────────────────────────────────────────────┤");
+                    println!("│ 工具: {:<50} │", tool.name);
+                    println!("│ 风险: {:<50} │", format_risk_level(risk));
+                    println!("├─────────────────────────────────────────────────────────┤");
+                    println!("│ 参数详情:                                               │");
+                    for line in args_preview.lines().take(6) {
+                        println!("│ {:<55} │", line);
+                    }
+                    if args_preview.lines().count() > 6 {
+                        println!("│ ...                                                    │");
+                    }
+                    println!("└─────────────────────────────────────────────────────────┘");
+                    print!("  是否执行? (y/n): ");
                     io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
 
                     // 简单的用户输入（生产环境应使用更健壮的方法）
