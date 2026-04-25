@@ -18,6 +18,9 @@ mod terminal;    // 🔥 终端抽象层（ANSI 光标定位）
 mod tui_layout;  // 🔥 声明式 TUI 布局层
 mod stream_render; // 🔥 声明式流式渲染管道
 mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
+mod code_folding; // 🎨 代码折叠 - 元编程架构
+mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
+mod markdown_meta; // 🎨 Markdown 元编程驱动层
 
 use std::env;
 use std::io::{self, IsTerminal, Write};

@@ -193,6 +193,9 @@ mod tests {
         let frame3 = renderer.render_frame("test-model");
         assert!(frame3.contains('⊶'));
 
+        let frame4 = renderer.render_frame("test-model");
+        assert!(frame4.contains('⊷'));
+
         // 测试循环回到第一帧
         let frame5 = renderer.render_frame("test-model");
         assert!(frame5.contains('⟳'));
