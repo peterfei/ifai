@@ -159,11 +159,14 @@ impl SmartGlob {
     /// 🔥 解析 glob 模式（元编程：自动提取路径和扩展名）
     fn parse_glob_pattern(&self, pattern: &str) -> (String, Option<String>) {
         // 处理常见的 glob 模式
+
+        // 模式 1: 当前目录所有文件
         if pattern == "." || pattern == "*" || pattern == "**/*" {
-            // 搜索当前目录，所有文件
             (".".to_string(), None)
-        } else if pattern.contains("*.") {
-            // 提取扩展名，如 "**/*.rs" -> ("..", "rs")
+        }
+        // 模式 2: 扩展名过滤（优先处理，避免被 /**/* 模式覆盖）
+        // 如 "**/*.rs", "src/**/*.rs", "*.rs"
+        else if pattern.contains("*.") {
             if let Some(star_pos) = pattern.find("*.") {
                 let ext = pattern[star_pos + 2..].to_string();
                 // 提取基础路径
@@ -176,6 +179,9 @@ impl SmartGlob {
                 } else if pattern.contains("/*.") {
                     // "src/*.rs" -> "src"
                     pattern[..pattern.find("/*.").unwrap()].to_string()
+                } else if pattern.starts_with("*.") {
+                    // "*.rs" -> "."
+                    ".".to_string()
                 } else {
                     // 默认当前目录
                     ".".to_string()
@@ -184,8 +190,20 @@ impl SmartGlob {
             } else {
                 (".".to_string(), None)
             }
-        } else {
-            // 精确路径或目录
+        }
+        // 模式 3: 递归搜索所有文件（如 "src/**/*", "**/**"）
+        else if pattern.contains("/**/*") || pattern.ends_with("/**") {
+            // 提取基础路径
+            let base = if pattern.contains("/**") {
+                pattern[..pattern.find("/**").unwrap()].to_string()
+            } else {
+                ".".to_string()
+            };
+            (base, None)
+        }
+        // 模式 4: 精确路径或目录
+        else {
+            // 移除开头的 "./"
             let path = if pattern.starts_with("./") {
                 pattern[2..].to_string()
             } else {
@@ -324,5 +342,15 @@ mod tests {
         let (base, ext) = glob.parse_glob_pattern(".");
         assert_eq!(base, ".");
         assert_eq!(ext, None);
+
+        // 测试 "src/**/*" 模式
+        let (base, ext) = glob.parse_glob_pattern("src/**/*");
+        assert_eq!(base, "src");
+        assert_eq!(ext, None);
+
+        // 测试 "*.rs" 模式
+        let (base, ext) = glob.parse_glob_pattern("*.rs");
+        assert_eq!(base, ".");
+        assert_eq!(ext, Some("rs".to_string()));
     }
 }
