@@ -735,7 +735,7 @@ mod tests {
     fn test_parse_args_prompt() {
         let action = parse_args_from_vec(&["ifai".to_string(), "hello world".to_string()]).unwrap();
         match action {
-            CliAction::Prompt { text } => assert_eq!(text, "hello world"),
+            CliAction::Prompt { text, .. } => assert_eq!(text, "hello world"),
             _ => panic!("Expected Prompt action"),
         }
     }

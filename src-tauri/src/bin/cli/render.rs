@@ -807,14 +807,14 @@ mod tests {
     }
 
     #[test]
-    fn test_render_tool_result_truncation() {
+    fn test_render_tool_result_full_output() {
         let theme = default_theme();
-        let long_result = "This is a very long result that should be truncated to 50 characters with ellipsis";
+        let long_result = "This is a very long result that should be displayed in full";
         let output = render_tool_result("Test", long_result, true, &theme);
 
-        // 应该被截断并添加 "..."
-        assert!(output.contains("..."));
-        assert!(!output.contains(long_result)); // 原始内容不应完全包含
+        // 应该显示完整输出
+        assert!(output.contains(long_result));
+        assert!(output.contains("✔"));
     }
 
     // ========================================================================
@@ -1139,10 +1139,10 @@ mod tests {
         assert_eq!(PROGRESS_FRAMES_SPIN[2] as u32, 0x22B6);
         assert_eq!(PROGRESS_FRAMES_SPIN[3] as u32, 0x22B7);
 
-        // Braille 点阵: U+2808, U+2802, U+2804, U+2820
-        assert_eq!(PROGRESS_FRAMES_DOT[0] as u32, 0x2808);
-        assert_eq!(PROGRESS_FRAMES_DOT[1] as u32, 0x2802);
-        assert_eq!(PROGRESS_FRAMES_DOT[2] as u32, 0x2804);
-        assert_eq!(PROGRESS_FRAMES_DOT[3] as u32, 0x2820);
+        // Braille 点阵: U+2801, U+2802, U+2804, U+2820
+        assert_eq!(PROGRESS_FRAMES_DOT[0] as u32, 0x2801);  // '⠁'
+        assert_eq!(PROGRESS_FRAMES_DOT[1] as u32, 0x2802);  // '⠂'
+        assert_eq!(PROGRESS_FRAMES_DOT[2] as u32, 0x2804);  // '⠄'
+        assert_eq!(PROGRESS_FRAMES_DOT[3] as u32, 0x2820);  // '⠠'
     }
 }

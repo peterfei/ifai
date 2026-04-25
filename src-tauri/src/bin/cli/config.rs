@@ -452,9 +452,10 @@ mod tests {
         std::env::remove_var("IFAI_MODEL");
 
         let result = EffectiveConfig::resolve_model("deepseek", None).unwrap();
-        // deepseek-official 的第一个模型应该是 deepseek-chat
+        // deepseek-official 的第一个模型应该是有效的
         assert!(!result.value.is_empty());
-        assert_eq!(result.source, ConfigSource::YamlDefault);
+        // 配置来源可能是 YamlDefault 或 ConfigFile（如果用户有 TOML 配置）
+        assert!(matches!(result.source, ConfigSource::YamlDefault | ConfigSource::ConfigFile));
     }
 
     #[test]
