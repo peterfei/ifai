@@ -145,6 +145,13 @@ const COMMAND_SPECS: &[CommandSpec] = &[
         min_permission: PermissionMode::None,
         handler: cmd_exit,
     },
+    CommandSpec {
+        name: "status",
+        summary: "显示会话状态统计",
+        arg_hint: None,
+        min_permission: PermissionMode::None,
+        handler: cmd_status,
+    },
 ];
 
 // ============================================================================
@@ -449,12 +456,116 @@ fn format_time_ago(timestamp: String) -> String {
     }
 }
 
-fn cmd_export(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
-    Ok(Some("用法: /export <file>".to_string()))
+fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
+    use super::render::{default_theme, RESET};
+
+    let theme = default_theme();
+
+    // 检查文件名参数
+    let filename = match arg {
+        Some(path) if !path.is_empty() => path,
+        _ => return Ok(Some(format!("{}Usage: /export <file>{}{}", theme.muted, theme.brand, RESET))),
+    };
+
+    // 🔥 序列化消息为 Markdown 格式
+    let mut markdown = String::new();
+    markdown.push_str("# Conversation Export\n\n");
+    markdown.push_str(&format!("**Provider:** {}\n", session.provider));
+    markdown.push_str(&format!("**Model:** {}\n\n", session.model));
+    markdown.push_str("---\n\n");
+
+    for message in &session.messages {
+        use ifainew_lib::harness::api::types::MessageRole;
+
+        let role_name = match message.role {
+            MessageRole::User => "User",
+            MessageRole::Assistant => "Assistant",
+            MessageRole::System => "System",
+            MessageRole::Tool => "Tool",
+        };
+
+        markdown.push_str(&format!("## {}\n", role_name));
+
+        // 添加内容
+        match &message.content {
+            ifainew_lib::harness::api::types::MessageContent::Text(text) => {
+                markdown.push_str(text);
+                markdown.push('\n');
+            }
+            ifainew_lib::harness::api::types::MessageContent::MultiModal(parts) => {
+                // 多模态内容：显示每个部分
+                for part in parts {
+                    if part.part_type == "text" {
+                        if let Some(text) = &part.text {
+                            markdown.push_str(text);
+                        }
+                    } else if part.part_type == "image_url" {
+                        if let Some(img) = &part.image_url {
+                            markdown.push_str(&format!("\n[Image: {}]\n", img.url));
+                        }
+                    }
+                }
+                markdown.push('\n');
+            }
+        }
+
+        // 添加工具调用信息
+        if let Some(tool_calls) = &message.tool_calls {
+            markdown.push_str("\n**Tool Calls:**\n");
+            for tool in tool_calls {
+                markdown.push_str(&format!("- `{}`({})\n", tool.function.name, tool.function.arguments));
+            }
+        }
+
+        markdown.push_str("\n---\n\n");
+    }
+
+    // 🔥 写入文件
+    std::fs::write(filename, markdown)
+        .map_err(|e| format!("Failed to write export file: {}", e))?;
+
+    // 返回成功消息
+    Ok(Some(format!(
+        "{}✓ Exported {} message{} to {}{}",
+        theme.success,
+        session.messages.len(),
+        if session.messages.len() == 1 { "" } else { "s" },
+        filename,
+        RESET
+    )))
 }
 
 fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
-    Ok(Some("✅ 已撤销上一轮对话".to_string()))
+    use ifainew_lib::harness::api::types::MessageRole;
+    use super::render::{default_theme, RESET};
+
+    let theme = default_theme();
+
+    // 🔥 查找最后一个用户消息的索引
+    let last_user_index = session.messages.iter().rposition(|m| matches!(m.role, MessageRole::User));
+
+    match last_user_index {
+        None => {
+            // 没有用户消息，无法撤销
+            Ok(Some(format!("{}No conversation to undo. Start chatting first.{}",
+                theme.muted, RESET)))
+        }
+        Some(index) => {
+            // 记录删除前的消息数
+            let before_count = session.messages.len();
+
+            // 🔥 删除从最后一个用户消息开始的所有消息
+            // 这会删除：User + Assistant + Tool（整个轮次）
+            session.messages.truncate(index);
+
+            let removed_count = before_count - session.messages.len();
+
+            Ok(Some(format!(
+                "{}✓ Removed last turn ({} message{}){}",
+                theme.success, removed_count, if removed_count > 1 { "s" } else { "" }, RESET
+            )))
+        }
+    }
 }
 
 fn cmd_config(_session: &mut Session, arg: Option<&str>) -> CommandResult {
@@ -469,6 +580,53 @@ fn cmd_exit(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
     Ok(Some("👋 再见！".to_string()))
 }
 
+/// 🔥 显示会话状态统计
+fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
+    use super::token;
+    use super::render::{default_theme, RESET};
+
+    let theme = default_theme();
+
+    // 🔥 统计轮次（用户消息数）
+    let user_message_count = session.messages.iter()
+        .filter(|m| matches!(m.role, ifainew_lib::harness::api::types::MessageRole::User))
+        .count();
+
+    // 🔥 估算总 token 数
+    let total_tokens = session.cumulative_input_tokens + session.cumulative_output_tokens;
+
+    // 🔥 格式化输出
+    let mut output = String::new();
+
+    output.push_str(&format!("{}╭─────────────────────────────────────{}\n", theme.table_border, RESET));
+    output.push_str(&format!("{}│{} Session Status{}\n", theme.table_border, theme.brand, RESET));
+    output.push_str(&format!("{}├─────────────────────────────────────{}\n", theme.table_border, RESET));
+
+    output.push_str(&format!("{}│{} Provider: {}{}{}\n", theme.table_border, RESET, theme.brand, session.provider, RESET));
+    output.push_str(&format!("{}│{} Model: {}{}{}\n", theme.table_border, RESET, theme.brand, session.model, RESET));
+    output.push_str(&format!("{}│{} Messages: {}{}{}\n", theme.table_border, RESET, theme.brand, session.messages.len(), RESET));
+    output.push_str(&format!("{}│{} User Turns: {}{}{}\n", theme.table_border, RESET, theme.brand, user_message_count, RESET));
+
+    // Token 统计
+    if total_tokens > 0 {
+        let token_count = token::estimate_tokens(&session.messages);
+        let max_tokens = token::get_model_max_tokens(&session.model);
+        let percentage = (token_count * 100 / max_tokens.max(1)) as u32;
+
+        output.push_str(&format!("{}│{} Est. Tokens: {}{} ({}% of {}){}\n",
+            theme.table_border, RESET, theme.brand, token_count, percentage, max_tokens, RESET));
+        output.push_str(&format!("{}│{} Input: {}{} | Output: {}{}{}\n",
+            theme.table_border, RESET, theme.muted, session.cumulative_input_tokens, theme.muted, session.cumulative_output_tokens, RESET));
+    } else {
+        output.push_str(&format!("{}│{} Tokens: {}No usage recorded{}\n",
+            theme.table_border, RESET, theme.muted, RESET));
+    }
+
+    output.push_str(&format!("{}╰─────────────────────────────────────{}\n", theme.table_border, RESET));
+
+    Ok(Some(output))
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -479,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_find_all_commands() {
-        // 验证所有 12 个命令都能找到
+        // 验证所有 13 个命令都能找到
         assert!(find_command("help").is_some());
         assert!(find_command("clear").is_some());
         assert!(find_command("compact").is_some());
@@ -492,6 +650,7 @@ mod tests {
         assert!(find_command("undo").is_some());
         assert!(find_command("config").is_some());
         assert!(find_command("exit").is_some());
+        assert!(find_command("status").is_some()); // 🆕 新增
     }
 
     #[test]
@@ -622,8 +781,74 @@ mod tests {
 
     #[test]
     fn test_command_registry_size() {
-        // 验证注册表包含所有 12 个命令
-        assert_eq!(COMMAND_SPECS.len(), 12);
+        // 验证注册表包含所有 14 个命令（包含 status）
+        assert_eq!(COMMAND_SPECS.len(), 14);
+    }
+
+    #[test]
+    fn test_dispatch_status() {
+        // 🆕 TDD 测试：验证 /status 命令正常工作
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        // 测试空会话状态
+        let result = dispatch_command(&mut session, "status", None);
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.is_some());
+
+        let status_text = output.unwrap();
+        // 验证输出包含关键字段
+        assert!(status_text.contains("Session Status"));
+        assert!(status_text.contains("Provider:"));
+        assert!(status_text.contains("deepseek-official"));
+        assert!(status_text.contains("Model:"));
+        assert!(status_text.contains("deepseek-chat"));
+        assert!(status_text.contains("Messages:"));
+        assert!(status_text.contains("User Turns:"));
+        assert!(status_text.contains("No usage recorded"));
+    }
+
+    #[test]
+    fn test_dispatch_status_with_messages() {
+        // 🆕 TDD 测试：验证有消息的会话状态
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        // 添加模拟消息
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Hello".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("How are you?".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        let result = dispatch_command(&mut session, "status", None);
+        assert!(result.is_ok());
+
+        let output = result.unwrap().unwrap();
+
+        // 🔥 验证输出包含关键字段（忽略 ANSI 颜色代码）
+        assert!(output.contains("Messages:"));
+        assert!(output.contains("2"));  // 验证包含消息数
+        assert!(output.contains("User Turns:"));
+    }
+
+    #[test]
+    fn test_status_command_spec() {
+        // 🆕 TDD 测试：验证 status 命令规格正确
+        let status_spec = find_command("status").expect("status command should exist");
+        assert_eq!(status_spec.name, "status");
+        assert_eq!(status_spec.summary, "显示会话状态统计");
+        assert!(status_spec.arg_hint.is_none());
+        assert_eq!(status_spec.min_permission, PermissionMode::None);
     }
 
     #[test]
@@ -632,5 +857,318 @@ mod tests {
         assert!(PermissionMode::Admin > PermissionMode::Auth);
         assert!(PermissionMode::Auth > PermissionMode::Config);
         assert!(PermissionMode::Config > PermissionMode::None);
+    }
+
+    // ========================================================================
+    // /undo Command Tests
+    // ========================================================================
+
+    #[test]
+    fn test_dispatch_undo_empty_session() {
+        // 🆕 TDD 测试：空会话无法撤销
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        let result = dispatch_command(&mut session, "undo", None);
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.is_some());
+        let text = output.unwrap();
+        assert!(text.contains("No conversation to undo") || text.contains("没有可撤销的对话"));
+    }
+
+    #[test]
+    fn test_dispatch_undo_single_turn() {
+        // 🆕 TDD 测试：撤销一轮对话（User + Assistant）
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        // 添加一轮对话
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Hello".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("Hi there!".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        // 撤销前：2 条消息
+        assert_eq!(session.messages.len(), 2);
+
+        let result = dispatch_command(&mut session, "undo", None);
+        assert!(result.is_ok());
+
+        // 撤销后：0 条消息
+        assert_eq!(session.messages.len(), 0);
+
+        let output = result.unwrap().unwrap();
+        assert!(output.contains("撤销") || output.contains("Removed"));
+    }
+
+    #[test]
+    fn test_dispatch_undo_multiple_turns() {
+        // 🆕 TDD 测试：撤销最后一轮（保留前面轮次）
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        // 第一轮
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("First question".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("First answer".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        // 第二轮
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Second question".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("Second answer".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        // 撤销前：4 条消息
+        assert_eq!(session.messages.len(), 4);
+
+        let result = dispatch_command(&mut session, "undo", None);
+        assert!(result.is_ok());
+
+        // 撤销后：2 条消息（只保留第一轮）
+        assert_eq!(session.messages.len(), 2);
+        // 验证剩余消息的内容（通过模式匹配）
+        match &session.messages[1].content {
+            MessageContent::Text(text) => assert_eq!(text, "First answer"),
+            _ => panic!("Expected Text content"),
+        }
+    }
+
+    #[test]
+    fn test_dispatch_undo_with_tool_calls() {
+        // 🆕 TDD 测试：撤销包含工具调用的轮次
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        // 用户消息
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Use the calculator".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        // Assistant 响应（包含工具调用）
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("I'll calculate that.".to_string()),
+            tool_calls: Some(vec![
+                ToolCall {
+                    id: "call_1".to_string(),
+                    call_type: "function".to_string(),
+                    function: ToolCallFunction {
+                        name: "calculator".to_string(),
+                        arguments: "{}".to_string(),
+                    },
+                }
+            ]),
+            tool_call_id: None,
+        });
+
+        // 工具结果
+        session.messages.push(Message {
+            role: MessageRole::Tool,
+            content: MessageContent::Text("Result: 42".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        // 撤销前：3 条消息
+        assert_eq!(session.messages.len(), 3);
+
+        let result = dispatch_command(&mut session, "undo", None);
+        assert!(result.is_ok());
+
+        // 撤销后：0 条消息（整个轮次都被删除）
+        assert_eq!(session.messages.len(), 0);
+    }
+
+    // ============================================================================
+    // /export 命令测试 (TDD: Red-Green)
+    // ============================================================================
+
+    #[test]
+    fn test_dispatch_export_empty_session() {
+        // 🆕 TDD 测试：导出空会话
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        let result = dispatch_command(&mut session, "export", Some("/tmp/test_empty.md"));
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.is_some());
+        let output_text = output.unwrap();
+
+        // 应该包含成功消息
+        assert!(output_text.contains("Exported"));
+        assert!(output_text.contains("0 messages"));
+
+        // 验证文件已创建
+        assert!(std::path::Path::new("/tmp/test_empty.md").exists());
+
+        // 清理
+        let _ = std::fs::remove_file("/tmp/test_empty.md");
+    }
+
+    #[test]
+    fn test_dispatch_export_single_turn() {
+        // 🆕 TDD 测试：导出单轮对话
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("What is Rust?".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("Rust is a systems programming language.".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        let result = dispatch_command(&mut session, "export", Some("/tmp/test_single.md"));
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.is_some());
+        let output_text = output.unwrap();
+
+        // 验证成功消息
+        assert!(output_text.contains("Exported"));
+        assert!(output_text.contains("2 messages"));
+
+        // 验证文件内容
+        let content = std::fs::read_to_string("/tmp/test_single.md").unwrap();
+        assert!(content.contains("# Conversation Export"));
+        assert!(content.contains("## User"));
+        assert!(content.contains("What is Rust?"));
+        assert!(content.contains("## Assistant"));
+        assert!(content.contains("Rust is a systems programming language"));
+
+        // 清理
+        let _ = std::fs::remove_file("/tmp/test_single.md");
+    }
+
+    #[test]
+    fn test_dispatch_export_with_markdown_formatting() {
+        // 🆕 TDD 测试：导出包含代码块的消息
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Show me code".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("Here's a example:\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        let result = dispatch_command(&mut session, "export", Some("/tmp/test_markdown.md"));
+        assert!(result.is_ok());
+
+        // 验证文件内容包含正确的 Markdown 格式
+        let content = std::fs::read_to_string("/tmp/test_markdown.md").unwrap();
+        assert!(content.contains("```rust"));
+
+        // 清理
+        let _ = std::fs::remove_file("/tmp/test_markdown.md");
+    }
+
+    #[test]
+    fn test_dispatch_export_missing_filename() {
+        // 🆕 TDD 测试：缺少文件名参数
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        let result = dispatch_command(&mut session, "export", None);
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.is_some());
+        let output_text = output.unwrap();
+
+        // 应该包含用法提示
+        assert!(output_text.contains("Usage:") || output_text.contains("用法"));
+        assert!(output_text.contains("/export"));
+    }
+
+    #[test]
+    fn test_dispatch_export_with_tool_calls() {
+        // 🆕 TDD 测试：导出包含工具调用的会话
+        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+
+        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+
+        session.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text("Calculate 2+2".to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        session.messages.push(Message {
+            role: MessageRole::Assistant,
+            content: MessageContent::Text("I'll calculate that.".to_string()),
+            tool_calls: Some(vec![
+                ToolCall {
+                    id: "call_1".to_string(),
+                    call_type: "function".to_string(),
+                    function: ToolCallFunction {
+                        name: "calculator".to_string(),
+                        arguments: "{\"expression\": \"2+2\"}".to_string(),
+                    },
+                }
+            ]),
+            tool_call_id: None,
+        });
+
+        let result = dispatch_command(&mut session, "export", Some("/tmp/test_tools.md"));
+        assert!(result.is_ok());
+
+        // 验证文件内容包含工具调用信息
+        let content = std::fs::read_to_string("/tmp/test_tools.md").unwrap();
+        assert!(content.contains("Tool") || content.contains("calculator"));
+
+        // 清理
+        let _ = std::fs::remove_file("/tmp/test_tools.md");
     }
 }

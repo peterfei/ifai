@@ -13,7 +13,102 @@ mod token;       // 🔥 元编程 Token 显示层
 mod persistence; // 🔥 元编程会话持久化
 
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
+use serde::{Deserialize, Serialize};
+use rustyline::Editor;
+
+// ============================================================================
+// JSON 输出结构
+// ============================================================================
+
+/// 🔥 JSON 响应格式
+#[derive(Debug, Serialize, Deserialize)]
+struct JsonResponse {
+    /// 响应状态
+    status: String,
+
+    /// 提供商
+    provider: String,
+
+    /// 模型
+    model: String,
+
+    /// 用户提示词
+    prompt: String,
+
+    /// AI 响应内容
+    content: String,
+
+    /// 输入 token 数量
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_tokens: Option<u32>,
+
+    /// 输出 token 数量
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_tokens: Option<u32>,
+
+    /// 总 token 数量
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_tokens: Option<u32>,
+
+    /// 错误信息（如果有）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+
+    /// 时间戳
+    timestamp: String,
+}
+
+impl JsonResponse {
+    /// 创建成功响应
+    fn success(
+        provider: String,
+        model: String,
+        prompt: String,
+        content: String,
+        input_tokens: Option<u32>,
+        output_tokens: Option<u32>,
+    ) -> Self {
+        let total_tokens = match (input_tokens, output_tokens) {
+            (Some(i), Some(o)) => Some(i + o),
+            _ => None,
+        };
+
+        Self {
+            status: "success".to_string(),
+            provider,
+            model,
+            prompt,
+            content,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            error: None,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+
+    /// 创建错误响应
+    fn error(
+        provider: String,
+        model: String,
+        prompt: String,
+        error_message: String,
+    ) -> Self {
+        Self {
+            status: "error".to_string(),
+            provider,
+            model,
+            prompt,
+            content: String::new(),
+            input_tokens: None,
+            output_tokens: None,
+            total_tokens: None,
+            error: Some(error_message),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+}
 
 // ============================================================================
 // CliAction - 动作分发枚举
@@ -25,7 +120,7 @@ use std::io::{self, Write};
 #[derive(Debug)]
 pub enum CliAction {
     /// 单次提示词模式：`ifai "write a hello world"`
-    Prompt { text: String },
+    Prompt { text: String, json_output: bool, no_tool: bool },
 
     /// REPL 交互模式：`ifai` 或 `ifai --repl`
     Repl,
@@ -60,6 +155,8 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
     let mut resume_name: Option<String> = None;
     let mut prompt_text: Vec<String> = Vec::new();
     let mut skip_next = false;
+    let mut json_output = false;
+    let mut no_tool = false;
 
     for (i, arg) in args.iter().enumerate() {
         if skip_next {
@@ -69,6 +166,16 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
 
         match arg.as_str() {
             "--version" | "-V" => return Ok(CliAction::Version),
+
+            "--json" => {
+                // 🔥 JSON 输出模式
+                json_output = true;
+            }
+
+            "--no-tool" => {
+                // 🔥 禁用工具调用
+                no_tool = true;
+            }
 
             "--provider" | "--model" | "--api-key" => {
                 // 这些标志暂时忽略（用于未来的配置覆盖）
@@ -129,6 +236,18 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
     if !prompt_text.is_empty() {
         return Ok(CliAction::Prompt {
             text: prompt_text.join(" "),
+            json_output,
+            no_tool,
+        });
+    }
+
+    // 🔥 只有标志，没有 prompt 文本 → 保存标志用于管道输入
+    if json_output || no_tool {
+        // 返回一个虚拟的 Prompt，稍后会从 stdin 读取
+        return Ok(CliAction::Prompt {
+            text: String::new(),  // 占位符，会被 stdin 覆盖
+            json_output,
+            no_tool,
         });
     }
 
@@ -152,10 +271,32 @@ fn parse_args() -> Result<CliAction, String> {
 }
 
 // ============================================================================
+// Stdin 管道输入支持
+// ============================================================================
+
+/// 🔥 读取 stdin 全部内容作为 prompt
+///
+/// **用途**: 支持管道输入，如 `echo "hello" | ifai` 或 `cat file.txt | ifai`
+fn read_stdin_to_prompt() -> Result<String, String> {
+    use std::io::Read;
+
+    let mut buffer = String::new();
+    io::stdin()
+        .read_to_string(&mut buffer)
+        .map_err(|e| format!("Failed to read stdin: {}", e))?;
+
+    // 移除首尾空白，保留内部换行
+    Ok(buffer.trim().to_string())
+}
+
+// ============================================================================
 // 主入口
 // ============================================================================
 
 fn main() {
+    // 🔥 检测 stdin 管道输入（非 TTY）
+    let is_piped = !io::stdin().is_terminal();
+
     // 解析参数
     let action = match parse_args() {
         Ok(action) => action,
@@ -164,16 +305,54 @@ fn main() {
             eprintln!("\nUsage:");
             eprintln!("  ifai                    # Start REPL");
             eprintln!("  ifai \"your prompt\"       # Single-shot mode");
+            eprintln!("  ifai --json \"prompt\"     # JSON output mode");
+            eprintln!("  echo \"prompt\" | ifai      # Pipe stdin as prompt");
             eprintln!("  ifai --version           # Show version");
             eprintln!("  ifai --config init       # Initialize config");
             eprintln!("  ifai --config show       # Show effective config");
             eprintln!("  ifai --resume <name>     # Resume saved session");
             eprintln!("\nOptions:");
+            eprintln!("  --json                  Output as JSON (machine-readable)");
+            eprintln!("  --no-tool               Disable tool calling");
             eprintln!("  --provider <name>       Override AI provider");
             eprintln!("  --model <name>          Override model");
             eprintln!("  --api-key <key>         Override API key");
             std::process::exit(1);
         }
+    };
+
+    // 🔥 如果检测到管道输入，读取 stdin 并与现有参数合并
+    let action = if is_piped {
+        // 获取当前的设置
+        let (current_json_output, current_no_tool) = match &action {
+            CliAction::Prompt { json_output, no_tool, .. } => (*json_output, *no_tool),
+            _ => (false, false),
+        };
+
+        match read_stdin_to_prompt() {
+            Ok(prompt) => {
+                if prompt.is_empty() {
+                    // 🔥 JSON 模式下不打印警告
+                    if !current_json_output {
+                        eprintln!("Warning: Empty stdin input");
+                    }
+                    action
+                } else {
+                    // 使用 stdin 内容和当前的设置
+                    CliAction::Prompt {
+                        text: prompt,
+                        json_output: current_json_output,
+                        no_tool: current_no_tool,
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading stdin: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        action
     };
 
     // 执行动作
@@ -206,8 +385,8 @@ fn run_action(action: CliAction) -> Result<(), String> {
             Ok(())
         }
 
-        CliAction::Prompt { text } => {
-            run_prompt(&text)?;
+        CliAction::Prompt { text, json_output, no_tool } => {
+            run_prompt(&text, json_output, no_tool)?;
             Ok(())
         }
 
@@ -266,10 +445,99 @@ fn config_show() -> Result<(), String> {
 }
 
 /// 运行单次提示词模式
-fn run_prompt(text: &str) -> Result<(), String> {
-    println!("Prompt mode: {}", text);
-    println!("(TODO: Implement prompt mode)");
-    Ok(())
+///
+/// **用途**: `ifai "your prompt"` 或 `echo "prompt" | ifai`
+async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool) -> Result<(), String> {
+    // 解析有效配置
+    let config = config::EffectiveConfig::resolve(None, None, None, None)?;
+
+    let provider = config.provider().to_string();
+    let model = config.model().to_string();
+
+    // 初始化 Session
+    let mut session = session::Session::new(provider.clone(), model.clone());
+
+    // 🔥 禁用工具调用（如果设置了 --no-tool）
+    if no_tool {
+        session.disable_tools();
+    }
+
+    // 🔥 从配置读取 API key
+    if let Some(api_key) = config.api_key() {
+        session.set_api_key(api_key.to_string());
+    }
+
+    // 🔥 从配置读取 Base URL
+    if let Some(base_url) = config.base_url() {
+        session.set_base_url(base_url.to_string());
+    }
+
+    // 🔥 设置项目根目录
+    let current_dir = std::env::current_dir()
+        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    session.set_project_root(current_dir.to_string_lossy().to_string());
+
+    // 🔥 JSON 模式：不打印流式输出，只缓冲
+    if json_output {
+        // 记录初始 token 计数
+        let initial_input_tokens = session.cumulative_input_tokens;
+        let initial_output_tokens = session.cumulative_output_tokens;
+
+        match session.stream_prompt(text).await {
+            Ok(content) => {
+                // 计算本次请求的 token 使用量
+                let input_tokens = session.cumulative_input_tokens - initial_input_tokens;
+                let output_tokens = session.cumulative_output_tokens - initial_output_tokens;
+
+                let response = JsonResponse::success(
+                    provider,
+                    model,
+                    text.to_string(),
+                    content,
+                    Some(input_tokens),
+                    Some(output_tokens),
+                );
+
+                println!("{}", serde_json::to_string(&response).unwrap());
+                Ok(())
+            }
+            Err(e) => {
+                let response = JsonResponse::error(
+                    provider,
+                    model,
+                    text.to_string(),
+                    e,
+                );
+                println!("{}", serde_json::to_string(&response).unwrap());
+                Err(format!("Request failed"))
+            }
+        }
+    } else {
+        // 🔥 普通模式：流式输出
+        match session.stream_prompt(text).await {
+            Ok(_) => {
+                // 流式响应已在 stream_prompt 中打印
+                println!(); // 确保响应后换行
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                Err(e)
+            }
+        }
+    }
+}
+
+/// 运行单次提示词模式（同步包装）
+fn run_prompt(text: &str, json_output: bool, no_tool: bool) -> Result<(), String> {
+    // 创建 tokio runtime
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+
+    // 在 async runtime 中运行
+    rt.block_on(async {
+        run_prompt_async(text, json_output, no_tool).await
+    })
 }
 
 /// 🔄 运行 REPL 循环
@@ -306,19 +574,52 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 显示欢迎信息
     println!("{}", theme.muted);
     println!("Welcome to IfAI! Type /help for available commands.");
+    println!("Press Ctrl+D to exit.");
+    println!("Use ↑/↓ arrows for command history.");
     println!("{}", render::RESET);
+
+    // 🔥 创建 rustyline Editor（支持历史记录、上键、下键等）
+    let mut rl = Editor::<(), rustyline::history::DefaultHistory>::new()
+        .map_err(|e| format!("Failed to initialize editor: {:?}", e))?;
+
+    // 🔥 配置历史文件路径
+    let history_path = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("history"))
+        .ok_or("Failed to determine home directory")?;
+
+    // 确保历史文件目录存在
+    if let Some(parent) = history_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create history directory: {}", e))?;
+    }
+
+    // 🔥 加载历史记录
+    if history_path.exists() {
+        let _ = rl.load_history(&history_path);
+    }
 
     // REPL 循环
     loop {
-        // 显示提示符
-        print!("{}⟩{} ", theme.brand, render::RESET);
-        io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {}", e))?;
+        // 🔥 使用 rustyline readline（支持历史记录、上下键）
+        let readline = rl.readline(&format!("{}⟩{} ", theme.brand, render::RESET));
 
-        // 读取输入
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .map_err(|e| format!("Failed to read input: {}", e))?;
+        let input = match readline {
+            Ok(line) => line,
+            Err(rustyline::error::ReadlineError::Io(e)) => {
+                if e.kind() == io::ErrorKind::UnexpectedEof || e.kind() == io::ErrorKind::Interrupted {
+                    // Ctrl+D (EOF) 或 Ctrl+C (Interrupt)
+                    println!(); // 换行
+                    println!("{}Goodbye!{}", theme.success, render::RESET);
+                    break;
+                }
+                return Err(format!("IO error: {}", e));
+            }
+            Err(_) => {
+                // 其他错误
+                println!("{}Goodbye!{}", theme.success, render::RESET);
+                break;
+            }
+        };
 
         let input = input.trim();
 
@@ -327,9 +628,15 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
             continue;
         }
 
+        // 🔥 添加到历史记录
+        rl.add_history_entry(input);
+
         // 退出命令
         if input == "/exit" || input == "/quit" || input == "exit" || input == "quit" {
             println!("{}Goodbye!{}", theme.success, render::RESET);
+
+            // 🔥 保存历史记录
+            let _ = rl.save_history(&history_path);
             break;
         }
 
@@ -376,6 +683,9 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
             }
         }
     }
+
+    // 🔥 保存历史记录（正常退出时）
+    let _ = rl.save_history(&history_path);
 
     Ok(())
 }

@@ -218,6 +218,8 @@ pub struct Session {
     api_key: Option<String>,
     /// 🔥 Base URL（可选，从 TOML 配置读取）
     base_url: Option<String>,
+    /// 🔥 禁用工具调用（--no-tool 标志）
+    tools_disabled: bool,
 }
 
 impl Session {
@@ -235,6 +237,7 @@ impl Session {
             cumulative_output_tokens: 0,
             api_key: None,
             base_url: None,
+            tools_disabled: false,
         }
     }
 
@@ -246,6 +249,11 @@ impl Session {
     /// 🔥 设置 Base URL（从 EffectiveConfig 读取）
     pub fn set_base_url(&mut self, base_url: String) {
         self.base_url = Some(base_url);
+    }
+
+    /// 🔥 禁用工具调用（--no-tool 标志）
+    pub fn disable_tools(&mut self) {
+        self.tools_disabled = true;
     }
 
     /// 🔥 获取 API key（优先返回已设置的，否则从环境变量读取）
@@ -374,7 +382,8 @@ impl Session {
                 system: Some(system_prompt.clone()),
                 temperature: Some(0.7),
                 stream: true,
-                tools: if tools.is_empty() { None } else { Some(tools.clone()) },
+                // 🔥 如果禁用工具，不发送 tools 参数
+                tools: if self.tools_disabled || tools.is_empty() { None } else { Some(tools.clone()) },
             };
 
             // 发送流式请求
