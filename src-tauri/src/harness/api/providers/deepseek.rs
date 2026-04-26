@@ -136,8 +136,8 @@ impl ApiClient for DeepSeekClient {
                             frame_count += 1;
 
                             // 🔥 FIX: 移除高频日志，避免流式输出卡顿
-                            // 仅保留前 3 帧用于连接诊断
-                            if frame_count <= 3 {
+                            // 仅保留前 3 帧用于连接诊断（可通过 IFAI_QUIET 禁用）
+                            if frame_count <= 3 && std::env::var("IFAI_QUIET").is_err() {
                                 println!("[DeepSeek] 📨 Frame {}: {} bytes", frame_count, frame_bytes.len());
                             }
 
@@ -220,17 +220,21 @@ impl ApiClient for DeepSeekClient {
                                     yield Ok(event);
                                 }
                             } else {
-                                // 🔥 DIAGNOSTIC: 记录无法解析的帧
-                                println!("[DeepSeek] ⚠️ Frame {} could not be parsed, preview=\"{}\"",
-                                    frame_count,
-                                    frame.chars().take(100).collect::<String>()
-                                );
+                                // 🔥 DIAGNOSTIC: 记录无法解析的帧（可通过 IFAI_QUIET 禁用）
+                                if std::env::var("IFAI_QUIET").is_err() {
+                                    println!("[DeepSeek] ⚠️ Frame {} could not be parsed, preview=\"{}\"",
+                                        frame_count,
+                                        frame.chars().take(100).collect::<String>()
+                                    );
+                                }
                             }
                         }
                     }
                     Err(e) => {
-                        // 🔥 DIAGNOSTIC: 记录网络错误
-                        println!("[DeepSeek] ❌ Network error after {} frames: {:?}", frame_count, e);
+                        // 🔥 DIAGNOSTIC: 记录网络错误（可通过 IFAI_QUIET 禁用）
+                        if std::env::var("IFAI_QUIET").is_err() {
+                            println!("[DeepSeek] ❌ Network error after {} frames: {:?}", frame_count, e);
+                        }
                         yield Err(ApiError::Network(e.to_string()));
                     }
                 }
@@ -247,9 +251,11 @@ impl ApiClient for DeepSeekClient {
                     );
                 }
             }
-            println!("[DeepSeek] 🏁 Stream completed: frames={}, finish_reason={:?}",
-                frame_count, last_finish_reason
-            );
+            if std::env::var("IFAI_QUIET").is_err() {
+                println!("[DeepSeek] 🏁 Stream completed: frames={}, finish_reason={:?}",
+                    frame_count, last_finish_reason
+                );
+            }
         }))
     }
 
@@ -285,7 +291,7 @@ fn find_separator(buffer: &[u8]) -> usize {
     0
 }
 
-/// 转换 DeepSeek/OpenAI 格式的数据为统一事件
+/// 🔥 转换 DeepSeek/OpenAI 格式的数据为统一事件（支持 usage 追踪）
 fn convert_deepseek_data(data: &super::openai_format::OpenAiSseData) -> Option<StreamEvent> {
     if let Some(choice) = data.choices.first() {
         // 检查是否有内容
@@ -299,7 +305,16 @@ fn convert_deepseek_data(data: &super::openai_format::OpenAiSseData) -> Option<S
 
         // 检查是否完成
         if choice.finish_reason.is_some() {
-            return Some(StreamEvent::MessageDone { tokens_used: 0 });
+            // 🔥 提取 token 使用量
+            let (input_tokens, output_tokens) = if let Some(usage) = &data.usage {
+                (usage.prompt_tokens, usage.completion_tokens)
+            } else {
+                (0, 0)
+            };
+            return Some(StreamEvent::MessageDone {
+                input_tokens,
+                output_tokens,
+            });
         }
     }
 

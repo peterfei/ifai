@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "ifai-render-macro"]
+
 [package]
 name = "ifainew"
 version = "0.4.3"
@@ -32,7 +35,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # CLI binary configuration
 [[bin]]
 name = "ifai"
-path = "src/bin/ifai.rs"
+path = "src/bin/cli/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -75,16 +78,19 @@ text-splitter = "0.28.0"
 anyhow = "1.0.100"
 once_cell = "1.21.3"
 uuid = { version = "1.19.0", features = ["v4"] }
+libc = "0.2"  # 🔥 终端尺寸查询（Unix 平台）
 notify = "8.2.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 
 ifainew-core = { path = "../../ifainew-core/rust", optional = true }
+ifai-render-macro = { path = "ifai-render-macro" }
 tauri-plugin-window-state = "2"
 handlebars = "6.3.2"
 async-trait = "0.1.89"
 serde_yaml = "0.9.34"
 rust-embed = "8.9.0"
 chrono = "0.4.42"
+toml = "0.8"
 tiktoken-rs = "0.9.1"
 regex = "1.12.2"
 dirs = "5.0"
@@ -92,6 +98,8 @@ md5 = "0.7"
 # CLI dependencies
 rustyline = "14"
 base64 = "0.22"
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
 tree-sitter = "0.24.3"
 tree-sitter-rust = "0.23.0"
 tree-sitter-typescript = "0.23.0"
@@ -100,6 +108,7 @@ tree-sitter-python = "0.23.0"
 # SmartScanner 极简元编程框架依赖
 rayon = "1.10"  # 并行处理
 lru = "0.12"    # LRU 缓存
+rand = "0.8"    # 随机采样
 
 # llama.cpp Rust bindings for local LLM inference
 # Supports GGUF format natively (user's model: qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf)
@@ -111,3 +120,5 @@ num_cpus = { version = "1.16", optional = true }
 [dev-dependencies]
 tracing-subscriber = "0.3"
 tempfile = "3.10"
+insta = "1"
+pretty_assertions = "1"

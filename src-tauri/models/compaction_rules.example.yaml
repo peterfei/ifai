@@ -1,0 +1,101 @@
+# 🔥 元数据驱动的会话压缩规则
+# 单一真实来源 - 零硬编码
+# 用途：CompactionEngine 从配置生成压缩逻辑
+
+compaction_rules:
+  # 默认压缩规则（优先级最低）
+  - priority: 100
+    name: "default-compaction"
+    enabled: true
+
+    # 触发条件
+    trigger_condition:
+      min_messages: 10        # 最少消息数
+      max_tokens: 100000      # 最大 token 数（估算）
+      max_turns: null         # 最大轮次（null = 不限制）
+
+    # 保留配置
+    preserve_config:
+      recent_messages: 10     # 保留最近 N 条消息
+      system_prompt: true     # 保留原始系统提示词
+      tool_pairs: true        # 保留 tool/tool_response 配对
+      preserve_summary: true  # 保留之前的压缩摘要
+
+    # 摘要生成配置
+    summary_config:
+      prompt_template: "conversation-summary"  # 使用 prompts/conversation-summary.txt
+      max_summary_length: 2000   # 摘要最大长度（字符）
+      include_sections:
+        - "conversation_scope"   # 会话范围
+        - "tools_used"           # 使用的工具
+        - "recent_requests"      # 最近请求（最多 3 条）
+        - "pending_work"         # 待处理工作
+        - "file_references"      # 文件引用
+        - "current_status"       # 当前状态
+        - "key_timeline"         # 关键时间线
+
+  # 激进压缩（长会话）
+  - priority: 50
+    name: "aggressive-compaction"
+    enabled: true
+
+    trigger_condition:
+      min_messages: 50
+      max_tokens: 500000
+      max_turns: null
+
+    preserve_config:
+      recent_messages: 5        # 只保留 5 条消息
+      system_prompt: true
+      tool_pairs: false         # 不保留工具配对
+      preserve_summary: true
+
+    summary_config:
+      prompt_template: "conversation-summary"
+      max_summary_length: 5000  # 更长的摘要
+      include_sections:
+        - "conversation_scope"
+        - "tools_used"
+        - "recent_requests"
+        - "pending_work"
+        - "file_references"
+        - "current_status"
+        - "key_timeline"
+        - "decisions_made"       # 决策记录
+        - "errors_encountered"   # 遇到的错误
+
+  # 轻度压缩（快速清理）
+  - priority: 200
+    name: "light-compaction"
+    enabled: true
+
+    trigger_condition:
+      min_messages: 20
+      max_tokens: 50000
+      max_turns: null
+
+    preserve_config:
+      recent_messages: 15       # 保留更多消息
+      system_prompt: true
+      tool_pairs: true
+      preserve_summary: true
+
+    summary_config:
+      prompt_template: "conversation-summary"
+      max_summary_length: 1000  # 更短的摘要
+      include_sections:
+        - "conversation_scope"
+        - "recent_requests"      # 只保留最近请求
+        - "current_status"
+
+# 自动压缩开关（用户可通过配置禁用）
+auto_compaction:
+  enabled: true
+  check_interval: "after-each-turn"  # 每轮对话后检查
+  user_confirmation: false           # false = 自动压缩，true = 询问用户
+  notification: "compact-recommended" # "always" | "compact-recommended" | "never"
+
+# 压缩提示词模板路径
+prompt_templates:
+  conversation-summary: "prompts/conversation-summary.txt"
+  continuation-message: "prompts/continuation-message.txt"

@@ -201,7 +201,8 @@ pub enum StreamEvent {
         result: String,
     },
     MessageDone {
-        tokens_used: u32,
+        input_tokens: u32,
+        output_tokens: u32,
     },
     Error {
         code: String,

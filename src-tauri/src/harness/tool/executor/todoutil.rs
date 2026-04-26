@@ -113,9 +113,9 @@ impl TodoWriteExecutor {
             .enumerate()
             .map(|(i, task)| {
                 let status_symbol = match task.status {
-                    TaskStatus::Pending => "⏳",
-                    TaskStatus::InProgress => "🔄",
-                    TaskStatus::Completed => "✅",
+                    TaskStatus::Pending => "[TODO]",
+                    TaskStatus::InProgress => "[IN-PROGRESS]",
+                    TaskStatus::Completed => "[DONE]",
                 };
                 format!("  [{}] {} {}", i + 1, status_symbol, task.content)
             })

@@ -50,7 +50,7 @@ impl FileToolsExecutor {
 
         // 返回文件内容和路径信息
         Ok(format!(
-            "📄 File: {}\n\n{}\n\n---\n📊 Line count: {}",
+            "File: {}\n\n{}\n\n---\nLine count: {}",
             path,
             content,
             content.lines().count()
@@ -95,7 +95,7 @@ impl FileToolsExecutor {
         let line_count = content.lines().count();
         let char_count = content.len();
         Ok(format!(
-            "✅ Successfully wrote to file: {}\n📊 {} lines, {} characters",
+            "Successfully wrote to file: {}\n{} lines, {} characters",
             path,
             line_count,
             char_count
@@ -157,7 +157,7 @@ impl FileToolsExecutor {
         // 返回成功消息
         let replacements = content.matches(old_text).count();
         Ok(format!(
-            "✅ Successfully edited file: {}\n🔄 Replaced {} occurrence(s)",
+            "Successfully edited file: {}\nReplaced {} occurrence(s)",
             path, replacements
         ))
     }

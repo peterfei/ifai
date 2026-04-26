@@ -1,0 +1,83 @@
+# 🔥 元数据驱动的 Token 预警规则
+# 单一真实来源 - 零硬编码
+# 用途：WarningEngine 从配置生成预警逻辑
+
+# 预警等级配置
+warning_levels:
+  # 低使用量（0-50%）
+  - level: Low
+    min_percentage: 0
+    color_key: "muted"           # 从 Theme.256_color_code 读取
+    icon: ""
+    template: "Tokens: {current:,}/{max:,} ({pct}%)"
+    show_progress: true
+
+  # 中等使用量（50-75%）
+  - level: Medium
+    min_percentage: 50
+    color_key: "info"
+    icon: ""
+    template: "Tokens: {current:,}/{max:,} ({pct}%)"
+    show_progress: true
+
+  # 高使用量（75-90%）
+  - level: High
+    min_percentage: 75
+    color_key: "warning"
+    icon: "!"
+    template: "Warning: {current:,}/{max:,} tokens used ({pct}%)"
+    show_progress: true
+
+  # 危险使用量（90-100%）
+  - level: Critical
+    min_percentage: 90
+    color_key: "error"
+    icon: "!!"
+    template: "CRITICAL: {current:,}/{max:,} ({pct}%)"
+    show_progress: true
+    suggestion: "Use /compact to reduce context size."
+
+# 进度条配置
+progress_bar:
+  width: 20                    # 进度条宽度（字符数）
+  filled_char: "█"             # 填充字符
+  empty_char: "░"              # 空白字符
+  empty_color: 240             # ANSI 256 色代码（灰色）
+
+# 自动操作触发（声明式）
+actions:
+  # 75% 时建议压缩
+  - trigger_percentage: 75
+    level: High
+    action: suggest_compact
+    message: "Consider /compact to avoid truncation."
+
+  # 90% 时强烈建议压缩
+  - trigger_percentage: 90
+    level: Critical
+    action: suggest_compact
+    message: "Context near limit. Use /compact now."
+
+  # 95% 时阻止新请求
+  - trigger_percentage: 95
+    level: Critical
+    action: block_request
+    message: "Context limit reached. Cannot continue without /compact."
+
+# 模型特定覆盖（可选）
+model_overrides:
+  # 小上下文模型（如 GPT-3.5）
+  - model_pattern: "gpt-3.5-turbo"
+    max_tokens: 16385
+    warning_levels:
+      - level: Critical
+        min_percentage: 85  # 提前触发警告
+        icon: "!!"
+
+  # 大上下文模型（如 Claude）
+  - model_pattern: "claude-3"
+    max_tokens: 200000
+    warning_levels:
+      - level: Critical
+        min_percentage: 95  # 延后触发警告
+        icon: "!!!"

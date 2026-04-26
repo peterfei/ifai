@@ -153,14 +153,30 @@ fn is_chinese(c: char) -> bool {
     matches!(c as u32, 0x4E00..=0x9FFF)
 }
 
-/// 转换自定义供应商的 SSE 事件为统一格式
+/// 🔥 转换自定义供应商的 SSE 事件为统一格式（支持 usage 追踪）
 fn convert_custom_event(event: &super::super::sse::SseEvent) -> StreamEvent {
     match event {
         super::super::sse::SseEvent::ContentBlockDelta { delta, .. } => StreamEvent::TextDelta {
             text: delta.text.clone(),
         },
-        super::super::sse::SseEvent::MessageStop => StreamEvent::MessageDone {
-            tokens_used: 0,
+        super::super::sse::SseEvent::MessageDelta { usage, .. } => {
+            // 🔥 提取 token 使用量
+            let (input_tokens, output_tokens) = if let Some(usage) = usage {
+                (usage.input_tokens, usage.output_tokens)
+            } else {
+                (0, 0)
+            };
+            StreamEvent::MessageDone {
+                input_tokens,
+                output_tokens,
+            }
+        }
+        super::super::sse::SseEvent::MessageStop => {
+            // 兼容旧格式：如果没有 MessageDelta，返回 0
+            StreamEvent::MessageDone {
+                input_tokens: 0,
+                output_tokens: 0,
+            }
         },
         _ => StreamEvent::TextDelta {
             text: String::new(),
