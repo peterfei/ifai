@@ -421,7 +421,7 @@ fn run_action(action: CliAction) -> Result<(), String> {
 
 /// 📋 显示版本信息
 fn show_version() {
-    println!("IfAI CLI v0.4.3");
+    println!("IfAI CLI v0.4.4");
     println!("Industrial-grade AI code assistant");
 }
 
@@ -453,7 +453,7 @@ fn config_show() -> Result<(), String> {
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
     let theme = render::default_theme();
 
-    println!("{}", render::render_banner("v0.4.3", &config.provider(), &config.model(), &theme));
+    println!("{}", render::render_banner("v0.4.4", &config.provider(), &config.model(), &theme));
     println!();
     println!("{}", render::render_config_chain(
         None,  // CLI arg
@@ -572,7 +572,7 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     let theme = render::default_theme();
 
     // 显示 Banner
-    println!("{}", render::render_banner("v0.4.3", &config.provider(), &config.model(), &theme));
+    println!("{}", render::render_banner("v0.4.4", &config.provider(), &config.model(), &theme));
     println!();
 
     // 初始化 Session

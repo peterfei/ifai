@@ -89,7 +89,7 @@ impl App {
 
         // 欢迎信息
         let theme = render::default_theme();
-        app.push_line(format!("{}IfAI CLI v0.4.3{}", theme.brand, render::RESET));
+        app.push_line(format!("{}IfAI CLI v0.4.4{}", theme.brand, render::RESET));
         app.push_line("Type /help for commands. Press Ctrl+D to exit.".to_string());
         app.push_line("Scroll: PageUp/PageDown or Shift+Up/Down.".to_string());
         app.push_line(String::new());
