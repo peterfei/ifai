@@ -878,6 +878,7 @@ impl Session {
         prompt: &str,
         output_tx: tokio::sync::mpsc::UnboundedSender<String>,
         status_tx: tokio::sync::mpsc::UnboundedSender<String>,
+        approval_tx: tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
     ) -> Result<String, String> {
         let spec = resolve_provider(&self.provider)
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
@@ -1110,9 +1111,9 @@ impl Session {
                 break;
             }
 
-            // Execute 阶段：执行工具（TUI 模式下自动审批所有工具）
+            // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
             let _ = output_tx.send(String::new());
-            let tool_results = self.execute_tools_tui(collector.pending_tools(), &output_tx)?;
+            let tool_results = self.execute_tools_tui(collector.pending_tools(), &output_tx, &approval_tx).await?;
 
             let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
                 ToolCall {
@@ -1191,14 +1192,14 @@ impl Session {
         Ok(full_response)
     }
 
-    /// 🔧 TUI 模式执行工具（自动审批，不使用 stdin）
-    fn execute_tools_tui(
+    /// 🔧 TUI 模式执行工具（通过审批 channel 交互确认）
+    async fn execute_tools_tui(
         &mut self,
         tools: &[PendingToolCall],
         output_tx: &tokio::sync::mpsc::UnboundedSender<String>,
+        approval_tx: &tokio::sync::mpsc::UnboundedSender<crate::approval_overlay::ApprovalRequest>,
     ) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
-        let theme = render::default_theme();
 
         for tool in tools {
             self.pipeline_tracker.start_step(
@@ -1209,12 +1210,40 @@ impl Session {
         }
 
         for tool in tools {
-            let category = approval::categorize_tool(&tool.name);
+            let auto_approve = approval::should_auto_approve(&tool.name, false);
 
-            // TUI 模式：自动审批所有工具（无交互式确认）
-            // TODO: 后续可添加 TUI 原生审批对话框
-            if matches!(category, approval::ToolCategory::Dangerous) {
-                let _ = output_tx.send(format!("⚠️ 自动执行危险工具: {} (TUI 模式下跳过审批)", tool.name));
+            if !auto_approve {
+                // 通过 channel 发送审批请求，等待用户决策
+                let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+                let request = crate::approval_overlay::ApprovalRequest::from_tool(tool, response_tx);
+                if approval_tx.send(request).is_err() {
+                    let error_msg = format!("Tool '{}': approval channel closed", tool.name);
+                    self.pipeline_tracker.skip_step(&tool.tool_id, error_msg.clone());
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    continue;
+                }
+
+                match response_rx.await {
+                    Ok(crate::approval_overlay::ApprovalDecision::Approve) => {
+                        // 继续执行
+                    }
+                    Ok(crate::approval_overlay::ApprovalDecision::Deny) => {
+                        let error_msg = format!("Tool '{}' execution denied by user", tool.name);
+                        self.pipeline_tracker.skip_step(&tool.tool_id, error_msg.clone());
+                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        continue;
+                    }
+                    Ok(crate::approval_overlay::ApprovalDecision::Abort) => {
+                        // 中止后续所有工具
+                        return Err("aborted by user".to_string());
+                    }
+                    Err(_) => {
+                        let error_msg = format!("Tool '{}': approval channel closed", tool.name);
+                        self.pipeline_tracker.skip_step(&tool.tool_id, error_msg.clone());
+                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        return Err("approval channel closed".to_string());
+                    }
+                }
             }
 
             let args_json: serde_json::Value = serde_json::from_str(&tool.args)

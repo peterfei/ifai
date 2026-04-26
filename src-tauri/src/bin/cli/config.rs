@@ -227,6 +227,9 @@ impl EffectiveConfig {
 
 /// 配置文件路径 (~/.ifai/config.toml)
 pub fn config_file_path() -> PathBuf {
+    if let Ok(path) = std::env::var("IFAI_CONFIG_PATH") {
+        return PathBuf::from(path);
+    }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".ifai")
@@ -416,6 +419,10 @@ fn read_provider_base_url_from_toml(provider_id: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// 序列化环境变量操作，避免并行测试竞争
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_config_source_as_str() {
@@ -434,15 +441,15 @@ mod tests {
 
     #[test]
     fn test_resolve_provider_default() {
-        // 清除可能存在的环境变量
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("IFAI_PROVIDER");
+        std::env::set_var("IFAI_CONFIG_PATH", "/nonexistent/ifai/config.toml");
 
-        // 注意：如果有 ~/.ifai/config.toml 文件，测试可能会失败
-        // 因为 TOML 配置优先级高于 YAML 默认值
         let result = EffectiveConfig::resolve_provider(None).unwrap();
         assert_eq!(result.value, "deepseek");
-        // 如果 TOML 文件存在，来源会是 ConfigFile；否则是 YamlDefault
-        assert!(result.source == ConfigSource::YamlDefault || result.source == ConfigSource::ConfigFile);
+        assert_eq!(result.source, ConfigSource::YamlDefault);
+
+        std::env::remove_var("IFAI_CONFIG_PATH");
     }
 
     #[test]
@@ -454,14 +461,15 @@ mod tests {
 
     #[test]
     fn test_resolve_model_default_from_provider() {
-        // 清除可能存在的环境变量
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("IFAI_MODEL");
+        std::env::set_var("IFAI_CONFIG_PATH", "/nonexistent/ifai/config.toml");
 
         let result = EffectiveConfig::resolve_model("deepseek", None).unwrap();
-        // deepseek-official 的第一个模型应该是有效的
         assert!(!result.value.is_empty());
-        // 配置来源可能是 YamlDefault 或 ConfigFile（如果用户有 TOML 配置）
-        assert!(matches!(result.source, ConfigSource::YamlDefault | ConfigSource::ConfigFile));
+        assert_eq!(result.source, ConfigSource::YamlDefault);
+
+        std::env::remove_var("IFAI_CONFIG_PATH");
     }
 
     #[test]
@@ -473,12 +481,15 @@ mod tests {
 
     #[test]
     fn test_resolve_api_key_none() {
-        // 清除可能存在的环境变量
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("OPENAI_API_KEY");
+        std::env::set_var("IFAI_CONFIG_PATH", "/nonexistent/ifai/config.toml");
 
         let result = EffectiveConfig::resolve_api_key("openai", None).unwrap();
         assert_eq!(result.value, None);
         assert_eq!(result.source, ConfigSource::YamlDefault);
+
+        std::env::remove_var("IFAI_CONFIG_PATH");
     }
 
     #[test]
@@ -490,17 +501,21 @@ mod tests {
 
     #[test]
     fn test_resolve_base_url_none() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("IFAI_CONFIG_PATH", "/nonexistent/ifai/config.toml");
         let result = EffectiveConfig::resolve_base_url(None, "deepseek");
+        std::env::remove_var("IFAI_CONFIG_PATH");
         assert_eq!(result.value, None);
         assert_eq!(result.source, ConfigSource::YamlDefault);
     }
 
     #[test]
     fn test_effective_config_full_resolution() {
-        // 清除环境变量
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::remove_var("IFAI_PROVIDER");
         std::env::remove_var("IFAI_MODEL");
         std::env::remove_var("DEEPSEEK_API_KEY");
+        std::env::set_var("IFAI_CONFIG_PATH", "/nonexistent/ifai/config.toml");
 
         let config = EffectiveConfig::resolve(
             Some("deepseek"),
@@ -508,6 +523,8 @@ mod tests {
             Some("sk-test"),
             None,
         ).unwrap();
+
+        std::env::remove_var("IFAI_CONFIG_PATH");
 
         assert_eq!(config.provider(), "deepseek");
         assert_eq!(config.model(), "deepseek-chat");
@@ -554,7 +571,7 @@ mod tests {
 
     #[test]
     fn test_precedence_env_overrides_default() {
-        // 清除可能存在的 CLI arg
+        let _lock = ENV_LOCK.lock().unwrap();
         std::env::set_var("IFAI_PROVIDER", "openai");
 
         let result = EffectiveConfig::resolve_provider(None).unwrap();

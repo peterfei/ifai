@@ -13,13 +13,14 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, Paragraph, Widget},
     Terminal,
 };
 
 use crate::render;
 
 use super::input_composer::{self, InputComposer, InputAction};
+use super::approval_overlay::{self, ApprovalRequest, ApprovalDecision};
 
 /// 剥离 ANSI 转义序列（按 char 边界，保留 UTF-8 多字节字符）
 fn strip_ansi(s: &str) -> String {
@@ -61,6 +62,8 @@ pub struct App {
     status_text: String,
     /// 是否正在处理 AI 请求（阻止新输入）
     busy: bool,
+    /// 审批状态（Some = 审批面板显示中）
+    approval_state: Option<ApprovalRequest>,
 }
 
 impl App {
@@ -81,6 +84,7 @@ impl App {
             input: InputComposer::new(""),
             status_text: String::new(),
             busy: false,
+            approval_state: None,
         };
 
         // 欢迎信息
@@ -113,6 +117,38 @@ impl App {
     /// 设置忙碌状态
     pub fn set_busy(&mut self, busy: bool) {
         self.busy = busy;
+    }
+
+    /// 设置审批等待状态
+    pub fn set_approval_pending(&mut self, request: ApprovalRequest) {
+        self.approval_state = Some(request);
+    }
+
+    /// 解析审批决策，返回日志消息
+    pub fn resolve_approval(&mut self, decision: ApprovalDecision) -> String {
+        let tool_name = self.approval_state
+            .as_ref()
+            .map(|r| r.tool_name.clone())
+            .unwrap_or_default();
+
+        // 通过 oneshot 发送决策
+        if let Some(request) = self.approval_state.take() {
+            let _ = request.response_tx.send(decision);
+        }
+
+        // 清空终端 buffer，确保 overlay 残留（border 字符）被完全清除
+        let _ = self.terminal.clear();
+
+        match decision {
+            ApprovalDecision::Approve => format!("✓ 已批准执行 {}", tool_name),
+            ApprovalDecision::Deny => format!("✗ 已拒绝执行 {}", tool_name),
+            ApprovalDecision::Abort => "⊘ 已中止 AI 请求".to_string(),
+        }
+    }
+
+    /// 是否处于审批状态
+    pub fn is_approving(&self) -> bool {
+        self.approval_state.is_some()
     }
 
     /// 滚动到底部
@@ -175,6 +211,9 @@ impl App {
             let status_area = chunks[1];
             let input_area = chunks[2];
 
+            // 清空内容区（确保 overlay 关闭后残留内容被清除）
+            f.render_widget(Clear, content_area);
+
             // === 内容区 ===
             let visible_count = content_area.height as usize;
             let total_lines = self.content_lines.len();
@@ -185,6 +224,28 @@ impl App {
             let content = Paragraph::new(visible_lines)
                 .scroll((0, 0));
             f.render_widget(content, content_area);
+
+            // === 审批 Overlay ===
+            if let Some(request) = &self.approval_state {
+                let panel_lines = approval_overlay::render_panel_lines(request);
+                let panel_width = 60.min(content_area.width.saturating_sub(4));
+                let panel_height = (panel_lines.len() as u16 + 2).min(content_area.height.saturating_sub(2));
+                let panel_x = content_area.x + (content_area.width.saturating_sub(panel_width)) / 2;
+                let panel_y = content_area.y + (content_area.height.saturating_sub(panel_height)) / 2;
+                let panel_area = Rect::new(panel_x, panel_y, panel_width, panel_height);
+
+                // 边框 + 黑色背景填充（确保关闭后残留内容被覆盖）
+                let border = Block::bordered()
+                    .border_style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow))
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(border, panel_area);
+
+                // 面板内容
+                let inner = panel_area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
+                let panel = Paragraph::new(panel_lines)
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(panel, inner);
+            }
 
             // === 滚动指示器 ===
             let max_offset = total_lines.saturating_sub(visible_count) as u16;
@@ -209,36 +270,47 @@ impl App {
             }
 
             // === 状态栏 ===
-            let status_line = if self.status_text.is_empty() {
-                Line::from(Span::styled(
-                    " [Ready] ",
-                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                ))
+            let status_content = if self.approval_state.is_some() {
+                "⏳ 等待审批..."
+            } else if !self.status_text.is_empty() {
+                &self.status_text
             } else {
-                Line::from(Span::styled(
-                    format!(" {} ", self.status_text),
-                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                ))
+                " [Ready] "
             };
+            let status_line = Line::from(Span::styled(
+                format!(" {} ", status_content),
+                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+            ));
             let status = Paragraph::new(status_line)
                 .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
             f.render_widget(status, status_area);
 
             // === 输入框 ===
-            let cursor_col = input_composer::cursor_col(&self.input);
-            let prompt = Span::styled(
-                "⟩ ",
-                ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
-            );
-            let input_text = Span::raw(self.input.value());
-            let input_line = Line::from(vec![prompt, input_text]);
-            let input = Paragraph::new(input_line);
-            f.render_widget(input, input_area);
+            if self.approval_state.is_some() {
+                // 审批状态：显示 "[审批中]"，隐藏光标
+                let prompt = Span::styled(
+                    "[审批中]",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                );
+                let input = Paragraph::new(Line::from(prompt));
+                f.render_widget(input, input_area);
+                // 不设置光标位置
+            } else {
+                let cursor_col = input_composer::cursor_col(&self.input);
+                let prompt = Span::styled(
+                    "⟩ ",
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                );
+                let input_text = Span::raw(self.input.value());
+                let input_line = Line::from(vec![prompt, input_text]);
+                let input = Paragraph::new(input_line);
+                f.render_widget(input, input_area);
 
-            // 设置终端光标位置
-            let cursor_x = input_area.x + cursor_col.min(input_area.width);
-            let cursor_y = input_area.y;
-            f.set_cursor_position((cursor_x, cursor_y));
+                // 设置终端光标位置
+                let cursor_x = input_area.x + cursor_col.min(input_area.width);
+                let cursor_y = input_area.y;
+                f.set_cursor_position((cursor_x, cursor_y));
+            }
         });
     }
 

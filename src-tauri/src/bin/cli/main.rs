@@ -24,6 +24,7 @@ mod code_folding; // 🎨 代码折叠 - 元编程架构
 mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
 mod markdown_meta; // 🎨 Markdown 元编程驱动层
 mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
+mod approval_overlay; // 🔥 TUI 工具审批 Overlay
 
 use std::env;
 use std::io::{self, IsTerminal, Write};
@@ -821,6 +822,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                     let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
                     let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+                    let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<approval_overlay::ApprovalRequest>();
 
                     let session_clone = session.clone();
                     let input = text.clone();
@@ -828,7 +830,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     // 在后台任务中运行 stream_prompt
                     let mut stream_handle = tokio::spawn(async move {
                         let mut s = session_clone.lock().await;
-                        s.stream_prompt_tui(&input, output_tx, status_tx).await
+                        s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx).await
                     });
 
                     // 实时接收输出并渲染
@@ -841,6 +843,24 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                             Some(status) = status_rx.recv() => {
                                 app.set_status(status);
                                 app.render();
+                            }
+                            Some(request) = approval_rx.recv() => {
+                                app.set_approval_pending(request);
+                                app.render();
+
+                                // 审批模式：拦截按键直到决策
+                                loop {
+                                    if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
+                                        if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                                            if let Some(decision) = approval_overlay::resolve_approval_key(key) {
+                                                let msg = app.resolve_approval(decision);
+                                                app.push_line(msg);
+                                                app.render();
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             result = &mut stream_handle => {
                                 match result {
