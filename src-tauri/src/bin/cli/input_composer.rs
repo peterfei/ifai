@@ -247,3 +247,401 @@ pub fn cursor_col(composer: &InputComposer) -> u16 {
         .sum();
     (composer.prompt.len() + display_width + 1) as u16
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    /// 辅助：创建普通字符按键
+    fn char_key(c: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)
+    }
+
+    /// 辅助：创建 Ctrl+字符 按键
+    fn ctrl_char_key(c: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL)
+    }
+
+    /// 辅助：创建功能键
+    fn code_key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    // === 字符输入 ===
+
+    #[test]
+    fn test_ascii_input() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('e'));
+        ic.handle_key(char_key('l'));
+        assert_eq!(ic.value(), "hel");
+    }
+
+    #[test]
+    fn test_chinese_input() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('你'));
+        ic.handle_key(char_key('好'));
+        assert_eq!(ic.value(), "你好");
+        assert_eq!(ic.cursor_pos, 6); // 每个中文字符 3 字节
+    }
+
+    #[test]
+    fn test_mixed_ascii_and_cjk() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('中'));
+        ic.handle_key(char_key('b'));
+        assert_eq!(ic.value(), "a中b");
+    }
+
+    #[test]
+    fn test_history_index_reset_on_input() {
+        let mut ic = InputComposer::new("");
+        ic.history.push("old".to_string());
+        ic.handle_key(code_key(KeyCode::Up)); // 进入历史浏览
+        assert_eq!(ic.value(), "old");
+        assert!(ic.history_index.is_some());
+        ic.handle_key(char_key('x')); // 输入新字符应重置历史索引
+        assert!(ic.history_index.is_none());
+    }
+
+    // === 光标移动 ===
+
+    #[test]
+    fn test_cursor_left_right() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        ic.handle_key(char_key('c'));
+        assert_eq!(ic.cursor_pos, 3);
+
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 2);
+
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 1);
+
+        ic.handle_key(code_key(KeyCode::Right));
+        assert_eq!(ic.cursor_pos, 2);
+    }
+
+    #[test]
+    fn test_cursor_left_boundary() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 0);
+        // 再按一次不应出错
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_cursor_right_boundary() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(code_key(KeyCode::Right));
+        assert_eq!(ic.cursor_pos, 1);
+        // 再按一次不应出错
+        ic.handle_key(code_key(KeyCode::Right));
+        assert_eq!(ic.cursor_pos, 1);
+    }
+
+    #[test]
+    fn test_cursor_home_end() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        ic.handle_key(char_key('c'));
+
+        ic.handle_key(code_key(KeyCode::Home));
+        assert_eq!(ic.cursor_pos, 0);
+
+        ic.handle_key(code_key(KeyCode::End));
+        assert_eq!(ic.cursor_pos, 3);
+    }
+
+    #[test]
+    fn test_cursor_left_with_cjk() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('你'));
+        ic.handle_key(char_key('好'));
+        assert_eq!(ic.cursor_pos, 6);
+
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 3); // 跳过 "好" (3 字节)
+
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 0); // 跳过 "你" (3 字节)
+    }
+
+    #[test]
+    fn test_insert_in_middle_with_cjk() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('你'));
+        ic.handle_key(char_key('好'));
+        // 光标在末尾 (pos=6)，移动到中间
+        ic.handle_key(code_key(KeyCode::Left));
+        assert_eq!(ic.cursor_pos, 3);
+        // 在中间插入
+        ic.handle_key(char_key('a'));
+        assert_eq!(ic.value(), "你a好");
+        assert_eq!(ic.cursor_pos, 4);
+    }
+
+    // === 删除 ===
+
+    #[test]
+    fn test_backspace() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        ic.handle_key(code_key(KeyCode::Backspace));
+        assert_eq!(ic.value(), "a");
+        assert_eq!(ic.cursor_pos, 1);
+    }
+
+    #[test]
+    fn test_backspace_empty_buffer() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(code_key(KeyCode::Backspace));
+        assert_eq!(ic.value(), "");
+        assert_eq!(ic.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_backspace_cjk() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('你'));
+        ic.handle_key(code_key(KeyCode::Backspace));
+        assert_eq!(ic.value(), "");
+        assert_eq!(ic.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_delete() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        ic.handle_key(char_key('c'));
+        ic.handle_key(code_key(KeyCode::Left)); // cursor at pos 2, before 'c'
+        ic.handle_key(code_key(KeyCode::Delete));
+        assert_eq!(ic.value(), "ab");
+    }
+
+    #[test]
+    fn test_delete_in_middle() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        ic.handle_key(char_key('c'));
+        ic.handle_key(code_key(KeyCode::Left)); // cursor at pos 2
+        ic.handle_key(code_key(KeyCode::Left)); // cursor at pos 1, before 'b'
+        ic.handle_key(code_key(KeyCode::Delete));
+        assert_eq!(ic.value(), "ac");
+    }
+
+    #[test]
+    fn test_delete_at_end() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(code_key(KeyCode::Delete));
+        assert_eq!(ic.value(), "a");
+    }
+
+    // === 快捷键 ===
+
+    #[test]
+    fn test_ctrl_c_interrupt() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('e'));
+        let action = ic.handle_key(ctrl_char_key('c'));
+        assert!(matches!(action, InputAction::Interrupt));
+        assert_eq!(ic.value(), "");
+        assert_eq!(ic.cursor_pos, 0);
+        assert!(ic.history_index.is_none());
+    }
+
+    #[test]
+    fn test_ctrl_d_empty_exit() {
+        let mut ic = InputComposer::new("");
+        let action = ic.handle_key(ctrl_char_key('d'));
+        assert!(matches!(action, InputAction::Exit));
+    }
+
+    #[test]
+    fn test_ctrl_d_non_empty_no_exit() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        let action = ic.handle_key(ctrl_char_key('d'));
+        assert!(matches!(action, InputAction::None));
+        assert_eq!(ic.value(), "a");
+    }
+
+    // === 提交 ===
+
+    #[test]
+    fn test_enter_submit() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('h'));
+        ic.handle_key(char_key('i'));
+        let action = ic.handle_key(code_key(KeyCode::Enter));
+        if let InputAction::Submit(text) = action {
+            assert_eq!(text, "hi");
+        } else {
+            panic!("Expected Submit action, got {:?}", action);
+        }
+        assert_eq!(ic.value(), "");
+        assert_eq!(ic.cursor_pos, 0);
+    }
+
+    #[test]
+    fn test_enter_empty_buffer() {
+        let mut ic = InputComposer::new("");
+        let action = ic.handle_key(code_key(KeyCode::Enter));
+        if let InputAction::Submit(text) = action {
+            assert_eq!(text, "");
+        } else {
+            panic!("Expected Submit action, got {:?}", action);
+        }
+    }
+
+    // === 历史记录 ===
+
+    #[test]
+    fn test_history_browse_up_down() {
+        let mut ic = InputComposer::new("");
+        ic.history.push("first".to_string());
+        ic.history.push("second".to_string());
+
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.value(), "second");
+
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.value(), "first");
+
+        // 再按 Up 不应超出范围
+        ic.handle_key(code_key(KeyCode::Up));
+        assert_eq!(ic.value(), "first");
+
+        ic.handle_key(code_key(KeyCode::Down));
+        assert_eq!(ic.value(), "second");
+
+        ic.handle_key(code_key(KeyCode::Down));
+        assert_eq!(ic.value(), ""); // 恢复草稿（空）
+    }
+
+    #[test]
+    fn test_history_draft_backup_restore() {
+        let mut ic = InputComposer::new("");
+        ic.history.push("old".to_string());
+        ic.handle_key(char_key('d')); // 当前输入 "d"
+        ic.handle_key(code_key(KeyCode::Up)); // 草稿备份为 "d"，显示 "old"
+        assert_eq!(ic.value(), "old");
+        ic.handle_key(code_key(KeyCode::Down)); // 恢复草稿
+        assert_eq!(ic.value(), "d");
+    }
+
+    #[test]
+    fn test_add_history_dedup() {
+        let mut ic = InputComposer::new("");
+        ic.add_history("cmd1");
+        ic.add_history("cmd2");
+        ic.add_history("cmd2"); // 连续相同，不添加
+        assert_eq!(ic.history.len(), 2);
+        assert_eq!(ic.history[0], "cmd1");
+        assert_eq!(ic.history[1], "cmd2");
+    }
+
+    #[test]
+    fn test_add_history_empty_skipped() {
+        let mut ic = InputComposer::new("");
+        ic.add_history("");
+        assert!(ic.history.is_empty());
+    }
+
+    #[test]
+    fn test_history_empty_no_crash() {
+        let mut ic = InputComposer::new("");
+        // 没有历史记录时按 Up/Down 不应崩溃
+        let action = ic.handle_key(code_key(KeyCode::Up));
+        assert!(matches!(action, InputAction::None));
+        let action = ic.handle_key(code_key(KeyCode::Down));
+        assert!(matches!(action, InputAction::None));
+    }
+
+    // === 光标列计算 ===
+
+    #[test]
+    fn test_cursor_col_ascii() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('b'));
+        // prompt="" → prompt.len()=0, display_width("ab")=2, +1 = 3
+        assert_eq!(cursor_col(&ic), 3);
+    }
+
+    #[test]
+    fn test_cursor_col_cjk() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('你'));
+        // prompt="" → prompt.len()=0, display_width("你")=2, +1 = 3
+        assert_eq!(cursor_col(&ic), 3);
+    }
+
+    #[test]
+    fn test_cursor_col_mixed() {
+        let mut ic = InputComposer::new("");
+        ic.handle_key(char_key('a'));
+        ic.handle_key(char_key('中'));
+        // prompt="" → prompt.len()=0, display_width("a中")=3, +1 = 4
+        assert_eq!(cursor_col(&ic), 4);
+    }
+
+    #[test]
+    fn test_cursor_col_with_prompt() {
+        let mut ic = InputComposer::new("cli");
+        ic.handle_key(char_key('a'));
+        // prompt="cli" → prompt.len()=3, display_width("a")=1, +1 = 5
+        assert_eq!(cursor_col(&ic), 5);
+    }
+
+    // === 历史文件持久化 ===
+
+    #[test]
+    fn test_save_and_load_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history");
+
+        let mut ic = InputComposer::new("");
+        ic.history.push("cmd1".to_string());
+        ic.history.push("cmd2".to_string());
+        ic.save_history(&path);
+
+        let mut ic2 = InputComposer::new("");
+        ic2.load_history(&path);
+        assert_eq!(ic2.history.len(), 2);
+        assert_eq!(ic2.history[0], "cmd1");
+        assert_eq!(ic2.history[1], "cmd2");
+    }
+
+    #[test]
+    fn test_load_nonexistent_history() {
+        let mut ic = InputComposer::new("");
+        ic.load_history(Path::new("/nonexistent/path/history"));
+        assert!(ic.history.is_empty());
+    }
+
+    // === 未知按键 ===
+
+    #[test]
+    fn test_unknown_keycode_returns_none() {
+        let mut ic = InputComposer::new("");
+        let action = ic.handle_key(code_key(KeyCode::F(1)));
+        assert!(matches!(action, InputAction::None));
+    }
+}

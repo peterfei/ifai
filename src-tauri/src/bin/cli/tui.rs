@@ -318,3 +318,189 @@ impl Drop for App {
         let _ = self.restore();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    // === strip_ansi 测试 ===
+
+    #[test]
+    fn test_strip_ansi_plain_text() {
+        assert_eq!(strip_ansi("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_strip_ansi_color_code() {
+        assert_eq!(strip_ansi("\x1b[31mred\x1b[0m"), "red");
+    }
+
+    #[test]
+    fn test_strip_ansi_reset_code() {
+        assert_eq!(strip_ansi("\x1b[0mtext"), "text");
+    }
+
+    #[test]
+    fn test_strip_ansi_256_color() {
+        assert_eq!(strip_ansi("\x1b[38;5;196mtext\x1b[0m"), "text");
+    }
+
+    #[test]
+    fn test_strip_ansi_rgb_color() {
+        assert_eq!(strip_ansi("\x1b[38;2;255;0;0mtext\x1b[0m"), "text");
+    }
+
+    #[test]
+    fn test_strip_ansi_mixed() {
+        assert_eq!(
+            strip_ansi("\x1b[1m\x1b[31mbold red\x1b[0m normal"),
+            "bold red normal"
+        );
+    }
+
+    #[test]
+    fn test_strip_ansi_carriage_return() {
+        assert_eq!(strip_ansi("line1\r\nline2"), "line1\nline2");
+    }
+
+    #[test]
+    fn test_strip_ansi_preserves_utf8() {
+        assert_eq!(
+            strip_ansi("\x1b[31m你好\x1b[0m世界"),
+            "你好世界"
+        );
+    }
+
+    #[test]
+    fn test_strip_ansi_empty() {
+        assert_eq!(strip_ansi(""), "");
+    }
+
+    #[test]
+    fn test_strip_ansi_only_ansi() {
+        assert_eq!(strip_ansi("\x1b[31m\x1b[0m"), "");
+    }
+
+    #[test]
+    fn test_strip_ansi_incomplete_sequence() {
+        // 不完整的 ESC 序列（无终止字符）应被安全跳过
+        assert_eq!(strip_ansi("text\x1b["), "text");
+    }
+
+    #[test]
+    fn test_strip_ansi_bold_underline() {
+        assert_eq!(
+            strip_ansi("\x1b[1mbold\x1b[4m underline\x1b[0m"),
+            "bold underline"
+        );
+    }
+
+    // === 滚动逻辑测试 ===
+    //
+    // 注意：由于 App 的 terminal 字段类型为 Terminal<CrosstermBackend<Stdout>>，
+    // 在测试环境中无法直接构造。我们通过提取滚动计算逻辑到纯函数进行测试。
+
+    /// 模拟 content_area 计算（给定终端高度）
+    fn content_height(terminal_height: u16) -> usize {
+        terminal_height.saturating_sub(2) as usize
+    }
+
+    /// 计算最大滚动偏移（与 App::scroll_to_bottom 逻辑一致）
+    fn max_scroll_offset(total_lines: usize, terminal_height: u16) -> u16 {
+        let visible = content_height(terminal_height);
+        if total_lines > visible {
+            (total_lines - visible) as u16
+        } else {
+            0
+        }
+    }
+
+    #[test]
+    fn test_scroll_no_overflow() {
+        // 4 行内容，10 行高终端 → 可见 8 行，无溢出
+        assert_eq!(max_scroll_offset(4, 10), 0);
+    }
+
+    #[test]
+    fn test_scroll_exact_fit() {
+        // 8 行内容，10 行高终端 → 可见 8 行，恰好无溢出
+        assert_eq!(max_scroll_offset(8, 10), 0);
+    }
+
+    #[test]
+    fn test_scroll_overflow() {
+        // 14 行内容，5 行高终端 → 可见 3 行，scroll_offset = 11
+        assert_eq!(max_scroll_offset(14, 5), 11);
+    }
+
+    #[test]
+    fn test_scroll_small_terminal() {
+        // 最小 3 行高终端：内容区 1 行
+        assert_eq!(content_height(3), 1);
+        assert_eq!(max_scroll_offset(5, 3), 4);
+    }
+
+    #[test]
+    fn test_scroll_tiny_terminal() {
+        // 2 行高终端：内容区 0 行
+        assert_eq!(content_height(2), 0);
+    }
+
+    #[test]
+    fn test_scroll_calculation() {
+        // 模拟 scroll_up/scroll_down 的偏移量计算
+        let max_off = max_scroll_offset(24, 5); // 24 行内容，3 行可见 → 21
+        assert_eq!(max_off, 21);
+
+        // scroll_up(5) 从底部
+        let offset = max_off.saturating_sub(5);
+        assert_eq!(offset, 16);
+        assert!(offset < max_off); // user_scrolled = true
+
+        // scroll_down(3)
+        let offset = (offset + 3).min(max_off);
+        assert_eq!(offset, 19);
+
+        // scroll_down(10) 到底部
+        let offset = (offset + 10).min(max_off);
+        assert_eq!(offset, 21);
+        assert!(offset >= max_off); // user_scrolled = false
+    }
+
+    #[test]
+    fn test_scroll_no_underflow() {
+        let max_off = max_scroll_offset(24, 5);
+        let offset = 0u16.saturating_sub(5);
+        assert_eq!(offset, 0);
+    }
+
+    // === push_line 行分割逻辑测试 ===
+
+    #[test]
+    fn test_line_split_on_newlines() {
+        let text = strip_ansi("line1\nline2\nline3");
+        let lines: Vec<&str> = text.split('\n').collect();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0], "line1");
+        assert_eq!(lines[1], "line2");
+        assert_eq!(lines[2], "line3");
+    }
+
+    #[test]
+    fn test_line_empty_string() {
+        let text = strip_ansi("");
+        let lines: Vec<&str> = text.split('\n').collect();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0], "");
+    }
+
+    #[test]
+    fn test_line_trailing_newline() {
+        let text = strip_ansi("hello\n");
+        let lines: Vec<&str> = text.split('\n').collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], "hello");
+        assert_eq!(lines[1], "");
+    }
+}

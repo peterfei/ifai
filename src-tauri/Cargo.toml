@@ -120,3 +120,5 @@ num_cpus = { version = "1.16", optional = true }
 [dev-dependencies]
 tracing-subscriber = "0.3"
 tempfile = "3.10"
+insta = "1"
+pretty_assertions = "1"
