@@ -16,6 +16,8 @@ mod pipeline;    // 🎨 元编程 Pipeline 可视化
 mod loop_detector; // 🎨 元编程循环检测引擎
 mod terminal;    // 🔥 终端抽象层（ANSI 光标定位）
 mod tui_layout;  // 🔥 声明式 TUI 布局层
+mod tui;         // 🔥 ratatui 全屏 TUI 模块
+mod input_composer; // 🔥 输入框组件（替代 rustyline）
 mod stream_render; // 🔥 声明式流式渲染管道
 mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
 mod code_folding; // 🎨 代码折叠 - 元编程架构
@@ -392,7 +394,11 @@ fn run_action(action: CliAction) -> Result<(), String> {
         }
 
         CliAction::Resume { name } => {
-            run_repl(Some(name))?;
+            if io::stdin().is_terminal() {
+                run_tui_repl(Some(name))?;
+            } else {
+                run_repl(Some(name))?;
+            }
             Ok(())
         }
 
@@ -402,7 +408,11 @@ fn run_action(action: CliAction) -> Result<(), String> {
         }
 
         CliAction::Repl => {
-            run_repl(None)?;
+            if io::stdin().is_terminal() {
+                run_tui_repl(None)?;
+            } else {
+                run_repl(None)?;
+            }
             Ok(())
         }
     }
@@ -711,6 +721,158 @@ fn run_repl(resume_name: Option<String>) -> Result<(), String> {
     rt.block_on(async {
         run_repl_async(resume_name).await
     })
+}
+
+/// 🖥️ 运行 TUI 全屏 REPL（同步包装）
+fn run_tui_repl(resume_name: Option<String>) -> Result<(), String> {
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+
+    rt.block_on(async {
+        run_tui_repl_async(resume_name).await
+    })
+}
+
+/// 🖥️ TUI 全屏 REPL 核心（async）
+async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
+    // 🔇 全局禁用调试日志
+    std::env::set_var("IFAI_QUIET", "1");
+
+    // 解析有效配置
+    let config = config::EffectiveConfig::resolve(None, None, None, None)?;
+
+    // 初始化 Session（使用 Arc<Mutex> 以便在 spawn 中共享）
+    let session = session::Session::new(config.provider().to_string(), config.model().to_string());
+    let session = std::sync::Arc::new(tokio::sync::Mutex::new(session));
+
+    {
+        let mut s = session.lock().await;
+        if let Some(api_key) = config.api_key() {
+            s.set_api_key(api_key.to_string());
+        }
+        if let Some(base_url) = config.base_url() {
+            s.set_base_url(base_url.to_string());
+        }
+        let current_dir = std::env::current_dir()
+            .map_err(|e| format!("Failed to get current directory: {}", e))?;
+        s.set_project_root(current_dir.to_string_lossy().to_string());
+    }
+
+    // 加载历史记录
+    let history_path = dirs::home_dir()
+        .map(|home| home.join(".ifai").join("history"))
+        .ok_or("Failed to determine home directory")?;
+    if let Some(parent) = history_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    // 创建 TUI App
+    let mut app = tui::App::new()
+        .map_err(|e| format!("Failed to initialize TUI: {}", e))?;
+
+    if let Some(name) = &resume_name {
+        app.push_line(format!("Resuming session: {}", name));
+        app.push_line(String::new());
+    }
+
+    // 加载历史
+    app.input.load_history(&history_path);
+
+    // 主循环
+    loop {
+        match app.run_loop() {
+            tui::AppResult::Submit(text) => {
+                // 添加历史
+                app.input.add_history(&text);
+                let _ = app.input.save_history(&history_path);
+
+                // 退出命令
+                if text == "/exit" || text == "/quit" {
+                    break;
+                }
+
+                // 显示用户输入
+                let theme = render::default_theme();
+                app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
+
+                if text.starts_with('/') {
+                    // REPL 命令
+                    let parts: Vec<&str> = text.splitn(2, ' ').collect();
+                    let cmd = &parts[0][1..];
+                    let arg = parts.get(1).map(|s| s.to_string());
+
+                    let mut s = session.lock().await;
+                    match commands::dispatch_command(&mut s, cmd, arg.as_deref()) {
+                        Ok(Some(output)) => {
+                            for line in output.split('\n') {
+                                app.push_line(line.to_string());
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            app.push_line(format!("Error: {}", e));
+                        }
+                    }
+                } else {
+                    // AI 调用 — 使用 channel 接收流式输出
+                    app.set_busy(true);
+                    app.set_status("Thinking...".to_string());
+                    app.render();
+
+                    let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+                    let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+                    let session_clone = session.clone();
+                    let input = text.clone();
+
+                    // 在后台任务中运行 stream_prompt
+                    let mut stream_handle = tokio::spawn(async move {
+                        let mut s = session_clone.lock().await;
+                        s.stream_prompt_tui(&input, output_tx, status_tx).await
+                    });
+
+                    // 实时接收输出并渲染
+                    loop {
+                        tokio::select! {
+                            Some(line) = output_rx.recv() => {
+                                app.push_line(line);
+                                app.render();
+                            }
+                            Some(status) = status_rx.recv() => {
+                                app.set_status(status);
+                                app.render();
+                            }
+                            result = &mut stream_handle => {
+                                match result {
+                                    Ok(Ok(_)) => {}
+                                    Ok(Err(e)) => {
+                                        app.push_line(format!("Error: {}", e));
+                                    }
+                                    Err(e) => {
+                                        app.push_line(format!("Task error: {}", e));
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    app.set_busy(false);
+                    app.set_status(String::new());
+                    app.push_line(String::new());
+                    app.render();
+                }
+            }
+            tui::AppResult::Exit => {
+                break;
+            }
+        }
+    }
+
+    // 保存历史
+    let _ = app.input.save_history(&history_path);
+
+    Ok(())
 }
 
 // ============================================================================

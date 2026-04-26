@@ -872,6 +872,397 @@ impl Session {
         Ok(full_response)
     }
 
+    /// 🖥️ TUI 模式的流式提示（通过 channel 发送输出，不直接 print）
+    pub async fn stream_prompt_tui(
+        &mut self,
+        prompt: &str,
+        output_tx: tokio::sync::mpsc::UnboundedSender<String>,
+        status_tx: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Result<String, String> {
+        let spec = resolve_provider(&self.provider)
+            .map_err(|e| format!("Failed to resolve provider: {}", e))?;
+
+        let system_prompt = build_cli_system_prompt(&spec);
+
+        let provider = match spec.metadata.id.as_str() {
+            "anthropic-official" => ifainew_lib::harness::api::AiProvider::Anthropic,
+            "deepseek-official" => ifainew_lib::harness::api::AiProvider::DeepSeek,
+            "openai-official" => ifainew_lib::harness::api::AiProvider::OpenAI,
+            "zhipu-official" => ifainew_lib::harness::api::AiProvider::Zhipu,
+            "kimi-official" => ifainew_lib::harness::api::AiProvider::Kimi,
+            "gemini-official" => ifainew_lib::harness::api::AiProvider::Gemini,
+            _ => return Err(format!("Unsupported provider: {}", spec.metadata.id)),
+        };
+
+        let env_key = match spec.metadata.id.as_str() {
+            "anthropic-official" => "ANTHROPIC_API_KEY",
+            "deepseek-official" => "DEEPSEEK_API_KEY",
+            "openai-official" => "OPENAI_API_KEY",
+            "zhipu-official" => "ZHIPU_API_KEY",
+            "kimi-official" => "KIMI_API_KEY",
+            "gemini-official" => "GEMINI_API_KEY",
+            _ => "API_KEY",
+        };
+
+        let api_key = self.get_api_key(env_key)?;
+
+        let provider_config = ifainew_lib::harness::api::ProviderConfig {
+            api_key,
+            base_url: self.base_url.clone(),
+            organization: None,
+        };
+
+        let client = ifainew_lib::harness::api::ApiClientFactory::create_provider(
+            provider,
+            &provider_config
+        ).map_err(|e| format!("Failed to create client: {:?}", e))?;
+
+        let tools: Vec<serde_json::Value> = self.tool_registry.all()
+            .into_iter()
+            .map(|tool| {
+                json!({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.input_schema
+                    }
+                })
+            })
+            .collect();
+
+        // 添加用户消息
+        self.messages.push(Message {
+            role: MessageRole::User,
+            content: MessageContent::Text(prompt.to_string()),
+            tool_calls: None,
+            tool_call_id: None,
+        });
+
+        let start_time = Instant::now();
+        let mut full_response = String::new();
+
+        // 自动压缩检查
+        let estimated_input = token::estimate_tokens(&self.messages);
+        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;
+        const COMPRESS_MESSAGE_THRESHOLD: usize = 100;
+
+        let need_compress = estimated_input > COMPRESS_TOKEN_THRESHOLD
+            || self.messages.len() > COMPRESS_MESSAGE_THRESHOLD;
+
+        if need_compress {
+            let _ = output_tx.send(format!("⚠️ 对话过长 ({} tokens, {} messages)，正在自动压缩...", estimated_input, self.messages.len()));
+            let keep_last_n = 50.min(self.messages.len());
+            let total_messages = self.messages.len();
+            self.messages = self.messages.split_off(total_messages.saturating_sub(keep_last_n));
+
+            let has_system = self.messages.first()
+                .map(|m| matches!(m.role, MessageRole::System))
+                .unwrap_or(false);
+
+            if !has_system && !system_prompt.is_empty() {
+                self.messages.insert(0, Message {
+                    role: MessageRole::System,
+                    content: MessageContent::Text(
+                        format!("(对话历史已压缩，保留最近 {} 条消息)", keep_last_n)
+                    ),
+                    tool_calls: None,
+                    tool_call_id: None,
+                });
+            }
+
+            let new_tokens = token::estimate_tokens(&self.messages);
+            let _ = output_tx.send(format!("✓ 压缩完成：{} → {} tokens", format_number(estimated_input), format_number(new_tokens)));
+        }
+
+        // TUI 上下文警告
+        let token_count = token::estimate_tokens(&self.messages);
+        let max_tokens = token::get_model_max_tokens(&self.model);
+        if token_count > (max_tokens * 80 / 100) && self.messages.len() >= 10 {
+            let _ = output_tx.send(format!("Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).", token_count, self.messages.len(), max_tokens));
+            let _ = output_tx.send("Tip: Use /compact to compress or /clear to start fresh.".to_string());
+        }
+
+        let current_category = approval::ToolCategory::Safe;
+        let max_continuations = approval::max_iterations(current_category);
+        let mut continuation_count = 0;
+
+        let _ = status_tx.send(format!("Streaming ({})", self.model));
+
+        loop {
+            let request = ifainew_lib::harness::api::StreamRequest {
+                model: self.model.clone(),
+                messages: self.messages.clone(),
+                max_tokens: 4096,
+                system: Some(system_prompt.clone()),
+                temperature: Some(0.7),
+                stream: true,
+                tools: if self.tools_disabled || tools.is_empty() { None } else { Some(tools.clone()) },
+            };
+
+            let mut stream = client.stream(request).await
+                .map_err(|e| format!("Failed to start stream: {:?}", e))?;
+
+            // 不启动动画任务（TUI 自己管理渲染）
+            let mut first_delta = true;
+            let mut current_response = String::new();
+            let mut collector = EventCollector::new();
+            let estimated_input = token::estimate_tokens(&self.messages);
+            let mut line_buffer = String::new(); // 🖥️ TUI：缓冲未完成的行
+
+            use token::StatusBarState;
+
+            loop {
+                match stream.next().await {
+                    Some(Ok(event)) => {
+                        match &event {
+                            StreamEvent::TextDelta { text } => {
+                                if first_delta {
+                                    first_delta = false;
+                                    self.bottom_status_bar.transition(StatusBarState::Streaming {
+                                        estimated_input,
+                                        current_output: 0,
+                                        current_tool: None,
+                                    });
+                                }
+
+                                let _current_output = self.bottom_status_bar.update_streaming_output(text);
+                                current_response.push_str(text);
+                                full_response.push_str(text);
+
+                                // 🖥️ TUI：按换行符分割，发送完整行
+                                line_buffer.push_str(text);
+                                while let Some(newline_pos) = line_buffer.find('\n') {
+                                    let complete_line = line_buffer[..newline_pos].to_string();
+                                    line_buffer = line_buffer[newline_pos + 1..].to_string();
+                                    let _ = output_tx.send(complete_line);
+                                }
+
+                                // 更新状态栏
+                                let status = self.bottom_status_bar.render_fixed();
+                                let _ = status_tx.send(status);
+
+                                collector.dispatch(&event);
+                            }
+                            StreamEvent::ToolStart { tool_id, name, input } => {
+                                if first_delta {
+                                    first_delta = false;
+                                    self.bottom_status_bar.transition(StatusBarState::Streaming {
+                                        estimated_input,
+                                        current_output: 0,
+                                        current_tool: Some(name.clone()),
+                                    });
+                                }
+                                let _ = status_tx.send(format!("Tool: {} [running]", name));
+                                collector.dispatch(&event);
+                            }
+                            StreamEvent::ToolDone { tool_id, result } => {
+                                collector.dispatch(&event);
+                            }
+                            StreamEvent::Error { code, message } => {
+                                let _ = output_tx.send(format!("Error [{}]: {}", code, message));
+                            }
+                            StreamEvent::MessageDone { input_tokens, output_tokens } => {
+                                self.cumulative_input_tokens += *input_tokens;
+                                self.cumulative_output_tokens += *output_tokens;
+
+                                // 🖥️ TUI：刷新剩余缓冲区
+                                if !line_buffer.is_empty() {
+                                    let _ = output_tx.send(std::mem::take(&mut line_buffer));
+                                }
+
+                                self.bottom_status_bar.transition(StatusBarState::Idle);
+                                let _ = status_tx.send("Done".to_string());
+
+                                collector.dispatch(&event);
+                            }
+                            _ => {
+                                collector.dispatch(&event);
+                            }
+                        }
+                    }
+                    Some(Err(e)) => {
+                        let _ = output_tx.send(format!("Stream error: {:?}", e));
+                        return Err(format!("Stream error: {:?}", e));
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+
+            if !collector.has_pending_tools() {
+                self.messages.push(Message {
+                    role: MessageRole::Assistant,
+                    content: MessageContent::Text(current_response.clone()),
+                    tool_calls: None,
+                    tool_call_id: None,
+                });
+
+                let elapsed_secs = start_time.elapsed().as_secs_f64();
+                let summary = self.render_pipeline.render_summary(
+                    elapsed_secs,
+                    self.cumulative_input_tokens,
+                    self.cumulative_output_tokens,
+                );
+                let _ = output_tx.send(summary);
+
+                break;
+            }
+
+            // Execute 阶段：执行工具（TUI 模式下自动审批所有工具）
+            let _ = output_tx.send(String::new());
+            let tool_results = self.execute_tools_tui(collector.pending_tools(), &output_tx)?;
+
+            let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
+                ToolCall {
+                    id: id.clone(),
+                    call_type: "function".to_string(),
+                    function: ToolCallFunction {
+                        name: name.clone(),
+                        arguments: String::new(),
+                    },
+                }
+            }).collect();
+
+            self.messages.push(Message {
+                role: MessageRole::Assistant,
+                content: MessageContent::Text(current_response.clone()),
+                tool_calls: Some(tool_calls_value.clone()),
+                tool_call_id: None,
+            });
+
+            for (tool_id, _name, result, _) in &tool_results {
+                self.messages.push(Message {
+                    role: MessageRole::Tool,
+                    content: MessageContent::Text(result.clone()),
+                    tool_calls: None,
+                    tool_call_id: Some(tool_id.clone()),
+                });
+            }
+
+            // 渲染工具结果
+            let theme = render::default_theme();
+            for (tool_id, name, _result, _duration) in &tool_results {
+                let completed_steps = self.pipeline_tracker.completed_steps();
+                if let Some(step) = completed_steps.iter().find(|s| s.tool_name == *name) {
+                    let status_render = step.status.render_with_theme("zh", &theme, RESET);
+                    let args_preview = if step.tool_args.len() > 50 {
+                        format!("{}...", &step.tool_args[..47])
+                    } else {
+                        step.tool_args.clone()
+                    };
+
+                    if let Some(duration) = step.metadata.duration {
+                        let _ = output_tx.send(format!("\n{} {}({})  [{}]", status_render, name, args_preview, format_duration(duration.as_secs_f64())));
+                    } else {
+                        let _ = output_tx.send(format!("\n{} {}({})", status_render, name, args_preview));
+                    }
+
+                    match &step.output {
+                        crate::pipeline::StepOutput::Empty => {}
+                        crate::pipeline::StepOutput::Full { content } => {
+                            let _ = output_tx.send(format!("   ╾ {}", content.lines().collect::<Vec<_>>().join("\n   ╾ ")));
+                        }
+                        crate::pipeline::StepOutput::Truncated { preview, total_lines } => {
+                            let _ = output_tx.send(format!("   ╾ {}", preview.lines().collect::<Vec<_>>().join("\n   ╾ ")));
+                            let _ = output_tx.send(format!("   ╾ (共 {} 行)", total_lines));
+                        }
+                    }
+                }
+            }
+
+            let current_category = collector.pending_tools()
+                .first()
+                .map(|t| approval::categorize_tool(&t.name))
+                .unwrap_or(approval::ToolCategory::Safe);
+            let dynamic_max = approval::max_iterations(current_category);
+
+            continuation_count += 1;
+            if continuation_count >= dynamic_max {
+                let _ = output_tx.send(format!("Maximum tool iterations reached ({})", dynamic_max));
+                break;
+            }
+
+            let _ = output_tx.send(format!("Continuing... ({}/{})", continuation_count, dynamic_max));
+        }
+
+        let _ = output_tx.send(String::new());
+        Ok(full_response)
+    }
+
+    /// 🔧 TUI 模式执行工具（自动审批，不使用 stdin）
+    fn execute_tools_tui(
+        &mut self,
+        tools: &[PendingToolCall],
+        output_tx: &tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Result<Vec<(String, String, String, Duration)>, String> {
+        let mut results = Vec::new();
+        let theme = render::default_theme();
+
+        for tool in tools {
+            self.pipeline_tracker.start_step(
+                tool.tool_id.clone(),
+                tool.name.clone(),
+                tool.args.clone(),
+            );
+        }
+
+        for tool in tools {
+            let category = approval::categorize_tool(&tool.name);
+
+            // TUI 模式：自动审批所有工具（无交互式确认）
+            // TODO: 后续可添加 TUI 原生审批对话框
+            if matches!(category, approval::ToolCategory::Dangerous) {
+                let _ = output_tx.send(format!("⚠️ 自动执行危险工具: {} (TUI 模式下跳过审批)", tool.name));
+            }
+
+            let args_json: serde_json::Value = serde_json::from_str(&tool.args)
+                .unwrap_or(serde_json::json!({}));
+
+            // 循环检测
+            let loop_status = approval::check_loop(&tool.name, &tool.args);
+            if loop_status.should_stop() {
+                if let loop_detector::LoopDetectionStatus::Blocked { reason } = loop_status {
+                    let _ = output_tx.send(format!("⚠️ 循环检测触发: {}", reason));
+                    self.pipeline_tracker.skip_step(
+                        &tool.tool_id,
+                        format!("循环检测阻止: {}", reason),
+                    );
+                    let error_msg = format!("Tool '{}' 被循环检测阻止: {}", tool.name, reason);
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    continue;
+                }
+            }
+
+            let start = Instant::now();
+
+            match self.tool_router.execute(&tool.name, &args_json) {
+                Ok(result) => {
+                    let duration = start.elapsed();
+                    self.pipeline_tracker.finish_step_success(
+                        &tool.tool_id,
+                        result.clone(),
+                        duration,
+                    );
+                    results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
+                }
+                Err(e) => {
+                    let duration = start.elapsed();
+                    let error_msg = format!("Error: {:?}", e);
+                    self.pipeline_tracker.finish_step_error(
+                        &tool.tool_id,
+                        error_msg.clone(),
+                        duration,
+                    );
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, duration));
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
     /// 🔧 执行工具列表（Execute 阶段）- 使用元编程权限引擎
     fn execute_tools(&mut self, tools: &[PendingToolCall]) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
