@@ -142,6 +142,151 @@ pub fn risk_display(level: RiskLevel) -> &'static RiskDisplay {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Phase 1.4 — 审批选项定义表（零 match）
+// ═══════════════════════════════════════════════════════════
+
+/// 审批选项类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalOptionType {
+    Once,       // 仅本次允许
+    Always,     // 持久化白名单
+    Session,    // 会话级白名单
+    Deny,       // 拒绝
+}
+
+/// 审批选项定义（代码即数据）
+pub struct ApprovalOptionDef {
+    pub categories: &'static [ToolCategory],
+    pub option_type: ApprovalOptionType,
+    pub label_template: &'static str,
+}
+
+/// 审批选项定义表（根据工具类型和选项类型生成标签）
+pub const APPROVAL_OPTION_DEFS: &[ApprovalOptionDef] = &[
+    // Destructive 工具的选项
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Destructive],
+        option_type: ApprovalOptionType::Once,
+        label_template: "Yes",
+    },
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Destructive],
+        option_type: ApprovalOptionType::Always,
+        label_template: "Yes, and always allow '{tool}' for this project",
+    },
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Destructive],
+        option_type: ApprovalOptionType::Deny,
+        label_template: "No",
+    },
+    // Dangerous 工具的选项
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Dangerous],
+        option_type: ApprovalOptionType::Once,
+        label_template: "Yes",
+    },
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Dangerous],
+        option_type: ApprovalOptionType::Session,
+        label_template: "Yes, and allow edits to '{path}' for this session",
+    },
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Dangerous],
+        option_type: ApprovalOptionType::Deny,
+        label_template: "No",
+    },
+    // Safe 工具的选项
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Safe],
+        option_type: ApprovalOptionType::Once,
+        label_template: "Yes",
+    },
+    ApprovalOptionDef {
+        categories: &[ToolCategory::Safe],
+        option_type: ApprovalOptionType::Deny,
+        label_template: "No",
+    },
+];
+
+/// 查表生成审批选项列表（零 match）
+pub fn build_approval_options_declarative(req: &ApprovalRequest) -> Vec<ApprovalOption> {
+    APPROVAL_OPTION_DEFS
+        .iter()
+        .filter(|def| def.categories.contains(&req.category))
+        .map(|def| {
+            let label = def.label_template
+                .replace("{tool}", &req.tool_name)
+                .replace("{path}", &extract_path_hint(req));
+            let decision = match def.option_type {
+                ApprovalOptionType::Once => ApprovalDecision::ApproveOnce,
+                ApprovalOptionType::Always => ApprovalDecision::ApproveAlways,
+                ApprovalOptionType::Session => ApprovalDecision::ApproveSession,
+                ApprovalOptionType::Deny => ApprovalDecision::Deny,
+            };
+            ApprovalOption { label, decision }
+        })
+        .collect()
+}
+
+// ═══════════════════════════════════════════════════════════
+// Phase 1.5 — 工具显示名称表（零 match）
+// ═══════════════════════════════════════════════════════════
+
+/// 工具显示名称定义（代码即数据）
+pub struct ToolDisplayNameDef {
+    pub tool_name: &'static str,
+    pub display_title: &'static str,
+    pub color: Color,
+}
+
+/// 工具显示名称表
+pub const TOOL_DISPLAY_NAMES: &[ToolDisplayNameDef] = &[
+    ToolDisplayNameDef {
+        tool_name: "bash",
+        display_title: "Bash command",
+        color: Color::Cyan,
+    },
+    ToolDisplayNameDef {
+        tool_name: "write_file",
+        display_title: "Write file",
+        color: Color::Green,
+    },
+    ToolDisplayNameDef {
+        tool_name: "edit_file",
+        display_title: "Edit file",
+        color: Color::Yellow,
+    },
+    ToolDisplayNameDef {
+        tool_name: "delete_file",
+        display_title: "Delete file",
+        color: Color::Red,
+    },
+    ToolDisplayNameDef {
+        tool_name: "read_file",
+        display_title: "Read file",
+        color: Color::Blue,
+    },
+];
+
+/// 查表获取工具显示名称（零 match）
+pub fn get_tool_display_name_declarative(tool_name: &str) -> String {
+    TOOL_DISPLAY_NAMES
+        .iter()
+        .find(|def| def.tool_name == tool_name)
+        .map(|def| def.display_title.to_string())
+        .unwrap_or_else(|| tool_name.to_string())
+}
+
+/// 查表获取工具颜色（零 match）
+pub fn get_tool_color(tool_name: &str) -> Color {
+    TOOL_DISPLAY_NAMES
+        .iter()
+        .find(|def| def.tool_name == tool_name)
+        .map(|def| def.color)
+        .unwrap_or(Color::White)
+}
+
+// ═══════════════════════════════════════════════════════════
 // Phase 2 — 声明式面板渲染
 // ═══════════════════════════════════════════════════════════
 
@@ -284,48 +429,9 @@ pub struct ApprovalOption {
     pub decision: ApprovalDecision,
 }
 
-/// 生成审批选项列表（根据工具类型动态生成）
+/// 生成审批选项列表（声明式，零 match）
 pub fn build_approval_options(req: &ApprovalRequest) -> Vec<ApprovalOption> {
-    match req.category {
-        ToolCategory::Destructive => vec![
-            ApprovalOption {
-                label: "Yes".to_string(),
-                decision: ApprovalDecision::ApproveOnce,
-            },
-            ApprovalOption {
-                label: format!("Yes, and always allow '{}' for this project", req.tool_name),
-                decision: ApprovalDecision::ApproveAlways,
-            },
-            ApprovalOption {
-                label: "No".to_string(),
-                decision: ApprovalDecision::Deny,
-            },
-        ],
-        ToolCategory::Dangerous => vec![
-            ApprovalOption {
-                label: "Yes".to_string(),
-                decision: ApprovalDecision::ApproveOnce,
-            },
-            ApprovalOption {
-                label: format!("Yes, and allow edits to '{}' for this session", extract_path_hint(req)),
-                decision: ApprovalDecision::ApproveSession,
-            },
-            ApprovalOption {
-                label: "No".to_string(),
-                decision: ApprovalDecision::Deny,
-            },
-        ],
-        ToolCategory::Safe => vec![
-            ApprovalOption {
-                label: "Yes".to_string(),
-                decision: ApprovalDecision::ApproveOnce,
-            },
-            ApprovalOption {
-                label: "No".to_string(),
-                decision: ApprovalDecision::Deny,
-            },
-        ],
-    }
+    build_approval_options_declarative(req)
 }
 
 /// 从请求中提取路径提示（用于文件编辑工具）
@@ -413,13 +519,7 @@ pub fn render_bottom_panel(req: &ApprovalRequest, selected_index: usize) -> (Vec
 
 /// 获取工具显示名称
 fn get_tool_display_name(tool_name: &str) -> String {
-    match tool_name {
-        "bash" => "Bash command".to_string(),
-        "write_file" => "Write file".to_string(),
-        "edit_file" => "Edit file".to_string(),
-        "delete_file" => "Delete file".to_string(),
-        _ => tool_name.to_string(),
-    }
+    get_tool_display_name_declarative(tool_name)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -582,5 +682,96 @@ mod tests {
         let req = ApprovalRequest::from_tool(&tool, tx);
         assert_eq!(req.tool_name, "read_file");
         assert_eq!(req.category, ToolCategory::Safe);
+    }
+
+    // ── Phase 1.4: APPROVAL_OPTION_DEFS 表测试 ──
+
+    #[test]
+    fn test_build_approval_options_destructive() {
+        let req = make_request("bash", r#"{"cmd": "ls -la"}"#);
+        let options = build_approval_options(&req);
+
+        assert_eq!(options.len(), 3);
+        assert_eq!(options[0].label, "Yes");
+        assert_eq!(options[0].decision, ApprovalDecision::ApproveOnce);
+        assert!(options[1].label.contains("always allow"));
+        assert_eq!(options[1].decision, ApprovalDecision::ApproveAlways);
+        assert_eq!(options[2].label, "No");
+        assert_eq!(options[2].decision, ApprovalDecision::Deny);
+    }
+
+    #[test]
+    fn test_build_approval_options_dangerous() {
+        let req = make_request("edit_file", r#"{"path": "src/main.rs"}"#);
+        let options = build_approval_options(&req);
+
+        assert_eq!(options.len(), 3);
+        assert_eq!(options[0].label, "Yes");
+        assert!(options[1].label.contains("allow edits"));
+        assert_eq!(options[1].decision, ApprovalDecision::ApproveSession);
+        assert_eq!(options[2].label, "No");
+        assert_eq!(options[2].decision, ApprovalDecision::Deny);
+    }
+
+    #[test]
+    fn test_build_approval_options_safe() {
+        let req = make_request("read_file", r#"{"path": "/tmp/test.rs"}"#);
+        let options = build_approval_options(&req);
+
+        assert_eq!(options.len(), 2);
+        assert_eq!(options[0].label, "Yes");
+        assert_eq!(options[0].decision, ApprovalDecision::ApproveOnce);
+        assert_eq!(options[1].label, "No");
+        assert_eq!(options[1].decision, ApprovalDecision::Deny);
+    }
+
+    // ── Phase 1.5: TOOL_DISPLAY_NAMES 表测试 ──
+
+    #[test]
+    fn test_get_tool_display_name_bash() {
+        let name = get_tool_display_name("bash");
+        assert_eq!(name, "Bash command");
+    }
+
+    #[test]
+    fn test_get_tool_display_name_write_file() {
+        let name = get_tool_display_name("write_file");
+        assert_eq!(name, "Write file");
+    }
+
+    #[test]
+    fn test_get_tool_display_name_edit_file() {
+        let name = get_tool_display_name("edit_file");
+        assert_eq!(name, "Edit file");
+    }
+
+    #[test]
+    fn test_get_tool_display_name_unknown() {
+        let name = get_tool_display_name("unknown_tool");
+        assert_eq!(name, "unknown_tool");
+    }
+
+    #[test]
+    fn test_get_tool_color() {
+        assert_eq!(get_tool_color("bash"), Color::Cyan);
+        assert_eq!(get_tool_color("write_file"), Color::Green);
+        assert_eq!(get_tool_color("edit_file"), Color::Yellow);
+        assert_eq!(get_tool_color("delete_file"), Color::Red);
+        assert_eq!(get_tool_color("read_file"), Color::Blue);
+        assert_eq!(get_tool_color("unknown"), Color::White);
+    }
+
+    // ── 集成测试：声明式选项生成 ──
+
+    #[test]
+    fn test_declarative_options_match_imperative() {
+        let bash_req = make_request("bash", r#"{"cmd": "pwd"}"#);
+        let options = build_approval_options(&bash_req);
+
+        // 验证生成的选项与硬编码版本一致
+        assert_eq!(options.len(), 3);
+        assert_eq!(options[0].decision, ApprovalDecision::ApproveOnce);
+        assert_eq!(options[1].decision, ApprovalDecision::ApproveAlways);
+        assert_eq!(options[2].decision, ApprovalDecision::Deny);
     }
 }
