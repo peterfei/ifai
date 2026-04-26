@@ -63,7 +63,9 @@ pub struct App {
     /// 是否正在处理 AI 请求（阻止新输入）
     busy: bool,
     /// 审批状态（Some = 审批面板显示中）
-    approval_state: Option<ApprovalRequest>,
+    pub approval_state: Option<ApprovalRequest>,
+    /// 审批面板选中项索引
+    pub approval_selected: usize,
 }
 
 impl App {
@@ -85,6 +87,7 @@ impl App {
             status_text: String::new(),
             busy: false,
             approval_state: None,
+            approval_selected: 0,
         };
 
         // 欢迎信息
@@ -122,6 +125,12 @@ impl App {
     /// 设置审批等待状态
     pub fn set_approval_pending(&mut self, request: ApprovalRequest) {
         self.approval_state = Some(request);
+        self.approval_selected = 0;  // 重置选中项为第一个
+    }
+
+    /// 获取审批状态的引用（用于外部访问）
+    pub fn approval_state_ref(&self) -> &Option<ApprovalRequest> {
+        &self.approval_state
     }
 
     /// 解析审批决策，返回日志消息
@@ -216,37 +225,40 @@ impl App {
             // 清空内容区（确保 overlay 关闭后残留内容被清除）
             f.render_widget(Clear, content_area);
 
-            // === 内容区 ===
+            // 计算内容区域信息（用于滚动指示器）
             let visible_count = content_area.height as usize;
             let total_lines = self.content_lines.len();
-            let start = self.scroll_offset as usize;
-            let end = (start + visible_count).min(total_lines);
-            let visible_lines: Vec<Line> = self.content_lines[start..end].to_vec();
 
-            let content = Paragraph::new(visible_lines)
-                .scroll((0, 0));
-            f.render_widget(content, content_area);
+            // === 内容区 ===
+            // 只有在非审批模式下才渲染内容区域
+            if self.approval_state.is_none() {
+                let start = self.scroll_offset as usize;
+                let end = (start + visible_count).min(total_lines);
+                let visible_lines: Vec<Line> = self.content_lines[start..end].to_vec();
 
-            // === 审批 Overlay ===
+                let content = Paragraph::new(visible_lines)
+                    .scroll((0, 0));
+                f.render_widget(content, content_area);
+            } else {
+                // 审批模式：用黑色背景清除内容区域
+                let clear_area = Paragraph::new("")
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(clear_area, content_area);
+            }
+
+            // === 审批面板（底部弹出） ===
             if let Some(request) = &self.approval_state {
-                let panel_lines = approval_overlay::render_panel_lines(request);
-                let panel_width = 60.min(content_area.width.saturating_sub(4));
-                let panel_height = (panel_lines.len() as u16 + 2).min(content_area.height.saturating_sub(2));
-                let panel_x = content_area.x + (content_area.width.saturating_sub(panel_width)) / 2;
-                let panel_y = content_area.y + (content_area.height.saturating_sub(panel_height)) / 2;
-                let panel_area = Rect::new(panel_x, panel_y, panel_width, panel_height);
+                let (panel_lines, panel_height) = approval_overlay::render_bottom_panel(request, self.approval_selected);
 
-                // 边框 + 黑色背景填充（确保关闭后残留内容被覆盖）
-                let border = Block::bordered()
-                    .border_style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow))
-                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                f.render_widget(border, panel_area);
+                // 计算面板区域：覆盖整个底部（包括状态栏和输入框区域）
+                let panel_width = content_area.width;
+                let panel_y = content_area.y + content_area.height.saturating_sub(panel_height);
+                let panel_area = Rect::new(content_area.x, panel_y, panel_width, panel_height);
 
-                // 面板内容
-                let inner = panel_area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
-                let panel = Paragraph::new(panel_lines)
+                // 黑色背景填充
+                let panel_bg = Paragraph::new(panel_lines)
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                f.render_widget(panel, inner);
+                f.render_widget(panel_bg, panel_area);
             }
 
             // === 滚动指示器 ===
@@ -271,33 +283,24 @@ impl App {
                 f.render_widget(indicator, indicator_area);
             }
 
-            // === 状态栏 ===
-            let status_content = if self.approval_state.is_some() {
-                "⏳ 等待审批..."
-            } else if !self.status_text.is_empty() {
-                &self.status_text
-            } else {
-                " [Ready] "
-            };
-            let status_line = Line::from(Span::styled(
-                format!(" {} ", status_content),
-                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-            ));
-            let status = Paragraph::new(status_line)
-                .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-            f.render_widget(status, status_area);
-
-            // === 输入框 ===
-            if self.approval_state.is_some() {
-                // 审批状态：显示 "[审批中]"，隐藏光标
-                let prompt = Span::styled(
-                    "[审批中]",
+            // === 状态栏和输入框 ===
+            // 只有在非审批模式下才渲染状态栏和输入框
+            if self.approval_state.is_none() {
+                // === 状态栏 ===
+                let status_content = if !self.status_text.is_empty() {
+                    &self.status_text
+                } else {
+                    " [Ready] "
+                };
+                let status_line = Line::from(Span::styled(
+                    format!(" {} ", status_content),
                     ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                );
-                let input = Paragraph::new(Line::from(prompt));
-                f.render_widget(input, input_area);
-                // 不设置光标位置
-            } else {
+                ));
+                let status = Paragraph::new(status_line)
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(status, status_area);
+
+                // === 输入框 ===
                 let cursor_col = input_composer::cursor_col(&self.input);
                 let prompt = Span::styled(
                     "⟩ ",

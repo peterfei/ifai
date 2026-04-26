@@ -274,6 +274,155 @@ pub fn render_panel_lines(req: &ApprovalRequest) -> Vec<Line<'static>> {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Phase 3 — 底部弹出面板渲染（Claude Code 风格）
+// ═══════════════════════════════════════════════════════════
+
+/// 审批选项（用于数字选择）
+#[derive(Debug, Clone)]
+pub struct ApprovalOption {
+    pub label: String,
+    pub decision: ApprovalDecision,
+}
+
+/// 生成审批选项列表（根据工具类型动态生成）
+pub fn build_approval_options(req: &ApprovalRequest) -> Vec<ApprovalOption> {
+    match req.category {
+        ToolCategory::Destructive => vec![
+            ApprovalOption {
+                label: "Yes".to_string(),
+                decision: ApprovalDecision::ApproveOnce,
+            },
+            ApprovalOption {
+                label: format!("Yes, and always allow '{}' for this project", req.tool_name),
+                decision: ApprovalDecision::ApproveAlways,
+            },
+            ApprovalOption {
+                label: "No".to_string(),
+                decision: ApprovalDecision::Deny,
+            },
+        ],
+        ToolCategory::Dangerous => vec![
+            ApprovalOption {
+                label: "Yes".to_string(),
+                decision: ApprovalDecision::ApproveOnce,
+            },
+            ApprovalOption {
+                label: format!("Yes, and allow edits to '{}' for this session", extract_path_hint(req)),
+                decision: ApprovalDecision::ApproveSession,
+            },
+            ApprovalOption {
+                label: "No".to_string(),
+                decision: ApprovalDecision::Deny,
+            },
+        ],
+        ToolCategory::Safe => vec![
+            ApprovalOption {
+                label: "Yes".to_string(),
+                decision: ApprovalDecision::ApproveOnce,
+            },
+            ApprovalOption {
+                label: "No".to_string(),
+                decision: ApprovalDecision::Deny,
+            },
+        ],
+    }
+}
+
+/// 从请求中提取路径提示（用于文件编辑工具）
+fn extract_path_hint(req: &ApprovalRequest) -> String {
+    if let Some(path) = req.args_json.get("path").and_then(|v| v.as_str()) {
+        // 提取父目录
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            parent.to_str().unwrap_or(".").to_string()
+        } else {
+            ".".to_string()
+        }
+    } else {
+        ".".to_string()
+    }
+}
+
+/// 渲染底部弹出面板（Claude Code 风格）
+///
+/// 返回 (lines, height)：
+/// - lines: 面板的所有行（包括边框）
+/// - height: 面板的总高度
+pub fn render_bottom_panel(req: &ApprovalRequest, selected_index: usize) -> (Vec<Line<'static>>, u16) {
+    let options = build_approval_options(req);
+    let tool_display = get_tool_display_name(&req.tool_name);
+
+    // 面板内容
+    let mut lines = vec![];
+
+    // 标题行：工具名
+    lines.push(Line::from(Span::styled(
+        format!("─ {} ", tool_display),
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    // 命令预览
+    let args_preview = args_preview(req);
+    lines.push(Line::from(Span::styled(
+        args_preview,
+        Style::default().fg(Color::White),
+    )));
+
+    // 分隔线
+    lines.push(Line::from(Span::styled(
+        "─".repeat(60),
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    // 提示文本
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Do you want to proceed?",
+        Style::default().fg(Color::White),
+    )));
+
+    // 选项列表
+    for (i, option) in options.iter().enumerate() {
+        let is_selected = i == selected_index;
+        let style = if is_selected {
+            Style::default().fg(Color::Cyan)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+
+        lines.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(
+                format!("{}. {}", i + 1, option.label),
+                style,
+            ),
+        ]));
+    }
+
+    // Esc 提示
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Esc to cancel",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    // 计算高度
+    let height = lines.len() as u16;
+
+    (lines, height)
+}
+
+/// 获取工具显示名称
+fn get_tool_display_name(tool_name: &str) -> String {
+    match tool_name {
+        "bash" => "Bash command".to_string(),
+        "write_file" => "Write file".to_string(),
+        "edit_file" => "Edit file".to_string(),
+        "delete_file" => "Delete file".to_string(),
+        _ => tool_name.to_string(),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // Tests
 // ═══════════════════════════════════════════════════════════
 

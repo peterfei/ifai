@@ -853,10 +853,81 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 loop {
                                     if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
                                         if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
-                                            if let Some(decision) = approval_overlay::resolve_approval_key(key) {
-                                                let msg = app.resolve_approval(decision);
-                                                app.push_line(msg);
-                                                app.render();
+                                            use crossterm::event::KeyCode;
+
+                                            // 获取当前审批请求的选项数量
+                                            let options_count = if let Some(ref req) = app.approval_state_ref() {
+                                                approval_overlay::build_approval_options(req).len()
+                                            } else {
+                                                0
+                                            };
+
+                                            let mut should_break = false;
+
+                                            // 处理按键
+                                            match key.code {
+                                                KeyCode::Up | KeyCode::Down => {
+                                                    // 箭头键：更新选中项并继续等待（不退出循环）
+                                                    if options_count > 0 {
+                                                        if key.code == KeyCode::Up {
+                                                            if app.approval_selected > 0 {
+                                                                app.approval_selected -= 1;
+                                                            } else {
+                                                                app.approval_selected = options_count - 1; // 循环到最后
+                                                            }
+                                                        } else {
+                                                            if app.approval_selected + 1 < options_count {
+                                                                app.approval_selected += 1;
+                                                            } else {
+                                                                app.approval_selected = 0; // 循环到第一个
+                                                            }
+                                                        }
+                                                        app.render();
+                                                    }
+                                                    // 箭头键不退出循环，继续等待下一个按键
+                                                }
+                                                KeyCode::Enter => {
+                                                    // Enter：确认当前选中项并退出循环
+                                                    if options_count > 0 {
+                                                        if let Some(ref req) = app.approval_state_ref() {
+                                                            let options = approval_overlay::build_approval_options(req);
+                                                            if app.approval_selected < options.len() {
+                                                                let decision = options[app.approval_selected].decision;
+                                                                let msg = app.resolve_approval(decision);
+                                                                app.push_line(msg);
+                                                                app.render();
+                                                                should_break = true;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                KeyCode::Char(c) if c.is_ascii_digit() => {
+                                                    // 数字键：直接选择并退出循环
+                                                    let digit = c.to_digit(10).unwrap() as usize;
+                                                    if digit > 0 && digit <= options_count {
+                                                        if let Some(ref req) = app.approval_state_ref() {
+                                                            let options = approval_overlay::build_approval_options(req);
+                                                            let decision = options[digit - 1].decision;
+                                                            let msg = app.resolve_approval(decision);
+                                                            app.push_line(msg);
+                                                            app.render();
+                                                            should_break = true;
+                                                        }
+                                                    }
+                                                }
+                                                _ => {
+                                                    // 尝试单键快捷键（向后兼容）
+                                                    if let Some(decision) = approval_overlay::resolve_approval_key(key) {
+                                                        let msg = app.resolve_approval(decision);
+                                                        app.push_line(msg);
+                                                        app.render();
+                                                        should_break = true;
+                                                    }
+                                                }
+                                            }
+
+                                            // 只有做出决策后才退出循环
+                                            if should_break {
                                                 break;
                                             }
                                         }
