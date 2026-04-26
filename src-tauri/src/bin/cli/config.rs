@@ -147,13 +147,14 @@ impl EffectiveConfig {
         // 从 provider spec 派生环境变量名
         let spec = crate::provider::resolve_provider(provider)?;
         let env_key = crate::provider::resolve_env_key(spec);
+        let full_id = spec.metadata.id.clone();
 
         if let Ok(key) = std::env::var(&env_key) {
             return Ok(TracedValue::new(Some(key), ConfigSource::EnvVar));
         }
 
-        // 检查 TOML 配置文件
-        if let Some(key) = read_provider_api_key_from_toml(provider) {
+        // 检查 TOML 配置文件（使用完整 provider ID，如 "deepseek-official"）
+        if let Some(key) = read_provider_api_key_from_toml(&full_id) {
             return Ok(TracedValue::new(Some(key), ConfigSource::ConfigFile));
         }
 
@@ -166,8 +167,13 @@ impl EffectiveConfig {
             return TracedValue::new(Some(url.to_string()), ConfigSource::CliArg);
         }
 
+        // 用完整 provider ID 查找 TOML 配置
+        let full_id = crate::provider::resolve_provider(provider)
+            .map(|spec| spec.metadata.id.clone())
+            .unwrap_or_else(|_| provider.to_string());
+
         // 检查 TOML 配置文件
-        if let Some(url) = read_provider_base_url_from_toml(provider) {
+        if let Some(url) = read_provider_base_url_from_toml(&full_id) {
             return TracedValue::new(Some(url), ConfigSource::ConfigFile);
         }
 
