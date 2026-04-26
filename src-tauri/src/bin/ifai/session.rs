@@ -12,6 +12,7 @@ use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::cell::RefCell;
 use futures_util::stream::StreamExt;
 use serde_json::json;
 use ifainew_lib::harness::api::types::{StreamEvent, Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
@@ -21,6 +22,7 @@ use crate::provider::resolve_provider;
 use crate::render::{self, RESET, Spinner};
 use crate::prompt_vars::collect_cli_variables;
 use crate::permission::{self as approval, ToolCategory, RiskLevel};
+use crate::permission_store::{PermissionStore, PermissionRule, RuleType};
 use crate::token;  // 🔥 元编程：Token 状态栏
 use crate::token::format_number;  // 🔥 格式化数字（用于压缩统计）
 use crate::pipeline::PipelineTracker;  // 🎨 元编程：Pipeline 可视化
@@ -296,6 +298,10 @@ pub struct Session {
     base_url: Option<String>,
     /// 🔥 禁用工具调用（--no-tool 标志）
     tools_disabled: bool,
+    /// 🔥 权限存储（用户白名单）- 使用 RefCell 实现内部可变性
+    permission_store: RefCell<PermissionStore>,
+    /// 🔥 会话级权限规则（重启失效）
+    session_rules: RefCell<Vec<PermissionRule>>,
     /// 🎨 Pipeline 跟踪器
     pipeline_tracker: PipelineTracker,
     /// 🎯 统一底部状态栏
@@ -347,6 +353,8 @@ impl Session {
             api_key: None,
             base_url: None,
             tools_disabled: false,
+            permission_store: RefCell::new(PermissionStore::load()),
+            session_rules: RefCell::new(Vec::new()),
             pipeline_tracker: PipelineTracker::new(),
             bottom_status_bar,
             session_start,
@@ -990,6 +998,9 @@ impl Session {
 
         let _ = status_tx.send(format!("Streaming ({})", self.model));
 
+        // 🔥 清空 PipelineTracker 状态（确保不会显示上一次的工具结果）
+        self.pipeline_tracker.clear();
+
         loop {
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: self.model.clone(),
@@ -1210,7 +1221,31 @@ impl Session {
         }
 
         for tool in tools {
-            let auto_approve = approval::should_auto_approve(&tool.name, false);
+            // 🔥 首先检查用户白名单（持久化 + 会话级）
+            let args_json: serde_json::Value = serde_json::from_str(&tool.args)
+                .unwrap_or(serde_json::json!({}));
+            let store_allowed = self.permission_store.borrow().is_allowed(&tool.name, &args_json);
+
+            // 检查会话级规则（在 Session.session_rules 中）
+            let session_allowed = {
+                let session_rules = self.session_rules.borrow();
+                let mut allowed = false;
+                for rule in session_rules.iter() {
+                    if rule.tool_name == tool.name && rule.rule_type == RuleType::Allow {
+                        // 提取当前命令的目标值（不带后缀）
+                        let target = crate::permission_store::PermissionStore::extract_target_value(&tool.name, &args_json);
+                        // 检查是否匹配
+                        if crate::permission_store::PermissionStore::match_rule(&rule.pattern, &target) {
+                            allowed = true;
+                            break;
+                        }
+                    }
+                }
+                allowed
+            };
+
+            // 然后检查系统默认自动审批规则
+            let auto_approve = store_allowed || session_allowed || approval::should_auto_approve(&tool.name, false);
 
             if !auto_approve {
                 // 通过 channel 发送审批请求，等待用户决策
@@ -1228,10 +1263,24 @@ impl Session {
                         // 继续执行
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::ApproveAlways) => {
-                        // 持久化白名单：TODO 实现
+                        // 持久化白名单（写入文件 + 内存）
+                        let pattern = crate::permission_store::PermissionStore::extract_pattern(&tool.name, &args_json);
+                        let rule = crate::permission_store::PermissionRule {
+                            tool_name: tool.name.clone(),
+                            pattern,
+                            rule_type: RuleType::Allow,
+                        };
+                        self.permission_store.borrow_mut().add_persistent_rule(rule);
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::ApproveSession) => {
-                        // 会话级白名单：TODO 实现
+                        // 会话级白名单（仅内存）
+                        let pattern = crate::permission_store::PermissionStore::extract_pattern(&tool.name, &args_json);
+                        let rule = crate::permission_store::PermissionRule {
+                            tool_name: tool.name.clone(),
+                            pattern,
+                            rule_type: RuleType::Allow,
+                        };
+                        self.session_rules.borrow_mut().push(rule);
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::Deny) => {
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);
@@ -1251,9 +1300,6 @@ impl Session {
                     }
                 }
             }
-
-            let args_json: serde_json::Value = serde_json::from_str(&tool.args)
-                .unwrap_or(serde_json::json!({}));
 
             // 循环检测
             let loop_status = approval::check_loop(&tool.name, &tool.args);

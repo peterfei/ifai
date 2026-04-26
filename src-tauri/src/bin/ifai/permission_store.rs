@@ -8,6 +8,7 @@
 
 use crate::permission::{ToolCategory, should_auto_approve};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use ratatui::style::Color;
 use std::fs;
 use std::path::PathBuf;
@@ -235,6 +236,30 @@ impl PermissionStore {
         tool_name.to_string()
     }
 
+    /// 提取用于匹配的原始值（不带后缀）
+    pub fn extract_target_value(tool_name: &str, args: &serde_json::Value) -> String {
+        for (tools, strategy) in PATTERN_STRATEGIES {
+            if tools.contains(&tool_name) {
+                let field_value = if let Some(v) = args.get(strategy.args_field) {
+                    v.as_str().unwrap_or("")
+                } else {
+                    ""
+                };
+
+                return match strategy.match_type {
+                    MatchType::Prefix => {
+                        let words: Vec<&str> = field_value.split_whitespace().collect();
+                        let count = strategy.word_count.unwrap_or(words.len());
+                        words.iter().take(count).cloned().collect::<Vec<_>>().join(" ")
+                    }
+                    MatchType::GlobDir => field_value.to_string(),
+                    MatchType::Exact => field_value.to_string(),
+                };
+            }
+        }
+        tool_name.to_string()
+    }
+
     /// 查表匹配（MATCH_ENGINES 驱动）
     pub fn match_rule(pattern: &str, target: &str) -> bool {
         // 推断匹配类型
@@ -269,8 +294,13 @@ impl PermissionStore {
             if def.categories.contains(&req.category) {
                 let label = match def.option_type {
                     ApprovalOptionType::Always => {
-                        // 从 args_preview 提取 pattern
-                        let pattern = Self::extract_pattern(&req.tool_name, &serde_json::json!(req.args_preview));
+                        // 从 args_preview 提取 pattern（需要构造正确的工具参数 JSON）
+                        let args_json = match req.tool_name.as_str() {
+                            "bash" => json!({"cmd": req.args_preview}),
+                            "write_file" | "edit_file" | "delete_file" => json!({"path": req.args_preview}),
+                            _ => json!(req.args_preview),
+                        };
+                        let pattern = Self::extract_pattern(&req.tool_name, &args_json);
                         def.label_template.replace("{pattern}", &pattern)
                     }
                     ApprovalOptionType::Session => {
@@ -324,8 +354,8 @@ impl PermissionStore {
 
     /// 统一查询管道：deny → allow → fallback ToolApprovalEngine
     pub fn is_allowed(&self, tool_name: &str, args: &serde_json::Value) -> bool {
-        // 1. 提取目标值
-        let target = Self::extract_pattern(tool_name, args);
+        // 1. 提取目标值（不带后缀，用于匹配）
+        let target = Self::extract_target_value(tool_name, args);
 
         // 2. deny 规则优先匹配
         for rule in &self.persistent {
@@ -453,7 +483,8 @@ mod tests {
     fn test_extract_pattern_edit_file_nested_path() {
         let args = make_args("edit_file", json!("src/tauri/src/main.rs"));
         let pattern = PermissionStore::extract_pattern("edit_file", &args);
-        assert_eq!(pattern, "src/tauri/**");
+        // 直接父目录是 src/tauri/src
+        assert_eq!(pattern, "src/tauri/src/**");
     }
 
     #[test]
@@ -650,6 +681,31 @@ mod tests {
 
         let args = make_args("bash", json!("npm run test"));
         assert!(!store.is_allowed("bash", &args));
+    }
+
+    #[test]
+    fn test_is_allowed_ls_la_prefix_match() {
+        // 测试用户报告的问题：永久允许 ls -la 后，相同命令应该自动通过
+        let mut store = PermissionStore::new();
+
+        // 添加规则：ls -la:*
+        store.add_persistent_rule(PermissionRule {
+            tool_name: "bash".to_string(),
+            pattern: "ls -la:*".to_string(),
+            rule_type: RuleType::Allow,
+        });
+
+        // 测试完全相同的命令
+        let args = make_args("bash", json!("ls -la"));
+        assert!(store.is_allowed("bash", &args), "ls -la 应该被允许");
+
+        // 测试带额外参数的命令
+        let args = make_args("bash", json!("ls -la /tmp"));
+        assert!(store.is_allowed("bash", &args), "ls -la /tmp 应该被允许");
+
+        // 测试不同的 ls 命令
+        let args = make_args("bash", json!("ls -l"));
+        assert!(!store.is_allowed("bash", &args), "ls -l 不应该被允许（不同的命令）");
     }
 
     #[test]
