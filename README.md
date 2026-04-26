@@ -16,6 +16,21 @@
 
 ---
 
+### 🌟 v0.4.4 新特性：IfAI CLI 全面升级 — 工业级终端 AI 助手
+- **元数据驱动 CLI 架构**：Provider Dispatch Table + System Prompt 模板引擎，消除所有硬编码 match 分支，新增 provider 零 Rust 代码改动。
+- **元编程权限引擎**：从 GUI 端 `toolApprovalConfig.ts` 自动生成 Rust 权限引擎，O(1) 工具分类与风险分级，配置驱动续播限制。
+- **Token 系统与成本追踪**：复用 GUI 端 provider_metadata 定价数据，实时 Token 计数、进度条、成本统计、上下文预警（四级阈值）。
+- **TOML 配置系统**：`~/.ifai/config.toml` 四层优先级链（CLI > 环境变量 > 配置文件 > YAML 默认值），支持 API Key / Base URL 配置。
+- **会话持久化**：`/save` + `/resume` 命令，会话保存至 `~/.ifai/sessions/`，支持列表、恢复、导出。
+- **流式体验增强**：流式状态栏（紧凑式）、代码块流式渲染、语法高亮、代码折叠、ASCII 回退模式。
+- **Pipeline 元编程可视化**：`#[derive(StatusRender)]` 派生宏，零手写渲染逻辑，工具执行全生命周期跟踪。
+- **循环检测引擎**：配置驱动的通用检测引擎，完全相同调用检测、连续相同工具检测、声明式 API。
+- **智能 Glob 搜索**：防止上下文爆炸的智能文件搜索，支持 `src/**/*` 等模式匹配。
+- **ratatui 全屏 TUI 模式**：基于 ratatui + crossterm 的完整 TUI 架构，固定底部输入框与状态栏、工具审批 Overlay。
+- **REPL 命令系统**：12 个声明式命令（help/clear/compact/cost/provider/model/permissions/resume/export/undo/config/exit）。
+- **49 个 TUI 单元测试**：全面的模块化测试覆盖。
+- **Homebrew 发布指南**：自动化发布脚本与 Homebrew Cask 集成。
+
 ### 🌟 v0.4.3 新特性：元数据驱动架构、多模态支持与国际化
 - **元数据驱动的提供商架构**：YAML 配置驱动，代码量减少 70%，一行配置即可接入新 Provider。
 - **SSE 流解析关键 Bug 修复**：修复 `finish_reason: null` 误判，影响所有 OpenAI 兼容提供商。
@@ -88,6 +103,7 @@
 
 | 版本 | 主题 | 核心突破 |
 | :--- | :--- | :--- |
+| **v0.4.4** | **CLI 全面升级 — 工业级终端 AI 助手** | **元数据驱动 CLI 架构、元编程权限引擎、Token 系统、TOML 配置、会话持久化、Pipeline 可视化、循环检测引擎、ratatui 全屏 TUI、智能 Glob 搜索、49 个测试** |
 | **v0.4.3** | **元数据驱动架构与国际化** | **元数据驱动 Provider 架构（YAML 配置）、5 家 AI 提供商 80+ 模型、完整多模态支持、三语言全覆盖（中/英/俄）、CI 集成与质量门禁、SSE 流解析修复** |
 | **v0.4.2** | **技能中心重构与流式性能优化** | **技能中心 Phase 7 全面重构、BatchEventStream 性能优化、工具调用竞态修复、E2E 测试框架 v2.0、10 项 Bug 修复** |
 | **v0.4.1** | **多智能体协作与消息稳定性** | **多智能体协作系统（P0-P4 完成）、DAG 工作流引擎、智能体通信协议、消息队列系统、Tab 消息隔离、12 项 Bug 修复** |
