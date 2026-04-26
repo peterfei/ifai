@@ -25,6 +25,7 @@ mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
 mod markdown_meta; // 🎨 Markdown 元编程驱动层
 mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
+mod permission_store; // 🔥 权限规则存储（用户白名单）
 
 use std::env;
 use std::io::{self, IsTerminal, Write};

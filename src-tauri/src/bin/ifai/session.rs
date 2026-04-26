@@ -1224,8 +1224,14 @@ impl Session {
                 }
 
                 match response_rx.await {
-                    Ok(crate::approval_overlay::ApprovalDecision::Approve) => {
+                    Ok(crate::approval_overlay::ApprovalDecision::ApproveOnce) => {
                         // 继续执行
+                    }
+                    Ok(crate::approval_overlay::ApprovalDecision::ApproveAlways) => {
+                        // 持久化白名单：TODO 实现
+                    }
+                    Ok(crate::approval_overlay::ApprovalDecision::ApproveSession) => {
+                        // 会话级白名单：TODO 实现
                     }
                     Ok(crate::approval_overlay::ApprovalDecision::Deny) => {
                         let error_msg = format!("Tool '{}' execution denied by user", tool.name);

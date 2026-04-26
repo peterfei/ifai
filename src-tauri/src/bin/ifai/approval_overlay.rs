@@ -16,15 +16,30 @@ use super::session::PendingToolCall;
 // Phase 1.1 — 审批核心类型
 // ═══════════════════════════════════════════════════════════
 
-/// 审批决策
+/// 审批决策（扩展支持持久化白名单）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApprovalDecision {
-    /// 执行工具
-    Approve,
-    /// 跳过工具，返回错误给 AI
+    /// 仅本次允许
+    ApproveOnce,
+    /// 持久化白名单（Bash 工具）
+    ApproveAlways,
+    /// 会话级白名单（文件编辑工具）
+    ApproveSession,
+    /// 拒绝执行
     Deny,
-    /// 中止整个 AI 请求
+    /// 中止请求
     Abort,
+}
+
+/// 兼容旧代码：`Approve` 映射到 `ApproveOnce`
+impl From<ApprovalDecision> for Option<bool> {
+    fn from(decision: ApprovalDecision) -> Self {
+        match decision {
+            ApprovalDecision::ApproveOnce | ApprovalDecision::ApproveAlways | ApprovalDecision::ApproveSession => Some(true),
+            ApprovalDecision::Deny => Some(false),
+            ApprovalDecision::Abort => None,
+        }
+    }
 }
 
 /// 审批请求（Session → App）
@@ -69,7 +84,9 @@ pub struct KeyAction {
 }
 
 pub const APPROVAL_KEYMAP: &[KeyAction] = &[
-    KeyAction { key: KeyCode::Char('y'), modifiers: KeyModifiers::NONE, label: "批准", decision: ApprovalDecision::Approve },
+    KeyAction { key: KeyCode::Char('y'), modifiers: KeyModifiers::NONE, label: "批准", decision: ApprovalDecision::ApproveOnce },
+    KeyAction { key: KeyCode::Char('a'), modifiers: KeyModifiers::NONE, label: "永久允许", decision: ApprovalDecision::ApproveAlways },
+    KeyAction { key: KeyCode::Char('s'), modifiers: KeyModifiers::NONE, label: "会话允许", decision: ApprovalDecision::ApproveSession },
     KeyAction { key: KeyCode::Char('n'), modifiers: KeyModifiers::NONE, label: "拒绝", decision: ApprovalDecision::Deny },
     KeyAction { key: KeyCode::Esc, modifiers: KeyModifiers::NONE, label: "中止", decision: ApprovalDecision::Abort },
 ];
@@ -290,7 +307,7 @@ mod tests {
 
     #[test]
     fn test_resolve_approval_key_y() {
-        assert_eq!(resolve_approval_key(char_key('y')), Some(ApprovalDecision::Approve));
+        assert_eq!(resolve_approval_key(char_key('y')), Some(ApprovalDecision::ApproveOnce));
     }
 
     #[test]

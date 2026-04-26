@@ -140,7 +140,9 @@ impl App {
         let _ = self.terminal.clear();
 
         match decision {
-            ApprovalDecision::Approve => format!("✓ 已批准执行 {}", tool_name),
+            ApprovalDecision::ApproveOnce => format!("✓ 已批准执行 {}", tool_name),
+            ApprovalDecision::ApproveAlways => format!("✓ 已永久允许执行 {}", tool_name),
+            ApprovalDecision::ApproveSession => format!("✓ 已会话允许执行 {}", tool_name),
             ApprovalDecision::Deny => format!("✗ 已拒绝执行 {}", tool_name),
             ApprovalDecision::Abort => "⊘ 已中止 AI 请求".to_string(),
         }
