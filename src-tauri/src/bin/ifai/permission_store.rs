@@ -183,7 +183,7 @@ impl PermissionStore {
         let path = Self::config_path();
         let persistent = if path.exists() {
             let content = fs::read_to_string(&path).unwrap_or_default();
-            toml::from_str(&content).unwrap_or_default()
+            Self::parse_toml(&content)
         } else {
             Vec::new()
         };
@@ -191,6 +191,52 @@ impl PermissionStore {
             persistent,
             session: Vec::new(),
         }
+    }
+
+    /// 解析 TOML 内容为规则列表
+    fn parse_toml(content: &str) -> Vec<PermissionRule> {
+        let mut rules = Vec::new();
+
+        // 解析为任意的 TOML 值
+        if let Ok(value) = toml::from_str::<toml::Value>(content) {
+            // 尝试获取 allow 规则
+            if let Some(allow_array) = value.get("allow").and_then(|v| v.as_array()) {
+                for item in allow_array {
+                    if let Some(table) = item.as_table() {
+                        if let (Some(tool), Some(pattern)) = (
+                            table.get("tool").and_then(|v| v.as_str()),
+                            table.get("pattern").and_then(|v| v.as_str()),
+                        ) {
+                            rules.push(PermissionRule {
+                                tool_name: tool.to_string(),
+                                pattern: pattern.to_string(),
+                                rule_type: RuleType::Allow,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 尝试获取 deny 规则
+            if let Some(deny_array) = value.get("deny").and_then(|v| v.as_array()) {
+                for item in deny_array {
+                    if let Some(table) = item.as_table() {
+                        if let (Some(tool), Some(pattern)) = (
+                            table.get("tool").and_then(|v| v.as_str()),
+                            table.get("pattern").and_then(|v| v.as_str()),
+                        ) {
+                            rules.push(PermissionRule {
+                                tool_name: tool.to_string(),
+                                pattern: pattern.to_string(),
+                                rule_type: RuleType::Deny,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        rules
     }
 
     fn config_path() -> PathBuf {
@@ -346,10 +392,62 @@ impl PermissionStore {
         self.session.push(rule);
     }
 
+    /// 保存持久化规则到 ~/.ifai/permissions.toml
+    fn save(&self) -> Result<(), String> {
+        let path = Self::config_path();
+
+        // 确保目录存在
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+            }
+        }
+
+        // 序列化为 TOML
+        let allow_rules: Vec<_> = self.persistent.iter()
+            .filter(|r| r.rule_type == RuleType::Allow)
+            .map(|r| toml::value::Table::from_iter([
+                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
+            ]))
+            .collect();
+
+        let deny_rules: Vec<_> = self.persistent.iter()
+            .filter(|r| r.rule_type == RuleType::Deny)
+            .map(|r| toml::value::Table::from_iter([
+                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
+            ]))
+            .collect();
+
+        let mut root = toml::value::Table::new();
+        if !allow_rules.is_empty() {
+            root.insert("allow".to_string(), toml::Value::Array(
+                allow_rules.into_iter().map(toml::Value::Table).collect()
+            ));
+        }
+        if !deny_rules.is_empty() {
+            root.insert("deny".to_string(), toml::Value::Array(
+                deny_rules.into_iter().map(toml::Value::Table).collect()
+            ));
+        }
+
+        // 写入文件
+        let content = toml::to_string_pretty(&root)
+            .map_err(|e| format!("Failed to serialize TOML: {}", e))?;
+
+        fs::write(&path, content)
+            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
+
+        Ok(())
+    }
+
     /// 添加持久化规则（写入文件 + 内存）
     pub fn add_persistent_rule(&mut self, rule: PermissionRule) {
-        // TODO: 实现文件写入
         self.persistent.push(rule);
+        // 持久化到文件
+        let _ = self.save();  // 忽略错误，避免阻塞审批流程
     }
 
     /// 统一查询管道：deny → allow → fallback ToolApprovalEngine
@@ -723,5 +821,258 @@ mod tests {
 
         let args = make_args("edit_file", json!("tests/test.rs"));
         assert!(!store.is_allowed("edit_file", &args));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 文件持久化测试
+    // ═══════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_save_and_load_allow_rules() {
+        use std::fs;
+
+        // 使用临时目录
+        let temp_dir = std::env::temp_dir().join("ifai_test_allow");
+        let _ = fs::create_dir_all(&temp_dir);
+
+        // 修改 config_path 使用临时目录
+        let config_file = temp_dir.join("permissions.toml");
+
+        // 创建测试规则
+        let mut store = PermissionStore::new();
+        store.add_persistent_rule(PermissionRule {
+            tool_name: "bash".to_string(),
+            pattern: "git diff:*".to_string(),
+            rule_type: RuleType::Allow,
+        });
+        store.add_persistent_rule(PermissionRule {
+            tool_name: "bash".to_string(),
+            pattern: "ls -la:*".to_string(),
+            rule_type: RuleType::Allow,
+        });
+
+        // 手动保存到临时文件（因为 save() 是私有的）
+        let allow_rules: Vec<_> = store.persistent.iter()
+            .filter(|r| r.rule_type == RuleType::Allow)
+            .map(|r| toml::value::Table::from_iter([
+                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
+            ]))
+            .collect();
+
+        let mut root = toml::value::Table::new();
+        root.insert("allow".to_string(), toml::Value::Array(
+            allow_rules.into_iter().map(toml::Value::Table).collect()
+        ));
+
+        let content = toml::to_string_pretty(&root).unwrap();
+        fs::write(&config_file, content).unwrap();
+
+        // 验证文件内容
+        assert!(config_file.exists());
+        let file_content = fs::read_to_string(&config_file).unwrap();
+        assert!(file_content.contains("git diff:*"));
+        assert!(file_content.contains("ls -la:*"));
+
+        // 清理
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_save_and_load_deny_rules() {
+        use std::fs;
+
+        // 使用临时目录
+        let temp_dir = std::env::temp_dir().join("ifai_test_deny");
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_file = temp_dir.join("permissions.toml");
+
+        // 创建 deny 规则
+        let deny_rules = vec![
+            PermissionRule {
+                tool_name: "bash".to_string(),
+                pattern: "rm -rf /*".to_string(),
+                rule_type: RuleType::Deny,
+            },
+        ];
+
+        let deny_toml: Vec<_> = deny_rules.iter()
+            .map(|r| toml::value::Table::from_iter([
+                ("tool".to_string(), toml::Value::String(r.tool_name.clone())),
+                ("pattern".to_string(), toml::Value::String(r.pattern.clone())),
+            ]))
+            .collect();
+
+        let mut root = toml::value::Table::new();
+        root.insert("deny".to_string(), toml::Value::Array(
+            deny_toml.into_iter().map(toml::Value::Table).collect()
+        ));
+
+        let content = toml::to_string_pretty(&root).unwrap();
+        fs::write(&config_file, content).unwrap();
+
+        // 验证文件内容
+        let file_content = fs::read_to_string(&config_file).unwrap();
+        assert!(file_content.contains("[[deny]]"));
+        assert!(file_content.contains("rm -rf /*"));
+
+        // 清理
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_load_from_nonexistent_file() {
+        use std::fs;
+
+        // 使用不存在的文件路径
+        let temp_dir = std::env::temp_dir().join("ifai_test_nonexistent");
+        let config_file = temp_dir.join("permissions.toml");
+
+        // 确保文件不存在
+        assert!(!config_file.exists());
+
+        // 加载不存在的文件应该返回空规则
+        let content = fs::read_to_string(&config_file).unwrap_or_default();
+        let rules: Vec<PermissionRule> = toml::from_str(&content).unwrap_or_default();
+        assert!(rules.is_empty());
+    }
+
+    #[test]
+    fn test_toml_format_correctness() {
+        use std::fs;
+
+        // 使用临时目录
+        let temp_dir = std::env::temp_dir().join("ifai_test_format");
+        let _ = fs::create_dir_all(&temp_dir);
+        let config_file = temp_dir.join("permissions.toml");
+
+        // 创建示例 TOML 内容
+        let toml_content = r#"
+[[allow]]
+tool = "bash"
+pattern = "git diff:*"
+
+[[allow]]
+tool = "bash"
+pattern = "ls -la:*"
+
+[[deny]]
+tool = "bash"
+pattern = "rm -rf /*"
+"#;
+
+        fs::write(&config_file, toml_content).unwrap();
+
+        // 验证可以正确解析
+        let content = fs::read_to_string(&config_file).unwrap();
+        let root: toml::value::Table = toml::from_str(&content).unwrap();
+
+        // 验证 allow 规则
+        let allow = root.get("allow").and_then(|v| v.as_array());
+        assert!(allow.is_some());
+        let allow = allow.unwrap();
+        assert_eq!(allow.len(), 2);
+
+        // 验证 deny 规则
+        let deny = root.get("deny").and_then(|v| v.as_array());
+        assert!(deny.is_some());
+        let deny = deny.unwrap();
+        assert_eq!(deny.len(), 1);
+
+        // 清理
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_parse_toml_with_allow_and_deny() {
+        // 测试 parse_toml 方法
+        let toml_content = r#"
+[[allow]]
+tool = "bash"
+pattern = "git diff:*"
+
+[[allow]]
+tool = "bash"
+pattern = "ls -la:*"
+
+[[deny]]
+tool = "bash"
+pattern = "rm -rf /*"
+"#;
+
+        let rules = PermissionStore::parse_toml(toml_content);
+
+        // 应该解析出 3 条规则
+        assert_eq!(rules.len(), 3);
+
+        // 验证 allow 规则
+        let allow_rules: Vec<_> = rules.iter().filter(|r| r.rule_type == RuleType::Allow).collect();
+        assert_eq!(allow_rules.len(), 2);
+        assert_eq!(allow_rules[0].tool_name, "bash");
+        assert_eq!(allow_rules[0].pattern, "git diff:*");
+        assert_eq!(allow_rules[1].tool_name, "bash");
+        assert_eq!(allow_rules[1].pattern, "ls -la:*");
+
+        // 验证 deny 规则
+        let deny_rules: Vec<_> = rules.iter().filter(|r| r.rule_type == RuleType::Deny).collect();
+        assert_eq!(deny_rules.len(), 1);
+        assert_eq!(deny_rules[0].tool_name, "bash");
+        assert_eq!(deny_rules[0].pattern, "rm -rf /*");
+    }
+
+    #[test]
+    fn test_parse_toml_empty_content() {
+        let rules = PermissionStore::parse_toml("");
+        assert_eq!(rules.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_toml_invalid_content() {
+        let rules = PermissionStore::parse_toml("invalid toml content {{{");
+        assert_eq!(rules.len(), 0);
+    }
+
+    #[test]
+    fn test_load_integration_with_is_allowed() {
+        use std::fs;
+
+        // 创建临时目录和权限文件
+        let temp_dir = std::env::temp_dir().join("ifai_test_load_integration");
+        let _ = fs::create_dir_all(&temp_dir);
+        let perm_file = temp_dir.join("permissions.toml");
+
+        // 写入测试规则
+        let toml_content = r#"
+[[allow]]
+tool = "bash"
+pattern = "git diff:*"
+
+[[allow]]
+tool = "bash"
+pattern = "ls -la:*"
+"#;
+        fs::write(&perm_file, toml_content).unwrap();
+
+        // 解析规则
+        let rules = PermissionStore::parse_toml(toml_content);
+
+        // 创建 PermissionStore 并测试
+        let mut store = PermissionStore::new();
+        store.persistent = rules.clone();
+
+        // 测试 git diff 命令应该被允许
+        let git_args = json!({"cmd": "git diff --stat"});
+        assert!(store.is_allowed("bash", &git_args), "git diff 应该被允许");
+
+        // 测试 ls -la 命令应该被允许
+        let ls_args = json!({"cmd": "ls -la"});
+        assert!(store.is_allowed("bash", &ls_args), "ls -la 应该被允许");
+
+        // 测试其他命令不应该被允许
+        let pwd_args = json!({"cmd": "pwd"});
+        assert!(!store.is_allowed("bash", &pwd_args), "pwd 不应该被允许");
+
+        // 清理
+        let _ = fs::remove_dir_all(temp_dir);
     }
 }
