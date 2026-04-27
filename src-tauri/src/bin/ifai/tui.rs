@@ -5,7 +5,7 @@
 use std::io::{self, Stdout};
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -72,7 +72,7 @@ impl App {
     /// 创建并初始化 TUI
     pub fn new() -> io::Result<Self> {
         enable_raw_mode()?;
-        execute!(io::stdout(), EnterAlternateScreen)?;
+        execute!(io::stdout(), EnterAlternateScreen, crossterm::event::EnableMouseCapture)?;
 
         let backend = CrosstermBackend::new(io::stdout());
         let mut terminal = Terminal::new(backend)?;
@@ -94,7 +94,7 @@ impl App {
         let theme = render::default_theme();
         app.push_line(format!("{}IfAI CLI v0.4.4{}", theme.brand, render::RESET));
         app.push_line("Type /help for commands. Press Ctrl+D to exit.".to_string());
-        app.push_line("Scroll: PageUp/PageDown or Shift+Up/Down.".to_string());
+        app.push_line("Scroll: PageUp/PageDown, Shift+Up/Down, or Mouse wheel.".to_string());
         app.push_line(String::new());
 
         Ok(app)
@@ -322,7 +322,7 @@ impl App {
     /// 恢复终端状态
     pub fn restore(&mut self) -> io::Result<()> {
         self.terminal.show_cursor()?;
-        execute!(io::stdout(), LeaveAlternateScreen)?;
+        execute!(io::stdout(), LeaveAlternateScreen, crossterm::event::DisableMouseCapture)?;
         disable_raw_mode()?;
         Ok(())
     }
@@ -375,6 +375,19 @@ impl App {
                     }
                     Ok(Event::Resize(_, _)) => {
                         self.scroll_to_bottom();
+                    }
+                    Ok(Event::Mouse(mouse_event)) => {
+                        match mouse_event.kind {
+                            MouseEventKind::ScrollUp => {
+                                self.scroll_up(3);
+                            }
+                            MouseEventKind::ScrollDown => {
+                                self.scroll_down(3);
+                            }
+                            _ => {
+                                // 忽略其他鼠标事件（点击、拖拽等）
+                            }
+                        }
                     }
                     _ => {}
                 }
