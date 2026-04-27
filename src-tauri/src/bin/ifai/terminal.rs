@@ -145,11 +145,11 @@ impl Terminal {
             let mut info: CONSOLE_SCREEN_BUFFER_INFO = mem::zeroed();
 
             if GetConsoleScreenBufferInfo(handle, &mut info).is_ok() {
-                let rows = info.srWindow.Bottom - info.srWindow.Top + 1;
-                let cols = info.srWindow.Right - info.srWindow.Left + 1;
+                let rows = (info.srWindow.Bottom - info.srWindow.Top + 1).max(1) as u16;
+                let cols = (info.srWindow.Right - info.srWindow.Left + 1).max(1) as u16;
                 TerminalSize {
-                    rows: rows.max(1),
-                    cols: cols.max(1),
+                    rows,
+                    cols,
                 }
             } else {
                 TerminalSize::safe_default()
