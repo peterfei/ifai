@@ -27,7 +27,7 @@ impl SseEvent {
                     "model": "gpt-4",
                     "choices": [{
                         "index": 0,
-                        "delta": {"role": "assistant"},
+                        "delta": {"role": "assistant", "content": ""},
                         "finish_reason": null
                     }]
                 });
@@ -201,7 +201,7 @@ impl MockResponses {
 }
 
 #[cfg(test)]
-mod tests {
+mod fixtures_tests {
     use super::*;
 
     #[test]

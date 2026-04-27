@@ -1,0 +1,39 @@
+# tests/suite/cli_api.yaml
+#
+# CLI API 测试（使用 Mock 服务器）
+# 测试需要 API 调用的功能
+
+test_suite:
+  name: "CLI API 功能测试"
+  description: "测试 CLI API 调用功能（使用 Mock 服务器）"
+
+  tests:
+    - name: "简单提示词响应"
+      description: "测试简单的提示词能够正常响应"
+      given:
+        args: ["hello"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "Hello"
+
+    - name: "Mock响应验证"
+      description: "验证 Mock 服务器返回的内容"
+      given:
+        args: ["test"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "mock"
+
+    - name: "空提示词处理"
+      description: "测试空提示词的处理"
+      given:
+        args: [""]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: false
+        assert_contains: "Empty"

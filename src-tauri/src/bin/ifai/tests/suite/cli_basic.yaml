@@ -1,0 +1,45 @@
+# tests/suite/cli_basic.yaml
+#
+# CLI 基础功能测试
+# 测试不需要 API 调用的功能
+
+test_suite:
+  name: "CLI 基础功能测试"
+  description: "测试 CLI 基础功能（无需 Mock API）"
+
+  tests:
+    - name: "版本信息显示"
+      description: "测试 --version 参数能正常显示版本信息"
+      given:
+        args: ["--version"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "v0.4"
+
+    - name: "短参数版本"
+      description: "测试 -V 参数显示版本"
+      given:
+        args: ["-V"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "v0.4"
+
+    - name: "错误提示包含使用信息"
+      description: "测试错误参数时显示使用提示"
+      given:
+        args: ["--invalid-flag"]
+      when: {}
+      then:
+        assert_success: false  # 期望失败
+        assert_contains: "Usage"
+
+    - name: "版本输出包含CLI标识"
+      description: "测试版本输出包含 CLI 标识"
+      given:
+        args: ["--version"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "CLI"

@@ -993,7 +993,23 @@ mod tests {
 
     // 包含测试基础设施
     mod common {
-        include!("tests/common/mod.rs");
+        mod test_env {
+            include!("tests/common/test_env.rs");
+        }
+        mod assertions {
+            include!("tests/common/assertions.rs");
+        }
+        mod mock_server {
+            include!("tests/common/mock_server.rs");
+        }
+        mod fixtures {
+            include!("tests/common/fixtures.rs");
+        }
+
+        pub use test_env::*;
+        pub use assertions::*;
+        pub use mock_server::*;
+        pub use fixtures::*;
     }
 
     // 包含生成的集成测试

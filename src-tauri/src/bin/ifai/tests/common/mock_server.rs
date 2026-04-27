@@ -166,7 +166,7 @@ impl MockApiServer {
 }
 
 #[cfg(test)]
-mod tests {
+mod mock_server_tests {
     use super::*;
 
     #[tokio::test]

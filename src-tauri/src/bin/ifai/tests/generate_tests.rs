@@ -133,8 +133,16 @@ fn generate_single_test(test: &serde_yaml::Value) -> Option<String> {
         code.push_str(&format!("    // {}\n", desc));
     }
 
+    // 检查是否需要 Mock
+    let needs_mock = test.get("when")
+        .and_then(|w| w.get("mock_response"))
+        .is_some()
+        || test.get("when")
+        .and_then(|w| w.get("mock_streaming"))
+        .is_some();
+
     if let Some(given) = test.get("given") {
-        code.push_str(&generate_given(given));
+        code.push_str(&generate_given(given, needs_mock));
     }
 
     // 从 given 中获取 args
@@ -143,7 +151,7 @@ fn generate_single_test(test: &serde_yaml::Value) -> Option<String> {
         .and_then(|a| a.as_sequence());
 
     if let Some(when) = test.get("when") {
-        code.push_str(&generate_when(when, args));
+        code.push_str(&generate_when(when, args, needs_mock));
     }
 
     if let Some(then) = test.get("then") {
@@ -154,9 +162,14 @@ fn generate_single_test(test: &serde_yaml::Value) -> Option<String> {
     Some(code)
 }
 
-fn generate_given(given: &serde_yaml::Value) -> String {
+fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
     let mut code = String::new();
-    code.push_str("    let env = TestEnv::new().await.unwrap();\n");
+
+    if needs_mock {
+        code.push_str("    let env = TestEnv::with_mock().await.unwrap();\n");
+    } else {
+        code.push_str("    let env = TestEnv::new().await.unwrap();\n");
+    }
 
     if let Some(env_vars) = given.get("env") {
         if let Some(mapping) = env_vars.as_mapping() {
@@ -178,12 +191,23 @@ fn generate_given(given: &serde_yaml::Value) -> String {
     code
 }
 
-fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>) -> String {
+fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>, needs_mock: bool) -> String {
     let mut code = String::new();
 
     // Mock 设置
-    if when.get("mock_response").is_some() || when.get("mock_streaming").is_some() {
-        code.push_str("    // Mock server setup\n");
+    if needs_mock {
+        if let Some(response_file) = when.get("mock_response").and_then(|v| v.as_str()) {
+            code.push_str(&format!("    // Mock response: {}\n", response_file));
+            // 设置简单响应
+            code.push_str("    if let Some(mock) = env.mock_server() {\n");
+            code.push_str("        mock.setup_simple_response(\"Hello from mock!\").await.unwrap();\n");
+            code.push_str("    }\n");
+        } else if when.get("mock_streaming").is_some() {
+            code.push_str("    // Mock streaming response\n");
+            code.push_str("    if let Some(mock) = env.mock_server() {\n");
+            code.push_str("        mock.setup_streaming_response(vec![\"Hello\", \" World\"]).await.unwrap();\n");
+            code.push_str("    }\n");
+        }
     }
 
     // 优先使用 given 中的 args，其次使用 when 中的 args，最后使用默认值
@@ -204,8 +228,14 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
 fn generate_then(then: &serde_yaml::Value) -> String {
     let mut code = String::new();
 
-    if then.get("assert_success").and_then(|v| v.as_bool()).unwrap_or(false) {
-        code.push_str("    output.assert_success();\n");
+    // 处理 assert_success
+    if let Some(success) = then.get("assert_success").and_then(|v| v.as_bool()) {
+        if success {
+            code.push_str("    output.assert_success();\n");
+        } else {
+            // 期望失败：检查退出状态不是成功
+            code.push_str("    assert!(!output.status.success(), \"Command should fail but it succeeded\");\n");
+        }
     }
 
     if let Some(text) = then.get("assert_contains").and_then(|v| v.as_str()) {
