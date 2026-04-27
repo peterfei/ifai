@@ -1058,6 +1058,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::common::*;
 
     // 包含测试基础设施
     mod common {
@@ -1088,6 +1089,131 @@ mod tests {
     mod generated {
         use crate::tests::common::*;
         include!("tests/generated/mod.rs");
+    }
+
+    // 手动编写的端到端压缩测试
+    mod compression_tests {
+        use crate::tests::common::*;
+
+        #[tokio::test]
+        async fn test_compression_trigger_by_message_count() {
+        let mut env = TestEnv::with_mock().await.unwrap();
+
+        // 构造 101 条消息的 stdin 输入来触发压缩
+        let mut stdin_input = String::new();
+        for i in 1..=105 {
+            stdin_input.push_str(&format!("message {}\n", i));
+        }
+        stdin_input.push_str("/exit\n");
+
+        env.set_stdin(&stdin_input);
+
+        // 运行 REPL（无参数 = 进入 REPL 模式）
+        let output = env.run_cli(&[]).await.unwrap();
+
+        // 验证压缩被触发
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        let stderr_str = String::from_utf8_lossy(&output.stderr);
+
+        let compression_triggered = stdout_str.contains("对话过长")
+            || stdout_str.contains("正在自动压缩")
+            || stderr_str.contains("对话过长")
+            || stderr_str.contains("正在自动压缩");
+
+        assert!(compression_triggered,
+            "Expected compression warning\nstdout: {}\nstderr: {}",
+            stdout_str, stderr_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conversation_continues_after_compression() {
+        let mut env = TestEnv::with_mock().await.unwrap();
+
+        let mut stdin_input = String::new();
+        for i in 1..=105 {
+            stdin_input.push_str(&format!("message {}\n", i));
+        }
+        stdin_input.push_str("continue after compression\n/exit\n");
+
+        env.set_stdin(&stdin_input);
+        let output = env.run_cli(&[]).await.unwrap();
+
+        output.assert_success();
+    }
+
+    #[tokio::test]
+    async fn test_manual_compact_command() {
+        let mut env = TestEnv::with_mock().await.unwrap();
+
+        let stdin_input = "message 1\nmessage 2\nmessage 3\n/compact\nmessage after compact\n/exit\n";
+
+        env.set_stdin(stdin_input);
+        let output = env.run_cli(&[]).await.unwrap();
+
+        output.assert_success();
+    }
+
+    // 手动编写的端到端压缩测试
+    // 注意：这些测试需要真正进入 REPL 模式并触发 100+ 消息阈值
+
+    #[tokio::test]
+    async fn test_compression_trigger_by_message_count() {
+        let mut env = TestEnv::with_mock().await.unwrap();
+
+        // 构造 101 条消息的 stdin 输入来触发压缩
+        let mut stdin_input = String::new();
+        for i in 1..=105 {
+            stdin_input.push_str(&format!("message {}\n", i));
+        }
+        stdin_input.push_str("/exit\n");
+
+        env.set_stdin(&stdin_input);
+
+        // 运行 REPL（无参数 = 进入 REPL 模式）
+        let output = env.run_cli(&[]).await.unwrap();
+
+        // 验证压缩被触发
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        let stderr_str = String::from_utf8_lossy(&output.stderr);
+
+        let compression_triggered = stdout_str.contains("对话过长")
+            || stdout_str.contains("正在自动压缩")
+            || stderr_str.contains("对话过长")
+            || stderr_str.contains("正在自动压缩");
+
+        assert!(compression_triggered,
+            "Expected compression warning\nstdout: {}\nstderr: {}",
+            stdout_str, stderr_str
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conversation_continues_after_compression() {
+        let mut env = TestEnv::with_mock().await.unwrap();
+
+        let mut stdin_input = String::new();
+        for i in 1..=105 {
+            stdin_input.push_str(&format!("message {}\n", i));
+        }
+        stdin_input.push_str("continue after compression\n/exit\n");
+
+        env.set_stdin(&stdin_input);
+        let output = env.run_cli(&[]).await.unwrap();
+
+        output.assert_success();
+    }
+
+    #[tokio::test]
+    async fn test_manual_compact_command() {
+        let mut env = TestEnv::with_mock().await.unwrap();
+
+        let stdin_input = "message 1\nmessage 2\nmessage 3\n/compact\nmessage after compact\n/exit\n";
+
+        env.set_stdin(stdin_input);
+        let output = env.run_cli(&[]).await.unwrap();
+
+        output.assert_success();
     }
 
     #[test]
