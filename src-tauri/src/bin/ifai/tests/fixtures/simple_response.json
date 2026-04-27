@@ -1,0 +1,19 @@
+{
+  "id": "chatcmpl-test-simple",
+  "object": "chat.completion",
+  "created": 1234567890,
+  "model": "gpt-4",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "Hello! How can I help you today?"
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 20,
+    "total_tokens": 30
+  }
+}

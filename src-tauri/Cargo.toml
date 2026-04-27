@@ -37,6 +37,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "ifai"
 path = "src/bin/ifai/main.rs"
 
+# 测试代码生成器
+[[bin]]
+name = "generate_tests"
+path = "src/bin/ifai/tests/generate_tests.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -126,3 +131,17 @@ tracing-subscriber = "0.3"
 tempfile = "3.10"
 insta = "1"
 pretty_assertions = "1"
+
+# CLI 测试框架
+assert_cmd = "2.0"
+tokio-test = "0.4"
+serial_test = "3.0"
+wiremock = "0.6"
+
+# 元编程依赖
+quote = "1.0"
+proc-macro2 = "1.0"
+
+# 测试基础设施依赖
+exitcode = "1.1"
+regex-lite = "0.1"

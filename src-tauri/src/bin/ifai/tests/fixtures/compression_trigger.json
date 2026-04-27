@@ -1,0 +1,19 @@
+{
+  "id": "chatcmpl-test-compression",
+  "object": "chat.completion",
+  "created": 1234567890,
+  "model": "gpt-4",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "Response after compression"
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 3000,
+    "completion_tokens": 50,
+    "total_tokens": 3050
+  }
+}

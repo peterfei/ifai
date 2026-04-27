@@ -1,0 +1,27 @@
+{
+  "id": "chatcmpl-test-tool",
+  "object": "chat.completion",
+  "created": 1234567890,
+  "model": "gpt-4",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [{
+        "id": "call_test_123",
+        "type": "function",
+        "function": {
+          "name": "bash",
+          "arguments": "{\"command\": \"echo 'hello'\"}"
+        }
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }],
+  "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 50,
+    "total_tokens": 150
+  }
+}

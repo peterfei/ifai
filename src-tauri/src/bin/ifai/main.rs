@@ -991,6 +991,17 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    // 包含测试基础设施
+    mod common {
+        include!("tests/common/mod.rs");
+    }
+
+    // 包含生成的集成测试
+    mod generated {
+        use crate::tests::common::*;
+        include!("tests/generated/mod.rs");
+    }
+
     #[test]
     fn test_parse_args_no_args() {
         let action = parse_args_from_vec(&["ifai".to_string()]).unwrap();
