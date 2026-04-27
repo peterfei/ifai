@@ -1090,6 +1090,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "需要 AI API 配置，集成测试应手动运行"]
     async fn test_runner_execution() {
         let workflow = create_simple_workflow();
         let runner = WorkflowRunner::with_default_config(workflow).unwrap();
@@ -1172,6 +1173,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "需要 AI API 配置，集成测试应手动运行"]
     async fn test_parallel_execution() {
         // 菱形图：a -> (b, c) -> d
         let mut workflow = Workflow::new("parallel-test", "Parallel Test");

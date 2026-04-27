@@ -147,6 +147,7 @@ edges:
     }
 
     #[tokio::test]
+    #[ignore = "需要 AI API 配置，集成测试应手动运行"]
     async fn test_workflow_execution() {
         let workflow = create_complete_workflow();
 
@@ -259,6 +260,7 @@ edges:
     }
 
     #[tokio::test]
+    #[ignore = "需要 AI API 配置，集成测试应手动运行"]
     async fn test_runner_with_custom_config() {
         let workflow = create_complete_workflow();
 

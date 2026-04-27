@@ -698,15 +698,15 @@ models:
         let all_models = get_all_models_from_specs();
 
         // 应该包含所有提供商的模型
-        // OpenAI: 4, Zhipu: 6, Kimi: 4, Gemini: 3 = 17 total
-        assert!(all_models.len() >= 10); // 至少有一些模型
+        // OpenAI: 15, Zhipu: 6, DeepSeek: 1, Kimi: 15, Gemini: 3 = 40+ total
+        assert!(all_models.len() >= 30); // 至少有一些模型
 
         // 验证关键模型存在
         let model_ids: Vec<_> = all_models.iter().map(|m| &m.id).collect();
         assert!(model_ids.contains(&&"gpt-4o".to_string()));
         assert!(model_ids.contains(&&"glm-5.1".to_string()));
-        assert!(model_ids.contains(&&"deepseek-vl".to_string()));
-        assert!(model_ids.contains(&&"moonshot-v1-k2.6".to_string()));
+        assert!(model_ids.contains(&&"deepseek-chat".to_string())); // 更新：deepseek-vl → deepseek-chat
+        assert!(model_ids.contains(&&"kimi-k2.6".to_string())); // 更新：moonshot-v1-k2.6 → kimi-k2.6
         assert!(model_ids.contains(&&"gemini-2.0-flash-exp".to_string()));
     }
 
@@ -742,13 +742,12 @@ models:
         let model_ids: Vec<_> = models.iter().map(|m| &m.id).collect();
         assert!(model_ids.contains(&&"gpt-4o".to_string()));
 
-        // 测试 DeepSeek
+        // 测试 DeepSeek（注意：现在只有 deepseek-chat，不再有 deepseek-vl）
         let deepseek_models = get_models_for_provider("deepseek-official");
         assert!(deepseek_models.is_some());
         let models = deepseek_models.unwrap();
         assert!(models.len() > 0);
         let model_ids: Vec<_> = models.iter().map(|m| &m.id).collect();
-        assert!(model_ids.contains(&&"deepseek-vl".to_string()));
         assert!(model_ids.contains(&&"deepseek-chat".to_string()));
 
         // 测试不存在的提供商

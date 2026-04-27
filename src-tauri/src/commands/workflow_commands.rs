@@ -785,29 +785,26 @@ mod workflow_tests {
             println!("  边 {}: {} -> {}", i + 1, edge.from, edge.to);
         }
 
-        // ✅ 验证：应该有3个节点
-        assert_eq!(workflow.nodes.len(), 3, "探索工作流应该有3个节点");
+        // ✅ 验证：应该有2个节点（explore + summarize）
+        assert_eq!(workflow.nodes.len(), 2, "探索工作流应该有2个节点");
 
-        // ✅ 验证：应该有2条边（并行探索 → 总结）
-        assert_eq!(workflow.edges.len(), 2, "探索工作流应该有2条边");
+        // ✅ 验证：应该有1条边（explore → summarize）
+        assert_eq!(workflow.edges.len(), 1, "探索工作流应该有1条边");
 
         // ✅ 验证节点ID
         let node_ids: Vec<_> = workflow.nodes.iter().map(|n| n.id.as_str()).collect();
-        assert!(node_ids.contains(&"explore_structure"), "应该有 explore_structure 节点");
-        assert!(node_ids.contains(&"explore_deps"), "应该有 explore_deps 节点");
+        assert!(node_ids.contains(&"explore"), "应该有 explore 节点");
         assert!(node_ids.contains(&"summarize"), "应该有 summarize 节点");
 
         // ✅ 验证边连接
         let edges: Vec<_> = workflow.edges.iter()
             .map(|e| (e.from.as_str(), e.to.as_str()))
             .collect();
-        assert!(edges.contains(&("explore_structure", "summarize")), "explore_structure 应该指向 summarize");
-        assert!(edges.contains(&("explore_deps", "summarize")), "explore_deps 应该指向 summarize");
+        assert!(edges.contains(&("explore", "summarize")), "explore 应该指向 summarize");
 
         println!("\n✅ 探索工作流结构验证通过！");
-        println!("   - 3个节点：explore_structure, explore_deps, summarize");
-        println!("   - 并行执行：2个探索节点并行运行");
-        println!("   - 顺序总结：等待探索完成后生成总结");
+        println!("   - 2个节点：explore, summarize");
+        println!("   - 顺序执行：探索 → 总结");
     }
 
     #[test]

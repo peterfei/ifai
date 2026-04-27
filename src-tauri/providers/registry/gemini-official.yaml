@@ -8,9 +8,8 @@ api_spec:
   base_url: https://generativelanguage.googleapis.com/v1beta
   endpoint: /models/{model}:streamGenerateContent
   auth:
-    type: bearer_header
-    header_name: x-goog-api-key
-    format: "{key}"
+    type: query_param
+    param_name: key
 
 request_format:
   type: gemini_custom

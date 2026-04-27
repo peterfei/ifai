@@ -338,10 +338,10 @@ This is a test prompt."#;
 
         assert!(result.is_ok());
 
-        // 测试导入
+        // 测试导入（使用 overwrite=true 覆盖已存在的文件）
         let import_result = exporter.import_prompts(
             output_path.to_string_lossy().to_string(),
-            false,
+            true,  // overwrite=true
         );
 
         assert!(import_result.is_ok());

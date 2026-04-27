@@ -133,8 +133,8 @@ mod tests {
         assert_eq!(spec.metadata.id, "kimi-official");
         assert_eq!(spec.metadata.name, "Kimi (Moonshot AI)");
 
-        // 验证模型列表包含 K2.6
-        assert!(spec.models.iter().any(|m| m.id == "moonshot-v1-k2.6"));
+        // 验证模型列表包含 K2.6（注意：模型 ID 从 moonshot-v1-k2.6 改为 kimi-k2.6）
+        assert!(spec.models.iter().any(|m| m.id == "kimi-k2.6"));
     }
 
     #[test]
