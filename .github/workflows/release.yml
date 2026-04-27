@@ -14,7 +14,78 @@ permissions:
   contents: write
 
 jobs:
+  build-cli:
+    name: Build CLI (ifai)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            artifact: 'ifai-aarch64-apple-darwin.gz'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            artifact: 'ifai-x86_64-apple-darwin.gz'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
+            artifact: 'ifai-x86_64-unknown-linux-gnu.gz'
+          - platform: 'windows-latest'
+            target: 'x86_64-pc-windows-msvc'
+            artifact: 'ifai-x86_64-pc-windows-msvc.exe.gz'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout Private Core
+        uses: actions/checkout@v4
+        with:
+          repository: peterfei/ifainew-core
+          token: ${{ secrets.GH_PAT }}
+          path: .ifainew-core-temp
+
+      - name: Restore Core Directory Structure
+        shell: bash
+        run: |
+          mv .ifainew-core-temp ../ifainew-core
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Set macOS deployment target
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
+
+      - name: Build CLI
+        shell: bash
+        run: |
+          cd src-tauri
+          cargo build --release --bin ifai --target ${{ matrix.target }}
+
+      - name: Create archive
+        shell: bash
+        run: |
+          cd src-tauri/target/${{ matrix.target }}/release
+          if [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            gzip -c ifai.exe > ifai.exe.gz
+            mv ifai.exe.gz ${{ matrix.artifact }}
+          else
+            gzip -c ifai > ${{ matrix.artifact }}
+          fi
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/${{ matrix.artifact }}
+
   release:
+    needs: build-cli
     strategy:
       fail-fast: false
       matrix:
@@ -109,3 +180,29 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }} --features commercial-local-llm
+
+  upload-cli-to-release:
+    name: Upload CLI to Release
+    needs: [build-cli, release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: ./artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R ./artifacts
+
+      - name: Upload CLI to Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find all CLI files and upload to release
+          for file in ./artifacts/*/*.gz; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file"
+              gh release upload ${{ github.ref_name }} "$file"
+            fi
+          done
