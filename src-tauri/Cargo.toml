@@ -116,6 +116,10 @@ rand = "0.8"    # 随机采样
 llama-cpp-2 = { version = "0.1", optional = true }
 num_cpus = { version = "1.16", optional = true }
 
+# Windows-specific dependencies
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_System_Console"] }
+
 # tracing for debugging (dev dependency only)
 [dev-dependencies]
 tracing-subscriber = "0.3"
