@@ -12,7 +12,7 @@ async fn test_jian_danti_shi_cixiang_ying() {
     let env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
-        mock.setup_simple_response("Hello from mock!").await.unwrap();
+        mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
     }
     let output = env.run_cli(&["hello"]).await.unwrap();
     output.assert_success();
@@ -26,7 +26,7 @@ async fn test_mockxiang_ying() {
     let env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
-        mock.setup_simple_response("Hello from mock!").await.unwrap();
+        mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
     }
     let output = env.run_cli(&["test"]).await.unwrap();
     output.assert_success();
@@ -40,7 +40,7 @@ async fn test_ti_shi_ci() {
     let env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
-        mock.setup_simple_response("Hello from mock!").await.unwrap();
+        mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
     }
     let output = env.run_cli(&[""]).await.unwrap();
     assert!(!output.status.success(), "Command should fail but it succeeded");

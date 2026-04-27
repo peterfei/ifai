@@ -1,0 +1,18 @@
+# tests/suite/debug_mock.yaml
+#
+# Mock 服务器调试测试
+
+test_suite:
+  name: "Mock 服务器调试"
+  description: "验证 Mock 服务器配置"
+
+  tests:
+    - name: "Mock 服务器基础测试"
+      description: "验证 Mock 服务器创建和 URI"
+      given:
+        args: ["--version"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "CLI"

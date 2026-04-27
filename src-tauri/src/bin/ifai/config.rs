@@ -161,10 +161,16 @@ impl EffectiveConfig {
         Ok(TracedValue::new(None, ConfigSource::YamlDefault))
     }
 
-    /// 解析 base_url（CLI > TOML > None）
+    /// 解析 base_url（CLI > 环境变量 > TOML > None）
     fn resolve_base_url(cli_arg: Option<&str>, provider: &str) -> TracedValue<Option<String>> {
+        // CLI 参数优先级最高
         if let Some(url) = cli_arg {
             return TracedValue::new(Some(url.to_string()), ConfigSource::CliArg);
+        }
+
+        // 其次检查环境变量 IFAI_API_BASE（用于测试）
+        if let Ok(url) = std::env::var("IFAI_API_BASE") {
+            return TracedValue::new(Some(url), ConfigSource::EnvVar);
         }
 
         // 用完整 provider ID 查找 TOML 配置
@@ -496,6 +502,27 @@ mod tests {
     fn test_resolve_base_url_cli_arg() {
         let result = EffectiveConfig::resolve_base_url(Some("https://api.custom.com"), "deepseek");
         assert_eq!(result.value, Some("https://api.custom.com".to_string()));
+        assert_eq!(result.source, ConfigSource::CliArg);
+    }
+
+    #[test]
+    fn test_resolve_base_url_env_var() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("IFAI_API_BASE", "https://mock.test.com");
+        let result = EffectiveConfig::resolve_base_url(None, "openai");
+        std::env::remove_var("IFAI_API_BASE");
+        assert_eq!(result.value, Some("https://mock.test.com".to_string()));
+        assert_eq!(result.source, ConfigSource::EnvVar);
+    }
+
+    #[test]
+    fn test_resolve_base_url_env_var_priority() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("IFAI_API_BASE", "https://mock.test.com");
+        // CLI 参数应该优先于环境变量
+        let result = EffectiveConfig::resolve_base_url(Some("https://cli.custom.com"), "openai");
+        std::env::remove_var("IFAI_API_BASE");
+        assert_eq!(result.value, Some("https://cli.custom.com".to_string()));
         assert_eq!(result.source, ConfigSource::CliArg);
     }
 

@@ -198,9 +198,9 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
     if needs_mock {
         if let Some(response_file) = when.get("mock_response").and_then(|v| v.as_str()) {
             code.push_str(&format!("    // Mock response: {}\n", response_file));
-            // 设置简单响应
+            // 🔥 使用流式响应（CLI 使用 stream() 方法）
             code.push_str("    if let Some(mock) = env.mock_server() {\n");
-            code.push_str("        mock.setup_simple_response(\"Hello from mock!\").await.unwrap();\n");
+            code.push_str("        mock.setup_streaming_response(vec![\"Hello from mock!\"]).await.unwrap();\n");
             code.push_str("    }\n");
         } else if when.get("mock_streaming").is_some() {
             code.push_str("    // Mock streaming response\n");

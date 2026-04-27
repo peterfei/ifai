@@ -68,7 +68,7 @@ impl CliOutput {
     }
 
     /// 断言 token 数量低于阈值
-    pub fn assert_token_count_below(&self, threshold: usize) {
+    pub fn assert_token_count_below(&self, _threshold: usize) {
         // 简化实现：实际应该解析 token 数量
         self.assert_success();
     }
@@ -142,7 +142,10 @@ impl TestEnv {
 
         // 如果有 Mock 服务器，设置 API endpoint
         if let Some(mock) = &self.mock_server {
-            cmd.env("IFAI_API_BASE", mock.uri());
+            let mock_uri = mock.uri();
+            // 添加 /v1 路径，因为 Mock 服务器监听 /v1/chat/completions
+            let mock_base = format!("{}/v1", mock_uri);
+            cmd.env("IFAI_API_BASE", mock_base);
             cmd.env("IFAI_PROVIDER", "openai");
             cmd.env("OPENAI_API_KEY", "test-key");
         }
@@ -266,6 +269,7 @@ mod tests {
         assert!(env.mock_server().is_some());
         let mock = env.mock_server().unwrap();
         let uri = mock.uri();
+        eprintln!("🔧 [TEST] Mock URI: {}", uri);
         assert!(uri.contains("http://"));
     }
 }
