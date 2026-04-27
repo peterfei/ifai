@@ -1005,11 +1005,15 @@ mod tests {
         mod fixtures {
             include!("tests/common/fixtures.rs");
         }
+        mod network {
+            include!("tests/common/network.rs");
+        }
 
         pub use test_env::*;
         pub use assertions::*;
         pub use mock_server::*;
         pub use fixtures::*;
+        pub use network::*;
     }
 
     // 包含生成的集成测试

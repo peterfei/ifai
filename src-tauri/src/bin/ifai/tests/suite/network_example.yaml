@@ -1,0 +1,21 @@
+# 网络测试示例
+#
+# 演示如何使用网络测试宏进行需要真实网络的 API 测试
+
+test_suite:
+  name: "网络 API 测试示例"
+  description: "演示如何使用 conditional_network_test! 宏进行真实 API 测试"
+
+tests:
+  - name: "真实 API 调用测试"
+    description: "演示如何测试需要真实网络的 API 调用"
+    given:
+      args: ["--provider", "openai", "--model", "gpt-3.5-turbo"]
+    when:
+      # 注意：这个测试需要真实网络，会使用 conditional_network_test! 宏
+      # 只有在 IFAI_TEST_NETWORK=1 或 CI 环境中才会运行
+      mock_streaming:
+        - "Response from real API"
+    then:
+      assert_success: true
+      assert_contains: "Response"
