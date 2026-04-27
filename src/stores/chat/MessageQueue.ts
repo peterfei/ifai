@@ -160,6 +160,8 @@ export class MessageQueue {
       return;
     }
 
+    // 🔥 FIX: 立即设置 isProcessing 标志，防止竞态条件
+    // 必须在找到消息后立即设置，不能延迟
     this.isProcessing = true;
     nextMessage.status = 'processing';
 

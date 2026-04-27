@@ -158,6 +158,13 @@ describe('MessageQueue - processing order', () => {
 
   beforeEach(() => {
     queue = new MessageQueue();
+
+    // 🔥 FIX: 设置默认 mock，避免继承其他测试的 mock
+    (mockSendMessageOrchestrator as any).send.mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      return { success: true };
+    });
+
     (mockChatEventBus as any).emit.mockClear();
   });
 
