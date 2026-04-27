@@ -179,8 +179,8 @@ pub struct CombinedKeyHandler;
 
 impl EventHandler<Event> for CombinedKeyHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        // 如果处于搜索模式，跳过处理（由 SearchInputHandler 处理）
-        if app.is_searching() {
+        // 如果处于搜索模式或帮助模式，跳过处理
+        if app.is_searching() || app.help_mode {
             return ControlFlow::Continue;
         }
 
@@ -337,9 +337,9 @@ pub struct HelpEnterHandler;
 impl EventHandler<Event> for HelpEnterHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
         if let Event::Key(key) = event {
-            if key.code == KeyCode::Char('?') && !app.help_mode {
+            if key.code == KeyCode::Char('?') && !app.help_mode && !app.is_searching() {
                 app.help_mode = true;
-                return ControlFlow::Continue;
+                // 设置 help_mode 后，CombinedKeyHandler 会跳过输入处理
             }
         }
         ControlFlow::Continue
