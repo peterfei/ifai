@@ -9,7 +9,7 @@ use crate::tests::common::*;
 #[serial_test::serial]
 async fn test_jian_danti_shi_cixiang_ying() {
     // 测试简单的提示词能够正常响应
-    let env = TestEnv::with_mock().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
         mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
@@ -23,7 +23,7 @@ async fn test_jian_danti_shi_cixiang_ying() {
 #[serial_test::serial]
 async fn test_mockxiang_ying() {
     // 验证 Mock 服务器返回的内容
-    let env = TestEnv::with_mock().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
         mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
@@ -37,7 +37,7 @@ async fn test_mockxiang_ying() {
 #[serial_test::serial]
 async fn test_ti_shi_ci() {
     // 测试空提示词的处理
-    let env = TestEnv::with_mock().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
         mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();

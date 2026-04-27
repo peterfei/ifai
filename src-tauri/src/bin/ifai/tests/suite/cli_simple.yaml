@@ -24,8 +24,18 @@ test_suite:
         assert_success: true
         assert_contains: "Hello"
 
-    - name: "系统提示词生效"
-      description: "测试系统提示词参数生效"
+    - name: "帮助信息显示"
+      description: "测试 --help 参数"
+      given:
+        args:
+          - "--help"
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "USAGE"
+
+    - name: "系统提示词设置"
+      description: "测试 --system 参数"
       given:
         args:
           - "--system"
@@ -37,15 +47,17 @@ test_suite:
         assert_success: true
         assert_contains: "Hello"
 
-    - name: "帮助信息显示"
-      description: "测试 --help 参数"
+    - name: "JSON 模式输出"
+      description: "测试 --json 参数"
       given:
         args:
-          - "--help"
-      when: {}
+          - "--json"
+          - "hello"
+      when:
+        mock_response: "simple_response.json"
       then:
         assert_success: true
-        assert_contains: "Usage"
+        assert_contains: "{"
 
     - name: "版本信息显示"
       description: "测试 --version 参数"
@@ -55,4 +67,32 @@ test_suite:
       when: {}
       then:
         assert_success: true
-        assert_contains: "ifai"
+        assert_contains: "IfAI"
+
+    - name: "从配置文件读取 API key"
+      description: "测试从配置文件读取 API key"
+      given:
+        config_content: |
+          [providers.openai]
+          api_key = "config-key"
+        args:
+          - "hello"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "Hello"
+
+    - name: "base URL 覆盖"
+      description: "测试通过环境变量覆盖 base URL"
+      given:
+        env:
+          IFAI_API_BASE: "https://custom.api.com/v1"
+          OPENAI_API_KEY: "test-key"
+        args:
+          - "hello"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "Hello"

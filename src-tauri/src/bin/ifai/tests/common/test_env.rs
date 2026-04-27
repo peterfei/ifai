@@ -89,6 +89,7 @@ pub struct TestEnv {
     temp_dir: TempDir,
     env_vars: HashMap<String, String>,
     mock_server: Option<crate::tests::common::mock_server::MockApiServer>,
+    stdin_content: Option<String>,
 }
 
 impl TestEnv {
@@ -98,6 +99,7 @@ impl TestEnv {
             temp_dir: TempDir::new()?,
             env_vars: HashMap::new(),
             mock_server: None,
+            stdin_content: None,
         })
     }
 
@@ -111,6 +113,7 @@ impl TestEnv {
             temp_dir: TempDir::new()?,
             env_vars: HashMap::new(),
             mock_server: Some(mock_server),
+            stdin_content: None,
         })
     }
 
@@ -125,8 +128,14 @@ impl TestEnv {
     }
 
     /// 设置环境变量
-    pub fn set_env(mut self, key: &str, value: &str) -> Self {
+    pub fn set_env(&mut self, key: &str, value: &str) -> &mut Self {
         self.env_vars.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    /// 设置 stdin 输入
+    pub fn set_stdin(&mut self, content: &str) -> &mut Self {
+        self.stdin_content = Some(content.to_string());
         self
     }
 
@@ -150,8 +159,24 @@ impl TestEnv {
             cmd.env("OPENAI_API_KEY", "test-key");
         }
 
-        // 执行命令
-        let output = cmd.output()?;
+        // 如果有 stdin 内容，设置 stdin
+        let output = if let Some(stdin_content) = &self.stdin_content {
+            // 设置测试标志，告诉 CLI 这是从 stdin 读取的
+            cmd.env("IFAI_TEST_STDIN", "1");
+            cmd.stdin(std::process::Stdio::piped());
+            let mut child = cmd.spawn()?;
+
+            // 写入 stdin
+            if let Some(mut stdin) = child.stdin.take() {
+                use std::io::Write;
+                stdin.write_all(stdin_content.as_bytes())?;
+                stdin.flush()?;
+            }
+
+            child.wait_with_output()?
+        } else {
+            cmd.output()?
+        };
 
         Ok(CliOutput {
             status: output.status,
@@ -248,8 +273,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_env() {
-        let env = TestEnv::new().await.unwrap();
-        let env = env.set_env("TEST_KEY", "test_value");
+        let mut env = TestEnv::new().await.unwrap();
+        env.set_env("TEST_KEY", "test_value");
         assert_eq!(env.env_vars.get("TEST_KEY"), Some(&"test_value".to_string()));
     }
 

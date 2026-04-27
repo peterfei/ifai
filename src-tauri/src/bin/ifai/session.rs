@@ -298,6 +298,8 @@ pub struct Session {
     base_url: Option<String>,
     /// 🔥 禁用工具调用（--no-tool 标志）
     tools_disabled: bool,
+    /// 🔥 自定义系统提示词（--system 参数）
+    custom_system_prompt: Option<String>,
     /// 🔥 权限存储（用户白名单）- 使用 RefCell 实现内部可变性
     permission_store: RefCell<PermissionStore>,
     /// 🔥 会话级权限规则（重启失效）
@@ -353,6 +355,7 @@ impl Session {
             api_key: None,
             base_url: None,
             tools_disabled: false,
+            custom_system_prompt: None,
             permission_store: RefCell::new(PermissionStore::load()),
             session_rules: RefCell::new(Vec::new()),
             pipeline_tracker: PipelineTracker::new(),
@@ -369,6 +372,11 @@ impl Session {
     /// 🔥 设置 API key（从 EffectiveConfig 读取）
     pub fn set_api_key(&mut self, api_key: String) {
         self.api_key = Some(api_key);
+    }
+
+    /// 🔥 设置自定义系统提示词（--system 参数）
+    pub fn set_system_prompt(&mut self, system_prompt: String) {
+        self.custom_system_prompt = Some(system_prompt);
     }
 
     /// 🔥 设置 Base URL（从 EffectiveConfig 读取）
@@ -454,7 +462,12 @@ impl Session {
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
 
         // 🏛️ 元编程：构建 CLI 系统提示词（复用 prompt_manager）
-        let system_prompt = build_cli_system_prompt(&spec);
+        // 🔥 优先使用自定义系统提示词（--system 参数）
+        let system_prompt = if let Some(custom) = &self.custom_system_prompt {
+            custom.clone()
+        } else {
+            build_cli_system_prompt(&spec)
+        };
 
         // 根据 provider spec 确定 AiProvider 类型
         let provider = match spec.metadata.id.as_str() {
@@ -891,7 +904,12 @@ impl Session {
         let spec = resolve_provider(&self.provider)
             .map_err(|e| format!("Failed to resolve provider: {}", e))?;
 
-        let system_prompt = build_cli_system_prompt(&spec);
+        // 🔥 优先使用自定义系统提示词（--system 参数）
+        let system_prompt = if let Some(custom) = &self.custom_system_prompt {
+            custom.clone()
+        } else {
+            build_cli_system_prompt(&spec)
+        };
 
         let provider = match spec.metadata.id.as_str() {
             "anthropic-official" => ifainew_lib::harness::api::AiProvider::Anthropic,

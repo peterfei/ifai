@@ -1,0 +1,65 @@
+# tests/suite/cli_repl.yaml
+#
+# CLI REPL 模式测试
+#
+# 注意：由于 REPL 是交互式模式，自动化测试受限
+# 详细的手动测试步骤请参考: docs/REPL_TESTING.md
+
+test_suite:
+  name: "CLI REPL 模式测试"
+  description: "验证 REPL 交互模式的基础功能"
+  notes: "REPL 是交互式模式，建议参考 docs/REPL_TESTING.md 进行手动测试"
+
+  setup:
+    env:
+      IFAI_PROVIDER: "openai"
+      OPENAI_API_KEY: "test-key"
+
+  tests:
+    # 注意：以下测试在自动化环境中可能失败
+    # 建议使用手动测试验证完整功能
+
+    - name: "REPL 启动验证"
+      description: "验证 REPL 能正确启动（需要手动测试）"
+      given:
+        notes: "运行 'ifai' 启动 REPL，然后输入 /exit 退出"
+        manual_test: true
+      when: {}
+      then:
+        manual_verify: "REPL 正常启动和退出"
+      skip_reason: "REPL 需要交互式 TTY，自动化测试受限"
+
+    - name: "多轮对话"
+      description: "验证 REPL 支持多轮对话（需要手动测试）"
+      given:
+        notes: "在 REPL 中输入多个问题，验证 AI 记住上下文"
+        manual_test: true
+      when: {}
+      then:
+        manual_verify: "AI 能记住之前的对话内容"
+      skip_reason: "REPL 需要交互式测试"
+
+    - name: "REPL 命令"
+      description: "验证 REPL 命令功能（需要手动测试）"
+      given:
+        notes: "测试 /help, /clear, /status, /model, /provider 等命令"
+        manual_test: true
+      when: {}
+      then:
+        manual_verify: "所有命令正常工作"
+      skip_reason: "REPL 命令需要交互式测试"
+
+    # 完整的手动测试清单请参考: docs/REPL_TESTING.md
+    # 包括：
+    # - 2.5.1 REPL 启动和退出
+    # - 2.5.2 多轮对话
+    # - 2.5.3 命令帮助
+    # - 2.5.4 清除历史
+    # - 2.5.5 状态命令
+    # - 2.5.6 模型切换
+    # - 2.5.7 提供商切换
+    # - 2.5.8 撤销命令
+    # - 2.5.9 导出命令
+    # - 2.5.10 会话保存和恢复
+    # - 2.5.11 历史导航
+    # - 2.5.12 Ctrl+C 中断

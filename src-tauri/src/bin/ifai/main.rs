@@ -151,13 +151,16 @@ impl JsonResponse {
 #[derive(Debug)]
 pub enum CliAction {
     /// 单次提示词模式：`ifai "write a hello world"`
-    Prompt { text: String, json_output: bool, no_tool: bool },
+    Prompt { text: String, json_output: bool, no_tool: bool, system: Option<String> },
 
     /// REPL 交互模式：`ifai` 或 `ifai --repl`
     Repl,
 
     /// 显示版本：`ifai --version` / `ifai -V`
     Version,
+
+    /// 显示帮助：`ifai --help` / `ifai -h`
+    Help,
 
     /// 配置初始化：`ifai --config init`
     ConfigInit,
@@ -188,6 +191,7 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
     let mut skip_next = false;
     let mut json_output = false;
     let mut no_tool = false;
+    let mut system_prompt: Option<String> = None;
 
     for (i, arg) in args.iter().enumerate() {
         if skip_next {
@@ -196,6 +200,8 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
         }
 
         match arg.as_str() {
+            "--help" | "-h" => return Ok(CliAction::Help),
+
             "--version" | "-V" => return Ok(CliAction::Version),
 
             "--json" => {
@@ -206,6 +212,15 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
             "--no-tool" => {
                 // 🔥 禁用工具调用
                 no_tool = true;
+            }
+
+            "--system" => {
+                // 🔥 设置系统提示词
+                if i + 1 >= args.len() {
+                    return Err("--system requires a prompt text".to_string());
+                }
+                system_prompt = Some(args[i + 1].clone());
+                skip_next = true;
             }
 
             "--provider" | "--model" | "--api-key" => {
@@ -269,16 +284,18 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
             text: prompt_text.join(" "),
             json_output,
             no_tool,
+            system: system_prompt,
         });
     }
 
     // 🔥 只有标志，没有 prompt 文本 → 保存标志用于管道输入
-    if json_output || no_tool {
+    if json_output || no_tool || system_prompt.is_some() {
         // 返回一个虚拟的 Prompt，稍后会从 stdin 读取
         return Ok(CliAction::Prompt {
             text: String::new(),  // 占位符，会被 stdin 覆盖
             json_output,
             no_tool,
+            system: system_prompt,
         });
     }
 
@@ -325,8 +342,8 @@ fn read_stdin_to_prompt() -> Result<String, String> {
 // ============================================================================
 
 fn main() {
-    // 🔥 检测 stdin 管道输入（非 TTY）
-    let is_piped = !io::stdin().is_terminal();
+    // 🔥 检测 stdin 管道输入（非 TTY 或测试环境）
+    let is_piped = !io::stdin().is_terminal() || std::env::var("IFAI_TEST_STDIN").is_ok();
 
     // 解析参数
     let action = match parse_args() {
@@ -355,9 +372,11 @@ fn main() {
     // 🔥 如果检测到管道输入，读取 stdin 并与现有参数合并
     let action = if is_piped {
         // 获取当前的设置
-        let (current_json_output, current_no_tool) = match &action {
-            CliAction::Prompt { json_output, no_tool, .. } => (*json_output, *no_tool),
-            _ => (false, false),
+        let (current_json_output, current_no_tool, current_system) = match &action {
+            CliAction::Prompt { json_output, no_tool, system, .. } => {
+                (*json_output, *no_tool, system.clone())
+            }
+            _ => (false, false, None),
         };
 
         match read_stdin_to_prompt() {
@@ -374,6 +393,7 @@ fn main() {
                         text: prompt,
                         json_output: current_json_output,
                         no_tool: current_no_tool,
+                        system: current_system,
                     }
                 }
             }
@@ -396,6 +416,11 @@ fn main() {
 /// 🎯 执行 CLI 动作
 fn run_action(action: CliAction) -> Result<(), String> {
     match action {
+        CliAction::Help => {
+            show_help();
+            Ok(())
+        }
+
         CliAction::Version => {
             show_version();
             Ok(())
@@ -420,8 +445,8 @@ fn run_action(action: CliAction) -> Result<(), String> {
             Ok(())
         }
 
-        CliAction::Prompt { text, json_output, no_tool } => {
-            run_prompt(&text, json_output, no_tool)?;
+        CliAction::Prompt { text, json_output, no_tool, system } => {
+            run_prompt(&text, json_output, no_tool, system)?;
             Ok(())
         }
 
@@ -440,6 +465,44 @@ fn run_action(action: CliAction) -> Result<(), String> {
 fn show_version() {
     println!("IfAI CLI v0.4.4");
     println!("Industrial-grade AI code assistant");
+}
+
+/// 显示帮助信息
+fn show_help() {
+    println!("IfAI CLI - Industrial-grade AI code assistant");
+    println!();
+    println!("USAGE:");
+    println!("  ifai [OPTIONS] [PROMPT]");
+    println!("  ifai --repl");
+    println!();
+    println!("OPTIONS:");
+    println!("  -h, --help              显示帮助信息");
+    println!("  -V, --version           显示版本信息");
+    println!("      --json              以 JSON 格式输出");
+    println!("      --no-tool           禁用工具调用");
+    println!("      --system <prompt>   设置系统提示词");
+    println!("      --provider <name>   指定 AI 提供商");
+    println!("      --model <name>      指定模型");
+    println!("      --api-key <key>     指定 API key");
+    println!("      --config <cmd>      配置管理 (init|show)");
+    println!("      --resume <name>     恢复会话");
+    println!("      --repl              启动 REPL 模式");
+    println!();
+    println!("EXAMPLES:");
+    println!("  ifai hello                      # 单次提示");
+    println!("  ifai \"explain rust\"               # 带空格的提示");
+    println!("  ifai --system \"You are expert\" hello  # 设置系统提示词");
+    println!("  ifai --model gpt-4 hello         # 指定模型");
+    println!("  ifai --json hello                # JSON 输出");
+    println!("  echo \"prompt\" | ifai              # 从 stdin 读取");
+    println!();
+    println!("ENVIRONMENT VARIABLES:");
+    println!("  IFAI_PROVIDER        默认提供商");
+    println!("  IFAI_MODEL           默认模型");
+    println!("  OPENAI_API_KEY       OpenAI API key");
+    println!("  IFAI_API_BASE        自定义 API endpoint");
+    println!();
+    println!("For more information, visit: https://github.com/your-repo/ifai");
 }
 
 /// 配置初始化
@@ -486,7 +549,7 @@ fn config_show() -> Result<(), String> {
 /// 运行单次提示词模式
 ///
 /// **用途**: `ifai "your prompt"` 或 `echo "prompt" | ifai`
-async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool) -> Result<(), String> {
+async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool, system: Option<String>) -> Result<(), String> {
     // 解析有效配置
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
 
@@ -499,6 +562,11 @@ async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool) -> Resul
     // 🔥 禁用工具调用（如果设置了 --no-tool）
     if no_tool {
         session.disable_tools();
+    }
+
+    // 🔥 设置自定义系统提示词（如果指定了 --system）
+    if let Some(system_prompt) = system {
+        session.set_system_prompt(system_prompt);
     }
 
     // 🔥 从配置读取 API key
@@ -568,14 +636,14 @@ async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool) -> Resul
 }
 
 /// 运行单次提示词模式（同步包装）
-fn run_prompt(text: &str, json_output: bool, no_tool: bool) -> Result<(), String> {
+fn run_prompt(text: &str, json_output: bool, no_tool: bool, system: Option<String>) -> Result<(), String> {
     // 创建 tokio runtime
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| format!("Failed to create runtime: {}", e))?;
 
     // 在 async runtime 中运行
     rt.block_on(async {
-        run_prompt_async(text, json_output, no_tool).await
+        run_prompt_async(text, json_output, no_tool, system).await
     })
 }
 
@@ -1041,11 +1109,77 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_args_help_short() {
+        let action = parse_args_from_vec(&["ifai".to_string(), "-h".to_string()]).unwrap();
+        assert!(matches!(action, CliAction::Help));
+    }
+
+    #[test]
+    fn test_parse_args_help_long() {
+        let action = parse_args_from_vec(&["ifai".to_string(), "--help".to_string()]).unwrap();
+        assert!(matches!(action, CliAction::Help));
+    }
+
+    #[test]
     fn test_parse_args_prompt() {
         let action = parse_args_from_vec(&["ifai".to_string(), "hello world".to_string()]).unwrap();
         match action {
-            CliAction::Prompt { text, .. } => assert_eq!(text, "hello world"),
+            CliAction::Prompt { text, json_output, no_tool, system } => {
+                assert_eq!(text, "hello world");
+                assert!(!json_output);
+                assert!(!no_tool);
+                assert!(system.is_none());
+            }
             _ => panic!("Expected Prompt action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_args_system() {
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--system".to_string(),
+            "You are expert".to_string(),
+            "hello".to_string(),
+        ]).unwrap();
+        match action {
+            CliAction::Prompt { text, system, .. } => {
+                assert_eq!(text, "hello");
+                assert_eq!(system, Some("You are expert".to_string()));
+            }
+            _ => panic!("Expected Prompt action with system"),
+        }
+    }
+
+    #[test]
+    fn test_parse_args_json() {
+        let action = parse_args_from_vec(&["ifai".to_string(), "--json".to_string(), "hello".to_string()]).unwrap();
+        match action {
+            CliAction::Prompt { json_output, .. } => {
+                assert!(json_output);
+            }
+            _ => panic!("Expected Prompt action with json_output"),
+        }
+    }
+
+    #[test]
+    fn test_parse_args_combined_flags() {
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--system".to_string(),
+            "Expert".to_string(),
+            "--json".to_string(),
+            "--no-tool".to_string(),
+            "hello".to_string(),
+        ]).unwrap();
+        match action {
+            CliAction::Prompt { text, json_output, no_tool, system } => {
+                assert_eq!(text, "hello");
+                assert!(json_output);
+                assert!(no_tool);
+                assert_eq!(system, Some("Expert".to_string()));
+            }
+            _ => panic!("Expected Prompt action with all flags"),
         }
     }
 

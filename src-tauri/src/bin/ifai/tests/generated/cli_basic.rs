@@ -9,7 +9,7 @@ use crate::tests::common::*;
 #[serial_test::serial]
 async fn test_ban_benxin_xixian_shi() {
     // 测试 --version 参数能正常显示版本信息
-    let env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["--version"]).await.unwrap();
     output.assert_success();
     output.assert_contains("v0.4");
@@ -19,7 +19,7 @@ async fn test_ban_benxin_xixian_shi() {
 #[serial_test::serial]
 async fn test_ban_ben() {
     // 测试 -V 参数显示版本
-    let env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["-V"]).await.unwrap();
     output.assert_success();
     output.assert_contains("v0.4");
@@ -29,7 +29,7 @@ async fn test_ban_ben() {
 #[serial_test::serial]
 async fn test_xin_xi() {
     // 测试错误参数时显示使用提示
-    let env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["--invalid-flag"]).await.unwrap();
     assert!(!output.status.success(), "Command should fail but it succeeded");
     output.assert_contains("Usage");
@@ -39,7 +39,7 @@ async fn test_xin_xi() {
 #[serial_test::serial]
 async fn test_ban_ben_cli() {
     // 测试版本输出包含 CLI 标识
-    let env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["--version"]).await.unwrap();
     output.assert_success();
     output.assert_contains("CLI");

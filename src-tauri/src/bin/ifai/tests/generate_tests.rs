@@ -166,16 +166,16 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
     let mut code = String::new();
 
     if needs_mock {
-        code.push_str("    let env = TestEnv::with_mock().await.unwrap();\n");
+        code.push_str("    let mut env = TestEnv::with_mock().await.unwrap();\n");
     } else {
-        code.push_str("    let env = TestEnv::new().await.unwrap();\n");
+        code.push_str("    let mut env = TestEnv::new().await.unwrap();\n");
     }
 
     if let Some(env_vars) = given.get("env") {
         if let Some(mapping) = env_vars.as_mapping() {
             for (key, value) in mapping {
                 if let (Some(k), Some(v)) = (key.as_str(), value.as_str()) {
-                    code.push_str(&format!("    let env = env.set_env(\"{}\", \"{}\");\n", k, v));
+                    code.push_str(&format!("    env.set_env(\"{}\", \"{}\");\n", k, v));
                 }
             }
         }
@@ -185,6 +185,34 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
         if let Some(config_str) = config.as_str() {
             code.push_str(&format!("    env.write_config(\"{}\").await.unwrap();\n",
                 config_str.escape_default()));
+        }
+    }
+
+    // 支持 config_content（多行配置）
+    if let Some(config_content) = given.get("config_content") {
+        if let Some(config_str) = config_content.as_str() {
+            code.push_str(&format!("    env.write_config(\"{}\").await.unwrap();\n",
+                config_str.escape_default()));
+        }
+    }
+
+    // 支持 stdin 输入
+    if let Some(stdin) = given.get("stdin") {
+        if let Some(stdin_str) = stdin.as_str() {
+            code.push_str(&format!("    env.set_stdin(\"{}\");\n",
+                stdin_str.escape_default()));
+        }
+    }
+
+    // 支持 stdin_lines 输入（多行，用于 REPL 测试）
+    if let Some(stdin_lines) = given.get("stdin_lines") {
+        if let Some(lines) = stdin_lines.as_sequence() {
+            let lines_str: Vec<String> = lines.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect();
+            let joined = lines_str.join("\\n");
+            code.push_str(&format!("    env.set_stdin(\"{}\");\n", joined));
         }
     }
 

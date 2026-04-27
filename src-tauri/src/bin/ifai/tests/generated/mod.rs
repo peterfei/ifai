@@ -2,6 +2,8 @@
 // DO NOT EDIT MANUALLY
 
 pub mod debug_mock;
+pub mod network_example;
 pub mod cli_basic;
+pub mod cli_repl;
 pub mod cli_api;
 pub mod cli_simple;

@@ -9,7 +9,7 @@ use crate::tests::common::*;
 #[serial_test::serial]
 async fn test_mock() {
     // 验证 Mock 服务器创建和 URI
-    let env = TestEnv::with_mock().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
         mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();

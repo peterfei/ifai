@@ -9,7 +9,7 @@ use crate::tests::common::*;
 #[serial_test::serial]
 async fn test_jian_danti_shi_cixiang_ying() {
     // 测试简单的提示词能够正常响应
-    let env = TestEnv::with_mock().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
         mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
@@ -21,9 +21,19 @@ async fn test_jian_danti_shi_cixiang_ying() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_xi_tongti_shi_cisheng_xiao() {
-    // 测试系统提示词参数生效
-    let env = TestEnv::with_mock().await.unwrap();
+async fn test_bang_zhuxin_xixian_shi() {
+    // 测试 --help 参数
+    let mut env = TestEnv::new().await.unwrap();
+    let output = env.run_cli(&["--help"]).await.unwrap();
+    output.assert_success();
+    output.assert_contains("USAGE");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn test_xi_tongti_shi_ci() {
+    // 测试 --system 参数
+    let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
     if let Some(mock) = env.mock_server() {
         mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
@@ -35,21 +45,56 @@ async fn test_xi_tongti_shi_cisheng_xiao() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_bang_zhuxin_xixian_shi() {
-    // 测试 --help 参数
-    let env = TestEnv::new().await.unwrap();
-    let output = env.run_cli(&["--help"]).await.unwrap();
+async fn test_json() {
+    // 测试 --json 参数
+    let mut env = TestEnv::with_mock().await.unwrap();
+    // Mock response: simple_response.json
+    if let Some(mock) = env.mock_server() {
+        mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
+    }
+    let output = env.run_cli(&["--json", "hello"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("Usage");
+    output.assert_contains("{");
 }
 
 #[tokio::test]
 #[serial_test::serial]
 async fn test_ban_benxin_xixian_shi() {
     // 测试 --version 参数
-    let env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["--version"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("ifai");
+    output.assert_contains("IfAI");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn test_api_key() {
+    // 测试从配置文件读取 API key
+    let mut env = TestEnv::with_mock().await.unwrap();
+    env.write_config("[providers.openai]\napi_key = \"config-key\"\n").await.unwrap();
+    // Mock response: simple_response.json
+    if let Some(mock) = env.mock_server() {
+        mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
+    }
+    let output = env.run_cli(&["hello"]).await.unwrap();
+    output.assert_success();
+    output.assert_contains("Hello");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn test_base_url() {
+    // 测试通过环境变量覆盖 base URL
+    let mut env = TestEnv::with_mock().await.unwrap();
+    env.set_env("IFAI_API_BASE", "https://custom.api.com/v1");
+    env.set_env("OPENAI_API_KEY", "test-key");
+    // Mock response: simple_response.json
+    if let Some(mock) = env.mock_server() {
+        mock.setup_streaming_response(vec!["Hello from mock!"]).await.unwrap();
+    }
+    let output = env.run_cli(&["hello"]).await.unwrap();
+    output.assert_success();
+    output.assert_contains("Hello");
 }
 
