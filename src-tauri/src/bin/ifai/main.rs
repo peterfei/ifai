@@ -27,6 +27,8 @@ mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
 mod permission_store; // 🔥 权限规则存储（用户白名单）
 mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
+mod welcome; // 🔥 TUI 欢迎页组件
+mod keybindings; // 🔥 快捷键定义和帮助系统
 
 // ============================================================================
 // TUI 事件循环结果

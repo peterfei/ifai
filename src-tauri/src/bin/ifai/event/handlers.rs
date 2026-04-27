@@ -327,6 +327,40 @@ impl EventHandler<Event> for SearchInputHandler {
     }
 }
 
+// ============================================================================
+// 帮助模式处理器
+// ============================================================================
+
+/// 帮助进入处理器 - 按 `?` 键进入帮助模式
+pub struct HelpEnterHandler;
+
+impl EventHandler<Event> for HelpEnterHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if let Event::Key(key) = event {
+            if key.code == KeyCode::Char('?') && !app.help_mode {
+                app.help_mode = true;
+                return ControlFlow::Continue;
+            }
+        }
+        ControlFlow::Continue
+    }
+}
+
+/// 帮助退出处理器 - 按 `Esc` 键退出帮助模式
+pub struct HelpExitHandler;
+
+impl EventHandler<Event> for HelpExitHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if let Event::Key(key) = event {
+            if key.code == KeyCode::Esc && app.help_mode {
+                app.help_mode = false;
+                return ControlFlow::Continue;
+            }
+        }
+        ControlFlow::Continue
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -40,4 +40,4 @@ pub mod handlers;
 // 重新导出核心类型
 pub use handler::{ControlFlow, EventHandler, EventRoute};
 pub use router::EventRouter;
-pub use handlers::{KeyScrollHandler, MouseScrollHandler, ResizeHandler, InputSubmitHandler, IgnoreHandler, CombinedKeyHandler, SearchEnterHandler, SearchInputHandler};
+pub use handlers::{KeyScrollHandler, MouseScrollHandler, ResizeHandler, InputSubmitHandler, IgnoreHandler, CombinedKeyHandler, SearchEnterHandler, SearchInputHandler, HelpEnterHandler, HelpExitHandler};

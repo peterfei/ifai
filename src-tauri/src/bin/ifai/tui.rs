@@ -20,7 +20,7 @@ use ratatui::{
 use crate::render;
 use crate::AppResult;
 use crate::event::{ControlFlow, EventHandler, EventRouter};
-use crate::event::{CombinedKeyHandler, MouseScrollHandler, ResizeHandler, IgnoreHandler, SearchEnterHandler, SearchInputHandler};
+use crate::event::{CombinedKeyHandler, MouseScrollHandler, ResizeHandler, IgnoreHandler, SearchEnterHandler, SearchInputHandler, HelpEnterHandler, HelpExitHandler};
 
 use super::input_composer::{self, InputComposer, InputAction};
 use super::approval_overlay::{self, ApprovalRequest, ApprovalDecision};
@@ -80,6 +80,8 @@ pub struct App {
     pub current_match_index: usize,
     /// 搜索输入框
     pub search_input: InputComposer,
+    /// 帮助模式（显示快捷键帮助覆盖层）
+    pub help_mode: bool,
 }
 
 impl App {
@@ -107,14 +109,10 @@ impl App {
             search_matches: Vec::new(),
             current_match_index: 0,
             search_input: InputComposer::new(""),
+            help_mode: false,
         };
 
-        // 欢迎信息
-        let theme = render::default_theme();
-        app.push_line(format!("{}IfAI CLI v0.4.4{}", theme.brand, render::RESET));
-        app.push_line("Type /help for commands. Press Ctrl+D to exit.".to_string());
-        app.push_line("Scroll: PageUp/PageDown, Shift+Up/Down, or Mouse wheel.".to_string());
-        app.push_line(String::new());
+        // 初始化时不添加任何内容，让欢迎页组件接管
 
         Ok(app)
     }
@@ -137,6 +135,7 @@ impl App {
             search_matches: Vec::new(),
             current_match_index: 0,
             search_input: InputComposer::new(""),
+            help_mode: false,
         }
     }
 
@@ -150,6 +149,11 @@ impl App {
         if !self.user_scrolled {
             self.scroll_to_bottom();
         }
+    }
+
+    /// 检测内容区是否为空（用于显示欢迎页）
+    pub fn is_empty(&self) -> bool {
+        self.content_lines.is_empty()
     }
 
     /// 设置状态栏文本（自动剥离 ANSI 转义码）
@@ -360,6 +364,8 @@ impl App {
         let input_cursor_col = input_composer::cursor_col(&self.input);
         let search_input_value = self.search_input.value().to_string();
         let search_input_cursor_col = input_composer::cursor_col(&self.search_input);
+        let is_empty = self.is_empty();
+        let help_mode = self.help_mode;
 
         if let Some(terminal) = &mut self.terminal {
             let _ = terminal.draw(|f| {
@@ -392,11 +398,29 @@ impl App {
             // === 内容区 ===
             // 只有在非审批模式下才渲染内容区域
             if !has_approval_state {
-                let start = scroll_offset as usize;
-                let end = (start + visible_count).min(total_lines);
+                // === 欢迎页显示（当内容区为空且不在帮助模式时） ===
+                if is_empty && !help_mode {
+                    let welcome_widget = super::welcome::WelcomeWidget::new();
+                    let welcome_lines = welcome_widget.render();
 
-                // 如果在搜索模式且有搜索词，渲染带高亮的行
-                if search_mode && !search_query.is_empty() {
+                    // 居中显示欢迎页
+                    let welcome_content = Paragraph::new(welcome_lines)
+                        .alignment(ratatui::layout::Alignment::Center);
+                    f.render_widget(welcome_content, content_area);
+                } else if help_mode {
+                    // === 帮助覆盖层显示 ===
+                    let help_overlay = super::keybindings::HelpOverlay::new();
+                    let help_lines = help_overlay.render();
+
+                    // 帮助内容居左显示
+                    let help_content = Paragraph::new(help_lines)
+                        .alignment(ratatui::layout::Alignment::Left);
+                    f.render_widget(help_content, content_area);
+                } else if search_mode && !search_query.is_empty() {
+                    // === 搜索模式：渲染带高亮的行 ===
+                    let start = scroll_offset as usize;
+                    let end = (start + visible_count).min(total_lines);
+
                     let visible_lines: Vec<Line> = (start..end)
                         .map(|line_idx| {
                             let line = &content_lines[line_idx];
@@ -422,7 +446,9 @@ impl App {
                     let content = Paragraph::new(visible_lines).scroll((0, 0));
                     f.render_widget(content, content_area);
                 } else {
-                    // 正常模式或无搜索词，直接渲染
+                    // === 正常模式：直接渲染 ===
+                    let start = scroll_offset as usize;
+                    let end = (start + visible_count).min(total_lines);
                     let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
                     let content = Paragraph::new(visible_lines).scroll((0, 0));
                     f.render_widget(content, content_area);
@@ -580,6 +606,10 @@ impl App {
     /// SearchInputHandler 会检查 app.is_searching()，如果不是搜索模式就直接返回 Continue
     fn build_event_router() -> EventRouter<crossterm::event::Event> {
         EventRouter::new()
+            // 帮助进入 - 按 `?`
+            .on(|e| matches!(e, crossterm::event::Event::Key(_)), HelpEnterHandler)
+            // 帮助退出 - 按 `Esc`（仅在帮助模式时）
+            .on(|e| matches!(e, crossterm::event::Event::Key(_)), HelpExitHandler)
             // 搜索进入 - Ctrl+F
             .on(|e| matches!(e, crossterm::event::Event::Key(_)), SearchEnterHandler)
             // 搜索输入（优先级高，需要在正常输入之前）
