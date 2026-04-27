@@ -131,11 +131,17 @@ impl Terminal {
     fn query_size(&self) -> TerminalSize {
         use std::mem;
         use windows::Win32::System::Console::{
-            GetConsoleScreenBufferInfo, CONSOLE_SCREEN_BUFFER_INFO, STD_OUTPUT_HANDLE,
+            GetConsoleScreenBufferInfo, GetStdHandle, CONSOLE_SCREEN_BUFFER_INFO,
+            STD_OUTPUT_HANDLE,
         };
 
         unsafe {
-            let handle = STD_OUTPUT_HANDLE;
+            // 获取标准输出句柄
+            let handle = match GetStdHandle(STD_OUTPUT_HANDLE) {
+                Ok(h) => h,
+                Err(_) => return TerminalSize::safe_default(),
+            };
+
             let mut info: CONSOLE_SCREEN_BUFFER_INFO = mem::zeroed();
 
             if GetConsoleScreenBufferInfo(handle, &mut info).is_ok() {
