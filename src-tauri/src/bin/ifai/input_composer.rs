@@ -177,6 +177,11 @@ impl InputComposer {
         &self.buffer
     }
 
+    /// 获取提示符
+    pub fn prompt(&self) -> &str {
+        &self.prompt
+    }
+
     /// 加载历史记录
     pub fn load_history(&mut self, path: &Path) {
         if let Ok(content) = std::fs::read_to_string(path) {
@@ -245,7 +250,9 @@ pub fn cursor_col(composer: &InputComposer) -> u16 {
         .chars()
         .map(char_width)
         .sum();
-    (composer.prompt.len() + display_width + 1) as u16
+    // prompt 的显示宽度 + ⟩ 和空格的宽度 + 输入的显示宽度
+    // ⟩ (U+27E7) 的显示宽度是 1，加上空格是 2
+    (composer.prompt.len() + display_width + 2) as u16
 }
 
 #[cfg(test)]
@@ -581,16 +588,16 @@ mod tests {
         let mut ic = InputComposer::new("");
         ic.handle_key(char_key('a'));
         ic.handle_key(char_key('b'));
-        // prompt="" → prompt.len()=0, display_width("ab")=2, +1 = 3
-        assert_eq!(cursor_col(&ic), 3);
+        // prompt="" → prompt.len()=0, display_width("ab")=2, ⟩ + space = 2, total = 4
+        assert_eq!(cursor_col(&ic), 4);
     }
 
     #[test]
     fn test_cursor_col_cjk() {
         let mut ic = InputComposer::new("");
         ic.handle_key(char_key('你'));
-        // prompt="" → prompt.len()=0, display_width("你")=2, +1 = 3
-        assert_eq!(cursor_col(&ic), 3);
+        // prompt="" → prompt.len()=0, display_width("你")=2, ⟩ + space = 2, total = 4
+        assert_eq!(cursor_col(&ic), 4);
     }
 
     #[test]
@@ -598,16 +605,16 @@ mod tests {
         let mut ic = InputComposer::new("");
         ic.handle_key(char_key('a'));
         ic.handle_key(char_key('中'));
-        // prompt="" → prompt.len()=0, display_width("a中")=3, +1 = 4
-        assert_eq!(cursor_col(&ic), 4);
+        // prompt="" → prompt.len()=0, display_width("a中")=3, ⟩ + space = 2, total = 5
+        assert_eq!(cursor_col(&ic), 5);
     }
 
     #[test]
     fn test_cursor_col_with_prompt() {
         let mut ic = InputComposer::new("cli");
         ic.handle_key(char_key('a'));
-        // prompt="cli" → prompt.len()=3, display_width("a")=1, +1 = 5
-        assert_eq!(cursor_col(&ic), 5);
+        // prompt="cli" → prompt.len()=3, display_width("a")=1, ⟩ + space = 2, total = 6
+        assert_eq!(cursor_col(&ic), 6);
     }
 
     // === 历史文件持久化 ===

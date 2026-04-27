@@ -357,7 +357,9 @@ impl App {
         let user_scrolled = self.user_scrolled;
         let status_text = self.status_text.clone();
         let input_value = self.input.value().to_string();
+        let input_cursor_col = input_composer::cursor_col(&self.input);
         let search_input_value = self.search_input.value().to_string();
+        let search_input_cursor_col = input_composer::cursor_col(&self.search_input);
 
         if let Some(terminal) = &mut self.terminal {
             let _ = terminal.draw(|f| {
@@ -504,7 +506,6 @@ impl App {
                     f.render_widget(status, status_area);
 
                     // === 搜索输入框 ===
-                    let cursor_col = search_input_value.chars().count().min(search_input_value.len());
                     let prompt = Span::styled(
                         "🔍 ",
                         ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
@@ -514,8 +515,8 @@ impl App {
                     let input = Paragraph::new(input_line);
                     f.render_widget(input, input_area);
 
-                    // 设置终端光标位置
-                    let cursor_x = input_area.x + 2 + (cursor_col as u16).min(input_area.width.saturating_sub(2));
+                    // 设置终端光标位置（🔍 占 2 个字符宽度）
+                    let cursor_x = input_area.x + 2 + (search_input_cursor_col as u16).min(input_area.width.saturating_sub(2));
                     let cursor_y = input_area.y;
                     f.set_cursor_position((cursor_x, cursor_y));
                 } else {
@@ -535,9 +536,8 @@ impl App {
                     f.render_widget(status, status_area);
 
                     // === 输入框 ===
-                    let cursor_col = input_value.chars().count().min(input_value.len());
                     let prompt = Span::styled(
-                        "⟩ ",
+                        format!("{}⟩ ", self.input.prompt()),
                         ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
                     );
                     let input_text = Span::raw(input_value);
@@ -545,8 +545,8 @@ impl App {
                     let input = Paragraph::new(input_line);
                     f.render_widget(input, input_area);
 
-                    // 设置终端光标位置
-                    let cursor_x = input_area.x + (cursor_col as u16).min(input_area.width);
+                    // 设置终端光标位置（input_cursor_col 已包含 prompt 和 ⟩ 的宽度）
+                    let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
                     let cursor_y = input_area.y;
                     f.set_cursor_position((cursor_x, cursor_y));
                 }
