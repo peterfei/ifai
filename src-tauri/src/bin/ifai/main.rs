@@ -26,6 +26,20 @@ mod markdown_meta; // 🎨 Markdown 元编程驱动层
 mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
 mod permission_store; // 🔥 权限规则存储（用户白名单）
+mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
+
+// ============================================================================
+// TUI 事件循环结果
+// ============================================================================
+
+/// TUI 事件循环结果
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppResult {
+    /// 用户提交输入
+    Submit(String),
+    /// 用户请求退出
+    Exit,
+}
 
 use std::env;
 use std::io::{self, IsTerminal, Write};
@@ -783,7 +797,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     // 主循环
     loop {
         match app.run_loop() {
-            tui::AppResult::Submit(text) => {
+            AppResult::Submit(text) => {
                 // 添加历史
                 app.input.add_history(&text);
                 let _ = app.input.save_history(&history_path);
@@ -955,7 +969,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     app.render();
                 }
             }
-            tui::AppResult::Exit => {
+            AppResult::Exit => {
                 break;
             }
         }
