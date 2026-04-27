@@ -1,0 +1,158 @@
+# tests/suite/config_precedence.yaml
+#
+# 配置优先级测试
+#
+# 验证 4 层配置优先级：
+# 1. CLI arguments (highest)
+# 2. Environment variables
+# 3. Config file (~/.ifai/config.toml)
+# 4. YAML defaults (lowest)
+
+test_suite:
+  name: "配置优先级测试"
+  description: "验证 CLI、环境变量、配置文件和默认值的优先级"
+
+  setup:
+    notes: "测试前确保没有 ~/.ifai/config.toml 文件"
+
+  tests:
+    - name: "CLI 覆盖环境变量"
+      description: "验证 CLI 参数优先级高于环境变量"
+      given:
+        env:
+          IFAI_PROVIDER: "openai"
+          IFAI_MODEL: "gpt-4"
+        args: ["--provider", "deepseek", "--model", "deepseek-chat"]
+        notes: "环境变量设置 openai/gpt-4，CLI 设置 deepseek/deepseek-chat"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "deepseek"
+        notes: "应该使用 CLI 参数的 deepseek，而不是环境变量的 openai"
+
+    - name: "环境变量覆盖配置文件"
+      description: "验证环境变量优先级高于配置文件"
+      given:
+        env:
+          IFAI_PROVIDER: "openai"
+          IFAI_MODEL: "gpt-4o-mini"
+        config_content: |
+          provider = "deepseek"
+          model = "deepseek-chat"
+          [deepseek]
+          api_key = "sk-file-key"
+        args: ["hello"]
+        notes: "配置文件设置 deepseek，环境变量设置 openai"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "openai"
+        notes: "应该使用环境变量的 openai，而不是配置文件的 deepseek"
+
+    - name: "配置文件覆盖默认值"
+      description: "验证配置文件优先级高于 YAML 默认值"
+      given:
+        config_content: |
+          provider = "openai"
+          model = "gpt-4o-mini"
+          [openai]
+          api_key = "sk-file-key"
+        args: ["hello"]
+        notes: "配置文件设置 openai，默认值是 deepseek"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "openai"
+        notes: "应该使用配置文件的 openai，而不是默认的 deepseek"
+
+    - name: "完整优先级链"
+      description: "验证 CLI > Env > File > Default 完整链"
+      given:
+        env:
+          IFAI_PROVIDER: "openai"
+          IFAI_MODEL: "gpt-4o-mini"
+        config_content: |
+          provider = "anthropic"
+          model = "claude-3-haiku"
+          [anthropic]
+          api_key = "sk-file-key"
+        args: ["--provider", "deepseek", "hello"]
+        notes: "CLI=deepseek, Env=openai, File=anthropic, Default=deepseek"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "deepseek"
+        notes: "应该使用 CLI 的 deepseek（最高优先级）"
+
+    - name: "配置初始化模板"
+      description: "验证 --config init 生成正确的配置模板"
+      given:
+        args: ["--config", "init"]
+      when: {}
+      then:
+        assert_success: true
+        assert_match: "provider.*model.*api_key"
+        notes: "生成的配置文件应该包含 provider, model, api_key 字段"
+
+    - name: "API Key 优先级 - CLI 最高"
+      description: "验证 API Key 的优先级（CLI > Env > File）"
+      given:
+        env:
+          OPENAI_API_KEY: "sk-env-key"
+        config_content: |
+          provider = "openai"
+          model = "gpt-4o-mini"
+          [openai]
+          api_key = "sk-file-key"
+        args: ["--api-key", "sk-cli-key", "hello"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        notes: "应该使用 CLI 的 sk-cli-key"
+
+    - name: "API Key 优先级 - Env 次之"
+      description: "验证环境变量 API Key 覆盖配置文件"
+      given:
+        env:
+          OPENAI_API_KEY: "sk-env-key"
+        config_content: |
+          provider = "openai"
+          model = "gpt-4o-mini"
+          [openai]
+          api_key = "sk-file-key"
+        args: ["hello"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        notes: "应该使用环境变量的 sk-env-key"
+
+    - name: "Base URL 优先级"
+      description: "验证 Base URL 优先级（IFAI_API_BASE 环境变量）"
+      given:
+        env:
+          IFAI_API_BASE: "https://custom.api.com/v1"
+        args: ["hello"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        notes: "应该使用自定义的 Base URL"
+
+    - name: "配置显示命令"
+      description: "验证 --config show 正确显示当前配置"
+      given:
+        env:
+          IFAI_PROVIDER: "openai"
+          IFAI_MODEL: "gpt-4o-mini"
+        args: ["--config", "show"]
+      when: {}
+      then:
+        assert_success: true
+        assert_match: "provider.*openai"
+        notes: "应该显示当前配置（包括来源）"

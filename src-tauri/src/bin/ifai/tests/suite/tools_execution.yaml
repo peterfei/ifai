@@ -1,0 +1,212 @@
+# tests/suite/tools_execution.yaml
+#
+# 工具执行测试
+#
+# 验证 AI 工具调用的执行、审批和错误处理
+
+test_suite:
+  name: "工具执行测试"
+  description: "验证 Bash、文件操作等工具的执行和审批流程"
+
+  setup:
+    env:
+      IFAI_PROVIDER: "openai"
+      OPENAI_API_KEY: "test-key"
+
+  tests:
+    - name: "单个工具调用"
+      description: "验证单个工具调用（bash pwd）"
+      given:
+        args: ["list files in current directory"]
+      when:
+        mock_streaming:
+          - "I'll list the files for you."
+        mock_tool_call: "pwd"
+      then:
+        assert_success: true
+        assert_tool_called: "pwd"
+        notes: "应该调用 bash 工具执行 pwd 命令"
+
+    - name: "多个工具调用"
+      description: "验证多个工具依次执行"
+      given:
+        args: ["show current directory and list files"]
+      when:
+        mock_streaming:
+          - "I'll show the directory and list files."
+        mock_tool_calls:
+          - "pwd"
+          - "ls -la"
+      then:
+        assert_success: true
+        notes: "应该依次调用 pwd 和 ls 两个工具"
+
+    - name: "工具需要审批"
+      description: "验证危险工具需要用户审批"
+      given:
+        args: ["delete all log files"]
+        stdin: "n\n"
+      when:
+        mock_streaming:
+          - "I can help delete log files."
+        mock_tool_call: "rm *.log"
+        tool_requires_approval: true
+      then:
+        assert_success: true
+        notes: "应该显示审批提示，用户拒绝后不执行"
+
+    - name: "安全工具自动批准"
+      description: "验证安全工具（pwd, ls, echo）自动批准"
+      given:
+        args: ["show current directory"]
+      when:
+        mock_streaming:
+          - "I'll show the current directory."
+        mock_tool_call: "pwd"
+        tool_is_safe: true
+      then:
+        assert_success: true
+        assert_tool_called: "pwd"
+        notes: "pwd 是安全命令，应该自动执行"
+
+    - name: "危险工具需手动审批"
+      description: "验证危险工具（rm, mv, chmod）需要手动审批"
+      given:
+        args: ["remove test file"]
+        stdin: "y\n"
+      when:
+        mock_streaming:
+          - "I'll remove the test file."
+        mock_tool_call: "rm test.txt"
+        tool_requires_approval: true
+      then:
+        assert_success: true
+        assert_tool_called: "rm"
+        notes: "rm 是危险命令，需要用户手动批准"
+
+    - name: "工具执行失败处理"
+      description: "验证工具执行失败时的错误处理"
+      given:
+        args: ["read nonexistent file"]
+      when:
+        mock_streaming:
+          - "I'll read the file."
+        mock_tool_call: "cat /nonexistent/file"
+        mock_tool_error: "No such file or directory"
+      then:
+        assert_success: true
+        assert_contains: "error"
+        notes: "工具失败应该显示错误信息，不崩溃"
+
+    - name: "工具执行后继续对话"
+      description: "验证工具执行后 AI 能继续对话"
+      given:
+        args: ["what files are here and summarize"]
+      when:
+        mock_streaming:
+          - "I'll list the files and summarize."
+          - "Here's the summary:"
+        mock_tool_call: "ls -la"
+      then:
+        assert_success: true
+        assert_tool_called: "ls"
+        assert_contains: "summary"
+        notes: "工具执行后应该继续生成回复"
+
+    - name: "Read_file 工具调用"
+      description: "验证 read_file 工具"
+      given:
+        args: ["read main.rs"]
+      when:
+        mock_streaming:
+          - "I'll read the main.rs file."
+        mock_tool_call: "read_file:src/main.rs"
+      then:
+        assert_success: true
+        assert_tool_called: "read_file"
+        notes: "应该调用 read_file 工具"
+
+    - name: "Write_file 工具调用"
+      description: "验证 write_file 工具（需要审批）"
+      given:
+        args: ["create a test file with hello world"]
+        stdin: "y\n"
+      when:
+        mock_streaming:
+          - "I'll create the test file."
+        mock_tool_call: "write_file:test.txt:Hello World"
+        tool_requires_approval: true
+      then:
+        assert_success: true
+        assert_tool_called: "write_file"
+        notes: "write_file 需要审批，批准后执行"
+
+    - name: "Edit_file 工具调用"
+      description: "验证 edit_file 工具（需要审批）"
+      given:
+        args: ["change hello to hi in test.txt"]
+        stdin: "y\n"
+      when:
+        mock_streaming:
+          - "I'll edit the file."
+        mock_tool_call: "edit_file:test.txt:hello->hi"
+        tool_requires_approval: true
+      then:
+        assert_success: true
+        assert_tool_called: "edit_file"
+        notes: "edit_file 需要审批，批准后执行"
+
+    - name: "禁用工具模式"
+      description: "验证 --no-tool 参数禁用工具调用"
+      given:
+        args: ["--no-tool", "what files are here"]
+      when:
+        mock_streaming:
+          - "I cannot execute tools, but I can answer your question."
+      then:
+        assert_success: true
+        notes: "即使 AI 想调用工具，也应该被禁用"
+
+    - name: "工具调用超时处理"
+      description: "验证工具执行超时的处理"
+      given:
+        args: ["run long command"]
+        env:
+          IFAI_TOOL_TIMEOUT: "1"
+      when:
+        mock_streaming:
+          - "I'll run the command."
+        mock_tool_call: "sleep 10"
+        mock_tool_timeout: true
+      then:
+        assert_success: true
+        assert_contains: "timeout"
+        notes: "工具超时应该显示错误，不阻塞"
+
+    - name: "管道命令工具调用"
+      description: "验证包含管道的 bash 命令"
+      given:
+        args: ["count files in current directory"]
+      when:
+        mock_streaming:
+          - "I'll count the files."
+        mock_tool_call: "ls | wc -l"
+      then:
+        assert_success: true
+        assert_tool_called: "bash"
+        notes: "应该正确处理管道命令"
+
+    - name: "多重工具依赖"
+      description: "验证多个工具依赖的场景（pwd -> cd -> ls）"
+      given:
+        args: ["list files in src directory"]
+      when:
+        mock_streaming:
+          - "I'll navigate to src and list files."
+        mock_tool_calls:
+          - "pwd"
+          - "cd src"
+          - "ls -la"
+      then:
+        assert_success: true
+        notes: "应该依次执行三个命令，每个依赖前一个的结果"

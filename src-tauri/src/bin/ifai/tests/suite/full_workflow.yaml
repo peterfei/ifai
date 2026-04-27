@@ -1,0 +1,250 @@
+# tests/suite/full_workflow.yaml
+#
+# 完整工作流测试
+#
+# 验证真实用户场景的端到端工作流
+
+test_suite:
+  name: "完整工作流测试"
+  description: "验证端到端的用户工作流场景"
+
+  setup:
+    env:
+      IFAI_PROVIDER: "openai"
+      OPENAI_API_KEY: "test-key"
+
+  tests:
+    - name: "完整对话工作流"
+      description: "验证多轮对话的完整流程"
+      given:
+        stdin_lines:
+          - "hello, what can you do"
+          - "help me understand rust"
+          - "show me a function example"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Hello! I'm an AI coding assistant."
+          - "Rust is a systems programming language."
+          - "Here's a function example:"
+      then:
+        assert_success: true
+        notes: "应该支持多轮对话，保持上下文"
+
+    - name: "代码编辑工作流"
+      description: "验证代码编辑的完整流程（read -> edit -> verify）"
+      given:
+        stdin_lines:
+          - "read main.rs and show me the first 10 lines"
+          - "change the function name from old_func to new_func"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll read main.rs for you."
+          - "Now I'll edit the function name."
+          - "The change has been made."
+        mock_tool_calls:
+          - "read_file:src/main.rs"
+          - "edit_file:src/main.rs:old_func->new_func"
+      then:
+        assert_success: true
+        notes: "应该完成读取、编辑、验证的完整流程"
+
+    - name: "文件搜索工作流"
+      description: "验证文件搜索和分析工作流"
+      given:
+        stdin_lines:
+          - "find all test files"
+          - "which tests are failing"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll search for test files."
+          - "Here are the failing tests:"
+        mock_tool_calls:
+          - "find . -name '*test*.rs'"
+          - "cargo test"
+      then:
+        assert_success: true
+        notes: "应该支持文件搜索和分析"
+
+    - name: "多文件编辑工作流"
+      description: "验证同时编辑多个文件的工作流"
+      given:
+        stdin_lines:
+          - "update the error handling in both main.rs and config.rs"
+          - "make sure both use Result type"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll update error handling in both files."
+          - "Both files now use Result type."
+        mock_tool_calls:
+          - "read_file:src/main.rs"
+          - "edit_file:src/main.rs"
+          - "read_file:src/config.rs"
+          - "edit_file:src/config.rs"
+      then:
+        assert_success: true
+        notes: "应该能追踪和编辑多个文件"
+
+    - name: "会话保存和恢复工作流"
+      description: "验证会话保存、退出、恢复的完整流程"
+      given:
+        stdin_lines:
+          - "my name is Alice"
+          - "/save test-session"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Nice to meet you, Alice!"
+          - "Session saved as: test-session"
+      then:
+        assert_success: true
+        assert_contains: "Session saved"
+
+    - name: "会话恢复后继续对话"
+      description: "验证恢复会话后能继续之前的上下文"
+      given:
+        stdin_lines:
+          - "/resume test-session"
+          - "what is my name"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Session resumed: test-session"
+          - "Your name is Alice."
+      then:
+        assert_success: true
+        assert_contains: "Alice"
+        notes: "恢复后应该记住之前的对话"
+
+    - name: "代码重构工作流"
+      description: "验证代码重构的完整工作流"
+      given:
+        stdin_lines:
+          - "refactor the config module to use builder pattern"
+          - "show me the new structure"
+          - "run tests to verify"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll refactor the config module."
+          - "Here's the new structure:"
+          - "Running tests..."
+        mock_tool_calls:
+          - "read_file:src/config.rs"
+          - "write_file:src/config.rs:new_content"
+          - "cargo test"
+      then:
+        assert_success: true
+        notes: "应该支持复杂的重构工作流"
+
+    - name: "调试工作流"
+      description: "验证调试问题的完整工作流"
+      given:
+        stdin_lines:
+          - "I'm getting a panic in main.rs"
+          - "show me the error"
+          - "fix it by adding proper error handling"
+          - "verify the fix"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Let me check the error."
+          - "I see the panic. Here's the fix:"
+          - "Fixing now..."
+          - "The fix has been applied."
+        mock_tool_calls:
+          - "read_file:src/main.rs"
+          - "cargo build"
+          - "edit_file:src/main.rs"
+          - "cargo test"
+      then:
+        assert_success: true
+        notes: "应该支持调试和修复问题"
+
+    - name: "文档生成工作流"
+      description: "验证为代码生成文档的工作流"
+      given:
+        stdin_lines:
+          - "generate documentation for the config module"
+          - "save it to docs/config.md"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll generate documentation for config module."
+          - "Documentation saved to docs/config.md"
+        mock_tool_calls:
+          - "read_file:src/config.rs"
+          - "write_file:docs/config.md:documentation"
+      then:
+        assert_success: true
+        notes: "应该能生成并保存文档"
+
+    - name: "Git 操作工作流"
+      description: "验证 Git 集成工作流"
+      given:
+        stdin_lines:
+          - "show me the git status"
+          - "what changed in main.rs"
+          - "create a commit with these changes"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Checking git status..."
+          - "Here are the changes in main.rs:"
+          - "Creating commit..."
+        mock_tool_calls:
+          - "git status"
+          - "git diff src/main.rs"
+          - "git add src/main.rs"
+          - "git commit -m message"
+      then:
+        assert_success: true
+        notes: "应该支持 Git 操作工作流"
+
+    - name: "项目初始化工作流"
+      description: "验证新项目初始化的完整工作流"
+      given:
+        stdin_lines:
+          - "create a new Rust project structure"
+          - "add Cargo.toml with dependencies"
+          - "create main.rs and lib.rs"
+          - "initialize git"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll create the project structure."
+          - "Adding Cargo.toml..."
+          - "Creating source files..."
+          - "Initializing git..."
+        mock_tool_calls:
+          - "mkdir src"
+          - "write_file:Cargo.toml"
+          - "write_file:src/main.rs"
+          - "write_file:src/lib.rs"
+          - "git init"
+      then:
+        assert_success: true
+        notes: "应该支持完整的项目初始化"
+
+    - name: "代码审查工作流"
+      description: "验证代码审查的完整工作流"
+      given:
+        stdin_lines:
+          - "review the changes in this PR"
+          - "show me potential issues"
+          - "suggest improvements"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll review the changes."
+          - "Here are potential issues:"
+          - "Here are my suggestions:"
+        mock_tool_calls:
+          - "git diff"
+          - "read_file:src/main.rs"
+      then:
+        assert_success: true
+        notes: "应该支持代码审查工作流"

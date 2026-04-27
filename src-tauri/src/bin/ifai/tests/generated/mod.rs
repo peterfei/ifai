@@ -2,8 +2,13 @@
 // DO NOT EDIT MANUALLY
 
 pub mod debug_mock;
+pub mod full_workflow;
 pub mod network_example;
+pub mod config_precedence;
 pub mod cli_basic;
+pub mod tools_execution;
 pub mod cli_repl;
 pub mod cli_api;
+pub mod streaming;
 pub mod cli_simple;
+pub mod error_handling;

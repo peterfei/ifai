@@ -1,0 +1,214 @@
+# tests/suite/streaming.yaml
+#
+# 流式响应测试
+#
+# 验证 SSE (Server-Sent Events) 流式响应处理
+
+test_suite:
+  name: "流式响应测试"
+  description: "验证 SSE 流式响应的接收、解析和显示"
+
+  setup:
+    env:
+      IFAI_PROVIDER: "openai"
+      OPENAI_API_KEY: "test-key"
+
+  tests:
+    - name: "SSE 流式响应"
+      description: "验证基本的 SSE 流式响应"
+      given:
+        args: ["hello"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"Hello"
+          - "event: delta"
+          - 'data: "!"'
+          - "event: done"
+      then:
+        assert_success: true
+        assert_contains: "Hello!"
+        notes: "应该正确解析 SSE 事件并累积输出"
+
+    - name: "文本增量累积"
+      description: "验证多个 delta 事件正确累积为完整文本"
+      given:
+        args: ["tell me a story"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"Once"
+          - "event: delta"
+          - "data: \" upon"
+          - "event: delta"
+          - "data: \" a"
+          - "event: delta"
+          - "data: \" time"
+          - "event: delta"
+          - "data: \".\""
+          - "event: done"
+      then:
+        assert_success: true
+        assert_contains: "Once upon a time."
+        notes: "应该正确累积所有 delta 片段"
+
+    - name: "Token 计数跟踪"
+      description: "验证流式响应中正确计数 tokens"
+      given:
+        args: ["count words"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"One"
+          - "event: usage"
+          - "data: \"{\\\"total_tokens\\\": 10}\""
+          - "event: delta"
+          - "data: \" two"
+          - "event: delta"
+          - "data: \" three"
+          - "event: done"
+      then:
+        assert_success: true
+        assert_token_count: 10
+        notes: "应该正确统计 token 使用量"
+
+    - name: "流式错误恢复"
+      description: "验证流式传输中的错误能正确恢复"
+      given:
+        args: ["test streaming"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"Starting"
+          - "event: error"
+          - "data: \"Connection interrupted\""
+          - "event: delta"
+          - "data: \" ... recovered\""
+          - "event: done"
+      then:
+        assert_success: true
+        assert_contains: "recovered"
+        notes: "应该处理错误事件后继续接收"
+
+    - name: "流式中断"
+      description: "验证用户 Ctrl+C 中断流式响应"
+      given:
+        args: ["long response"]
+        stdin: "\x03"  # Ctrl+C
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"This is a very long"
+          - "event: delta"
+          - "data: \" response that..."
+      then:
+        assert_success: true
+        notes: "Ctrl+C 应该立即中断流式响应"
+
+    - name: "空流式响应"
+      description: "验证空内容的流式响应处理"
+      given:
+        args: ["empty"]
+      when:
+        mock_sse_streaming:
+          - "event: done"
+      then:
+        assert_success: true
+        notes: "空响应不应该导致错误"
+
+    - name: "流式响应中的工具调用"
+      description: "验证流式响应中包含工具调用事件"
+      given:
+        args: ["list files"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"I'll list"
+          - "event: tool_call"
+          - "data: \"{\\\"tool\\\": \\\"bash\\\", \\\"command\\\": \\\"ls\\\"}\""
+          - "event: delta"
+          - "data: \" the files.\""
+          - "event: done"
+      then:
+        assert_success: true
+        assert_tool_called: "bash"
+        notes: "应该处理流式响应中的工具调用"
+
+    - name: "大文本流式传输"
+      description: "验证大文本的流式传输不丢失数据"
+      given:
+        args: ["generate long text"]
+      when:
+        mock_sse_streaming_large: true
+      then:
+        assert_success: true
+        notes: "大文本应该完整传输，不丢失任何片段"
+
+    - name: "流式响应速率限制"
+      description: "验证流式响应的速率限制处理"
+      given:
+        args: ["test rate limit"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"Starting"
+          - "event: error"
+          - "data: \"Rate limit exceeded\""
+          - "event: delta"
+          - "data: \" after delay\""
+          - "event: done"
+      then:
+        assert_success: true
+        assert_contains: "Rate limit"
+        notes: "应该处理速率限制错误"
+
+    - name: "流式响应超时"
+      description: "验证流式响应超时的处理"
+      given:
+        args: ["timeout test"]
+        env:
+          IFAI_STREAM_TIMEOUT: "5"
+      when:
+        mock_sse_streaming_slow: true
+      then:
+        assert_success: true
+        assert_contains: "timeout"
+        notes: "应该正确处理超时"
+
+    - name: "多段落流式响应"
+      description: "验证包含多个段落的流式响应"
+      given:
+        args: ["write multiple paragraphs"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"First paragraph.\\n\\n"
+          - "event: delta"
+          - "data: \"Second paragraph.\\n\\n"
+          - "event: delta"
+          - "data: \"Third paragraph.\""
+          - "event: done"
+      then:
+        assert_success: true
+        assert_match: "First paragraph.*Second paragraph"
+        notes: "应该保留段落结构"
+
+    - name: "流式响应中的代码块"
+      description: "验证流式响应中的 Markdown 代码块"
+      given:
+        args: ["show code example"]
+      when:
+        mock_sse_streaming:
+          - "event: delta"
+          - "data: \"Here's the code:\\n\\n```rust\\n"
+          - "event: delta"
+          - "data: \"fn main() {\\n"
+          - "event: delta"
+          - "data: \"    println!(\\\"Hello\\\");\\n"
+          - "event: delta"
+          - "data: \"}\\n```\""
+          - "event: done"
+      then:
+        assert_success: true
+        assert_match: "```rust.*fn main"
+        notes: "应该正确渲染代码块"

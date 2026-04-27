@@ -1,0 +1,226 @@
+# tests/suite/error_handling.yaml
+#
+# 错误处理测试
+#
+# 验证各种错误场景的处理和用户友好的错误提示
+
+test_suite:
+  name: "错误处理测试"
+  description: "验证各种错误场景的优雅处理"
+
+  setup:
+    notes: "这些测试验证 CLI 对各种错误情况的处理"
+
+  tests:
+    - name: "无效 API Key"
+      description: "验证 API Key 无效时的错误提示"
+      given:
+        env:
+          OPENAI_API_KEY: "sk-invalid-key-12345"
+        args: ["hello"]
+      when:
+        mock_error_response:
+          type: "authentication_error"
+          message: "Invalid API key"
+      then:
+        assert_success: false
+        assert_match: "API key.*invalid"
+        notes: "应该显示清晰的 API key 错误提示"
+
+    - name: "网络错误"
+      description: "验证网络连接错误的处理"
+      given:
+        env:
+          IFAI_API_BASE: "https://nonexistent-api.example.com"
+        args: ["hello"]
+      when:
+        mock_network_error: "Connection refused"
+      then:
+        assert_success: false
+        assert_match: "network.*connection"
+        notes: "应该显示网络错误信息"
+
+    - name: "API 速率限制"
+      description: "验证 API 速率限制错误的处理"
+      given:
+        args: ["hello"]
+      when:
+        mock_error_response:
+          type: "rate_limit_error"
+          message: "Rate limit exceeded"
+      then:
+        assert_success: false
+        assert_contains: "rate limit"
+        notes: "应该显示速率限制提示"
+
+    - name: "API 格式错误响应"
+      description: "验证 API 返回格式错误的响应"
+      given:
+        args: ["hello"]
+      when:
+        mock_malformed_response: "Not a valid JSON"
+      then:
+        assert_success: false
+        assert_match: "parse.*error"
+        notes: "应该提示响应解析错误"
+
+    - name: "工具执行失败"
+      description: "验证工具执行失败时的处理"
+      given:
+        args: ["delete nonexistent file"]
+      when:
+        mock_streaming:
+          - "I'll delete the file."
+        mock_tool_error:
+          tool: "bash"
+          command: "rm /nonexistent/file"
+          error: "No such file or directory"
+      then:
+        assert_success: true
+        assert_contains: "error"
+        notes: "工具失败应该显示错误但继续运行"
+
+    - name: "无效 CLI 参数"
+      description: "验证无效 CLI 参数的错误提示"
+      given:
+        args: ["--invalid-flag", "hello"]
+      when: {}
+      then:
+        assert_success: false
+        assert_match: "invalid.*flag"
+        notes: "应该显示参数错误提示"
+
+    - name: "配置文件损坏"
+      description: "验证配置文件格式错误的处理"
+      given:
+        env:
+          IFAI_CONFIG_PATH: "/tmp/test_bad_config.toml"
+      when:
+        setup_bad_config: "invalid [toml content"
+      then:
+        assert_success: false
+        assert_match: "config.*parse"
+        notes: "应该提示配置文件格式错误"
+
+    - name: "缺少必需参数"
+      description: "验证缺少必需参数时的提示"
+      given:
+        args: ["--provider"]
+      when: {}
+      then:
+        assert_success: false
+        assert_contains: "required"
+        notes: "应该提示缺少参数值"
+
+    - name: "模型不存在"
+      description: "验证指定不存在的模型时的错误"
+      given:
+        args: ["--model", "nonexistent-model-v1", "hello"]
+      when:
+        mock_error_response:
+          type: "invalid_request_error"
+          message: "Model 'nonexistent-model-v1' not found"
+      then:
+        assert_success: false
+        assert_match: "model.*not found"
+        notes: "应该显示模型不存在错误"
+
+    - name: "提供商不支持"
+      description: "验证指定不支持的提供商时的错误"
+      given:
+        args: ["--provider", "unsupported-provider", "hello"]
+      when: {}
+      then:
+        assert_success: false
+        assert_match: "provider.*not supported"
+        notes: "应该显示提供商不支持错误"
+
+    - name: "文件权限错误"
+      description: "验证文件读写权限错误的处理"
+      given:
+        args: ["read protected file"]
+      when:
+        mock_streaming:
+          - "I'll read the file."
+        mock_tool_error:
+          tool: "read_file"
+          error: "Permission denied"
+      then:
+        assert_success: true
+        assert_contains: "permission"
+        notes: "应该提示权限错误"
+
+    - name: "磁盘空间不足"
+      description: "验证磁盘空间不足时的错误处理"
+      given:
+        args: ["create large file"]
+      when:
+        mock_streaming:
+          - "I'll create the file."
+        mock_tool_error:
+          tool: "write_file"
+          error: "No space left on device"
+      then:
+        assert_success: true
+        assert_match: "disk.*space"
+        notes: "应该提示磁盘空间不足"
+
+    - name: "超时错误"
+      description: "验证请求超时的处理"
+      given:
+        env:
+          IFAI_REQUEST_TIMEOUT: "1"
+        args: ["slow query"]
+      when:
+        mock_timeout: true
+      then:
+        assert_success: false
+        assert_contains: "timeout"
+        notes: "应该显示超时错误"
+
+    - name: "JSON 模式无效响应"
+      description: "验证 --json 模式下收到非 JSON 响应的处理"
+      given:
+        args: ["--json", "hello"]
+      when:
+        mock_response: "Not a JSON response"
+      then:
+        assert_success: false
+        assert_contains: "JSON"
+        notes: "应该提示 JSON 解析错误"
+
+    - name: "Stdin 读取错误"
+      description: "验证 stdin 读取错误的处理"
+      given:
+        args: []
+      when:
+        mock_stdin_error: "Failed to read stdin"
+      then:
+        assert_success: false
+        assert_contains: "stdin"
+        notes: "应该提示 stdin 错误"
+
+    - name: "会话恢复失败"
+      description: "验证恢复不存在会话的错误处理"
+      given:
+        stdin_lines:
+          - "/resume nonexistent-session"
+      when: {}
+      then:
+        assert_success: false
+        assert_match: "session.*not found"
+        notes: "应该提示会话不存在"
+
+    - name: "导出文件写入失败"
+      description: "验证导出对话到不可写路径的错误处理"
+      given:
+        stdin_lines:
+          - "hello"
+          - "/export /root/cannot-write.md"
+      when:
+        mock_streaming:
+          - "Hello!"
+      then:
+        assert_success: true
+        assert_contains: "permission"
+        notes: "应该提示导出失败原因"
