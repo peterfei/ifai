@@ -38,6 +38,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install system dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev \
+            libsoup-3.0-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev pkg-config
+
       - name: Checkout Private Core
         uses: actions/checkout@v4
         with:
