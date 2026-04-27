@@ -177,6 +177,13 @@ impl InputComposer {
         &self.buffer
     }
 
+    /// 清空输入
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+        self.cursor_pos = 0;
+        self.history_index = None;
+    }
+
     /// 获取提示符
     pub fn prompt(&self) -> &str {
         &self.prompt

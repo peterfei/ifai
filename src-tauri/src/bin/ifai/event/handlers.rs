@@ -185,6 +185,11 @@ impl EventHandler<Event> for CombinedKeyHandler {
         }
 
         if let Event::Key(key) = event {
+            // 如果是 ? 键，跳过（由 HelpEnterHandler 处理）
+            if key.code == KeyCode::Char('?') {
+                return ControlFlow::Continue;
+            }
+
             // 先处理输入相关的键
             let action = app.input.handle_key(*key);
             match action {
@@ -339,6 +344,8 @@ impl EventHandler<Event> for HelpEnterHandler {
         if let Event::Key(key) = event {
             if key.code == KeyCode::Char('?') && !app.help_mode && !app.is_searching() {
                 app.help_mode = true;
+                // 清除输入框（防止 ? 被添加）
+                app.input.clear();
                 // 设置 help_mode 后，CombinedKeyHandler 会跳过输入处理
             }
         }
