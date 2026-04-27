@@ -343,8 +343,8 @@ mod tests {
         let models = models.unwrap();
         assert!(!models.is_empty());
 
-        // 验证 K2.6 存在
-        assert!(models.iter().any(|m| m.id == "moonshot-v1-k2.6"));
+        // 验证 K2.6 存在（注意：模型 ID 从 moonshot-v1-k2.6 改为 kimi-k2.6）
+        assert!(models.iter().any(|m| m.id == "kimi-k2.6"));
     }
 
     #[test]

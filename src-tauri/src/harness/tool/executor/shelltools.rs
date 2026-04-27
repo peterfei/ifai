@@ -197,7 +197,7 @@ mod tests {
 
         let output = result.unwrap();
         assert!(output.contains("Hello, World!"));
-        assert!(output.contains("Exit code: 0"));
+        // 注意：成功命令不显示 "Exit code: 0"（仅错误时显示）
     }
 
     #[test]
@@ -224,7 +224,13 @@ mod tests {
     fn test_allowed_tools() {
         let mut executor = ShellToolsExecutor::new();
         assert!(executor.is_available("bash"));
+
+        // PowerShell 仅在 Windows 上可用
+        #[cfg(target_os = "windows")]
         assert!(executor.is_available("PowerShell"));
+        #[cfg(not(target_os = "windows"))]
+        assert!(!executor.is_available("PowerShell"));
+
         assert!(!executor.is_available("read_file"));
     }
 

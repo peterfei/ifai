@@ -269,10 +269,10 @@ mod tests {
         assert_eq!(spec.metadata.id, "kimi-official");
         assert_eq!(spec.metadata.protocol, "openai");
 
-        // 验证 K2.6 模型存在
-        let k2_6 = spec.models.iter().find(|m| m.id == "moonshot-v1-k2.6");
+        // 验证 K2.6 模型存在（注意：模型 ID 从 moonshot-v1-k2.6 改为 kimi-k2.6）
+        let k2_6 = spec.models.iter().find(|m| m.id == "kimi-k2.6");
         assert!(k2_6.is_some());
-        assert_eq!(k2_6.unwrap().name, "Moonshot V1 K2.6");
+        assert_eq!(k2_6.unwrap().name, "Kimi K2.6");
     }
 
     #[test]

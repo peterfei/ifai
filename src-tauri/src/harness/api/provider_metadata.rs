@@ -665,24 +665,25 @@ models:
         assert!(specs.contains_key("kimi-official"));
         assert!(specs.contains_key("gemini-official"));
 
-        // 验证 OpenAI 模型
+        // 验证 OpenAI 模型（现在有 15 个模型，包括 GPT-5 系列）
         let openai = specs.get("openai-official").unwrap();
-        assert_eq!(openai.models.len(), 4); // gpt-4o, gpt-4o-mini, o1-mini, o1-preview
+        assert_eq!(openai.models.len(), 15);
         assert!(openai.models.iter().any(|m| m.id == "gpt-4o"));
+        assert!(openai.models.iter().any(|m| m.id == "gpt-5"));
 
         // 验证 Zhipu GLM-5.1
         let zhipu = specs.get("zhipu-official").unwrap();
         assert!(zhipu.models.iter().any(|m| m.id == "glm-5.1"));
         assert!(zhipu.models.iter().any(|m| m.tags.contains(&"latest".to_string())));
 
-        // 验证 DeepSeek VL
+        // 验证 DeepSeek（注意：现在只有 deepseek-chat，不再有 deepseek-vl）
         let deepseek = specs.get("deepseek-official").unwrap();
-        assert!(deepseek.models.iter().any(|m| m.id == "deepseek-vl"));
-        assert!(deepseek.models.iter().any(|m| m.tags.contains(&"vision".to_string())));
+        assert!(deepseek.models.iter().any(|m| m.id == "deepseek-chat"));
+        assert!(deepseek.models.iter().any(|m| m.tags.contains(&"latest".to_string())));
 
-        // 验证 Kimi K2.6
+        // 验证 Kimi K2.6（注意：模型 ID 从 moonshot-v1-k2.6 改为 kimi-k2.6）
         let kimi = specs.get("kimi-official").unwrap();
-        assert!(kimi.models.iter().any(|m| m.id == "moonshot-v1-k2.6"));
+        assert!(kimi.models.iter().any(|m| m.id == "kimi-k2.6"));
 
         // 验证 Gemini
         let gemini = specs.get("gemini-official").unwrap();
