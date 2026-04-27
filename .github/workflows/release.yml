@@ -72,6 +72,7 @@ jobs:
         shell: bash
         run: |
           cd src-tauri
+          # 只构建 CLI 二进制文件
           cargo build --release --bin ifai --target ${{ matrix.target }}
 
       - name: Create archive
@@ -193,6 +194,9 @@ jobs:
     needs: [build-cli, release]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download all CLI artifacts
         uses: actions/download-artifact@v4
         with:
