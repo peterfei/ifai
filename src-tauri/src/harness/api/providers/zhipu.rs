@@ -12,7 +12,7 @@ use std::pin::Pin;
 
 use super::super::client::ApiClient;
 use super::super::types::{
-    ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest,
+    ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest,
 };
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
@@ -469,7 +469,7 @@ mod tests {
         // 模拟请求参数构建
         let messages = vec![Message {
             role: MessageRole::User,
-            content: "Hello".to_string(),
+            content: MessageContent::Text("Hello".to_string()),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -503,7 +503,7 @@ mod tests {
 
         let messages = vec![Message {
             role: MessageRole::User,
-            content: "What's the weather?".to_string(),
+            content: MessageContent::Text("What's the weather?".to_string()),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -557,7 +557,7 @@ mod tests {
         // 测试带 tools 但不带 tool_choice 的请求体格式（可能是正确的）
         let messages = vec![Message {
             role: MessageRole::User,
-            content: "What's the weather?".to_string(),
+            content: MessageContent::Text("What's the weather?".to_string()),
             tool_calls: None,
             tool_call_id: None,
         }];

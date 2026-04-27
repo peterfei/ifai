@@ -48,4 +48,4 @@ pub use metadata_client::{
 pub use sse::{SseEvent, SseParser, SseError};
 pub use streaming::{EventStream, StreamWrapper, callback_stream};
 pub use event_stream::{StreamToEventStream, BatchEventStream};
-pub use types::{AiProvider, ApiError, Message, MessageRole, ModelInfo, ProviderConfig, StreamEvent, StreamRequest};
+pub use types::{AiProvider, ApiError, Message, MessageContent, MessageRole, ModelInfo, ProviderConfig, StreamEvent, StreamRequest};

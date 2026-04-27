@@ -17,7 +17,7 @@
 #[cfg(test)]
 mod integration_tests {
     use crate::harness::api::{
-        AnthropicClient, ApiClient, ApiClientFactory, Message, MessageRole,
+        AnthropicClient, ApiClient, ApiClientFactory, Message, MessageContent, MessageRole,
         ProviderConfig, StreamEvent, StreamRequest, AiProvider,
     };
     use futures_util::StreamExt;
@@ -56,7 +56,7 @@ mod integration_tests {
             model: "claude-sonnet-4-20250514".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: "Say 'Hello, Anthropic!' in exactly this way.".to_string(),
+                content: MessageContent::Text("Say 'Hello, Anthropic!' in exactly this way.".to_string()),
                 tool_calls: None,
                 tool_call_id: None,
             }],
@@ -118,7 +118,7 @@ mod integration_tests {
             model: "gpt-4o-mini".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: "Say 'Hello, OpenAI!' in exactly this way.".to_string(),
+                content: MessageContent::Text("Say 'Hello, OpenAI!' in exactly this way.".to_string()),
                 tool_calls: None,
                 tool_call_id: None,
             }],
@@ -180,7 +180,7 @@ mod integration_tests {
             model: "deepseek-chat".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: "Say 'Hello, DeepSeek!' in exactly this way.".to_string(),
+                content: MessageContent::Text("Say 'Hello, DeepSeek!' in exactly this way.".to_string()),
                 tool_calls: None,
                 tool_call_id: None,
             }],

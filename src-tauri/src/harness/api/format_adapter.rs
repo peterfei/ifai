@@ -28,7 +28,7 @@
 //! └──────┘  └──────┘  └──────┘  └──────┘
 //! ```
 
-use crate::harness::api::types::{Message, StreamRequest, StreamEvent};
+use crate::harness::api::types::{Message, MessageContent, StreamRequest, StreamEvent};
 use crate::harness::api::provider_metadata::ProviderSpec;
 use async_trait::async_trait;
 use serde_json::Value as JsonValue;
@@ -590,13 +590,13 @@ error_mapping: {}
             messages: vec![
                 Message {
                     role: MessageRole::System,
-                    content: "You are helpful".to_string(),
+                    content: MessageContent::Text("You are helpful".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },
                 Message {
                     role: MessageRole::User,
-                    content: "Hello".to_string(),
+                    content: MessageContent::Text("Hello".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },
@@ -750,13 +750,13 @@ error_mapping: {}
             messages: vec![
                 Message {
                     role: MessageRole::System,
-                    content: "You are helpful".to_string(),
+                    content: MessageContent::Text("You are helpful".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },
                 Message {
                     role: MessageRole::User,
-                    content: "Hello".to_string(),
+                    content: MessageContent::Text("Hello".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },

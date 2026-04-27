@@ -14,7 +14,7 @@ use super::client::ApiClient;
 use super::format_adapter::FormatAdapter;
 use super::provider_metadata::ProviderSpec;
 use super::sse::SseParser;
-use super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
+use super::types::{ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 
 /// 🏛️ 元数据驱动的通用客户端
 ///
@@ -452,7 +452,7 @@ mod tests {
             messages: vec![
                 Message {
                     role: MessageRole::User,
-                    content: "你好".to_string(),
+                    content: MessageContent::Text("你好".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },

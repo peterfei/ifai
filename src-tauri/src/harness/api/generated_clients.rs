@@ -58,7 +58,7 @@ mod tests {
     use crate::harness::api::generated_clients::ZhipuOfficialClient;
     use crate::harness::api::generated_clients::KimiOfficialClient;
     use crate::harness::api::generated_clients::GeminiOfficialClient;
-    use crate::harness::api::types::{StreamRequest, Message, MessageRole};
+    use crate::harness::api::types::{StreamRequest, Message, MessageContent, MessageRole};
 
     #[test]
     fn test_openai_client_creation() {
@@ -169,13 +169,13 @@ mod tests {
             messages: vec![
                 Message {
                     role: MessageRole::System,
-                    content: "You are helpful".to_string(),
+                    content: MessageContent::Text("You are helpful".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },
                 Message {
                     role: MessageRole::User,
-                    content: "Hello".to_string(),
+                    content: MessageContent::Text("Hello".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },
@@ -206,13 +206,13 @@ mod tests {
             messages: vec![
                 Message {
                     role: MessageRole::System,
-                    content: "You are helpful".to_string(),
+                    content: MessageContent::Text("You are helpful".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },
                 Message {
                     role: MessageRole::User,
-                    content: "Hello".to_string(),
+                    content: MessageContent::Text("Hello".to_string()),
                     tool_calls: None,
                     tool_call_id: None,
                 },

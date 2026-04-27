@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use crate::harness::api::{
-        ApiClientFactory, AiProvider, Message, MessageRole, ProviderConfig, StreamRequest,
+        ApiClientFactory, AiProvider, Message, MessageContent, MessageRole, ProviderConfig, StreamRequest,
     };
 
     /// 测试所有提供商客户端都能正常创建
@@ -154,7 +154,7 @@ mod tests {
             model: "claude-sonnet-4".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: "Hello".to_string(),
+                content: MessageContent::Text("Hello".to_string()),
                 tool_calls: None,
                 tool_call_id: None,
             }],
