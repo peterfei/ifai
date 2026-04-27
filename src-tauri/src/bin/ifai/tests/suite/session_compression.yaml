@@ -1,0 +1,235 @@
+# tests/suite/session_compression.yaml
+#
+# 会话压缩测试
+#
+# 验证自动和手动会话压缩功能
+
+test_suite:
+  name: "会话压缩测试"
+  description: "验证会话压缩的触发、上下文保留和继续对话功能"
+
+  setup:
+    env:
+      IFAI_PROVIDER: "openai"
+      OPENAI_API_KEY: "test-key"
+    notes: "压缩阈值: 100k tokens 或 100 消息"
+
+  tests:
+    - name: "压缩触发阈值"
+      description: "P0 - 验证会话超过 100k tokens 时自动触发压缩"
+      given:
+        stdin_lines:
+          - "start a long conversation"
+          - "continue"
+          - "keep going"
+          - "more content"
+          - "still talking"
+          - "and more"
+          - "even more"
+          - "lots of tokens"
+          - "almost there"
+          - "trigger compression now"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Starting conversation..."
+          - "Continuing..."
+          - "Keep going..."
+          - "More content..."
+          - "Still talking..."
+          - "And more..."
+          - "Even more..."
+          - "Lots of tokens..."
+          - "Almost there..."
+          - "Compression triggered!"
+        mock_compression: true
+      then:
+        assert_success: true
+        assert_compression_triggered: true
+        notes: "应该自动触发压缩，显示压缩提示"
+
+    - name: "压缩保留上下文"
+      description: "P0 - 验证压缩后保留重要的系统提示词和最近消息"
+      given:
+        stdin_lines:
+          - "my favorite color is blue"
+          - "remember that"
+          - "what is my favorite color"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll remember your favorite color is blue."
+          - "Got it, blue is your favorite."
+          - "Your favorite color is blue."
+        mock_compression:
+          preserve_system: true
+          preserve_recent: 5
+      then:
+        assert_success: true
+        assert_system_prompt_preserved: true
+        assert_recent_messages_count: 5
+        notes: "压缩后应保留系统提示词和最近 5 条消息"
+
+    - name: "压缩后继续对话"
+      description: "P0 - 验证压缩后能正常继续对话"
+      given:
+        stdin_lines:
+          - "let's discuss rust"
+          - "tell me about ownership"
+          - "what about borrowing"
+          - "explain lifetimes"
+          - "more details"
+          - "keep explaining"
+          - "compression should happen"
+          - "continue with traits"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Rust is a systems language."
+          - "Ownership is a key concept..."
+          - "Borrowing allows temporary access..."
+          - "Lifetimes ensure validity..."
+          - "More details on ownership..."
+          - "Keep explaining borrowing..."
+          - "Compression happening..."
+          - "Now discussing traits..."
+        mock_compression: true
+      then:
+        assert_success: true
+        assert_compression_triggered: true
+        notes: "压缩后对话应该无缝继续"
+
+    - name: "压缩中包含工具调用"
+      description: "P0 - 验证压缩能正确处理包含工具调用的会话"
+      given:
+        stdin_lines:
+          - "list files here"
+          - "show main.rs"
+          - "count lines"
+          - "check git status"
+          - "more operations"
+          - "keep using tools"
+          - "trigger compression"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'll list files."
+          - "Showing main.rs..."
+          - "Counting lines..."
+          - "Checking git status..."
+          - "More operations..."
+          - "Keep using tools..."
+          - "Compression triggered..."
+        mock_compression:
+          with_tool_calls: true
+      then:
+        assert_success: true
+        assert_compression_triggered: true
+        notes: "压缩应正确处理工具调用历史"
+
+    - name: "压缩 Token 计数"
+      description: "P1 - 验证压缩后 Token 计数正确更新"
+      given:
+        stdin_lines:
+          - "start conversation"
+          - "add more context"
+          - "even more"
+          - "lots of tokens"
+          - "trigger compression"
+          - "/status"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Starting..."
+          - "Adding context..."
+          - "Even more..."
+          - "Lots of tokens..."
+          - "Compression..."
+          - "Status: tokens reduced"
+        mock_compression:
+          original_tokens: 120000
+          compressed_tokens: 15000
+      then:
+        assert_success: true
+        assert_token_count_below: 20000
+        notes: "压缩后 token 应显著减少"
+
+    - name: "压缩策略摘要"
+      description: "P1 - 验证压缩使用摘要策略保留关键信息"
+      given:
+        stdin_lines:
+          - "we're discussing rust ownership model"
+          - "ownership means one owner"
+          - "move semantics transfer ownership"
+          - "copy trait for types with copy semantics"
+          - "clone creates deep copy"
+          - "reference counting with Rc"
+          - "arc for thread safe"
+          - "trigger compression"
+          - "what were we discussing"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Discussing Rust ownership..."
+          - "Ownership means one owner..."
+          - "Move semantics..."
+          - "Copy trait..."
+          - "Clone..."
+          - "Rc for reference counting..."
+          - "Arc for thread-safe..."
+          - "Compressed..."
+          - "We were discussing Rust ownership model."
+        mock_compression:
+          strategy: "summary"
+      then:
+        assert_success: true
+        assert_contains: "ownership"
+        notes: "压缩应保留关键信息摘要"
+
+    - name: "手动触发压缩"
+      description: "P1 - 验证 /compact 命令能手动触发压缩"
+      given:
+        stdin_lines:
+          - "start conversation"
+          - "add some context"
+          - "more messages"
+          - "/compact"
+          - "continue after compression"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "Starting..."
+          - "Adding context..."
+          - "More messages..."
+          - "Conversation compressed manually."
+          - "Continuing after compression..."
+      then:
+        assert_success: true
+        assert_contains: "compressed"
+        notes: "/compact 命令应手动触发压缩"
+
+    - name: "压缩保留系统提示词"
+      description: "P1 - 验证压缩后系统提示词完整保留"
+      given:
+        stdin_lines:
+          - "you are a rust expert"
+          - "explain ownership"
+          - "explain borrowing"
+          - "keep explaining"
+          - "trigger compression"
+          - "what is your role"
+          - "/exit"
+      when:
+        mock_streaming:
+          - "I'm a Rust expert."
+          - "Ownership means..."
+          - "Borrowing allows..."
+          - "Keep explaining..."
+          - "Compressed..."
+          - "I am a Rust expert helper."
+        mock_compression:
+          preserve_system: true
+      then:
+        assert_success: true
+        assert_system_prompt_preserved: true
+        notes: "系统提示词应在压缩后完整保留"

@@ -4,6 +4,7 @@
 pub mod debug_mock;
 pub mod full_workflow;
 pub mod network_example;
+pub mod session_compression;
 pub mod config_precedence;
 pub mod cli_basic;
 pub mod tools_execution;
