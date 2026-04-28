@@ -52,9 +52,9 @@ pub struct CommandSpec {
 // Command Registry (Static Array - Single Source of Truth)
 // ============================================================================
 
-/// 🏛️ 元编程：静态命令注册表
-/// 所有命令定义在此单一数据源，任何新增命令只需添加一个条目
-const COMMAND_SPECS: &[CommandSpec] = &[
+/// 🏛️ 元编程：静态命令注册表（单一数据源，驱动弹出框过滤/帮助生成/dispatch）
+/// 所有命令定义在此，新增命令只需添加一个条目
+pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "help",
         summary: "显示帮助信息",

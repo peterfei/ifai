@@ -10,6 +10,7 @@ pub mod cli_basic;
 pub mod tools_execution;
 pub mod tag_example;
 pub mod cli_repl;
+pub mod command_registry;
 pub mod cli_api;
 pub mod streaming;
 pub mod cli_simple;
