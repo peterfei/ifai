@@ -3,6 +3,7 @@
 //! 布局：内容区（弹性） + 状态栏（1行固定） + 输入框（1行固定）
 
 use std::io::{self, Stdout};
+use std::time::Instant;
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
@@ -21,6 +22,7 @@ use crate::render;
 use crate::AppResult;
 use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::event::{CombinedKeyHandler, MouseScrollHandler, ResizeHandler, IgnoreHandler, SearchEnterHandler, SearchInputHandler, HelpEnterHandler, HelpExitHandler};
+use ifainew_lib::harness::task::{self, TaskStatus};
 
 use super::input_composer::{self, InputComposer, InputAction};
 use super::approval_overlay::{self, ApprovalRequest, ApprovalDecision};
@@ -48,6 +50,92 @@ fn strip_ansi(s: &str) -> String {
         }
     }
     result
+}
+
+// ============================================================================
+// 🏛️ 任务渲染 — 配置表驱动（代码即数据，零 match）
+// ============================================================================
+
+/// 任务状态显示配置（查表驱动，渲染函数中零 match）
+struct TaskStatusDisplay {
+    icon: &'static str,
+    color: ratatui::style::Color,
+}
+
+/// 任务状态样式配置表（与 RISK_DISPLAYS / POPUP_KEYMAP 风格一致）
+static TASK_STATUS_DISPLAYS: &[(TaskStatus, TaskStatusDisplay)] = &[
+    (TaskStatus::Pending,    TaskStatusDisplay { icon: "[ ]", color: ratatui::style::Color::DarkGray }),
+    (TaskStatus::InProgress, TaskStatusDisplay { icon: "▸",  color: ratatui::style::Color::Yellow }),
+    (TaskStatus::Completed,  TaskStatusDisplay { icon: "[x]", color: ratatui::style::Color::Green }),
+];
+
+/// 渲染任务列表（返回 ratatui Lines + 是否全部完成）
+fn render_task_lines(tasks: &[task::TaskItem]) -> (Vec<Line<'static>>, bool) {
+    if tasks.is_empty() {
+        return (vec![], false);
+    }
+
+    let total = tasks.len();
+    let completed = tasks.iter().filter(|t| t.status == TaskStatus::Completed).count();
+    let all_done = completed == total;
+    let max_lines = 5usize;
+
+    if all_done {
+        // 全部完成 → 单行摘要
+        let line = Line::from(Span::styled(
+            format!(" ✓ {}/{} 任务完成", completed, total),
+            ratatui::style::Style::default().fg(ratatui::style::Color::Green),
+        ));
+        return (vec![line], true);
+    }
+
+    // 有未完成 → 显示任务列表（最多 max_lines 行）
+    let visible: &[task::TaskItem] = if tasks.len() > max_lines {
+        &tasks[..max_lines]
+    } else {
+        tasks
+    };
+
+    let mut lines: Vec<Line<'static>> = Vec::with_capacity(visible.len() + 1);
+
+    for (i, task) in visible.iter().enumerate() {
+        let display = TASK_STATUS_DISPLAYS.iter()
+            .find(|(s, _)| *s == task.status)
+            .map(|(_, d)| d)
+            .unwrap_or(&TaskStatusDisplay { icon: "?", color: ratatui::style::Color::White });
+
+        // 只有第一个 InProgress 任务用 ▸ 图标，其余用空格
+        let is_first_in_progress = task.status == TaskStatus::InProgress
+            && !visible[..i].iter().any(|t| t.status == TaskStatus::InProgress);
+        let (prefix, content_style) = if is_first_in_progress {
+            (format!("▸ [{}/{}] ", i + 1, total), display.color)
+        } else {
+            (format!("  [{}/{}] ", i + 1, total), display.color)
+        };
+
+        // 截断过长内容（按字符截断，保留终端宽度安全）
+        let content = if task.content.chars().count() > 60 {
+            format!("{}...", task.content.chars().take(57).collect::<String>())
+        } else {
+            task.content.clone()
+        };
+
+        lines.push(Line::from(vec![
+            Span::styled(prefix, ratatui::style::Style::default().fg(content_style)),
+            Span::raw(content),
+        ]));
+    }
+
+    // 超出部分提示
+    if tasks.len() > max_lines {
+        let remaining = tasks.len() - max_lines;
+        lines.push(Line::from(Span::styled(
+            format!("  ... +{} more", remaining),
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )));
+    }
+
+    (lines, false)
 }
 
 /// TUI 应用
@@ -84,6 +172,8 @@ pub struct App {
     pub help_mode: bool,
     /// 命令弹出框
     pub command_popup: super::command_popup::CommandPopup,
+    /// 任务全部完成的时间点（用于延迟自动收起）
+    task_all_done_at: Option<Instant>,
 }
 
 impl App {
@@ -113,6 +203,7 @@ impl App {
             search_input: InputComposer::new(""),
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
+            task_all_done_at: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -140,6 +231,7 @@ impl App {
             search_input: InputComposer::new(""),
             help_mode: false,
             command_popup: super::command_popup::CommandPopup::new(),
+            task_all_done_at: None,
         }
     }
 
@@ -373,6 +465,29 @@ impl App {
         let popup_visible = self.command_popup.is_visible();
         let (popup_lines, popup_height) = self.command_popup.render();
 
+        // 🏛️ 元编程：从全局 TaskStore 读取任务（轮询式，与 GUI Zustand 订阅等价）
+        let tasks = task::get_global_task_store().get_tasks();
+        let (task_lines, task_all_done) = render_task_lines(&tasks);
+
+        // 全部完成时记录时间点（用于延迟收起）
+        if task_all_done && self.task_all_done_at.is_none() {
+            self.task_all_done_at = Some(Instant::now());
+        } else if !task_all_done && !tasks.is_empty() {
+            // 有未完成任务时重置计时器
+            self.task_all_done_at = None;
+        }
+        // 任务清空后也重置
+        if tasks.is_empty() {
+            self.task_all_done_at = None;
+        }
+
+        // 全部完成后 2 秒自动收起
+        let task_expired = self.task_all_done_at
+            .map(|t| t.elapsed().as_secs() >= 2)
+            .unwrap_or(false);
+        let task_height = task_lines.len() as u16;
+        let show_tasks = task_height > 0 && !popup_visible && !task_expired;
+
         if let Some(terminal) = &mut self.terminal {
             let _ = terminal.draw(|f| {
             let size = f.area();
@@ -554,22 +669,72 @@ impl App {
                 } else {
                     // === 正常模式 ===
                     // === 状态栏 ===
-                    let status_content = if !status_text.is_empty() {
-                        &status_text
+                    let status_line = if !tasks.is_empty() {
+                        // 任务模式：显示当前任务 + 进度
+                        let total = tasks.len();
+                        let completed = tasks.iter().filter(|t| t.status == TaskStatus::Completed).count();
+                        let mut spans: Vec<Span<'static>> = Vec::new();
+
+                        // 当前 InProgress 任务的 activeForm
+                        let current_task = tasks.iter()
+                            .find(|t| t.status == TaskStatus::InProgress);
+                        if let Some(t) = current_task {
+                            spans.push(Span::styled(" ▸ ", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)));
+                            spans.push(Span::styled(
+                                t.active_form.clone(),
+                                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                            ));
+                            spans.push(Span::raw(" "));
+                        }
+
+                        // 进度 Tasks N/M
+                        spans.push(Span::styled(
+                            format!("Tasks {}/{}", completed, total),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ));
+
+                        // 如果有其他状态文本，追加到末尾
+                        if !status_text.is_empty() {
+                            spans.push(Span::raw(" · "));
+                            spans.push(Span::styled(
+                                status_text.clone(),
+                                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                            ));
+                        }
+
+                        Line::from(spans)
                     } else {
-                        " [Ready] "
+                        // 无任务：显示原有状态文本或 Ready
+                        let status_content = if !status_text.is_empty() {
+                            status_text.clone()
+                        } else {
+                            " [Ready] ".to_string()
+                        };
+                        Line::from(Span::styled(
+                            format!(" {} ", status_content),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ))
                     };
-                    let status_line = Line::from(Span::styled(
-                        format!(" {} ", status_content),
-                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                    ));
                     let status = Paragraph::new(status_line)
                         .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                     f.render_widget(status, status_area);
 
                     // === 命令弹出框（输入框上方） ===
-                    if popup_visible && popup_height > 0 {
-                        let popup_y = input_area.y.saturating_sub(popup_height);
+                    // 与任务列表互斥（共享同一渲染区域）
+                    if show_tasks && task_height > 0 {
+                        let task_y = status_area.y.saturating_sub(task_height);
+                        let task_area = Rect::new(
+                            content_area.x,
+                            task_y,
+                            content_area.width,
+                            task_height,
+                        );
+                        f.render_widget(Clear, task_area);
+                        let task_content = Paragraph::new(task_lines.clone())
+                            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                        f.render_widget(task_content, task_area);
+                    } else if popup_visible && popup_height > 0 {
+                        let popup_y = status_area.y.saturating_sub(popup_height);
                         let popup_area = Rect::new(
                             content_area.x,
                             popup_y,
