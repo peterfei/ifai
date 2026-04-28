@@ -146,3 +146,6 @@ proc-macro2 = "1.0"
 # 测试基础设施依赖
 exitcode = "1.1"
 regex-lite = "0.1"
+
+# 测试报告和覆盖率
+junitify = "0.2"

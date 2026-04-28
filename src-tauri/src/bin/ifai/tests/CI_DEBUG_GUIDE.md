@@ -484,6 +484,135 @@ cargo test --package ifainew --bin ifai -- --skip slow
     echo "Test finished at $(date)"
 ```
 
+## 测试报告
+
+### 自动生成报告
+
+测试框架支持自动生成多种格式的测试报告。
+
+#### 本地生成报告
+
+```bash
+# 运行测试并生成报告
+./scripts/generate-test-report.sh
+```
+
+这将生成：
+- **HTML 报告**: `target/test-reports/index.html`
+- **文本摘要**: `target/test-reports/summary.txt`
+- **JSON 输出**: `target/test-reports/test-output.json`
+- **JUnit XML**: `target/test-reports/junit.xml`（如果可用）
+
+#### 查看报告
+
+```bash
+# 在浏览器中打开 HTML 报告
+open target/test-reports/index.html
+
+# 查看文本摘要
+cat target/test-reports/summary.txt
+
+# 查看 JSON 输出
+cat target/test-reports/test-output.json | jq .
+```
+
+### CI 集成
+
+GitHub Actions 工作流会自动生成和发布测试报告：
+
+```yaml
+# .github/workflows/test-report.yml
+- name: Run tests with JSON output
+  run: |
+    cargo test --package ifainew --bin ifai -- -Z unstable-options --format json 2>&1 |       tee target/test-reports/test-output.json
+
+- name: Upload test reports
+  uses: actions/upload-artifact@v3
+  with:
+    name: test-reports
+    path: target/test-reports/
+```
+
+### 报告格式
+
+#### HTML 报告特性
+
+- ✅ 测试统计（总数、通过、失败）
+- ✅ 执行时间统计
+- ✅ 测试列表和状态
+- ✅ 响应式设计
+- ✅ 颜色编码（绿色=通过，红色=失败）
+
+#### JUnit XML
+
+用于与 CI/CD 工具集成：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="cli_basic" tests="3" failures="0">
+    <testcase name="test_help_command" classname="cli_basic"/>
+  </testsuite>
+</testsuites>
+```
+
+#### JSON 输出
+
+机器可读的测试结果：
+
+```json
+{
+  "type": "test",
+  "name": "test_help_command",
+  "event": "ok",
+  "exec_time": 0.123
+}
+```
+
+### 自定义报告
+
+#### 修改 HTML 模板
+
+编辑 `scripts/generate-test-report.sh` 中的 HTML 模板：
+
+```bash
+# 自定义样式和内容
+cat > "$REPORT_DIR/index.html" << 'EOF'
+<!DOCTYPE html>
+<!-- 自定义 HTML -->
+EOF
+```
+
+#### 添加自定义指标
+
+```bash
+# 在脚本中添加新的统计
+echo "自定义指标: $CUSTOM_VALUE" >> "$REPORT_DIR/summary.txt"
+```
+
+### 报告分析
+
+#### 查看失败测试
+
+```bash
+# 从 JSON 中提取失败测试
+grep '"event":"failed"' target/test-reports/test-output.json | jq .
+```
+
+#### 统计测试覆盖率
+
+```bash
+# 统计执行的测试数量
+grep '"type":"test"' target/test-reports/test-output.json | wc -l
+```
+
+#### 分析测试时间
+
+```bash
+# 找出最慢的测试
+cat target/test-reports/test-output.json |   jq -r 'select(.exec_time) | "\(.exec_time)s \(.name)"' |   sort -rn | head -10
+```
+
 ## 故障排除清单
 
 当 CI 失败时：

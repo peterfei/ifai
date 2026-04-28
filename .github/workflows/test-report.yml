@@ -1,0 +1,86 @@
+name: CLI Tests with Report
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-with-report:
+    name: Run Tests and Generate Report
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        rust: [stable]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          profile: minimal
+          override: true
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests with JSON output
+        run: |
+          mkdir -p target/test-reports
+          cargo test --package ifainew --bin ifai --no-fail-fast -- -Z unstable-options --format json 2>&1 | \
+            tee target/test-reports/test-output.json || true
+
+      - name: Generate test report
+        run: |
+          ./scripts/generate-test-report.sh
+        continue-on-error: true
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            target/test-reports/index.html
+            target/test-reports/summary.txt
+            target/test-reports/test-output.json
+          retention-days: 30
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: target/test-reports/test-output.json
+          check_name: Test Results (${{ matrix.os }})
+          comment_mode: off
+        continue-on-error: true
+
+      - name: Add test summary to PR
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          echo "## 🧪 测试执行摘要" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f target/test-reports/summary.txt ]; then
+            cat target/test-reports/summary.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "测试摘要文件未生成" >> $GITHUB_STEP_SUMMARY
+          fi

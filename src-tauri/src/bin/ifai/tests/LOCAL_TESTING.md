@@ -365,6 +365,55 @@ async fn test_example() {
 }
 ```
 
+## 测试报告
+
+### 生成测试报告
+
+使用提供的脚本自动生成测试报告：
+
+```bash
+# 运行测试并生成报告
+./scripts/generate-test-report.sh
+```
+
+### 报告格式
+
+生成的报告包含多种格式：
+
+| 格式 | 文件 | 说明 |
+|------|------|------|
+| HTML | `target/test-reports/index.html` | 可视化测试报告 |
+| 文本 | `target/test-reports/summary.txt` | 测试执行摘要 |
+| JSON | `target/test-reports/test-output.json` | 机器可读的测试结果 |
+| JUnit XML | `target/test-reports/junit.xml` | CI/CD 工具集成 |
+
+### 查看报告
+
+```bash
+# 在浏览器中打开 HTML 报告
+open target/test-reports/index.html
+
+# 查看文本摘要
+cat target/test-reports/summary.txt
+
+# 使用 jq 分析 JSON 输出
+cat target/test-reports/test-output.json | jq '.[] | select(.event == "failed")'
+```
+
+### 报告内容
+
+**HTML 报告包含**:
+- 测试统计（总数、通过、失败）
+- 执行时间
+- 测试套件列表
+- 每个测试的详细信息
+
+**文本摘要包含**:
+- 执行时间戳
+- 统计信息
+- 测试套件列表
+- 报告文件位置
+
 ## 测试覆盖率
 
 ### 安装 tarpaulin
