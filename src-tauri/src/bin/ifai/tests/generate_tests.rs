@@ -106,9 +106,10 @@ fn generate_test_from_schema(
     // 导入
     code.push_str("use crate::tests::common::*;\n\n");
 
-    // 生成每个测试
+    // 生成每个测试（跟踪函数名避免重复）
+    let mut used_names = std::collections::HashSet::new();
     for test in tests {
-        if let Some(test_code) = generate_single_test(test) {
+        if let Some(test_code) = generate_single_test(test, &mut used_names) {
             code.push_str(&test_code);
             code.push_str("\n");
         }
@@ -117,11 +118,29 @@ fn generate_test_from_schema(
     Ok(code)
 }
 
-fn generate_single_test(test: &serde_yaml::Value) -> Option<String> {
+fn generate_single_test(
+    test: &serde_yaml::Value,
+    used_names: &mut std::collections::HashSet<String>
+) -> Option<String> {
     let name = test.get("name")?.as_str()?;
     let description = test.get("description").and_then(|v| v.as_str());
+
     // 使用拼音或数字ID来避免中文字符
-    let test_name = to_test_name(name);
+    let mut test_name = to_test_name(name);
+
+    // 如果函数名重复，添加序号后缀
+    if used_names.contains(&test_name) {
+        let mut counter = 2;
+        loop {
+            let unique_name = format!("{}_{}", test_name, counter);
+            if !used_names.contains(&unique_name) {
+                test_name = unique_name;
+                break;
+            }
+            counter += 1;
+        }
+    }
+    used_names.insert(test_name.clone());
 
     let mut code = String::new();
 
@@ -346,7 +365,7 @@ fn to_snake_case(s: &str) -> String {
 
 /// 将测试名称转换为有效的 Rust 标识符
 fn to_test_name(name: &str) -> String {
-    // 简单的拼音映射（仅处理常见中文）
+    // 扩展的拼音映射（覆盖更多中文词汇）
     let pinyin_map = std::collections::HashMap::from([
         ("简单", "jian_dan"),
         ("提示词", "ti_shi_ci"),
@@ -368,6 +387,62 @@ fn to_test_name(name: &str) -> String {
         ("自动", "zi_dong"),
         ("清理", "qing_li"),
         ("历史", "li_shi"),
+        ("需要", "xu_yao"),
+        ("审批", "shen_pi"),
+        ("安全", "an_quan"),
+        ("危险", "wei_xian"),
+        ("手动", "shou_dong"),
+        ("失败", "shi_bai"),
+        ("执行", "zhi_xing"),
+        ("后", "hou"),
+        ("继续", "ji_xu"),
+        ("禁用", "jin_yong"),
+        ("模式", "mo_shi"),
+        ("超时", "chao_shi"),
+        ("管道", "guan_dao"),
+        ("命令", "ming_ling"),
+        ("多重", "duo_zhong"),
+        ("依赖", "yi_lai"),
+        ("单个", "dan_ge"),
+        ("多个", "duo_ge"),
+        ("删除", "shan_chu"),
+        ("文件", "wen_jian"),
+        ("处理", "chu_li"),
+        ("完整", "wan_zheng"),
+        ("流式", "liu_shi"),
+        ("空", "kong"),
+        ("网络", "wang_luo"),
+        ("错误", "cuo_wu"),
+        ("配置", "pei_zhi"),
+        ("优先级", "you_xian_ji"),
+        ("环境变量", "huan_jing_bian_liang"),
+        ("读写", "du_xie"),
+        ("中断", "zhong_duan"),
+        ("累积", "ji_lei"),
+        ("文本", "wen_ben"),
+        ("增量", "zeng_liang"),
+        ("跟踪", "gen_zong"),
+        ("计数", "ji_shu"),
+        ("恢复", "hui_fu"),
+        ("传输", "chuan_shu"),
+        ("速率", "su_lv"),
+        ("限制", "zhi_xian"),
+        ("多段", "duo_duan"),
+        ("段落", "duan_luo"),
+        ("代码", "dai_ma"),
+        ("块", "kuai"),
+        ("Token", "token"),
+        ("SSE", "sse"),
+        ("大", "da"),
+        ("中", "zhong"),
+        ("工作流", "gong_zuo_liu"),
+        ("搜索", "sou_suo"),
+        ("编辑", "bian_ji"),
+        ("多", "duo"),
+        ("Read", "read"),
+        ("Write", "write"),
+        ("Edit", "edit"),
+        ("file", "file"),
     ]);
 
     let mut result = name.to_string();

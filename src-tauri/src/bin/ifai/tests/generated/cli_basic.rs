@@ -27,7 +27,7 @@ async fn test_ban_ben() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_xin_xi() {
+async fn test_cuo_wu_xin_xi() {
     // 测试错误参数时显示使用提示
     let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["--invalid-flag"]).await.unwrap();

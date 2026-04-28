@@ -45,7 +45,7 @@ async fn test_xi_tongti_shi_ci() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_json() {
+async fn test_json_mo_shi() {
     // 测试 --json 参数
     let mut env = TestEnv::with_mock().await.unwrap();
     // Mock response: simple_response.json
@@ -69,7 +69,7 @@ async fn test_ban_benxin_xixian_shi() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_api_key() {
+async fn test_pei_zhiwen_jian_api_key() {
     // 测试从配置文件读取 API key
     let mut env = TestEnv::with_mock().await.unwrap();
     env.write_config("[providers.openai]\napi_key = \"config-key\"\n").await.unwrap();

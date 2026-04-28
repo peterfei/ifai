@@ -208,7 +208,7 @@ mod fixtures_tests {
     fn test_sse_event_response_created() {
         let event = SseEvent::ResponseCreated.to_sse_string();
         assert!(event.contains("data:"));
-        assert!(event.contains("\"role\": \"assistant\""));
+        assert!(event.contains(r#""role":"assistant""#));
     }
 
     #[test]

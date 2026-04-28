@@ -15,7 +15,7 @@ async fn test_repl() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_dui_hua() {
+async fn test_duo_dui_hua() {
     // 验证 REPL 支持多轮对话（需要手动测试）
     let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["hello"]).await.unwrap();
@@ -23,7 +23,7 @@ async fn test_dui_hua() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_repl() {
+async fn test_repl_ming_ling() {
     // 验证 REPL 命令功能（需要手动测试）
     let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["hello"]).await.unwrap();

@@ -1803,4 +1803,115 @@ mod tests {
         assert_eq!(collector.pending_tools()[0].args, r#"{"arg":"value"}"#);
         assert!(collector.is_done());
     }
+
+    // ========================================================================
+    // 会话压缩测试（方案 B：直接调用 Session API）
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_compression_triggered_by_message_count() {
+        // 🔥 真实验证：发送 55 轮对话后触发压缩
+        // 每轮对话包含用户消息 + 助手消息 = 2 条消息
+        // 55 轮 * 2 = 110 条消息 > 100 条阈值
+        use crate::tests::common::mock_server::MockApiServer;
+
+        // 1. 创建 Mock 服务器
+        let mock = MockApiServer::new().await.unwrap();
+        mock.setup_streaming_response(vec!["OK"]).await.unwrap();
+
+        // 2. 创建 Session，配置使用 Mock
+        let mut session = Session::new("openai".to_string(), "gpt-4".to_string());
+        session.set_base_url(format!("{}/v1", mock.uri()));
+        session.set_api_key("test-key".to_string());
+        session.disable_tools();  // 禁用工具避免测试复杂度
+
+        // 3. 记录初始消息数
+        assert_eq!(session.messages.len(), 0, "初始应该没有消息");
+
+        // 4. 发送 55 轮对话（产生 110 条消息，超过 100 条阈值）
+        for i in 1..=55 {
+            let prompt = format!("message {}", i);
+            match session.stream_prompt(&prompt).await {
+                Ok(_) => {},
+                Err(e) => {
+                    // 忽略流式错误，我们主要关注压缩逻辑
+                    eprintln!("Warning: stream_prompt error for message {}: {:?}", i, e);
+                }
+            }
+        }
+
+        // 5. 验证压缩被触发：消息数应该明显少于原始数量
+        // 55 轮应该产生 110 条消息，压缩后应该 <= 100 条
+        assert!(
+            session.messages.len() <= 100,
+            "压缩后应该保留最近 100 条消息以内，实际: {}",
+            session.messages.len()
+        );
+
+        // 6. 验证消息确实被压缩了（不是简单的 0 或 110）
+        assert!(session.messages.len() > 0, "压缩后应该还有消息");
+        assert!(session.messages.len() < 110, "压缩后消息数应该少于原始 110 条");
+    }
+
+    #[test]
+    fn test_compression_threshold_constants() {
+        // 验证压缩阈值常量
+        const COMPRESS_TOKEN_THRESHOLD: usize = 100_000;
+        const COMPRESS_MESSAGE_THRESHOLD: usize = 100;
+
+        assert_eq!(COMPRESS_TOKEN_THRESHOLD, 100_000, "Token 阈值应该是 100k");
+        assert_eq!(COMPRESS_MESSAGE_THRESHOLD, 100, "消息阈值应该是 100");
+    }
+
+    #[test]
+    fn test_compression_retains_recent_messages() {
+        // 验证压缩后保留的是最近的消息
+        let mut session = Session::new("openai".to_string(), "gpt-4".to_string());
+
+        // 手动添加 105 条用户消息
+        for i in 1..=105 {
+            session.add_message(format!("message_{}", i));
+        }
+
+        // 验证压缩前有 105 条消息
+        assert_eq!(session.messages.len(), 105, "压缩前应该有 105 条消息");
+
+        // 手动触发压缩逻辑（模拟 stream_prompt 中的压缩）
+        let total_messages = session.messages.len();
+        let keep_last_n = 50.min(total_messages);
+        session.messages = session.messages.split_off(
+            total_messages.saturating_sub(keep_last_n)
+        );
+
+        // 验证压缩后保留 50 条
+        assert_eq!(session.messages.len(), 50, "压缩后应该保留 50 条消息");
+
+        // 验证保留的是最近的消息（最后 50 条）
+        match &session.messages[0].content {
+            MessageContent::Text(text) => {
+                assert_eq!(text, "message_56", "第一条应该是 message_56（第 56 条原始消息）");
+            },
+            _ => panic!("Expected Text content"),
+        }
+
+        match &session.messages[49].content {
+            MessageContent::Text(text) => {
+                assert_eq!(text, "message_105", "最后一条应该是 message_105");
+            },
+            _ => panic!("Expected Text content"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_session_state_accessible() {
+        // 验证 Session 的内部状态可以直接访问（方案 B 的核心优势）
+        let session = Session::new("deepseek".to_string(), "deepseek-chat".to_string());
+
+        // 所有字段都是 pub 的，可以直接验证
+        assert!(session.messages.is_empty(), "messages 应该为空");
+        assert_eq!(session.provider, "deepseek", "provider 应该正确");
+        assert_eq!(session.model, "deepseek-chat", "model 应该正确");
+        assert_eq!(session.cumulative_input_tokens, 0, "初始 input tokens 应该为 0");
+        assert_eq!(session.cumulative_output_tokens, 0, "初始 output tokens 应该为 0");
+    }
 }

@@ -1061,20 +1061,20 @@ mod tests {
     use crate::tests::common::*;
 
     // 包含测试基础设施
-    mod common {
-        mod test_env {
+    pub mod common {
+        pub mod test_env {
             include!("tests/common/test_env.rs");
         }
-        mod assertions {
+        pub mod assertions {
             include!("tests/common/assertions.rs");
         }
-        mod mock_server {
+        pub mod mock_server {
             include!("tests/common/mock_server.rs");
         }
-        mod fixtures {
+        pub mod fixtures {
             include!("tests/common/fixtures.rs");
         }
-        mod network {
+        pub mod network {
             include!("tests/common/network.rs");
         }
 
@@ -1091,130 +1091,10 @@ mod tests {
         include!("tests/generated/mod.rs");
     }
 
-    // 手动编写的端到端压缩测试
-    mod compression_tests {
-        use crate::tests::common::*;
-
-        #[tokio::test]
-        async fn test_compression_trigger_by_message_count() {
-        let mut env = TestEnv::with_mock().await.unwrap();
-
-        // 构造 101 条消息的 stdin 输入来触发压缩
-        let mut stdin_input = String::new();
-        for i in 1..=105 {
-            stdin_input.push_str(&format!("message {}\n", i));
-        }
-        stdin_input.push_str("/exit\n");
-
-        env.set_stdin(&stdin_input);
-
-        // 运行 REPL（无参数 = 进入 REPL 模式）
-        let output = env.run_cli(&[]).await.unwrap();
-
-        // 验证压缩被触发
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let stderr_str = String::from_utf8_lossy(&output.stderr);
-
-        let compression_triggered = stdout_str.contains("对话过长")
-            || stdout_str.contains("正在自动压缩")
-            || stderr_str.contains("对话过长")
-            || stderr_str.contains("正在自动压缩");
-
-        assert!(compression_triggered,
-            "Expected compression warning\nstdout: {}\nstderr: {}",
-            stdout_str, stderr_str
-        );
-    }
-
-    #[tokio::test]
-    async fn test_conversation_continues_after_compression() {
-        let mut env = TestEnv::with_mock().await.unwrap();
-
-        let mut stdin_input = String::new();
-        for i in 1..=105 {
-            stdin_input.push_str(&format!("message {}\n", i));
-        }
-        stdin_input.push_str("continue after compression\n/exit\n");
-
-        env.set_stdin(&stdin_input);
-        let output = env.run_cli(&[]).await.unwrap();
-
-        output.assert_success();
-    }
-
-    #[tokio::test]
-    async fn test_manual_compact_command() {
-        let mut env = TestEnv::with_mock().await.unwrap();
-
-        let stdin_input = "message 1\nmessage 2\nmessage 3\n/compact\nmessage after compact\n/exit\n";
-
-        env.set_stdin(stdin_input);
-        let output = env.run_cli(&[]).await.unwrap();
-
-        output.assert_success();
-    }
-
-    // 手动编写的端到端压缩测试
-    // 注意：这些测试需要真正进入 REPL 模式并触发 100+ 消息阈值
-
-    #[tokio::test]
-    async fn test_compression_trigger_by_message_count() {
-        let mut env = TestEnv::with_mock().await.unwrap();
-
-        // 构造 101 条消息的 stdin 输入来触发压缩
-        let mut stdin_input = String::new();
-        for i in 1..=105 {
-            stdin_input.push_str(&format!("message {}\n", i));
-        }
-        stdin_input.push_str("/exit\n");
-
-        env.set_stdin(&stdin_input);
-
-        // 运行 REPL（无参数 = 进入 REPL 模式）
-        let output = env.run_cli(&[]).await.unwrap();
-
-        // 验证压缩被触发
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let stderr_str = String::from_utf8_lossy(&output.stderr);
-
-        let compression_triggered = stdout_str.contains("对话过长")
-            || stdout_str.contains("正在自动压缩")
-            || stderr_str.contains("对话过长")
-            || stderr_str.contains("正在自动压缩");
-
-        assert!(compression_triggered,
-            "Expected compression warning\nstdout: {}\nstderr: {}",
-            stdout_str, stderr_str
-        );
-    }
-
-    #[tokio::test]
-    async fn test_conversation_continues_after_compression() {
-        let mut env = TestEnv::with_mock().await.unwrap();
-
-        let mut stdin_input = String::new();
-        for i in 1..=105 {
-            stdin_input.push_str(&format!("message {}\n", i));
-        }
-        stdin_input.push_str("continue after compression\n/exit\n");
-
-        env.set_stdin(&stdin_input);
-        let output = env.run_cli(&[]).await.unwrap();
-
-        output.assert_success();
-    }
-
-    #[tokio::test]
-    async fn test_manual_compact_command() {
-        let mut env = TestEnv::with_mock().await.unwrap();
-
-        let stdin_input = "message 1\nmessage 2\nmessage 3\n/compact\nmessage after compact\n/exit\n";
-
-        env.set_stdin(stdin_input);
-        let output = env.run_cli(&[]).await.unwrap();
-
-        output.assert_success();
-    }
+    // 注意：旧的 CLI 模式压缩测试已移除
+    // 真正的压缩测试现在使用 Session API，位于：
+    // - session.rs: session::tests::test_compression_*
+    // - tests/generated/session_compression.rs
 
     #[test]
     fn test_parse_args_no_args() {
