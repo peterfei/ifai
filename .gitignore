@@ -173,3 +173,4 @@ IFAI_CLI_v0.4.4_Overnight_Refactoring.md
 IFAI_CLI_v0.4.4_Tech_Blog.md
 IFAI_CLI_v0.4.4_Technical_Deep_Dive.md
 src-tauri/ifai-x86_64-apple-darwin.gz
+target/test-reports
