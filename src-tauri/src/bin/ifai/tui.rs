@@ -82,6 +82,8 @@ pub struct App {
     pub search_input: InputComposer,
     /// 帮助模式（显示快捷键帮助覆盖层）
     pub help_mode: bool,
+    /// 命令弹出框
+    pub command_popup: super::command_popup::CommandPopup,
 }
 
 impl App {
@@ -110,6 +112,7 @@ impl App {
             current_match_index: 0,
             search_input: InputComposer::new(""),
             help_mode: false,
+            command_popup: super::command_popup::CommandPopup::new(),
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -136,6 +139,7 @@ impl App {
             current_match_index: 0,
             search_input: InputComposer::new(""),
             help_mode: false,
+            command_popup: super::command_popup::CommandPopup::new(),
         }
     }
 
@@ -366,6 +370,8 @@ impl App {
         let search_input_cursor_col = input_composer::cursor_col(&self.search_input);
         let is_empty = self.is_empty();
         let help_mode = self.help_mode;
+        let popup_visible = self.command_popup.is_visible();
+        let (popup_lines, popup_height) = self.command_popup.render();
 
         if let Some(terminal) = &mut self.terminal {
             let _ = terminal.draw(|f| {
@@ -560,6 +566,21 @@ impl App {
                     let status = Paragraph::new(status_line)
                         .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                     f.render_widget(status, status_area);
+
+                    // === 命令弹出框（输入框上方） ===
+                    if popup_visible && popup_height > 0 {
+                        let popup_y = input_area.y.saturating_sub(popup_height);
+                        let popup_area = Rect::new(
+                            content_area.x,
+                            popup_y,
+                            content_area.width,
+                            popup_height,
+                        );
+                        f.render_widget(Clear, popup_area);
+                        let popup_content = Paragraph::new(popup_lines)
+                            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                        f.render_widget(popup_content, popup_area);
+                    }
 
                     // === 输入框 ===
                     let prompt = Span::styled(

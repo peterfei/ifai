@@ -1,0 +1,54 @@
+# tests/suite/command_registry.yaml
+#
+# 命令注册表完整性测试
+#
+# 验证 COMMAND_SPECS 注册表驱动的命令发现和帮助生成
+
+test_suite:
+  name: "命令注册表测试"
+  description: "验证声明式命令注册表的完整性"
+
+  tests:
+    - name: "帮助输出包含 USAGE"
+      description: "验证 --help 输出基本格式"
+      given:
+        args: ["--help"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "USAGE"
+
+    - name: "帮助输出包含 provider 参数"
+      description: "验证 --help 包含 --provider 选项"
+      given:
+        args: ["--help"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "--provider"
+
+    - name: "帮助输出包含 model 参数"
+      description: "验证 --help 包含 --model 选项"
+      given:
+        args: ["--help"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "--model"
+
+    - name: "版本信息输出"
+      description: "验证 --version 正常输出"
+      given:
+        args: ["--version"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "IfAI"
+
+    - name: "未知参数报错"
+      description: "验证未知参数返回错误"
+      given:
+        args: ["--unknown-flag"]
+      when: {}
+      then:
+        assert_success: false

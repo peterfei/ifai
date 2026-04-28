@@ -190,8 +190,41 @@ impl EventHandler<Event> for CombinedKeyHandler {
                 return ControlFlow::Continue;
             }
 
+            // 命令弹出框激活时：拦截导航键（不传给 InputComposer 的历史记录）
+            if app.command_popup.is_visible() {
+                if let Some(cmd_text) = app.command_popup.handle_key(*key) {
+                    // 确认选择：替换输入框为完整命令 + 关闭弹出框
+                    // 用户按第二遍 Enter 时才提交（允许先补参数）
+                    app.command_popup.update(""); // 关闭弹出框
+                    app.input.clear();
+                    for c in cmd_text.chars() {
+                        let _ = app.input.handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+                    }
+                    return ControlFlow::Continue;
+                }
+                // Esc → 关闭弹出框（清除输入中的 /）
+                if key.code == KeyCode::Esc {
+                    app.input.clear();
+                    return ControlFlow::Continue;
+                }
+                // Up/Down/Ctrl+P/Ctrl+N → 已被 popup 消费，不传给 InputComposer
+                use crate::command_popup::PopupAction;
+                let popup_action = crate::command_popup::resolve_popup_key(*key);
+                if !matches!(popup_action, PopupAction::Pass) {
+                    // 非字符键（Up/Down/Tab 等）已被 popup 消费
+                    if !matches!(key.code, KeyCode::Char(_)) {
+                        return ControlFlow::Continue;
+                    }
+                    // 字符输入继续传给 InputComposer（下方处理）
+                }
+            }
+
             // 先处理输入相关的键
             let action = app.input.handle_key(*key);
+            // 输入变化后更新弹出框过滤
+            if app.command_popup.is_visible() || app.input.value().starts_with('/') {
+                app.command_popup.update(app.input.value());
+            }
             match action {
                 InputAction::Submit(text) => {
                     let text = text.trim().to_string();
