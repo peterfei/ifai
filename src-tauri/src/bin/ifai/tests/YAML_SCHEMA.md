@@ -35,10 +35,55 @@ test_suite:
 tests:
   - name: string              # 必需，测试名称
     description: string       # 可选，测试描述
+    tags: array|string        # 可选，测试标签
     given: object             # 可选，前置条件
     when: object              # 可选，执行操作
     then: object              # 可选，断言验证
 ```
+
+### tags - 测试标签
+
+**类型**: 字符串数组或单个字符串
+**必需**: 否
+
+用于分类和过滤测试的标签。支持标准标签和自定义标签。
+
+```yaml
+# 单个标签
+tags: unit
+
+# 多个标签
+tags: [unit, fast, smoke]
+
+# 参数化测试的标签
+tags: [integration, parametrized]
+```
+
+**标准标签**:
+
+| 标签 | 说明 |
+|------|------|
+| `unit` | 单元测试（快速、隔离） |
+| `integration` | 集成测试（依赖外部） |
+| `fast` | 快速测试（< 1 秒） |
+| `slow` | 慢速测试（> 1 秒） |
+| `smoke` | 冒烟测试（核心功能） |
+| `mock` | 使用 Mock 服务器 |
+
+**标签过滤**:
+
+```bash
+# 运行特定标签
+./scripts/run-tests.sh --tags unit
+
+# 排除标签
+./scripts/run-tests.sh --exclude-tags slow
+
+# 组合标签（AND 逻辑）
+./scripts/run-tests.sh --tags "unit && fast"
+```
+
+详细说明请参阅 [测试标签系统](TEST_TAGS.md)。
 
 ## Given 阶段（前置条件）
 

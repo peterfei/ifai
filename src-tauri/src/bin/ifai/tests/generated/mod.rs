@@ -8,6 +8,7 @@ pub mod session_compression;
 pub mod config_precedence;
 pub mod cli_basic;
 pub mod tools_execution;
+pub mod tag_example;
 pub mod cli_repl;
 pub mod cli_api;
 pub mod streaming;

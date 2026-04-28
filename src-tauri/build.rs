@@ -151,6 +151,9 @@ fn generate_single_test(
     let name = test.get("name")?.as_str()?;
     let description = test.get("description").and_then(|v| v.as_str());
 
+    // 提取标签
+    let tags = extract_tags(test);
+
     // 使用拼音或数字ID来避免中文字符
     let mut test_name = to_test_name(name);
 
@@ -176,6 +179,11 @@ fn generate_single_test(
         code.push_str("#[serial_test::serial]\n");
     }
     code.push_str(&format!("async fn test_{}() {{\n", test_name));
+
+    // 添加标签注释（用于测试脚本识别）
+    if !tags.is_empty() {
+        code.push_str(&format!("    // tags: {}\n", tags.join(", ")));
+    }
 
     if let Some(desc) = description {
         code.push_str(&format!("    // {}\n", desc));
@@ -628,7 +636,15 @@ fn generate_single_test_from_yaml(
         code.push_str("#[serial_test::serial]\n");
     }
     code.push_str(&format!("async fn test_{}() {{\n", test_name));
-    
+
+    // 提取标签
+    let tags = extract_tags(test);
+
+    // 添加标签注释（用于测试脚本识别）
+    if !tags.is_empty() {
+        code.push_str(&format!("    // tags: {}\n", tags.join(", ")));
+    }
+
     // 添加参数说明注释
     if !params.is_empty() {
         code.push_str("    // 参数化测试:\n");
@@ -636,7 +652,7 @@ fn generate_single_test_from_yaml(
             code.push_str(&format!("    //   {} = {}\n", name, value));
         }
     }
-    
+
     // 添加描述
     if let Some(desc) = base_description {
         let desc_with_params = substitute_variables(desc, params);
@@ -672,4 +688,28 @@ fn generate_single_test_from_yaml(
     
     code.push_str("}\n");
     code
+}
+
+// ============================================================================
+// 测试标签系统
+// ============================================================================
+
+/// 从测试中提取标签
+fn extract_tags(test: &serde_yaml::Value) -> Vec<String> {
+    let mut tags = Vec::new();
+
+    if let Some(tags_value) = test.get("tags") {
+        if let Some(tags_seq) = tags_value.as_sequence() {
+            for tag in tags_seq {
+                if let Some(tag_str) = tag.as_str() {
+                    tags.push(tag_str.to_string());
+                }
+            }
+        } else if let Some(tag_str) = tags_value.as_str() {
+            // 单个标签（字符串）
+            tags.push(tag_str.to_string());
+        }
+    }
+
+    tags
 }

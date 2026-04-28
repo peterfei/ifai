@@ -106,7 +106,7 @@ async fn test_liu_shixiang_yingchao_shi() {
 
 #[tokio::test]
 #[serial_test::serial]
-async fn test_duan_luoliu_shixiang_ying() {
+async fn test_duo_duan_liu_shixiang_ying() {
     // 验证包含多个段落的流式响应
     let mut env = TestEnv::new().await.unwrap();
     let output = env.run_cli(&["write multiple paragraphs"]).await.unwrap();

@@ -1,0 +1,65 @@
+test_suite:
+  name: "标签测试示例"
+  description: "演示如何使用测试标签系统"
+
+  tests:
+    # 冒烟测试：核心功能快速验证
+    - name: "基础命令"
+      description: "验证基础命令可用"
+      tags: [smoke, fast, unit]
+      given:
+        args: ["--help"]
+      then:
+        assert_success: true
+        assert_contains: "USAGE"
+
+    # 单元测试：快速、隔离
+    - name: "版本信息"
+      description: "验证版本命令"
+      tags: ["unit", "fast"]
+      given:
+        args: ["--version"]
+      then:
+        assert_success: true
+
+    # 集成测试：较慢、依赖 Mock
+    - name: "简单对话"
+      description: "测试简单的 AI 对话"
+      tags: [integration, mock]
+      given:
+        args: ["hello"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "Hello"
+
+    # 参数化测试 + 标签
+    - name: "提供商连接测试"
+      description: "验证不同 AI 提供商的连接"
+      tags: [integration, parametrized]
+      parameters:
+        provider:
+          - openai
+          - deepseek
+          - anthropic
+      given:
+        env:
+          IFAI_PROVIDER: "${{provider}}"
+          IFAI_MODEL: "${{provider}}-model"
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
+        assert_contains: "${{provider}}"
+
+    # 慢速测试：网络请求
+    - name: "流式响应"
+      description: "测试流式 AI 响应"
+      tags: [integration, slow, streaming]
+      given:
+        args: ["hello"]
+      when:
+        mock_response: "simple_response.json"
+      then:
+        assert_success: true
