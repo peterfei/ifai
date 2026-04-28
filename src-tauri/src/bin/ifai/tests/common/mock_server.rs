@@ -163,6 +163,70 @@ impl MockApiServer {
         self.server.reset().await;
         Ok(())
     }
+
+    /// 设置 API 错误响应（HTTP 4xx/5xx）
+    pub async fn setup_error_response(&self, status: u16, message: &str) -> Result<()> {
+        use wiremock::{Mock, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let response = json!({
+            "error": {
+                "message": message,
+                "type": "api_error",
+                "code": status
+            }
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(status).set_body_json(response))
+            .mount(&self.server)
+            .await;
+
+        Ok(())
+    }
+
+    /// 设置网络错误（模拟连接拒绝）
+    pub async fn setup_network_error(&self) -> Result<()> {
+        use wiremock::{Mock, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("Connection refused"))
+            .mount(&self.server)
+            .await;
+
+        Ok(())
+    }
+
+    /// 设置超时响应
+    pub async fn setup_timeout_response(&self) -> Result<()> {
+        use wiremock::{Mock, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(408).set_body_string("Request timeout"))
+            .mount(&self.server)
+            .await;
+
+        Ok(())
+    }
+
+    /// 设置原始文本响应（用于模拟畸形 JSON）
+    pub async fn setup_raw_response(&self, body: &str) -> Result<()> {
+        use wiremock::{Mock, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(body))
+            .mount(&self.server)
+            .await;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

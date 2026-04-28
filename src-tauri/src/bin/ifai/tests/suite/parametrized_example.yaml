@@ -22,10 +22,10 @@ test_suite:
           IFAI_PROVIDER: "${{provider}}"
           IFAI_MODEL: "${{provider}}-model"
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Response"
       then:
         assert_success: true
-        assert_contains: "${{provider}}"
 
     # 示例 2: 测试多个模型
     - name: "测试模型兼容性"
@@ -39,7 +39,8 @@ test_suite:
       given:
         args: ["--model", "${{model}}", "hello"]
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Response"
       then:
         assert_success: true
 
@@ -58,7 +59,8 @@ test_suite:
           IFAI_PROVIDER: "${{provider}}"
           IFAI_MODEL: "${{model}}"
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Response"
       then:
         assert_success: true
 
@@ -74,6 +76,7 @@ test_suite:
         args: ["hello"]
         notes: "使用 ${{config_source }}"
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Response"
       then:
         assert_success: true

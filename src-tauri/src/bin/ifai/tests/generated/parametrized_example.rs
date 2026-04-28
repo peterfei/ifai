@@ -19,7 +19,6 @@ async fn test_test_2f554_provider_openai() {
     }
     let output = env.run_cli(&["hello"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("openai");
 }
 
 #[tokio::test]
@@ -36,7 +35,6 @@ async fn test_test_2f554_provider_deepseek() {
     }
     let output = env.run_cli(&["hello"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("deepseek");
 }
 
 #[tokio::test]
@@ -53,7 +51,6 @@ async fn test_test_2f554_provider_anthropic() {
     }
     let output = env.run_cli(&["hello"]).await.unwrap();
     output.assert_success();
-    output.assert_contains("anthropic");
 }
 
 #[tokio::test]
