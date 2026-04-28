@@ -46,8 +46,8 @@ fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
     match tool_name {
         "bash" => {
             if let Some(cmd) = args.get("cmd").and_then(|v| v.as_str()) {
-                if cmd.len() > 80 {
-                    format!("命令: {}...", &cmd[..77])
+                if cmd.chars().count() > 80 {
+                    format!("命令: {}...", cmd.chars().take(77).collect::<String>())
                 } else {
                     format!("命令: {}", cmd)
                 }
@@ -58,8 +58,8 @@ fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
         "write_file" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
             let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
-            let preview = if content.len() > 40 {
-                format!("{}... ({} 字符)", &content[..37], content.len())
+            let preview = if content.chars().count() > 40 {
+                format!("{}... ({} 字符)", content.chars().take(37).collect::<String>(), content.chars().count())
             } else {
                 format!("{}", content)
             };
@@ -72,8 +72,8 @@ fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
         "edit_file" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("?");
             let edit = args.get("edit").and_then(|v| v.as_str()).unwrap_or("?");
-            let preview = if edit.len() > 40 {
-                format!("{}...", &edit[..37])
+            let preview = if edit.chars().count() > 40 {
+                format!("{}...", edit.chars().take(37).collect::<String>())
             } else {
                 format!("{}", edit)
             };
@@ -82,8 +82,8 @@ fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
         _ => {
             // 通用格式化
             let json_str = serde_json::to_string_pretty(args).unwrap_or_default();
-            if json_str.len() > 200 {
-                format!("{}...", &json_str[..197])
+            if json_str.chars().count() > 200 {
+                format!("{}...", json_str.chars().take(197).collect::<String>())
             } else {
                 json_str
             }
@@ -802,6 +802,12 @@ impl Session {
             println!(); // 换行
             let tool_results = self.execute_tools(collector.pending_tools())?;
 
+            // 如果所有工具都被循环检测阻止，终止循环避免死循环
+            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| result.contains("循环检测阻止")) {
+                println!("\n所有工具调用均被循环检测阻止，终止执行");
+                break;
+            }
+
             // 构建 tool_calls 和 tool 结果消息
             let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
                 ToolCall {
@@ -836,13 +842,14 @@ impl Session {
             for (tool_id, name, _result, _duration) in &tool_results {
                 // 从 pipeline_tracker 获取完成后的步骤
                 let completed_steps = self.pipeline_tracker.completed_steps();
-                if let Some(step) = completed_steps.iter().find(|s| s.tool_name == *name) {
+                // 从最新到最旧查找，避免匹配到之前同名的旧步骤
+                if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name) {
                     // 使用派生宏生成的方法渲染最终状态
                     let status_render = step.status.render_with_theme("zh", &theme, RESET);
 
                     // 格式化工具参数（截断过长的参数）
-                    let args_preview = if step.tool_args.len() > 50 {
-                        format!("{}...", &step.tool_args[..47])
+                    let args_preview = if step.tool_args.chars().count() > 50 {
+                        format!("{}...", step.tool_args.chars().take(47).collect::<String>())
                     } else {
                         step.tool_args.clone()
                     };
@@ -1144,6 +1151,12 @@ impl Session {
             let _ = output_tx.send(String::new());
             let tool_results = self.execute_tools_tui(collector.pending_tools(), &output_tx, &approval_tx).await?;
 
+            // 如果所有工具都被循环检测阻止，终止循环避免死循环
+            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| result.contains("循环检测阻止")) {
+                let _ = output_tx.send("所有工具调用均被循环检测阻止，终止执行".to_string());
+                break;
+            }
+
             let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
                 ToolCall {
                     id: id.clone(),
@@ -1175,10 +1188,11 @@ impl Session {
             let theme = render::default_theme();
             for (tool_id, name, _result, _duration) in &tool_results {
                 let completed_steps = self.pipeline_tracker.completed_steps();
-                if let Some(step) = completed_steps.iter().find(|s| s.tool_name == *name) {
+                // 从最新到最旧查找，避免匹配到之前同名的旧步骤
+                if let Some(step) = completed_steps.iter().rev().find(|s| s.tool_name == *name) {
                     let status_render = step.status.render_with_theme("zh", &theme, RESET);
-                    let args_preview = if step.tool_args.len() > 50 {
-                        format!("{}...", &step.tool_args[..47])
+                    let args_preview = if step.tool_args.chars().count() > 50 {
+                        format!("{}...", step.tool_args.chars().take(47).collect::<String>())
                     } else {
                         step.tool_args.clone()
                     };
@@ -1913,5 +1927,125 @@ mod tests {
         assert_eq!(session.model, "deepseek-chat", "model 应该正确");
         assert_eq!(session.cumulative_input_tokens, 0, "初始 input tokens 应该为 0");
         assert_eq!(session.cumulative_output_tokens, 0, "初始 output tokens 应该为 0");
+    }
+
+    // ========================================================================
+    // format_tool_args UTF-8 安全测试
+    // ========================================================================
+
+    #[test]
+    fn test_format_tool_args_bash_chinese_truncation() {
+        // bash 命令包含中文，超过 80 字符时截断不 panic
+        let long_chinese_cmd = "帮我创建一个2048小游戏的核心逻辑，需要包含游戏板的初始化和方块移动合并以及得分计算功能，支持上下左右四个方向的操作，还需要实现胜利和失败判定逻辑以及动画效果和得分排行榜功能";
+        assert!(long_chinese_cmd.chars().count() > 80, "测试数据需超过 80 字符");
+        let args = serde_json::json!({ "cmd": long_chinese_cmd });
+        let result = format_tool_args("bash", &args);
+        assert!(result.contains("命令:"));
+        assert!(result.ends_with("..."));
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    #[test]
+    fn test_format_tool_args_bash_short() {
+        // 短命令不截断
+        let args = serde_json::json!({ "cmd": "ls -la" });
+        let result = format_tool_args("bash", &args);
+        assert_eq!(result, "命令: ls -la");
+    }
+
+    #[test]
+    fn test_format_tool_args_bash_mixed_cjk_ascii() {
+        // 混合 CJK + ASCII，截断点落在多字节字符中间时不 panic
+        let mixed = "python3 -c \"print('帮我实现一个功能非常复杂的逻辑，包含很多步骤和详细说明')\"";
+        let args = serde_json::json!({ "cmd": mixed });
+        let result = format_tool_args("bash", &args);
+        assert!(result.contains("命令:"));
+    }
+
+    #[test]
+    fn test_format_tool_args_write_file_chinese_content() {
+        // write_file 内容包含中文，超过 40 字符截断
+        let long_content = "这是一个很长的中文文件内容需要被截断显示确保不会在多字节字符边界处崩溃这是一个测试";
+        assert!(long_content.chars().count() > 40, "测试数据需超过 40 字符");
+        let args = serde_json::json!({ "path": "/tmp/test.py", "content": long_content });
+        let result = format_tool_args("write_file", &args);
+        assert!(result.contains("路径: /tmp/test.py"));
+        assert!(result.contains("..."));
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    #[test]
+    fn test_format_tool_args_write_file_short() {
+        // 短内容不截断
+        let args = serde_json::json!({ "path": "/tmp/test.py", "content": "hello" });
+        let result = format_tool_args("write_file", &args);
+        assert_eq!(result, "路径: /tmp/test.py\n内容: hello");
+    }
+
+    #[test]
+    fn test_format_tool_args_edit_file_chinese() {
+        // edit_file 变更内容包含中文，超过 40 字符截断
+        let long_edit = "重构整个认证模块，添加JWT token刷新逻辑和多因素认证支持，同时优化错误处理";
+        assert!(long_edit.chars().count() > 40, "测试数据需超过 40 字符");
+        let args = serde_json::json!({ "path": "/src/auth.rs", "edit": long_edit });
+        let result = format_tool_args("edit_file", &args);
+        assert!(result.contains("编辑文件: /src/auth.rs"));
+        assert!(result.contains("..."));
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    #[test]
+    fn test_format_tool_args_generic_chinese_json() {
+        // 通用工具：JSON 包含中文键值，超过 200 字符截断
+        let big_json = serde_json::json!({
+            "content": "这是一段很长的中文内容用来测试通用工具的截断逻辑是否正确处理多字节字符".repeat(10),
+            "status": "in_progress"
+        });
+        let result = format_tool_args("unknown_tool", &big_json);
+        assert!(result.ends_with("..."));
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    #[test]
+    fn test_format_tool_args_generic_short() {
+        // 短 JSON 不截断
+        let args = serde_json::json!({ "key": "value" });
+        let result = format_tool_args("custom_tool", &args);
+        assert!(result.contains("key"));
+        assert!(!result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_format_tool_args_emoji_and_special_chars() {
+        // 包含 emoji（4 字节 UTF-8）的参数
+        let emoji_cmd = "cargo test --bin ifai -- 测试模块 🔥🚀✅ 🎯 目标覆盖所有边界情况";
+        let args = serde_json::json!({ "cmd": emoji_cmd });
+        let result = format_tool_args("bash", &args);
+        assert!(result.contains("命令:"));
+        assert!(result.is_char_boundary(result.len()));
+    }
+
+    #[test]
+    fn test_args_preview_chinese_truncation() {
+        // 直接测试截断逻辑：中文 tool_args 超过 50 字符
+        let long_chinese = r#"{"todos":[{"content":"创建2048游戏核心逻辑","activeForm":"创建2048游戏核心逻辑","status":"in_progress"},{"content":"创建GUI界面","activeForm":"创建GUI界面","status":"pending"}]}"#;
+        let preview = if long_chinese.chars().count() > 50 {
+            format!("{}...", long_chinese.chars().take(47).collect::<String>())
+        } else {
+            long_chinese.to_string()
+        };
+        assert!(preview.ends_with("..."));
+        assert!(preview.is_char_boundary(preview.len()));
+    }
+
+    #[test]
+    fn test_args_preview_mixed_cjk_at_boundary() {
+        // 精确构造：47 字符处落在中文字符中间
+        // "a".repeat(46) + "逻" = 47 字符但 46+3=49 字节
+        let s = format!("{}逻辑分析结果展示", "a".repeat(46));
+        assert!(s.chars().count() > 50);
+        let preview = format!("{}...", s.chars().take(47).collect::<String>());
+        assert!(preview.is_char_boundary(preview.len()));
+        assert_eq!(preview.chars().count(), 50); // 47 + "..."
     }
 }

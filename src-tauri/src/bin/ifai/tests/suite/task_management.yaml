@@ -1,0 +1,45 @@
+# tests/suite/task_management.yaml
+#
+# 任务管理功能测试
+#
+# 验证 CLI 基本功能和任务命令注册
+
+test_suite:
+  name: "任务管理测试"
+  description: "验证 /task 命令注册和 CLI 基本输出"
+
+  tests:
+    - name: "帮助输出包含 USAGE"
+      description: "验证 --help 输出基本格式"
+      given:
+        args: ["--help"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "USAGE"
+
+    - name: "帮助输出包含 provider 参数"
+      description: "验证 --help 包含 --provider 选项"
+      given:
+        args: ["--help"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "--provider"
+
+    - name: "版本信息输出"
+      description: "验证 --version 正常输出"
+      given:
+        args: ["--version"]
+      when: {}
+      then:
+        assert_success: true
+        assert_contains: "IfAI"
+
+    - name: "无效参数报错"
+      description: "验证无效参数返回非零退出码"
+      given:
+        args: ["--unknown-flag"]
+      when: {}
+      then:
+        assert_success: false

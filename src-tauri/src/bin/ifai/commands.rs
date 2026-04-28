@@ -167,6 +167,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         min_permission: PermissionMode::None,
         handler: cmd_glob,
     },
+    CommandSpec {
+        name: "task",
+        summary: "显示当前任务列表",
+        arg_hint: Some("[clear]"),
+        min_permission: PermissionMode::None,
+        handler: cmd_task,
+    },
 ];
 
 // ============================================================================
@@ -759,6 +766,52 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     Ok(Some(output))
 }
 
+/// 🏛️ 显示/清空任务列表（元编程：直接读取全局 TaskStore）
+fn cmd_task(_session: &mut Session, arg: Option<&str>) -> CommandResult {
+    use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};
+    use super::render::{default_theme, RESET};
+
+    let theme = default_theme();
+    let store = get_global_task_store();
+
+    match arg {
+        Some("clear") => {
+            store.clear();
+            Ok(Some(format!("{}✓ 任务列表已清空{}", theme.success, RESET)))
+        }
+        _ => {
+            let tasks = store.get_tasks();
+            if tasks.is_empty() {
+                return Ok(Some(format!("{}当前没有任务{}（AI 会在处理复杂任务时自动创建）", theme.muted, RESET)));
+            }
+
+            let total = tasks.len();
+            let completed = store.count_by_status(TaskStatus::Completed);
+            let in_progress = store.count_by_status(TaskStatus::InProgress);
+
+            let mut output = String::new();
+            output.push_str(&format!("{}╭─────────────────────────────────────{}\n", theme.table_border, RESET));
+            output.push_str(&format!("{}│{} Tasks [{}/{}] ({} in progress){}\n",
+                theme.table_border, theme.brand, completed, total, in_progress, RESET));
+            output.push_str(&format!("{}├─────────────────────────────────────{}\n", theme.table_border, RESET));
+
+            // 🔥 查表渲染（与 TUI TASK_STATUS_DISPLAYS 一致）
+            for (i, task) in tasks.iter().enumerate() {
+                let (icon, color) = match task.status {
+                    TaskStatus::Completed  => ("[x]", theme.success),
+                    TaskStatus::InProgress => ("▸",  theme.warning),
+                    TaskStatus::Pending    => ("[ ]", theme.muted),
+                };
+                output.push_str(&format!("{}│  {} {}{}{}\n",
+                    theme.table_border, icon, color, &task.content, RESET));
+            }
+
+            output.push_str(&format!("{}╰─────────────────────────────────────{}\n", theme.table_border, RESET));
+            Ok(Some(output))
+        }
+    }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -769,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_find_all_commands() {
-        // 验证所有 16 个命令都能找到
+        // 验证所有 17 个命令都能找到
         assert!(find_command("help").is_some());
         assert!(find_command("clear").is_some());
         assert!(find_command("compact").is_some());
@@ -784,7 +837,8 @@ mod tests {
         assert!(find_command("exit").is_some());
         assert!(find_command("status").is_some());
         assert!(find_command("view").is_some());
-        assert!(find_command("glob").is_some()); // 🆕 新增
+        assert!(find_command("glob").is_some());
+        assert!(find_command("task").is_some());
     }
 
     #[test]
@@ -895,6 +949,7 @@ mod tests {
         assert!(help.contains("/undo"));
         assert!(help.contains("/config"));
         assert!(help.contains("/exit"));
+        assert!(help.contains("/task"));
     }
 
     #[test]
@@ -915,8 +970,8 @@ mod tests {
 
     #[test]
     fn test_command_registry_size() {
-        // 验证注册表包含所有 16 个命令
-        assert_eq!(COMMAND_SPECS.len(), 16);
+        // 验证注册表包含所有 17 个命令
+        assert_eq!(COMMAND_SPECS.len(), 17);
     }
 
     #[test]
