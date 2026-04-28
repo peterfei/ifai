@@ -13,3 +13,4 @@ pub mod cli_api;
 pub mod streaming;
 pub mod cli_simple;
 pub mod error_handling;
+pub mod parametrized_example;

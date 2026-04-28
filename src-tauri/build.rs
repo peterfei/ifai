@@ -120,11 +120,20 @@ fn generate_test_from_schema(
     Ok(code)
 }
 
-/// 生成单个测试函数
+/// 生成单个测试函数（支持参数化测试）
 fn generate_single_test(
     test: &serde_yaml::Value,
     used_names: &mut std::collections::HashSet<String>
 ) -> Option<String> {
+    // 检查是否有参数化测试
+    if let Some(_parameters) = test.get("parameters") {
+        // 参数化测试：返回所有生成的测试代码（作为一个字符串）
+        let param_tests = generate_parametrized_tests(test, used_names);
+        if !param_tests.is_empty() {
+            return Some(param_tests.join("\n"));
+        }
+    }
+
     let name = test.get("name")?.as_str()?;
     let description = test.get("description").and_then(|v| v.as_str());
 
@@ -164,7 +173,7 @@ fn generate_single_test(
         .is_some();
 
     if let Some(given) = test.get("given") {
-        code.push_str(&generate_given(given, needs_mock));
+        code.push_str(&generate_given(given, needs_mock, &[]));
     }
 
     // 从 given 中获取 args
@@ -173,11 +182,11 @@ fn generate_single_test(
         .and_then(|a| a.as_sequence());
 
     if let Some(when) = test.get("when") {
-        code.push_str(&generate_when(when, args, needs_mock));
+        code.push_str(&generate_when(when, args, needs_mock, &[]));
     }
 
     if let Some(then) = test.get("then") {
-        code.push_str(&generate_then(then));
+        code.push_str(&generate_then(then, &[]));
     }
 
     code.push_str("}\n");
@@ -185,7 +194,7 @@ fn generate_single_test(
 }
 
 /// 生成 Given 阶段
-fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
+fn generate_given(given: &serde_yaml::Value, needs_mock: bool, params: &[(String, String)]) -> String {
     let mut code = String::new();
 
     if needs_mock {
@@ -198,7 +207,8 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
         if let Some(mapping) = env_vars.as_mapping() {
             for (key, value) in mapping {
                 if let (Some(k), Some(v)) = (key.as_str(), value.as_str()) {
-                    code.push_str(&format!("    env.set_env(\"{}\", \"{}\");\n", k, v));
+                    let substituted_value = substitute_variables(v, params);
+                    code.push_str(&format!("    env.set_env(\"{}\", \"{}\");\n", k, substituted_value));
                 }
             }
         }
@@ -206,16 +216,18 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
 
     if let Some(config) = given.get("config") {
         if let Some(config_str) = config.as_str() {
+            let substituted_config = substitute_variables(config_str, params);
             code.push_str(&format!("    env.write_config(\"{}\").await.unwrap();\n",
-                config_str.escape_default()));
+                substituted_config.escape_default()));
         }
     }
 
     // 支持 stdin 输入
     if let Some(stdin) = given.get("stdin") {
         if let Some(stdin_str) = stdin.as_str() {
+            let substituted_stdin = substitute_variables(stdin_str, params);
             code.push_str(&format!("    env.set_stdin(\"{}\");\n",
-                stdin_str.escape_default()));
+                substituted_stdin.escape_default()));
         }
     }
 
@@ -223,7 +235,7 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool) -> String {
 }
 
 /// 生成 When 阶段
-fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>, needs_mock: bool) -> String {
+fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>, needs_mock: bool, params: &[(String, String)]) -> String {
     let mut code = String::new();
 
     // Mock 设置
@@ -240,7 +252,10 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
         .or(when.get("args").and_then(|v| v.as_sequence()))
         .map(|v| v.iter()
              .filter_map(|a| a.as_str())
-             .map(|a| format!("\"{}\"", a.escape_default()))
+             .map(|a| {
+                 let substituted = substitute_variables(a, params);
+                 format!("\"{}\"", substituted.escape_default())
+             })
              .collect::<Vec<_>>())
         .unwrap_or_else(|| vec!["\"hello\"".to_string()]);
 
@@ -251,7 +266,7 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
 }
 
 /// 生成 Then 阶段
-fn generate_then(then: &serde_yaml::Value) -> String {
+fn generate_then(then: &serde_yaml::Value, params: &[(String, String)]) -> String {
     let mut code = String::new();
 
     // 处理 assert_success
@@ -262,13 +277,15 @@ fn generate_then(then: &serde_yaml::Value) -> String {
     }
 
     if let Some(text) = then.get("assert_contains").and_then(|v| v.as_str()) {
+        let substituted_text = substitute_variables(text, params);
         code.push_str(&format!("    output.assert_contains(\"{}\");\n",
-            text.escape_default()));
+            substituted_text.escape_default()));
     }
 
     if let Some(pattern) = then.get("assert_match").and_then(|v| v.as_str()) {
+        let substituted_pattern = substitute_variables(pattern, params);
         code.push_str(&format!("    output.assert_match(r\"{}\");\n",
-            pattern.escape_default()));
+            substituted_pattern.escape_default()));
     }
 
     if let Some(tool) = then.get("assert_tool_called").and_then(|v| v.as_str()) {
@@ -414,4 +431,223 @@ fn to_test_name(name: &str) -> String {
     } else {
         result
     }
+}
+
+// ============================================================================
+// 参数化测试支持
+// ============================================================================
+
+/// 参数值结构
+#[derive(Debug, Clone)]
+struct ParameterValue {
+    name: String,
+    values: Vec<String>,
+}
+
+/// 从测试中提取参数
+fn extract_parameters(test: &serde_yaml::Value) -> Vec<ParameterValue> {
+    let mut params = Vec::new();
+    
+    if let Some(parameters) = test.get("parameters") {
+        if let Some(mapping) = parameters.as_mapping() {
+            for (key, values) in mapping {
+                if let (Some(name), Some(value_list)) = (key.as_str(), values.as_sequence()) {
+                    let string_values: Vec<String> = value_list
+                        .iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect();
+                    
+                    if !string_values.is_empty() {
+                        params.push(ParameterValue {
+                            name: name.to_string(),
+                            values: string_values,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    params
+}
+
+/// 生成参数组合（笛卡尔积）
+fn generate_parameter_combinations(parameters: &[ParameterValue]) -> Vec<Vec<(String, String)>> {
+    if parameters.is_empty() {
+        return Vec::new();
+    }
+    
+    let mut combinations = Vec::new();
+    let mut current = Vec::new();
+    generate_combinations_recursive(&parameters, 0, &mut current, &mut combinations);
+    combinations
+}
+
+/// 递归生成参数组合
+fn generate_combinations_recursive(
+    parameters: &[ParameterValue],
+    index: usize,
+    current: &mut Vec<(String, String)>,
+    combinations: &mut Vec<Vec<(String, String)>>,
+) {
+    if index >= parameters.len() {
+        combinations.push(current.clone());
+        return;
+    }
+    
+    let param = &parameters[index];
+    for value in &param.values {
+        current.push((param.name.clone(), value.clone()));
+        generate_combinations_recursive(parameters, index + 1, current, combinations);
+        current.pop();
+    }
+}
+
+/// 替换字符串中的变量占位符
+fn substitute_variables(text: &str, params: &[(String, String)]) -> String {
+    let mut result = text.to_string();
+    for (name, value) in params {
+        // 匹配 ${{name}} 格式（2个花括号）
+        let placeholder = String::from("${{") + name + "}}";
+        result = result.replace(&placeholder, value);
+    }
+    result
+}
+
+/// 在 YAML 值中替换变量
+fn substitute_yaml_value(value: &serde_yaml::Value, params: &[(String, String)]) -> serde_yaml::Value {
+    match value {
+        serde_yaml::Value::String(s) => {
+            serde_yaml::Value::String(substitute_variables(s, params))
+        }
+        serde_yaml::Value::Sequence(seq) => {
+            serde_yaml::Value::Sequence(
+                seq.iter()
+                    .map(|v| substitute_yaml_value(v, params))
+                    .collect()
+            )
+        }
+        serde_yaml::Value::Mapping(map) => {
+            let mut new_map = serde_yaml::Mapping::new();
+            for (k, v) in map {
+                new_map.insert(k.clone(), substitute_yaml_value(v, params));
+            }
+            serde_yaml::Value::Mapping(new_map)
+        }
+        _ => value.clone(),
+    }
+}
+
+/// 生成参数化测试
+fn generate_parametrized_tests(
+    test: &serde_yaml::Value,
+    used_names: &mut std::collections::HashSet<String>,
+) -> Vec<String> {
+    let parameters = extract_parameters(test);
+    if parameters.is_empty() {
+        return Vec::new();
+    }
+    
+    let combinations = generate_parameter_combinations(&parameters);
+    let mut tests = Vec::new();
+    
+    let base_name = test.get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("parametrized_test");
+    
+    let base_description = test.get("description")
+        .and_then(|v| v.as_str());
+    
+    for params in &combinations {
+        // 创建参数化的测试副本
+        let param_test = substitute_yaml_value(test, params);
+        
+        // 生成包含参数的测试名称
+        let param_suffix: Vec<String> = params
+            .iter()
+            .map(|(name, value)| {
+                let simple_value = value.replace(|c: char| !c.is_alphanumeric(), "_");
+                format!("{}_{}", to_test_name(name), simple_value)
+            })
+            .collect();
+        
+        let full_test_name = format!("{}_{}",
+            to_test_name(base_name),
+            param_suffix.join("_")
+        );
+        
+        // 确保函数名唯一
+        let mut test_name = full_test_name.clone();
+        let mut counter = 2;
+        while used_names.contains(&test_name) {
+            test_name = format!("{}_{}", full_test_name, counter);
+            counter += 1;
+        }
+        used_names.insert(test_name.clone());
+        
+        // 生成测试代码
+        let test_code = generate_single_test_from_yaml(&param_test, &test_name, base_description, params);
+        tests.push(test_code);
+    }
+    
+    tests
+}
+
+/// 从 YAML 值生成单个测试代码（用于参数化测试）
+fn generate_single_test_from_yaml(
+    test: &serde_yaml::Value,
+    test_name: &str,
+    base_description: Option<&str>,
+    params: &[(String, String)],
+) -> String {
+    let mut code = String::new();
+    
+    code.push_str("#[tokio::test]\n");
+    code.push_str("#[serial_test::serial]\n");
+    code.push_str(&format!("async fn test_{}() {{\n", test_name));
+    
+    // 添加参数说明注释
+    if !params.is_empty() {
+        code.push_str("    // 参数化测试:\n");
+        for (name, value) in params {
+            code.push_str(&format!("    //   {} = {}\n", name, value));
+        }
+    }
+    
+    // 添加描述
+    if let Some(desc) = base_description {
+        let desc_with_params = substitute_variables(desc, params);
+        code.push_str(&format!("    // {}\n", desc_with_params));
+    } else if let Some(desc) = test.get("description").and_then(|v| v.as_str()) {
+        let desc_with_params = substitute_variables(desc, params);
+        code.push_str(&format!("    // {}\n", desc_with_params));
+    }
+    
+    // 检查是否需要 Mock
+    let needs_mock = test.get("when")
+        .and_then(|w| w.get("mock_response"))
+        .is_some()
+        || test.get("when")
+        .and_then(|w| w.get("mock_streaming"))
+        .is_some();
+    
+    if let Some(given) = test.get("given") {
+        code.push_str(&generate_given(&given, needs_mock, params));
+    }
+
+    let args = test.get("given")
+        .and_then(|g| g.get("args"))
+        .and_then(|a| a.as_sequence());
+
+    if let Some(when) = test.get("when") {
+        code.push_str(&generate_when(&when, args, needs_mock, params));
+    }
+
+    if let Some(then) = test.get("then") {
+        code.push_str(&generate_then(&then, params));
+    }
+    
+    code.push_str("}\n");
+    code
 }
