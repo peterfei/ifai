@@ -148,4 +148,4 @@ exitcode = "1.1"
 regex-lite = "0.1"
 
 # 测试报告和覆盖率
-junitify = "0.2"
+junitify = "0.1"

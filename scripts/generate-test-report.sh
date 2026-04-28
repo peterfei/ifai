@@ -15,8 +15,13 @@ echo -e "${GREEN}  CLI 测试报告生成器${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
-# 切换到项目根目录
-cd "$(dirname "$0")/.." || exit 1
+# 切换到 src-tauri 目录（包含 Cargo.toml）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_DIR/src-tauri" || {
+  echo "错误: 无法找到 src-tauri 目录"
+  exit 1
+}
 
 # 创建报告目录
 REPORT_DIR="target/test-reports"

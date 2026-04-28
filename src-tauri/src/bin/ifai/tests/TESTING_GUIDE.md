@@ -47,8 +47,17 @@ cargo build --package ifainew
 ### 第四步：运行测试
 
 ```bash
+# 串行执行（默认，推荐用于调试）
 cargo test --package ifainew --bin ifai my_feature
+
+# 并行执行（⚡️ 快 3-5 倍）
+./scripts/run-tests.sh --parallel
+
+# 或使用环境变量
+IFAI_PARALLEL_TESTS=1 cargo test --package ifainew --bin ifai my_feature
 ```
+
+**提示**: 详细说明请参阅 [并行测试执行](PARALLEL_TESTING.md)。
 
 ## 测试模式
 
