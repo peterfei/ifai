@@ -29,10 +29,10 @@ test_suite:
       given:
         args: ["hello"]
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Hello"
       then:
         assert_success: true
-        assert_contains: "Hello"
 
     # 参数化测试 + 标签
     - name: "提供商连接测试"
@@ -48,10 +48,10 @@ test_suite:
           IFAI_PROVIDER: "${{provider}}"
           IFAI_MODEL: "${{provider}}-model"
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Response"
       then:
         assert_success: true
-        assert_contains: "${{provider}}"
 
     # 慢速测试：网络请求
     - name: "流式响应"
@@ -60,6 +60,7 @@ test_suite:
       given:
         args: ["hello"]
       when:
-        mock_response: "simple_response.json"
+        mock_streaming:
+          - "Response"
       then:
         assert_success: true

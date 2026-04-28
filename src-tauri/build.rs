@@ -71,13 +71,17 @@ fn generate_tests(parallel_tests: bool) -> Result<(), Box<dyn std::error::Error>
             // 生成 Rust 测试代码（传递并行模式）
             let test_code = generate_test_from_schema(&schema, &path, parallel_tests)?;
 
-            // 写入生成的测试文件
+            // 写入生成的测试文件（跳过已存在的手动维护文件）
             let file_name = path.file_stem()
                 .and_then(|s| s.to_str())
                 .ok_or("Invalid file name")?;
             let output_path = generated_dir.join(format!("{}.rs", file_name));
-            fs::write(&output_path, test_code)?;
-            generated_count += 1;
+            if output_path.exists() {
+                println!("cargo:warning=⏭️  跳过已存在: {:?}", output_path.file_name().unwrap());
+            } else {
+                fs::write(&output_path, test_code)?;
+                generated_count += 1;
+            }
         }
     }
 
@@ -189,13 +193,10 @@ fn generate_single_test(
         code.push_str(&format!("    // {}\n", desc));
     }
 
-    // 检查是否需要 Mock
+    // 检查是否需要 Mock（覆盖所有 when 中的 mock 相关键）
     let needs_mock = test.get("when")
-        .and_then(|w| w.get("mock_response"))
-        .is_some()
-        || test.get("when")
-        .and_then(|w| w.get("mock_streaming"))
-        .is_some();
+        .map(|w| when_needs_mock(w))
+        .unwrap_or(false);
 
     if let Some(given) = test.get("given") {
         code.push_str(&generate_given(given, needs_mock, &[]));
@@ -208,6 +209,14 @@ fn generate_single_test(
 
     if let Some(when) = test.get("when") {
         code.push_str(&generate_when(when, args, needs_mock, &[]));
+    } else if args.is_some() {
+        // 没有 when 段但有 given.args，仍需生成 run_cli
+        let args_vec: Vec<String> = args.unwrap().iter()
+            .filter_map(|a| a.as_str())
+            .map(|a| format!("\"{}\"", a.escape_default()))
+            .collect();
+        code.push_str(&format!("    let output = env.run_cli(&[{}]).await.unwrap();\n",
+            args_vec.join(", ")));
     }
 
     if let Some(then) = test.get("then") {
@@ -256,20 +265,106 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool, params: &[(String
         }
     }
 
+    // 支持 stdin_lines（多行 stdin 输入，用换行符拼接）
+    if let Some(lines) = given.get("stdin_lines") {
+        if let Some(lines_seq) = lines.as_sequence() {
+            let combined: Vec<String> = lines_seq.iter()
+                .filter_map(|l| l.as_str())
+                .map(|l| substitute_variables(l, params))
+                .collect();
+            if !combined.is_empty() {
+                code.push_str(&format!("    env.set_stdin(\"{}\");\n",
+                    combined.join("\\n").escape_default()));
+            }
+        }
+    }
+
     code
+}
+
+/// 判断 when 段是否需要 Mock 服务器
+fn when_needs_mock(when: &serde_yaml::Value) -> bool {
+    let mock_keys = [
+        "mock_response",
+        "mock_streaming",
+        "mock_sse_streaming",
+        "mock_sse_streaming_large",
+        "mock_sse_streaming_slow",
+        "mock_error_response",
+        "mock_network_error",
+        "mock_timeout",
+        "mock_malformed_response",
+        "mock_tool_call",
+        "mock_tool_calls",
+        "mock_tool_error",
+        "mock_tool_timeout",
+        "mock_compression",
+        "mock_stdin_error",
+        "setup_bad_config",
+    ];
+    mock_keys.iter().any(|k| when.get(*k).is_some())
 }
 
 /// 生成 When 阶段
 fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>, needs_mock: bool, params: &[(String, String)]) -> String {
     let mut code = String::new();
 
-    // Mock 设置
+    // Mock 设置——声明式：从 when 中提取流式 chunk 并统一设置
     if needs_mock {
-        if when.get("mock_response").is_some() || when.get("mock_streaming").is_some() {
-            code.push_str("    if let Some(mock) = env.mock_server() {\n");
-            code.push_str("        mock.setup_streaming_response(vec![\"Response\"]).await.unwrap();\n");
-            code.push_str("    }\n");
+        code.push_str("    if let Some(mock) = env.mock_server() {\n");
+
+        // mock_error_response: 模拟 API 返回错误（HTTP 4xx/5xx）
+        if let Some(err) = when.get("mock_error_response") {
+            let err_type = err.get("type").and_then(|v| v.as_str()).unwrap_or("error");
+            let err_msg = err.get("message").and_then(|v| v.as_str()).unwrap_or("Error");
+            let status = match err_type {
+                "authentication_error" => 401,
+                "rate_limit_error" => 429,
+                "invalid_request_error" => 400,
+                _ => 500,
+            };
+            let msg = substitute_variables(err_msg, params);
+            code.push_str(&format!("        mock.setup_error_response({}, \"{}\").await.unwrap();\n",
+                status, msg.escape_default()));
         }
+        // mock_network_error: 模拟连接失败
+        else if when.get("mock_network_error").is_some() {
+            code.push_str("        mock.setup_network_error().await.unwrap();\n");
+        }
+        // mock_timeout: 模拟超时
+        else if when.get("mock_timeout").is_some() || when.get("mock_sse_streaming_slow").is_some() {
+            code.push_str("        mock.setup_timeout_response().await.unwrap();\n");
+        }
+        // mock_malformed_response: 模拟畸形 JSON
+        else if let Some(raw) = when.get("mock_malformed_response").and_then(|v| v.as_str()) {
+            let raw = substitute_variables(raw, params);
+            code.push_str(&format!("        mock.setup_raw_response(\"{}\").await.unwrap();\n",
+                raw.escape_default()));
+        }
+        // mock_response: 简单 JSON 响应
+        else if let Some(resp) = when.get("mock_response").and_then(|v| v.as_str()) {
+            let resp = substitute_variables(resp, params);
+            code.push_str(&format!("        mock.setup_simple_response(\"{}\").await.unwrap();\n",
+                resp.escape_default()));
+        }
+        // mock_stdin_error: stdin 读取错误（不需要 mock server 设置）
+        else if when.get("mock_stdin_error").is_some() {
+            // 不需要 mock server 设置
+        }
+        // 其他所有类型（mock_streaming, mock_sse_streaming, mock_tool_call, mock_tool_calls,
+        // mock_compression, mock_sse_streaming_large, mock_tool_error, mock_tool_timeout）
+        // 统一使用流式响应
+        else {
+            let chunks = extract_streaming_chunks(when, params);
+            if chunks.is_empty() {
+                code.push_str("        mock.setup_streaming_response(vec![\"Response\"]).await.unwrap();\n");
+            } else {
+                code.push_str(&format!("        mock.setup_streaming_response(vec![{}]).await.unwrap();\n",
+                    chunks.join(", ")));
+            }
+        }
+
+        code.push_str("    }\n");
     }
 
     // 优先使用 given 中的 args，其次使用 when 中的 args，最后使用默认值
@@ -290,6 +385,22 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
     code
 }
 
+/// 从 when 中提取流式 chunk 文本（统一处理 mock_streaming 和 mock_sse_streaming）
+fn extract_streaming_chunks(when: &serde_yaml::Value, params: &[(String, String)]) -> Vec<String> {
+    let chunks_seq = when.get("mock_streaming")
+        .or(when.get("mock_sse_streaming"))
+        .and_then(|v| v.as_sequence());
+
+    if let Some(chunks) = chunks_seq {
+        chunks.iter()
+            .filter_map(|c| c.as_str())
+            .map(|c| format!("\"{}\"", substitute_variables(c, params).escape_default()))
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
 /// 生成 Then 阶段
 fn generate_then(then: &serde_yaml::Value, params: &[(String, String)]) -> String {
     let mut code = String::new();
@@ -298,6 +409,8 @@ fn generate_then(then: &serde_yaml::Value, params: &[(String, String)]) -> Strin
     if let Some(success) = then.get("assert_success").and_then(|v| v.as_bool()) {
         if success {
             code.push_str("    output.assert_success();\n");
+        } else {
+            code.push_str("    assert!(!output.status.success(), \"Expected command to fail but it succeeded\\nstdout: {}\\nstderr: {}\", output.stdout, output.stderr);\n");
         }
     }
 
@@ -662,14 +775,11 @@ fn generate_single_test_from_yaml(
         code.push_str(&format!("    // {}\n", desc_with_params));
     }
     
-    // 检查是否需要 Mock
+    // 检查是否需要 Mock（覆盖所有 when 中的 mock 相关键）
     let needs_mock = test.get("when")
-        .and_then(|w| w.get("mock_response"))
-        .is_some()
-        || test.get("when")
-        .and_then(|w| w.get("mock_streaming"))
-        .is_some();
-    
+        .map(|w| when_needs_mock(w))
+        .unwrap_or(false);
+
     if let Some(given) = test.get("given") {
         code.push_str(&generate_given(&given, needs_mock, params));
     }
@@ -680,6 +790,17 @@ fn generate_single_test_from_yaml(
 
     if let Some(when) = test.get("when") {
         code.push_str(&generate_when(&when, args, needs_mock, params));
+    } else if args.is_some() {
+        // 没有 when 段但有 given.args，仍需生成 run_cli
+        let args_vec: Vec<String> = args.unwrap().iter()
+            .filter_map(|a| a.as_str())
+            .map(|a| {
+                let substituted = substitute_variables(a, params);
+                format!("\"{}\"", substituted.escape_default())
+            })
+            .collect();
+        code.push_str(&format!("    let output = env.run_cli(&[{}]).await.unwrap();\n",
+            args_vec.join(", ")));
     }
 
     if let Some(then) = test.get("then") {
