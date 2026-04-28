@@ -1091,6 +1091,12 @@ mod tests {
         include!("tests/generated/mod.rs");
     }
 
+    // E2E 真实 API 测试（默认 ignore，需 --ignored 手动运行）
+    mod e2e {
+        use crate::tests::common::*;
+        include!("tests/e2e/real_providers.rs");
+    }
+
     // 注意：旧的 CLI 模式压缩测试已移除
     // 真正的压缩测试现在使用 Session API，位于：
     // - session.rs: session::tests::test_compression_*
