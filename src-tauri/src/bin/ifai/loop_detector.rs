@@ -4,7 +4,7 @@
 //! **单一数据源**：JSON 配置文件
 //! **声明式 API**：返回状态而非布尔值
 
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -89,6 +89,21 @@ impl ToolCallSignature {
 // 检测状态（声明式，非布尔值）
 // ============================================================================
 
+/// 📊 空参数检测结果
+///
+/// 三态返回值，比布尔值更精确地表达检测意图
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EmptyArgsResult {
+    /// 参数有效（非空）
+    ValidArgs,
+    /// 该工具首次空参数（应返回错误给 AI，给学习机会）
+    FirstOffense,
+    /// 该工具连续 2+ 次空参数（静默跳过，返回 "OK"）
+    PerToolTripped,
+    /// 全局空参数超过阈值（应终止整个执行循环）
+    GlobalTripped,
+}
+
 /// 📊 循环检测状态
 ///
 /// 返回详细状态而非简单的 true/false
@@ -131,6 +146,11 @@ pub struct LoopDetector {
     history: VecDeque<ToolCallSignature>,
     consecutive_same_tool_count: usize,
     identical_call_count: usize,
+    /// 🔥 空参数连续计数：tool_name → 连续空参数次数
+    empty_args_streak: HashMap<String, u32>,
+    /// 🔥 全局空参数累计计数（跨所有工具）
+    /// 当 AI 轮换不同工具但都发空参数时，per-tool breaker 无法阻止
+    global_empty_args_count: u32,
 }
 
 impl LoopDetector {
@@ -142,6 +162,8 @@ impl LoopDetector {
             history: VecDeque::with_capacity(window_size),
             consecutive_same_tool_count: 0,
             identical_call_count: 0,
+            empty_args_streak: HashMap::new(),
+            global_empty_args_count: 0,
         }
     }
 
@@ -154,7 +176,14 @@ impl LoopDetector {
             return LoopDetectionStatus::Normal;
         }
 
-        let signature = ToolCallSignature::from_tool_call(tool_name, args);
+        // 🔥 FIX: 空参数统一归一化为同一签名，快速阻止跨工具的空参数死循环
+        let normalized_args = if args.trim() == "{}" || args.trim().is_empty() {
+            "__EMPTY_ARGS__".to_string()
+        } else {
+            args.to_string()
+        };
+
+        let signature = ToolCallSignature::from_tool_call(tool_name, &normalized_args);
 
         // 关键修复：先更新历史，再进行检测
         // 这样检测逻辑就能看到包含当前调用的完整历史
@@ -253,6 +282,51 @@ impl LoopDetector {
         self.history.clear();
         self.consecutive_same_tool_count = 0;
         self.identical_call_count = 0;
+        self.empty_args_streak.clear();
+        self.global_empty_args_count = 0;
+    }
+
+    /// 🔥 空参数熔断检测
+    ///
+    /// 返回 `EmptyArgsResult`，包含三种状态：
+    /// - `FirstOffense` — 该工具首次空参数（应返回错误给 AI，给学习机会）
+    /// - `PerToolTripped` — 该工具连续 2+ 次空参数（静默跳过，返回 "OK"）
+    /// - `GlobalTripped` — 全局空参数超过阈值（应终止整个循环）
+    ///
+    /// 有效参数只重置该工具的 per-tool 计数，不重置全局计数。
+    /// 全局计数是整个续播循环的严格预算，防止 AI 用偶尔的有效调用无限续命。
+    pub fn check_empty_args_breaker(&mut self, tool_name: &str, args: &str) -> EmptyArgsResult {
+        let is_empty = args.trim() == "{}" || args.trim().is_empty();
+
+        if is_empty {
+            // 累计全局计数（单调递增，不因有效参数重置）
+            self.global_empty_args_count += 1;
+
+            // 全局阈值：跨所有工具累计 3 次空参数后，终止整个循环
+            // 3 次机会足够 AI 学习（1 次 FirstOffense + 1 次 PerToolTripped + 1 次轮换新工具）
+            if self.global_empty_args_count > 3 {
+                return EmptyArgsResult::GlobalTripped;
+            }
+
+            let streak = self.empty_args_streak.entry(tool_name.to_string()).or_insert(0);
+            *streak += 1;
+            // 连续 2 次空参数后熔断：第 1 次 false（给学习机会），第 2+ 次 true（静默跳过）
+            if *streak >= 2 {
+                EmptyArgsResult::PerToolTripped
+            } else {
+                EmptyArgsResult::FirstOffense
+            }
+        } else {
+            // 有效参数：只重置该工具的 per-tool 计数（给学习机会）
+            // 不重置全局计数——防止 AI 用偶尔的有效调用无限续命
+            self.empty_args_streak.remove(tool_name);
+            EmptyArgsResult::ValidArgs
+        }
+    }
+
+    /// 获取当前全局空参数计数（用于日志和调试）
+    pub fn global_empty_args_count(&self) -> u32 {
+        self.global_empty_args_count
     }
 
     /// 获取统计信息（用于调试）
@@ -748,5 +822,137 @@ mod tests {
             "Expected 9 executions (consecutive threshold 10), got {}. \
              This shows that when args vary slightly, only consecutive_same_tool detection works.",
             execution_count);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 空参数熔断测试
+    // ═══════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_empty_args_breaker_first_call_not_tripped() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        // 首次空参数 → FirstOffense（应返回错误给 AI）
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+    }
+
+    #[test]
+    fn test_empty_args_breaker_second_call_tripped() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        detector.check_empty_args_breaker("read_file", "{}");
+        // 第 2 次 → PerToolTripped（静默跳过）
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+    }
+
+    #[test]
+    fn test_empty_args_breaker_third_call_still_tripped() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        detector.check_empty_args_breaker("read_file", "{}");
+        detector.check_empty_args_breaker("read_file", "{}");
+        // 第 3 次 → 仍然 PerToolTripped
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+    }
+
+    #[test]
+    fn test_empty_args_breaker_valid_args_resets_streak() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        // 空参数 1 次 → FirstOffense
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+
+        // 有效参数 → per-tool 重置，全局不重置
+        assert_eq!(detector.check_empty_args_breaker("read_file", r#"{"path": "a.rs"}"#), EmptyArgsResult::ValidArgs);
+
+        // 再次空参数 → per-tool 重置后重新从 FirstOffense 开始
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+    }
+
+    #[test]
+    fn test_empty_args_breaker_independent_per_tool() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        // read_file 空参数 2 次 → 熔断
+        detector.check_empty_args_breaker("read_file", "{}");
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+
+        // write_file 首次空参数 → 不熔断（独立计数）
+        assert_eq!(detector.check_empty_args_breaker("write_file", "{}"), EmptyArgsResult::FirstOffense);
+    }
+
+    #[test]
+    fn test_empty_args_breaker_empty_string() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        // 空字符串也应触发
+        assert_eq!(detector.check_empty_args_breaker("bash", ""), EmptyArgsResult::FirstOffense);
+        assert_eq!(detector.check_empty_args_breaker("bash", ""), EmptyArgsResult::PerToolTripped);
+    }
+
+    #[test]
+    fn test_empty_args_breaker_reset() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+        detector.check_empty_args_breaker("read_file", "{}");
+        detector.check_empty_args_breaker("read_file", "{}");
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::PerToolTripped);
+
+        detector.reset();
+        // 重置后重新开始
+        assert_eq!(detector.check_empty_args_breaker("read_file", "{}"), EmptyArgsResult::FirstOffense);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 全局空参数熔断测试
+    // ═══════════════════════════════════════════════════════════
+
+    /// 模拟 AI 轮换不同工具但都发空参数的场景（截图中的真实 bug）
+    ///
+    /// AI 依次调用: write_file({}), TodoWrite({}), read_file({}), bash({})
+    /// 每个工具只调用 1-2 次，per-tool breaker 不够，但全局累计到 4 次后 GlobalTripped
+    #[test]
+    fn test_global_empty_args_breaker_cross_tool_rotation() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+
+        // 模拟截图中的场景：AI 轮换不同工具，全部空参数
+        let tools = ["write_file", "TodoWrite", "read_file"];
+        let mut results = Vec::new();
+
+        // 第 1 轮：每个工具首次空参数 → FirstOffense（全局: 1→2→3）
+        for tool in &tools {
+            results.push((tool.to_string(), detector.check_empty_args_breaker(tool, "{}")));
+        }
+        assert_eq!(results.len(), 3);
+        for (_, r) in &results {
+            assert_eq!(*r, EmptyArgsResult::FirstOffense, "1st round should be FirstOffense");
+        }
+        assert_eq!(detector.global_empty_args_count(), 3);
+
+        // 第 4 次空参数 → GlobalTripped（全局 3→4，4 > 3 触发）
+        let r4 = detector.check_empty_args_breaker("bash", "{}");
+        assert_eq!(r4, EmptyArgsResult::GlobalTripped, "4th empty args should trigger GlobalTripped");
+    }
+
+    /// 有效参数不重置全局计数（只重置 per-tool 计数）
+    ///
+    /// 防止 AI 用偶尔的有效调用无限续命：
+    ///   empty → empty → valid → empty → empty → valid → ...
+    /// 全局计数单调递增，有效参数只重置 per-tool streak
+    #[test]
+    fn test_global_empty_args_valid_does_not_reset_global_count() {
+        let mut detector = LoopDetector::from_config(LoopDetectionConfig::default());
+
+        // 2 次空参数
+        for tool in &["write_file", "TodoWrite"] {
+            detector.check_empty_args_breaker(tool, "{}");
+        }
+        assert_eq!(detector.global_empty_args_count(), 2);
+
+        // 有效参数 → 全局计数不变（只重置 per-tool）
+        detector.check_empty_args_breaker("bash", r#"{"command": "ls"}"#);
+        assert_eq!(detector.global_empty_args_count(), 2, "valid args should NOT reset global count");
+
+        // per-tool 计数被重置：bash 再次空参数是 FirstOffense 而非 PerToolTripped
+        let r = detector.check_empty_args_breaker("bash", "{}");
+        assert_eq!(r, EmptyArgsResult::FirstOffense, "bash should get fresh start after valid args");
+        assert_eq!(detector.global_empty_args_count(), 3);
+
+        // 第 4 次空参数 → GlobalTripped（3 → 4, 4 > 3）
+        let r2 = detector.check_empty_args_breaker("write_file", "{}");
+        assert_eq!(r2, EmptyArgsResult::GlobalTripped, "4th empty args should trigger GlobalTripped");
     }
 }

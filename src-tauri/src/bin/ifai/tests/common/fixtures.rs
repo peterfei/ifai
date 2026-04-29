@@ -9,7 +9,8 @@ use serde_json::json;
 pub enum SseEvent {
     ResponseCreated,
     TextDelta(String),
-    ToolCall { id: String, name: String, args: String },
+    ToolCall { id: String, name: String, args: String, index: usize },
+    FinishReason(String),
     CompressionStarted,
     CompressionCompleted,
     Done,
@@ -47,7 +48,7 @@ impl SseEvent {
                 });
                 format!("data: {}\n\n", data)
             }
-            SseEvent::ToolCall { id, name, args } => {
+            SseEvent::ToolCall { id, name, args, index } => {
                 let data = json!({
                     "id": "chatcmpl-test",
                     "object": "chat.completion.chunk",
@@ -58,7 +59,7 @@ impl SseEvent {
                         "delta": {
                             "content": null,
                             "tool_calls": [{
-                                "index": 0,
+                                "index": index,
                                 "id": id,
                                 "type": "function",
                                 "function": {
@@ -68,6 +69,20 @@ impl SseEvent {
                             }]
                         },
                         "finish_reason": null
+                    }]
+                });
+                format!("data: {}\n\n", data)
+            }
+            SseEvent::FinishReason(reason) => {
+                let data = json!({
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion.chunk",
+                    "created": 1234567890,
+                    "model": "gpt-4",
+                    "choices": [{
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": reason
                     }]
                 });
                 format!("data: {}\n\n", data)
@@ -120,11 +135,23 @@ impl SseStreamBuilder {
     }
 
     pub fn add_tool_call(mut self, id: &str, name: &str, args: &str) -> Self {
+        self.add_tool_call_with_index(id, name, args, 0)
+    }
+
+    /// 添加工具调用（支持自定义 index）
+    pub fn add_tool_call_with_index(mut self, id: &str, name: &str, args: &str, index: usize) -> Self {
         self.events.push(SseEvent::ToolCall {
             id: id.to_string(),
             name: name.to_string(),
             args: args.to_string(),
+            index,
         }.to_sse_string());
+        self
+    }
+
+    /// 添加 finish_reason chunk（触发 ToolDone 和 MessageDone 事件）
+    pub fn add_finish_reason(mut self, reason: &str) -> Self {
+        self.events.push(SseEvent::FinishReason(reason.to_string()).to_sse_string());
         self
     }
 
@@ -224,6 +251,7 @@ mod fixtures_tests {
             id: "call_123".to_string(),
             name: "bash".to_string(),
             args: "{\"cmd\": \"ls\"}".to_string(),
+            index: 0,
         }.to_sse_string();
         assert!(event.contains("\"tool_calls\""));
         assert!(event.contains("bash"));

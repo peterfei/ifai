@@ -513,7 +513,15 @@ impl App {
             f.render_widget(Clear, content_area);
 
             // 计算内容区域信息（用于滚动指示器）
-            let visible_count = content_area.height as usize;
+            // 当 tasks 面板或命令弹出框可见时，减去它们的高度避免内容被遮挡
+            let overlay_height = if show_tasks && task_height > 0 {
+                task_height
+            } else if popup_visible && popup_height > 0 {
+                popup_height
+            } else {
+                0
+            };
+            let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize);
             let total_lines = content_lines.len();
 
             // === 内容区 ===

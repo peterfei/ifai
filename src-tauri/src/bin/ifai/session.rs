@@ -26,7 +26,67 @@ use crate::permission_store::{PermissionStore, PermissionRule, RuleType};
 use crate::token;  // 🔥 元编程：Token 状态栏
 use crate::token::format_number;  // 🔥 格式化数字（用于压缩统计）
 use crate::pipeline::PipelineTracker;  // 🎨 元编程：Pipeline 可视化
-use crate::loop_detector;  // 🎬 元编程：循环检测引擎
+use crate::loop_detector::{self, EmptyArgsResult};  // 🎬 元编程：循环检测引擎 + 空参数三态结果
+use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};  // 📋 TodoWrite 任务状态自动推进
+
+/// 📋 自动推进 TodoWrite 任务状态
+///
+/// AI（GLM）通常不会再次调用 TodoWrite 来更新状态，所以需要代码层面自动推进：
+/// - 将第一个 pending 任务标记为 in_progress
+/// - 当前已有 in_progress 时，如果还有 pending 任务，先将 in_progress 标记为 completed
+fn auto_advance_tasks() {
+    let store = get_global_task_store();
+    let tasks = store.get_tasks();
+    if tasks.is_empty() {
+        return;
+    }
+
+    let mut in_progress_idx: Option<usize> = None;
+    let mut first_pending_idx: Option<usize> = None;
+
+    for (i, t) in tasks.iter().enumerate() {
+        match t.status {
+            TaskStatus::InProgress => {
+                if in_progress_idx.is_none() {
+                    in_progress_idx = Some(i);
+                }
+            }
+            TaskStatus::Pending => {
+                if first_pending_idx.is_none() {
+                    first_pending_idx = Some(i);
+                }
+            }
+            TaskStatus::Completed => {}
+        }
+    }
+
+    match (in_progress_idx, first_pending_idx) {
+        (None, Some(idx)) => {
+            // 没有 in_progress → 将第一个 pending 设为 in_progress
+            let _ = store.update_task_status(idx, TaskStatus::InProgress);
+        }
+        (Some(_), Some(idx)) => {
+            // 已有 in_progress 且还有 pending → 标记当前 completed，推进下一个
+            if let Some(ip_idx) = in_progress_idx {
+                let _ = store.update_task_status(ip_idx, TaskStatus::Completed);
+            }
+            let _ = store.update_task_status(idx, TaskStatus::InProgress);
+        }
+        _ => {} // 全部 completed 或只有 in_progress 没有 pending → 不动
+    }
+}
+
+/// 📋 将当前 in_progress 任务标记为 completed（当 TodoWrite 本身被调用时）
+fn complete_current_task() {
+    let store = get_global_task_store();
+    let tasks = store.get_tasks();
+    for (i, t) in tasks.iter().enumerate() {
+        if t.status == TaskStatus::InProgress {
+            let _ = store.update_task_status(i, TaskStatus::Completed);
+            break;
+        }
+    }
+}
 
 /// 格式化持续时间
 fn format_duration(seconds: f64) -> String {
@@ -45,7 +105,7 @@ fn format_duration(seconds: f64) -> String {
 fn format_tool_args(tool_name: &str, args: &serde_json::Value) -> String {
     match tool_name {
         "bash" => {
-            if let Some(cmd) = args.get("cmd").and_then(|v| v.as_str()) {
+            if let Some(cmd) = args.get("command").and_then(|v| v.as_str()) {
                 if cmd.chars().count() > 80 {
                     format!("命令: {}...", cmd.chars().take(77).collect::<String>())
                 } else {
@@ -101,10 +161,10 @@ fn format_risk_level(risk: approval::RiskLevel) -> String {
 }
 
 // ============================================================================
-// Pending Tool Call (Collect Phase)
+// Pending Tool Call
 // ============================================================================
 
-/// 待执行的工具调用（Collect 阶段累积）
+/// 待执行的工具调用
 #[derive(Debug, Clone)]
 pub struct PendingToolCall {
     pub tool_id: String,
@@ -113,26 +173,27 @@ pub struct PendingToolCall {
 }
 
 // ============================================================================
-// Event Collector (Two-Phase Protocol)
+// 空参数判定（单一事实源）
 // ============================================================================
 
-/// 🏛️ 元编程：EventCollector — 两阶段工具调用协议
+/// 空参数判定
 ///
-/// **Collect 阶段**：
-/// - ToolStart 事件创建工具占位符
-/// - ToolDone 事件更新工具参数（完整参数在 ToolDone 中）
-/// - 累积 TextDelta 事件 → response 文本
+/// 仅判定**真正的空参数**：空字符串或显式 `{}`。
+/// 不检查 JSON 有效性——Provider 截断长参数会导致 JSON 解析失败，
+/// 但这不是"空参数"，应放行到 execute_tools 让工具层处理。
+fn is_empty_args(args: &str) -> bool {
+    args.trim().is_empty() || args.trim() == "{}"
+}
+
+// ============================================================================
+// Event Collector (Text Only)
+// ============================================================================
+
+/// EventCollector — 纯文本收集器
 ///
-/// **Execute 阶段**：
-/// - 执行所有待执行的工具调用
-/// - 返回工具结果
-///
-/// **显式事件处理**：零 `_ => {}` 静默忽略
+/// 工具调用在事件循环中直接收集（ToolDone 时构建 PendingToolCall），
+/// EventCollector 只负责收集 response_text。
 pub struct EventCollector {
-    /// 待执行的工具调用
-    pending_tools: Vec<PendingToolCall>,
-    /// 工具 ID 到索引的映射（用于 ToolDone 更新参数）
-    tool_index_map: HashMap<String, usize>,
     /// 响应文本
     response_text: String,
     /// 是否收集完成
@@ -140,87 +201,37 @@ pub struct EventCollector {
 }
 
 impl EventCollector {
-    /// 创建新的 EventCollector
     pub fn new() -> Self {
         Self {
-            pending_tools: Vec::new(),
-            tool_index_map: HashMap::new(),
             response_text: String::new(),
             done: false,
         }
     }
 
-    /// 🏛️ 元编程：Dispatch 事件 — 显式处理每个已知事件
-    ///
-    /// **消除 `_ => {}`**：每个事件变体都有明确的处理逻辑
     pub fn dispatch(&mut self, event: &StreamEvent) {
         match &event {
-            // Collect 阶段：累积文本
             StreamEvent::TextDelta { text } => {
                 self.response_text.push_str(text);
             }
-
-            // 🔥 FIX: ToolStart 创建占位符（input 是空的）
-            StreamEvent::ToolStart { tool_id, name, input } => {
-                let index = self.pending_tools.len();
-                self.tool_index_map.insert(tool_id.clone(), index);
-                self.pending_tools.push(PendingToolCall {
-                    tool_id: tool_id.clone(),
-                    name: name.clone(),
-                    args: String::new(), // 初始为空，等待 ToolDone 更新
-                });
-            }
-
-            // 🔥 FIX: ToolDone 更新完整参数
-            StreamEvent::ToolDone { tool_id, result } => {
-                if let Some(&index) = self.tool_index_map.get(tool_id) {
-                    if let Some(tool) = self.pending_tools.get_mut(index) {
-                        tool.args = result.clone();
-                    }
-                }
-            }
-
-            // 已知事件：显式忽略（不使用 `_ => {}`）
-            StreamEvent::MessageStart { .. } => {
-                // 消息开始 - 无需处理
-            }
-
             StreamEvent::MessageDone { .. } => {
-                // 消息完成 - 标记收集阶段结束
                 self.done = true;
             }
-
-            // 错误事件：虽然我们不处理，但显式匹配以确保未来新增事件时编译器强制处理
-            StreamEvent::Error { .. } => {
-                // 错误由上层处理
-            }
+            StreamEvent::ToolStart { .. }
+            | StreamEvent::ToolDone { .. }
+            | StreamEvent::MessageStart { .. }
+            | StreamEvent::Error { .. } => {}
         }
     }
 
-    /// 是否有待执行的工具调用
-    pub fn has_pending_tools(&self) -> bool {
-        !self.pending_tools.is_empty()
-    }
-
-    /// 获取待执行的工具调用
-    pub fn pending_tools(&self) -> &[PendingToolCall] {
-        &self.pending_tools
-    }
-
-    /// 获取响应文本
     pub fn response_text(&self) -> &str {
         &self.response_text
     }
 
-    /// 是否收集完成
     pub fn is_done(&self) -> bool {
         self.done
     }
 
-    /// 清空状态（用于下一轮）
     pub fn clear(&mut self) {
-        self.pending_tools.clear();
-        self.tool_index_map.clear();
         self.response_text.clear();
         self.done = false;
     }
@@ -643,8 +654,13 @@ impl Session {
             let mut first_delta = true;
             let mut current_response = String::new();
 
-            // EventCollector - 两阶段协议
+            // EventCollector - 收集 response_text
             let mut collector = EventCollector::new();
+
+            // 工具调用直接收集：ToolDone 时构建 PendingToolCall
+            let mut tool_name_map: HashMap<String, String> = HashMap::new();
+            let mut collected_tool_calls: Vec<PendingToolCall> = Vec::new();
+            let mut any_tool_done_received = false;  // 区分"无工具调用"和"全部被过滤"
 
             // 🔥 元编程：估算输入 tokens（复用 token::estimate_tokens）
             let estimated_input = token::estimate_tokens(&self.messages);
@@ -723,12 +739,30 @@ impl Session {
                                             });
                                         }
 
-                                        // 🎨 元编程：不在流式阶段创建步骤（此时 input 为空）
-                                        // 在 execute_tools() 中使用完整参数创建
+                                        // 保存 tool_id → name 映射（ToolDone 时使用）
+                                        tool_name_map.insert(tool_id.clone(), name.clone());
 
                                         collector.dispatch(&event);
                                     }
                                     StreamEvent::ToolDone { tool_id, result } => {
+                                        let tool_name = tool_name_map.get(tool_id)
+                                            .cloned()
+                                            .unwrap_or_else(|| "unknown".to_string());
+
+                                        any_tool_done_received = true;
+
+                                        self.pipeline_tracker.start_step(
+                                            tool_id.clone(),
+                                            tool_name.clone(),
+                                            result.clone(),
+                                        );
+
+                                        collected_tool_calls.push(PendingToolCall {
+                                            tool_id: tool_id.clone(),
+                                            name: tool_name,
+                                            args: result.clone(),
+                                        });
+
                                         collector.dispatch(&event);
                                     }
                                     StreamEvent::Error { code, message } => {
@@ -776,8 +810,11 @@ impl Session {
                 }
             }
 
-            // 检查是否有工具调用需要执行
-            if !collector.has_pending_tools() {
+            // 流结束后检查是否有工具调用需要执行
+            if collected_tool_calls.is_empty() && !any_tool_done_received {
+                // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
+                complete_current_task();
+
                 // 没有工具调用，正常结束
                 self.messages.push(Message {
                     role: MessageRole::Assistant,
@@ -800,22 +837,35 @@ impl Session {
 
             // Execute 阶段：执行工具
             println!(); // 换行
-            let tool_results = self.execute_tools(collector.pending_tools())?;
+            let tool_results = match self.execute_tools(&collected_tool_calls) {
+                Ok(results) => results,
+                Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
+                    println!("\n全局空参数熔断触发，终止执行");
+                    complete_current_task();
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
 
-            // 如果所有工具都被循环检测阻止，终止循环避免死循环
-            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| result.contains("循环检测阻止")) {
-                println!("\n所有工具调用均被循环检测阻止，终止执行");
+            // 如果所有工具都被阻止（循环检测或空参数），终止循环避免死循环
+            // 检测条件：结果包含 "循环检测阻止" 或 "空参数"（GlobalTripped 的信号）
+            // 注意：PerToolTripped 返回 "OK" 是中性跳过，不应触发终止——AI 可能换工具继续
+            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| {
+                result.contains("循环检测阻止") || result.contains("空参数")
+            }) {
+                println!("\n所有工具调用均被阻止（空参数或循环检测），终止执行");
+                complete_current_task();
                 break;
             }
 
-            // 构建 tool_calls 和 tool 结果消息
+            // 构建 tool_calls
             let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
                 ToolCall {
                     id: id.clone(),
                     call_type: "function".to_string(),
                     function: ToolCallFunction {
                         name: name.clone(),
-                        arguments: String::new(), // 将在下面填充
+                        arguments: String::new(),
                     },
                 }
             }).collect();
@@ -824,7 +874,7 @@ impl Session {
             self.messages.push(Message {
                 role: MessageRole::Assistant,
                 content: MessageContent::Text(current_response.clone()),
-                tool_calls: Some(tool_calls_value.clone()),
+                tool_calls: Some(tool_calls_value),
                 tool_call_id: None,
             });
 
@@ -877,7 +927,7 @@ impl Session {
             }
 
             // 🔥 元编程：根据工具类别动态获取最大迭代次数
-            let current_category = collector.pending_tools()
+            let current_category = collected_tool_calls
                 .first()
                 .map(|t| approval::categorize_tool(&t.name))
                 .unwrap_or(approval::ToolCategory::Safe);
@@ -888,6 +938,7 @@ impl Session {
             if continuation_count >= dynamic_max {
                 eprintln!("\n{}Maximum tool iterations reached ({}) for {:?} tools{}",
                     theme.warning, dynamic_max, current_category, RESET);
+                complete_current_task();
                 break;
             }
 
@@ -1047,6 +1098,11 @@ impl Session {
             let estimated_input = token::estimate_tokens(&self.messages);
             let mut line_buffer = String::new(); // 🖥️ TUI：缓冲未完成的行
 
+            // 工具调用直接收集：ToolDone 时构建 PendingToolCall
+            let mut tool_name_map: HashMap<String, String> = HashMap::new();
+            let mut collected_tool_calls: Vec<PendingToolCall> = Vec::new();
+            let mut any_tool_done_received = false;  // 区分"无工具调用"和"全部被过滤"
+
             use token::StatusBarState;
 
             loop {
@@ -1091,9 +1147,31 @@ impl Session {
                                     });
                                 }
                                 let _ = status_tx.send(format!("Tool: {} [running]", name));
+
+                                // 保存 tool_id → name 映射（ToolDone 时使用）
+                                tool_name_map.insert(tool_id.clone(), name.clone());
+
                                 collector.dispatch(&event);
                             }
                             StreamEvent::ToolDone { tool_id, result } => {
+                                // 直接收集：从映射获取 name，构建 PendingToolCall
+                                let tool_name = tool_name_map.get(tool_id)
+                                    .cloned()
+                                    .unwrap_or_else(|| "unknown".to_string());
+
+                                any_tool_done_received = true;
+                                self.pipeline_tracker.start_step(
+                                    tool_id.clone(),
+                                    tool_name.clone(),
+                                    result.clone(),
+                                );
+
+                                collected_tool_calls.push(PendingToolCall {
+                                    tool_id: tool_id.clone(),
+                                    name: tool_name,
+                                    args: result.clone(),
+                                });
+
                                 collector.dispatch(&event);
                             }
                             StreamEvent::Error { code, message } => {
@@ -1128,7 +1206,11 @@ impl Session {
                 }
             }
 
-            if !collector.has_pending_tools() {
+            // 流结束后检查是否有工具调用需要执行
+            if collected_tool_calls.is_empty() && !any_tool_done_received {
+                // 📋 AI 返回纯文本（无工具调用）→ 完成最后一个 in_progress 任务
+                complete_current_task();
+
                 self.messages.push(Message {
                     role: MessageRole::Assistant,
                     content: MessageContent::Text(current_response.clone()),
@@ -1149,14 +1231,27 @@ impl Session {
 
             // Execute 阶段：执行工具（TUI 模式通过审批 channel 交互）
             let _ = output_tx.send(String::new());
-            let tool_results = self.execute_tools_tui(collector.pending_tools(), &output_tx, &approval_tx).await?;
+            let tool_results = match self.execute_tools_tui(&collected_tool_calls, &output_tx, &approval_tx).await {
+                Ok(results) => results,
+                Err(e) if e == "GLOBAL_EMPTY_ARGS_TRIPPED" => {
+                    let _ = output_tx.send("全局空参数熔断触发，终止执行".to_string());
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
 
-            // 如果所有工具都被循环检测阻止，终止循环避免死循环
-            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| result.contains("循环检测阻止")) {
-                let _ = output_tx.send("所有工具调用均被循环检测阻止，终止执行".to_string());
+            // 如果所有工具都被阻止（循环检测或空参数），终止循环避免死循环
+            // 检测条件：结果包含 "循环检测阻止" 或 "空参数"（GlobalTripped 的信号）
+            // 注意：PerToolTripped 返回 "OK" 是中性跳过，不应触发终止——AI 可能换工具继续
+            if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| {
+                result.contains("循环检测阻止") || result.contains("空参数")
+            }) {
+                let _ = output_tx.send("所有工具调用均被阻止（空参数或循环检测），终止执行".to_string());
+                complete_current_task();
                 break;
             }
 
+            // 构建 tool_calls
             let tool_calls_value: Vec<ToolCall> = tool_results.iter().map(|(id, name, _, _)| {
                 ToolCall {
                     id: id.clone(),
@@ -1171,7 +1266,7 @@ impl Session {
             self.messages.push(Message {
                 role: MessageRole::Assistant,
                 content: MessageContent::Text(current_response.clone()),
-                tool_calls: Some(tool_calls_value.clone()),
+                tool_calls: Some(tool_calls_value),
                 tool_call_id: None,
             });
 
@@ -1216,7 +1311,7 @@ impl Session {
                 }
             }
 
-            let current_category = collector.pending_tools()
+            let current_category = collected_tool_calls
                 .first()
                 .map(|t| approval::categorize_tool(&t.name))
                 .unwrap_or(approval::ToolCategory::Safe);
@@ -1225,6 +1320,7 @@ impl Session {
             continuation_count += 1;
             if continuation_count >= dynamic_max {
                 let _ = output_tx.send(format!("Maximum tool iterations reached ({})", dynamic_max));
+                complete_current_task();
                 break;
             }
 
@@ -1244,18 +1340,73 @@ impl Session {
     ) -> Result<Vec<(String, String, String, Duration)>, String> {
         let mut results = Vec::new();
 
-        for tool in tools {
-            self.pipeline_tracker.start_step(
-                tool.tool_id.clone(),
-                tool.name.clone(),
-                tool.args.clone(),
-            );
-        }
+        // PipelineStep 已在事件循环的 ToolDone 中创建（使用完整参数）
 
         for tool in tools {
+            // 空参数/无效参数前置拦截（在审批对话框之前）
+            if is_empty_args(&tool.args) {
+                let breaker_result = approval::check_empty_args_breaker(&tool.name, &tool.args);
+
+                match breaker_result {
+                    EmptyArgsResult::GlobalTripped => {
+                        // 全局空参数超过阈值：立即终止，不继续循环
+                        let _ = output_tx.send("🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行".to_string());
+                        self.pipeline_tracker.skip_step(&tool.tool_id, "全局空参数熔断".to_string());
+                        return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
+                    }
+                    EmptyArgsResult::PerToolTripped => {
+                        // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
+                        let _ = output_tx.send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args));
+                        self.pipeline_tracker.skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
+                        // push 中性结果（非 error 前缀 → AI 不会视为失败去重试）
+                        results.push((tool.tool_id.clone(), tool.name.clone(), "OK".to_string(), Duration::ZERO));
+                        continue;
+                    }
+                    EmptyArgsResult::FirstOffense => {
+                        // 首次空参数：返回错误给 AI（给学习机会）
+                        let required_hint = self.tool_registry.get(&tool.name)
+                            .and_then(|t| t.input_schema.get("required").cloned())
+                            .and_then(|r| serde_json::to_string(&r).ok())
+                            .unwrap_or_else(|| "check tool schema".to_string());
+
+                        let error_msg = format!(
+                            "Error: Tool '{}' called with empty arguments {{}}. \
+                             Required parameters: {}. \
+                             You MUST include required parameters. Do NOT retry with empty arguments.",
+                            tool.name, required_hint
+                        );
+
+                        let _ = output_tx.send(format!("⚠️ 空参数阻止: {}({})", tool.name, tool.args));
+                        self.pipeline_tracker.skip_step(&tool.tool_id, "空参数直接阻止".to_string());
+                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        continue;
+                    }
+                    EmptyArgsResult::ValidArgs => {
+                        // 不应该到这里（is_empty_args 为 true）
+                        unreachable!()
+                    }
+                }
+            }
+
+            // 非空参数：重置熔断计数
+            approval::check_empty_args_breaker(&tool.name, &tool.args);
+
             // 🔥 首先检查用户白名单（持久化 + 会话级）
-            let args_json: serde_json::Value = serde_json::from_str(&tool.args)
-                .unwrap_or(serde_json::json!({}));
+            let args_json: serde_json::Value = match serde_json::from_str(&tool.args) {
+                Ok(v) => v,
+                Err(e) => {
+                    let preview = tool.args.chars().take(100).collect::<String>();
+                    let error_msg = format!("Error: 工具参数 JSON 解析失败: {} (args preview: {})", e, preview);
+                    let _ = output_tx.send(format!("⚠️ 参数解析失败: {}({}) → {}", tool.name, preview, e));
+                    self.pipeline_tracker.finish_step_error(
+                        &tool.tool_id,
+                        error_msg.clone(),
+                        Duration::ZERO,
+                    );
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    continue;
+                }
+            };
             let store_allowed = self.permission_store.borrow().is_allowed(&tool.name, &args_json);
 
             // 检查会话级规则（在 Session.session_rules 中）
@@ -1359,6 +1510,11 @@ impl Session {
                         duration,
                     );
                     results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
+
+                    // 📋 自动推进 TodoWrite 任务状态（非 TodoWrite 工具成功后）
+                    if tool.name != "TodoWrite" {
+                        auto_advance_tasks();
+                    }
                 }
                 Err(e) => {
                     let duration = start.elapsed();
@@ -1381,16 +1537,61 @@ impl Session {
         let mut results = Vec::new();
         let theme = render::default_theme();  // 🎨 主题（用于循环检测警告）
 
-        // 🎨 元编程：为所有工具创建 PipelineStep（使用完整参数）
-        for tool in tools {
-            self.pipeline_tracker.start_step(
-                tool.tool_id.clone(),
-                tool.name.clone(),
-                tool.args.clone(),
-            );
-        }
+        // PipelineStep 已在事件循环的 ToolDone 中创建（使用完整参数）
 
         for tool in tools {
+            // 空参数/无效参数前置拦截（在审批对话框之前）
+            if is_empty_args(&tool.args) {
+                let breaker_result = approval::check_empty_args_breaker(&tool.name, &tool.args);
+
+                match breaker_result {
+                    EmptyArgsResult::GlobalTripped => {
+                        // 全局空参数超过阈值：立即终止，不继续循环
+                        eprintln!("\n{}🛑 全局空参数熔断: 跨所有工具空参数调用次数过多，终止执行{}", theme.warning, render::RESET);
+                        self.pipeline_tracker.skip_step(&tool.tool_id, "全局空参数熔断".to_string());
+                        return Err("GLOBAL_EMPTY_ARGS_TRIPPED".to_string());
+                    }
+                    EmptyArgsResult::PerToolTripped => {
+                        // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
+                        eprintln!("\n{}⚡ 熔断跳过: {}({}){}", theme.warning, tool.name, tool.args, render::RESET);
+                        self.pipeline_tracker.skip_step(
+                            &tool.tool_id,
+                            "空参数熔断（静默跳过）".to_string(),
+                        );
+                        results.push((tool.tool_id.clone(), tool.name.clone(), "OK".to_string(), Duration::ZERO));
+                        continue;
+                    }
+                    EmptyArgsResult::FirstOffense => {
+                        // 首次空参数：返回错误给 AI（给学习机会）
+                        let required_hint = self.tool_registry.get(&tool.name)
+                            .and_then(|t| t.input_schema.get("required").cloned())
+                            .and_then(|r| serde_json::to_string(&r).ok())
+                            .unwrap_or_else(|| "check tool schema".to_string());
+
+                        let error_msg = format!(
+                            "Error: Tool '{}' called with empty arguments {{}}. \
+                             Required parameters: {}. \
+                             You MUST include required parameters. Do NOT retry with empty arguments.",
+                            tool.name, required_hint
+                        );
+
+                        eprintln!("\n{}⚠️  空参数阻止: {}({}){}", theme.warning, tool.name, tool.args, render::RESET);
+                        self.pipeline_tracker.skip_step(
+                            &tool.tool_id,
+                            "空参数直接阻止".to_string(),
+                        );
+                        results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                        continue;
+                    }
+                    EmptyArgsResult::ValidArgs => {
+                        unreachable!()
+                    }
+                }
+            }
+
+            // 非空参数：重置熔断计数
+            approval::check_empty_args_breaker(&tool.name, &tool.args);
+
             // 🔥 元编程：使用配置驱动的权限判断
             let category = approval::categorize_tool(&tool.name);
             let risk = approval::calculate_risk(&tool.name, &serde_json::from_str::<serde_json::Value>(&tool.args).unwrap_or(serde_json::json!({})));
@@ -1478,8 +1679,21 @@ impl Session {
                 tool_errors: results.iter().filter(|r| r.2.starts_with("Error:")).count(),
             });
 
-            let args_json: serde_json::Value = serde_json::from_str(&tool.args)
-                .map_err(|e| format!("Failed to parse tool args: {}", e))?;
+            let args_json: serde_json::Value = match serde_json::from_str(&tool.args) {
+                Ok(v) => v,
+                Err(e) => {
+                    let preview = tool.args.chars().take(100).collect::<String>();
+                    let error_msg = format!("Error: 工具参数 JSON 解析失败: {} (args preview: {})", e, preview);
+                    eprintln!("  {}⚠️ 参数解析失败: {}({}) → {}{}", theme.warning, tool.name, preview, e, render::RESET);
+                    self.pipeline_tracker.finish_step_error(
+                        &tool.tool_id,
+                        error_msg.clone(),
+                        Duration::ZERO,
+                    );
+                    results.push((tool.tool_id.clone(), tool.name.clone(), error_msg, Duration::ZERO));
+                    continue;
+                }
+            };
 
             // 🎨 元编程：记录执行时间
             let start = Instant::now();
@@ -1496,6 +1710,11 @@ impl Session {
                     );
 
                     results.push((tool.tool_id.clone(), tool.name.clone(), result, duration));
+
+                    // 📋 自动推进 TodoWrite 任务状态（非 TodoWrite 工具成功后）
+                    if tool.name != "TodoWrite" {
+                        auto_advance_tasks();
+                    }
                 }
                 Err(e) => {
                     let duration = start.elapsed();
@@ -1515,6 +1734,7 @@ impl Session {
 
         Ok(results)
     }
+
 }
 
 // ============================================================================
@@ -1544,18 +1764,43 @@ fn build_cli_system_prompt(spec: &ifainew_lib::harness::api::provider_metadata::
     };
 
     // 3. 使用 Handlebars 渲染（元编程）
-    match prompt_manager::template::render_template(&template_content, &variables) {
-        Ok(rendered) => rendered,
+    let mut rendered = match prompt_manager::template::render_template(&template_content, &variables) {
+        Ok(r) => r,
         Err(e) => {
             // 渲染失败时返回原始模板
             eprintln!("Warning: Failed to render prompt template: {}", e);
             template_content
         }
-    }
-}
+    };
 
-// ============================================================================
-// Tests
+    // 4. 🔥 FIX: 注入工具调用规则（与 GUI lib.rs 对齐，正面引导 + 防空参数）
+    let is_zhipu = spec.metadata.id.as_str() == "zhipu-official";
+
+    if is_zhipu {
+        // 智谱专用：正面引导 TodoWrite 使用流程（与 GUI lib.rs:426-452 对齐）
+        rendered.push_str("\n\n# ✅ MANDATORY: Always Use TodoWrite First!\n");
+        rendered.push_str("For ANY task that involves multiple steps or operations, you MUST:\n");
+        rendered.push_str("1. First call the TodoWrite tool to create a task list\n");
+        rendered.push_str("2. Then execute the tasks one by one\n");
+        rendered.push_str("3. Continue working until ALL tasks are complete\n");
+        rendered.push_str("4. DO NOT STOP after creating the task list!\n\n");
+        rendered.push_str("## After TodoWrite Tool Call:\n");
+        rendered.push_str("1. DO NOT STOP! Do NOT send finish_reason: stop!\n");
+        rendered.push_str("2. Continue immediately and execute the first task\n");
+        rendered.push_str("3. Execute the task (call write_file, read_file, etc.)\n");
+        rendered.push_str("4. Continue with remaining tasks\n");
+        rendered.push_str("5. Keep working until ALL tasks are complete!\n\n");
+        rendered.push_str("⛔ **FORBIDDEN:** Stopping after TodoWrite — Users want RESULTS, not just task lists!\n");
+    }
+
+    rendered.push_str("\n\n# Tool Call Rules (CRITICAL)\n");
+    rendered.push_str("1. Every tool call MUST include all required parameters in the arguments JSON\n");
+    rendered.push_str("2. If a tool call fails, fix the parameters or change your approach — DO NOT retry with the same or empty arguments\n");
+    rendered.push_str("3. After calling TodoWrite, immediately execute the first task — do NOT stop or call TodoWrite again\n");
+    rendered.push_str("4. NO REPETITION: If you see a tool result in conversation history, DO NOT call that tool again for the same purpose\n");
+
+    rendered
+}
 // ============================================================================
 
 #[cfg(test)]
@@ -1565,7 +1810,6 @@ mod tests {
     #[test]
     fn test_event_collector_new() {
         let collector = EventCollector::new();
-        assert!(!collector.has_pending_tools());
         assert_eq!(collector.response_text(), "");
         assert!(!collector.is_done());
     }
@@ -1585,32 +1829,10 @@ mod tests {
 
     #[test]
     fn test_collect_single_tool() {
+        // EventCollector 不再收集工具事件（工具由事件循环直接收集）
+        // 此测试验证 ToolStart/ToolDone 不影响 EventCollector 的文本收集
         let mut collector = EventCollector::new();
-        // ToolStart: 创建占位符（args 为空）
-        collector.dispatch(&StreamEvent::ToolStart {
-            tool_id: "call_1".to_string(),
-            name: "bash".to_string(),
-            input: String::new(), // 初始为空
-        });
-        // ToolDone: 更新完整参数
-        collector.dispatch(&StreamEvent::ToolDone {
-            tool_id: "call_1".to_string(),
-            result: r#"{"command":"ls"}"#.to_string(),
-        });
 
-        assert!(collector.has_pending_tools());
-        assert_eq!(collector.pending_tools().len(), 1);
-
-        let tool = &collector.pending_tools()[0];
-        assert_eq!(tool.tool_id, "call_1");
-        assert_eq!(tool.name, "bash");
-        assert_eq!(tool.args, r#"{"command":"ls"}"#);
-    }
-
-    #[test]
-    fn test_collect_multiple_tools() {
-        let mut collector = EventCollector::new();
-        // Tool 1
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "bash".to_string(),
@@ -1620,7 +1842,26 @@ mod tests {
             tool_id: "call_1".to_string(),
             result: r#"{"command":"ls"}"#.to_string(),
         });
-        // Tool 2
+
+        // EventCollector 不受工具事件影响
+        assert_eq!(collector.response_text(), "");
+        assert!(!collector.is_done());
+    }
+
+    #[test]
+    fn test_collect_multiple_tools() {
+        // EventCollector 不再收集工具事件
+        let mut collector = EventCollector::new();
+
+        collector.dispatch(&StreamEvent::ToolStart {
+            tool_id: "call_1".to_string(),
+            name: "bash".to_string(),
+            input: String::new(),
+        });
+        collector.dispatch(&StreamEvent::ToolDone {
+            tool_id: "call_1".to_string(),
+            result: r#"{"command":"ls"}"#.to_string(),
+        });
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_2".to_string(),
             name: "TodoWrite".to_string(),
@@ -1631,9 +1872,9 @@ mod tests {
             result: r#"{"todos":[{"content":"test"}]}"#.to_string(),
         });
 
-        assert_eq!(collector.pending_tools().len(), 2);
-        assert_eq!(collector.pending_tools()[0].name, "bash");
-        assert_eq!(collector.pending_tools()[1].name, "TodoWrite");
+        // EventCollector 只收集文本，工具事件不影响
+        assert_eq!(collector.response_text(), "");
+        assert!(!collector.is_done());
     }
 
     #[test]
@@ -1655,9 +1896,9 @@ mod tests {
             text: "...".to_string(),
         });
 
+        // 只收集文本，工具事件不影响
         assert_eq!(collector.response_text(), "Thinking...");
-        assert!(collector.has_pending_tools());
-        assert_eq!(collector.pending_tools().len(), 1);
+        assert!(!collector.is_done());
     }
 
     #[test]
@@ -1684,13 +1925,13 @@ mod tests {
             tool_id: "call_1".to_string(),
             result: r#"{"command":"ls"}"#.to_string(),
         });
+        collector.dispatch(&StreamEvent::MessageDone { input_tokens: 10, output_tokens: 5 });
 
-        assert!(collector.has_pending_tools());
         assert!(!collector.response_text().is_empty());
+        assert!(collector.is_done());
 
         collector.clear();
 
-        assert!(!collector.has_pending_tools());
         assert_eq!(collector.response_text(), "");
         assert!(!collector.is_done());
     }
@@ -1775,8 +2016,8 @@ mod tests {
 
     #[test]
     fn test_event_collector_explicit_event_handling() {
-        // 🏛️ 元编程：验证所有已知事件都被显式处理
-        // 添加新事件时，编译器会强制在这里添加测试
+        // 验证所有已知事件都被显式处理（编译器强制）
+        // EventCollector 现在只负责收集文本和标记完成
         let mut collector = EventCollector::new();
 
         // MessageStart - 显式忽略
@@ -1789,14 +2030,14 @@ mod tests {
             text: "test".to_string(),
         });
 
-        // ToolStart - 创建占位符（args 为空）
+        // ToolStart - 显式忽略（工具由事件循环直接收集）
         collector.dispatch(&StreamEvent::ToolStart {
             tool_id: "call_1".to_string(),
             name: "test".to_string(),
             input: String::new(),
         });
 
-        // ToolDone - 更新完整参数
+        // ToolDone - 显式忽略（工具由事件循环直接收集）
         collector.dispatch(&StreamEvent::ToolDone {
             tool_id: "call_1".to_string(),
             result: r#"{"arg":"value"}"#.to_string(),
@@ -1811,10 +2052,8 @@ mod tests {
             message: "test message".to_string(),
         });
 
-        // 验证状态
+        // 验证状态：只有文本和完成状态
         assert_eq!(collector.response_text(), "test");
-        assert!(collector.has_pending_tools());
-        assert_eq!(collector.pending_tools()[0].args, r#"{"arg":"value"}"#);
         assert!(collector.is_done());
     }
 
@@ -1938,7 +2177,7 @@ mod tests {
         // bash 命令包含中文，超过 80 字符时截断不 panic
         let long_chinese_cmd = "帮我创建一个2048小游戏的核心逻辑，需要包含游戏板的初始化和方块移动合并以及得分计算功能，支持上下左右四个方向的操作，还需要实现胜利和失败判定逻辑以及动画效果和得分排行榜功能";
         assert!(long_chinese_cmd.chars().count() > 80, "测试数据需超过 80 字符");
-        let args = serde_json::json!({ "cmd": long_chinese_cmd });
+        let args = serde_json::json!({ "command": long_chinese_cmd });
         let result = format_tool_args("bash", &args);
         assert!(result.contains("命令:"));
         assert!(result.ends_with("..."));
@@ -1948,7 +2187,7 @@ mod tests {
     #[test]
     fn test_format_tool_args_bash_short() {
         // 短命令不截断
-        let args = serde_json::json!({ "cmd": "ls -la" });
+        let args = serde_json::json!({ "command": "ls -la" });
         let result = format_tool_args("bash", &args);
         assert_eq!(result, "命令: ls -la");
     }
@@ -1957,7 +2196,7 @@ mod tests {
     fn test_format_tool_args_bash_mixed_cjk_ascii() {
         // 混合 CJK + ASCII，截断点落在多字节字符中间时不 panic
         let mixed = "python3 -c \"print('帮我实现一个功能非常复杂的逻辑，包含很多步骤和详细说明')\"";
-        let args = serde_json::json!({ "cmd": mixed });
+        let args = serde_json::json!({ "command": mixed });
         let result = format_tool_args("bash", &args);
         assert!(result.contains("命令:"));
     }
@@ -2019,7 +2258,7 @@ mod tests {
     fn test_format_tool_args_emoji_and_special_chars() {
         // 包含 emoji（4 字节 UTF-8）的参数
         let emoji_cmd = "cargo test --bin ifai -- 测试模块 🔥🚀✅ 🎯 目标覆盖所有边界情况";
-        let args = serde_json::json!({ "cmd": emoji_cmd });
+        let args = serde_json::json!({ "command": emoji_cmd });
         let result = format_tool_args("bash", &args);
         assert!(result.contains("命令:"));
         assert!(result.is_char_boundary(result.len()));

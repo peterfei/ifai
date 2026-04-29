@@ -155,8 +155,10 @@ impl TestEnv {
             // 添加 /v1 路径，因为 Mock 服务器监听 /v1/chat/completions
             let mock_base = format!("{}/v1", mock_uri);
             cmd.env("IFAI_API_BASE", mock_base);
-            cmd.env("IFAI_PROVIDER", "openai");
-            cmd.env("OPENAI_API_KEY", "test-key");
+            // 使用 zhipu provider（支持 tool_calls 的 SSE 解析）
+            // openai provider 不处理 tool_calls delta，会导致 mock 测试中工具调用被忽略
+            cmd.env("IFAI_PROVIDER", "zhipu");
+            cmd.env("ZHIPU_API_KEY", "test-key");
         }
 
         // 如果有 stdin 内容，设置 stdin

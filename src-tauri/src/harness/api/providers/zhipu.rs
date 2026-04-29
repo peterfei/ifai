@@ -178,12 +178,10 @@ impl ApiClient for ZhipuClient {
                                     if let Some(reason) = &choice.finish_reason {
                                         last_finish_reason = Some(reason.clone());
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
-                                            if !args.is_empty() {
-                                                yield Ok(StreamEvent::ToolDone {
-                                                    tool_id: tool_id.clone(),
-                                                    result: args.clone(),
-                                                });
-                                            }
+                                            yield Ok(StreamEvent::ToolDone {
+                                                tool_id: tool_id.clone(),
+                                                result: args.clone(),
+                                            });
                                         }
                                         tool_args_buffer.clear();
                                         tool_started.clear();
@@ -203,7 +201,16 @@ impl ApiClient for ZhipuClient {
                 }
             }
 
+            // 流结束兜底：finish_reason 缺失时 flush 残留的工具调用
             if !tool_args_buffer.is_empty() {
+                for (_index, (tool_id, args)) in tool_args_buffer.iter() {
+                    yield Ok(StreamEvent::ToolDone {
+                        tool_id: tool_id.clone(),
+                        result: args.clone(),
+                    });
+                }
+                tool_args_buffer.clear();
+                tool_started.clear();
             }
         }))
     }

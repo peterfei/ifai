@@ -881,6 +881,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                 // 显示用户输入
                 let theme = render::default_theme();
                 app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
+                app.render();  // 立即渲染用户消息，不等待 AI 响应
 
                 if text.starts_with('/') {
                     // REPL 命令
@@ -1096,6 +1097,12 @@ mod tests {
     mod e2e {
         use crate::tests::common::*;
         include!("tests/e2e/real_providers.rs");
+    }
+
+    // E2E Mock SSE Proxy 测试（模拟 LLM 多轮对话）
+    mod e2e_mock {
+        use crate::tests::common::*;
+        include!("tests/e2e/empty_args_loop.rs");
     }
 
     // 注意：旧的 CLI 模式压缩测试已移除

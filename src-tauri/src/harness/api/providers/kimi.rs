@@ -211,14 +211,12 @@ impl ApiClient for KimiClient {
                                         //     tool_args_buffer.keys().collect::<Vec<_>>()
                                         // );
 
-                                        // 发送所有累积的工具参数
+                                        // 发送所有累积的工具参数（即使为空也发送，让下游 breaker 处理）
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
-                                            if !args.is_empty() {
-                                                yield Ok(StreamEvent::ToolDone {
-                                                    tool_id: tool_id.clone(),
-                                                    result: args.clone(),
-                                                });
-                                            }
+                                            yield Ok(StreamEvent::ToolDone {
+                                                tool_id: tool_id.clone(),
+                                                result: args.clone(),
+                                            });
                                         }
                                         // 清空缓冲区
                                         tool_args_buffer.clear();
@@ -247,16 +245,21 @@ impl ApiClient for KimiClient {
                 }
             }
 
-            // 🔥 DIAGNOSTIC: 流结束时检查状态
+            // 流结束兜底：finish_reason 缺失时 flush 残留的工具调用
             if !tool_args_buffer.is_empty() {
-                println!("[Kimi] ⚠️ Stream ended with {} incomplete tool calls!",
-                    tool_args_buffer.len()
-                );
-                for (index, (tool_id, args)) in tool_args_buffer.iter() {
-                    println!("[Kimi]    [{}] tool_id={}, args_len={}",
-                        index, tool_id, args.len()
+                if std::env::var("IFAI_QUIET").is_err() {
+                    println!("[Kimi] ⚠️ Stream ended with {} incomplete tool calls, flushing...",
+                        tool_args_buffer.len()
                     );
                 }
+                for (_index, (tool_id, args)) in tool_args_buffer.iter() {
+                    yield Ok(StreamEvent::ToolDone {
+                        tool_id: tool_id.clone(),
+                        result: args.clone(),
+                    });
+                }
+                tool_args_buffer.clear();
+                tool_started.clear();
             }
             if std::env::var("IFAI_QUIET").is_err() {
                 println!("[Kimi] 🏁 Stream completed: frames={}, finish_reason={:?}",
