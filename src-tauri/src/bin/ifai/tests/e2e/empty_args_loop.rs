@@ -305,24 +305,25 @@ async fn test_finish_reason_missing_empty_args_passes_through() {
 //   2. AI 收到具体错误，有机会自我修正
 //   3. 全局熔断由 LoopDetector GlobalTripped 控制（阈值由 permission.rs 定义）
 
-/// 跨工具空参数：AI 轮换不同工具发空参数，breaker 处理但第 4 次触发全局熔断
+/// 跨工具空参数：AI 轮换不同工具发空参数，breaker 处理但第 16 次触发全局熔断
 ///
 /// 放行后行为：
-///   Turn 1-3: 不同工具空参数 → execute_tools breaker FirstOffense → 全局计数 1,2,3
-///   Turn 4: bash({}) → 全局计数 4 > 3 → GlobalTripped → 终止
-///   LoopDetector 全局阈值是 3（global_empty_args_count > 3 → GlobalTripped）
+///   Turn 1-15: 不同工具空参数 → execute_tools breaker FirstOffense/PerToolTripped → 全局计数 1..15
+///   Turn 16: bash({}) → 全局计数 16 > 15 → GlobalTripped → 终止
+///   LoopDetector 全局阈值是 15（global_empty_args_count > 15 → GlobalTripped）
 #[tokio::test]
 async fn test_cross_tool_empty_args_global_trip() {
     let env = TestEnv::with_mock().await.unwrap();
 
     // 模拟 AI 轮换 4 个不同工具，全部空参数
-    // 第 4 个触发全局熔断
-    let empty_turns: Vec<String> = vec![
-        build_tool_call_sse("write_file", "{}", "c1"),
-        build_tool_call_sse("read_file", "{}", "c2"),
-        build_tool_call_sse("TodoWrite", "{}", "c3"),
-        build_tool_call_sse("bash", "{}", "c4"),
-    ];
+    // 需要 16 轮才能触发 GlobalTripped（global count 16 > 15）
+    let tools = ["write_file", "read_file", "TodoWrite", "bash"];
+    let mut empty_turns: Vec<String> = Vec::new();
+    for i in 0..16 {
+        let tool = tools[i % 4];
+        let call_id = format!("c{}", i + 1);
+        empty_turns.push(build_tool_call_sse(tool, "{}", &call_id));
+    }
 
     let turn_counter = if let Some(mock) = env.mock_server() {
         mock.setup_multi_turn_streaming(empty_turns).await
@@ -334,14 +335,14 @@ async fn test_cross_tool_empty_args_global_trip() {
     output.assert_success();
 
     let actual_turns = turn_counter.load(Ordering::SeqCst);
-    // 3 轮空参数（全局计数 1,2,3）+ 第 4 轮触发 GlobalTripped → 终止
+    // 15 轮空参数（全局计数 1..15）+ 第 16 轮触发 GlobalTripped → 终止
     assert_eq!(
-        actual_turns, 4,
-        "Expected 4 API turns (3 empty + 4th triggers GlobalTripped). \
+        actual_turns, 16,
+        "Expected 16 API turns (15 empty + 16th triggers GlobalTripped). \
          Actual: {actual_turns}"
     );
 
-    eprintln!("  Actual API turns: {actual_turns} (expected 4) — GlobalTripped at 4th empty arg");
+    eprintln!("  Actual API turns: {actual_turns} (expected 16) — GlobalTripped at 16th empty arg");
 }
 
 /// 有效工作后空参数退化：breaker 返回错误但继续
@@ -470,31 +471,31 @@ async fn test_empty_args_gets_specific_error_from_tool() {
 // 长序列测试：验证无 Provider 层过滤后的正常行为
 // ═══════════════════════════════════════════════════════════
 
-/// 大量交替空参数和有效参数：LoopDetector 全局计数单调递增，有效参数不重置全局计数
+/// 大量交替空参数和有效参数：有效参数重置全局计数，不会触发 GlobalTripped
 ///
 ///   Turn 1: write_file({}) → global=1
-///   Turn 2: bash(valid) → global 不变
-///   Turn 3: read_file({}) → global=2
-///   Turn 4: write_file(valid) → global 不变
-///   Turn 5: bash({}) → global=3
-///   Turn 6: TodoWrite(valid) → global 不变
-///   Turn 7: read_file({}) → global=4 > 3 → GlobalTripped → 终止
+///   Turn 2: bash(valid) → global=0（有效参数重置全局计数）
+///   Turn 3: read_file({}) → global=1
+///   Turn 4: write_file(valid) → global=0
+///   Turn 5: bash({}) → global=1
+///   Turn 6: TodoWrite(valid) → global=0
+///   Turn 7: read_file({}) → global=1
+///   Turn 8: text "done" → 正常结束
 ///
-/// 有效参数只重置 per-tool streak，不重置全局计数。
-/// 不再有 Provider 层 5 次计数器终止，但 LoopDetector 全局熔断（阈值 3）仍然生效。
+/// 有效参数重置 per-tool streak 和全局计数，交替工作流永远不会 GlobalTripped。
 #[tokio::test]
 async fn test_long_sequence_global_trip_by_loop_detector() {
     let env = TestEnv::with_mock().await.unwrap();
 
     let turn_responses = vec![
         build_tool_call_sse("write_file", "{}", "c1"),       // empty → global=1
-        build_tool_call_sse("bash", r#"{"command":"ls"}"#, "c2"), // valid → global 不变
-        build_tool_call_sse("read_file", "{}", "c3"),       // empty → global=2
-        build_tool_call_sse("write_file", r#"{"path":"/tmp/a.txt","content":"hi"}"#, "c4"), // valid
-        build_tool_call_sse("bash", "{}", "c5"),            // empty → global=3
-        build_tool_call_sse("TodoWrite", r#"{"todos":[{"content":"t","status":"done","activeForm":"done"}]}"#, "c6"), // valid
-        build_tool_call_sse("read_file", "{}", "c7"),       // empty → global=4 > 3 → GlobalTripped
-        build_text_sse("done"), // 不会被调用
+        build_tool_call_sse("bash", r#"{"command":"ls"}"#, "c2"), // valid → global=0
+        build_tool_call_sse("read_file", "{}", "c3"),       // empty → global=1
+        build_tool_call_sse("write_file", r#"{"path":"/tmp/a.txt","content":"hi"}"#, "c4"), // valid → global=0
+        build_tool_call_sse("bash", "{}", "c5"),            // empty → global=1
+        build_tool_call_sse("TodoWrite", r#"{"todos":[{"content":"t","status":"done","activeForm":"done"}]}"#, "c6"), // valid → global=0
+        build_tool_call_sse("read_file", "{}", "c7"),       // empty → global=1
+        build_text_sse("done"),                             // 正常结束
     ];
 
     let turn_counter = if let Some(mock) = env.mock_server() {
@@ -507,12 +508,12 @@ async fn test_long_sequence_global_trip_by_loop_detector() {
     output.assert_success();
 
     let actual_turns = turn_counter.load(Ordering::SeqCst);
-    // 7 轮（第 7 轮 GlobalTripped 终止）
+    // 8 轮（7 工具 + 1 text done）— 有效参数重置 global count，不会 GlobalTripped
     assert_eq!(
-        actual_turns, 7,
-        "Expected 7 API turns (GlobalTripped at 7th turn, global count 4 > 3). \
+        actual_turns, 8,
+        "Expected 8 API turns (valid args reset global count → no GlobalTripped). \
          Actual: {actual_turns}"
     );
 
-    eprintln!("  Actual API turns: {actual_turns} (expected 7) — GlobalTripped by LoopDetector");
+    eprintln!("  Actual API turns: {actual_turns} (expected 8) — valid args reset global count, no GlobalTripped");
 }
