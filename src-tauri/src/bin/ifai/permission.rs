@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{RwLock, OnceLock};
-use crate::loop_detector::{LoopDetector, LoopDetectionConfig, LoopDetectionStatus};
+use crate::loop_detector::{LoopDetector, LoopDetectionConfig, LoopDetectionStatus, EmptyArgsResult};
 
 // ═══════════════════════════════════════════════════════════
 // 类型定义（与 UI 对齐）
@@ -335,6 +335,25 @@ pub fn reset_loop_detector() {
             detector.reset();
         }
     }
+}
+
+/// 🔥 空参数熔断检测
+///
+/// 返回 `EmptyArgsResult`：
+/// - `ValidArgs` — 参数非空
+/// - `FirstOffense` — 该工具首次空参数（调用方应返回错误给 AI）
+/// - `PerToolTripped` — 该工具连续 2+ 次空参数（调用方应静默跳过）
+/// - `GlobalTripped` — 全局空参数超过阈值（调用方应终止整个循环）
+pub fn check_empty_args_breaker(tool_name: &str, args: &str) -> EmptyArgsResult {
+    ensure_loop_detector_initialized();
+
+    if let Some(detector) = LOOP_DETECTOR.get() {
+        if let Ok(mut detector) = detector.write() {
+            return detector.check_empty_args_breaker(tool_name, args);
+        }
+    }
+
+    EmptyArgsResult::ValidArgs
 }
 
 #[cfg(test)]
