@@ -308,15 +308,16 @@ async fn test_finish_reason_missing_empty_args_passes_through() {
 /// 跨工具空参数：AI 轮换不同工具发空参数，breaker 处理但第 16 次触发全局熔断
 ///
 /// 放行后行为：
-///   Turn 1-15: 不同工具空参数 → execute_tools breaker FirstOffense/PerToolTripped → 全局计数 1..15
-///   Turn 16: bash({}) → 全局计数 16 > 15 → GlobalTripped → 终止
-///   LoopDetector 全局阈值是 15（global_empty_args_count > 15 → GlobalTripped）
+///   Turn 1-8: 4 个不同工具各 2 次 FirstOffense（per-tool streak=2）
+///   Turn 9: write_file 第 3 次 → PerToolTripped → "Skipped" → 全部 Skipped → 终止
+///   注意：修复 PerToolTripped 返回 "Skipped" 后，不再需要等到 GlobalTripped
 #[tokio::test]
 async fn test_cross_tool_empty_args_global_trip() {
     let env = TestEnv::with_mock().await.unwrap();
 
     // 模拟 AI 轮换 4 个不同工具，全部空参数
-    // 需要 16 轮才能触发 GlobalTripped（global count 16 > 15）
+    // Per-tool breaker: 每个 tool 连续 3 次空参数后 PerToolTripped
+    // Turn 9: write_file 第 3 次 → PerToolTripped → Skipped → 全部 Skipped → 终止
     let tools = ["write_file", "read_file", "TodoWrite", "bash"];
     let mut empty_turns: Vec<String> = Vec::new();
     for i in 0..16 {
@@ -335,14 +336,15 @@ async fn test_cross_tool_empty_args_global_trip() {
     output.assert_success();
 
     let actual_turns = turn_counter.load(Ordering::SeqCst);
-    // 15 轮空参数（全局计数 1..15）+ 第 16 轮触发 GlobalTripped → 终止
+    // 8 轮 FirstOffense（4 工具 × 2 次）+ 第 9 轮 write_file PerToolTripped
+    // → 所有结果 "Skipped" → 终止条件触发
     assert_eq!(
-        actual_turns, 16,
-        "Expected 16 API turns (15 empty + 16th triggers GlobalTripped). \
+        actual_turns, 9,
+        "Expected 9 API turns (8 FirstOffense + 9th PerToolTripped → all Skipped → terminate). \
          Actual: {actual_turns}"
     );
 
-    eprintln!("  Actual API turns: {actual_turns} (expected 16) — GlobalTripped at 16th empty arg");
+    eprintln!("  Actual API turns: {actual_turns} (expected 9) — PerToolTripped at 9th, Skipped terminates");
 }
 
 /// 有效工作后空参数退化：breaker 返回错误但继续
@@ -455,11 +457,12 @@ async fn test_empty_args_gets_specific_error_from_tool() {
     output.assert_success();
 
     let actual_turns = turn_counter.load(Ordering::SeqCst);
-    // 3 轮空参数通过 execute_tools + 1 轮 text = 4
+    // 3 轮空参数：Turn 1-2 FirstOffense（返回 error 含 "空参数"），
+    // Turn 3 PerToolTripped（返回 "Skipped"）→ 全部 Skipped → 终止
+    // text "done" 不会被执行（因为 Turn 3 的 Skipped 触发了终止条件）
     assert_eq!(
-        actual_turns, 4,
-        "Expected 4 API turns (3 empty + text done). \
-         AI now receives specific tool errors. \
+        actual_turns, 3,
+        "Expected 3 API turns (2 FirstOffense + 1 PerToolTripped → all Skipped → terminate). \
          Actual: {actual_turns}"
     );
 

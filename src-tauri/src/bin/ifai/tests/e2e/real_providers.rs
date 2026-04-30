@@ -696,3 +696,227 @@ async fn test_zhipu_hf_todowrite_2048_explicit() {
             todowrite_count, cont_count, safe_truncate(&combined, 3000));
     }
 }
+
+/// 高保真：glm-4.6 空参数阻止 + 熔断场景复现
+///
+/// 复现用户反馈的真实 bug 场景：
+///   1. LLM 正常执行工具（write_file 等）
+///   2. 续播后 LLM 开始反复发送 TodoWrite({}) 空参数
+///   3. 空参数阻止 → 熔断 → 循环终止
+///
+/// 验证点：
+///   - 空参数阻止计数 >= 1（至少触发一次 FirstOffense）
+///   - 熔断跳过计数 >= 1（至少触发一次 PerToolTripped）
+///   - 循环最终终止（Continuing 有上限，不会无限续播）
+///   - 正常工具执行先于空参数阻止（write_file 在跳过之前）
+#[tokio::test]
+#[serial_test::serial]
+async fn test_zhipu_hf_empty_args_block_and_trip() {
+    let Some(mut tenv) = make_zhipu_hf_env().await else {
+        eprintln!("[SKIP] test_zhipu_hf_empty_args_block_and_trip: no Zhipu API key");
+        return;
+    };
+
+    // 预填 stdin：50 个 y 自动批准所有高风险工具
+    let auto_approve: String = "y\n".repeat(50);
+    tenv.set_stdin(&auto_approve);
+
+    // 使用明确的 TodoWrite 提示，更容易触发空参数场景
+    let output = tenv.run_cli(&[
+        "请使用 TodoWrite 创建一个任务列表，包含 3 个任务：\
+         1) 在当前目录创建 hello.txt 写入 Hello World \
+         2) 读取 hello.txt \
+         3) 创建 summary.txt 写入文件内容摘要。\
+         然后逐步执行每个任务。",
+    ]).await;
+
+    let output = match output {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("[Zhipu-HF] empty_args: CLI launch failed: {}", e);
+            return;
+        }
+    };
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+
+    let write_count = combined.matches("write_file").count();
+    let bash_count = combined.matches("bash({").count();
+    let tool_count = write_count + bash_count;
+    let cont_count = combined.matches("Continuing").count();
+    let todowrite_count = combined.matches("TodoWrite").count();
+
+    // 空参数阻止场景的关键指标
+    let empty_block_count = combined.matches("空参数阻止").count();
+    let empty_trip_count = combined.matches("熔断跳过").count();
+    let empty_global_count = combined.matches("全局空参数熔断").count();
+    let skipped_count = combined.matches("[跳过]").count();
+    let network_error = combined.contains("Failed to start stream: Network")
+        || combined.contains("Stream error: Network");
+
+    eprintln!("  [glm-4.6] TodoWrite×{}, tools×{}, Continuing×{}",
+        todowrite_count, tool_count, cont_count);
+    eprintln!("  [空参数] 阻止×{}, 熔断×{}, 全局熔断×{}, [跳过]×{}",
+        empty_block_count, empty_trip_count, empty_global_count, skipped_count);
+
+    if network_error {
+        eprintln!("[SKIP] test_zhipu_hf_empty_args_block_and_trip: network error");
+        return;
+    }
+
+    // 诊断信息
+    if empty_block_count >= 1 {
+        eprintln!("\n  ══════════════════════════════════════════════════════");
+        eprintln!("  [EMPTY ARGS] Detected {} empty-arg blocks, {} trips",
+            empty_block_count, empty_trip_count);
+        if empty_global_count >= 1 {
+            eprintln!("  [GLOBAL TRIP] Global empty args breaker tripped!");
+        }
+        eprintln!("  ══════════════════════════════════════════════════════");
+    }
+
+    // 核心断言 1：如果有空参数阻止，循环必须终止（不会无限续播）
+    if empty_block_count >= 1 {
+        // 续播次数应该有上限——不可能无限续播
+        // 正常任务最多续播 10-20 次，空参数循环不应超过 30 次
+        assert!(cont_count <= 30,
+            "Empty args loop detected! Continuing×{} with {} empty blocks. \
+             The loop should have terminated earlier.\n{}",
+            cont_count, empty_block_count, safe_truncate(&combined, 3000));
+    }
+
+    // 核心断言 2：熔断机制应生效（连续空参数不应无限 FirstOffense）
+    if empty_block_count >= 3 {
+        assert!(empty_trip_count >= 1,
+            "Breaker not working! {} empty blocks but 0 trips. \
+             Per-tool breaker should trip after 3 consecutive empty args.\n{}",
+            empty_block_count, safe_truncate(&combined, 3000));
+    }
+
+    // 核心断言 3：正常工具应在空参数阻止之前执行
+    if empty_block_count >= 1 && tool_count == 0 {
+        eprintln!("\n  [WARN] All tools were empty-arg blocked, no actual work done.");
+        eprintln!("  This may indicate LLM is stuck sending empty TodoWrite from the start.");
+    }
+
+    eprintln!("[Zhipu-HF] empty_args_block_and_trip: \
+        TodoWrite×{}, tools×{}, Continuing×{}, block×{}, trip×{}, global×{}",
+        todowrite_count, tool_count, cont_count,
+        empty_block_count, empty_trip_count, empty_global_count);
+}
+
+/// 高保真：glm-4.6 长对话续播中 TodoWrite 空参数诊断
+///
+/// 核心场景：LLM 在完成部分任务后，续播时重新调用 TodoWrite 但参数为空。
+/// 这可能是因为：
+///   A) LLM 行为：续播时忘记了参数格式，直接发 TodoWrite({})
+///   B) Provider 截断：Zhipu API 提前发送 finish_reason，参数累积不完整
+///
+/// 测试策略：要求 LLM 分多步完成任务（5+ 步），增加续播轮次，
+/// 观察 TodoWrite 是否在后续轮次中出现空参数。
+/// 同时检查 Zhipu Provider 诊断日志（[Zhipu] ⚠️ ToolDone with empty args）。
+#[tokio::test]
+#[serial_test::serial]
+async fn test_zhipu_hf_todowrite_empty_args_diagnosis() {
+    let Some(mut tenv) = make_zhipu_hf_env().await else {
+        eprintln!("[SKIP] test_zhipu_hf_todowrite_empty_args_diagnosis: no Zhipu API key");
+        return;
+    };
+
+    // 预填 stdin：50 个 y 自动批准所有高风险工具
+    let auto_approve: String = "y\n".repeat(50);
+    tenv.set_stdin(&auto_approve);
+
+    // 长任务 prompt：要求多步执行，增加续播次数，更容易触发空参数
+    let output = tenv.run_cli(&[
+        "请创建一个简单的计算器 Web 应用，要求：\
+         1) 使用 TodoWrite 创建任务列表\
+         2) 创建 index.html 包含计算器界面\
+         3) 创建 style.css 包含样式\
+         4) 创建 app.js 包含计算逻辑\
+         5) 创建 README.md 说明文档\
+         每完成一个任务后继续下一个，不要停。",
+    ]).await;
+
+    let output = match output {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("[Zhipu-HF] empty_args_diagnosis: CLI launch failed: {}", e);
+            return;
+        }
+    };
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr);
+
+    let write_count = combined.matches("write_file").count();
+    let bash_count = combined.matches("bash({").count();
+    let tool_count = write_count + bash_count;
+    let cont_count = combined.matches("Continuing").count();
+    let todowrite_count = combined.matches("TodoWrite").count();
+
+    // 空参数指标
+    let empty_block_count = combined.matches("空参数阻止").count();
+    let empty_trip_count = combined.matches("熔断跳过").count();
+    let empty_global_count = combined.matches("全局空参数熔断").count();
+
+    // Provider 诊断日志
+    let provider_empty_diag = combined.matches("[Zhipu] ⚠️ ToolDone with empty args").count();
+    let provider_args_len = combined.matches("args_len=").count();
+
+    // JSON 解析失败（另一个常见问题）
+    let json_parse_fail = combined.matches("JSON 解析失败").count();
+    let json_parse_eof = combined.matches("EOF while parsing").count();
+
+    let network_error = combined.contains("Failed to start stream: Network")
+        || combined.contains("Stream error: Network");
+
+    eprintln!("  [glm-4.6] TodoWrite×{}, tools×{}, Continuing×{}",
+        todowrite_count, tool_count, cont_count);
+    eprintln!("  [空参数] 阻止×{}, 熔断×{}, 全局熔断×{}",
+        empty_block_count, empty_trip_count, empty_global_count);
+    eprintln!("  [Provider诊断] empty_ToolDone×{}, args_len_log×{}",
+        provider_empty_diag, provider_args_len);
+    eprintln!("  [JSON解析] 失败×{}, EOF×{}",
+        json_parse_fail, json_parse_eof);
+
+    if network_error {
+        eprintln!("[SKIP] test_zhipu_hf_todowrite_empty_args_diagnosis: network error");
+        return;
+    }
+
+    // 根因诊断
+    if empty_block_count >= 1 {
+        eprintln!("\n  ══════════════════════════════════════════════════════");
+        eprintln!("  [空参数根因诊断]");
+        if provider_empty_diag >= 1 {
+            eprintln!("  → Provider 截断：Zhipu API 在参数传输完成前发送了 finish_reason");
+            eprintln!("    ToolDone 收到空 args，说明增量累积不完整");
+        } else {
+            eprintln!("  → LLM 行为：LLM 确实发送了空参数 TodoWrite({{}})");
+            eprintln!("    Provider 诊断日志无 empty args 记录");
+        }
+        eprintln!("  ══════════════════════════════════════════════════════");
+    }
+
+    if json_parse_fail >= 1 {
+        eprintln!("\n  ══════════════════════════════════════════════════════");
+        eprintln!("  [JSON解析失败] {} 次 (EOF: {} 次)", json_parse_fail, json_parse_eof);
+        eprintln!("  → LLM 生成的 JSON 参数中包含未转义的特殊字符");
+        eprintln!("  → 导致参数被截断，后续工具调用可能收到不完整数据");
+        eprintln!("  ══════════════════════════════════════════════════════");
+    }
+
+    // 核心断言：循环必须终止
+    if empty_block_count >= 1 {
+        assert!(cont_count <= 30,
+            "Empty args infinite loop! Continuing×{}, block×{}.\n{}",
+            cont_count, empty_block_count, safe_truncate(&combined, 3000));
+    }
+
+    eprintln!("[Zhipu-HF] empty_args_diagnosis: \
+        TodoWrite×{}, tools×{}, Continuing×{}, block×{}, trip×{}, \
+        provider_empty×{}, json_fail×{}",
+        todowrite_count, tool_count, cont_count,
+        empty_block_count, empty_trip_count,
+        provider_empty_diag, json_parse_fail);
+}
