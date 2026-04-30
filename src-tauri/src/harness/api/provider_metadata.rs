@@ -105,6 +105,9 @@ pub struct ProviderMetadata {
     pub name: String,
     /// 协议类型
     pub protocol: String,
+    /// 🏛️ 声明式标签：用于匹配行为规则（如 needs_todowrite_guidance, needs_identity_hint）
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// API 规范
@@ -187,6 +190,229 @@ pub struct ModelSpec {
     /// 标签
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+// ============================================================================
+// 🏛️ 声明式行为规则系统：代码即数据，配置驱动行为
+// ============================================================================
+
+/// 行为规则片段 — 声明式数据结构，替代 if is_zhipu { push_str(...) } 命令式逻辑
+struct PromptRule {
+    /// 规则唯一标识
+    id: &'static str,
+    /// 匹配 provider tags（空数组 = 所有 provider 都匹配）
+    tags: &'static [&'static str],
+    /// 注入优先级（越大越先注入）
+    priority: u8,
+    /// 提示词模板，支持 {provider} 占位符
+    content: &'static str,
+}
+
+/// 全局行为规则表 — 单一数据源，session.rs 和 lib.rs 共用
+const BEHAVIOR_RULES: &[PromptRule] = &[
+    // --- 所有 provider 都适用的通用规则 ---
+    PromptRule {
+        id: "tool_call_rules",
+        tags: &[],
+        priority: 10,
+        content: "\
+# Tool Call Rules (CRITICAL)\n\
+1. Every tool call MUST include all required parameters in the arguments JSON\n\
+2. If a tool call fails, fix the parameters or change your approach — DO NOT retry with the same or empty arguments\n\
+3. After calling TodoWrite, immediately execute the first task — do NOT stop or call TodoWrite again\n\
+4. NO REPETITION: If you see a tool result in conversation history, DO NOT call that tool again for the same purpose",
+    },
+    PromptRule {
+        id: "tool_priority",
+        tags: &[],
+        priority: 5,
+        content: "\
+# IMPORTANT: WHEN TO USE TOOLS\n\
+You have access to SPECIALIZED TOOLS. ALWAYS prefer them over generic bash:\n\n\
+## File Operations (PREFER THESE OVER BASH)\n\
+1. read_file - Read file contents (PREFER over 'cat' in bash)\n\
+2. write_file - Write/create files (PREFER over 'echo' in bash)\n\
+3. edit_file - Edit/replace text in files (PREFER over 'sed' in bash)\n\
+4. glob_search - Find files by pattern (PREFER over 'find' in bash)\n\
+5. grep_search - Search text in files (PREFER over 'grep' in bash)\n\n\
+## Task Management\n\
+DO NOT create a file with agent_write_file - this creates a messy text file!\n\
+ALWAYS use the TodoWrite tool instead - this creates a proper interactive task panel!\n\n\
+## When to use bash\n\
+- Only use bash for system queries (pwd, date, uname) or complex shell scripts\n\
+- For file operations, ALWAYS use the specialized tools above",
+    },
+    // --- 需要增强引导的 provider（通过 tags 匹配）---
+    PromptRule {
+        id: "identity_hint",
+        tags: &["needs_identity_hint"],
+        priority: 30,
+        content: "\
+**Your Identity:** You are IfAI, a professional AI coding assistant powered by {provider} model.\n\n\
+**Your Capabilities:**\n\
+- Code writing, analysis and optimization\n\
+- Multi-language support (Rust, Python, JavaScript, Go, etc.)\n\
+- Problem diagnosis and debugging\n\
+- Architecture design and best practices\n\
+- **Tool calling (file operations, task management, etc.)**",
+    },
+    PromptRule {
+        id: "todowrite_mandatory",
+        tags: &["needs_todowrite_guidance"],
+        priority: 25,
+        content: "\
+# MANDATORY: Always Use TodoWrite First!\n\
+For ANY task that involves multiple steps or operations, you MUST:\n\
+1. First call the TodoWrite tool to create a task list\n\
+2. Then execute the tasks one by one\n\
+3. Continue working until ALL tasks are complete\n\
+4. DO NOT STOP after creating the task list!\n\n\
+Examples of tasks that require TodoWrite:\n\
+- Creating a new feature (login, dashboard, etc.)\n\
+- Building a complete application\n\
+- Multiple file modifications\n\
+- Code refactoring across multiple files\n\
+- Setting up project infrastructure\n\n\
+FORBIDDEN: Stopping after TodoWrite — Users want RESULTS, not just task lists!",
+    },
+    PromptRule {
+        id: "todowrite_continuation",
+        tags: &["needs_todowrite_guidance"],
+        priority: 20,
+        content: "\
+# CRITICAL WORKFLOW - After TodoWrite\n\
+1. DO NOT STOP! Do NOT send finish_reason: stop!\n\
+2. Continue immediately: \"Now let me start with the first task: [name]\"\n\
+3. Execute the task (call write_file, read_file, etc.)\n\
+4. Continue with remaining tasks one by one\n\
+5. Keep working until ALL tasks are complete!\n\n\
+FORBIDDEN: Stopping after tool calls!\n\
+REQUIRED: Always continue with more content after tools!\n\
+Remember: Users want you to DO the work, not just plan it!",
+    },
+    // --- 所有 provider 的通用 continuation 规则（较弱版本）---
+    PromptRule {
+        id: "continuation_basic",
+        tags: &[],
+        priority: 8,
+        content: "\
+# CRITICAL: Always Continue After Tools\n\
+FORBIDDEN: Stopping after tool calls!\n\
+REQUIRED: Always continue with more content after tools!\n\
+After calling TodoWrite, immediately execute the first task — do NOT stop!",
+    },
+];
+
+/// 🏛️ 声明式：根据 provider spec 的 tags 构建行为提示词
+/// 替代 session.rs / lib.rs 中的 `if is_zhipu { push_str(...) }` 命令式逻辑
+///
+/// # 参数
+/// - `provider_id`: provider 标识（如 "zhipu-official"），用于 {provider} 占位符
+/// - `provider_name`: provider 显示名称（如 "Zhipu AI (智谱)"）
+/// - `provider_tags`: provider metadata.tags（声明式标签匹配）
+/// - `root`: 工作目录（{root} 占位符）
+///
+/// # 用法
+/// ```rust
+/// // session.rs / lib.rs 中替代 if is_zhipu { ... } 逻辑
+/// let prompt = provider_metadata::build_behavior_prompt(
+///     &spec.metadata.id, &spec.metadata.name, &spec.metadata.tags, &root
+/// );
+/// ```
+pub fn build_behavior_prompt(
+    provider_id: &str,
+    provider_name: &str,
+    provider_tags: &[String],
+    root: &str,
+) -> String {
+    // 按优先级降序排列匹配的规则
+    let mut matched: Vec<&PromptRule> = BEHAVIOR_RULES
+        .iter()
+        .filter(|r| {
+            r.tags.is_empty()
+                || r.tags.iter().any(|tag| provider_tags.iter().any(|pt| pt == tag))
+        })
+        .collect();
+    matched.sort_by_key(|r| std::cmp::Reverse(r.priority));
+
+    let mut sections = Vec::with_capacity(matched.len() + 1);
+
+    // 第一段：工作目录声明
+    sections.push(format!(
+        "# Current Working Directory\n\
+         **Current Project Directory:** `{}`\n\
+         **Important:** All file operations are relative to this directory.",
+        root
+    ));
+
+    // 声明式规则注入
+    for rule in matched {
+        let content = rule
+            .content
+            .replace("{provider}", provider_name)
+            .replace("{provider_id}", provider_id);
+        sections.push(content);
+    }
+
+    sections.join("\n\n")
+}
+
+#[cfg(test)]
+mod tests_behavior_prompt {
+    use super::*;
+
+    #[test]
+    fn test_behavior_prompt_all_providers_get_basic_rules() {
+        // 无 tags 的 provider 应该获得通用规则（tool_call_rules + tool_priority + continuation_basic）
+        let prompt = build_behavior_prompt("openai-official", "OpenAI", &[], "/tmp/test");
+        assert!(prompt.contains("Tool Call Rules (CRITICAL)"));
+        assert!(prompt.contains("WHEN TO USE TOOLS"));
+        assert!(prompt.contains("Always Continue After Tools"));
+        assert!(prompt.contains("/tmp/test"));
+        // 不应包含 tag 专属规则
+        assert!(!prompt.contains("MANDATORY: Always Use TodoWrite First"));
+        assert!(!prompt.contains("Your Identity:"));
+    }
+
+    #[test]
+    fn test_behavior_prompt_zhipu_gets_enhanced_rules() {
+        // zhipu tags → needs_todowrite_guidance + needs_identity_hint
+        let tags = vec!["needs_todowrite_guidance".to_string(), "needs_identity_hint".to_string()];
+        let prompt = build_behavior_prompt("zhipu-official", "Zhipu AI (智谱)", &tags, "/tmp/test");
+        // 增强规则
+        assert!(prompt.contains("MANDATORY: Always Use TodoWrite First"));
+        assert!(prompt.contains("CRITICAL WORKFLOW - After TodoWrite"));
+        assert!(prompt.contains("powered by Zhipu AI (智谱) model"));
+        // 通用规则也在
+        assert!(prompt.contains("Tool Call Rules (CRITICAL)"));
+        assert!(prompt.contains("WHEN TO USE TOOLS"));
+    }
+
+    #[test]
+    fn test_behavior_prompt_deepseek_gets_todowrite_but_no_identity() {
+        let tags = vec!["needs_todowrite_guidance".to_string()];
+        let prompt = build_behavior_prompt("deepseek-official", "DeepSeek", &tags, "/tmp/test");
+        assert!(prompt.contains("MANDATORY: Always Use TodoWrite First"));
+        assert!(!prompt.contains("Your Identity:"));
+    }
+
+    #[test]
+    fn test_behavior_prompt_priority_ordering() {
+        let tags = vec!["needs_identity_hint".to_string()];
+        let prompt = build_behavior_prompt("test", "TestProvider", &tags, "/tmp/test");
+        // identity_hint priority=30 应在 tool_call_rules priority=10 之前
+        let identity_pos = prompt.find("Your Identity:").unwrap();
+        let tool_rules_pos = prompt.find("Tool Call Rules (CRITICAL)").unwrap();
+        assert!(identity_pos < tool_rules_pos, "identity_hint should appear before tool_call_rules");
+    }
+
+    #[test]
+    fn test_behavior_prompt_provider_placeholder() {
+        let tags = vec!["needs_identity_hint".to_string()];
+        let prompt = build_behavior_prompt("kimi-official", "Kimi (Moonshot AI)", &tags, "/root");
+        assert!(prompt.contains("powered by Kimi (Moonshot AI) model"));
+        assert!(prompt.contains("/root"));
+    }
 }
 
 #[cfg(test)]

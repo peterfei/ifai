@@ -5,6 +5,7 @@ metadata:
   id: kimi-official
   name: Kimi (Moonshot AI)
   protocol: openai
+  tags: [needs_todowrite_guidance]
 
 api_spec:
   base_url: https://api.moonshot.cn/v1

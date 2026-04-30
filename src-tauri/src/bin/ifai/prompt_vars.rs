@@ -97,6 +97,7 @@ mod tests {
                 id: "test-provider".to_string(),
                 name: "Test Provider".to_string(),
                 protocol: "test".to_string(),
+                tags: vec![],
             },
             api_spec: ApiSpec {
                 base_url: "https://api.test.com".to_string(),

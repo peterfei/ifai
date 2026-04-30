@@ -3,6 +3,7 @@ metadata:
   id: zhipu-official
   name: Zhipu AI (智谱)
   protocol: openai
+  tags: [needs_todowrite_guidance, needs_identity_hint]
 
 api_spec:
   base_url: https://open.bigmodel.cn/api/paas/v4

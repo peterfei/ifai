@@ -406,114 +406,20 @@ async fn ai_chat(
         // Insert Main System Prompt
         let mut final_system_prompt = prompt_manager::get_main_system_prompt(&root);
 
-        // 🔥 FIX P0: 根据供应商调整行为规则
-        // 智谱需要更明确的 TodoWrite 指导才会正确调用工具
-        let is_zhipu = provider_config.name.to_lowercase().contains("zhipu") ||
-                      provider_config.name.to_lowercase().contains("glm") ||
-                      provider_config.base_url.to_lowercase().contains("bigmodel");
-
-        let behavior_rules = if is_zhipu {
-            // 智谱专用：强调身份和工具调用能力，并强制使用 TodoWrite
-            format!(
-                "# 🚨 CRITICAL BEHAVIOR RULES - READ FIRST!\n\n\
-                **Your Identity:** You are IfAI, a professional AI coding assistant powered by Zhipu GLM model.\n\n\
-                **Your Capabilities:**\n\
-                - Code writing, analysis and optimization\n\
-                - Multi-language support (Rust, Python, JavaScript, Go, etc.)\n\
-                - Problem diagnosis and debugging\n\
-                - Architecture design and best practices\n\
-                - **Tool calling (file operations, task management, etc.)**\n\n\
-                **✅ MANDATORY: Always Use TodoWrite First!**\n\
-                For ANY task that involves multiple steps or operations, you MUST:\n\
-                1. First call the TodoWrite tool to create a task list\n\
-                2. Then execute the tasks one by one\n\
-                3. Continue working until ALL tasks are complete\n\
-                4. DO NOT STOP after creating the task list!\n\n\
-                Examples of tasks that require TodoWrite:\n\
-                - Creating a new feature (login, dashboard, etc.)\n\
-                - Building a complete application\n\
-                - Multiple file modifications\n\
-                - Code refactoring across multiple files\n\
-                - Setting up project infrastructure\n\n\
-                **🛑 FORBIDDEN: Stopping after tool calls!**\n\
-                **✅ REQUIRED: Always continue with more content after tools!**\n\n\
-                ## After TodoWrite Tool Call:\n\
-                1. DO NOT STOP! Do NOT send finish_reason: stop!\n\
-                2. Continue immediately: \"Perfect! Now let me start with the first task: [name]\"\n\
-                3. Execute the task (call write_file, etc.)\n\
-                4. Continue with remaining tasks\n\
-                5. Keep working until ALL tasks are complete!\n\n\
-                **⚠️ WARNING:** Users want RESULTS, not just task lists! DO THE WORK!\n\n\
-                # Current Working Directory\n\
-                **Current Project Directory:** `{}`\n\
-                **Important:** All file operations are relative to this directory.\n\n\
-                {}\n",
-                root, final_system_prompt
-            )
-        } else {
-            // 其他供应商：使用原有规则
-            format!(
-                "# 🚨 CRITICAL BEHAVIOR RULES - READ FIRST!\n\n\
-                **🛑 FORBIDDEN: Stopping after tool calls!**\n\
-                **✅ REQUIRED: Always continue with more content after tools!**\n\n\
-                ## After TodoWrite Tool Call:\n\
-                1. DO NOT STOP! Do NOT send finish_reason: stop!\n\
-                2. Continue immediately: \"Perfect! Now let me start with the first task: [name]\"\n\
-                3. Execute the task (call write_file, etc.)\n\
-                4. Continue with remaining tasks\n\
-                5. Keep working until ALL tasks are complete!\n\n\
-                **⚠️ WARNING:** Users want RESULTS, not just task lists! DO THE WORK!\n\n\
-                # Current Working Directory\n\
-                **Current Project Directory:** `{}`\n\
-                **Important:** All file operations are relative to this directory.\n\n\
-                {}\n",
-                root, final_system_prompt
-            )
-        };
-
-        final_system_prompt = behavior_rules;
-
-        // 注入工具定义兜底：确保模型即便没收到 tools 参数，也能通过提示词学会调用
-        final_system_prompt.push_str("\n\n# IMPORTANT: WHEN TO USE TOOLS\n");
-        final_system_prompt.push_str("You have access to SPECIALIZED TOOLS. ALWAYS prefer them over generic bash:\n\n");
-
-        // 🆕 P3: 文件操作工具优先级
-        final_system_prompt.push_str("## File Operations (PREFER THESE OVER BASH)\n");
-        final_system_prompt.push_str("1. ✅ read_file - Read file contents (PREFER over 'cat' in bash)\n");
-        final_system_prompt.push_str("2. ✅ write_file - Write/create files (PREFER over 'echo' in bash)\n");
-        final_system_prompt.push_str("3. ✅ edit_file - Edit/replace text in files (PREFER over 'sed' in bash)\n");
-        final_system_prompt.push_str("4. ✅ glob_search - Find files by pattern (PREFER over 'find' in bash)\n");
-        final_system_prompt.push_str("5. ✅ grep_search - Search text in files (PREFER over 'grep' in bash)\n\n");
-
-        final_system_prompt.push_str("## Task Management\n");
-        final_system_prompt.push_str("⚠️ DO NOT create a file with agent_write_file - this creates a messy text file!\n");
-        final_system_prompt.push_str("✅ ALWAYS use the TodoWrite tool instead - this creates a proper interactive task panel!\n");
-        final_system_prompt.push_str("The TodoWrite tool will create a structured task list that users can interact with.\n\n");
-
-        // 🔔 P4: 添加任务执行指导（加强版）
-        final_system_prompt.push_str("## 🚨 CRITICAL WORKFLOW - DO NOT DEVIATE\n");
-        final_system_prompt.push_str("**MANDATORY: After calling TodoWrite, you MUST continue with the first task immediately!**\n\n");
-        final_system_prompt.push_str("Step 1: Ask: \"Should I create a task list?\"\n");
-        final_system_prompt.push_str("Step 2: If user says yes, call TodoWrite\n");
-        final_system_prompt.push_str("Step 3: **IMMEDIATELY continue** - DO NOT STOP! Say: \"Perfect! Now let me start with the first task: [Task Name]\"\n");
-        final_system_prompt.push_str("Step 4: Execute the first task (create file, write code, etc.)\n");
-        final_system_prompt.push_str("Step 5: Continue with remaining tasks one by one\n\n");
-        final_system_prompt.push_str("⛔ **FORBIDDEN: Stopping after TodoWrite** - This frustrates users!\n");
-        final_system_prompt.push_str("✅ **REQUIRED: Always execute tasks** - Keep working until complete!\n\n");
-        final_system_prompt.push_str("💡 Remember: Users want you to DO the work, not just plan it!\n\n");
-
-        final_system_prompt.push_str("## When to use bash\n");
-        final_system_prompt.push_str("- Only use bash for system queries (pwd, date, uname) or complex shell scripts\n");
-        final_system_prompt.push_str("- For file operations, ALWAYS use the specialized tools above\n\n");
-
-        // 🔔 P4: 添加目录确认要求
-        final_system_prompt.push_str("## CRITICAL: Always Confirm Working Directory\n");
-        final_system_prompt.push_str("**Before performing any file operations, ALWAYS run `pwd` first** to confirm the current working directory.\n");
-        final_system_prompt.push_str("If the directory is not what you expect, ask the user to confirm or specify the correct directory.\n");
-        final_system_prompt.push_str("Example: \n");
-        final_system_prompt.push_str("  1. User: 'Create a 2048 game in /Users/mac/project/demo/2048'\n");
-        final_system_prompt.push_str("  2. AI: [First runs `pwd` to confirm directory]\n");
-        final_system_prompt.push_str("  3. If directory is wrong: Ask user 'The current directory is X. Should I use Y instead?'\n\n");
+        // 🏛️ 声明式：根据 provider metadata tags 注入行为规则（替代 if is_zhipu { ... } 命令式逻辑）
+        let (provider_id, provider_name, provider_tags) =
+            if let Some(spec) = harness::api::provider_metadata::get_provider_spec(&provider_config.id) {
+                (spec.metadata.id.clone(), spec.metadata.name.clone(), spec.metadata.tags.clone())
+            } else if let Some(spec) = harness::api::provider_metadata::get_provider_spec(&provider_config.name) {
+                (spec.metadata.id.clone(), spec.metadata.name.clone(), spec.metadata.tags.clone())
+            } else {
+                // 自定义/未知 provider：使用通用规则（无增强 tag）
+                (provider_config.id.clone(), provider_config.name.clone(), vec![])
+            };
+        let behavior_rules = harness::api::provider_metadata::build_behavior_prompt(
+            &provider_id, &provider_name, &provider_tags, &root,
+        );
+        final_system_prompt = format!("{}\n\n{}", behavior_rules, final_system_prompt);
 
         // 🔥 NOTE: 工具定义通过 API 的 tools 参数以 OpenAI function calling 格式发送
         // 不再在系统提示词中重复描述工具格式，避免与标准格式冲突导致模型混淆
