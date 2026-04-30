@@ -451,6 +451,7 @@ impl Session {
             let layout = TuiLayout::from_terminal();
 
             print!("\n{}", layout.render_status(&status));
+            print!("{}", layout.render_separator());
             print!("{}", layout.render_input("按 Ctrl+O 返回主屏幕"));
             io::stdout().flush().ok();
         } else {
@@ -751,6 +752,14 @@ impl Session {
 
                                         any_tool_done_received = true;
 
+                                        // 🔥 方案B防御：空结果诊断
+                                        // result 为空或 {} → AI 模型发送了空参数（Provider 忠实转发）
+                                        let is_empty_result = result.is_empty() || result.trim() == "{}";
+                                        if is_empty_result {
+                                            eprintln!("[CLI] ⚠️ ToolDone empty result: tool_id={}, name={}, result_len={}, hint=ai_sent_empty_args",
+                                                tool_id, tool_name, result.len());
+                                        }
+
                                         self.pipeline_tracker.start_step(
                                             tool_id.clone(),
                                             tool_name.clone(),
@@ -847,13 +856,12 @@ impl Session {
                 Err(e) => return Err(e),
             };
 
-            // 如果所有工具都被阻止（循环检测或空参数），终止循环避免死循环
-            // 检测条件：结果包含 "循环检测阻止" 或 "空参数"（GlobalTripped 的信号）
-            // 注意：PerToolTripped 返回 "OK" 是中性跳过，不应触发终止——AI 可能换工具继续
+            // 如果所有工具调用都被熔断跳过（PerToolTripped）或循环检测阻止，终止循环
+            // 注意：FirstOffense 返回 "empty arguments" 是给 AI 学习的，不触发终止
             if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| {
-                result.contains("循环检测阻止") || result.contains("空参数")
+                result.contains("Skipped") || result.contains("循环检测阻止")
             }) {
-                println!("\n所有工具调用均被阻止（空参数或循环检测），终止执行");
+                println!("\n所有工具调用均被阻止（空参数熔断或循环检测），终止执行");
                 complete_current_task();
                 break;
             }
@@ -1160,6 +1168,15 @@ impl Session {
                                     .unwrap_or_else(|| "unknown".to_string());
 
                                 any_tool_done_received = true;
+
+                                // 🔥 方案B防御：空结果诊断
+                                // result 为空或 {} → AI 模型发送了空参数（Provider 忠实转发）
+                                let is_empty_result = result.is_empty() || result.trim() == "{}";
+                                if is_empty_result && std::env::var("IFAI_QUIET").is_err() {
+                                    let _ = output_tx.send(format!("[TUI] ⚠️ ToolDone empty result: tool_id={}, name={}, result_len={}",
+                                        tool_id, tool_name, result.len()));
+                                }
+
                                 self.pipeline_tracker.start_step(
                                     tool_id.clone(),
                                     tool_name.clone(),
@@ -1240,13 +1257,11 @@ impl Session {
                 Err(e) => return Err(e),
             };
 
-            // 如果所有工具都被阻止（循环检测或空参数），终止循环避免死循环
-            // 检测条件：结果包含 "循环检测阻止" 或 "空参数"（GlobalTripped 的信号）
-            // 注意：PerToolTripped 返回 "OK" 是中性跳过，不应触发终止——AI 可能换工具继续
+            // 如果所有工具调用都被熔断跳过（PerToolTripped）或循环检测阻止，终止循环
             if !tool_results.is_empty() && tool_results.iter().all(|(_, _, result, _)| {
-                result.contains("循环检测阻止") || result.contains("空参数")
+                result.contains("Skipped") || result.contains("循环检测阻止")
             }) {
-                let _ = output_tx.send("所有工具调用均被阻止（空参数或循环检测），终止执行".to_string());
+                let _ = output_tx.send("所有工具调用均被阻止（空参数熔断或循环检测），终止执行".to_string());
                 complete_current_task();
                 break;
             }
@@ -1358,8 +1373,8 @@ impl Session {
                         // 熔断：静默跳过（满足 API 契约但不触发 AI 重试）
                         let _ = output_tx.send(format!("⚡ 熔断跳过: {}({})", tool.name, tool.args));
                         self.pipeline_tracker.skip_step(&tool.tool_id, "空参数熔断（静默跳过）".to_string());
-                        // push 中性结果（非 error 前缀 → AI 不会视为失败去重试）
-                        results.push((tool.tool_id.clone(), tool.name.clone(), "OK".to_string(), Duration::ZERO));
+                        // push "Skipped" 结果（匹配终止条件，防止 AI 无限重试空参数）
+                        results.push((tool.tool_id.clone(), tool.name.clone(), "Skipped: empty arguments, tool not executed.".to_string(), Duration::ZERO));
                         continue;
                     }
                     EmptyArgsResult::FirstOffense => {
@@ -1558,7 +1573,7 @@ impl Session {
                             &tool.tool_id,
                             "空参数熔断（静默跳过）".to_string(),
                         );
-                        results.push((tool.tool_id.clone(), tool.name.clone(), "OK".to_string(), Duration::ZERO));
+                        results.push((tool.tool_id.clone(), tool.name.clone(), "Skipped: empty arguments, tool not executed.".to_string(), Duration::ZERO));
                         continue;
                     }
                     EmptyArgsResult::FirstOffense => {
