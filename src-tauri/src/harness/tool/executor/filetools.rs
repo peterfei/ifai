@@ -138,16 +138,96 @@ impl FileToolsExecutor {
             ToolError::Execution(format!("Failed to read file '{}': {}", path, e))
         })?;
 
-        // 检查 old_text 是否存在
-        if !content.contains(old_text) {
+        // 尝试匹配 old_text：精确 → 忽略首尾空白 → 逐行忽略空白
+        let (actual_old, matched) = if content.contains(old_text) {
+            (old_text.to_string(), true)
+        } else {
+            // 尝试忽略首尾空白
+            let trimmed_old = old_text.trim();
+            let trimmed_content = content.trim();
+            if trimmed_old.is_empty() {
+                return Err(ToolError::Execution(format!(
+                    "old_text is empty or whitespace-only, cannot match in file: {}",
+                    path
+                )));
+            }
+            if trimmed_content.contains(trimmed_old) {
+                // 找到 trimmed 版本在原文中的对应区域（保留原始缩进）
+                let trimmed_start = trimmed_content.find(trimmed_old).unwrap();
+                // 将 trimmed_content 的偏移映射回 content 的偏移
+                let leading_whitespace_len = content.len() - content.trim_start().len();
+                let actual_start = leading_whitespace_len + trimmed_start;
+                let actual_end = actual_start + trimmed_old.len();
+                (content[actual_start..actual_end].to_string(), true)
+            } else {
+                // 尝试逐行匹配（忽略行尾空白和缩进差异）
+                let old_lines: Vec<&str> = old_text.lines().collect();
+                if old_lines.len() >= 2 {
+                    // 取 old_text 的中间行（跳过可能缩进不同的首行和末行空白行）
+                    let mid_idx = old_lines.len() / 2;
+                    let mid_line = old_lines[mid_idx].trim();
+                    if !mid_line.is_empty() && content.contains(mid_line) {
+                        // 找到中间行在文件中的位置，然后尝试扩展匹配
+                        if let Some(mid_pos) = content.find(mid_line) {
+                            // 向上向下扩展匹配
+                            let before_mid = &content[..mid_pos];
+                            let after_mid = &content[mid_pos + mid_line.len()..];
+                            let mut actual_start = mid_pos;
+                            let mut actual_end = mid_pos + mid_line.len();
+
+                            // 向上匹配
+                            for (i, line) in old_lines[..mid_idx].iter().rev().enumerate() {
+                                let trimmed = line.trim();
+                                if trimmed.is_empty() { continue; }
+                                if let Some(pos) = before_mid.rfind(trimmed) {
+                                    actual_start = pos;
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            // 向下匹配
+                            let remaining_after = &content[actual_end..];
+                            for line in &old_lines[mid_idx + 1..] {
+                                let trimmed = line.trim();
+                                if trimmed.is_empty() { continue; }
+                                if let Some(pos) = remaining_after.find(trimmed) {
+                                    actual_end += pos + trimmed.len();
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            (content[actual_start..actual_end].to_string(), true)
+                        } else {
+                            (old_text.to_string(), false)
+                        }
+                    } else {
+                        (old_text.to_string(), false)
+                    }
+                } else {
+                    (old_text.to_string(), false)
+                }
+            }
+        };
+
+        if !matched {
+            // 提供诊断信息帮助 LLM 纠正
+            let preview = &content[..content.len().min(500)];
             return Err(ToolError::Execution(format!(
-                "Text to replace not found in file: {}",
-                path
+                "Text to replace not found in file: {}\n\
+                 old_text preview: {}\n\
+                 File preview (first 500 chars):\n{}\n\
+                 Hint: Check for whitespace, indentation, or line ending differences. \
+                 Use read_file to verify the exact content before editing.",
+                path,
+                &old_text[..old_text.len().min(200)],
+                preview
             )));
         }
 
         // 替换文本（替换所有匹配项）
-        let new_content = content.replace(old_text, new_text);
+        let new_content = content.replace(&actual_old, new_text);
 
         // 写回文件
         fs::write(path_obj, new_content).map_err(|e| {
@@ -155,7 +235,7 @@ impl FileToolsExecutor {
         })?;
 
         // 返回成功消息
-        let replacements = content.matches(old_text).count();
+        let replacements = content.matches(&actual_old).count();
         Ok(format!(
             "Successfully edited file: {}\nReplaced {} occurrence(s)",
             path, replacements
@@ -315,6 +395,50 @@ mod tests {
 
         let result = executor.execute("edit_file", &input);
         assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        // 验证错误信息包含诊断提示
+        assert!(err.contains("old_text preview"), "error should include old_text preview: {}", err);
+        assert!(err.contains("File preview"), "error should include file preview: {}", err);
+        assert!(err.contains("Hint:"), "error should include hint: {}", err);
+    }
+
+    #[test]
+    fn test_edit_file_fuzzy_trim_match() {
+        // LLM 生成的 old_text 有多余的首尾空白时，应该通过 trim 匹配
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = create_test_file(&temp_dir, "edit.txt", "  Hello World\n");
+
+        let mut executor = FileToolsExecutor::new();
+        let input = serde_json::json!({
+            "path": test_file,
+            "old_text": "Hello World",
+            "new_text": "Rust"
+        });
+
+        let result = executor.execute("edit_file", &input);
+        assert!(result.is_ok(), "trim match should succeed: {:?}", result);
+        let content = fs::read_to_string(&test_file).unwrap();
+        assert!(content.contains("Rust"));
+    }
+
+    #[test]
+    fn test_edit_file_fuzzy_line_match() {
+        // LLM 生成的 old_text 缩进不同时，通过中间行匹配
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = create_test_file(&temp_dir, "edit.txt",
+            "function hello() {\n    console.log('hi');\n    return true;\n}");
+
+        let mut executor = FileToolsExecutor::new();
+        // LLM 可能把缩进搞错了
+        let input = serde_json::json!({
+            "path": test_file,
+            "old_text": "function hello() {\n  console.log('hi');\n  return true;\n}",
+            "new_text": "function hello() {\n  console.log('bye');\n  return false;\n}"
+        });
+
+        let result = executor.execute("edit_file", &input);
+        // 中间行 "console.log('hi')" 可以匹配到，应该成功
+        assert!(result.is_ok(), "line-level fuzzy match should succeed: {:?}", result);
     }
 
     #[test]
