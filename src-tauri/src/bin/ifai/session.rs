@@ -605,7 +605,7 @@ impl Session {
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: self.model.clone(),
                 messages: self.messages.clone(),
-                max_tokens: 4096,
+                max_tokens: 8192,
                 system: Some(system_prompt.clone()),
                 temperature: Some(0.7),
                 stream: true,
@@ -1081,7 +1081,7 @@ impl Session {
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: self.model.clone(),
                 messages: self.messages.clone(),
-                max_tokens: 4096,
+                max_tokens: 8192,
                 system: Some(system_prompt.clone()),
                 temperature: Some(0.7),
                 stream: true,
@@ -1773,31 +1773,18 @@ fn build_cli_system_prompt(spec: &ifainew_lib::harness::api::provider_metadata::
         }
     };
 
-    // 4. 🔥 FIX: 注入工具调用规则（与 GUI lib.rs 对齐，正面引导 + 防空参数）
-    let is_zhipu = spec.metadata.id.as_str() == "zhipu-official";
-
-    if is_zhipu {
-        // 智谱专用：正面引导 TodoWrite 使用流程（与 GUI lib.rs:426-452 对齐）
-        rendered.push_str("\n\n# ✅ MANDATORY: Always Use TodoWrite First!\n");
-        rendered.push_str("For ANY task that involves multiple steps or operations, you MUST:\n");
-        rendered.push_str("1. First call the TodoWrite tool to create a task list\n");
-        rendered.push_str("2. Then execute the tasks one by one\n");
-        rendered.push_str("3. Continue working until ALL tasks are complete\n");
-        rendered.push_str("4. DO NOT STOP after creating the task list!\n\n");
-        rendered.push_str("## After TodoWrite Tool Call:\n");
-        rendered.push_str("1. DO NOT STOP! Do NOT send finish_reason: stop!\n");
-        rendered.push_str("2. Continue immediately and execute the first task\n");
-        rendered.push_str("3. Execute the task (call write_file, read_file, etc.)\n");
-        rendered.push_str("4. Continue with remaining tasks\n");
-        rendered.push_str("5. Keep working until ALL tasks are complete!\n\n");
-        rendered.push_str("⛔ **FORBIDDEN:** Stopping after TodoWrite — Users want RESULTS, not just task lists!\n");
-    }
-
-    rendered.push_str("\n\n# Tool Call Rules (CRITICAL)\n");
-    rendered.push_str("1. Every tool call MUST include all required parameters in the arguments JSON\n");
-    rendered.push_str("2. If a tool call fails, fix the parameters or change your approach — DO NOT retry with the same or empty arguments\n");
-    rendered.push_str("3. After calling TodoWrite, immediately execute the first task — do NOT stop or call TodoWrite again\n");
-    rendered.push_str("4. NO REPETITION: If you see a tool result in conversation history, DO NOT call that tool again for the same purpose\n");
+    // 4. 🏛️ 声明式：注入行为规则（数据驱动，替代 if is_zhipu { push_str(...) } 命令式逻辑）
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+    let behavior_prompt = ifainew_lib::harness::api::provider_metadata::build_behavior_prompt(
+        &spec.metadata.id,
+        &spec.metadata.name,
+        &spec.metadata.tags,
+        &cwd,
+    );
+    rendered.push_str("\n\n");
+    rendered.push_str(&behavior_prompt);
 
     rendered
 }
