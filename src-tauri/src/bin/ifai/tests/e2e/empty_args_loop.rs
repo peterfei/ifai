@@ -466,7 +466,7 @@ async fn test_empty_args_gets_specific_error_from_tool() {
          Actual: {actual_turns}"
     );
 
-    eprintln!("  Actual API turns: {actual_turns} (expected 4)");
+    eprintln!("  Actual API turns: {actual_turns} (expected 3)");
     eprintln!("  FIX: AI received specific error from tool — can self-correct (aligned with GUI)");
 }
 

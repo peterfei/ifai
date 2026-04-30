@@ -147,24 +147,39 @@ impl ApiClient for ZhipuClient {
                                         for tc in tool_calls {
                                             let index = tc.index;
 
+                                            // 🔥 FIX: 解耦 buffer 初始化与 id+name 要求
+                                            // 某些 provider（如智谱）可能在首个 delta 只发送 arguments，
+                                            // id+name 在后续 delta 才到达。如果等 id+name 才初始化 buffer，
+                                            // 则 arguments 会被静默丢弃 → 空参数 TodoWrite({})
+                                            if !tool_args_buffer.contains_key(&index) {
+                                                let temp_id = tc.id.clone()
+                                                    .unwrap_or_else(|| format!("idx_{}", index));
+                                                tool_args_buffer.insert(index, (temp_id, String::new()));
+                                            }
+
+                                            // 延迟发送 ToolStart（等 id+name 到齐）
                                             if !tool_started.get(&index).unwrap_or(&false) {
                                                 if let (Some(id), Some(name)) = (
                                                     &tc.id,
                                                     tc.function.as_ref().and_then(|f| f.name.as_ref()),
                                                 ) {
+                                                    // 更新 buffer 中的 id（可能从临时 id 升级为真实 id）
+                                                    if let Some((ref mut buf_id, _)) = tool_args_buffer.get_mut(&index) {
+                                                        *buf_id = id.clone();
+                                                    }
                                                     yield Ok(StreamEvent::ToolStart {
                                                         tool_id: id.clone(),
                                                         name: name.clone(),
                                                         input: String::new(),
                                                     });
                                                     tool_started.insert(index, true);
-                                                    tool_args_buffer.insert(index, (id.clone(), String::new()));
                                                 }
                                             }
 
+                                            // 无论是否已发送 ToolStart，都累积 arguments
                                             if let Some(func) = &tc.function {
                                                 if let Some(args) = &func.arguments {
-                                                    if let Some((tool_id, current)) = tool_args_buffer.get_mut(&index) {
+                                                    if let Some((_, current)) = tool_args_buffer.get_mut(&index) {
                                                         current.push_str(args);
                                                     }
                                                 }
@@ -180,8 +195,10 @@ impl ApiClient for ZhipuClient {
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
                                             // 🔍 诊断：记录工具参数完整性
                                             if args.is_empty() || args.trim() == "{}" {
-                                                eprintln!("[Zhipu] ⚠️ ToolDone with empty args: tool_id={}, args_len={}, args_preview='{}', finish_reason={}",
-                                                    tool_id, args.len(), &args[..args.len().min(100)], reason);
+                                                if std::env::var("IFAI_QUIET").is_err() {
+                                                    eprintln!("[Zhipu] ⚠️ ToolDone with empty args: tool_id={}, args_len={}, args_preview='{}', finish_reason={}",
+                                                        tool_id, args.len(), &args[..args.len().min(100)], reason);
+                                                }
                                             }
                                             yield Ok(StreamEvent::ToolDone {
                                                 tool_id: tool_id.clone(),

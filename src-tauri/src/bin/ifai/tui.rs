@@ -491,23 +491,25 @@ impl App {
         if let Some(terminal) = &mut self.terminal {
             let _ = terminal.draw(|f| {
             let size = f.area();
-            if size.height < 3 {
+            if size.height < 4 {
                 return;
             }
 
-            // 布局：内容区 + 状态栏(1行) + 输入框(1行)
+            // 布局：内容区 + 状态栏(1行) + 分隔线(1行) + 输入框(1行)
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
                     Constraint::Min(1),    // 内容区
                     Constraint::Length(1), // 状态栏
+                    Constraint::Length(1), // 分隔线
                     Constraint::Length(1), // 输入框
                 ])
                 .split(size);
 
             let content_area = chunks[0];
             let status_area = chunks[1];
-            let input_area = chunks[2];
+            let separator_area = chunks[2];
+            let input_area = chunks[3];
 
             // 清空内容区（确保 overlay 关闭后残留内容被清除）
             f.render_widget(Clear, content_area);
@@ -754,6 +756,12 @@ impl App {
                             .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                         f.render_widget(popup_content, popup_area);
                     }
+
+                    // === 分隔线（状态栏与输入框之间的视觉分隔） ===
+                    let separator_line = "─".repeat(separator_area.width as usize);
+                    let separator = Paragraph::new(separator_line)
+                        .style(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray));
+                    f.render_widget(separator, separator_area);
 
                     // === 输入框 ===
                     let prompt = Span::styled(
