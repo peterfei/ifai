@@ -166,6 +166,9 @@ impl TestEnv {
             // 设置测试标志，告诉 CLI 这是从 stdin 读取的
             cmd.env("IFAI_TEST_STDIN", "1");
             cmd.stdin(std::process::Stdio::piped());
+            // 🔥 同时 pipe stdout/stderr，否则 wait_with_output() 捕获不到子进程输出
+            cmd.stdout(std::process::Stdio::piped());
+            cmd.stderr(std::process::Stdio::piped());
             let mut child = cmd.spawn()?;
 
             // 写入 stdin

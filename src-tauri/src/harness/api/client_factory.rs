@@ -27,13 +27,44 @@ impl Default for HttpClientConfig {
 /// - zhipu.rs:38-42
 /// - openai.rs:33-37
 /// - deepseek.rs:38-42
+///
+/// 代理支持：自动读取 HTTPS_PROXY / HTTP_PROXY / ALL_PROXY 环境变量
+/// 本地地址（localhost/127.0.0.1）自动跳过代理（mock server 测试兼容）
 pub fn create_standard_client(config: Option<HttpClientConfig>) -> Result<HttpClient, String> {
     let config = config.unwrap_or_default();
 
-    HttpClient::builder()
+    let mut builder = HttpClient::builder()
         .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
         .read_timeout(Duration::from_secs(config.read_timeout_secs))
-        .build()
+        // 🔥 强制 HTTP/1.1：代理环境下 HTTP/2 的流式响应经常导致
+        // "error decoding response body"（代理不支持 HTTP/2 streaming frames）
+        .http1_only();
+
+    // 自动检测代理环境变量
+    let proxy_url = std::env::var("HTTPS_PROXY")
+        .or_else(|_| std::env::var("HTTP_PROXY"))
+        .or_else(|_| std::env::var("https_proxy"))
+        .or_else(|_| std::env::var("http_proxy"))
+        .or_else(|_| std::env::var("ALL_PROXY"))
+        .or_else(|_| std::env::var("all_proxy"))
+        .ok();
+
+    if let Some(url) = &proxy_url {
+        let proxy_url = url.clone();
+        // 使用自定义代理：远程走代理，本地直连
+        let proxy = reqwest::Proxy::custom(move |uri| {
+            let host_str = uri.host_str().unwrap_or("");
+            // 本地地址直连（mock server / 测试用）
+            if host_str == "localhost" || host_str == "127.0.0.1" || host_str == "0.0.0.0" || host_str.ends_with(".local") {
+                None
+            } else {
+                Some(proxy_url.as_str().parse::<reqwest::Url>().unwrap())
+            }
+        });
+        builder = builder.proxy(proxy);
+    }
+
+    builder.build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))
 }
 
