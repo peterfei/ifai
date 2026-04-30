@@ -10,10 +10,14 @@ use crate::terminal::TERMINAL;
 /// 🎯 TUI 布局（声明式）
 #[derive(Debug, Clone)]
 pub struct TuiLayout {
+    /// 终端宽度（列数）
+    pub width: u16,
     /// 内容区域高度（动态）
     pub content_height: u16,
     /// 状态栏行号（固定）
     pub status_row: u16,
+    /// 分隔线行号（固定）
+    pub separator_row: u16,
     /// 输入框行号（固定）
     pub input_row: u16,
 }
@@ -22,9 +26,12 @@ impl TuiLayout {
     /// 🔥 从终端尺寸创建布局
     pub fn from_terminal() -> Self {
         let rows = TERMINAL.rows();
+        let cols = TERMINAL.cols();
         Self {
-            content_height: rows.saturating_sub(2),  // 留 2 行给状态和输入
-            status_row: rows.saturating_sub(1),
+            width: cols,
+            content_height: rows.saturating_sub(3),  // 留 3 行给状态、分隔线和输入
+            status_row: rows.saturating_sub(2),
+            separator_row: rows.saturating_sub(1),
             input_row: rows,
         }
     }
@@ -35,6 +42,16 @@ impl TuiLayout {
             "\x1b[s\x1b[{};1H\x1b[K{}\x1b[u",
             self.status_row,
             status_text
+        )
+    }
+
+    /// 🎨 渲染分隔线（状态栏与输入框之间）
+    pub fn render_separator(&self) -> String {
+        let line = "─".repeat(self.width as usize);
+        format!(
+            "\x1b[s\x1b[{};1H\x1b[K\x1b[38;5;8m{}\x1b[0m\x1b[u",
+            self.separator_row,
+            line
         )
     }
 

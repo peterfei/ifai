@@ -148,38 +148,33 @@ impl ApiClient for DeepSeekClient {
                                         for tc in tool_calls {
                                             let index = tc.index;
 
-                                            // 🔥 FIX: 移除高频日志
-                                            // println!("[DeepSeek] 🔧 Tool call delta: index={}, id={:?}, name={:?}, args={:?}",
-                                            //     index,
-                                            //     tc.id,
-                                            //     tc.function.as_ref().and_then(|f| f.name.as_ref()),
-                                            //     tc.function.as_ref().and_then(|f| f.arguments.as_ref())
-                                            //         .map(|a| a.chars().take(50).collect::<String>())
-                                            // );
+                                            // 🔥 FIX: 解耦 buffer 初始化与 id+name 要求
+                                            if !tool_args_buffer.contains_key(&index) {
+                                                let temp_id = tc.id.clone()
+                                                    .unwrap_or_else(|| format!("idx_{}", index));
+                                                tool_args_buffer.insert(index, (temp_id, String::new()));
+                                            }
 
-                                            // 发送 ToolStart 事件（仅一次）
+                                            // 延迟发送 ToolStart（等 id+name 到齐）
                                             if !tool_started.get(&index).unwrap_or(&false) {
                                                 if let (Some(id), Some(name)) = (&tc.id, tc.function.as_ref().and_then(|f| f.name.as_ref())) {
+                                                    if let Some((ref mut buf_id, _)) = tool_args_buffer.get_mut(&index) {
+                                                        *buf_id = id.clone();
+                                                    }
                                                     yield Ok(StreamEvent::ToolStart {
                                                         tool_id: id.clone(),
                                                         name: name.clone(),
-                                                        input: String::new(), // 参数将在后续累积
+                                                        input: String::new(),
                                                     });
                                                     tool_started.insert(index, true);
-                                                    tool_args_buffer.insert(index, (id.clone(), String::new()));
-                                                    // 🔥 FIX: 移除高频日志
-                                                    // println!("[DeepSeek] ✅ ToolStart sent: index={}, id={}, name={}", index, id, name);
                                                 }
                                             }
 
-                                            // 累积函数参数
+                                            // 无论是否已发送 ToolStart，都累积 arguments
                                             if let Some(func) = &tc.function {
                                                 if let Some(args) = &func.arguments {
-                                                    if let Some((tool_id, current)) = tool_args_buffer.get_mut(&index) {
+                                                    if let Some((_, current)) = tool_args_buffer.get_mut(&index) {
                                                         current.push_str(args);
-                                                        // 🔥 FIX: 移除高频日志
-                                                        // println!("[DeepSeek] 📝 Args accumulated: index={}, tool_id={}, added={}, total={}",
-                                                        //     index, tool_id, after_len - before_len, after_len);
                                                     }
                                                 }
                                             }
