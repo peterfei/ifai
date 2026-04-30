@@ -614,9 +614,37 @@ impl Session {
                 tools: if self.tools_disabled || tools.is_empty() { None } else { Some(tools.clone()) },
             };
 
-            // 发送流式请求
-            let mut stream = client.stream(request).await
-                .map_err(|e| format!("Failed to start stream: {:?}", e))?;
+            // 发送流式请求（带瞬时错误重试）
+            const MAX_RETRIES: u32 = 2;
+            const RETRY_DELAYS: [Duration; 2] = [
+                Duration::from_secs(1),
+                Duration::from_secs(2),
+            ];
+            let mut retry_attempt: u32 = 0;
+            let mut stream = loop {
+                match client.stream(request.clone()).await {
+                    Ok(s) => break s,
+                    Err(ref e) if e.is_retryable() && retry_attempt < MAX_RETRIES => {
+                        let theme = render::default_theme();
+                        eprintln!("{}Retrying ({}/{})...{}",
+                            theme.warning, retry_attempt + 1, MAX_RETRIES, RESET);
+                        tokio::time::sleep(RETRY_DELAYS[retry_attempt as usize]).await;
+                        retry_attempt += 1;
+                    }
+                    Err(e) => {
+                        let suffix = if retry_attempt > 0 {
+                            format!(" (retried {} times)", retry_attempt)
+                        } else {
+                            String::new()
+                        };
+                        // 全部失败时回滚 User 消息（仅首次迭代）
+                        if continuation_count == 0 {
+                            self.messages.pop();
+                        }
+                        return Err(format!("Failed to start stream: {:?}{}", e, suffix));
+                    }
+                }
+            };
 
             // 🎬 启动进度动画任务（每 100ms 更新一帧）
             let model_clone = self.model.clone();
@@ -1080,6 +1108,14 @@ impl Session {
         let max_continuations = approval::max_iterations(current_category);
         let mut continuation_count = 0;
 
+        // 重试策略常量
+        const MAX_RETRIES: u32 = 2;
+        const RETRY_DELAYS: [Duration; 2] = [
+            Duration::from_secs(1),
+            Duration::from_secs(2),
+        ];
+        let mut retry_attempt: u32 = 0;
+
         let _ = status_tx.send(format!("Streaming ({})", self.model));
 
         // 🔥 清空 PipelineTracker 状态（确保不会显示上一次的工具结果）
@@ -1096,8 +1132,28 @@ impl Session {
                 tools: if self.tools_disabled || tools.is_empty() { None } else { Some(tools.clone()) },
             };
 
-            let mut stream = client.stream(request).await
-                .map_err(|e| format!("Failed to start stream: {:?}", e))?;
+            let mut stream = loop {
+                match client.stream(request.clone()).await {
+                    Ok(s) => break s,
+                    Err(ref e) if e.is_retryable() && retry_attempt < MAX_RETRIES => {
+                        let _ = output_tx.send(format!("Retrying ({}/{})...", retry_attempt + 1, MAX_RETRIES));
+                        tokio::time::sleep(RETRY_DELAYS[retry_attempt as usize]).await;
+                        retry_attempt += 1;
+                    }
+                    Err(e) => {
+                        let suffix = if retry_attempt > 0 {
+                            format!(" (retried {} times)", retry_attempt)
+                        } else {
+                            String::new()
+                        };
+                        if continuation_count == 0 {
+                            self.messages.pop();
+                        }
+                        let _ = output_tx.send(format!("Stream error: {:?}{}", e, suffix));
+                        return Err(format!("Failed to start stream: {:?}{}", e, suffix));
+                    }
+                }
+            };
 
             // 不启动动画任务（TUI 自己管理渲染）
             let mut first_delta = true;
