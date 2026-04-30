@@ -240,6 +240,20 @@ pub enum ApiError {
     Sse(String),
 }
 
+impl ApiError {
+    /// 声明式错误分类：判断是否为可重试的瞬时错误
+    ///
+    /// 白名单策略：仅 Network/IO/SSE/HTTP 5xx 可重试，
+    /// 4xx（除 429）和 JSON 解析错误不重试。
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::Network(_) | Self::Io(_) | Self::Sse(_) => true,
+            Self::HttpError { status, .. } => status.is_server_error(),
+            Self::Json(_) => false,
+        }
+    }
+}
+
 /// AI 提供商
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AiProvider {
