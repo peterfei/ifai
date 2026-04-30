@@ -53,7 +53,7 @@ export class ToolCallConverter {
   static toAPIFormat(toolCalls: FrontendToolCall[]): APIToolCall[] {
     if (!toolCalls || !Array.isArray(toolCalls)) return [];
 
-    return toolCalls.map(this.convertOneToAPI);
+    return toolCalls.map((tc) => this.convertOneToAPI(tc));
   }
 
   /**
@@ -62,7 +62,7 @@ export class ToolCallConverter {
   static fromAPIFormat(apiToolCalls: APIToolCall[]): FrontendToolCall[] {
     if (!apiToolCalls || !Array.isArray(apiToolCalls)) return [];
 
-    return apiToolCalls.map(this.convertOneFromAPI);
+    return apiToolCalls.map((api) => this.convertOneFromAPI(api));
   }
 
   /**
@@ -154,7 +154,7 @@ export const fromAPIFormat = (apiToolCalls: APIToolCall[]): FrontendToolCall[] =
  * 转换单个工具调用
  */
 export const convertToolCall = (tc: FrontendToolCall): APIToolCall =>
-  ToolCallConverter['convertOneToAPI'](tc);
+  ToolCallConverter.convertOneToAPI(tc);
 
 // ============================================================================
 // 类型守卫
