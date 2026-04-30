@@ -371,36 +371,49 @@ fn main() {
     };
 
     // 🔥 如果检测到管道输入，读取 stdin 并与现有参数合并
+    // 但如果 parse_args 已经解析到有内容的 prompt（如 CLI args 中传了文本），
+    // 则不覆盖——stdin 可能是工具审批等交互式输入（测试场景）
     let action = if is_piped {
-        // 获取当前的设置
-        let (current_json_output, current_no_tool, current_system) = match &action {
-            CliAction::Prompt { json_output, no_tool, system, .. } => {
-                (*json_output, *no_tool, system.clone())
-            }
-            _ => (false, false, None),
+        // 检查是否已有非空的 prompt 文本
+        let has_prompt_text = match &action {
+            CliAction::Prompt { text, .. } => !text.is_empty(),
+            _ => false,
         };
 
-        match read_stdin_to_prompt() {
-            Ok(prompt) => {
-                if prompt.is_empty() {
-                    // 🔥 JSON 模式下不打印警告
-                    if !current_json_output {
-                        eprintln!("Warning: Empty stdin input");
-                    }
-                    action
-                } else {
-                    // 使用 stdin 内容和当前的设置
-                    CliAction::Prompt {
-                        text: prompt,
-                        json_output: current_json_output,
-                        no_tool: current_no_tool,
-                        system: current_system,
+        if has_prompt_text {
+            // 已有 prompt，不读取 stdin（保留 stdin 给工具审批等交互使用）
+            action
+        } else {
+            // 获取当前的设置
+            let (current_json_output, current_no_tool, current_system) = match &action {
+                CliAction::Prompt { json_output, no_tool, system, .. } => {
+                    (*json_output, *no_tool, system.clone())
+                }
+                _ => (false, false, None),
+            };
+
+            match read_stdin_to_prompt() {
+                Ok(prompt) => {
+                    if prompt.is_empty() {
+                        // 🔥 JSON 模式下不打印警告
+                        if !current_json_output {
+                            eprintln!("Warning: Empty stdin input");
+                        }
+                        action
+                    } else {
+                        // 使用 stdin 内容和当前的设置
+                        CliAction::Prompt {
+                            text: prompt,
+                            json_output: current_json_output,
+                            no_tool: current_no_tool,
+                            system: current_system,
+                        }
                     }
                 }
-            }
-            Err(e) => {
-                eprintln!("Error reading stdin: {}", e);
-                std::process::exit(1);
+                Err(e) => {
+                    eprintln!("Error reading stdin: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
     } else {
