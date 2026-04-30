@@ -178,6 +178,11 @@ impl ApiClient for ZhipuClient {
                                     if let Some(reason) = &choice.finish_reason {
                                         last_finish_reason = Some(reason.clone());
                                         for (_index, (tool_id, args)) in tool_args_buffer.iter() {
+                                            // 🔍 诊断：记录工具参数完整性
+                                            if args.is_empty() || args.trim() == "{}" {
+                                                eprintln!("[Zhipu] ⚠️ ToolDone with empty args: tool_id={}, args_len={}, args_preview='{}', finish_reason={}",
+                                                    tool_id, args.len(), &args[..args.len().min(100)], reason);
+                                            }
                                             yield Ok(StreamEvent::ToolDone {
                                                 tool_id: tool_id.clone(),
                                                 result: args.clone(),
