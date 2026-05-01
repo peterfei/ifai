@@ -172,7 +172,25 @@ pub fn compute_diff(old: &str, new: &str) -> Vec<DiffLine> {
                     });
                 }
             }
-            _ => {} // 其他 tag 类型（如 Replace）暂时忽略
+            similar::DiffTag::Replace => {
+                // 替换行：先删除旧行，再插入新行
+                for i in 0..old_range.len() {
+                    lines.push(DiffLine {
+                        line_type: DiffLineType::Delete,
+                        old_line_no: Some(old_range.start + i + 1),
+                        new_line_no: None,
+                        content: old_lines[old_range.start + i].to_string(),
+                    });
+                }
+                for i in 0..new_range.len() {
+                    lines.push(DiffLine {
+                        line_type: DiffLineType::Insert,
+                        old_line_no: None,
+                        new_line_no: Some(new_range.start + i + 1),
+                        content: new_lines[new_range.start + i].to_string(),
+                    });
+                }
+            }
         }
     }
 
@@ -580,10 +598,16 @@ mod tests {
         let new = "line1\nline2 modified\nline3";
         let diff = compute_diff(old, new);
 
-        assert_eq!(diff.len(), 3);
+        // 应该有 4 行：line1 (context) + -line2 (delete) + +line2 modified (insert) + line3 (context)
+        assert_eq!(diff.len(), 4);
         assert_eq!(diff[0].line_type, DiffLineType::Context);
-        assert_eq!(diff[1].line_type, DiffLineType::Context);
+        assert_eq!(diff[0].content, "line1");
+        assert_eq!(diff[1].line_type, DiffLineType::Delete);
         assert_eq!(diff[1].content, "line2");
+        assert_eq!(diff[2].line_type, DiffLineType::Insert);
+        assert_eq!(diff[2].content, "line2 modified");
+        assert_eq!(diff[3].line_type, DiffLineType::Context);
+        assert_eq!(diff[3].content, "line3");
     }
 
     #[test]
