@@ -4,10 +4,10 @@
 //! 解包具体的事件类型（KeyEvent, MouseEvent 等）。
 
 use super::{ControlFlow, EventHandler};
-use crate::AppResult;
-use crate::tui::App;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use crate::input_composer::InputAction;
+use crate::tui::App;
+use crate::AppResult;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 
 // ============================================================================
 // 键盘滚动处理器
@@ -179,10 +179,10 @@ pub struct CombinedKeyHandler;
 
 impl EventHandler<Event> for CombinedKeyHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        // 如果处于搜索模式、帮助模式或 busy（AI 响应中），跳过处理
+        // 如果处于搜索模式、帮助模式、diff 模式或 busy（AI 响应中），跳过处理
         // 注意：streaming 期间的输入由 main.rs 的 tokio::select! 分支直接处理，
         // run_loop() 不会被调用，此守卫作为防御层防止意外穿透
-        if app.is_searching() || app.help_mode || app.is_busy() {
+        if app.is_searching() || app.help_mode || app.is_diff_mode() || app.is_busy() {
             return ControlFlow::Continue;
         }
 
@@ -200,7 +200,9 @@ impl EventHandler<Event> for CombinedKeyHandler {
                     app.command_popup.update(""); // 关闭弹出框
                     app.input.clear();
                     for c in cmd_text.chars() {
-                        let _ = app.input.handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
+                        let _ = app
+                            .input
+                            .handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE));
                     }
                     return ControlFlow::Continue;
                 }
@@ -399,6 +401,103 @@ impl EventHandler<Event> for HelpExitHandler {
                 return ControlFlow::Continue;
             }
         }
+        ControlFlow::Continue
+    }
+}
+
+// ============================================================================
+// Diff 模式处理器
+// ============================================================================
+
+/// Diff 进入处理器 - 按 `d` 键进入 diff 模式
+pub struct DiffEnterHandler;
+
+impl EventHandler<Event> for DiffEnterHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if let Event::Key(key) = event {
+            // 按 d 键进入 diff 模式（仅当有 diff 可用时）
+            if key.code == KeyCode::Char('d') && !app.is_diff_mode() {
+                if !app.diffs.is_empty() {
+                    app.enter_diff_mode();
+                    // 清除输入框（防止 d 被添加）
+                    app.input.clear();
+                }
+            }
+        }
+        ControlFlow::Continue
+    }
+}
+
+/// Diff 模式处理器 - 处理 diff 模式下的所有输入
+pub struct DiffModeHandler;
+
+impl EventHandler<Event> for DiffModeHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if !app.is_diff_mode() {
+            return ControlFlow::Continue;
+        }
+
+        use crate::diff_render::{resolve_diff_key, DiffAction};
+
+        if let Event::Key(key) = event {
+            if let Some(action) = resolve_diff_key(*key) {
+                match action {
+                    DiffAction::ScrollUp(n) => {
+                        if let Some(diff_view) = &mut app.diff_view {
+                            diff_view.scroll_by(-(n as i16));
+                        }
+                    }
+                    DiffAction::ScrollDown(n) => {
+                        if let Some(diff_view) = &mut app.diff_view {
+                            diff_view.scroll_by(n as i16);
+                        }
+                    }
+                    DiffAction::PageUp => {
+                        if let Some(diff_view) = &mut app.diff_view {
+                            diff_view.page_by(-10);
+                        }
+                    }
+                    DiffAction::PageDown => {
+                        if let Some(diff_view) = &mut app.diff_view {
+                            diff_view.page_by(10);
+                        }
+                    }
+                    DiffAction::ScrollToTop => {
+                        if let Some(diff_view) = &mut app.diff_view {
+                            diff_view.scroll_to_top();
+                        }
+                    }
+                    DiffAction::ScrollToBottom => {
+                        if let Some(diff_view) = &mut app.diff_view {
+                            diff_view.scroll_to_bottom();
+                        }
+                    }
+                    DiffAction::NextFile => {
+                        app.next_diff();
+                    }
+                    DiffAction::PrevFile => {
+                        app.prev_diff();
+                    }
+                    DiffAction::Exit => {
+                        app.exit_diff_mode();
+                    }
+                }
+            }
+        } else if let Event::Mouse(mouse_event) = event {
+            // 支持鼠标滚轮
+            if let Some(diff_view) = &mut app.diff_view {
+                match mouse_event.kind {
+                    crossterm::event::MouseEventKind::ScrollUp => {
+                        diff_view.scroll_by(-3);
+                    }
+                    crossterm::event::MouseEventKind::ScrollDown => {
+                        diff_view.scroll_by(3);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         ControlFlow::Continue
     }
 }
