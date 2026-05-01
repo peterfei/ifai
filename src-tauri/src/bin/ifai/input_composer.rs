@@ -658,4 +658,21 @@ mod tests {
         let action = ic.handle_key(code_key(KeyCode::F(1)));
         assert!(matches!(action, InputAction::None));
     }
+
+    // === 显示宽度计算 ===
+
+    #[test]
+    fn test_char_width_ascii() {
+        assert_eq!(char_width('a'), 1);
+        assert_eq!(char_width('Z'), 1);
+        assert_eq!(char_width(' '), 1);
+        assert_eq!(char_width('@'), 1);
+    }
+
+    #[test]
+    fn test_char_width_cjk() {
+        assert_eq!(char_width('你'), 2);
+        assert_eq!(char_width('好'), 2);
+        assert_eq!(char_width('世'), 2);
+    }
 }

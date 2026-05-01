@@ -445,341 +445,341 @@ impl App {
 
     /// 渲染一帧
     pub fn render(&mut self) {
-        // 在闭包外预先计算所有需要的数据，避免借用冲突
+        // 更新任务面板状态（副作用，必须在 draw_frame 之前）
+        let tasks = task::get_global_task_store().get_tasks();
+        let task_all_done = tasks.iter().all(|t| t.status == task::TaskStatus::Completed);
+        if task_all_done && !tasks.is_empty() && self.task_all_done_at.is_none() {
+            self.task_all_done_at = Some(Instant::now());
+        } else if !task_all_done {
+            self.task_all_done_at = None;
+        }
+
+        // 取出 terminal 避免借用冲突（self.terminal vs self.draw_frame）
+        let mut terminal = self.terminal.take();
+        if let Some(term) = &mut terminal {
+            let _ = term.draw(|f| self.draw_frame(f));
+        }
+        self.terminal = terminal;
+    }
+
+    /// 绘制帧内容（与终端解耦，可供 TestBackend 测试调用）
+    pub fn draw_frame(&self, f: &mut ratatui::Frame<'_>) {
+        // 所有局部数据直接从 self 读取（不再需要提前 clone）
         let search_mode = self.search_mode;
-        let search_query = self.search_query.clone();
-        let search_matches = self.search_matches.clone();
+        let search_query = &self.search_query;
+        let search_matches = &self.search_matches;
         let current_match_index = self.current_match_index;
         let scroll_offset = self.scroll_offset;
-        let content_lines = self.content_lines.clone();
+        let content_lines = &self.content_lines;
         let has_approval_state = self.approval_state.is_some();
         let approval_selected = self.approval_selected;
         let user_scrolled = self.user_scrolled;
-        let status_text = self.status_text.clone();
-        let input_value = self.input.value().to_string();
+        let status_text = &self.status_text;
+        let input_value = self.input.value();
         let input_cursor_col = input_composer::cursor_col(&self.input);
-        let search_input_value = self.search_input.value().to_string();
+        let search_input_value = self.search_input.value();
         let search_input_cursor_col = input_composer::cursor_col(&self.search_input);
         let is_empty = self.is_empty();
         let help_mode = self.help_mode;
         let popup_visible = self.command_popup.is_visible();
         let (popup_lines, popup_height) = self.command_popup.render();
 
-        // 🏛️ 元编程：从全局 TaskStore 读取任务（轮询式，与 GUI Zustand 订阅等价）
         let tasks = task::get_global_task_store().get_tasks();
-        let (task_lines, task_all_done) = render_task_lines(&tasks);
-
-        // 全部完成时记录时间点（用于延迟收起）
-        if task_all_done && self.task_all_done_at.is_none() {
-            self.task_all_done_at = Some(Instant::now());
-        } else if !task_all_done && !tasks.is_empty() {
-            // 有未完成任务时重置计时器
-            self.task_all_done_at = None;
-        }
-        // 任务清空后也重置
-        if tasks.is_empty() {
-            self.task_all_done_at = None;
-        }
-
-        // 全部完成后 2 秒自动收起
+        let (task_lines, _) = render_task_lines(&tasks);
         let task_expired = self.task_all_done_at
             .map(|t| t.elapsed().as_secs() >= 2)
             .unwrap_or(false);
         let task_height = task_lines.len() as u16;
         let show_tasks = task_height > 0 && !popup_visible && !task_expired;
 
-        if let Some(terminal) = &mut self.terminal {
-            let _ = terminal.draw(|f| {
-            let size = f.area();
-            if size.height < 4 {
-                return;
+        let size = f.area();
+        if size.height < 4 {
+            return;
+        }
+
+        // 布局：内容区 + 状态栏(1行) + 分隔线(1行) + 输入框(1行)
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),    // 内容区
+                Constraint::Length(1), // 状态栏
+                Constraint::Length(1), // 分隔线
+                Constraint::Length(1), // 输入框
+            ])
+            .split(size);
+        
+        let content_area = chunks[0];
+        let status_area = chunks[1];
+        let separator_area = chunks[2];
+        let input_area = chunks[3];
+        
+        // 清空内容区（确保 overlay 关闭后残留内容被清除）
+        f.render_widget(Clear, content_area);
+        
+        // 计算内容区域信息（用于滚动指示器）
+        // 当 tasks 面板或命令弹出框可见时，减去它们的高度避免内容被遮挡
+        let overlay_height = if show_tasks && task_height > 0 {
+            task_height
+        } else if popup_visible && popup_height > 0 {
+            popup_height
+        } else {
+            0
+        };
+        let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize);
+        let total_lines = content_lines.len();
+        
+        // === 内容区 ===
+        // 只有在非审批模式下才渲染内容区域
+        if !has_approval_state {
+            // === 欢迎页显示（当内容区为空且不在帮助模式时） ===
+            if is_empty && !help_mode {
+                let welcome_widget = super::welcome::WelcomeWidget::new();
+                let welcome_lines = welcome_widget.render();
+        
+                // 居中显示欢迎页
+                let welcome_content = Paragraph::new(welcome_lines)
+                    .alignment(ratatui::layout::Alignment::Center);
+                f.render_widget(welcome_content, content_area);
+            } else if help_mode {
+                // === 帮助覆盖层显示 ===
+                let help_overlay = super::keybindings::HelpOverlay::new();
+                let help_lines = help_overlay.render();
+        
+                // 帮助内容居左显示
+                let help_content = Paragraph::new(help_lines)
+                    .alignment(ratatui::layout::Alignment::Left);
+                f.render_widget(help_content, content_area);
+            } else if search_mode && !search_query.is_empty() {
+                // === 搜索模式：渲染带高亮的行 ===
+                let start = scroll_offset as usize;
+                let end = (start + visible_count).min(total_lines);
+        
+                let visible_lines: Vec<Line> = (start..end)
+                    .map(|line_idx| {
+                        let line = &content_lines[line_idx];
+                        let line_text = line.to_string();
+        
+                        // 检查这一行是否是当前匹配
+                        let is_current_match = current_match_index < search_matches.len()
+                            && search_matches[current_match_index] == line_idx;
+        
+                        // 检查这一行是否是其他匹配
+                        let is_other_match = search_matches.contains(&line_idx)
+                            && !is_current_match;
+        
+                        // 如果包含搜索词，添加高亮
+                        if line_text.to_lowercase().contains(&search_query.to_lowercase()) {
+                            highlight_search_term_static(&line_text, &search_query, is_current_match, is_other_match)
+                        } else {
+                            line.clone()
+                        }
+                    })
+                    .collect();
+        
+                let content = Paragraph::new(visible_lines).scroll((0, 0));
+                f.render_widget(content, content_area);
+            } else {
+                // === 正常模式：直接渲染 ===
+                let start = scroll_offset as usize;
+                let end = (start + visible_count).min(total_lines);
+                let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
+                let content = Paragraph::new(visible_lines).scroll((0, 0));
+                f.render_widget(content, content_area);
             }
-
-            // 布局：内容区 + 状态栏(1行) + 分隔线(1行) + 输入框(1行)
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Min(1),    // 内容区
-                    Constraint::Length(1), // 状态栏
-                    Constraint::Length(1), // 分隔线
-                    Constraint::Length(1), // 输入框
-                ])
-                .split(size);
-
-            let content_area = chunks[0];
-            let status_area = chunks[1];
-            let separator_area = chunks[2];
-            let input_area = chunks[3];
-
-            // 清空内容区（确保 overlay 关闭后残留内容被清除）
-            f.render_widget(Clear, content_area);
-
-            // 计算内容区域信息（用于滚动指示器）
-            // 当 tasks 面板或命令弹出框可见时，减去它们的高度避免内容被遮挡
-            let overlay_height = if show_tasks && task_height > 0 {
-                task_height
-            } else if popup_visible && popup_height > 0 {
-                popup_height
-            } else {
-                0
-            };
-            let visible_count = (content_area.height as usize).saturating_sub(overlay_height as usize);
-            let total_lines = content_lines.len();
-
-            // === 内容区 ===
-            // 只有在非审批模式下才渲染内容区域
-            if !has_approval_state {
-                // === 欢迎页显示（当内容区为空且不在帮助模式时） ===
-                if is_empty && !help_mode {
-                    let welcome_widget = super::welcome::WelcomeWidget::new();
-                    let welcome_lines = welcome_widget.render();
-
-                    // 居中显示欢迎页
-                    let welcome_content = Paragraph::new(welcome_lines)
-                        .alignment(ratatui::layout::Alignment::Center);
-                    f.render_widget(welcome_content, content_area);
-                } else if help_mode {
-                    // === 帮助覆盖层显示 ===
-                    let help_overlay = super::keybindings::HelpOverlay::new();
-                    let help_lines = help_overlay.render();
-
-                    // 帮助内容居左显示
-                    let help_content = Paragraph::new(help_lines)
-                        .alignment(ratatui::layout::Alignment::Left);
-                    f.render_widget(help_content, content_area);
-                } else if search_mode && !search_query.is_empty() {
-                    // === 搜索模式：渲染带高亮的行 ===
-                    let start = scroll_offset as usize;
-                    let end = (start + visible_count).min(total_lines);
-
-                    let visible_lines: Vec<Line> = (start..end)
-                        .map(|line_idx| {
-                            let line = &content_lines[line_idx];
-                            let line_text = line.to_string();
-
-                            // 检查这一行是否是当前匹配
-                            let is_current_match = current_match_index < search_matches.len()
-                                && search_matches[current_match_index] == line_idx;
-
-                            // 检查这一行是否是其他匹配
-                            let is_other_match = search_matches.contains(&line_idx)
-                                && !is_current_match;
-
-                            // 如果包含搜索词，添加高亮
-                            if line_text.to_lowercase().contains(&search_query.to_lowercase()) {
-                                highlight_search_term_static(&line_text, &search_query, is_current_match, is_other_match)
-                            } else {
-                                line.clone()
-                            }
-                        })
-                        .collect();
-
-                    let content = Paragraph::new(visible_lines).scroll((0, 0));
-                    f.render_widget(content, content_area);
-                } else {
-                    // === 正常模式：直接渲染 ===
-                    let start = scroll_offset as usize;
-                    let end = (start + visible_count).min(total_lines);
-                    let visible_lines: Vec<Line> = content_lines[start..end].to_vec();
-                    let content = Paragraph::new(visible_lines).scroll((0, 0));
-                    f.render_widget(content, content_area);
-                }
-            } else {
-                // 审批模式：用黑色背景清除内容区域
-                let clear_area = Paragraph::new("")
+        } else {
+            // 审批模式：用黑色背景清除内容区域
+            let clear_area = Paragraph::new("")
+                .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+            f.render_widget(clear_area, content_area);
+        }
+        
+        // === 审批面板（底部弹出） ===
+        if has_approval_state {
+            if let Some(request) = &self.approval_state {
+                let (panel_lines, panel_height) = approval_overlay::render_bottom_panel(request, approval_selected);
+        
+                // 计算面板区域：覆盖整个底部（包括状态栏和输入框区域）
+                let panel_width = content_area.width;
+                let panel_y = content_area.y + content_area.height.saturating_sub(panel_height);
+                let panel_area = Rect::new(content_area.x, panel_y, panel_width, panel_height);
+        
+                // 黑色背景填充
+                let panel_bg = Paragraph::new(panel_lines)
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                f.render_widget(clear_area, content_area);
+                f.render_widget(panel_bg, panel_area);
             }
-
-            // === 审批面板（底部弹出） ===
-            if has_approval_state {
-                if let Some(request) = &self.approval_state {
-                    let (panel_lines, panel_height) = approval_overlay::render_bottom_panel(request, approval_selected);
-
-                    // 计算面板区域：覆盖整个底部（包括状态栏和输入框区域）
-                    let panel_width = content_area.width;
-                    let panel_y = content_area.y + content_area.height.saturating_sub(panel_height);
-                    let panel_area = Rect::new(content_area.x, panel_y, panel_width, panel_height);
-
-                    // 黑色背景填充
-                    let panel_bg = Paragraph::new(panel_lines)
-                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                    f.render_widget(panel_bg, panel_area);
-                }
-            }
-
-            // === 滚动指示器 ===
-            let max_offset = total_lines.saturating_sub(visible_count) as u16;
-            if max_offset > 0 && user_scrolled {
-                let pct = if max_offset > 0 {
-                    (scroll_offset as f64 / max_offset as f64 * 100.0) as u16
+        }
+        
+        // === 滚动指示器 ===
+        let max_offset = total_lines.saturating_sub(visible_count) as u16;
+        if max_offset > 0 && user_scrolled {
+            let pct = if max_offset > 0 {
+                (scroll_offset as f64 / max_offset as f64 * 100.0) as u16
+            } else {
+                100
+            };
+            let indicator = Span::styled(
+                format!(" ↑{}% ", pct),
+                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+            );
+            let indicator_area = Rect::new(
+                content_area.x + content_area.width.saturating_sub(6),
+                content_area.y,
+                6,
+                1,
+            );
+            let indicator = Paragraph::new(Line::from(indicator));
+            f.render_widget(indicator, indicator_area);
+        }
+        
+        // === 状态栏和输入框 ===
+        // 只有在非审批模式下才渲染状态栏和输入框
+        if !has_approval_state {
+            if search_mode {
+                // === 搜索模式 ===
+                let match_count = search_matches.len();
+                let current = if match_count > 0 {
+                    current_match_index + 1
                 } else {
-                    100
+                    0
                 };
-                let indicator = Span::styled(
-                    format!(" ↑{}% ", pct),
+        
+                let status_text = if match_count == 0 {
+                    format!("🔍 Search: {} [0/0] No matches", search_query)
+                } else {
+                    format!("🔍 Search: {} [{}/{}]", search_query, current, match_count)
+                };
+        
+                let status_color = if match_count == 0 && !search_query.is_empty() {
+                    ratatui::style::Color::Red
+                } else {
+                    ratatui::style::Color::Cyan
+                };
+        
+                let status_line = Line::from(Span::styled(
+                    format!(" {} ↑/Enter 下一个 | ↓/Shift+Enter 上一个 | Esc 退出 ", status_text),
+                    ratatui::style::Style::default().fg(status_color),
+                ));
+                let status = Paragraph::new(status_line)
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(status, status_area);
+        
+                // === 搜索输入框 ===
+                let prompt = Span::styled(
+                    "🔍 ",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                 );
-                let indicator_area = Rect::new(
-                    content_area.x + content_area.width.saturating_sub(6),
-                    content_area.y,
-                    6,
-                    1,
-                );
-                let indicator = Paragraph::new(Line::from(indicator));
-                f.render_widget(indicator, indicator_area);
-            }
-
-            // === 状态栏和输入框 ===
-            // 只有在非审批模式下才渲染状态栏和输入框
-            if !has_approval_state {
-                if search_mode {
-                    // === 搜索模式 ===
-                    let match_count = search_matches.len();
-                    let current = if match_count > 0 {
-                        current_match_index + 1
-                    } else {
-                        0
-                    };
-
-                    let status_text = if match_count == 0 {
-                        format!("🔍 Search: {} [0/0] No matches", search_query)
-                    } else {
-                        format!("🔍 Search: {} [{}/{}]", search_query, current, match_count)
-                    };
-
-                    let status_color = if match_count == 0 && !search_query.is_empty() {
-                        ratatui::style::Color::Red
-                    } else {
-                        ratatui::style::Color::Cyan
-                    };
-
-                    let status_line = Line::from(Span::styled(
-                        format!(" {} ↑/Enter 下一个 | ↓/Shift+Enter 上一个 | Esc 退出 ", status_text),
-                        ratatui::style::Style::default().fg(status_color),
-                    ));
-                    let status = Paragraph::new(status_line)
-                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                    f.render_widget(status, status_area);
-
-                    // === 搜索输入框 ===
-                    let prompt = Span::styled(
-                        "🔍 ",
-                        ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                    );
-                    let input_text = Span::raw(search_input_value);
-                    let input_line = Line::from(vec![prompt, input_text]);
-                    let input = Paragraph::new(input_line);
-                    f.render_widget(input, input_area);
-
-                    // 设置终端光标位置（🔍 占 2 个字符宽度）
-                    let cursor_x = input_area.x + 2 + (search_input_cursor_col as u16).min(input_area.width.saturating_sub(2));
-                    let cursor_y = input_area.y;
-                    f.set_cursor_position((cursor_x, cursor_y));
-                } else {
-                    // === 正常模式 ===
-                    // === 状态栏 ===
-                    let status_line = if !tasks.is_empty() {
-                        // 任务模式：显示当前任务 + 进度
-                        let total = tasks.len();
-                        let completed = tasks.iter().filter(|t| t.status == TaskStatus::Completed).count();
-                        let mut spans: Vec<Span<'static>> = Vec::new();
-
-                        // 当前 InProgress 任务的 activeForm
-                        let current_task = tasks.iter()
-                            .find(|t| t.status == TaskStatus::InProgress);
-                        if let Some(t) = current_task {
-                            spans.push(Span::styled(" ▸ ", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)));
-                            spans.push(Span::styled(
-                                t.active_form.clone(),
-                                ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
-                            ));
-                            spans.push(Span::raw(" "));
-                        }
-
-                        // 进度 Tasks N/M
+                let input_text = Span::raw(search_input_value);
+                let input_line = Line::from(vec![prompt, input_text]);
+                let input = Paragraph::new(input_line);
+                f.render_widget(input, input_area);
+        
+                // 设置终端光标位置（🔍 占 2 个字符宽度）
+                let cursor_x = input_area.x + 2 + (search_input_cursor_col as u16).min(input_area.width.saturating_sub(2));
+                let cursor_y = input_area.y;
+                f.set_cursor_position((cursor_x, cursor_y));
+            } else {
+                // === 正常模式 ===
+                // === 状态栏 ===
+                let status_line = if !tasks.is_empty() {
+                    // 任务模式：显示当前任务 + 进度
+                    let total = tasks.len();
+                    let completed = tasks.iter().filter(|t| t.status == TaskStatus::Completed).count();
+                    let mut spans: Vec<Span<'static>> = Vec::new();
+        
+                    // 当前 InProgress 任务的 activeForm
+                    let current_task = tasks.iter()
+                        .find(|t| t.status == TaskStatus::InProgress);
+                    if let Some(t) = current_task {
+                        spans.push(Span::styled(" ▸ ", ratatui::style::Style::default().fg(ratatui::style::Color::Yellow)));
                         spans.push(Span::styled(
-                            format!("Tasks {}/{}", completed, total),
+                            t.active_form.clone(),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                        ));
+                        spans.push(Span::raw(" "));
+                    }
+        
+                    // 进度 Tasks N/M
+                    spans.push(Span::styled(
+                        format!("Tasks {}/{}", completed, total),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                    ));
+        
+                    // 如果有其他状态文本，追加到末尾
+                    if !status_text.is_empty() {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            status_text.clone(),
                             ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
                         ));
-
-                        // 如果有其他状态文本，追加到末尾
-                        if !status_text.is_empty() {
-                            spans.push(Span::raw(" · "));
-                            spans.push(Span::styled(
-                                status_text.clone(),
-                                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                            ));
-                        }
-
-                        Line::from(spans)
-                    } else {
-                        // 无任务：显示原有状态文本或 Ready
-                        let status_content = if !status_text.is_empty() {
-                            status_text.clone()
-                        } else {
-                            " [Ready] ".to_string()
-                        };
-                        Line::from(Span::styled(
-                            format!(" {} ", status_content),
-                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                        ))
-                    };
-                    let status = Paragraph::new(status_line)
-                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                    f.render_widget(status, status_area);
-
-                    // === 命令弹出框（输入框上方） ===
-                    // 与任务列表互斥（共享同一渲染区域）
-                    if show_tasks && task_height > 0 {
-                        let task_y = status_area.y.saturating_sub(task_height);
-                        let task_area = Rect::new(
-                            content_area.x,
-                            task_y,
-                            content_area.width,
-                            task_height,
-                        );
-                        f.render_widget(Clear, task_area);
-                        let task_content = Paragraph::new(task_lines.clone())
-                            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                        f.render_widget(task_content, task_area);
-                    } else if popup_visible && popup_height > 0 {
-                        let popup_y = status_area.y.saturating_sub(popup_height);
-                        let popup_area = Rect::new(
-                            content_area.x,
-                            popup_y,
-                            content_area.width,
-                            popup_height,
-                        );
-                        f.render_widget(Clear, popup_area);
-                        let popup_content = Paragraph::new(popup_lines)
-                            .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
-                        f.render_widget(popup_content, popup_area);
                     }
-
-                    // === 分隔线（状态栏与输入框之间的视觉分隔） ===
-                    let separator_line = "─".repeat(separator_area.width as usize);
-                    let separator = Paragraph::new(separator_line)
-                        .style(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray));
-                    f.render_widget(separator, separator_area);
-
-                    // === 输入框 ===
-                    let prompt = Span::styled(
-                        format!("{}⟩ ", self.input.prompt()),
-                        ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+        
+                    Line::from(spans)
+                } else {
+                    // 无任务：显示原有状态文本或 Ready
+                    let status_content = if !status_text.is_empty() {
+                        status_text.clone()
+                    } else {
+                        " [Ready] ".to_string()
+                    };
+                    Line::from(Span::styled(
+                        format!(" {} ", status_content),
+                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                    ))
+                };
+                let status = Paragraph::new(status_line)
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                f.render_widget(status, status_area);
+        
+                // === 命令弹出框（输入框上方） ===
+                // 与任务列表互斥（共享同一渲染区域）
+                if show_tasks && task_height > 0 {
+                    let task_y = status_area.y.saturating_sub(task_height);
+                    let task_area = Rect::new(
+                        content_area.x,
+                        task_y,
+                        content_area.width,
+                        task_height,
                     );
-                    let input_text = Span::raw(input_value);
-                    let input_line = Line::from(vec![prompt, input_text]);
-                    let input = Paragraph::new(input_line);
-                    f.render_widget(input, input_area);
-
-                    // 设置终端光标位置（input_cursor_col 已包含 prompt 和 ⟩ 的宽度）
-                    let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
-                    let cursor_y = input_area.y;
-                    f.set_cursor_position((cursor_x, cursor_y));
+                    f.render_widget(Clear, task_area);
+                    let task_content = Paragraph::new(task_lines.clone())
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(task_content, task_area);
+                } else if popup_visible && popup_height > 0 {
+                    let popup_y = status_area.y.saturating_sub(popup_height);
+                    let popup_area = Rect::new(
+                        content_area.x,
+                        popup_y,
+                        content_area.width,
+                        popup_height,
+                    );
+                    f.render_widget(Clear, popup_area);
+                    let popup_content = Paragraph::new(popup_lines)
+                        .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                    f.render_widget(popup_content, popup_area);
                 }
+        
+                // === 分隔线（状态栏与输入框之间的视觉分隔） ===
+                let separator_line = "─".repeat(separator_area.width as usize);
+                let separator = Paragraph::new(separator_line)
+                    .style(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray));
+                f.render_widget(separator, separator_area);
+        
+                // === 输入框 ===
+                let prompt = Span::styled(
+                    format!("{}⟩ ", self.input.prompt()),
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                );
+                let input_text = Span::raw(input_value);
+                let input_line = Line::from(vec![prompt, input_text]);
+                let input = Paragraph::new(input_line);
+                f.render_widget(input, input_area);
+        
+                // 设置终端光标位置（input_cursor_col 已包含 prompt 和 ⟩ 的宽度）
+                let cursor_x = input_area.x + (input_cursor_col as u16).min(input_area.width);
+                let cursor_y = input_area.y;
+                f.set_cursor_position((cursor_x, cursor_y));
             }
-        });
         }
     }
 
@@ -914,6 +914,7 @@ fn highlight_search_term_static(line: &str, query: &str, is_current: bool, is_ot
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui_test::{buffer_to_string, render_to_buffer};
     use pretty_assertions::assert_eq;
 
     // === strip_ansi 测试 ===
@@ -1094,5 +1095,62 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0], "hello");
         assert_eq!(lines[1], "");
+    }
+
+    // === 渲染测试 ===
+
+    #[test]
+    fn test_app_empty_layout() {
+        let mut app = App::new_for_test();
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        // 空内容应包含分隔线和 Ready 状态
+        assert!(output.contains("─"));
+        assert!(output.contains("Ready"));
+    }
+
+    #[test]
+    fn test_app_with_content_lines() {
+        let mut app = App::new_for_test();
+        app.content_lines = vec![
+            Line::from("Hello World"),
+            Line::from("Second line"),
+        ];
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Hello World"));
+        assert!(output.contains("Second line"));
+    }
+
+    #[test]
+    fn test_app_status_text() {
+        let mut app = App::new_for_test();
+        app.status_text = "Streaming (deepseek)".to_string();
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Streaming (deepseek)"));
+    }
+
+    #[test]
+    fn test_app_input_visible() {
+        let mut app = App::new_for_test();
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("hi"));
+        // 输入框应在最后一行
+        let last_line = output.lines().last().unwrap();
+        assert!(last_line.contains("hi"));
+    }
+
+    #[test]
+    fn test_app_minimal_height() {
+        let mut app = App::new_for_test();
+        // height < 4 应安全返回，不 panic
+        let buf = render_to_buffer(&mut app, 80, 3);
+        let output = buffer_to_string(&buf);
+        // 3 行高度：全部是空行（draw_frame 直接 return）
+        assert!(output.chars().filter(|c| *c != '\n').all(|c| c == ' '));
     }
 }

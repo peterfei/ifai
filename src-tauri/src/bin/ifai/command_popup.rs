@@ -379,9 +379,9 @@ mod tests {
     fn test_slash_activates_popup() {
         let mut popup = CommandPopup::new();
         popup.update("/");
-        // 输入 "/" 后应显示全部 16 个命令
+        // 输入 "/" 后应显示全部命令
         assert!(popup.is_visible());
-        assert_eq!(popup.entries.len(), 16);
+        assert_eq!(popup.entries.len(), commands::COMMAND_SPECS.len());
     }
 
     #[test]
