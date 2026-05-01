@@ -893,12 +893,11 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     break;
                 }
 
-                // 显示用户输入
-                let theme = render::default_theme();
-                app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
-                app.render();  // 立即渲染用户消息，不等待 AI 响应
-
                 if text.starts_with('/') {
+                    // 显示命令输入
+                    let theme = render::default_theme();
+                    app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &text));
+                    app.render();
                     // REPL 命令
                     let parts: Vec<&str> = text.splitn(2, ' ').collect();
                     let cmd = &parts[0][1..];
@@ -917,6 +916,16 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         }
                     }
                 } else {
+                    // AI 调用 — 内层循环：自动出队连续发送
+                    let mut pending = Some(text);
+                    loop {
+                        let input = pending.take().unwrap();
+
+                        // 显示用户输入（排队消息也需显示）
+                        let theme = render::default_theme();
+                        app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &input));
+                        app.render();
+
                     // AI 调用 — 使用 channel 接收流式输出
                     app.set_busy(true);
                     app.set_status("Thinking...".to_string());
@@ -927,7 +936,6 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<approval_overlay::ApprovalRequest>();
 
                     let session_clone = session.clone();
-                    let input = text.clone();
 
                     // 在后台任务中运行 stream_prompt
                     let mut stream_handle = tokio::spawn(async move {
@@ -945,6 +953,53 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                             Some(status) = status_rx.recv() => {
                                 app.set_status(status);
                                 app.render();
+                            }
+                            // Streaming 期间轮询键盘事件（允许用户提前输入下一条消息）
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                                if crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
+                                    if let Ok(event) = crossterm::event::read() {
+                                        if let crossterm::event::Event::Key(key) = event {
+                                            use input_composer::InputAction;
+                                            use crossterm::event::KeyCode;
+                                            use crossterm::event::KeyModifiers;
+
+                                            // Ctrl+C：中断 streaming + 清空队列
+                                            if key.modifiers.contains(KeyModifiers::CONTROL)
+                                                && key.code == KeyCode::Char('c')
+                                            {
+                                                app.clear_queue();
+                                                stream_handle.abort();
+                                                app.push_line(String::new());
+                                                app.push_line("^C 已中断 AI 响应".to_string());
+                                                break;
+                                            }
+
+                                            // 将按键传递给 InputComposer（更新输入框缓冲区）
+                                            let action = app.input.handle_key(key);
+                                            match action {
+                                                InputAction::Submit(text) => {
+                                                    // Streaming 期间 Enter 入队（不清空输入框）
+                                                    app.enqueue(text);
+                                                    app.render();
+                                                }
+                                                InputAction::Exit => {
+                                                    // Streaming 期间 Ctrl+D 不退出
+                                                }
+                                                InputAction::Interrupt => {
+                                                    // Ctrl+C 已在上面处理
+                                                }
+                                                InputAction::None => {
+                                                    // 命令弹出框过滤更新
+                                                    if app.command_popup.is_visible()
+                                                || app.input.value().starts_with('/') {
+                                                app.command_popup.update(app.input.value());
+                                            }
+                                            app.render();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             Some(request) = approval_rx.recv() => {
                                 app.set_approval_pending(request);
@@ -1054,6 +1109,13 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                     app.set_status(String::new());
                     app.push_line(String::new());
                     app.render();
+
+                    // 尝试出队下一条消息
+                    pending = app.dequeue();
+                    if pending.is_none() {
+                        break;  // 队列空 → 回到 run_loop
+                    }
+                    }  // 内层 loop 结束
                 }
             }
             AppResult::Exit => {
