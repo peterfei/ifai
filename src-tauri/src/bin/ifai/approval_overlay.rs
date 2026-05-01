@@ -774,4 +774,38 @@ mod tests {
         assert_eq!(options[1].decision, ApprovalDecision::ApproveAlways);
         assert_eq!(options[2].decision, ApprovalDecision::Deny);
     }
+
+    // === 渲染测试 ===
+
+    use crate::tui_test::lines_to_text;
+
+    #[test]
+    fn test_render_panel_contains_tool_display_name() {
+        let request = make_request("read_file", r#"{"path": "/tmp/test.rs"}"#);
+        let (lines, height) = render_bottom_panel(&request, 0);
+        assert!(height > 0);
+        let text = lines_to_text(&lines);
+        // render_bottom_panel 使用 get_tool_display_name → "Read file"
+        assert!(text.contains("Read file"), "panel should contain display name, got: {}", &text);
+    }
+
+    #[test]
+    fn test_render_panel_contains_args_preview() {
+        // args 必须是合法 JSON，否则 serde_json::from_str fallback 到 {}
+        let request = make_request("bash", r#"{"cmd": "ls -la /tmp"}"#);
+        let (lines, height) = render_bottom_panel(&request, 0);
+        assert!(height > 0);
+        let text = lines_to_text(&lines);
+        assert!(text.contains("ls -la /tmp"), "panel should contain args preview, got: {}", &text);
+    }
+
+    #[test]
+    fn test_render_panel_contains_options() {
+        let request = make_request("bash", r#"{"cmd": "echo hi"}"#);
+        let (lines, height) = render_bottom_panel(&request, 0);
+        assert!(height > 0);
+        let text = lines_to_text(&lines);
+        assert!(text.contains("Yes"));
+        assert!(text.contains("cancel"));
+    }
 }

@@ -49,7 +49,10 @@ async fn test_json_mo_shi_xiang_ying() {
 #[serial_test::serial]
 async fn test_kong() {
     // 验证空输入的处理
-    let mut env = TestEnv::new().await.unwrap();
+    let mut env = TestEnv::with_mock().await.unwrap();
+    if let Some(mock) = env.mock_server() {
+        mock.setup_streaming_response(vec!["OK"]).await.unwrap();
+    }
     let output = env.run_cli(&[""]).await.unwrap();
     output.assert_success();
 }

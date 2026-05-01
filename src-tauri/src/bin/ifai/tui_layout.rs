@@ -27,6 +27,11 @@ impl TuiLayout {
     pub fn from_terminal() -> Self {
         let rows = TERMINAL.rows();
         let cols = TERMINAL.cols();
+        Self::from_size(cols, rows)
+    }
+
+    /// 从指定尺寸创建布局（测试用）
+    pub fn from_size(cols: u16, rows: u16) -> Self {
         Self {
             width: cols,
             content_height: rows.saturating_sub(3),  // 留 3 行给状态、分隔线和输入
@@ -108,5 +113,60 @@ mod tests {
         let exit = TuiLayout::exit_alt_screen();
         assert_eq!(enter, "\x1b[?1049h");
         assert_eq!(exit, "\x1b[?1049l");
+    }
+
+    // === 布局计算测试 ===
+
+    #[test]
+    fn test_layout_80x24() {
+        let layout = TuiLayout::from_size(80, 24);
+        assert_eq!(layout.width, 80);
+        assert_eq!(layout.content_height, 21);
+        assert_eq!(layout.status_row, 22);
+        assert_eq!(layout.separator_row, 23);
+        assert_eq!(layout.input_row, 24);
+    }
+
+    #[test]
+    fn test_layout_wide_200x50() {
+        let layout = TuiLayout::from_size(200, 50);
+        assert_eq!(layout.width, 200);
+        assert_eq!(layout.content_height, 47);
+        assert_eq!(layout.status_row, 48);
+        assert_eq!(layout.separator_row, 49);
+        assert_eq!(layout.input_row, 50);
+    }
+
+    #[test]
+    fn test_layout_narrow_40x10() {
+        let layout = TuiLayout::from_size(40, 10);
+        assert_eq!(layout.width, 40);
+        assert_eq!(layout.content_height, 7);
+        assert_eq!(layout.status_row, 8);
+        assert_eq!(layout.separator_row, 9);
+        assert_eq!(layout.input_row, 10);
+    }
+
+    #[test]
+    fn test_layout_minimal_height() {
+        let layout = TuiLayout::from_size(80, 3);
+        assert_eq!(layout.content_height, 0);
+        assert_eq!(layout.status_row, 1);
+        assert_eq!(layout.separator_row, 2);
+        assert_eq!(layout.input_row, 3);
+    }
+
+    #[test]
+    fn test_layout_row_ordering() {
+        // 任意尺寸：status < separator < input
+        for (w, h) in [(80, 10), (80, 24), (200, 50), (40, 4)] {
+            let layout = TuiLayout::from_size(w, h);
+            assert!(layout.status_row < layout.separator_row,
+                "status_row {} should be < separator_row {} for {}x{}",
+                layout.status_row, layout.separator_row, w, h);
+            assert!(layout.separator_row < layout.input_row,
+                "separator_row {} should be < input_row {} for {}x{}",
+                layout.separator_row, layout.input_row, w, h);
+        }
     }
 }
