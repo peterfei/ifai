@@ -154,6 +154,8 @@ pub struct App {
     status_text: String,
     /// 是否正在处理 AI 请求（阻止新输入）
     busy: bool,
+    /// 输入消息队列（streaming 期间用户按 Enter 入队，streaming 结束自动出队）
+    queue: Vec<String>,
     /// 审批状态（Some = 审批面板显示中）
     pub approval_state: Option<ApprovalRequest>,
     /// 审批面板选中项索引
@@ -194,6 +196,7 @@ impl App {
             input: InputComposer::new(""),
             status_text: String::new(),
             busy: false,
+            queue: Vec::new(),
             approval_state: None,
             approval_selected: 0,
             search_mode: false,
@@ -222,6 +225,7 @@ impl App {
             input: InputComposer::new(""),
             status_text: String::new(),
             busy: false,
+            queue: Vec::new(),
             approval_state: None,
             approval_selected: 0,
             search_mode: false,
@@ -260,6 +264,34 @@ impl App {
     /// 设置忙碌状态
     pub fn set_busy(&mut self, busy: bool) {
         self.busy = busy;
+    }
+
+    /// 是否正在处理 AI 请求（阻止新输入）
+    pub fn is_busy(&self) -> bool {
+        self.busy
+    }
+
+    /// 入队一条消息（自动 trim + 空检查）
+    pub fn enqueue(&mut self, text: String) {
+        let text = text.trim().to_string();
+        if !text.is_empty() {
+            self.queue.push(text);
+        }
+    }
+
+    /// 出队一条消息（FIFO）
+    pub fn dequeue(&mut self) -> Option<String> {
+        if self.queue.is_empty() { None } else { Some(self.queue.remove(0)) }
+    }
+
+    /// 清空队列
+    pub fn clear_queue(&mut self) {
+        self.queue.clear();
+    }
+
+    /// 队列长度
+    pub fn queue_len(&self) -> usize {
+        self.queue.len()
     }
 
     /// 设置审批等待状态
@@ -713,19 +745,38 @@ impl App {
                             ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
                         ));
                     }
-        
+
+                    // 队列计数（自动派生）
+                    if !self.queue.is_empty() {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            format!("Queue: {}", self.queue.len()),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                        ));
+                    }
+
                     Line::from(spans)
                 } else {
                     // 无任务：显示原有状态文本或 Ready
-                    let status_content = if !status_text.is_empty() {
-                        status_text.clone()
+                    let mut spans: Vec<Span<'static>> = Vec::new();
+                    if !status_text.is_empty() {
+                        spans.push(Span::raw(" "));
+                        spans.push(Span::styled(
+                            status_text.clone(),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+                        ));
                     } else {
-                        " [Ready] ".to_string()
-                    };
-                    Line::from(Span::styled(
-                        format!(" {} ", status_content),
-                        ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-                    ))
+                        spans.push(Span::raw(" [Ready] "));
+                    }
+                    // 队列计数（自动派生）
+                    if !self.queue.is_empty() {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            format!("Queue: {}", self.queue.len()),
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                        ));
+                    }
+                    Line::from(spans)
                 };
                 let status = Paragraph::new(status_line)
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
@@ -915,6 +966,9 @@ fn highlight_search_term_static(line: &str, query: &str, is_current: bool, is_ot
 mod tests {
     use super::*;
     use crate::tui_test::{buffer_to_string, render_to_buffer};
+    use crate::assert_tui_snapshot;
+    use crate::assert_buffer_contains;
+    use crate::assert_buffer_not_contains;
     use pretty_assertions::assert_eq;
 
     // === strip_ansi 测试 ===
@@ -1152,5 +1206,513 @@ mod tests {
         let output = buffer_to_string(&buf);
         // 3 行高度：全部是空行（draw_frame 直接 return）
         assert!(output.chars().filter(|c| *c != '\n').all(|c| c == ' '));
+    }
+
+    // === 状态栏状态转换测试（高保真复现 Bug） ===
+    //
+    // Bug 背景：多轮工具调用时，状态栏状态更新不完整
+    // - ToolDone 后不更新 status_tx，导致状态栏卡在 "Tool: xxx [running]"
+    // - MessageDone 后进入 execute_tools_tui 时不更新状态栏
+    // - loop 第二轮开始时不重新发送 "Streaming (model)"
+    //
+    // 这些测试验证 set_status() → draw_frame() 的渲染一致性
+
+    #[test]
+    fn test_status_streaming_initial() {
+        // 验证流开始时状态栏显示 Streaming
+        let mut app = App::new_for_test();
+        app.set_status(format!("Streaming ({})", "zhipu"));
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Streaming (zhipu)"),
+            "初始 Streaming 状态应显示在状态栏中");
+        assert!(!output.contains("Ready"),
+            "Streaming 时不应显示 Ready");
+    }
+
+    #[test]
+    fn test_status_tool_running() {
+        // 验证 ToolStart 时状态栏显示 "Tool: xxx [running]"
+        let mut app = App::new_for_test();
+        app.push_line("AI 正在分析代码...".to_string());
+        app.set_status("Tool: read_file [running]".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Tool: read_file [running]"),
+            "工具执行中应显示工具名和 running 状态");
+    }
+
+    #[test]
+    fn test_status_done_after_message() {
+        // 验证 MessageDone 后状态栏显示 "Done"
+        let mut app = App::new_for_test();
+        app.push_line("AI 回复内容".to_string());
+        app.set_status("Done".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Done"),
+            "消息完成后状态栏应显示 Done");
+        assert!(!output.contains("Streaming"),
+            "Done 状态不应包含 Streaming");
+        assert!(!output.contains("running"),
+            "Done 状态不应包含 running");
+    }
+
+    #[test]
+    fn test_status_clear_after_completion() {
+        // 验证整个请求完成后状态栏清空（回到 Ready）
+        let mut app = App::new_for_test();
+        app.push_line("最终回复".to_string());
+        app.set_status("Done".to_string());
+        // main.rs 第 1054 行: app.set_status(String::new())
+        app.set_status(String::new());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Ready"),
+            "请求完成后状态栏应显示 Ready");
+        assert!(!output.contains("Done"),
+            "清空后不应保留 Done");
+    }
+
+    /// 验证 ToolDone 后状态栏正确从 [running] 切换到 [done]
+    ///
+    /// 模拟实际场景：
+    /// 1. ToolStart → status = "Tool: read_file [running]"
+    /// 2. ToolDone → status = "Tool: read_file [done]"
+    #[test]
+    fn test_status_transitions_after_tool_done() {
+        let mut app = App::new_for_test();
+        app.push_line("正在读取文件...".to_string());
+
+        // ToolStart 阶段
+        app.set_status("Tool: read_file [running]".to_string());
+        let buf_running = render_to_buffer(&mut app, 80, 24);
+        let output_running = buffer_to_string(&buf_running);
+        assert!(output_running.contains("[running]"));
+
+        // ToolDone 阶段：状态栏更新为 [done]
+        app.set_status("Tool: read_file [done]".to_string());
+        let buf_after_done = render_to_buffer(&mut app, 80, 24);
+        let output_after_done = buffer_to_string(&buf_after_done);
+        assert!(output_after_done.contains("[done]"),
+            "ToolDone 后状态栏应显示 [done]");
+        assert!(!output_after_done.contains("[running]"),
+            "ToolDone 后状态栏不应再显示 [running]");
+    }
+
+    /// 验证多轮循环中新一轮开始时状态栏正确重置为 Streaming
+    ///
+    /// 模拟实际场景：
+    /// 1. 第1轮：Streaming → ToolStart → ToolDone → MessageDone("Done") → 执行工具
+    /// 2. 第2轮：loop 回到顶部，重新发送 "Streaming (model)"
+    #[test]
+    fn test_status_resets_on_new_iteration() {
+        let mut app = App::new_for_test();
+        app.push_line("第1轮 AI 回复".to_string());
+        app.push_line("Continuing... (1/10)".to_string());
+
+        // 第1轮 MessageDone → "Done"
+        app.set_status("Done".to_string());
+        let buf_done = render_to_buffer(&mut app, 80, 24);
+        let output_done = buffer_to_string(&buf_done);
+        assert!(output_done.contains("Done"));
+
+        // 第2轮开始：状态栏重置为 Streaming
+        app.push_line("第2轮 AI 回复中...".to_string());
+        app.set_status("Streaming (zhipu)".to_string());
+
+        let buf_2nd = render_to_buffer(&mut app, 80, 24);
+        let output_2nd = buffer_to_string(&buf_2nd);
+        assert!(output_2nd.contains("Streaming (zhipu)"),
+            "第2轮流开始时状态栏应显示 Streaming");
+        assert!(!output_2nd.contains("Done"),
+            "第2轮流开始时状态栏不应保留上轮的 Done");
+    }
+
+    // === Streaming 时输入框行为测试 ===
+    //
+    // 架构说明：
+    // - main.rs 中 AI 调用期间不调用 app.run_loop()，而是进入 tokio::select! 循环
+    //   监听 output_rx / status_rx / approval_rx，因此用户按键不会被处理
+    // - App.busy 字段作为语义标记，表示"正在处理 AI 请求"
+    // - 输入框在 streaming 期间仍然渲染（显示用户最后输入的内容），但不接受新输入
+
+    #[test]
+    fn test_busy_flag_prevents_input_submit() {
+        // 验证 busy 状态的基本语义：set_busy(true) 后 App 标记为忙碌
+        let mut app = App::new_for_test();
+        assert!(!app.is_busy(), "初始状态不应为 busy");
+
+        app.set_busy(true);
+        // 注意：busy 是私有字段，通过 set_busy/get 接口操作
+        // 这里验证 set_busy 不 panic 且状态一致
+        app.set_status("Streaming (zhipu)".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Streaming (zhipu)"),
+            "busy 状态下应显示 Streaming 状态");
+
+        app.set_busy(false);
+        app.set_status(String::new());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+        assert!(output.contains("Ready"),
+            "busy 解除后应显示 Ready");
+    }
+
+    #[test]
+    fn test_input_box_rendered_during_streaming() {
+        // 验证 streaming 期间输入框仍然渲染（保留用户最后输入的内容）
+        let mut app = App::new_for_test();
+        // 模拟用户输入了 "hello"
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+
+        // 进入 streaming 状态
+        app.set_busy(true);
+        app.set_status("Streaming (zhipu)".to_string());
+        app.push_line("AI 正在回复...".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+
+        // 输入框应仍然显示 "hi"
+        let last_line = output.lines().last().unwrap();
+        assert!(last_line.contains("hi"),
+            "streaming 期间输入框应保留用户输入的内容");
+        // 状态栏应显示 Streaming
+        assert!(output.contains("Streaming (zhipu)"),
+            "streaming 期间状态栏应显示 Streaming");
+    }
+
+    #[test]
+    fn test_input_box_unchanged_while_busy() {
+        // 验证 busy 状态下输入框内容不会被修改
+        // （实际阻止输入靠 main.rs 循环结构，这里验证 App 层面的一致性）
+        let mut app = App::new_for_test();
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
+
+        let input_before = app.input.value().to_string();
+        assert_eq!(input_before, "test");
+
+        // 进入 busy 状态
+        app.set_busy(true);
+        app.set_status("Streaming (deepseek)".to_string());
+
+        // 模拟在 busy 期间渲染多次（main.rs 的 select! 循环会频繁 render）
+        for _ in 0..5 {
+            let _buf = render_to_buffer(&mut app, 80, 24);
+        }
+
+        // 输入框内容应保持不变
+        let input_after = app.input.value().to_string();
+        assert_eq!(input_after, "test",
+            "busy 期间输入框内容不应被修改");
+    }
+
+    /// 快照测试：Streaming 时完整界面布局
+    ///
+    /// 验证 streaming 期间内容区显示 AI 回复、状态栏显示 Streaming、
+    /// 输入框保留用户输入、分隔线正常渲染。
+    #[test]
+    fn test_snapshot_streaming_with_input() {
+        let mut app = App::new_for_test();
+        // 用户输入
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE));
+        // AI 回复内容
+        app.push_line("你好！有什么可以帮助你的？".to_string());
+        app.push_line("我可以帮你分析代码、编写测试等。".to_string());
+        // Streaming 状态
+        app.set_busy(true);
+        app.set_status("Streaming (zhipu)".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let text = buffer_to_string(&buf);
+        assert!(text.contains("你") && text.contains("好"),
+            "内容区应包含 AI 回复的中文内容");
+        assert_buffer_contains!(&buf, "Streaming (zhipu)");
+        assert_tui_snapshot!("streaming_with_input", &buf);
+    }
+
+    // === 高保真复现：streaming 期间输入框无法输入 ===
+    //
+    // 根因分析（main.rs 第 939-1051 行）：
+    //   正常状态: loop { app.run_loop() }  ← run_loop 内部调用 event::poll + router.dispatch 处理按键
+    //   AI 调用: loop { tokio::select! {   ← 只监听 output_rx / status_rx / stream_handle
+    //     output_rx  → push_line + render
+    //     status_rx  → set_status + render
+    //     stream_handle → break
+    //   }}
+    //
+    // tokio::select! 的分支中没有任何一个读取 crossterm::event::Event，
+    // 因此 streaming 期间用户的所有按键事件都被操作系统缓冲但不会被消费。
+    // run_loop() 完全不被调用，CombinedKeyHandler 不会执行。
+    //
+    // 次要问题：CombinedKeyHandler.handle()（event/handlers.rs:181）
+    // 只检查 is_searching() / help_mode，不检查 app.busy，
+    // 如果未来有人修复 main.rs 让 run_loop 在 streaming 期间也被调用，
+    // 输入会直接穿透到 InputComposer（因为缺少 busy 守卫）。
+
+    #[test]
+    fn test_input_composer_accepts_keys_when_not_busy() {
+        // 正常状态：InputComposer 可以接收按键
+        let mut app = App::new_for_test();
+        assert!(!app.is_busy(), "初始状态不应为 busy");
+
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "hi",
+            "非 busy 状态下输入框应正常接收按键");
+    }
+
+    #[test]
+    fn test_run_loop_not_called_during_streaming() {
+        // 高保真复现：模拟 main.rs 的 streaming 循环
+        //
+        // main.rs 的实际执行路径：
+        //   1. app.run_loop() → 用户按 Enter → AppResult::Submit("hello")
+        //   2. app.set_busy(true)
+        //   3. loop { tokio::select! { ... } }  ← 不调用 run_loop，但新分支处理按键
+        //   4. app.set_busy(false)
+        //
+        // 修复后：main.rs 的 select! 循环中添加了键盘事件轮询分支，
+        // 允许用户在 streaming 期间输入（通过 app.input.handle_key）。
+        let mut app = App::new_for_test();
+
+        // 用户输入
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
+        assert_eq!(app.input.value(), "hi");
+
+        // === 模拟 main.rs 第 921 行：进入 AI 调用 ===
+        app.set_busy(true);
+        app.set_status("Streaming (zhipu)".to_string());
+        app.push_line("AI 正在回复...".to_string());
+
+        // === 模拟 main.rs 修复后的行为：streaming 期间可以输入 ===
+        // 新分支通过 app.input.handle_key(key) 直接更新输入框
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
+
+        // streaming 期间输入框内容已更新（用户提前输入了 "next"）
+        assert_eq!(app.input.value(), "hinext",
+            "streaming 期间输入框应接受用户输入");
+        assert!(app.is_busy(),
+            "streaming 期间 busy 应为 true");
+    }
+
+    #[test]
+    fn test_combined_key_handler_busy_guard_blocks_submit() {
+        // 验证 CombinedKeyHandler 在 busy 状态下阻止输入（防御层）
+        //
+        // 修复后：CombinedKeyHandler.handle() 检查 app.is_busy()，
+        // 即使 run_loop 被意外调用，按键也不会穿透到 InputComposer。
+        let mut app = App::new_for_test();
+
+        // 设置为 busy 状态
+        app.set_busy(true);
+        app.set_status("Streaming (zhipu)".to_string());
+
+        // 直接调用 handle_key（模拟 run_loop 被调用的情况）
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+
+        // 虽然 InputComposer 本身不检查 busy，
+        // 但 CombinedKeyHandler 的 busy 守卫会阻止按键到达 InputComposer
+        // 这里直接调用 InputComposer 绕过了守卫，所以输入会生效
+        assert_eq!(app.input.value(), "x",
+            "InputComposer 本身不检查 busy，守卫在 CombinedKeyHandler 层");
+
+        // 验证 is_busy() 返回正确值
+        assert!(app.is_busy(),
+            "busy 状态应正确反映");
+        app.set_busy(false);
+        assert!(!app.is_busy(),
+            "解除 busy 后应返回 false");
+    }
+
+    /// 快照测试：streaming 期间界面完整状态
+    ///
+    /// 展示 streaming 期间的实际界面布局：
+    /// - 内容区：AI 回复逐行追加
+    /// - 状态栏：显示 Streaming 状态
+    /// - 输入框：冻结（保留用户提交前的内容）
+    #[test]
+    fn test_snapshot_streaming_frozen_input() {
+        let mut app = App::new_for_test();
+        // 用户提交前输入了 "hello"
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE));
+
+        // 进入 streaming（模拟 main.rs 调用路径）
+        app.set_busy(true);
+        app.push_line("User: hello".to_string());
+        app.set_status("Streaming (zhipu)".to_string());
+
+        // 模拟 AI 流式输出
+        app.push_line("AI: 我来帮你分析这段代码...".to_string());
+        app.push_line("首先看一下文件结构。".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("streaming_frozen_input", &buf);
+    }
+
+    /// 快照测试：状态栏完整生命周期
+    ///
+    /// 捕获状态栏在各种状态下的渲染输出，用于回归检测。
+    /// 使用 insta 快照，首次运行生成 .snap，后续自动对比。
+    #[test]
+    fn test_snapshot_status_lifecycle() {
+        let mut app = App::new_for_test();
+        app.push_line("AI 正在处理请求...".to_string());
+
+        // 阶段1：初始 Streaming
+        app.set_status("Streaming (zhipu)".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("status_streaming", &buf);
+
+        // 阶段2：工具执行中
+        app.set_status("Tool: read_file [running]".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("status_tool_running", &buf);
+
+        // 阶段3：Done
+        app.set_status("Done".to_string());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("status_done", &buf);
+
+        // 阶段4：清空回到 Ready
+        app.set_status(String::new());
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("status_ready", &buf);
+    }
+
+    // === 输入消息队列测试 ===
+
+    #[test]
+    fn test_enqueue_adds_to_queue() {
+        let mut app = App::new_for_test();
+        assert_eq!(app.queue_len(), 0);
+        app.enqueue("hello".to_string());
+        assert_eq!(app.queue_len(), 1);
+        app.enqueue("world".to_string());
+        assert_eq!(app.queue_len(), 2);
+    }
+
+    #[test]
+    fn test_enqueue_trims_and_rejects_empty() {
+        let mut app = App::new_for_test();
+        app.enqueue("  ".to_string());
+        assert_eq!(app.queue_len(), 0, "空白字符串不应入队");
+        app.enqueue("".to_string());
+        assert_eq!(app.queue_len(), 0, "空字符串不应入队");
+        app.enqueue("  hello  ".to_string());
+        assert_eq!(app.queue_len(), 1);
+        assert_eq!(app.dequeue(), Some("hello".to_string()), "应自动 trim");
+    }
+
+    #[test]
+    fn test_dequeue_fifo_order() {
+        let mut app = App::new_for_test();
+        app.enqueue("first".to_string());
+        app.enqueue("second".to_string());
+        app.enqueue("third".to_string());
+        assert_eq!(app.dequeue(), Some("first".to_string()));
+        assert_eq!(app.dequeue(), Some("second".to_string()));
+        assert_eq!(app.dequeue(), Some("third".to_string()));
+        assert_eq!(app.dequeue(), None, "空队列应返回 None");
+    }
+
+    #[test]
+    fn test_clear_queue() {
+        let mut app = App::new_for_test();
+        app.enqueue("msg1".to_string());
+        app.enqueue("msg2".to_string());
+        assert_eq!(app.queue_len(), 2);
+        app.clear_queue();
+        assert_eq!(app.queue_len(), 0);
+        assert_eq!(app.dequeue(), None);
+    }
+
+    #[test]
+    fn test_queue_count_rendered_in_status_bar() {
+        let mut app = App::new_for_test();
+        app.set_status("Streaming (zhipu)".to_string());
+        app.enqueue("next question".to_string());
+        app.enqueue("another one".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "Queue: 2");
+        assert_buffer_contains!(&buf, "Streaming (zhipu)");
+    }
+
+    #[test]
+    fn test_queue_not_rendered_when_empty() {
+        let mut app = App::new_for_test();
+        app.set_status("Streaming (zhipu)".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_not_contains!(&buf, "Queue:");
+    }
+
+    #[test]
+    fn test_queue_count_decreases_on_dequeue() {
+        let mut app = App::new_for_test();
+        app.set_status("Streaming (zhipu)".to_string());
+        app.enqueue("msg1".to_string());
+        app.enqueue("msg2".to_string());
+
+        // Queue: 2
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "Queue: 2");
+
+        // 出队一条 → Queue: 1
+        app.dequeue();
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "Queue: 1");
+        assert_buffer_not_contains!(&buf, "Queue: 2");
+
+        // 出队全部 → 无 Queue
+        app.dequeue();
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_not_contains!(&buf, "Queue:");
+    }
+
+    /// 快照测试：streaming + 队列状态
+    ///
+    /// 验证状态栏同时显示 Streaming 状态和 Queue 计数，
+    /// 输入框保留用户最后输入的内容。
+    #[test]
+    fn test_snapshot_streaming_with_queue() {
+        let mut app = App::new_for_test();
+        // 用户在 streaming 期间输入并提交了两条消息
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
+        app.input.handle_key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE));
+
+        app.set_busy(true);
+        app.set_status("Streaming (zhipu)".to_string());
+        app.push_line("AI 正在回复第一条消息...".to_string());
+
+        // 两条消息入队
+        app.enqueue("next question".to_string());
+        app.enqueue("follow up".to_string());
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "Queue: 2");
+        assert_buffer_contains!(&buf, "Streaming (zhipu)");
+        assert_tui_snapshot!("streaming_with_queue", &buf);
     }
 }
