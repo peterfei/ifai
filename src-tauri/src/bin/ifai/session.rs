@@ -1116,12 +1116,13 @@ impl Session {
         ];
         let mut retry_attempt: u32 = 0;
 
-        let _ = status_tx.send(format!("Streaming ({})", self.model));
-
         // 🔥 清空 PipelineTracker 状态（确保不会显示上一次的工具结果）
         self.pipeline_tracker.clear();
 
         loop {
+            // 每轮开始时更新状态栏（多轮工具调用时需重新发送）
+            let _ = status_tx.send(format!("Streaming ({})", self.model));
+
             let request = ifainew_lib::harness::api::StreamRequest {
                 model: self.model.clone(),
                 messages: self.messages.clone(),
@@ -1241,9 +1242,12 @@ impl Session {
 
                                 collected_tool_calls.push(PendingToolCall {
                                     tool_id: tool_id.clone(),
-                                    name: tool_name,
+                                    name: tool_name.clone(),
                                     args: result.clone(),
                                 });
+
+                                // 更新状态栏：工具参数已就绪，等待 MessageDone 后执行
+                                let _ = status_tx.send(format!("Tool: {} [done]", tool_name));
 
                                 collector.dispatch(&event);
                             }
