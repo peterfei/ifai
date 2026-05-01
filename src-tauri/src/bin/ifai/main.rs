@@ -2,36 +2,37 @@
 //!
 //! 🏛️ 零外部依赖：手动参数解析 + CliAction dispatch + REPL 循环
 
-mod render;
-mod provider;
-mod config;
 mod commands;
+mod config;
+mod provider;
+mod render;
 mod session;
 // ✅ prompts.rs 已删除：CLI 现在使用 ifainew_lib::prompt_manager
-mod prompt_vars; // 🏛️ 元编程：变量自动收集器
-mod permission;  // 🔥 元编程权限引擎
-mod token;       // 🔥 元编程 Token 显示层
-mod persistence; // 🔥 元编程会话持久化
-mod pipeline;    // 🎨 元编程 Pipeline 可视化
-mod loop_detector; // 🎨 元编程循环检测引擎
-mod terminal;    // 🔥 终端抽象层（ANSI 光标定位）
-mod tui_layout;  // 🔥 声明式 TUI 布局层
-mod tui;         // 🔥 ratatui 全屏 TUI 模块
-mod input_composer; // 🔥 输入框组件（替代 rustyline）
-mod stream_render; // 🔥 声明式流式渲染管道
-mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
-mod code_folding; // 🎨 代码折叠 - 元编程架构
-mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
-mod markdown_meta; // 🎨 Markdown 元编程驱动层
-mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
-mod permission_store; // 🔥 权限规则存储（用户白名单）
-mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
-mod welcome; // 🔥 TUI 欢迎页组件
-mod keybindings; // 🔥 快捷键定义和帮助系统
+mod code_folding; // 🎨 代码折叠 - 元编程架构
 mod command_popup; // 🔥 声明式命令弹出框
+mod diff_render; // 🔥 TUI Diff 渲染系统
+mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
+mod input_composer; // 🔥 输入框组件（替代 rustyline）
+mod keybindings; // 🔥 快捷键定义和帮助系统
+mod loop_detector; // 🎨 元编程循环检测引擎
+mod markdown_meta; // 🎨 Markdown 元编程驱动层
+mod markdown_stream; // 🎨 Markdown 代码块流式渲染器
+mod permission; // 🔥 元编程权限引擎
+mod permission_store; // 🔥 权限规则存储（用户白名单）
+mod persistence; // 🔥 元编程会话持久化
+mod pipeline; // 🎨 元编程 Pipeline 可视化
+mod prompt_vars; // 🏛️ 元编程：变量自动收集器
+mod smart_glob_summary; // 🔥 智能 Glob 搜索 - 元编程架构（简化版）
+mod stream_render; // 🔥 声明式流式渲染管道
+mod syntax_highlight; // 🎨 语法高亮 - 元编程架构
+mod terminal; // 🔥 终端抽象层（ANSI 光标定位）
+mod token; // 🔥 元编程 Token 显示层
+mod tui; // 🔥 ratatui 全屏 TUI 模块
+mod tui_layout; // 🔥 声明式 TUI 布局层
 #[cfg(test)]
-mod tui_test; // 🧪 TUI 渲染测试共享基础设施
+mod tui_test;
+mod welcome; // 🔥 TUI 欢迎页组件 // 🧪 TUI 渲染测试共享基础设施
 
 // ============================================================================
 // TUI 事件循环结果
@@ -46,10 +47,29 @@ pub enum AppResult {
     Exit,
 }
 
+/// TUI 输出消息（支持文本和 diff）
+#[derive(Debug, Clone)]
+pub enum OutputMessage {
+    Text(String),
+    Diff(diff_render::DiffFileChange),
+}
+
+impl From<String> for OutputMessage {
+    fn from(s: String) -> Self {
+        OutputMessage::Text(s)
+    }
+}
+
+impl From<diff_render::DiffFileChange> for OutputMessage {
+    fn from(diff: diff_render::DiffFileChange) -> Self {
+        OutputMessage::Diff(diff)
+    }
+}
+
+use rustyline::Editor;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::io::{self, IsTerminal, Write};
-use serde::{Deserialize, Serialize};
-use rustyline::Editor;
 
 // ============================================================================
 // JSON 输出结构
@@ -123,12 +143,7 @@ impl JsonResponse {
     }
 
     /// 创建错误响应
-    fn error(
-        provider: String,
-        model: String,
-        prompt: String,
-        error_message: String,
-    ) -> Self {
+    fn error(provider: String, model: String, prompt: String, error_message: String) -> Self {
         Self {
             status: "error".to_string(),
             provider,
@@ -154,7 +169,12 @@ impl JsonResponse {
 #[derive(Debug)]
 pub enum CliAction {
     /// 单次提示词模式：`ifai "write a hello world"`
-    Prompt { text: String, json_output: bool, no_tool: bool, system: Option<String> },
+    Prompt {
+        text: String,
+        json_output: bool,
+        no_tool: bool,
+        system: Option<String>,
+    },
 
     /// REPL 交互模式：`ifai` 或 `ifai --repl`
     Repl,
@@ -273,7 +293,10 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
         return match action.as_str() {
             "init" => Ok(CliAction::ConfigInit),
             "show" => Ok(CliAction::ConfigShow),
-            _ => Err(format!("unknown config subcommand: {}. Use 'init' or 'show'", action)),
+            _ => Err(format!(
+                "unknown config subcommand: {}. Use 'init' or 'show'",
+                action
+            )),
         };
     }
 
@@ -295,7 +318,7 @@ fn parse_args_from_list(args: &[String]) -> Result<CliAction, String> {
     if json_output || no_tool || system_prompt.is_some() {
         // 返回一个虚拟的 Prompt，稍后会从 stdin 读取
         return Ok(CliAction::Prompt {
-            text: String::new(),  // 占位符，会被 stdin 覆盖
+            text: String::new(), // 占位符，会被 stdin 覆盖
             json_output,
             no_tool,
             system: system_prompt,
@@ -388,9 +411,12 @@ fn main() {
         } else {
             // 获取当前的设置
             let (current_json_output, current_no_tool, current_system) = match &action {
-                CliAction::Prompt { json_output, no_tool, system, .. } => {
-                    (*json_output, *no_tool, system.clone())
-                }
+                CliAction::Prompt {
+                    json_output,
+                    no_tool,
+                    system,
+                    ..
+                } => (*json_output, *no_tool, system.clone()),
                 _ => (false, false, None),
             };
 
@@ -461,7 +487,12 @@ fn run_action(action: CliAction) -> Result<(), String> {
             Ok(())
         }
 
-        CliAction::Prompt { text, json_output, no_tool, system } => {
+        CliAction::Prompt {
+            text,
+            json_output,
+            no_tool,
+            system,
+        } => {
             run_prompt(&text, json_output, no_tool, system)?;
             Ok(())
         }
@@ -549,15 +580,21 @@ fn config_show() -> Result<(), String> {
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
     let theme = render::default_theme();
 
-    println!("{}", render::render_banner("v0.4.4", &config.provider(), &config.model(), &theme));
+    println!(
+        "{}",
+        render::render_banner("v0.4.4", &config.provider(), &config.model(), &theme)
+    );
     println!();
-    println!("{}", render::render_config_chain(
-        None,  // CLI arg
-        None,  // env var
-        None,  // file
-        &format!("{} (default)", config.provider()),  // YAML default
-        &theme,
-    ));
+    println!(
+        "{}",
+        render::render_config_chain(
+            None,                                        // CLI arg
+            None,                                        // env var
+            None,                                        // file
+            &format!("{} (default)", config.provider()), // YAML default
+            &theme,
+        )
+    );
 
     Ok(())
 }
@@ -565,7 +602,12 @@ fn config_show() -> Result<(), String> {
 /// 运行单次提示词模式
 ///
 /// **用途**: `ifai "your prompt"` 或 `echo "prompt" | ifai`
-async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool, system: Option<String>) -> Result<(), String> {
+async fn run_prompt_async(
+    text: &str,
+    json_output: bool,
+    no_tool: bool,
+    system: Option<String>,
+) -> Result<(), String> {
     // 解析有效配置
     let config = config::EffectiveConfig::resolve(None, None, None, None)?;
 
@@ -596,8 +638,8 @@ async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool, system: 
     }
 
     // 🔥 设置项目根目录
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
     session.set_project_root(current_dir.to_string_lossy().to_string());
 
     // 🔥 JSON 模式：不打印流式输出，只缓冲
@@ -625,12 +667,7 @@ async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool, system: 
                 Ok(())
             }
             Err(e) => {
-                let response = JsonResponse::error(
-                    provider,
-                    model,
-                    text.to_string(),
-                    e,
-                );
+                let response = JsonResponse::error(provider, model, text.to_string(), e);
                 println!("{}", serde_json::to_string(&response).unwrap());
                 Err(format!("Request failed"))
             }
@@ -652,15 +689,18 @@ async fn run_prompt_async(text: &str, json_output: bool, no_tool: bool, system: 
 }
 
 /// 运行单次提示词模式（同步包装）
-fn run_prompt(text: &str, json_output: bool, no_tool: bool, system: Option<String>) -> Result<(), String> {
+fn run_prompt(
+    text: &str,
+    json_output: bool,
+    no_tool: bool,
+    system: Option<String>,
+) -> Result<(), String> {
     // 创建 tokio runtime
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+    let rt =
+        tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
 
     // 在 async runtime 中运行
-    rt.block_on(async {
-        run_prompt_async(text, json_output, no_tool, system).await
-    })
+    rt.block_on(async { run_prompt_async(text, json_output, no_tool, system).await })
 }
 
 /// 🔄 运行 REPL 循环
@@ -673,11 +713,15 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     let theme = render::default_theme();
 
     // 显示 Banner
-    println!("{}", render::render_banner("v0.4.4", &config.provider(), &config.model(), &theme));
+    println!(
+        "{}",
+        render::render_banner("v0.4.4", &config.provider(), &config.model(), &theme)
+    );
     println!();
 
     // 初始化 Session
-    let mut session = session::Session::new(config.provider().to_string(), config.model().to_string());
+    let mut session =
+        session::Session::new(config.provider().to_string(), config.model().to_string());
 
     // 🔥 从配置读取 API key（优先级：CLI > Env > TOML > Default）
     if let Some(api_key) = config.api_key() {
@@ -690,8 +734,8 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
     }
 
     // 🔥 FIX: 设置项目根目录为当前工作目录
-    let current_dir = std::env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    let current_dir =
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e))?;
     session.set_project_root(current_dir.to_string_lossy().to_string());
 
     // 显示欢迎信息
@@ -729,7 +773,9 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
         let input = match readline {
             Ok(line) => line,
             Err(rustyline::error::ReadlineError::Io(e)) => {
-                if e.kind() == io::ErrorKind::UnexpectedEof || e.kind() == io::ErrorKind::Interrupted {
+                if e.kind() == io::ErrorKind::UnexpectedEof
+                    || e.kind() == io::ErrorKind::Interrupted
+                {
                     // Ctrl+D (EOF) 或 Ctrl+C (Interrupt)
                     println!(); // 换行
                     println!("{}Goodbye!{}", theme.success, render::RESET);
@@ -785,8 +831,11 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
             if token_count > (max_tokens * 80 / 100) && session.messages.len() >= 10 {
                 eprintln!("{}Warning: Context size ({} tokens, {} messages) exceeds 80% of model limit ({}).{}",
                     render::color_256(208), token_count, session.messages.len(), max_tokens, render::RESET);
-                eprintln!("{}Consider using /compact to reduce context size, or /clear to start fresh.{}",
-                    render::color_256(208), render::RESET);
+                eprintln!(
+                    "{}Consider using /compact to reduce context size, or /clear to start fresh.{}",
+                    render::color_256(208),
+                    render::RESET
+                );
             }
 
             // 用户消息 → 发送给 AI（流式响应）
@@ -816,23 +865,19 @@ async fn run_repl_async(resume_name: Option<String>) -> Result<(), String> {
 /// 🔄 运行 REPL 循环（同步包装）
 fn run_repl(resume_name: Option<String>) -> Result<(), String> {
     // 创建 tokio runtime
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+    let rt =
+        tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
 
     // 在 async runtime 中运行 REPL
-    rt.block_on(async {
-        run_repl_async(resume_name).await
-    })
+    rt.block_on(async { run_repl_async(resume_name).await })
 }
 
 /// 🖥️ 运行 TUI 全屏 REPL（同步包装）
 fn run_tui_repl(resume_name: Option<String>) -> Result<(), String> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+    let rt =
+        tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
 
-    rt.block_on(async {
-        run_tui_repl_async(resume_name).await
-    })
+    rt.block_on(async { run_tui_repl_async(resume_name).await })
 }
 
 /// 🖥️ TUI 全屏 REPL 核心（async）
@@ -869,8 +914,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
     }
 
     // 创建 TUI App
-    let mut app = tui::App::new()
-        .map_err(|e| format!("Failed to initialize TUI: {}", e))?;
+    let mut app = tui::App::new().map_err(|e| format!("Failed to initialize TUI: {}", e))?;
 
     if let Some(name) = &resume_name {
         app.push_line(format!("Resuming session: {}", name));
@@ -926,129 +970,211 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                         app.push_line(format!("{}⟩{} {}", theme.brand, render::RESET, &input));
                         app.render();
 
-                    // AI 调用 — 使用 channel 接收流式输出
-                    app.set_busy(true);
-                    app.set_status("Thinking...".to_string());
-                    app.render();
+                        // AI 调用 — 使用 channel 接收流式输出
+                        app.set_busy(true);
+                        app.set_status("Thinking...".to_string());
+                        app.render();
 
-                    let (output_tx, mut output_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-                    let (status_tx, mut status_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-                    let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<approval_overlay::ApprovalRequest>();
+                        let (output_tx, mut output_rx) =
+                            tokio::sync::mpsc::unbounded_channel::<OutputMessage>();
+                        let (status_tx, mut status_rx) =
+                            tokio::sync::mpsc::unbounded_channel::<String>();
+                        let (approval_tx, mut approval_rx) = tokio::sync::mpsc::unbounded_channel::<
+                            approval_overlay::ApprovalRequest,
+                        >();
 
-                    let session_clone = session.clone();
+                        let session_clone = session.clone();
 
-                    // 在后台任务中运行 stream_prompt
-                    let mut stream_handle = tokio::spawn(async move {
-                        let mut s = session_clone.lock().await;
-                        s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx).await
-                    });
+                        // 在后台任务中运行 stream_prompt
+                        let mut stream_handle = tokio::spawn(async move {
+                            let mut s = session_clone.lock().await;
+                            s.stream_prompt_tui(&input, output_tx, status_tx, approval_tx)
+                                .await
+                        });
 
-                    // 实时接收输出并渲染
-                    loop {
-                        tokio::select! {
-                            Some(line) = output_rx.recv() => {
-                                app.push_line(line);
-                                app.render();
-                            }
-                            Some(status) = status_rx.recv() => {
-                                app.set_status(status);
-                                app.render();
-                            }
-                            // Streaming 期间轮询键盘事件（允许用户提前输入下一条消息）
-                            _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
-                                if crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
-                                    if let Ok(event) = crossterm::event::read() {
-                                        if let crossterm::event::Event::Key(key) = event {
-                                            use input_composer::InputAction;
-                                            use crossterm::event::KeyCode;
-                                            use crossterm::event::KeyModifiers;
+                        // 实时接收输出并渲染
+                        loop {
+                            tokio::select! {
+                                Some(msg) = output_rx.recv() => {
+                                    match msg {
+                                        OutputMessage::Text(line) => {
+                                            app.push_line(line);
+                                        }
+                                        OutputMessage::Diff(diff) => {
+                                            app.push_diff(diff);
+                                        }
+                                    }
+                                    app.render();
+                                }
+                                Some(status) = status_rx.recv() => {
+                                    app.set_status(status);
+                                    app.render();
+                                }
+                                // Streaming 期间轮询键盘事件（允许用户提前输入下一条消息）
+                                _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {
+                                    // 处理所有待处理的键盘事件
+                                    while crossterm::event::poll(std::time::Duration::from_millis(0)).unwrap_or(false) {
+                                        if let Ok(event) = crossterm::event::read() {
+                                            // 先处理特殊按键（diff 模式、滚动等）
+                                            let mut consumed = false;
 
-                                            // Ctrl+C：中断 streaming + 清空队列
-                                            if key.modifiers.contains(KeyModifiers::CONTROL)
-                                                && key.code == KeyCode::Char('c')
-                                            {
-                                                app.clear_queue();
-                                                stream_handle.abort();
-                                                app.push_line(String::new());
-                                                app.push_line("^C 已中断 AI 响应".to_string());
-                                                break;
-                                            }
+                                            if let crossterm::event::Event::Key(key) = event {
+                                                use crossterm::event::KeyCode;
+                                                use crossterm::event::KeyModifiers;
 
-                                            // 将按键传递给 InputComposer（更新输入框缓冲区）
-                                            let action = app.input.handle_key(key);
-                                            match action {
-                                                InputAction::Submit(text) => {
-                                                    // Streaming 期间 Enter 入队（不清空输入框）
-                                                    app.enqueue(text);
+                                                // === Ctrl+C：中断 streaming ===
+                                                if key.modifiers.contains(KeyModifiers::CONTROL)
+                                                    && key.code == KeyCode::Char('c')
+                                                {
+                                                    app.clear_queue();
+                                                    stream_handle.abort();
+                                                    app.push_line(String::new());
+                                                    app.push_line("^C 已中断 AI 响应".to_string());
+                                                    break;
+                                                }
+
+                                                // === 特殊功能键（非输入框） ===
+                                                // d 键：进入 diff 模式
+                                                if key.code == KeyCode::Char('d')
+                                                    && !key.modifiers.contains(KeyModifiers::CONTROL)
+                                                    && !app.is_diff_mode()
+                                                    && !app.diffs.is_empty()
+                                                {
+                                                    app.enter_diff_mode();
+                                                    app.input.clear();
+                                                    consumed = true;
+                                                }
+
+                                                // Diff 模式下的按键
+                                                if app.is_diff_mode() {
+                                                    use crate::event::{EventHandler, ControlFlow};
+                                                    use crate::event::handlers::DiffModeHandler;
+                                                    let mut handler = DiffModeHandler;
+                                                    let _ = handler.handle(&event, &mut app);
+                                                    consumed = true;
+                                                }
+
+                                                // 滚动键（PageUp/PageDown/Shift+方向键）
+                                                if !consumed && !app.is_diff_mode() {
+                                                    match key.code {
+                                                        KeyCode::PageUp => {
+                                                            app.scroll_up(5);
+                                                            consumed = true;
+                                                        }
+                                                        KeyCode::PageDown => {
+                                                            app.scroll_down(5);
+                                                            consumed = true;
+                                                        }
+                                                        KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                                                            app.scroll_up(3);
+                                                            consumed = true;
+                                                        }
+                                                        KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                                                            app.scroll_down(3);
+                                                            consumed = true;
+                                                        }
+                                                        _ => {}
+                                                    }
+                                                }
+
+                                                // 如果按键被特殊处理消费了，跳过输入框处理
+                                                if consumed {
                                                     app.render();
+                                                    continue;
                                                 }
-                                                InputAction::Exit => {
-                                                    // Streaming 期间 Ctrl+D 不退出
-                                                }
-                                                InputAction::Interrupt => {
-                                                    // Ctrl+C 已在上面处理
-                                                }
-                                                InputAction::None => {
-                                                    // 命令弹出框过滤更新
-                                                    if app.command_popup.is_visible()
-                                                || app.input.value().starts_with('/') {
-                                                app.command_popup.update(app.input.value());
-                                            }
-                                            app.render();
+
+                                                // === 输入框处理 ===
+                                                use input_composer::InputAction;
+                                                let action = app.input.handle_key(key);
+                                                match action {
+                                                    InputAction::Submit(text) => {
+                                                        // Streaming 期间 Enter 入队（不清空输入框）
+                                                        app.enqueue(text);
+                                                        app.render();
+                                                    }
+                                                    InputAction::Exit => {
+                                                        // Streaming 期间 Ctrl+D 不退出
+                                                    }
+                                                    InputAction::Interrupt => {
+                                                        // Ctrl+C 已在上面处理
+                                                    }
+                                                    InputAction::None => {
+                                                        // 命令弹出框过滤更新
+                                                        if app.command_popup.is_visible()
+                                                            || app.input.value().starts_with('/')
+                                                        {
+                                                            app.command_popup.update(app.input.value());
+                                                        }
+                                                        app.render();
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            Some(request) = approval_rx.recv() => {
-                                app.set_approval_pending(request);
-                                app.render();
+                                Some(request) = approval_rx.recv() => {
+                                    app.set_approval_pending(request);
+                                    app.render();
 
-                                // 审批模式：拦截按键直到决策
-                                loop {
-                                    if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
-                                        if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
-                                            use crossterm::event::KeyCode;
+                                    // 审批模式：拦截按键直到决策
+                                    loop {
+                                        if crossterm::event::poll(std::time::Duration::from_millis(50)).unwrap_or(false) {
+                                            if let Ok(crossterm::event::Event::Key(key)) = crossterm::event::read() {
+                                                use crossterm::event::KeyCode;
 
-                                            // 获取当前审批请求的选项数量
-                                            let options_count = if let Some(ref req) = app.approval_state_ref() {
-                                                approval_overlay::build_approval_options(req).len()
-                                            } else {
-                                                0
-                                            };
+                                                // 获取当前审批请求的选项数量
+                                                let options_count = if let Some(ref req) = app.approval_state_ref() {
+                                                    approval_overlay::build_approval_options(req).len()
+                                                } else {
+                                                    0
+                                                };
 
-                                            let mut should_break = false;
+                                                let mut should_break = false;
 
-                                            // 处理按键
-                                            match key.code {
-                                                KeyCode::Up | KeyCode::Down => {
-                                                    // 箭头键：更新选中项并继续等待（不退出循环）
-                                                    if options_count > 0 {
-                                                        if key.code == KeyCode::Up {
-                                                            if app.approval_selected > 0 {
-                                                                app.approval_selected -= 1;
+                                                // 处理按键
+                                                match key.code {
+                                                    KeyCode::Up | KeyCode::Down => {
+                                                        // 箭头键：更新选中项并继续等待（不退出循环）
+                                                        if options_count > 0 {
+                                                            if key.code == KeyCode::Up {
+                                                                if app.approval_selected > 0 {
+                                                                    app.approval_selected -= 1;
+                                                                } else {
+                                                                    app.approval_selected = options_count - 1; // 循环到最后
+                                                                }
                                                             } else {
-                                                                app.approval_selected = options_count - 1; // 循环到最后
+                                                                if app.approval_selected + 1 < options_count {
+                                                                    app.approval_selected += 1;
+                                                                } else {
+                                                                    app.approval_selected = 0; // 循环到第一个
+                                                                }
                                                             }
-                                                        } else {
-                                                            if app.approval_selected + 1 < options_count {
-                                                                app.approval_selected += 1;
-                                                            } else {
-                                                                app.approval_selected = 0; // 循环到第一个
+                                                            app.render();
+                                                        }
+                                                        // 箭头键不退出循环，继续等待下一个按键
+                                                    }
+                                                    KeyCode::Enter => {
+                                                        // Enter：确认当前选中项并退出循环
+                                                        if options_count > 0 {
+                                                            if let Some(ref req) = app.approval_state_ref() {
+                                                                let options = approval_overlay::build_approval_options(req);
+                                                                if app.approval_selected < options.len() {
+                                                                    let decision = options[app.approval_selected].decision;
+                                                                    let msg = app.resolve_approval(decision);
+                                                                    app.push_line(msg);
+                                                                    app.render();
+                                                                    should_break = true;
+                                                                }
                                                             }
                                                         }
-                                                        app.render();
                                                     }
-                                                    // 箭头键不退出循环，继续等待下一个按键
-                                                }
-                                                KeyCode::Enter => {
-                                                    // Enter：确认当前选中项并退出循环
-                                                    if options_count > 0 {
-                                                        if let Some(ref req) = app.approval_state_ref() {
-                                                            let options = approval_overlay::build_approval_options(req);
-                                                            if app.approval_selected < options.len() {
-                                                                let decision = options[app.approval_selected].decision;
+                                                    KeyCode::Char(c) if c.is_ascii_digit() => {
+                                                        // 数字键：直接选择并退出循环
+                                                        let digit = c.to_digit(10).unwrap() as usize;
+                                                        if digit > 0 && digit <= options_count {
+                                                            if let Some(ref req) = app.approval_state_ref() {
+                                                                let options = approval_overlay::build_approval_options(req);
+                                                                let decision = options[digit - 1].decision;
                                                                 let msg = app.resolve_approval(decision);
                                                                 app.push_line(msg);
                                                                 app.render();
@@ -1056,14 +1182,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                             }
                                                         }
                                                     }
-                                                }
-                                                KeyCode::Char(c) if c.is_ascii_digit() => {
-                                                    // 数字键：直接选择并退出循环
-                                                    let digit = c.to_digit(10).unwrap() as usize;
-                                                    if digit > 0 && digit <= options_count {
-                                                        if let Some(ref req) = app.approval_state_ref() {
-                                                            let options = approval_overlay::build_approval_options(req);
-                                                            let decision = options[digit - 1].decision;
+                                                    _ => {
+                                                        // 尝试单键快捷键（向后兼容）
+                                                        if let Some(decision) = approval_overlay::resolve_approval_key(key) {
                                                             let msg = app.resolve_approval(decision);
                                                             app.push_line(msg);
                                                             app.render();
@@ -1071,51 +1192,41 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                         }
                                                     }
                                                 }
-                                                _ => {
-                                                    // 尝试单键快捷键（向后兼容）
-                                                    if let Some(decision) = approval_overlay::resolve_approval_key(key) {
-                                                        let msg = app.resolve_approval(decision);
-                                                        app.push_line(msg);
-                                                        app.render();
-                                                        should_break = true;
-                                                    }
-                                                }
-                                            }
 
-                                            // 只有做出决策后才退出循环
-                                            if should_break {
-                                                break;
+                                                // 只有做出决策后才退出循环
+                                                if should_break {
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            result = &mut stream_handle => {
-                                match result {
-                                    Ok(Ok(_)) => {}
-                                    Ok(Err(e)) => {
-                                        app.push_line(format!("Error: {}", e));
+                                result = &mut stream_handle => {
+                                    match result {
+                                        Ok(Ok(_)) => {}
+                                        Ok(Err(e)) => {
+                                            app.push_line(format!("Error: {}", e));
+                                        }
+                                        Err(e) => {
+                                            app.push_line(format!("Task error: {}", e));
+                                        }
                                     }
-                                    Err(e) => {
-                                        app.push_line(format!("Task error: {}", e));
-                                    }
+                                    break;
                                 }
-                                break;
                             }
                         }
-                    }
 
-                    app.set_busy(false);
-                    app.set_status(String::new());
-                    app.push_line(String::new());
-                    app.render();
+                        app.set_busy(false);
+                        app.set_status(String::new());
+                        app.push_line(String::new());
+                        app.render();
 
-                    // 尝试出队下一条消息
-                    pending = app.dequeue();
-                    if pending.is_none() {
-                        break;  // 队列空 → 回到 run_loop
-                    }
-                    }  // 内层 loop 结束
+                        // 尝试出队下一条消息
+                        pending = app.dequeue();
+                        if pending.is_none() {
+                            break; // 队列空 → 回到 run_loop
+                        }
+                    } // 内层 loop 结束
                 }
             }
             AppResult::Exit => {
@@ -1157,11 +1268,11 @@ mod tests {
             include!("tests/common/network.rs");
         }
 
-        pub use test_env::*;
         pub use assertions::*;
-        pub use mock_server::*;
         pub use fixtures::*;
+        pub use mock_server::*;
         pub use network::*;
+        pub use test_env::*;
     }
 
     // 包含生成的集成测试
@@ -1221,7 +1332,12 @@ mod tests {
     fn test_parse_args_prompt() {
         let action = parse_args_from_vec(&["ifai".to_string(), "hello world".to_string()]).unwrap();
         match action {
-            CliAction::Prompt { text, json_output, no_tool, system } => {
+            CliAction::Prompt {
+                text,
+                json_output,
+                no_tool,
+                system,
+            } => {
                 assert_eq!(text, "hello world");
                 assert!(!json_output);
                 assert!(!no_tool);
@@ -1238,7 +1354,8 @@ mod tests {
             "--system".to_string(),
             "You are expert".to_string(),
             "hello".to_string(),
-        ]).unwrap();
+        ])
+        .unwrap();
         match action {
             CliAction::Prompt { text, system, .. } => {
                 assert_eq!(text, "hello");
@@ -1250,7 +1367,12 @@ mod tests {
 
     #[test]
     fn test_parse_args_json() {
-        let action = parse_args_from_vec(&["ifai".to_string(), "--json".to_string(), "hello".to_string()]).unwrap();
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--json".to_string(),
+            "hello".to_string(),
+        ])
+        .unwrap();
         match action {
             CliAction::Prompt { json_output, .. } => {
                 assert!(json_output);
@@ -1268,9 +1390,15 @@ mod tests {
             "--json".to_string(),
             "--no-tool".to_string(),
             "hello".to_string(),
-        ]).unwrap();
+        ])
+        .unwrap();
         match action {
-            CliAction::Prompt { text, json_output, no_tool, system } => {
+            CliAction::Prompt {
+                text,
+                json_output,
+                no_tool,
+                system,
+            } => {
                 assert_eq!(text, "hello");
                 assert!(json_output);
                 assert!(no_tool);
@@ -1282,19 +1410,34 @@ mod tests {
 
     #[test]
     fn test_parse_args_config_init() {
-        let action = parse_args_from_vec(&["ifai".to_string(), "--config".to_string(), "init".to_string()]).unwrap();
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--config".to_string(),
+            "init".to_string(),
+        ])
+        .unwrap();
         assert!(matches!(action, CliAction::ConfigInit));
     }
 
     #[test]
     fn test_parse_args_config_show() {
-        let action = parse_args_from_vec(&["ifai".to_string(), "--config".to_string(), "show".to_string()]).unwrap();
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--config".to_string(),
+            "show".to_string(),
+        ])
+        .unwrap();
         assert!(matches!(action, CliAction::ConfigShow));
     }
 
     #[test]
     fn test_parse_args_resume() {
-        let action = parse_args_from_vec(&["ifai".to_string(), "--resume".to_string(), "mysession".to_string()]).unwrap();
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--resume".to_string(),
+            "mysession".to_string(),
+        ])
+        .unwrap();
         match action {
             CliAction::Resume { name } => assert_eq!(name, "mysession"),
             _ => panic!("Expected Resume action"),
@@ -1303,7 +1446,12 @@ mod tests {
 
     #[test]
     fn test_parse_args_provider_override() {
-        let action = parse_args_from_vec(&["ifai".to_string(), "--provider".to_string(), "openai".to_string()]).unwrap();
+        let action = parse_args_from_vec(&[
+            "ifai".to_string(),
+            "--provider".to_string(),
+            "openai".to_string(),
+        ])
+        .unwrap();
         assert!(matches!(action, CliAction::Repl));
     }
 
