@@ -179,8 +179,10 @@ pub struct CombinedKeyHandler;
 
 impl EventHandler<Event> for CombinedKeyHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        // 如果处于搜索模式或帮助模式，跳过处理
-        if app.is_searching() || app.help_mode {
+        // 如果处于搜索模式、帮助模式或 busy（AI 响应中），跳过处理
+        // 注意：streaming 期间的输入由 main.rs 的 tokio::select! 分支直接处理，
+        // run_loop() 不会被调用，此守卫作为防御层防止意外穿透
+        if app.is_searching() || app.help_mode || app.is_busy() {
             return ControlFlow::Continue;
         }
 
