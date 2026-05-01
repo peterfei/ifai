@@ -126,11 +126,9 @@ fn is_chinese(c: char) -> bool {
 /// **元编程**：从 `MessageDelta` 事件提取 token 使用量
 fn convert_sse_event(event: &super::super::sse::SseEvent) -> StreamEvent {
     match event {
-        super::super::sse::SseEvent::ContentBlockDelta { delta, .. } => {
-            StreamEvent::TextDelta {
-                text: delta.text.clone(),
-            }
-        }
+        super::super::sse::SseEvent::ContentBlockDelta { delta, .. } => StreamEvent::TextDelta {
+            text: delta.text.clone(),
+        },
         super::super::sse::SseEvent::MessageDelta { usage, .. } => {
             // 🔥 提取 token 使用量
             let (input_tokens, output_tokens) = if let Some(usage) = usage {
@@ -149,7 +147,7 @@ fn convert_sse_event(event: &super::super::sse::SseEvent) -> StreamEvent {
                 input_tokens: 0,
                 output_tokens: 0,
             }
-        },
+        }
         _ => StreamEvent::TextDelta {
             text: String::new(),
         },

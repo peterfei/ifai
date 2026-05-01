@@ -11,7 +11,7 @@ Layer 1: Exact Match Classification
 目标准确率：100%
 */
 
-use super::types::{ClassificationResult, ClassificationLayer, ToolCategory};
+use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -111,37 +111,73 @@ fn classify_agent_function(input: &str) -> Option<ClassificationResult> {
 // ============================================================================
 
 /// 纯命令关键词（立即匹配，无需参数）
-const IMMEDIATE_COMMANDS: &[&str] = &[
-    "ls", "pwd", "cd", "clear", "exit", "env",
-];
+const IMMEDIATE_COMMANDS: &[&str] = &["ls", "pwd", "cd", "clear", "exit", "env"];
 
 /// Git 命令
 const GIT_COMMANDS: &[&str] = &[
-    "git status", "git log", "git diff", "git add", "git commit",
-    "git push", "git pull", "git branch", "git checkout", "git merge",
-    "git stash", "git reset", "git rm", "git mv", "git clone",
+    "git status",
+    "git log",
+    "git diff",
+    "git add",
+    "git commit",
+    "git push",
+    "git pull",
+    "git branch",
+    "git checkout",
+    "git merge",
+    "git stash",
+    "git reset",
+    "git rm",
+    "git mv",
+    "git clone",
 ];
 
 /// NPM/Yarn/PNPM 命令
 const NPM_COMMANDS: &[&str] = &[
-    "npm run", "npm test", "npm install", "npm uninstall", "npm update",
-    "npm build", "npm start", "npm dev",
-    "yarn", "yarn run", "yarn test", "yarn install", "yarn add", "yarn remove",
-    "yarn build", "yarn start", "yarn dev",
-    "pnpm", "pnpm run", "pnpm test", "pnpm install", "pnpm add", "pnpm remove",
-    "pnpm build", "pnpm start", "pnpm dev",
+    "npm run",
+    "npm test",
+    "npm install",
+    "npm uninstall",
+    "npm update",
+    "npm build",
+    "npm start",
+    "npm dev",
+    "yarn",
+    "yarn run",
+    "yarn test",
+    "yarn install",
+    "yarn add",
+    "yarn remove",
+    "yarn build",
+    "yarn start",
+    "yarn dev",
+    "pnpm",
+    "pnpm run",
+    "pnpm test",
+    "pnpm install",
+    "pnpm add",
+    "pnpm remove",
+    "pnpm build",
+    "pnpm start",
+    "pnpm dev",
 ];
 
 /// Cargo 命令
 const CARGO_COMMANDS: &[&str] = &[
-    "cargo build", "cargo test", "cargo run", "cargo check", "cargo clean",
-    "cargo doc", "cargo bench", "cargo publish", "cargo install", "cargo update",
+    "cargo build",
+    "cargo test",
+    "cargo run",
+    "cargo check",
+    "cargo clean",
+    "cargo doc",
+    "cargo bench",
+    "cargo publish",
+    "cargo install",
+    "cargo update",
 ];
 
 /// Node/Python 命令
-const RUNTIME_COMMANDS: &[&str] = &[
-    "node ", "python ", "python3 ", "pip ", "pip3 ",
-];
+const RUNTIME_COMMANDS: &[&str] = &["node ", "python ", "python3 ", "pip ", "pip3 "];
 
 /// 检查是否是纯命令
 fn is_pure_command(input: &str) -> bool {
@@ -280,7 +316,8 @@ mod tests {
 
     #[test]
     fn test_agent_function_write_file() {
-        let result = classify("agent_write_file(rel_path=\"test.txt\", content=\"hello\")").unwrap();
+        let result =
+            classify("agent_write_file(rel_path=\"test.txt\", content=\"hello\")").unwrap();
         assert_eq!(result.layer, ClassificationLayer::Layer1);
     }
 

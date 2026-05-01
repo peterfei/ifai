@@ -155,7 +155,10 @@ mod tests {
 
         // 验证标题存在
         let title_line = &lines[1];
-        assert!(title_line.spans.iter().any(|s| s.content.contains("Welcome to IfAI")));
+        assert!(title_line
+            .spans
+            .iter()
+            .any(|s| s.content.contains("Welcome to IfAI")));
     }
 
     #[test]

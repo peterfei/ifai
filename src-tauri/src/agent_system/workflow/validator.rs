@@ -197,7 +197,7 @@ impl WorkflowValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_system::workflow::{Workflow, WorkflowNode, WorkflowEdge, AgentType};
+    use crate::agent_system::workflow::{AgentType, Workflow, WorkflowEdge, WorkflowNode};
 
     fn create_simple_workflow() -> Workflow {
         let mut workflow = Workflow::new("test", "Test");

@@ -4,7 +4,6 @@
  *
  * 检测 OpenSpec CLI 是否安装并返回状态信息
  */
-
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 

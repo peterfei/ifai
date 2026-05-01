@@ -5,16 +5,15 @@
 //! - LRU 缓存
 //! - 进度跟踪（节流）
 
-use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
 use rayon::prelude::*;
 use serde_json::{json, Map, Value};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use crate::meta::scanner::{
-    Scanner, ScannerConfig, ScanError, ScanResult, ScanStats,
-    ScanCache, CacheConfig, CacheStrategy,
+    CacheConfig, CacheStrategy, ScanCache, ScanError, ScanResult, ScanStats, Scanner, ScannerConfig,
 };
 
 /// Explore Scanner 结构（Phase 2 优化版）
@@ -98,7 +97,9 @@ impl ExploreScanner {
     }
 
     /// 创建缓存（如果启用）
-    fn create_cache(cache_config: &CacheConfig) -> Option<Arc<RwLock<ScanCache<String, ExploreScanOutput>>>> {
+    fn create_cache(
+        cache_config: &CacheConfig,
+    ) -> Option<Arc<RwLock<ScanCache<String, ExploreScanOutput>>>> {
         if !cache_config.enabled {
             return None;
         }
@@ -149,8 +150,8 @@ impl ExploreScanner {
 
     /// 生成缓存键
     fn generate_cache_key(&self, path: &Path) -> String {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
         path.hash(&mut hasher);
@@ -213,19 +214,24 @@ impl ExploreScanner {
         let entries = self.collect_entries_parallel(path)?;
 
         // 并行处理文件统计
-        let (total_files, total_directories) = entries.par_iter()
-            .fold(|| (0usize, 0usize), |mut acc, entry| {
-                if entry.is_dir {
-                    acc.1 += 1;
-                } else {
-                    acc.0 += 1;
-                }
-                acc
-            })
+        let (total_files, total_directories) = entries
+            .par_iter()
+            .fold(
+                || (0usize, 0usize),
+                |mut acc, entry| {
+                    if entry.is_dir {
+                        acc.1 += 1;
+                    } else {
+                        acc.0 += 1;
+                    }
+                    acc
+                },
+            )
             .reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
 
         // 并行收集关键文件
-        let key_files: Vec<String> = entries.par_iter()
+        let key_files: Vec<String> = entries
+            .par_iter()
             .filter_map(|entry| {
                 if !entry.is_dir && self.is_key_file(&entry.name) {
                     Some(entry.rel_path.clone())
@@ -266,7 +272,8 @@ impl ExploreScanner {
             })
             .map(|e| {
                 let path = e.path();
-                let rel_path = path.strip_prefix(path)
+                let rel_path = path
+                    .strip_prefix(path)
                     .unwrap_or(path)
                     .to_string_lossy()
                     .to_string();
@@ -285,7 +292,11 @@ impl ExploreScanner {
     }
 
     /// 构建文件结构
-    fn build_structure(&self, _path: &Path, entries: &[FileEntry]) -> Result<Map<String, Value>, ScanError> {
+    fn build_structure(
+        &self,
+        _path: &Path,
+        entries: &[FileEntry],
+    ) -> Result<Map<String, Value>, ScanError> {
         use std::collections::BTreeMap;
 
         // 使用 BTreeMap 来收集所有路径和文件
@@ -293,7 +304,11 @@ impl ExploreScanner {
 
         for entry in entries {
             if !entry.is_dir && self.should_include(&entry.name) {
-                let parts: Vec<&str> = entry.rel_path.split('/').filter(|s| !s.is_empty()).collect();
+                let parts: Vec<&str> = entry
+                    .rel_path
+                    .split('/')
+                    .filter(|s| !s.is_empty())
+                    .collect();
 
                 // 收集每个目录下的文件
                 for i in 0..parts.len() {
@@ -305,13 +320,13 @@ impl ExploreScanner {
 
                     if i == parts.len() - 1 {
                         // 这是一个文件
-                        all_paths.entry(dir_path)
+                        all_paths
+                            .entry(dir_path)
                             .or_insert_with(Vec::new)
                             .push(parts[i].to_string());
                     } else {
                         // 这是一个目录
-                        all_paths.entry(dir_path)
-                            .or_insert_with(Vec::new);
+                        all_paths.entry(dir_path).or_insert_with(Vec::new);
                     }
                 }
             }
@@ -337,9 +352,9 @@ impl ExploreScanner {
 
     /// 获取缓存统计
     fn get_cache_stats(&self) -> Option<crate::meta::scanner::CacheStats> {
-        self.cache.as_ref().and_then(|cache| {
-            cache.read().ok().map(|c| c.stats())
-        })
+        self.cache
+            .as_ref()
+            .and_then(|cache| cache.read().ok().map(|c| c.stats()))
     }
 }
 
@@ -371,8 +386,7 @@ impl ExploreScanner {
         }
 
         let full_path = base_path.join(rel_path);
-        let entries = std::fs::read_dir(&full_path)
-            .map_err(|e| ScanError::Io(e))?;
+        let entries = std::fs::read_dir(&full_path).map_err(|e| ScanError::Io(e))?;
 
         for entry in entries {
             let entry = entry.map_err(|e| ScanError::Io(e))?;
@@ -431,9 +445,11 @@ impl ExploreScanner {
 
     /// 检查是否应该忽略
     fn should_ignore(&self, name: &str) -> bool {
-        self.config.filters.ignore.iter().any(|pattern| {
-            self.matches_pattern(name, pattern)
-        })
+        self.config
+            .filters
+            .ignore
+            .iter()
+            .any(|pattern| self.matches_pattern(name, pattern))
     }
 
     /// 检查是否应该包含
@@ -442,9 +458,11 @@ impl ExploreScanner {
             return true;
         }
 
-        self.config.filters.include.iter().any(|pattern| {
-            self.matches_pattern(name, pattern)
-        })
+        self.config
+            .filters
+            .include
+            .iter()
+            .any(|pattern| self.matches_pattern(name, pattern))
     }
 
     /// 匹配模式
@@ -460,12 +478,20 @@ impl ExploreScanner {
     /// 检查是否是关键文件
     fn is_key_file(&self, filename: &str) -> bool {
         let key_files = [
-            "README", "README.md", "README.txt",
-            "package.json", "Cargo.toml", "go.mod",
-            "pyproject.toml", "setup.py",
-            ".gitignore", ".dockerignore",
-            "Dockerfile", "docker-compose.yml",
-            "tsconfig.json", "vite.config.ts",
+            "README",
+            "README.md",
+            "README.txt",
+            "package.json",
+            "Cargo.toml",
+            "go.mod",
+            "pyproject.toml",
+            "setup.py",
+            ".gitignore",
+            ".dockerignore",
+            "Dockerfile",
+            "docker-compose.yml",
+            "tsconfig.json",
+            "vite.config.ts",
         ];
 
         key_files.iter().any(|&key| filename == key)
@@ -498,7 +524,10 @@ impl Scanner for ExploreScanner {
         Self::new().scan_with_cache(path)
     }
 
-    fn config() -> ScannerConfig where Self: Sized {
+    fn config() -> ScannerConfig
+    where
+        Self: Sized,
+    {
         ScannerConfig::default()
     }
 }

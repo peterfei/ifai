@@ -2,9 +2,9 @@
 //!
 //! 🎨 元编程：使用 PipelineStepStatus 自动生成渲染逻辑
 
+use crate::pipeline::step::{PipelineStep, PipelineStepStatus, StepMetadata, StepOutput};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use crate::pipeline::step::{PipelineStep, PipelineStepStatus, StepOutput, StepMetadata};
 
 /// Pipeline 跟踪器
 ///
@@ -68,7 +68,9 @@ impl PipelineTracker {
     /// 标记步骤为跳过
     pub fn skip_step(&mut self, tool_id: &str, reason: String) {
         if let Some(mut step) = self.active_steps.remove(tool_id) {
-            step.status = PipelineStepStatus::Skipped { reason: reason.clone() };
+            step.status = PipelineStepStatus::Skipped {
+                reason: reason.clone(),
+            };
             step.output = StepOutput::Full { content: reason };
             step.metadata.duration = Some(Duration::ZERO);
 

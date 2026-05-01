@@ -2,10 +2,10 @@
 //!
 //! 提供实时的扫描进度更新，支持通过 channel 发送进度事件
 
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 use tokio::sync::mpsc;
-use serde::{Serialize, Deserialize};
 
 use super::progress::{ProgressEvent, ProgressTracker};
 use super::{ScanError, ScannerConfig};
@@ -137,20 +137,10 @@ where
 
         match &result {
             Ok(_) => {
-                self.send_progress(
-                    StreamStage::Completed,
-                    100,
-                    100,
-                    "扫描完成".to_string(),
-                );
+                self.send_progress(StreamStage::Completed, 100, 100, "扫描完成".to_string());
             }
             Err(e) => {
-                self.send_progress(
-                    StreamStage::Error,
-                    0,
-                    100,
-                    format!("扫描错误: {}", e),
-                );
+                self.send_progress(StreamStage::Error, 0, 100, format!("扫描错误: {}", e));
             }
         }
 
@@ -159,7 +149,10 @@ where
 }
 
 /// 创建流式扫描通道
-pub fn create_streaming_channel() -> (mpsc::UnboundedSender<StreamProgressEvent>, mpsc::UnboundedReceiver<StreamProgressEvent>) {
+pub fn create_streaming_channel() -> (
+    mpsc::UnboundedSender<StreamProgressEvent>,
+    mpsc::UnboundedReceiver<StreamProgressEvent>,
+) {
     mpsc::unbounded_channel()
 }
 
@@ -173,9 +166,7 @@ mod tests {
         let (tx, mut rx) = create_streaming_channel();
 
         let scanner = StreamingScanner::new(
-            |_path| -> Result<(), ScanError> {
-                Ok(())
-            },
+            |_path| -> Result<(), ScanError> { Ok(()) },
             ScannerConfig::default(),
         )
         .with_progress(tx);
@@ -200,9 +191,7 @@ mod tests {
         let (tx, mut rx) = create_streaming_channel();
 
         let scanner = StreamingScanner::new(
-            |_path| -> Result<(), ScanError> {
-                Err(ScanError::NotImplemented)
-            },
+            |_path| -> Result<(), ScanError> { Err(ScanError::NotImplemented) },
             ScannerConfig::default(),
         )
         .with_progress(tx);

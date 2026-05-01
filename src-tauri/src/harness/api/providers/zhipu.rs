@@ -11,12 +11,12 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use super::super::client::ApiClient;
-use super::super::types::{
-    ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest,
-};
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
 use super::super::provider_metadata; // 🔥 元编程：从元数据获取模型列表
+use super::super::types::{
+    ApiError, Message, MessageContent, MessageRole, ModelInfo, StreamEvent, StreamRequest,
+};
 use super::openai_format::{parse_openai_frame, FunctionDelta, ToolCallDelta};
 
 pub struct ZhipuClient {
@@ -30,7 +30,7 @@ impl ZhipuClient {
         // 🔥 使用工厂函数替代手动实现
         let base_url = normalize_base_url(
             &config.base_url,
-            "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions",
         );
         let http = create_standard_client(None::<super::super::client_factory::HttpClientConfig>)
             .expect("Failed to create HTTP client");
@@ -48,8 +48,7 @@ impl ApiClient for ZhipuClient {
     async fn stream(
         &self,
         request: StreamRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError>
-    {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>, ApiError> {
         // 🔥 使用 MessageBuilder trait 消除重复代码
         let messages = request.build_messages_with_system();
 
@@ -59,7 +58,10 @@ impl ApiClient for ZhipuClient {
         // 🔥 FIX P0: 模型名称自动选择（多模态 → 视觉模型）
         let model_name = if has_multimodal {
             let original_model = request.model.to_lowercase();
-            if original_model.contains("4v") || original_model.contains("5v") || original_model.contains("vision") {
+            if original_model.contains("4v")
+                || original_model.contains("5v")
+                || original_model.contains("vision")
+            {
                 request.model.clone()
             } else {
                 "glm-4.5v".to_string()
@@ -97,7 +99,6 @@ impl ApiClient for ZhipuClient {
             .send()
             .await
             .map_err(|e| ApiError::Network(e.to_string()))?;
-
 
         if !response.status().is_success() {
             let status = response.status();
@@ -348,7 +349,10 @@ mod tests {
             "https://open.bigmodel.cn/api/paas/v4",
         ));
         // /v4 不包含 /v4/ 或 /chat/completions，会追加 /chat/completions
-        assert_eq!(client.base_url, "https://open.bigmodel.cn/api/paas/v4/chat/completions");
+        assert_eq!(
+            client.base_url,
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        );
     }
 
     #[test]
@@ -356,14 +360,15 @@ mod tests {
         let client = ZhipuClient::new(&test_config_with_url(
             "https://open.bigmodel.cn/api/paas/v4",
         ));
-        assert_eq!(client.base_url, "https://open.bigmodel.cn/api/paas/v4/chat/completions");
+        assert_eq!(
+            client.base_url,
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        );
     }
 
     #[test]
     fn test_zhipu_client_custom_base_url_append_path() {
-        let client = ZhipuClient::new(&test_config_with_url(
-            "https://open.bigmodel.cn/api/paas",
-        ));
+        let client = ZhipuClient::new(&test_config_with_url("https://open.bigmodel.cn/api/paas"));
         assert_eq!(
             client.base_url,
             "https://open.bigmodel.cn/api/paas/chat/completions"
@@ -423,7 +428,8 @@ mod tests {
     #[test]
     fn test_zhipu_sse_frame_parsing() {
         // 测试内容增量帧
-        let frame = r#"data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
+        let frame =
+            r#"data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"content":"你好"}}]}"#;
         let result = parse_openai_frame(frame).unwrap();
         assert!(result.is_some());
         let data = result.unwrap();
@@ -464,11 +470,23 @@ mod tests {
         assert_eq!(tool_calls[0].index, 0);
         assert_eq!(tool_calls[0].id.as_ref().unwrap(), "call_123");
         assert_eq!(
-            tool_calls[0].function.as_ref().unwrap().name.as_ref().unwrap(),
+            tool_calls[0]
+                .function
+                .as_ref()
+                .unwrap()
+                .name
+                .as_ref()
+                .unwrap(),
             "read_file"
         );
         assert_eq!(
-            tool_calls[0].function.as_ref().unwrap().arguments.as_ref().unwrap(),
+            tool_calls[0]
+                .function
+                .as_ref()
+                .unwrap()
+                .arguments
+                .as_ref()
+                .unwrap(),
             "{\"path\":\""
         );
     }
@@ -522,7 +540,10 @@ mod tests {
         assert!(request_json.get("tools").is_none());
         assert!(request_json.get("tool_choice").is_none());
 
-        println!("[Test] Request without tools: {}", serde_json::to_string_pretty(&request_json).unwrap());
+        println!(
+            "[Test] Request without tools: {}",
+            serde_json::to_string_pretty(&request_json).unwrap()
+        );
     }
 
     #[test]

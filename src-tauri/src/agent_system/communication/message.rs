@@ -2,7 +2,7 @@
 //!
 //! 定义智能体之间通信的消息格式
 
-use super::{MessageId, AgentId, SessionId};
+use super::{AgentId, MessageId, SessionId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -330,18 +330,24 @@ impl<'de> serde::Deserialize<'de> for ControlMessage {
                     "resume" => Ok(ControlMessage::Resume),
                     "reset" => Ok(ControlMessage::Reset),
                     "update_config" => {
-                        let config = config.ok_or_else(|| serde::de::Error::missing_field("config"))?;
+                        let config =
+                            config.ok_or_else(|| serde::de::Error::missing_field("config"))?;
                         Ok(ControlMessage::UpdateConfig { config })
                     }
                     "request_status" => Ok(ControlMessage::RequestStatus),
                     "heartbeat" => {
-                        let sequence = sequence.ok_or_else(|| serde::de::Error::missing_field("sequence"))?;
+                        let sequence =
+                            sequence.ok_or_else(|| serde::de::Error::missing_field("sequence"))?;
                         Ok(ControlMessage::Heartbeat { sequence })
                     }
                     _ => {
-                        let custom_command = custom_command.ok_or_else(|| serde::de::Error::missing_field("command"))?;
+                        let custom_command = custom_command
+                            .ok_or_else(|| serde::de::Error::missing_field("command"))?;
                         let params = params.unwrap_or(serde_json::Value::Null);
-                        Ok(ControlMessage::Custom { command: custom_command, params })
+                        Ok(ControlMessage::Custom {
+                            command: custom_command,
+                            params,
+                        })
                     }
                 }
             }
@@ -359,7 +365,9 @@ impl ControlMessage {
 
     /// 创建带配置的启动命令
     pub fn start_with_config(config: serde_json::Value) -> Self {
-        Self::Start { config: Some(config) }
+        Self::Start {
+            config: Some(config),
+        }
     }
 
     /// 创建停止命令
@@ -456,7 +464,10 @@ impl serde::Serialize for StatusMessage {
                 }
                 map.end()
             }
-            StatusMessage::Completed { result, duration_ms } => {
+            StatusMessage::Completed {
+                result,
+                duration_ms,
+            } => {
                 let mut map = serializer.serialize_map(Some(3))?;
                 map.serialize_entry("status", "completed")?;
                 if let Some(r) = result {
@@ -467,7 +478,11 @@ impl serde::Serialize for StatusMessage {
                 }
                 map.end()
             }
-            StatusMessage::Error { error, code, details } => {
+            StatusMessage::Error {
+                error,
+                code,
+                details,
+            } => {
                 let mut map = serializer.serialize_map(Some(4))?;
                 map.serialize_entry("status", "error")?;
                 map.serialize_entry("error", error)?;
@@ -592,25 +607,32 @@ impl<'de> serde::Deserialize<'de> for StatusMessage {
 
                 match status_str.as_str() {
                     "ready" => {
-                        let capabilities = capabilities.ok_or_else(|| serde::de::Error::missing_field("capabilities"))?;
+                        let capabilities = capabilities
+                            .ok_or_else(|| serde::de::Error::missing_field("capabilities"))?;
                         Ok(StatusMessage::Ready { capabilities })
                     }
                     "processing" => {
-                        let progress = progress.ok_or_else(|| serde::de::Error::missing_field("progress"))?;
+                        let progress =
+                            progress.ok_or_else(|| serde::de::Error::missing_field("progress"))?;
                         Ok(StatusMessage::Processing { progress, task })
                     }
-                    "completed" => {
-                        Ok(StatusMessage::Completed { result, duration_ms })
-                    }
+                    "completed" => Ok(StatusMessage::Completed {
+                        result,
+                        duration_ms,
+                    }),
                     "error" => {
-                        let error = error.ok_or_else(|| serde::de::Error::missing_field("error"))?;
-                        Ok(StatusMessage::Error { error, code, details })
+                        let error =
+                            error.ok_or_else(|| serde::de::Error::missing_field("error"))?;
+                        Ok(StatusMessage::Error {
+                            error,
+                            code,
+                            details,
+                        })
                     }
-                    "stopped" => {
-                        Ok(StatusMessage::Stopped { reason })
-                    }
+                    "stopped" => Ok(StatusMessage::Stopped { reason }),
                     "health" => {
-                        let healthy = healthy.ok_or_else(|| serde::de::Error::missing_field("healthy"))?;
+                        let healthy =
+                            healthy.ok_or_else(|| serde::de::Error::missing_field("healthy"))?;
                         let metrics = metrics.unwrap_or_default();
                         Ok(StatusMessage::Health { healthy, metrics })
                     }
@@ -640,7 +662,10 @@ impl StatusMessage {
 
     /// 创建完成状态
     pub fn completed(result: Option<serde_json::Value>, duration_ms: Option<i64>) -> Self {
-        Self::Completed { result, duration_ms }
+        Self::Completed {
+            result,
+            duration_ms,
+        }
     }
 
     /// 创建错误状态
@@ -781,7 +806,10 @@ impl Message {
 
     /// 创建数据消息
     pub fn data(from: AgentId, data_type: impl Into<String>, payload: serde_json::Value) -> Self {
-        Self::new(from, MessageType::Data(DataMessage::new(data_type, payload)))
+        Self::new(
+            from,
+            MessageType::Data(DataMessage::new(data_type, payload)),
+        )
     }
 
     /// 创建控制消息
@@ -828,7 +856,10 @@ mod tests {
         assert!(matches!(stop, ControlMessage::Stop { graceful: true }));
 
         let heartbeat = ControlMessage::heartbeat(123);
-        assert!(matches!(heartbeat, ControlMessage::Heartbeat { sequence: 123 }));
+        assert!(matches!(
+            heartbeat,
+            ControlMessage::Heartbeat { sequence: 123 }
+        ));
     }
 
     #[test]
@@ -837,7 +868,10 @@ mod tests {
         assert!(matches!(ready, StatusMessage::Ready { .. }));
 
         let processing = StatusMessage::processing(0.5, Some("task".to_string()));
-        assert!(matches!(processing, StatusMessage::Processing { progress: 0.5, .. }));
+        assert!(matches!(
+            processing,
+            StatusMessage::Processing { progress: 0.5, .. }
+        ));
 
         let error = StatusMessage::error("error".to_string(), Some("E001".to_string()));
         assert!(matches!(error, StatusMessage::Error { .. }));
@@ -845,13 +879,9 @@ mod tests {
 
     #[test]
     fn test_message_creation() {
-        let msg = Message::data(
-            "agent1".to_string(),
-            "test_type",
-            serde_json::json!("data"),
-        )
-        .with_to("agent2".to_string())
-        .with_priority(MessagePriority::High);
+        let msg = Message::data("agent1".to_string(), "test_type", serde_json::json!("data"))
+            .with_to("agent2".to_string())
+            .with_priority(MessagePriority::High);
 
         assert_eq!(msg.from, "agent1");
         assert_eq!(msg.to, Some("agent2".to_string()));
@@ -889,12 +919,8 @@ mod tests {
 
     #[test]
     fn test_message_with_session() {
-        let msg = Message::data(
-            "agent1".to_string(),
-            "test",
-            serde_json::json!(null),
-        )
-        .with_session("session_123".to_string());
+        let msg = Message::data("agent1".to_string(), "test", serde_json::json!(null))
+            .with_session("session_123".to_string());
 
         assert_eq!(msg.session_id(), Some("session_123"));
     }

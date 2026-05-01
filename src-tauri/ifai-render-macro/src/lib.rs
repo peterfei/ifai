@@ -4,7 +4,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Data};
+use syn::{parse_macro_input, Data, DeriveInput};
 
 /// 为枚举自动生成渲染方法
 ///

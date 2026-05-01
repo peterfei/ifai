@@ -1,8 +1,8 @@
+use crate::prompt_manager::BuiltinPrompts;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
-use crate::prompt_manager::BuiltinPrompts;
 
 /**
  * 🏆 PIVO 3.0 Dynamic Tool Parser
@@ -18,12 +18,16 @@ pub struct ToolMetadata {
 
 pub fn load_tool_definition(project_root: &str, tool_id: &str, lang: &str) -> Option<Value> {
     let is_zh = lang.to_lowercase().starts_with("zh");
-    
+
     // 1. 尝试从本地加载
     let local_path = if is_zh {
-        std::path::Path::new(project_root).join(".ifai/prompts/zh-CN/tools").join(format!("{}.md", tool_id))
+        std::path::Path::new(project_root)
+            .join(".ifai/prompts/zh-CN/tools")
+            .join(format!("{}.md", tool_id))
     } else {
-        std::path::Path::new(project_root).join(".ifai/prompts/tools").join(format!("{}.md", tool_id))
+        std::path::Path::new(project_root)
+            .join(".ifai/prompts/tools")
+            .join(format!("{}.md", tool_id))
     };
 
     if local_path.exists() {

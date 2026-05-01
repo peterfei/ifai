@@ -5,7 +5,7 @@
 #[cfg(test)]
 mod integration_tests {
     use super::super::*;
-    use crate::harness::permission::{PermissionPolicy, PermissionDecision};
+    use crate::harness::permission::{PermissionDecision, PermissionPolicy};
     use crate::harness::tool::executor::SubagentToolExecutor;
     use serde_json::json;
 
@@ -17,10 +17,7 @@ mod integration_tests {
         // 1. 验证工具注册
         let read_tool = registry.get("read_file").unwrap();
         assert_eq!(read_tool.name, "read_file");
-        assert_eq!(
-            read_tool.required_permission,
-            ToolPermissionMode::ReadOnly
-        );
+        assert_eq!(read_tool.required_permission, ToolPermissionMode::ReadOnly);
 
         let write_tool = registry.get("write_file").unwrap();
         assert_eq!(write_tool.name, "write_file");
@@ -59,7 +56,10 @@ mod integration_tests {
         assert!(result.contains("Executed"));
 
         // 测试不允许的工具
-        let result = executor.execute("write_file", &json!({"path": "/tmp/test", "content": "test"}));
+        let result = executor.execute(
+            "write_file",
+            &json!({"path": "/tmp/test", "content": "test"}),
+        );
         assert!(matches!(result, Err(ToolError::PermissionDenied { .. })));
 
         // 测试危险工具
@@ -81,15 +81,10 @@ mod integration_tests {
 
         // 检查写入工具（需要提升）
         let decision = policy.check_permission("write_file", ToolPermissionMode::WorkspaceWrite);
-        assert!(matches!(
-            decision,
-            PermissionDecision::NeedsPrompt { .. }
-        ));
+        assert!(matches!(decision, PermissionDecision::NeedsPrompt { .. }));
 
         // 提升权限
-        assert!(policy
-            .elevate(ToolPermissionMode::WorkspaceWrite)
-            .is_ok());
+        assert!(policy.elevate(ToolPermissionMode::WorkspaceWrite).is_ok());
 
         // 现在写入工具应该被允许
         assert!(matches!(
@@ -129,11 +124,17 @@ mod integration_tests {
             assert_eq!(level.level(), (i + 1) as u8, "Level hierarchy mismatch");
 
             // 检查每个级别是否充分自身
-            assert!(level.is_sufficient(level), "Should be sufficient for itself");
+            assert!(
+                level.is_sufficient(level),
+                "Should be sufficient for itself"
+            );
 
             // 检查是否不充分于更高级别
             for &higher in &levels[i + 1..] {
-                assert!(!level.is_sufficient(higher), "Should not be sufficient for higher level");
+                assert!(
+                    !level.is_sufficient(higher),
+                    "Should not be sufficient for higher level"
+                );
             }
         }
     }
@@ -144,21 +145,24 @@ mod integration_tests {
         let registry = ToolRegistry::new();
 
         // 只读白名单
-        let readonly_whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::ReadOnly);
+        let readonly_whitelist =
+            registry.get_whitelist_for_permission(ToolPermissionMode::ReadOnly);
         println!("ReadOnly whitelist: {:?}", readonly_whitelist);
         assert!(readonly_whitelist.len() > 0);
         assert!(readonly_whitelist.contains(&"read_file".to_string()));
         assert!(!readonly_whitelist.contains(&"bash".to_string()));
 
         // 写入白名单
-        let write_whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::WorkspaceWrite);
+        let write_whitelist =
+            registry.get_whitelist_for_permission(ToolPermissionMode::WorkspaceWrite);
         println!("WorkspaceWrite whitelist: {:?}", write_whitelist);
         assert!(write_whitelist.len() > readonly_whitelist.len());
         assert!(write_whitelist.contains(&"write_file".to_string()));
         assert!(!write_whitelist.contains(&"bash".to_string()));
 
         // 完全权限白名单
-        let full_whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::DangerFullAccess);
+        let full_whitelist =
+            registry.get_whitelist_for_permission(ToolPermissionMode::DangerFullAccess);
         println!("DangerFullAccess whitelist: {:?}", full_whitelist);
         assert!(full_whitelist.len() > write_whitelist.len());
         assert!(full_whitelist.contains(&"bash".to_string()));
@@ -214,19 +218,31 @@ mod integration_tests {
         let registry = ToolRegistry::new();
 
         // 只读执行器
-        let readonly_whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::ReadOnly);
+        let readonly_whitelist =
+            registry.get_whitelist_for_permission(ToolPermissionMode::ReadOnly);
         let readonly_executor = SubagentToolExecutor::new(readonly_whitelist.into_iter().collect());
-        println!("ReadOnly executor tool count: {}", readonly_executor.tool_count());
+        println!(
+            "ReadOnly executor tool count: {}",
+            readonly_executor.tool_count()
+        );
 
         // 写入执行器
-        let write_whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::WorkspaceWrite);
+        let write_whitelist =
+            registry.get_whitelist_for_permission(ToolPermissionMode::WorkspaceWrite);
         let write_executor = SubagentToolExecutor::new(write_whitelist.into_iter().collect());
-        println!("WorkspaceWrite executor tool count: {}", write_executor.tool_count());
+        println!(
+            "WorkspaceWrite executor tool count: {}",
+            write_executor.tool_count()
+        );
 
         // 完全权限执行器
-        let full_whitelist = registry.get_whitelist_for_permission(ToolPermissionMode::DangerFullAccess);
+        let full_whitelist =
+            registry.get_whitelist_for_permission(ToolPermissionMode::DangerFullAccess);
         let full_executor = SubagentToolExecutor::new(full_whitelist.into_iter().collect());
-        println!("DangerFullAccess executor tool count: {}", full_executor.tool_count());
+        println!(
+            "DangerFullAccess executor tool count: {}",
+            full_executor.tool_count()
+        );
 
         assert!(readonly_executor.tool_count() < write_executor.tool_count());
         assert!(write_executor.tool_count() < full_executor.tool_count());

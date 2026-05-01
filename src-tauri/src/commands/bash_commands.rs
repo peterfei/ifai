@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
+use std::time::Instant;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use std::time::Instant;
 
 /// 检测输出是否包含启动成功的标志
 ///
@@ -17,21 +17,17 @@ fn detect_startup_success(output: &str) -> bool {
         "Network:",
         "ready in",
         "VITE",
-
         // Webpack
         "Compiled successfully",
         "webpack: Compiled",
         "webpack compiled",
-
         // Next.js
         "ready - started server on",
         "▲ Next.js",
-
         // Create React App
         "Starting the development server",
         "Compiled successfully!",
         "You can now view",
-
         // General server messages
         "Server running",
         "server running",
@@ -39,15 +35,12 @@ fn detect_startup_success(output: &str) -> bool {
         "Listening on",
         "Serving",
         "serving at",
-
         // Python servers
         "Running on",
         "Serving HTTP on",
-
         // Go servers
         "Starting server",
         "Server started",
-
         // Node.js
         "server is listening",
         "application is running",
@@ -115,8 +108,10 @@ pub async fn execute_bash_command(
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn command: {}", e))?;
-    
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn command: {}", e))?;
+
     // 获取管道所有权
     let mut child_stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let mut child_stderr = child.stderr.take().ok_or("Failed to capture stderr")?;

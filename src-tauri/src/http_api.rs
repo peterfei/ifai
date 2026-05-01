@@ -13,7 +13,6 @@
  * - POST /api/ai/chat - AI 聊天（非流式）
  * - GET /api/ai/chat/stream - AI 聊天（SSE 流式）
  */
-
 use axum::{
     extract::State,
     http::StatusCode,
@@ -30,8 +29,14 @@ use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
-use crate::agent_system::workflow::{types::Workflow, runner::{WorkflowRunner, PlannedNode}};
-use crate::core_traits::ai::{AIService, Message as CoreMessage, Content as CoreContent, AIProviderConfig as CoreAIProviderConfig};
+use crate::agent_system::workflow::{
+    runner::{PlannedNode, WorkflowRunner},
+    types::Workflow,
+};
+use crate::core_traits::ai::{
+    AIProviderConfig as CoreAIProviderConfig, AIService, Content as CoreContent,
+    Message as CoreMessage,
+};
 
 /// HTTP API 响应
 #[derive(Debug, Serialize)]
@@ -85,13 +90,13 @@ pub struct AIChatRequest {
     pub model: String,
     pub project_root: Option<String>,
     pub enable_tools: Option<bool>,
-    pub stream: Option<bool>,  // 是否使用流式输出（默认 false）
+    pub stream: Option<bool>, // 是否使用流式输出（默认 false）
 }
 
 /// AI Chat 消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIChatMessage {
-    pub role: String,  // "user", "assistant", "system"
+    pub role: String, // "user", "assistant", "system"
     pub content: String,
     pub tool_calls: Option<Vec<AIToolCall>>,
     pub tool_call_id: Option<String>,
@@ -101,7 +106,7 @@ pub struct AIChatMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIToolCall {
     pub id: String,
-    pub r#type: String,  // "function"
+    pub r#type: String, // "function"
     pub function: AIToolCallFunction,
 }
 
@@ -132,7 +137,7 @@ pub struct AIChatResponse {
 /// AI Chat 流式事件（SSE）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIChatStreamEvent {
-    pub event_type: String,  // "content_delta", "tool_call", "error", "done"
+    pub event_type: String, // "content_delta", "tool_call", "error", "done"
     pub content_delta: Option<String>,
     pub tool_call: Option<AIToolCall>,
     pub error: Option<AIStreamError>,
@@ -171,7 +176,8 @@ pub struct WorkflowProgressEvent {
 pub struct HttpApiState {
     pub progress_sender: broadcast::Sender<WorkflowProgressEvent>,
     /// AI chat 事件的 broadcast channel（每个请求会创建一个唯一的 channel）
-    pub ai_chat_senders: Arc<tokio::sync::Mutex<HashMap<String, broadcast::Sender<AIChatStreamEvent>>>>,
+    pub ai_chat_senders:
+        Arc<tokio::sync::Mutex<HashMap<String, broadcast::Sender<AIChatStreamEvent>>>>,
     /// AI 服务（用于实际的 AI chat 调用）
     pub ai_service: Option<Arc<dyn crate::core_traits::ai::AIService>>,
 }
@@ -202,7 +208,9 @@ async fn health_check() -> impl IntoResponse {
 }
 
 /// SSE Progress 事件流端点
-async fn progress_stream(State(state): State<HttpApiState>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+async fn progress_stream(
+    State(state): State<HttpApiState>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     // 创建新的接收器
     let rx = state.progress_sender.subscribe();
 
@@ -255,9 +263,9 @@ pub async fn send_progress_event_with_nodes(
         message: message.map(|s| s.to_string()),
         timestamp: chrono::Utc::now().timestamp_millis(),
         tool_details: None,
-        nodes,  // 🔥 包含计划节点信息
-        content_delta: None,  // 默认为 None
-        content_finished: None,  // 默认为 None
+        nodes,                  // 🔥 包含计划节点信息
+        content_delta: None,    // 默认为 None
+        content_finished: None, // 默认为 None
     };
 
     // 发送到所有订阅者（忽略错误，因为可能没有订阅者）
@@ -276,11 +284,15 @@ pub async fn send_content_delta_event(
         event_type: "content_delta".to_string(),
         workflow_id: Some(workflow_id.to_string()),
         node_id: Some(node_id.to_string()),
-        message: None,  // content_delta 事件不包含普通消息
+        message: None, // content_delta 事件不包含普通消息
         timestamp: chrono::Utc::now().timestamp_millis(),
         tool_details: None,
         nodes: None,
-        content_delta: if content_delta.is_empty() { None } else { Some(content_delta.to_string()) },
+        content_delta: if content_delta.is_empty() {
+            None
+        } else {
+            Some(content_delta.to_string())
+        },
         content_finished: Some(content_finished),
     };
 
@@ -307,28 +319,35 @@ async fn execute_workflow_http(
 
     // 🔥 FIX: 提取所有计划节点信息，用于 workflow:started 事件
     // 这样前端可以在工作流开始时就显示所有节点，而不是等待节点执行
-    let planned_nodes: Vec<PlannedNode> = workflow.nodes.iter().map(|node| {
-        use crate::agent_system::workflow::types::AgentType;
-        // 将 AgentType 转换为字符串
-        let agent_type_str = match node.agent_type {
-            AgentType::Explore => "explore".to_string(),
-            AgentType::Review => "review".to_string(),
-            AgentType::Refactor => "refactor".to_string(),
-            AgentType::Test => "test".to_string(),
-            AgentType::Doc => "doc".to_string(),
-            AgentType::TaskBreakdown => "task_breakdown".to_string(),
-            AgentType::ProposalGenerator => "proposal_generator".to_string(),
-            AgentType::GeneralPurpose => "general_purpose".to_string(),
-        };
+    let planned_nodes: Vec<PlannedNode> = workflow
+        .nodes
+        .iter()
+        .map(|node| {
+            use crate::agent_system::workflow::types::AgentType;
+            // 将 AgentType 转换为字符串
+            let agent_type_str = match node.agent_type {
+                AgentType::Explore => "explore".to_string(),
+                AgentType::Review => "review".to_string(),
+                AgentType::Refactor => "refactor".to_string(),
+                AgentType::Test => "test".to_string(),
+                AgentType::Doc => "doc".to_string(),
+                AgentType::TaskBreakdown => "task_breakdown".to_string(),
+                AgentType::ProposalGenerator => "proposal_generator".to_string(),
+                AgentType::GeneralPurpose => "general_purpose".to_string(),
+            };
 
-        PlannedNode {
-            id: node.id.clone(),
-            label: node.label.clone().unwrap_or_else(|| node.id.clone()),
-            agent_type: agent_type_str,
-        }
-    }).collect();
+            PlannedNode {
+                id: node.id.clone(),
+                label: node.label.clone().unwrap_or_else(|| node.id.clone()),
+                agent_type: agent_type_str,
+            }
+        })
+        .collect();
 
-    println!("[HttpAPI] 📋 Extracted {} planned nodes for frontend", planned_nodes.len());
+    println!(
+        "[HttpAPI] 📋 Extracted {} planned nodes for frontend",
+        planned_nodes.len()
+    );
     for (i, node) in planned_nodes.iter().enumerate() {
         println!("  {}. {} ({})", i + 1, node.label, node.agent_type);
     }
@@ -357,10 +376,12 @@ async fn execute_workflow_http(
                 node_id: event.node_id,
                 message: event.message,
                 timestamp: chrono::Utc::now().timestamp_millis(),
-                tool_details: event.tool_details.map(|d| serde_json::to_value(d).unwrap_or_else(|_| serde_json::json!(null))),
-                nodes: event.nodes,  // 🔥 包含 nodes 字段（从 runner.rs 传递过来）
-                content_delta: event.content_delta,  // 🔥 包含 content_delta 字段
-                content_finished: event.content_finished,  // 🔥 包含 content_finished 字段
+                tool_details: event
+                    .tool_details
+                    .map(|d| serde_json::to_value(d).unwrap_or_else(|_| serde_json::json!(null))),
+                nodes: event.nodes, // 🔥 包含 nodes 字段（从 runner.rs 传递过来）
+                content_delta: event.content_delta, // 🔥 包含 content_delta 字段
+                content_finished: event.content_finished, // 🔥 包含 content_finished 字段
             };
 
             let _ = sender_for_callback.send(sse_event);
@@ -370,7 +391,8 @@ async fn execute_workflow_http(
     let manager = crate::commands::workflow_commands::get_workflow_manager();
     {
         let mut manager = manager.lock().await;
-        manager.start_workflow(workflow_id.clone(), runner)
+        manager
+            .start_workflow(workflow_id.clone(), runner)
             .map_err(|e| {
                 let error = format!("启动工作流失败: {}", e);
                 println!("[HttpAPI] ❌ {}", error);
@@ -384,7 +406,10 @@ async fn execute_workflow_http(
     let workflow_id_clone = workflow_id.clone();
     let sender_clone = state.progress_sender.clone();
     tokio::spawn(async move {
-        println!("[HttpAPI] 🔄 Starting background execution for {}", workflow_id_clone);
+        println!(
+            "[HttpAPI] 🔄 Starting background execution for {}",
+            workflow_id_clone
+        );
 
         // 🔥 FIX: 移除 workflow:started 事件发送（现在由 runner.rs 在 run() 开始时立即发送）
         // 这样可以确保事件顺序正确，避免事件丢失
@@ -406,7 +431,8 @@ async fn execute_workflow_http(
                         Some(&workflow_id_clone),
                         None,
                         Some("工作流执行完成"),
-                    ).await;
+                    )
+                    .await;
 
                     // 清理
                     let mut manager = manager.lock().await;
@@ -422,7 +448,8 @@ async fn execute_workflow_http(
                         Some(&workflow_id_clone),
                         None,
                         Some(&format!("执行失败: {}", e)),
-                    ).await;
+                    )
+                    .await;
 
                     // 清理
                     let mut manager = manager.lock().await;
@@ -441,20 +468,24 @@ async fn execute_workflow_http(
 }
 
 /// 根据请求创建工作流
-fn create_workflow_from_request(req: &ExecuteWorkflowRequest) -> Result<Workflow, (StatusCode, String)> {
-    use crate::agent_system::workflow::types::{Workflow, WorkflowNode, WorkflowEdge, AgentType};
+fn create_workflow_from_request(
+    req: &ExecuteWorkflowRequest,
+) -> Result<Workflow, (StatusCode, String)> {
+    use crate::agent_system::workflow::types::{AgentType, Workflow, WorkflowEdge, WorkflowNode};
 
     let mut workflow = match req.workflow_type.as_str() {
         "code_review" => Workflow::new("quick-code-review", "快速代码审查")
-                .with_description("自动代码审查和改进建议"),
-        "exploration" => Workflow::new("quick-exploration", "快速探索")
-                .with_description("快速探索代码结构"),
-        "quality_check" => Workflow::new("quick-quality-check", "质量检查")
-                .with_description("快速质量检查"),
+            .with_description("自动代码审查和改进建议"),
+        "exploration" => {
+            Workflow::new("quick-exploration", "快速探索").with_description("快速探索代码结构")
+        }
+        "quality_check" => {
+            Workflow::new("quick-quality-check", "质量检查").with_description("快速质量检查")
+        }
         _ => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                format!("未知的工作流类型: {}", req.workflow_type)
+                format!("未知的工作流类型: {}", req.workflow_type),
             ));
         }
     };
@@ -462,9 +493,13 @@ fn create_workflow_from_request(req: &ExecuteWorkflowRequest) -> Result<Workflow
     // 添加节点和边
     match req.workflow_type.as_str() {
         "code_review" => {
-            workflow.add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("探索代码"));
-            workflow.add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"));
-            workflow.add_node(WorkflowNode::new("refactor", AgentType::Refactor).with_label("重构建议"));
+            workflow
+                .add_node(WorkflowNode::new("explore", AgentType::Explore).with_label("探索代码"));
+            workflow
+                .add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"));
+            workflow.add_node(
+                WorkflowNode::new("refactor", AgentType::Refactor).with_label("重构建议"),
+            );
             workflow.add_edge(WorkflowEdge::new("explore", "review"));
             workflow.add_edge(WorkflowEdge::new("review", "refactor"));
         }
@@ -473,22 +508,26 @@ fn create_workflow_from_request(req: &ExecuteWorkflowRequest) -> Result<Workflow
             use crate::agent_system::workflow::types::AgentConfig;
 
             // 探索节点1：分析项目结构
-            workflow.add_node(WorkflowNode::new("explore_structure", AgentType::Explore)
-                .with_label("探索结构")
-                .with_config(AgentConfig {
-                    target: Some(req.target_path.clone()),
-                    task_description: Some("分析项目的目录结构和文件组织方式".to_string()),
-                    ..Default::default()
-                }));
+            workflow.add_node(
+                WorkflowNode::new("explore_structure", AgentType::Explore)
+                    .with_label("探索结构")
+                    .with_config(AgentConfig {
+                        target: Some(req.target_path.clone()),
+                        task_description: Some("分析项目的目录结构和文件组织方式".to_string()),
+                        ..Default::default()
+                    }),
+            );
 
             // 探索节点2：分析依赖关系
-            workflow.add_node(WorkflowNode::new("explore_deps", AgentType::Explore)
-                .with_label("探索依赖")
-                .with_config(AgentConfig {
-                    target: Some(req.target_path.clone()),
-                    task_description: Some("分析项目的依赖关系和模块之间的连接".to_string()),
-                    ..Default::default()
-                }));
+            workflow.add_node(
+                WorkflowNode::new("explore_deps", AgentType::Explore)
+                    .with_label("探索依赖")
+                    .with_config(AgentConfig {
+                        target: Some(req.target_path.clone()),
+                        task_description: Some("分析项目的依赖关系和模块之间的连接".to_string()),
+                        ..Default::default()
+                    }),
+            );
 
             // 总结节点：综合两个探索节点的结果（使用流式输出）
             workflow.add_node(WorkflowNode::new("summarize", AgentType::Doc)
@@ -503,32 +542,44 @@ fn create_workflow_from_request(req: &ExecuteWorkflowRequest) -> Result<Workflow
             workflow.add_edge(WorkflowEdge::new("explore_deps", "summarize"));
         }
         "quality_check" => {
-            workflow.add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"));
-            workflow.add_node(WorkflowNode::new("security", AgentType::Review).with_label("安全检查"));
+            workflow
+                .add_node(WorkflowNode::new("review", AgentType::Review).with_label("代码审查"));
+            workflow
+                .add_node(WorkflowNode::new("security", AgentType::Review).with_label("安全检查"));
             workflow.add_edge(WorkflowEdge::new("review", "security"));
         }
         _ => {}
     }
 
-    workflow.variables.insert("target_path".to_string(), req.target_path.clone());
+    workflow
+        .variables
+        .insert("target_path".to_string(), req.target_path.clone());
 
     // 添加额外的配置
     if let Some(project_root) = &req.project_root {
-        workflow.variables.insert("project_root".to_string(), project_root.clone());
+        workflow
+            .variables
+            .insert("project_root".to_string(), project_root.clone());
     }
 
     if let Some(correlation_id) = &req.correlation_id {
-        workflow.variables.insert("correlation_id".to_string(), correlation_id.clone());
+        workflow
+            .variables
+            .insert("correlation_id".to_string(), correlation_id.clone());
     }
 
     if let Some(provider_config) = &req.provider_config {
         if let Ok(config_json) = serde_json::to_string(provider_config) {
-            workflow.variables.insert("provider_config".to_string(), config_json);
+            workflow
+                .variables
+                .insert("provider_config".to_string(), config_json);
         }
     }
 
     if let Some(current_model) = &req.current_model {
-        workflow.variables.insert("current_model".to_string(), current_model.clone());
+        workflow
+            .variables
+            .insert("current_model".to_string(), current_model.clone());
     }
 
     Ok(workflow.clone())
@@ -568,9 +619,16 @@ async fn ai_chat_stream_http(
     println!("  enable_tools: {:?}", req.enable_tools);
 
     // 检查是否有 AI 服务
-    let ai_service = state.ai_service.as_ref().ok_or_else(|| {
-        (StatusCode::SERVICE_UNAVAILABLE, "AI service not available".to_string())
-    })?.clone();
+    let ai_service = state
+        .ai_service
+        .as_ref()
+        .ok_or_else(|| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "AI service not available".to_string(),
+            )
+        })?
+        .clone();
 
     // 生成唯一的 chat_id
     let chat_id = format!("chat_{}", Uuid::new_v4());
@@ -585,15 +643,19 @@ async fn ai_chat_stream_http(
     }
 
     // 🔥 转换请求格式：HTTP -> AI Service
-    let core_messages: Vec<CoreMessage> = req.messages.into_iter().map(|msg| {
-        let content = CoreContent::Text(msg.content);
-        CoreMessage {
-            role: msg.role,
-            content,
-            tool_calls: None,
-            tool_call_id: None,
-        }
-    }).collect();
+    let core_messages: Vec<CoreMessage> = req
+        .messages
+        .into_iter()
+        .map(|msg| {
+            let content = CoreContent::Text(msg.content);
+            CoreMessage {
+                role: msg.role,
+                content,
+                tool_calls: None,
+                tool_call_id: None,
+            }
+        })
+        .collect();
 
     use crate::core_traits::ai::AIProtocol;
 
@@ -603,7 +665,7 @@ async fn ai_chat_stream_http(
         api_key: req.provider_config.api_key,
         base_url: req.provider_config.base_url,
         models: vec![req.model.clone()],
-        protocol: AIProtocol::OpenAI,  // 默认使用 OpenAI 协议
+        protocol: AIProtocol::OpenAI, // 默认使用 OpenAI 协议
         enabled: true,
     };
 
@@ -625,52 +687,56 @@ async fn ai_chat_stream_http(
         // 解析 AI 服务的事件
         if let Ok(event_value) = serde_json::from_str::<serde_json::Value>(&event_json) {
             // 转换为 SSE 事件
-            let stream_event = if let Some(choices) = event_value.get("choices").and_then(|c| c.as_array()) {
-                if let Some(first_choice) = choices.first() {
-                    if let Some(delta) = first_choice.get("delta") {
-                        // 内容增量事件
-                        if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+            let stream_event =
+                if let Some(choices) = event_value.get("choices").and_then(|c| c.as_array()) {
+                    if let Some(first_choice) = choices.first() {
+                        if let Some(delta) = first_choice.get("delta") {
+                            // 内容增量事件
+                            if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
+                                AIChatStreamEvent {
+                                    event_type: "content_delta".to_string(),
+                                    content_delta: Some(content.to_string()),
+                                    tool_call: None,
+                                    error: None,
+                                    finish_reason: None,
+                                }
+                            } else {
+                                return; // 忽略空内容
+                            }
+                        } else if first_choice.get("finish_reason").is_some() {
+                            // 完成事件
                             AIChatStreamEvent {
-                                event_type: "content_delta".to_string(),
-                                content_delta: Some(content.to_string()),
+                                event_type: "done".to_string(),
+                                content_delta: None,
                                 tool_call: None,
                                 error: None,
-                                finish_reason: None,
+                                finish_reason: first_choice
+                                    .get("finish_reason")
+                                    .and_then(|f| f.as_str())
+                                    .map(|s| s.to_string()),
                             }
                         } else {
-                            return;  // 忽略空内容
-                        }
-                    } else if first_choice.get("finish_reason").is_some() {
-                        // 完成事件
-                        AIChatStreamEvent {
-                            event_type: "done".to_string(),
-                            content_delta: None,
-                            tool_call: None,
-                            error: None,
-                            finish_reason: first_choice.get("finish_reason").and_then(|f| f.as_str()).map(|s| s.to_string()),
+                            return; // 忽略未知事件
                         }
                     } else {
-                        return;  // 忽略未知事件
+                        return; // 忽略空 choices
+                    }
+                } else if let Some(_error) = event_value.get("error") {
+                    // 错误事件
+                    AIChatStreamEvent {
+                        event_type: "error".to_string(),
+                        content_delta: None,
+                        tool_call: None,
+                        error: Some(AIStreamError {
+                            code: "AI_ERROR".to_string(),
+                            message: event_value.to_string(),
+                        }),
+                        finish_reason: None,
                     }
                 } else {
-                    return;  // 忽略空 choices
-                }
-            } else if let Some(_error) = event_value.get("error") {
-                // 错误事件
-                AIChatStreamEvent {
-                    event_type: "error".to_string(),
-                    content_delta: None,
-                    tool_call: None,
-                    error: Some(AIStreamError {
-                        code: "AI_ERROR".to_string(),
-                        message: event_value.to_string(),
-                    }),
-                    finish_reason: None,
-                }
-            } else {
-                // 忽略其他事件
-                return;
-            };
+                    // 忽略其他事件
+                    return;
+                };
 
             // 发送 SSE 事件
             let _ = sender_clone.send(stream_event);
@@ -679,16 +745,21 @@ async fn ai_chat_stream_http(
 
     // 在后台任务中调用 AI 服务
     tokio::spawn(async move {
-        println!("[HttpAPI] 🚀 Calling AI service for chat: {}", chat_id_for_spawn);
+        println!(
+            "[HttpAPI] 🚀 Calling AI service for chat: {}",
+            chat_id_for_spawn
+        );
 
         // 调用 AI 服务
-        let result = ai_service.stream_chat(
-            &core_provider_config,
-            core_messages,
-            &chat_id_for_spawn,
-            tools,
-            Box::new(callback),
-        ).await;
+        let result = ai_service
+            .stream_chat(
+                &core_provider_config,
+                core_messages,
+                &chat_id_for_spawn,
+                tools,
+                Box::new(callback),
+            )
+            .await;
 
         // 处理结果
         match result {
@@ -718,7 +789,7 @@ async fn ai_chat_stream_http(
         }
 
         // 清理：完成后移除 sender
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;  // 等待最后的消息被发送
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await; // 等待最后的消息被发送
         let mut senders = state_clone.ai_chat_senders.lock().await;
         senders.remove(&chat_id_for_spawn);
     });
@@ -753,7 +824,10 @@ async fn ai_chat_stream_http(
                 .text("keepalive"),
         ))
     } else {
-        Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to create chat session".to_string()))
+        Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create chat session".to_string(),
+        ))
     }
 }
 
@@ -785,7 +859,10 @@ impl HttpApiServer {
     }
 
     /// 设置 AI 服务
-    pub fn with_ai_service(mut self, ai_service: Arc<dyn crate::core_traits::ai::AIService>) -> Self {
+    pub fn with_ai_service(
+        mut self,
+        ai_service: Arc<dyn crate::core_traits::ai::AIService>,
+    ) -> Self {
         self.ai_service = Some(ai_service);
         self
     }
@@ -812,11 +889,26 @@ impl HttpApiServer {
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         println!("[HttpAPI] ✅ Server listening on {}", addr);
         println!("[HttpAPI] 📡 Available endpoints:");
-        println!("[HttpAPI]   - POST http://localhost:{}/api/workflow/execute", self.port);
-        println!("[HttpAPI]   - GET  http://localhost:{}/api/workflow/progress (SSE)", self.port);
-        println!("[HttpAPI]   - POST http://localhost:{}/api/health", self.port);
-        println!("[HttpAPI]   - POST http://localhost:{}/api/ai/chat", self.port);
-        println!("[HttpAPI]   - POST http://localhost:{}/api/ai/chat/stream (SSE)", self.port);
+        println!(
+            "[HttpAPI]   - POST http://localhost:{}/api/workflow/execute",
+            self.port
+        );
+        println!(
+            "[HttpAPI]   - GET  http://localhost:{}/api/workflow/progress (SSE)",
+            self.port
+        );
+        println!(
+            "[HttpAPI]   - POST http://localhost:{}/api/health",
+            self.port
+        );
+        println!(
+            "[HttpAPI]   - POST http://localhost:{}/api/ai/chat",
+            self.port
+        );
+        println!(
+            "[HttpAPI]   - POST http://localhost:{}/api/ai/chat/stream (SSE)",
+            self.port
+        );
 
         // 保存服务器句柄
         let handle = tokio::spawn(async move {

@@ -2,9 +2,9 @@
 //!
 //! 提供快捷键分类和渲染功能，用于 TUI 帮助覆盖层
 
+use ratatui::layout::Alignment;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
-use ratatui::layout::Alignment;
 
 /// 帮助覆盖层组件
 pub struct HelpOverlay {
@@ -25,12 +25,10 @@ impl HelpOverlay {
         let mut lines = Vec::new();
 
         // 顶部标题栏
-        lines.push(Line::from(vec![
-            Span::styled(
-                "╔════════════════════════════════════════════════════════╗",
-                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-            ),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "╔════════════════════════════════════════════════════════╗",
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )]));
         lines.push(Line::from(vec![
             Span::styled(
                 "║",
@@ -50,12 +48,10 @@ impl HelpOverlay {
                 ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
             ),
         ]));
-        lines.push(Line::from(vec![
-            Span::styled(
-                "╚════════════════════════════════════════════════════════╝",
-                ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
-            ),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "╚════════════════════════════════════════════════════════╝",
+            ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray),
+        )]));
 
         // 空行
         lines.push(Line::from(""));
@@ -247,12 +243,10 @@ mod tests {
     fn test_keybinding_category_render() {
         let category = KeybindingCategory::new(
             "测试分类",
-            vec![
-                KeyBinding {
-                    keys: "A",
-                    description: "测试 A",
-                },
-            ],
+            vec![KeyBinding {
+                keys: "A",
+                description: "测试 A",
+            }],
         );
 
         let lines = category.render();

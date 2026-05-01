@@ -6,7 +6,6 @@
  * - 社区版: 使用本地 MockMultimodalEngine
  * - 商业版: 使用 ifainew-core 的 CommercialMultimodalEngine
  */
-
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
@@ -130,7 +129,8 @@ impl CommercialMultimodalEngine {
         };
 
         // 使用 ifainew-core 的工具函数验证图片
-        if let Err(e) = ifainew_core::validate_image_base64(&core_image.data, &core_image.mime_type) {
+        if let Err(e) = ifainew_core::validate_image_base64(&core_image.data, &core_image.mime_type)
+        {
             return Err(format!("图片验证失败: {}", e));
         }
         if let Some(size) = core_image.size {
@@ -198,11 +198,13 @@ pub async fn read_file_as_base64(path: String) -> Result<String, String> {
     use std::fs;
     use std::io::Read;
 
-    println!("[Multimodal] read_file_as_base64 called with path: {}", path);
+    println!(
+        "[Multimodal] read_file_as_base64 called with path: {}",
+        path
+    );
 
     // 读取文件
-    let mut file = fs::File::open(&path)
-        .map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut file = fs::File::open(&path).map_err(|e| format!("Failed to open file: {}", e))?;
 
     // 读取文件内容
     let mut buffer = Vec::new();
@@ -213,7 +215,11 @@ pub async fn read_file_as_base64(path: String) -> Result<String, String> {
     use base64::Engine;
     let base64_string = base64::engine::general_purpose::STANDARD.encode(&buffer);
 
-    println!("[Multimodal] File size: {} bytes, base64 length: {}", buffer.len(), base64_string.len());
+    println!(
+        "[Multimodal] File size: {} bytes, base64 length: {}",
+        buffer.len(),
+        base64_string.len()
+    );
 
     Ok(base64_string)
 }
@@ -235,7 +241,9 @@ mod tests {
             size: Some(67),
         };
 
-        let result = MockMultimodalEngine::analyze_image(image, "Describe this").await.unwrap();
+        let result = MockMultimodalEngine::analyze_image(image, "Describe this")
+            .await
+            .unwrap();
 
         assert!(result.description.contains("社区版 Mock"));
         assert!(!MockMultimodalEngine::is_vision_supported());

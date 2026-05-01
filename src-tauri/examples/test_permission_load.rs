@@ -5,7 +5,7 @@
 //! cargo run --example test_permission_load
 //! ```
 
-use ifainew::bin::ifai::permission_store::{PermissionStore, PermissionRule, RuleType};
+use ifainew::bin::ifai::permission_store::{PermissionRule, PermissionStore, RuleType};
 use serde_json::json;
 
 fn main() {
@@ -23,8 +23,13 @@ fn main() {
         println!("  (无规则)");
     } else {
         for (i, rule) in store.persistent.iter().enumerate() {
-            println!("  [{}] {} / {} / {:?}",
-                i + 1, rule.tool_name, rule.pattern, rule.rule_type);
+            println!(
+                "  [{}] {} / {} / {:?}",
+                i + 1,
+                rule.tool_name,
+                rule.pattern,
+                rule.rule_type
+            );
         }
     }
 
@@ -34,17 +39,38 @@ fn main() {
     // 测试 bash pwd 命令
     let pwd_args = json!({"cmd": "pwd"});
     let pwd_allowed = store.is_allowed("bash", &pwd_args);
-    println!("  bash pwd: {}", if pwd_allowed { "✓ 允许" } else { "✗ 拒绝" });
+    println!(
+        "  bash pwd: {}",
+        if pwd_allowed {
+            "✓ 允许"
+        } else {
+            "✗ 拒绝"
+        }
+    );
 
     // 测试 bash ls -la 命令
     let ls_args = json!({"cmd": "ls -la"});
     let ls_allowed = store.is_allowed("bash", &ls_args);
-    println!("  bash ls -la: {}", if ls_allowed { "✓ 允许" } else { "✗ 拒绝" });
+    println!(
+        "  bash ls -la: {}",
+        if ls_allowed {
+            "✓ 允许"
+        } else {
+            "✗ 拒绝"
+        }
+    );
 
     // 测试 bash git diff 命令
     let git_args = json!({"cmd": "git diff --stat"});
     let git_allowed = store.is_allowed("bash", &git_args);
-    println!("  bash git diff --stat: {}", if git_allowed { "✓ 允许" } else { "✗ 拒绝" });
+    println!(
+        "  bash git diff --stat: {}",
+        if git_allowed {
+            "✓ 允许"
+        } else {
+            "✗ 拒绝"
+        }
+    );
 
     // 4. 测试模式提取
     println!("\n4. 测试模式提取：");
@@ -70,12 +96,18 @@ fn main() {
 
     // 6. 测试匹配逻辑
     println!("\n6. 测试匹配逻辑：");
-    println!("  模式 'pwd:*' 匹配 'pwd': {}",
-        PermissionStore::match_rule("pwd:*", "pwd"));
-    println!("  模式 'ls -la:*' 匹配 'ls -la': {}",
-        PermissionStore::match_rule("ls -la:*", "ls -la"));
-    println!("  模式 'git diff:*' 匹配 'git diff --stat': {}",
-        PermissionStore::match_rule("git diff:*", "git diff --stat"));
+    println!(
+        "  模式 'pwd:*' 匹配 'pwd': {}",
+        PermissionStore::match_rule("pwd:*", "pwd")
+    );
+    println!(
+        "  模式 'ls -la:*' 匹配 'ls -la': {}",
+        PermissionStore::match_rule("ls -la:*", "ls -la")
+    );
+    println!(
+        "  模式 'git diff:*' 匹配 'git diff --stat': {}",
+        PermissionStore::match_rule("git diff:*", "git diff --stat")
+    );
 
     println!("\n=== 测试完成 ===");
 }

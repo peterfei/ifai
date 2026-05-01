@@ -218,7 +218,10 @@ mod tests {
 
     #[test]
     fn test_tool_category_display() {
-        assert_eq!(ToolCategory::FileOperations.display_name(), "file_operations");
+        assert_eq!(
+            ToolCategory::FileOperations.display_name(),
+            "file_operations"
+        );
         assert_eq!(ToolCategory::TerminalCommands.description(), "终端命令");
     }
 
@@ -233,7 +236,7 @@ mod tests {
         let result = ClassificationResult::layer1(
             ToolCategory::FileOperations,
             Some("agent_read_file".to_string()),
-            "slash_command"
+            "slash_command",
         );
 
         assert_eq!(result.layer, ClassificationLayer::Layer1);
@@ -247,7 +250,7 @@ mod tests {
         let result = ClassificationResult::layer1(
             ToolCategory::FileOperations,
             Some("agent_read_file".to_string()),
-            "slash_command"
+            "slash_command",
         );
 
         let display = result.display_info();

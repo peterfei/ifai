@@ -2,11 +2,11 @@
 //!
 //! 验证 SmartScanner 的整体性能表现
 
+use crate::meta::scanner::{CacheConfig, CacheStrategy, ScanCache, ScannerConfig};
 use crate::scanners::ExploreScanner;
-use crate::meta::scanner::{ScannerConfig, ScanCache, CacheConfig, CacheStrategy};
 use std::path::Path;
-use std::time::{Duration, Instant};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 /// 性能报告
 #[derive(Debug, Clone)]
@@ -71,9 +71,13 @@ impl PerformanceReport {
             self.parallel_scan_duration,
             self.parallel_speedup,
             self.avg_duration,
-            (1.0 - self.cache_hit_duration.as_secs_f64() / self.single_scan_duration.as_secs_f64()) * 100.0,
-            (1.0 - self.parallel_scan_duration.as_secs_f64() / self.serial_scan_duration.as_secs_f64()) * 100.0,
-            (1.0 - self.avg_duration.as_secs_f64() / self.single_scan_duration.as_secs_f64()) * 100.0,
+            (1.0 - self.cache_hit_duration.as_secs_f64() / self.single_scan_duration.as_secs_f64())
+                * 100.0,
+            (1.0 - self.parallel_scan_duration.as_secs_f64()
+                / self.serial_scan_duration.as_secs_f64())
+                * 100.0,
+            (1.0 - self.avg_duration.as_secs_f64() / self.single_scan_duration.as_secs_f64())
+                * 100.0,
         )
     }
 }
@@ -90,7 +94,8 @@ pub fn run_performance_analysis(path: &Path) -> PerformanceReport {
     let start = Instant::now();
     let _result = scanner1.scan_with_cache(path);
     let cache_hit_duration = start.elapsed();
-    let cache_speedup = single_scan_duration.as_secs_f64() / cache_hit_duration.as_secs_f64().max(0.000001);
+    let cache_speedup =
+        single_scan_duration.as_secs_f64() / cache_hit_duration.as_secs_f64().max(0.000001);
 
     // 3. 串行 vs 并行（禁用缓存以获得真实对比）
     let mut serial_config = ScannerConfig::default();
@@ -111,7 +116,8 @@ pub fn run_performance_analysis(path: &Path) -> PerformanceReport {
     let _result = parallel_scanner.scan_with_cache(path);
     let parallel_scan_duration = start.elapsed();
 
-    let parallel_speedup = serial_scan_duration.as_secs_f64() / parallel_scan_duration.as_secs_f64().max(0.000001);
+    let parallel_speedup =
+        serial_scan_duration.as_secs_f64() / parallel_scan_duration.as_secs_f64().max(0.000001);
 
     // 4. 多次扫描平均（使用缓存）
     let mut durations = Vec::new();
@@ -145,7 +151,10 @@ mod tests {
         println!("{}", report.to_markdown());
 
         // 验证核心性能目标
-        assert!(report.cache_hit_duration.as_millis() < 1, "Cache hit too slow");
+        assert!(
+            report.cache_hit_duration.as_millis() < 1,
+            "Cache hit too slow"
+        );
         assert!(report.cache_speedup > 10.0, "Cache not effective enough");
 
         // 并行扫描对于小项目可能不总是更快（线程开销）
@@ -154,6 +163,9 @@ mod tests {
         assert!(report.parallel_speedup > 0.3, "Parallel too slow");
 
         // 平均扫描时间应该很快（因为有缓存）
-        assert!(report.avg_duration.as_millis() < 500, "Average scan too slow");
+        assert!(
+            report.avg_duration.as_millis() < 500,
+            "Average scan too slow"
+        );
     }
 }

@@ -34,7 +34,7 @@ impl TuiLayout {
     pub fn from_size(cols: u16, rows: u16) -> Self {
         Self {
             width: cols,
-            content_height: rows.saturating_sub(3),  // 留 3 行给状态、分隔线和输入
+            content_height: rows.saturating_sub(3), // 留 3 行给状态、分隔线和输入
             status_row: rows.saturating_sub(2),
             separator_row: rows.saturating_sub(1),
             input_row: rows,
@@ -45,8 +45,7 @@ impl TuiLayout {
     pub fn render_status(&self, status_text: &str) -> String {
         format!(
             "\x1b[s\x1b[{};1H\x1b[K{}\x1b[u",
-            self.status_row,
-            status_text
+            self.status_row, status_text
         )
     }
 
@@ -55,18 +54,13 @@ impl TuiLayout {
         let line = "─".repeat(self.width as usize);
         format!(
             "\x1b[s\x1b[{};1H\x1b[K\x1b[38;5;8m{}\x1b[0m\x1b[u",
-            self.separator_row,
-            line
+            self.separator_row, line
         )
     }
 
     /// 🎨 渲染输入框（固定底部）
     pub fn render_input(&self, input_text: &str) -> String {
-        format!(
-            "\x1b[s\x1b[{};1H\x1b[K{}\x1b[u",
-            self.input_row,
-            input_text
-        )
+        format!("\x1b[s\x1b[{};1H\x1b[K{}\x1b[u", self.input_row, input_text)
     }
 
     /// 🔥 进入备用屏幕缓冲区
@@ -102,9 +96,9 @@ mod tests {
     fn test_tui_layout_render_status() {
         let layout = TuiLayout::default();
         let status = layout.render_status("[测试] 状态");
-        assert!(status.contains("\x1b[s"));   // 保存光标
-        assert!(status.contains("\x1b[K"));   // 清除行
-        assert!(status.contains("\x1b[u"));   // 恢复光标
+        assert!(status.contains("\x1b[s")); // 保存光标
+        assert!(status.contains("\x1b[K")); // 清除行
+        assert!(status.contains("\x1b[u")); // 恢复光标
     }
 
     #[test]
@@ -161,12 +155,22 @@ mod tests {
         // 任意尺寸：status < separator < input
         for (w, h) in [(80, 10), (80, 24), (200, 50), (40, 4)] {
             let layout = TuiLayout::from_size(w, h);
-            assert!(layout.status_row < layout.separator_row,
+            assert!(
+                layout.status_row < layout.separator_row,
                 "status_row {} should be < separator_row {} for {}x{}",
-                layout.status_row, layout.separator_row, w, h);
-            assert!(layout.separator_row < layout.input_row,
+                layout.status_row,
+                layout.separator_row,
+                w,
+                h
+            );
+            assert!(
+                layout.separator_row < layout.input_row,
                 "separator_row {} should be < input_row {} for {}x{}",
-                layout.separator_row, layout.input_row, w, h);
+                layout.separator_row,
+                layout.input_row,
+                w,
+                h
+            );
         }
     }
 }

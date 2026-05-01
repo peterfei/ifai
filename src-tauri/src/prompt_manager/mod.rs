@@ -1,14 +1,14 @@
-use serde::{Deserialize, Serialize};
-use rust_embed::RustEmbed;
 use crate::project_config;
+use rust_embed::RustEmbed;
+use serde::{Deserialize, Serialize};
 
+pub mod export;
 pub mod storage;
 pub mod template;
-pub mod variables;
 pub mod tool_parser;
-pub mod version;
-pub mod export;
 pub mod validation;
+pub mod variables;
+pub mod version;
 
 #[derive(RustEmbed)]
 #[folder = "../.ifai/prompts/"]
@@ -33,7 +33,9 @@ pub struct PromptMetadata {
     pub access_tier: AccessTier,
 }
 
-fn default_access_tier() -> AccessTier { AccessTier::Public }
+fn default_access_tier() -> AccessTier {
+    AccessTier::Public
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptTemplate {
@@ -45,21 +47,27 @@ pub struct PromptTemplate {
 
 pub fn get_main_system_prompt(project_root: &str) -> String {
     let variables = variables::collect_system_variables(project_root);
-    
+
     let lang = project_config::load_project_config_sync(project_root)
         .and_then(|c| c.default_language)
         .unwrap_or_else(|| "en".to_string());
     let is_zh = lang.to_lowercase().starts_with("zh");
 
-    let template_name = if is_zh { "zh-CN/system/main.md" } else { "system/main.md" };
-    
+    let template_name = if is_zh {
+        "zh-CN/system/main.md"
+    } else {
+        "system/main.md"
+    };
+
     let template = match load_template(project_root, template_name) {
         Some(t) => t,
-        None => {
-            BuiltinPrompts::get("system/main.md").and_then(|f| {
-                std::str::from_utf8(f.data.as_ref()).ok().map(|s| s.to_string())
-            }).unwrap_or_else(|| "You are IfAI, an advanced AI software engineer.".to_string())
-        }
+        None => BuiltinPrompts::get("system/main.md")
+            .and_then(|f| {
+                std::str::from_utf8(f.data.as_ref())
+                    .ok()
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "You are IfAI, an advanced AI software engineer.".to_string()),
     };
 
     template::render_template(&template, &variables).unwrap_or_else(|_| template)
@@ -69,7 +77,7 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task: &str) -> Str
     let (clean_task, proposal_id) = extract_proposal_context(task);
     let mut variables = variables::collect_system_variables(project_root);
     variables.insert("task".to_string(), clean_task);
-    
+
     if let Some(pid) = proposal_id {
         variables.insert("proposal_id".to_string(), pid);
     }
@@ -80,16 +88,30 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task: &str) -> Str
     let is_zh = lang.to_lowercase().starts_with("zh");
 
     let template_name = format!("agents/{}.md", agent_type.to_lowercase());
-    let lang_template_name = if is_zh { format!("zh-CN/{}", template_name) } else { template_name.clone() };
+    let lang_template_name = if is_zh {
+        format!("zh-CN/{}", template_name)
+    } else {
+        template_name.clone()
+    };
 
     let template = load_template(project_root, &lang_template_name)
         .or_else(|| load_template(project_root, &template_name))
         .unwrap_or_else(|| {
-            let builtin_path = if is_zh { format!("zh-CN/{}", template_name) } else { template_name.clone() };
+            let builtin_path = if is_zh {
+                format!("zh-CN/{}", template_name)
+            } else {
+                template_name.clone()
+            };
             if let Some(f) = BuiltinPrompts::get(&builtin_path) {
-                std::str::from_utf8(f.data.as_ref()).ok().map(|s| s.to_string()).unwrap()
+                std::str::from_utf8(f.data.as_ref())
+                    .ok()
+                    .map(|s| s.to_string())
+                    .unwrap()
             } else if let Some(f) = BuiltinPrompts::get(&template_name) {
-                std::str::from_utf8(f.data.as_ref()).ok().map(|s| s.to_string()).unwrap()
+                std::str::from_utf8(f.data.as_ref())
+                    .ok()
+                    .map(|s| s.to_string())
+                    .unwrap()
             } else {
                 "You are a specialized AI agent.".to_string()
             }
@@ -99,7 +121,9 @@ pub fn get_agent_prompt(agent_type: &str, project_root: &str, task: &str) -> Str
 }
 
 fn load_template(project_root: &str, name: &str) -> Option<String> {
-    let local_path = std::path::Path::new(project_root).join(".ifai/prompts").join(name);
+    let local_path = std::path::Path::new(project_root)
+        .join(".ifai/prompts")
+        .join(name);
     if local_path.exists() {
         std::fs::read_to_string(local_path).ok()
     } else {
@@ -155,7 +179,7 @@ mod tests {
         let project_root = dir.path().to_str().unwrap();
         let tool_ids = vec!["list", "read", "probe"];
         let tools = get_dynamic_tools(project_root, tool_ids);
-        
+
         // 🏆 核心断言：验证动态工具管线逻辑
         assert!(tools.len() > 0);
         let first_tool = &tools[0];

@@ -2,11 +2,11 @@
 //!
 //! 定义工具执行接口和错误类型。
 
-pub mod todoutil;
+pub mod aliastools;
 pub mod filetools;
 pub mod searchtools;
 pub mod shelltools;
-pub mod aliastools;
+pub mod todoutil;
 
 use serde_json::Value;
 use std::collections::HashSet;
@@ -14,11 +14,11 @@ use std::collections::HashSet;
 use super::spec::ToolPermissionMode;
 
 // 重新导出执行器
-pub use todoutil::TodoWriteExecutor;
+pub use aliastools::AliasExecutor;
 pub use filetools::FileToolsExecutor;
 pub use searchtools::SearchToolsExecutor;
 pub use shelltools::ShellToolsExecutor;
-pub use aliastools::AliasExecutor;
+pub use todoutil::TodoWriteExecutor;
 
 /// 工具执行错误
 #[derive(Debug, thiserror::Error)]
@@ -124,7 +124,9 @@ mod tests {
         let mut executor = SubagentToolExecutor::new(allowed);
 
         // 允许的工具
-        assert!(executor.execute("read_file", &serde_json::json!({})).is_ok());
+        assert!(executor
+            .execute("read_file", &serde_json::json!({}))
+            .is_ok());
 
         // 不允许的工具
         assert!(matches!(

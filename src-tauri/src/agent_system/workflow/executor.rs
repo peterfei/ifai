@@ -2,15 +2,15 @@
 //!
 //! 负责执行单个工作流节点，集成实际的智能体调用
 
-use super::types::{WorkflowNode, AgentType};
 use super::runner::NodeResult;
+use super::types::{AgentType, WorkflowNode};
 use crate::agent_system::base::{Agent, AgentContext};
-use crate::core_traits::ai::{Message, Content};
+use crate::ai_utils;
+use crate::core_traits::ai::{Content, Message};
+use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use anyhow::Result;
-use crate::ai_utils;  // 🔥 添加 AI 工具导入
+use tokio::sync::RwLock; // 🔥 添加 AI 工具导入
 
 /// 创建默认的 AI 提供商配置
 #[cfg(feature = "commercial")]
@@ -42,11 +42,15 @@ pub(crate) fn default_provider_config() -> crate::core_traits::ai::AIProviderCon
 
 /// 🔥 工具调用进度回调包装器
 #[derive(Clone)]
-pub struct ToolProgressCallback(pub std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>);
+pub struct ToolProgressCallback(
+    pub std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>,
+);
 
 impl std::fmt::Debug for ToolProgressCallback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ToolProgressCallback").field(&"<callback>").finish()
+        f.debug_tuple("ToolProgressCallback")
+            .field(&"<callback>")
+            .finish()
     }
 }
 
@@ -56,7 +60,9 @@ pub struct ContentDeltaCallback(pub std::sync::Arc<dyn Fn(String, bool) + Send +
 
 impl std::fmt::Debug for ContentDeltaCallback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ContentDeltaCallback").field(&"<callback>").finish()
+        f.debug_tuple("ContentDeltaCallback")
+            .field(&"<callback>")
+            .finish()
     }
 }
 
@@ -83,11 +89,7 @@ pub struct NodeExecutionContext {
 
 impl NodeExecutionContext {
     /// 创建新的执行上下文
-    pub fn new(
-        node_id: String,
-        project_root: String,
-        task_description: String,
-    ) -> Self {
+    pub fn new(node_id: String, project_root: String, task_description: String) -> Self {
         Self {
             node_id,
             project_root,
@@ -113,7 +115,10 @@ impl NodeExecutionContext {
     }
 
     /// 设置 AI 提供商配置
-    pub fn with_provider_config(mut self, config: crate::core_traits::ai::AIProviderConfig) -> Self {
+    pub fn with_provider_config(
+        mut self,
+        config: crate::core_traits::ai::AIProviderConfig,
+    ) -> Self {
         self.provider_config = Some(config);
         self
     }
@@ -163,9 +168,11 @@ impl NodeExecutionContext {
             task_description: self.get_full_task_description(),
             initial_prompt: String::new(),
             variables,
-            provider_config: self.provider_config.clone()
+            provider_config: self
+                .provider_config
+                .clone()
                 .unwrap_or_else(|| default_provider_config()),
-            current_model,  // 🔥 使用用户选择的模型
+            current_model, // 🔥 使用用户选择的模型
         }
     }
 }
@@ -257,15 +264,23 @@ impl NodeExecutor for AgentNodeExecutor {
             task_description: full_description,
             initial_prompt: String::new(),
             variables: ctx.workflow_variables.clone(),
-            provider_config: ctx.provider_config.clone()
+            provider_config: ctx
+                .provider_config
+                .clone()
                 .unwrap_or_else(|| default_provider_config()),
-            current_model,  // 🔥 使用用户选择的模型
+            current_model, // 🔥 使用用户选择的模型
         };
 
         // 🔥 执行真实的智能体调用
         let tool_progress_callback = ctx.tool_progress_callback.clone().map(|cb| cb.0);
         let content_delta_callback = ctx.content_delta_callback.clone().map(|cb| cb.0);
-        let output = Self::execute_agent_real(node, &agent_ctx, tool_progress_callback, content_delta_callback).await?;
+        let output = Self::execute_agent_real(
+            node,
+            &agent_ctx,
+            tool_progress_callback,
+            content_delta_callback,
+        )
+        .await?;
 
         let end_time = chrono::Utc::now().timestamp_millis();
 
@@ -317,14 +332,25 @@ impl AgentNodeExecutor {
     async fn execute_agent_real(
         node: &WorkflowNode,
         ctx: &AgentContext,
-        tool_progress_callback: Option<std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>>,
+        tool_progress_callback: Option<
+            std::sync::Arc<dyn Fn(super::runner::ToolCallDetails) + Send + Sync>,
+        >,
         content_delta_callback: Option<std::sync::Arc<dyn Fn(String, bool) + Send + Sync>>,
     ) -> Result<String> {
-        println!("[WorkflowExecutor] 🤖 Executing real agent: {:?}", node.agent_type);
+        println!(
+            "[WorkflowExecutor] 🤖 Executing real agent: {:?}",
+            node.agent_type
+        );
         println!("[WorkflowExecutor] 📁 Project root: {}", ctx.project_root);
         println!("[WorkflowExecutor] 📝 Task: {}", ctx.task_description);
-        println!("[WorkflowExecutor] 🤖 Current model from context: {:?}", ctx.current_model);
-        println!("[WorkflowExecutor] 🔧 Provider models: {:?}", ctx.provider_config.models);
+        println!(
+            "[WorkflowExecutor] 🤖 Current model from context: {:?}",
+            ctx.current_model
+        );
+        println!(
+            "[WorkflowExecutor] 🔧 Provider models: {:?}",
+            ctx.provider_config.models
+        );
 
         // 构建系统提示词（根据不同的智能体类型）
         let system_prompt = Self::build_system_prompt(node, ctx);
@@ -333,8 +359,14 @@ impl AgentNodeExecutor {
         let user_message = ctx.task_description.clone();
 
         println!("[WorkflowExecutor] 📡 Starting AI call...");
-        println!("[WorkflowExecutor] 📊 System prompt length: {} chars", system_prompt.len());
-        println!("[WorkflowExecutor] 📊 User message length: {} chars", user_message.len());
+        println!(
+            "[WorkflowExecutor] 📊 System prompt length: {} chars",
+            system_prompt.len()
+        );
+        println!(
+            "[WorkflowExecutor] 📊 User message length: {} chars",
+            user_message.len()
+        );
 
         let start_time = std::time::Instant::now();
 
@@ -350,8 +382,10 @@ impl AgentNodeExecutor {
             models.insert(0, model.clone()); // 插入到第一位
             provider_config.models = models;
         } else {
-            println!("[WorkflowExecutor] 📋 Using default model from config: {:?}",
-                provider_config.models.first());
+            println!(
+                "[WorkflowExecutor] 📋 Using default model from config: {:?}",
+                provider_config.models.first()
+            );
         }
 
         // 🔥 根据智能体类型选择不同的执行策略
@@ -372,9 +406,14 @@ impl AgentNodeExecutor {
                     system_prompt,
                     user_message,
                     callback,
-                ).await.map_err(|e| {
+                )
+                .await
+                .map_err(|e| {
                     let elapsed = start_time.elapsed();
-                    println!("[WorkflowExecutor] ❌ Streaming AI call failed after {:?}: {}", elapsed, e);
+                    println!(
+                        "[WorkflowExecutor] ❌ Streaming AI call failed after {:?}: {}",
+                        elapsed, e
+                    );
                     anyhow::anyhow!("AI call failed: {}", e)
                 })?;
 
@@ -382,10 +421,14 @@ impl AgentNodeExecutor {
             }
             // 🔥 其他 agent 使用工具调用循环
             _ => {
-                println!("[WorkflowExecutor] 🔧 Using tool-enabled execution for {:?}", node.agent_type);
+                println!(
+                    "[WorkflowExecutor] 🔧 Using tool-enabled execution for {:?}",
+                    node.agent_type
+                );
 
                 // 🔥 使用工具调用循环（参考 claw-code 的 ConversationRuntime）
-                let tool_executor = super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
+                let tool_executor =
+                    super::tools::DefaultToolExecutor::new(ctx.project_root.clone());
                 let tool_config = super::tool_loop::ToolLoopConfig::default();
 
                 // 🔥 准备工具调用进度回调
@@ -397,21 +440,38 @@ impl AgentNodeExecutor {
                     user_message,
                     &tool_executor,
                     tool_config,
-                    tool_progress_callback_clone,  // 🔥 传递工具进度回调
-                ).await.map_err(|e| {
+                    tool_progress_callback_clone, // 🔥 传递工具进度回调
+                )
+                .await
+                .map_err(|e| {
                     let elapsed = start_time.elapsed();
-                    println!("[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}", elapsed, e);
+                    println!(
+                        "[WorkflowExecutor] ❌ Tool-enabled AI call failed after {:?}: {}",
+                        elapsed, e
+                    );
                     anyhow::anyhow!("AI call failed: {}", e)
                 })?
             }
         };
 
         let elapsed = start_time.elapsed();
-        println!("[WorkflowExecutor] ✅ AI response received successfully (took {:?})", elapsed);
-        println!("[WorkflowExecutor] ✅ Text response: {} chars", response_text.len());
-        println!("[WorkflowExecutor] 📝 Response preview: {}...", response_text.chars().take(100).collect::<String>());
+        println!(
+            "[WorkflowExecutor] ✅ AI response received successfully (took {:?})",
+            elapsed
+        );
+        println!(
+            "[WorkflowExecutor] ✅ Text response: {} chars",
+            response_text.len()
+        );
+        println!(
+            "[WorkflowExecutor] 📝 Response preview: {}...",
+            response_text.chars().take(100).collect::<String>()
+        );
 
-        println!("[WorkflowExecutor] ✅ Returning output to runner (total: {:?})", start_time.elapsed());
+        println!(
+            "[WorkflowExecutor] ✅ Returning output to runner (total: {:?})",
+            start_time.elapsed()
+        );
         Ok(response_text)
     }
 
@@ -420,8 +480,10 @@ impl AgentNodeExecutor {
     fn build_system_prompt(node: &WorkflowNode, ctx: &AgentContext) -> String {
         use crate::agent_system::workflow::prompt_loader::{AgentPromptLoader, PromptContext};
 
-        println!("[WorkflowExecutor] 🔍 Loading {} prompt via AgentPromptLoader...",
-            format!("{:?}", node.agent_type).to_lowercase());
+        println!(
+            "[WorkflowExecutor] 🔍 Loading {} prompt via AgentPromptLoader...",
+            format!("{:?}", node.agent_type).to_lowercase()
+        );
 
         // 🔥 使用统一加载器
         let mut variables = ctx.variables.clone();
@@ -441,8 +503,7 @@ impl AgentNodeExecutor {
         // 添加项目上下文
         let full_prompt = format!(
             "{}\n\n# 项目上下文\n\n项目根目录: {}\n\n请基于以上信息完成任务。",
-            base_prompt,
-            ctx.project_root
+            base_prompt, ctx.project_root
         );
 
         full_prompt
@@ -460,15 +521,12 @@ impl ConditionEvaluator {
     /// - `${variable} == "string"`
     /// - `${variable} contains "substring"`
     /// - `${prev_node.output} != "error"`
-    pub fn evaluate(
-        expression: &str,
-        context: &HashMap<String, String>,
-    ) -> Result<bool> {
+    pub fn evaluate(expression: &str, context: &HashMap<String, String>) -> Result<bool> {
         let expr = expression.trim();
 
         // 简单实现：检查变量是否存在且非空
         if expr.starts_with("${") && expr.ends_with("}") {
-            let var_name = &expr[2..expr.len()-1];
+            let var_name = &expr[2..expr.len() - 1];
             if let Some(value) = context.get(var_name) {
                 return Ok(!value.is_empty());
             }
@@ -478,7 +536,7 @@ impl ConditionEvaluator {
         // 检查简单比较
         if let Some(pos) = expr.find("==") {
             let left = expr[..pos].trim();
-            let right = expr[pos+2..].trim();
+            let right = expr[pos + 2..].trim();
 
             let left_val = Self::resolve_value(left, context)?;
             let right_val = Self::resolve_value(right, context)?;
@@ -488,7 +546,7 @@ impl ConditionEvaluator {
 
         if let Some(pos) = expr.find("!=") {
             let left = expr[..pos].trim();
-            let right = expr[pos+2..].trim();
+            let right = expr[pos + 2..].trim();
 
             let left_val = Self::resolve_value(left, context)?;
             let right_val = Self::resolve_value(right, context)?;
@@ -499,7 +557,7 @@ impl ConditionEvaluator {
         // 检查包含关系
         if let Some(pos) = expr.find("contains") {
             let left = expr[..pos].trim();
-            let right = expr[pos+8..].trim();
+            let right = expr[pos + 8..].trim();
 
             let left_val = Self::resolve_value(left, context)?;
             let right_val = Self::resolve_value(right, context)?;
@@ -517,7 +575,7 @@ impl ConditionEvaluator {
 
         // 变量引用
         if value.starts_with("${") && value.ends_with("}") {
-            let var_name = &value[2..value.len()-1];
+            let var_name = &value[2..value.len() - 1];
             if let Some(val) = context.get(var_name) {
                 return Ok(val.clone());
             }
@@ -525,9 +583,10 @@ impl ConditionEvaluator {
         }
 
         // 字符串字面量
-        if (value.starts_with('"') && value.ends_with('"')) ||
-           (value.starts_with('\'') && value.ends_with('\'')) {
-            return Ok(value[1..value.len()-1].to_string());
+        if (value.starts_with('"') && value.ends_with('"'))
+            || (value.starts_with('\'') && value.ends_with('\''))
+        {
+            return Ok(value[1..value.len() - 1].to_string());
         }
 
         // 数字或其他字面量
@@ -605,7 +664,7 @@ impl DataPassingManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_system::workflow::{Workflow, WorkflowNode, WorkflowEdge, AgentType};
+    use crate::agent_system::workflow::{AgentType, Workflow, WorkflowEdge, WorkflowNode};
 
     fn create_test_node(id: &str, agent_type: AgentType) -> WorkflowNode {
         WorkflowNode::new(id, agent_type)
@@ -649,9 +708,13 @@ mod tests {
     #[test]
     fn test_condition_evaluate_contains() {
         let mut context = HashMap::new();
-        context.insert("output".to_string(), "Task completed successfully".to_string());
+        context.insert(
+            "output".to_string(),
+            "Task completed successfully".to_string(),
+        );
 
-        let result = ConditionEvaluator::evaluate("${output} contains \"success\"", &context).unwrap();
+        let result =
+            ConditionEvaluator::evaluate("${output} contains \"success\"", &context).unwrap();
         assert!(result);
     }
 
@@ -664,8 +727,14 @@ mod tests {
         manager.save_output("node2", "output2").await;
 
         // 获取输出
-        assert_eq!(manager.get_output("node1").await, Some("output1".to_string()));
-        assert_eq!(manager.get_output("node2").await, Some("output2".to_string()));
+        assert_eq!(
+            manager.get_output("node1").await,
+            Some("output1".to_string())
+        );
+        assert_eq!(
+            manager.get_output("node2").await,
+            Some("output2".to_string())
+        );
         assert_eq!(manager.get_output("node3").await, None);
 
         // 获取前驱输出
@@ -683,11 +752,17 @@ mod tests {
         let manager = DataPassingManager::new(vars);
 
         // 获取变量
-        assert_eq!(manager.get_variable("key1").await, Some("value1".to_string()));
+        assert_eq!(
+            manager.get_variable("key1").await,
+            Some("value1".to_string())
+        );
 
         // 设置新变量
         manager.set_variable("key2", "value2").await;
-        assert_eq!(manager.get_variable("key2").await, Some("value2".to_string()));
+        assert_eq!(
+            manager.get_variable("key2").await,
+            Some("value2".to_string())
+        );
 
         // 获取所有变量
         let all_vars = manager.get_all_variables().await;
@@ -707,7 +782,10 @@ mod tests {
         assert_eq!(ctx.node_id, "node1");
         assert_eq!(ctx.inputs.len(), 1);
         assert_eq!(ctx.inputs.get("input1"), Some(&"value1".to_string()));
-        assert_eq!(ctx.workflow_variables.get("var1"), Some(&"value2".to_string()));
+        assert_eq!(
+            ctx.workflow_variables.get("var1"),
+            Some(&"value2".to_string())
+        );
     }
 
     #[test]

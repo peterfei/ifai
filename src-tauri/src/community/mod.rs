@@ -1,7 +1,7 @@
-use crate::core_traits::ai::{AIService, AIProviderConfig, Message};
-use crate::core_traits::rag::RagService;
-use crate::core_traits::agent::AgentService;
 use crate::ai_utils;
+use crate::core_traits::agent::AgentService;
+use crate::core_traits::ai::{AIProviderConfig, AIService, Message};
+use crate::core_traits::rag::RagService;
 
 pub struct BasicAIService;
 
@@ -25,7 +25,10 @@ impl AIService for BasicAIService {
     ) -> Result<(), String> {
         // 🔍 P2 调试：打印接收到的工具列表
         if let Some(ref tools) = tools {
-            println!("[CommunityAIService] 🛠️ Received {} tools in stream_chat:", tools.len());
+            println!(
+                "[CommunityAIService] 🛠️ Received {} tools in stream_chat:",
+                tools.len()
+            );
             for (i, tool) in tools.iter().enumerate() {
                 if let Some(func) = tool.get("function") {
                     let name = func.get("name").and_then(|n| n.as_str()).unwrap_or("?");
@@ -107,7 +110,11 @@ impl RagService for CommunityRagService {
         Ok(vec![])
     }
 
-    async fn retrieve_context(&self, _query: &str, _root: &str) -> Result<crate::core_traits::rag::RagResult, String> {
+    async fn retrieve_context(
+        &self,
+        _query: &str,
+        _root: &str,
+    ) -> Result<crate::core_traits::rag::RagResult, String> {
         Ok(crate::core_traits::rag::RagResult {
             context: String::new(),
             references: vec![],

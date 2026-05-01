@@ -111,10 +111,14 @@ mod tests {
     fn test_permission_sufficiency() {
         // 高权限可以覆盖低权限
         assert!(ToolPermissionMode::Allow.is_sufficient(ToolPermissionMode::ReadOnly));
-        assert!(ToolPermissionMode::DangerFullAccess.is_sufficient(ToolPermissionMode::WorkspaceWrite));
+        assert!(
+            ToolPermissionMode::DangerFullAccess.is_sufficient(ToolPermissionMode::WorkspaceWrite)
+        );
 
         // 低权限不能覆盖高权限
         assert!(!ToolPermissionMode::ReadOnly.is_sufficient(ToolPermissionMode::WorkspaceWrite));
-        assert!(!ToolPermissionMode::WorkspaceWrite.is_sufficient(ToolPermissionMode::DangerFullAccess));
+        assert!(
+            !ToolPermissionMode::WorkspaceWrite.is_sufficient(ToolPermissionMode::DangerFullAccess)
+        );
     }
 }

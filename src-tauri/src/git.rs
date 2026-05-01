@@ -1,8 +1,8 @@
+use git2::{Repository, Status, StatusOptions};
 use serde::Serialize;
-use git2::{Repository, StatusOptions, Status};
+use std::collections::HashMap;
 use std::path::Path;
 use tauri::command;
-use std::collections::HashMap;
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub enum GitStatus {
@@ -58,7 +58,9 @@ pub async fn get_git_statuses(repo_path: String) -> Result<HashMap<String, GitSt
     options.recurse_untracked_dirs(true);
     options.exclude_submodules(true);
 
-    let statuses = repo.statuses(Some(&mut options)).map_err(|e| e.to_string())?;
+    let statuses = repo
+        .statuses(Some(&mut options))
+        .map_err(|e| e.to_string())?;
 
     let mut file_statuses = HashMap::new();
 
@@ -85,8 +87,7 @@ pub async fn get_git_statuses_incremental(
     repo_path: String,
     file_paths: Vec<String>,
 ) -> Result<HashMap<String, GitStatus>, String> {
-    let repo = Repository::open(&repo_path)
-        .map_err(|e| format!("Failed to open repo: {}", e))?;
+    let repo = Repository::open(&repo_path).map_err(|e| format!("Failed to open repo: {}", e))?;
 
     let mut file_statuses = HashMap::new();
 
@@ -96,7 +97,8 @@ pub async fn get_git_statuses_incremental(
         let path = Path::new(&file_path);
 
         // Convert absolute path to relative path from repo root
-        let rel_path = path.strip_prefix(&repo_path)
+        let rel_path = path
+            .strip_prefix(&repo_path)
             .map_err(|e| format!("Failed to get relative path: {}", e))?;
 
         // Try to get status for this specific file
@@ -119,8 +121,7 @@ pub async fn get_git_statuses_pattern(
     repo_path: String,
     pattern: String,
 ) -> Result<HashMap<String, GitStatus>, String> {
-    let repo = Repository::open(&repo_path)
-        .map_err(|e| format!("Failed to open repo: {}", e))?;
+    let repo = Repository::open(&repo_path).map_err(|e| format!("Failed to open repo: {}", e))?;
 
     let mut file_statuses = HashMap::new();
 
@@ -132,7 +133,8 @@ pub async fn get_git_statuses_pattern(
     // Use pathspec to filter by pattern
     options.pathspec(pattern);
 
-    let statuses = repo.statuses(Some(&mut options))
+    let statuses = repo
+        .statuses(Some(&mut options))
         .map_err(|e| e.to_string())?;
 
     for entry in statuses.iter() {

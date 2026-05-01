@@ -21,11 +21,11 @@ pub struct StatusSymbols;
 
 impl StatusSymbols {
     /// 进行中（首个动画帧）
-    pub const IN_PROGRESS: char = '⟳';  // U+27F3
+    pub const IN_PROGRESS: char = '⟳'; // U+27F3
     /// 成功
-    pub const SUCCESS: char = '✓';      // U+2713
+    pub const SUCCESS: char = '✓'; // U+2713
     /// 失败
-    pub const FAILED: char = '✗';       // U+2717
+    pub const FAILED: char = '✗'; // U+2717
 }
 
 /// 🎯 进度状态
@@ -49,9 +49,7 @@ pub struct AnimatedRenderer {
 
 impl AnimatedRenderer {
     pub fn new() -> Self {
-        Self {
-            frame_index: 0,
-        }
+        Self { frame_index: 0 }
     }
 
     /// 🔥 渲染动画帧（使用 \r 覆盖当前行）
@@ -65,14 +63,16 @@ impl AnimatedRenderer {
 
     /// 🔥 完成动画（换行并显示统计）
     pub fn render_summary(&self, elapsed_secs: f64, total_in: u32, total_out: u32) -> String {
-        let cost = (total_in as f64 * 0.14 / 1_000_000.0)
-            + (total_out as f64 * 0.28 / 1_000_000.0);
+        let cost = (total_in as f64 * 0.14 / 1_000_000.0) + (total_out as f64 * 0.28 / 1_000_000.0);
 
         // 先换行（结束动画行），再显示统计
         format!(
             "\n{} Completed | {:.1}s | in: {} | out: {} | ${:.4}\n",
             StatusSymbols::SUCCESS,
-            elapsed_secs, total_in, total_out, cost
+            elapsed_secs,
+            total_in,
+            total_out,
+            cost
         )
     }
 }
@@ -87,18 +87,24 @@ impl ContentFirstRenderer {
 
     /// 🔥 渲染开始进度（固定符号，无动画）
     pub fn render_start(&self, model: &str) -> String {
-        format!("{} {}                     [进行中]\n", StatusSymbols::IN_PROGRESS, model)
+        format!(
+            "{} {}                     [进行中]\n",
+            StatusSymbols::IN_PROGRESS,
+            model
+        )
     }
 
     /// 🔥 渲染完成统计
     pub fn render_summary(&self, elapsed_secs: f64, total_in: u32, total_out: u32) -> String {
-        let cost = (total_in as f32 * 0.14 / 1_000_000.0)
-            + (total_out as f32 * 0.28 / 1_000_000.0);
+        let cost = (total_in as f32 * 0.14 / 1_000_000.0) + (total_out as f32 * 0.28 / 1_000_000.0);
 
         format!(
             "\n{} Completed | {:.1}s | in: {} | out: {} | ${:.4}\n",
             StatusSymbols::SUCCESS,
-            elapsed_secs, total_in, total_out, cost
+            elapsed_secs,
+            total_in,
+            total_out,
+            cost
         )
     }
 }
@@ -142,18 +148,20 @@ impl RenderPipeline {
     pub fn render_progress(&mut self, model: &str) -> String {
         match self.mode {
             RenderMode::Animated => self.animated_renderer.render_frame(model),
-            RenderMode::Inline | RenderMode::Tui => {
-                self.content_first_renderer.render_start(model)
-            }
+            RenderMode::Inline | RenderMode::Tui => self.content_first_renderer.render_start(model),
         }
     }
 
     /// 🔥 渲染完成统计
     pub fn render_summary(&self, elapsed_secs: f64, total_in: u32, total_out: u32) -> String {
         match self.mode {
-            RenderMode::Animated => self.animated_renderer.render_summary(elapsed_secs, total_in, total_out),
+            RenderMode::Animated => {
+                self.animated_renderer
+                    .render_summary(elapsed_secs, total_in, total_out)
+            }
             RenderMode::Inline | RenderMode::Tui => {
-                self.content_first_renderer.render_summary(elapsed_secs, total_in, total_out)
+                self.content_first_renderer
+                    .render_summary(elapsed_secs, total_in, total_out)
             }
         }
     }

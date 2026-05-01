@@ -47,7 +47,7 @@ impl Default for FoldingStrategy {
         Self {
             max_lines: 20, // 超过 20 行自动折叠
             auto_fold: true,
-            fold_indicator: "▶",  // U+25B6
+            fold_indicator: "▶",   // U+25B6
             expand_indicator: "▼", // U+25BC
             show_line_range: true,
         }
@@ -74,7 +74,11 @@ impl FoldMetadata {
 
         Self {
             block_id,
-            state: if should_fold { FoldState::Folded } else { FoldState::Expanded },
+            state: if should_fold {
+                FoldState::Folded
+            } else {
+                FoldState::Expanded
+            },
             total_lines,
             visible_lines: if should_fold { 3 } else { total_lines }, // 折叠时显示 3 行预览
         }
@@ -184,14 +188,16 @@ impl FoldingRenderer {
                 theme.box_dim, lang, total_lines, line_range, indicator, theme.reset
             ),
             // 预览行（显示前 3 行）
-            code_lines.iter()
+            code_lines
+                .iter()
                 .take(preview_lines)
                 .enumerate()
                 .map(|(i, _line)| {
                     format!(
                         "{}│{} ... {}{}",
                         theme.box_border,
-                        theme.line_num, i + 1,
+                        theme.line_num,
+                        i + 1,
                         theme.code_content
                     )
                 })
@@ -214,7 +220,8 @@ impl FoldingRenderer {
                 theme.box_dim, theme.reset
             ),
             "".to_string(),
-        ].join("\n")
+        ]
+        .join("\n")
     }
 
     /// 🔥 生成完整输出
@@ -225,7 +232,8 @@ impl FoldingRenderer {
         _metadata: &FoldMetadata,
         theme: &crate::markdown_stream::TerminalTheme,
     ) -> String {
-        let max_width = code_lines.iter()
+        let max_width = code_lines
+            .iter()
             .map(|l| l.len())
             .max()
             .unwrap_or(0)
@@ -240,12 +248,11 @@ impl FoldingRenderer {
 
         let header = format!(
             "{}│ {} {}{}",
-            theme.box_border,
-            theme.box_header, lang,
-            theme.reset
+            theme.box_border, theme.box_header, lang, theme.reset
         );
 
-        let body_lines: Vec<String> = code_lines.iter()
+        let body_lines: Vec<String> = code_lines
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 let line_num = format!("{:>3}", i + 1);
@@ -253,8 +260,10 @@ impl FoldingRenderer {
                 format!(
                     "{}│{}{} {}{}{}",
                     theme.box_border,
-                    theme.line_num, line_num,
-                    theme.code_content, padded_line,
+                    theme.line_num,
+                    line_num,
+                    theme.code_content,
+                    padded_line,
                     theme.reset
                 )
             })
@@ -273,7 +282,8 @@ impl FoldingRenderer {
             body_lines.join("\n"),
             bottom_border,
             "".to_string(),
-        ].join("\n")
+        ]
+        .join("\n")
     }
 
     /// 🔥 切换代码块折叠状态（运行时动态修改）

@@ -17,8 +17,8 @@
 //! ANSI 颜色注入
 //! ```
 
-use std::collections::HashMap;
 use regex::Regex;
+use std::collections::HashMap;
 
 /// 🎯 语法元素类型（状态机核心）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -216,14 +216,14 @@ pub struct HighlightTheme {
 impl Default for HighlightTheme {
     fn default() -> Self {
         Self {
-            keyword: "\x1b[38;5;141m",    // 紫色
-            string: "\x1b[38;5;148m",     // 绿色
-            comment: "\x1b[38;5;242m",    // 暗灰
-            function: "\x1b[38;5;75m",    // 蓝色
-            number: "\x1b[38;5;209m",     // 橙色
-            r#type: "\x1b[38;5;81m",      // 青色
+            keyword: "\x1b[38;5;141m",     // 紫色
+            string: "\x1b[38;5;148m",      // 绿色
+            comment: "\x1b[38;5;242m",     // 暗灰
+            function: "\x1b[38;5;75m",     // 蓝色
+            number: "\x1b[38;5;209m",      // 橙色
+            r#type: "\x1b[38;5;81m",       // 青色
             macro_color: "\x1b[38;5;221m", // 黄色
-            attribute: "\x1b[38;5;66m",   // 暗青
+            attribute: "\x1b[38;5;66m",    // 暗青
             reset: "\x1b[0m",
         }
     }
@@ -318,7 +318,9 @@ impl HighlightRenderer {
     /// 🔥 渲染高亮代码（元编程：自动应用颜色）
     pub fn render_highlighted(&mut self, code: &str, lang: &str) -> String {
         // 获取语言语法定义
-        let syntax = self.syntax_map.get(lang)
+        let syntax = self
+            .syntax_map
+            .get(lang)
             .or_else(|| self.syntax_map.get(&lang.to_lowercase()))
             .cloned()
             .unwrap_or_else(|| LanguageSyntax {

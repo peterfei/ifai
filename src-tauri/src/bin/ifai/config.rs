@@ -8,9 +8,9 @@
 //! 3. Config file (~/.ifai/config.toml)
 //! 4. YAML defaults (from provider metadata)
 
-use std::path::{Path, PathBuf};
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 // ============================================================================
 // Config Source Tracking
@@ -110,7 +110,10 @@ impl EffectiveConfig {
         }
 
         // 默认值
-        Ok(TracedValue::new("deepseek".to_string(), ConfigSource::YamlDefault))
+        Ok(TracedValue::new(
+            "deepseek".to_string(),
+            ConfigSource::YamlDefault,
+        ))
     }
 
     /// 解析 model（CLI > env > TOML > provider default）
@@ -131,7 +134,9 @@ impl EffectiveConfig {
 
         // 从 provider metadata 获取默认模型
         let spec = crate::provider::resolve_provider(provider)?;
-        let default_model = spec.models.first()
+        let default_model = spec
+            .models
+            .first()
             .map(|m| m.id.clone())
             .unwrap_or_else(|| "unknown".to_string());
 
@@ -139,9 +144,15 @@ impl EffectiveConfig {
     }
 
     /// 解析 api_key（CLI > env > TOML > None）
-    fn resolve_api_key(provider: &str, cli_arg: Option<&str>) -> Result<TracedValue<Option<String>>, String> {
+    fn resolve_api_key(
+        provider: &str,
+        cli_arg: Option<&str>,
+    ) -> Result<TracedValue<Option<String>>, String> {
         if let Some(key) = cli_arg {
-            return Ok(TracedValue::new(Some(key.to_string()), ConfigSource::CliArg));
+            return Ok(TracedValue::new(
+                Some(key.to_string()),
+                ConfigSource::CliArg,
+            ));
         }
 
         // 从 provider spec 派生环境变量名
@@ -335,13 +346,24 @@ pub fn generate_toml_template() -> String {
         toml.push_str(&format!("[providers.{}]\n", provider_id));
 
         // API key hint
-        let env_var_name = format!("{}_API_KEY",
-            provider_id.replace("-official", "").replace("-", "_").to_uppercase());
-        toml.push_str(&format!("# API key (or set {} environment variable)\n", env_var_name));
+        let env_var_name = format!(
+            "{}_API_KEY",
+            provider_id
+                .replace("-official", "")
+                .replace("-", "_")
+                .to_uppercase()
+        );
+        toml.push_str(&format!(
+            "# API key (or set {} environment variable)\n",
+            env_var_name
+        ));
         toml.push_str(&format!("# api_key = \"sk-xxx\"\n"));
 
         // Base URL override
-        toml.push_str(&format!("# Base URL (default: {})\n", spec.api_spec.base_url));
+        toml.push_str(&format!(
+            "# Base URL (default: {})\n",
+            spec.api_spec.base_url
+        ));
         toml.push_str("# base_url = \"https://...\"\n");
 
         toml.push_str("\n");
@@ -388,8 +410,7 @@ pub fn init_config_file() -> Result<PathBuf, String> {
     let template = generate_toml_template();
 
     // 写入文件
-    fs::write(&path, template)
-        .map_err(|e| format!("Failed to write config file: {}", e))?;
+    fs::write(&path, template).map_err(|e| format!("Failed to write config file: {}", e))?;
 
     Ok(path)
 }
@@ -549,7 +570,8 @@ mod tests {
             Some("deepseek-chat"),
             Some("sk-test"),
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         std::env::remove_var("IFAI_CONFIG_PATH");
 
@@ -568,7 +590,8 @@ mod tests {
             Some("deepseek-chat"),
             Some("sk-test"),
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let visualization = config.visualize_sources();
         assert!(visualization.contains("provider: deepseek (cli-arg)"));
@@ -625,8 +648,14 @@ base_url = "https://api.custom.com"
         let config: TomlConfig = toml::from_str(toml_content).unwrap();
         assert_eq!(config.default.provider, Some("openai".to_string()));
         assert_eq!(config.default.model, Some("gpt-4o".to_string()));
-        assert_eq!(config.providers.get("openai-official").unwrap().api_key, Some("sk-test-key".to_string()));
-        assert_eq!(config.providers.get("openai-official").unwrap().base_url, Some("https://api.custom.com".to_string()));
+        assert_eq!(
+            config.providers.get("openai-official").unwrap().api_key,
+            Some("sk-test-key".to_string())
+        );
+        assert_eq!(
+            config.providers.get("openai-official").unwrap().base_url,
+            Some("https://api.custom.com".to_string())
+        );
     }
 
     #[test]

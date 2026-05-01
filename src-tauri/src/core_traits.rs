@@ -5,9 +5,18 @@ pub mod ai {
 
     #[cfg(feature = "commercial")]
     pub use ifainew_core::ai::{
-        Message, Content, ContentPart, ToolCall, FunctionCall, AIProviderConfig, ImageUrl, AIProtocol,
+        create_default_tools,
+        AIProtocol,
+        AIProviderConfig,
         // 🔥 新增：非流式工具调用 API
-        ChatWithToolsResponse, PerformanceMetrics, create_default_tools,
+        ChatWithToolsResponse,
+        Content,
+        ContentPart,
+        FunctionCall,
+        ImageUrl,
+        Message,
+        PerformanceMetrics,
+        ToolCall,
     };
 
     // 🔥 新增：非流式工具调用函数
@@ -17,27 +26,41 @@ pub mod ai {
     #[cfg(not(feature = "commercial"))]
     mod community_types {
         use super::*;
-        
+
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         #[serde(rename_all = "lowercase")]
-        pub enum AIProtocol { #[default] OpenAI, Anthropic, Gemini }
+        pub enum AIProtocol {
+            #[default]
+            OpenAI,
+            Anthropic,
+            Gemini,
+        }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
-        pub struct ImageUrl { pub url: String }
+        pub struct ImageUrl {
+            pub url: String,
+        }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
         #[serde(tag = "type", rename_all = "snake_case")]
         pub enum ContentPart {
-            Text { 
+            Text {
                 text: String,
                 #[serde(default)]
                 part_type: String,
             },
-            ImageUrl { image_url: ImageUrl },
+            ImageUrl {
+                image_url: ImageUrl,
+            },
         }
 
         impl Default for ContentPart {
-            fn default() -> Self { Self::Text { text: String::new(), part_type: "text".to_string() } }
+            fn default() -> Self {
+                Self::Text {
+                    text: String::new(),
+                    part_type: "text".to_string(),
+                }
+            }
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,57 +71,81 @@ pub mod ai {
         }
 
         impl Default for Content {
-            fn default() -> Self { Self::Text(String::new()) }
+            fn default() -> Self {
+                Self::Text(String::new())
+            }
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-        pub struct FunctionCall { 
-            #[serde(default)] pub name: String, 
-            #[serde(default)] pub arguments: String 
+        pub struct FunctionCall {
+            #[serde(default)]
+            pub name: String,
+            #[serde(default)]
+            pub arguments: String,
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         pub struct ToolCall {
-            #[serde(default)] pub id: String,
-            #[serde(default, rename = "type")] pub r#type: String,
-            #[serde(default)] pub function: FunctionCall,
+            #[serde(default)]
+            pub id: String,
+            #[serde(default, rename = "type")]
+            pub r#type: String,
+            #[serde(default)]
+            pub function: FunctionCall,
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         pub struct Message {
-            #[serde(default)] pub role: String,
+            #[serde(default)]
+            pub role: String,
             pub content: Content,
-            #[serde(default, skip_serializing_if = "Option::is_none")] pub tool_calls: Option<Vec<ToolCall>>,
-            #[serde(default, skip_serializing_if = "Option::is_none")] pub tool_call_id: Option<String>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            pub tool_calls: Option<Vec<ToolCall>>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            pub tool_call_id: Option<String>,
         }
 
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-        #[serde(rename_all = "camelCase")]  // 🔥 FIX: 接受前端发送的 camelCase 字段名
+        #[serde(rename_all = "camelCase")] // 🔥 FIX: 接受前端发送的 camelCase 字段名
         pub struct AIProviderConfig {
-            #[serde(default)] pub id: String,
-            #[serde(default)] pub name: String,
-            #[serde(default)] pub api_key: String,
-            #[serde(default)] pub base_url: String,
-            #[serde(default)] pub models: Vec<String>,
-            #[serde(default)] pub protocol: AIProtocol,
-            #[serde(default)] pub enabled: bool,
+            #[serde(default)]
+            pub id: String,
+            #[serde(default)]
+            pub name: String,
+            #[serde(default)]
+            pub api_key: String,
+            #[serde(default)]
+            pub base_url: String,
+            #[serde(default)]
+            pub models: Vec<String>,
+            #[serde(default)]
+            pub protocol: AIProtocol,
+            #[serde(default)]
+            pub enabled: bool,
         }
 
         // 🔥 新增：性能指标
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         pub struct PerformanceMetrics {
-            #[serde(default)] pub total_duration_ms: u128,
-            #[serde(default)] pub ai_api_duration_ms: u128,
-            #[serde(default)] pub tool_execution_duration_ms: u128,
-            #[serde(default)] pub iteration_count: usize,
+            #[serde(default)]
+            pub total_duration_ms: u128,
+            #[serde(default)]
+            pub ai_api_duration_ms: u128,
+            #[serde(default)]
+            pub tool_execution_duration_ms: u128,
+            #[serde(default)]
+            pub iteration_count: usize,
         }
 
         // 🔥 新增：非流式工具调用响应
         #[derive(Debug, Clone, Serialize, Deserialize, Default)]
         pub struct ChatWithToolsResponse {
-            #[serde(default)] pub content: String,
-            #[serde(default)] pub tool_calls: Option<Vec<ToolCall>>,
-            #[serde(default)] pub metrics: PerformanceMetrics,
+            #[serde(default)]
+            pub content: String,
+            #[serde(default)]
+            pub tool_calls: Option<Vec<ToolCall>>,
+            #[serde(default)]
+            pub metrics: PerformanceMetrics,
         }
     }
 
@@ -107,8 +154,19 @@ pub mod ai {
 
     #[async_trait::async_trait]
     pub trait AIService: Send + Sync {
-        async fn chat(&self, config: &AIProviderConfig, messages: Vec<Message>) -> Result<Message, String>;
-        async fn stream_chat(&self, config: &AIProviderConfig, messages: Vec<Message>, event_id: &str, tools: Option<Vec<serde_json::Value>>, callback: Box<dyn Fn(String) + Send>) -> Result<(), String>;
+        async fn chat(
+            &self,
+            config: &AIProviderConfig,
+            messages: Vec<Message>,
+        ) -> Result<Message, String>;
+        async fn stream_chat(
+            &self,
+            config: &AIProviderConfig,
+            messages: Vec<Message>,
+            event_id: &str,
+            tools: Option<Vec<serde_json::Value>>,
+            callback: Box<dyn Fn(String) + Send>,
+        ) -> Result<(), String>;
     }
 }
 
@@ -116,16 +174,21 @@ pub mod rag {
     use super::*;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-    pub struct RagReference { 
-        #[serde(default)] pub file_path: String, 
-        #[serde(default)] pub line_start: usize, 
-        #[serde(default)] pub content: String 
+    pub struct RagReference {
+        #[serde(default)]
+        pub file_path: String,
+        #[serde(default)]
+        pub line_start: usize,
+        #[serde(default)]
+        pub content: String,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-    pub struct RagResult { 
-        #[serde(default)] pub context: String, 
-        #[serde(default)] pub references: Vec<RagReference> 
+    pub struct RagResult {
+        #[serde(default)]
+        pub context: String,
+        #[serde(default)]
+        pub references: Vec<RagReference>,
     }
 
     #[async_trait::async_trait]
@@ -142,7 +205,13 @@ pub mod agent {
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
     #[serde(rename_all = "lowercase")]
     pub enum AgentStatus {
-        #[default] Idle, Running, WaitingForTool, Completed, Failed(String), Stopped,
+        #[default]
+        Idle,
+        Running,
+        WaitingForTool,
+        Completed,
+        Failed(String),
+        Stopped,
     }
 
     #[async_trait::async_trait]

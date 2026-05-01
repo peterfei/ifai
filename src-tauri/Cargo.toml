@@ -106,6 +106,9 @@ rustyline = "14"
 base64 = "0.22"
 ratatui = "0.29"
 crossterm = { version = "0.28", features = ["event-stream"] }
+# TUI diff rendering
+similar = "2"
+unicode-width = "0.2"
 tree-sitter = "0.24.3"
 tree-sitter-rust = "0.23.0"
 tree-sitter-typescript = "0.23.0"

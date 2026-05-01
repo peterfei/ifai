@@ -1,39 +1,39 @@
-use tauri::{Emitter, Manager, async_runtime};
-use serde_json::json;
 #[cfg(feature = "commercial")]
 use ifainew_core;
+use serde_json::json;
 use std::sync::Arc;
+use tauri::{async_runtime, Emitter, Manager};
 
-mod ai; // v0.3.7 新增：PIVO 任务拆解与自愈引擎
-mod file_walker;
-mod search;
-mod symbol_engine;
-mod analysis; // 🏆 PIVO 3.0: 物理感知与符号探测
-mod terminal;
-mod git;
-mod lsp;
-pub mod prompt_manager; // 🔥 公开 prompt_manager 供 CLI 使用
 pub mod agent_system; // 🔥 公开 agent_system 供 CLI 使用
-pub mod conversation; // 🔥 公开 conversation 供 CLI 使用（token_counter）
+mod ai; // v0.3.7 新增：PIVO 任务拆解与自愈引擎
 mod ai_utils;
-mod file_cache;
+mod analysis; // 🏆 PIVO 3.0: 物理感知与符号探测
 mod commands;
-mod performance;
-pub mod core_traits; // 公开 core_traits 供 CLI 使用
-mod project_config;
 mod community;
-mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
-mod stream_schema_generated; // 🆕 Schema-Driven 代码生成：StreamPhase、PermissionMode、ToolPermissions
-mod local_model;
-mod intelligence_router;
-mod token_counter; // v0.2.6 新增：Token 计数模块
-mod openspec; // v0.2.6 新增：OpenSpec 集成
-mod multimodal; // v0.3.0 新增：多模态功能
+pub mod conversation; // 🔥 公开 conversation 供 CLI 使用（token_counter）
+pub mod core_traits; // 公开 core_traits 供 CLI 使用
+mod file_cache;
+mod file_walker;
+mod git;
 pub mod harness; // v0.4.0 新增：Claude Code Harness 架构 (pub for CLI)
-mod tool_classification; // v0.3.3 新增：工具分类系统
+mod harness_ai_service; // 🆕 P0+P1+P2: 使用 Harness API 的 AI Service
 mod http_api; // v0.4.1 新增：HTTP API 服务器（为 E2E 测试提供真实后端访问）
+mod intelligence_router;
+mod local_model;
+mod lsp;
 mod meta; // v0.5.0 新增：极简元编程框架 (SmartScanner)
-mod scanners; // v0.5.0 新增：扫描器实现
+mod multimodal; // v0.3.0 新增：多模态功能
+mod openspec; // v0.2.6 新增：OpenSpec 集成
+mod performance;
+mod project_config;
+pub mod prompt_manager; // 🔥 公开 prompt_manager 供 CLI 使用
+mod scanners;
+mod search;
+mod stream_schema_generated; // 🆕 Schema-Driven 代码生成：StreamPhase、PermissionMode、ToolPermissions
+mod symbol_engine;
+mod terminal;
+mod token_counter; // v0.2.6 新增：Token 计数模块
+mod tool_classification; // v0.3.3 新增：工具分类系统 // v0.5.0 新增：扫描器实现
 
 // LLM inference using llama.cpp (GGUF native support)
 // Phase 1: placeholder module, Phase 2: actual implementation
@@ -44,13 +44,13 @@ pub mod symbol_scanner;
 #[cfg(feature = "commercial")]
 mod commercial;
 
-use terminal::TerminalManager;
-use lsp::LspManager;
-use agent_system::Supervisor;
-use crate::core_traits::ai::{Message, Content, ContentPart};
-use crate::commands::symbol_commands::SymbolIndexState;
 use crate::commands::atomic_commands::SessionStore;
 use crate::commands::error_commands::ErrorParserState;
+use crate::commands::symbol_commands::SymbolIndexState;
+use crate::core_traits::ai::{Content, ContentPart, Message};
+use agent_system::Supervisor;
+use lsp::LspManager;
+use terminal::TerminalManager;
 
 pub struct AppState {
     pub ai_service: Arc<dyn core_traits::ai::AIService>,
@@ -62,10 +62,13 @@ pub struct AppState {
 }
 
 #[tauri::command]
-async fn probe_symbols(path: String, project_root: Option<String>) -> Result<Vec<analysis::SymbolProbe>, String> {
+async fn probe_symbols(
+    path: String,
+    project_root: Option<String>,
+) -> Result<Vec<analysis::SymbolProbe>, String> {
     println!("[PIVO3-Probe] 🔍 Probing symbols for: {}", path);
     let p = std::path::PathBuf::from(&path);
-    
+
     let abs_path = if p.is_absolute() {
         p
     } else {
@@ -82,7 +85,7 @@ async fn probe_symbols(path: String, project_root: Option<String>) -> Result<Vec
             }
         }
     };
-    
+
     println!("[PIVO3-Probe] 📍 Resolved physical path: {:?}", abs_path);
     if !abs_path.exists() {
         return Err(format!("文件不存在: {:?}", abs_path));
@@ -94,12 +97,16 @@ async fn probe_symbols(path: String, project_root: Option<String>) -> Result<Vec
 async fn get_file_metadata(path: String) -> Result<analysis::FileMetadata, String> {
     let p = std::path::Path::new(&path);
     let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
-    let mtime = meta.modified().map_err(|e| e.to_string())?
-        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-    
+    let mtime = meta
+        .modified()
+        .map_err(|e| e.to_string())?
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     // 计算物理指纹 (Size + MTime 的简单结合作为一级校验)
     let fingerprint = format!("{}_{}", meta.len(), mtime);
-    
+
     Ok(analysis::FileMetadata {
         size: meta.len(),
         mtime,
@@ -109,7 +116,7 @@ async fn get_file_metadata(path: String) -> Result<analysis::FileMetadata, Strin
 
 #[tauri::command]
 fn greet(name: &str) -> String {
-    println!( ">>> RUST GREET CALLED WITH: {}", name);
+    println!(">>> RUST GREET CALLED WITH: {}", name);
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
@@ -117,14 +124,45 @@ fn greet(name: &str) -> String {
 fn should_use_rag(text: &str) -> bool {
     let code_keywords = [
         // Chinese keywords
-        "代码", "文件", "函数", "类", "接口", "模块", "实现", "逻辑",
-        "如何工作", "在哪", "在哪里", "bug", "错误", "项目", "这个项目",
-        "怎么", "如何", "为什么", "哪里",
+        "代码",
+        "文件",
+        "函数",
+        "类",
+        "接口",
+        "模块",
+        "实现",
+        "逻辑",
+        "如何工作",
+        "在哪",
+        "在哪里",
+        "bug",
+        "错误",
+        "项目",
+        "这个项目",
+        "怎么",
+        "如何",
+        "为什么",
+        "哪里",
         // English keywords
-        "code", "file", "function", "class", "interface", "module",
-        "implementation", "logic", "how does", "where is", "locate",
-        "bug", "error", "project", "this project",
-        "what", "how", "why", "where",
+        "code",
+        "file",
+        "function",
+        "class",
+        "interface",
+        "module",
+        "implementation",
+        "logic",
+        "how does",
+        "where is",
+        "locate",
+        "bug",
+        "error",
+        "project",
+        "this project",
+        "what",
+        "how",
+        "why",
+        "where",
     ];
 
     code_keywords.iter().any(|kw| text.contains(kw))
@@ -146,7 +184,7 @@ pub async fn execute_local_tool(
             router.set_project_root(project_root.to_string());
             match router.execute(tool_name, args) {
                 Ok(result) => result,
-                Err(e) => format!("错误: {:?}", e)
+                Err(e) => format!("错误: {:?}", e),
             }
         }
         // 其他工具（尚未迁移到 ToolRouter）
@@ -155,17 +193,19 @@ pub async fn execute_local_tool(
             let abs_path = std::path::Path::new(project_root).join(rel_path);
             match analysis::symbol_stream::probe_file_symbols(&abs_path) {
                 Ok(probes) => serde_json::to_string(&probes).unwrap_or_else(|_| "[]".to_string()),
-                Err(e) => format!("错误: {}", e)
+                Err(e) => format!("错误: {}", e),
             }
         }
         "agent_batch_read" => {
             use crate::commands::core_wrappers;
             if let Some(paths_array) = args["paths"].as_array() {
-                let paths: Vec<String> = paths_array.iter()
+                let paths: Vec<String> = paths_array
+                    .iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
                     .collect();
-                core_wrappers::agent_batch_read(project_root.to_string(), paths).await
+                core_wrappers::agent_batch_read(project_root.to_string(), paths)
+                    .await
                     .unwrap_or_else(|e| format!("错误: {}", e))
             } else {
                 "错误: 缺少 paths 参数".to_string()
@@ -180,20 +220,20 @@ pub async fn execute_local_tool(
             let timeout_val = args["timeout"]
                 .as_u64()
                 .or_else(|| args["timeout_ms"].as_u64());
-            let env_vars = args.get("env_vars")
-                .and_then(|v| v.as_object())
-                .map(|obj| {
-                    obj.iter()
-                        .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
-                        .collect::<std::collections::HashMap<String, String>>()
-                });
+            let env_vars = args.get("env_vars").and_then(|v| v.as_object()).map(|obj| {
+                obj.iter()
+                    .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                    .collect::<std::collections::HashMap<String, String>>()
+            });
 
             match commands::bash_commands::execute_bash_command(
                 cmd_str.to_string(),
                 Some(cwd.to_string()),
                 timeout_val,
                 env_vars,
-            ).await {
+            )
+            .await
+            {
                 Ok(result) => serde_json::to_string(&result).unwrap_or_default(),
                 Err(e) => format!("命令执行失败: {}", e),
             }
@@ -216,10 +256,20 @@ async fn ai_chat(
     active_skill_ids: Option<Vec<String>>,
     mode: Option<String>,
 ) -> Result<(), String> {
-    println!("[AI Chat] Entry - project_root: {:?}, event_id: {}, active_skills: {:?}, mode: {:?}", project_root, event_id, active_skill_ids, mode);
-    println!("[AI Chat] 🔍 CONTINUATION CHECK: Is this a continuation? event_id starts with 'chat_': {}", event_id.starts_with("chat_"));
-    println!("[AI Chat] 🔍 Message count: {}, last message role: {:?}", messages.len(), messages.last().map(|m| &m.role));
-    
+    println!(
+        "[AI Chat] Entry - project_root: {:?}, event_id: {}, active_skills: {:?}, mode: {:?}",
+        project_root, event_id, active_skill_ids, mode
+    );
+    println!(
+        "[AI Chat] 🔍 CONTINUATION CHECK: Is this a continuation? event_id starts with 'chat_': {}",
+        event_id.starts_with("chat_")
+    );
+    println!(
+        "[AI Chat] 🔍 Message count: {}, last message role: {:?}",
+        messages.len(),
+        messages.last().map(|m| &m.role)
+    );
+
     // 🔥 v0.8.3: 修正逻辑 - 仅在参数完全缺失(None)时尝试恢复，[] 代表用户主动关闭，必须尊重
     let active_skill_ids = active_skill_ids.or_else(|| {
         if let Some(ref root) = project_root {
@@ -232,7 +282,7 @@ async fn ai_chat(
             None
         }
     });
-    
+
     println!("[AI Chat] Received {} messages", messages.len());
 
     // Ensure all messages have unique IDs
@@ -250,7 +300,7 @@ async fn ai_chat(
     if let Some(ref root) = project_root {
         let root_clone = root.clone();
 
-#[cfg(feature = "commercial")]
+        #[cfg(feature = "commercial")]
         // 🏆 v0.5.0: DebuggerAgent 意图拦截
         if let Some(last_msg) = messages.last_mut() {
             // 关键：只有当最后一条是 user 消息，且不是对工具调用的回复时，才进行拦截
@@ -259,35 +309,43 @@ async fn ai_chat(
                     core_traits::ai::Content::Text(t) => t.clone(),
                     _ => String::new(),
                 };
-                
+
                 let router = crate::intelligence_router::IntelligenceRouter::new();
                 if router.is_debug_request(&text) {
                     println!("[AI Chat] 🛡️ DebuggerAgent Intent Detected. Augmenting context...");
-                    
+
                     let agent = crate::agent_system::debugger::DebuggerAgent::new(
-                        event_id.clone(), 
-                        root, 
-                        Some(app.clone())
+                        event_id.clone(),
+                        root,
+                        Some(app.clone()),
                     );
-                    
+
                     let mut augmented_prompt = format!("用户请求修复报错。指令内容: {}\n", text);
-                    
+
                     let extracted_path = agent.extract_file_path(&text);
                     if let Some(path) = extracted_path {
-                        augmented_prompt.push_str(&format!("\n[物理诊断结果]\n- 目标文件: `{}`\n", path));
+                        augmented_prompt
+                            .push_str(&format!("\n[物理诊断结果]\n- 目标文件: `{}`\n", path));
                         if let Ok(content) = std::fs::read_to_string(&path) {
-                            use ifainew_core::symbols::{SymbolExtractor, detect_language};
+                            use ifainew_core::symbols::{detect_language, SymbolExtractor};
                             if let Ok(extractor) = SymbolExtractor::new() {
                                 let lang = detect_language(&path);
-                                if let Ok(Some(symbol)) = extractor.find_symbol_at_line(&content, 1, lang) {
-                                    if let Ok(Some(source)) = extractor.get_symbol_source(&content, &symbol.name, lang) {
-                                        augmented_prompt.push_str(&format!("- 关键符号: `{}`\n- 符号定义:\n```{}\n{}\n```\n", symbol.name, lang, source));
+                                if let Ok(Some(symbol)) =
+                                    extractor.find_symbol_at_line(&content, 1, lang)
+                                {
+                                    if let Ok(Some(source)) =
+                                        extractor.get_symbol_source(&content, &symbol.name, lang)
+                                    {
+                                        augmented_prompt.push_str(&format!(
+                                            "- 关键符号: `{}`\n- 符号定义:\n```{}\n{}\n```\n",
+                                            symbol.name, lang, source
+                                        ));
                                     }
                                 }
                             }
                         }
                     }
-                    
+
                     augmented_prompt.push_str("\n请按照 PIVO 3.0 规范，优先针对上述物理诊断出的符号进行自愈修复。首先生成 Execution Plan，然后调用 agent_write_file 提供补丁。");
                     last_msg.content = core_traits::ai::Content::Text(augmented_prompt);
                     println!("[AI Chat] 🚀 Context augmented successfully. Handing control back to main Chat Pipeline.");
@@ -298,15 +356,19 @@ async fn ai_chat(
         // 1. Detect @codebase query or smart RAG trigger
         let mut codebase_query = None;
         if let Some(last_msg) = messages.iter().filter(|m| m.role == "user").last() {
-             match &last_msg.content {
+            match &last_msg.content {
                 core_traits::ai::Content::Text(text) => {
-                     let lower_text = text.to_lowercase();
+                    let lower_text = text.to_lowercase();
                     // Priority 1: Explicit @codebase trigger
                     if lower_text.contains("@codebase") {
                         if let Ok(re) = regex::Regex::new("(?i)@codebase") {
                             let temp = re.replace_all(text, "").to_string();
                             let final_query = temp.trim().to_string();
-                            codebase_query = Some(if final_query.is_empty() { "overview of the project structure and main logic".to_string() } else { final_query });
+                            codebase_query = Some(if final_query.is_empty() {
+                                "overview of the project structure and main logic".to_string()
+                            } else {
+                                final_query
+                            });
                         }
                     }
                     // Priority 2: Smart RAG detection (if enabled in settings)
@@ -317,7 +379,8 @@ async fn ai_chat(
                     }
                 }
                 core_traits::ai::Content::Parts(parts) => {
-                    let combined_text = parts.iter()
+                    let combined_text = parts
+                        .iter()
                         .filter_map(|p| match p {
                             core_traits::ai::ContentPart::Text { text, .. } => Some(text.clone()),
                             _ => None,
@@ -330,7 +393,11 @@ async fn ai_chat(
                         if let Ok(re) = regex::Regex::new("(?i)@codebase") {
                             let temp = re.replace_all(&combined_text, "").to_string();
                             let final_query = temp.trim().to_string();
-                            codebase_query = Some(if final_query.is_empty() { "overview of the project structure and main logic".to_string() } else { final_query });
+                            codebase_query = Some(if final_query.is_empty() {
+                                "overview of the project structure and main logic".to_string()
+                            } else {
+                                final_query
+                            });
                         }
                     }
                     // Priority 2: Smart RAG detection
@@ -347,38 +414,47 @@ async fn ai_chat(
         let rag_service = state.rag_service.clone();
         let event_id_for_rag = event_id.clone();
         let root_for_rag = root.clone();
-        
+
         // Clone messages for summarization to avoid move
         let mut messages_for_summarize = messages.clone();
-        
+
         // Define futures for parallel execution
         let rag_task = async move {
             if let Some(query) = codebase_query {
-                 println!("[AI Chat] Parallel RAG: Starting context build for query: {}", query);
+                println!(
+                    "[AI Chat] Parallel RAG: Starting context build for query: {}",
+                    query
+                );
 
-                 // Note: initialization check is implicit in retrieve_context logic in Commercial impl
-                 // or skipped in Community impl.
+                // Note: initialization check is implicit in retrieve_context logic in Commercial impl
+                // or skipped in Community impl.
 
-                 // Add timeout to prevent blocking indefinitely
-                 let retrieve_future = rag_service.retrieve_context(&query, &root_for_rag);
-                 let timeout_duration = std::time::Duration::from_secs(30);
+                // Add timeout to prevent blocking indefinitely
+                let retrieve_future = rag_service.retrieve_context(&query, &root_for_rag);
+                let timeout_duration = std::time::Duration::from_secs(30);
 
-                 match tokio::time::timeout(timeout_duration, retrieve_future).await {
+                match tokio::time::timeout(timeout_duration, retrieve_future).await {
                     Ok(Ok(rag_result)) => {
-                        println!("[AI Chat] RAG context built successfully with {} references", rag_result.references.len());
-                        let _ = app_handle.emit(&format!("{}_references", event_id_for_rag), &rag_result.references);
+                        println!(
+                            "[AI Chat] RAG context built successfully with {} references",
+                            rag_result.references.len()
+                        );
+                        let _ = app_handle.emit(
+                            &format!("{}_references", event_id_for_rag),
+                            &rag_result.references,
+                        );
                         let _ = app_handle.emit("codebase-references", rag_result.references);
                         Some(rag_result.context)
-                    },
-                    Ok(Err(e)) => {
-                         eprintln!("[AI Chat] RAG failed: {}", e);
-                         None
-                    },
-                    Err(_) => {
-                         eprintln!("[AI Chat] RAG timeout after 30s - index may not be initialized. Try running /index command first.");
-                         None
                     }
-                 }
+                    Ok(Err(e)) => {
+                        eprintln!("[AI Chat] RAG failed: {}", e);
+                        None
+                    }
+                    Err(_) => {
+                        eprintln!("[AI Chat] RAG timeout after 30s - index may not be initialized. Try running /index command first.");
+                        None
+                    }
+                }
             } else {
                 None
             }
@@ -389,17 +465,26 @@ async fn ai_chat(
         let provider_clone = provider_config.clone();
         let app_handle_summ = app.clone();
         let event_id_summ = event_id.clone();
-        
+
         let summarize_task = async move {
-            if let Err(e) = conversation::auto_summarize(&app_handle_summ, &event_id_summ, &root_clone, &provider_clone, &mut messages_for_summarize).await {
+            if let Err(e) = conversation::auto_summarize(
+                &app_handle_summ,
+                &event_id_summ,
+                &root_clone,
+                &provider_clone,
+                &mut messages_for_summarize,
+            )
+            .await
+            {
                 eprintln!("[AI Chat] Parallel Summarize: Error: {}", e);
             }
             messages_for_summarize
         };
 
         // Execute tasks in parallel
-        let (rag_context, updated_messages): (Option<String>, Vec<_>) = tokio::join!(rag_task, summarize_task);
-        
+        let (rag_context, updated_messages): (Option<String>, Vec<_>) =
+            tokio::join!(rag_task, summarize_task);
+
         // Update messages with summarized version
         messages = updated_messages;
 
@@ -407,17 +492,35 @@ async fn ai_chat(
         let mut final_system_prompt = prompt_manager::get_main_system_prompt(&root);
 
         // 🏛️ 声明式：根据 provider metadata tags 注入行为规则（替代 if is_zhipu { ... } 命令式逻辑）
-        let (provider_id, provider_name, provider_tags) =
-            if let Some(spec) = harness::api::provider_metadata::get_provider_spec(&provider_config.id) {
-                (spec.metadata.id.clone(), spec.metadata.name.clone(), spec.metadata.tags.clone())
-            } else if let Some(spec) = harness::api::provider_metadata::get_provider_spec(&provider_config.name) {
-                (spec.metadata.id.clone(), spec.metadata.name.clone(), spec.metadata.tags.clone())
-            } else {
-                // 自定义/未知 provider：使用通用规则（无增强 tag）
-                (provider_config.id.clone(), provider_config.name.clone(), vec![])
-            };
+        let (provider_id, provider_name, provider_tags) = if let Some(spec) =
+            harness::api::provider_metadata::get_provider_spec(&provider_config.id)
+        {
+            (
+                spec.metadata.id.clone(),
+                spec.metadata.name.clone(),
+                spec.metadata.tags.clone(),
+            )
+        } else if let Some(spec) =
+            harness::api::provider_metadata::get_provider_spec(&provider_config.name)
+        {
+            (
+                spec.metadata.id.clone(),
+                spec.metadata.name.clone(),
+                spec.metadata.tags.clone(),
+            )
+        } else {
+            // 自定义/未知 provider：使用通用规则（无增强 tag）
+            (
+                provider_config.id.clone(),
+                provider_config.name.clone(),
+                vec![],
+            )
+        };
         let behavior_rules = harness::api::provider_metadata::build_behavior_prompt(
-            &provider_id, &provider_name, &provider_tags, &root,
+            &provider_id,
+            &provider_name,
+            &provider_tags,
+            &root,
         );
         final_system_prompt = format!("{}\n\n{}", behavior_rules, final_system_prompt);
 
@@ -425,15 +528,18 @@ async fn ai_chat(
         // 不再在系统提示词中重复描述工具格式，避免与标准格式冲突导致模型混淆
 
         if let Some(ref context) = rag_context {
-             if !context.is_empty() {
+            if !context.is_empty() {
                 let truncated_context = if context.len() > 12000 {
-                    format!("{}... [Context Truncated]", ai_utils::safe_truncate(context, 12000))
+                    format!(
+                        "{}... [Context Truncated]",
+                        ai_utils::safe_truncate(context, 12000)
+                    )
                 } else {
                     context.clone()
                 };
                 final_system_prompt.push_str("\n\nProject Context:\n");
                 final_system_prompt.push_str(&truncated_context);
-             }
+            }
         }
 
         // Extract existing summary if present (from auto_summarize)
@@ -446,7 +552,7 @@ async fn ai_chat(
                             summary_message = Some(msg.clone());
                             break;
                         }
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -455,7 +561,7 @@ async fn ai_chat(
         println!("[AI Chat] Before retain: {} messages", messages.len());
         messages.retain(|m| m.role != "system");
         println!("[AI Chat] After retain: {} messages", messages.len());
-        
+
         // 🔥 v0.6.3: 双重注入策略 - 确保技能指令在 System Prompt 的头部和尾部各出现一次
         let mut system_content = String::new();
 
@@ -497,9 +603,22 @@ async fn ai_chat(
         {
             // 构建各 section 的内容缓存
             let main_prompt_content = prompt_manager::get_main_system_prompt(&root);
-            let rag_content = rag_context.as_ref()
-                .map(|c| if c.len() > 12000 { format!("{}... [Context Truncated]", ai_utils::safe_truncate(c, 12000)) } else { c.clone() });
-            let skills_content = skills_prompt.as_ref().map(|s| format!("[FINAL_SYSTEM_OVERRIDE_PRIORITY_MAX]\n{}\n[END_OF_ALL_SYSTEM_INSTRUCTIONS]", s));
+            let rag_content = rag_context.as_ref().map(|c| {
+                if c.len() > 12000 {
+                    format!(
+                        "{}... [Context Truncated]",
+                        ai_utils::safe_truncate(c, 12000)
+                    )
+                } else {
+                    c.clone()
+                }
+            });
+            let skills_content = skills_prompt.as_ref().map(|s| {
+                format!(
+                    "[FINAL_SYSTEM_OVERRIDE_PRIORITY_MAX]\n{}\n[END_OF_ALL_SYSTEM_INSTRUCTIONS]",
+                    s
+                )
+            });
             let has_mode = mode.is_some() && cfg!(feature = "commercial");
 
             // 估算各 section token 数 (简易: chars / 4)
@@ -509,7 +628,10 @@ async fn ai_chat(
 
             // 更新缓存
             {
-                let mut cache = state.system_prompt_cache.lock().map_err(|e| e.to_string())?;
+                let mut cache = state
+                    .system_prompt_cache
+                    .lock()
+                    .map_err(|e| e.to_string())?;
                 cache.clear();
                 cache.insert("main_prompt".to_string(), main_prompt_content.clone());
                 cache.insert("behavior_rules".to_string(), format!(
@@ -597,9 +719,9 @@ async fn ai_chat(
     // 因为本地模型不支持 Vision，必须路由到云端 Vision LLM
     let has_image = messages.iter().any(|m| match &m.content {
         core_traits::ai::Content::Text(_) => false,
-        core_traits::ai::Content::Parts(parts) => {
-            parts.iter().any(|p| matches!(p, core_traits::ai::ContentPart::ImageUrl { .. }))
-        }
+        core_traits::ai::Content::Parts(parts) => parts
+            .iter()
+            .any(|p| matches!(p, core_traits::ai::ContentPart::ImageUrl { .. })),
     });
 
     if has_image {
@@ -622,25 +744,38 @@ async fn ai_chat(
             println!("[AI Chat] Local Model Preprocess:");
             println!("  - should_use_local: {}", result.should_use_local);
             println!("  - has_tool_calls: {}", result.has_tool_calls);
-            println!("  - tool_calls: {:?}", result.tool_calls.iter().map(|t| &t.name).collect::<Vec<_>>());
+            println!(
+                "  - tool_calls: {:?}",
+                result
+                    .tool_calls
+                    .iter()
+                    .map(|t| &t.name)
+                    .collect::<Vec<_>>()
+            );
             println!("  - route_reason: {}", result.route_reason);
 
             // 如果本地模型解析到工具调用，发送路由事件通知前端
             if result.has_tool_calls {
-                let _ = app.emit("local-model-route", json!({
-                    "type": "tool-calls-detected",
-                    "tool_calls": result.tool_calls,
-                    "reason": result.route_reason
-                }));
+                let _ = app.emit(
+                    "local-model-route",
+                    json!({
+                        "type": "tool-calls-detected",
+                        "tool_calls": result.tool_calls,
+                        "reason": result.route_reason
+                    }),
+                );
             }
 
             // 如果本地模型生成了回复，直接返回
             if let Some(ref response) = result.local_response {
                 println!("[AI Chat] Using local model response");
-                let _ = app.emit(&event_id, json!({
-                    "type": "content",
-                    "content": response
-                }));
+                let _ = app.emit(
+                    &event_id,
+                    json!({
+                        "type": "content",
+                        "content": response
+                    }),
+                );
                 let _ = app.emit(&event_id, json!({"type": "done"}));
                 return Ok(());
             }
@@ -651,7 +786,10 @@ async fn ai_chat(
             result.should_use_local
         }
         Err(e) => {
-            eprintln!("[AI Chat] Local model preprocess failed: {}, falling back to cloud", e);
+            eprintln!(
+                "[AI Chat] Local model preprocess failed: {}, falling back to cloud",
+                e
+            );
             false
         }
     };
@@ -666,34 +804,61 @@ async fn ai_chat(
                     let mut all_results = Vec::new();
                     for (idx, tool_call) in result.tool_calls.iter().enumerate() {
                         let tool_start = std::time::Instant::now();
-                        let args_json = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
-                        let args_value: serde_json::Value = serde_json::from_str(&args_json).unwrap_or_else(|_| serde_json::json!({}));
-                        let tool_result = execute_local_tool(&tool_call.name, &args_value, root).await;
-                        all_results.push(format!("[OK] {} ({}ms)\n{}", tool_call.name, tool_start.elapsed().as_millis(), tool_result));
+                        let args_json =
+                            serde_json::to_string(&tool_call.arguments).unwrap_or_default();
+                        let args_value: serde_json::Value = serde_json::from_str(&args_json)
+                            .unwrap_or_else(|_| serde_json::json!({}));
+                        let tool_result =
+                            execute_local_tool(&tool_call.name, &args_value, root).await;
+                        all_results.push(format!(
+                            "[OK] {} ({}ms)\n{}",
+                            tool_call.name,
+                            tool_start.elapsed().as_millis(),
+                            tool_result
+                        ));
                     }
                     let total_elapsed = overall_start.elapsed().as_millis();
-                    let combined_result = format!("[Local Model] Completed in {}ms\n\n{}", total_elapsed, all_results.join("\n\n"));
-                    let _ = app.emit(&event_id, serde_json::json!({ "type": "content", "content": combined_result }));
+                    let combined_result = format!(
+                        "[Local Model] Completed in {}ms\n\n{}",
+                        total_elapsed,
+                        all_results.join("\n\n")
+                    );
+                    let _ = app.emit(
+                        &event_id,
+                        serde_json::json!({ "type": "content", "content": combined_result }),
+                    );
                     let _ = app.emit(&format!("{}_finish", event_id), "DONE");
                     return Ok(());
                 }
             } else {
                 // 情况 2：自然语言命令需要本地模型推理
-                let user_message = messages.iter().filter(|m| m.role == "user").last().and_then(|m| {
-                    if let core_traits::ai::Content::Text(ref text) = m.content { Some(text.clone()) } else { None }
-                });
+                let user_message = messages
+                    .iter()
+                    .filter(|m| m.role == "user")
+                    .last()
+                    .and_then(|m| {
+                        if let core_traits::ai::Content::Text(ref text) = m.content {
+                            Some(text.clone())
+                        } else {
+                            None
+                        }
+                    });
 
                 if let Some(prompt) = user_message {
                     #[cfg(feature = "llm-inference")]
                     {
                         let inference_result = tokio::task::spawn_blocking(move || {
                             crate::llm_inference::generate_completion(&prompt, 256)
-                        }).await.map_err(|e| format!("任务调度失败: {}", e))?;
+                        })
+                        .await
+                        .map_err(|e| format!("任务调度失败: {}", e))?;
 
                         if let Ok(response) = inference_result {
                             // 🚀 v0.3.6: 质量熔断 - 如果本地模型输出过短（0 tokens），自动回退云端
                             if response.trim().len() < 5 {
-                                println!("[AI Chat] Local response too short, falling back to cloud API");
+                                println!(
+                                    "[AI Chat] Local response too short, falling back to cloud API"
+                                );
                             } else if mode.as_deref() == Some("vibe") {
                                 println!("[AI Chat] Vibe Mode active: Bypassing local tool parsing to preserve conversation flow");
                             } else {
@@ -703,12 +868,23 @@ async fn ai_chat(
                                     let mut all_results = Vec::new();
                                     let overall_start = std::time::Instant::now();
                                     for tool_call in tool_calls {
-                                        let args_json = serde_json::to_string(&tool_call.arguments).unwrap_or_default();
-                                        let args_value: serde_json::Value = serde_json::from_str(&args_json).unwrap_or_else(|_| serde_json::json!({}));
+                                        let args_json = serde_json::to_string(&tool_call.arguments)
+                                            .unwrap_or_default();
+                                        let args_value: serde_json::Value =
+                                            serde_json::from_str(&args_json)
+                                                .unwrap_or_else(|_| serde_json::json!({}));
                                         let tool_result = if let Some(ref root) = project_root {
-                                            execute_local_tool(&tool_call.name, &args_value, root).await
-                                        } else { "错误: 未提供项目根目录".to_string() };
-                                        all_results.push(format!("**{}**: `{}`\n```\n{}\n```", tool_call.name, args_value["command"].as_str().unwrap_or(""), tool_result));
+                                            execute_local_tool(&tool_call.name, &args_value, root)
+                                                .await
+                                        } else {
+                                            "错误: 未提供项目根目录".to_string()
+                                        };
+                                        all_results.push(format!(
+                                            "**{}**: `{}`\n```\n{}\n```",
+                                            tool_call.name,
+                                            args_value["command"].as_str().unwrap_or(""),
+                                            tool_result
+                                        ));
                                     }
                                     let _ = app.emit(&event_id, serde_json::json!({ "type": "content", "content": all_results.join("\n\n") }));
                                     let _ = app.emit(&format!("{}_finish", event_id), "DONE");
@@ -739,7 +915,10 @@ async fn ai_chat(
             core_traits::ai::Content::Text(s) => format!("Text({} chars)", s.len()),
             core_traits::ai::Content::Parts(p) => format!("Parts({} items)", p.len()),
         };
-        println!("[AI Chat]   [{}] role={}, content={}", i, msg.role, content_info);
+        println!(
+            "[AI Chat]   [{}] role={}, content={}",
+            i, msg.role, content_info
+        );
     }
 
     // Callback wrapper for Tauri events
@@ -942,7 +1121,7 @@ async fn ai_chat(
                     "required": ["todos"]
                 }
             }
-        })
+        }),
     ];
 
     // 🚀 v0.5.0: 双模引擎工具策略
@@ -961,16 +1140,25 @@ async fn ai_chat(
                     || name == "glob_search"
                     || name == "grep_search"
             });
-            println!("[AI Chat] Vibe Mode: {} → {} PIVO tools", original_tool_count, final_tools.len());
+            println!(
+                "[AI Chat] Vibe Mode: {} → {} PIVO tools",
+                original_tool_count,
+                final_tools.len()
+            );
         }
         // Spec 模式不进行 retain，保持全量 tools
     }
 
     // 打印工具列表（单行）
-    let tool_names: Vec<&str> = final_tools.iter()
+    let tool_names: Vec<&str> = final_tools
+        .iter()
         .map(|t| t["function"]["name"].as_str().unwrap_or("?"))
         .collect();
-    println!("[AI Chat] Sending {} tools: [{}]", final_tools.len(), tool_names.join(", "));
+    println!(
+        "[AI Chat] Sending {} tools: [{}]",
+        final_tools.len(),
+        tool_names.join(", ")
+    );
 
     let is_vibe_mode = mode.as_deref() == Some("vibe");
     state.ai_service.stream_chat(
@@ -1202,7 +1390,10 @@ async fn approve_tool_call(
     tool_args: String,
     project_root: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    println!("[Agent] Approving tool call: {} for message: {}", tool_call_id, message_id);
+    println!(
+        "[Agent] Approving tool call: {} for message: {}",
+        tool_call_id, message_id
+    );
     println!("[Agent] Tool: {} with args: {}", tool_name, tool_args);
     println!("[Agent] Project root: {:?}", project_root);
 
@@ -1231,7 +1422,8 @@ async fn approve_tool_call(
         .map_err(|e| format!("Failed to parse tool args: {}", e))?;
 
     // 🎯 使用 ToolRouter 执行工具
-    let result = router.execute(&tool_name, &args_json)
+    let result = router
+        .execute(&tool_name, &args_json)
         .map_err(|e| format!("Tool execution failed: {:?}", e))?;
 
     Ok(serde_json::json!({
@@ -1247,7 +1439,11 @@ fn resolve_tool_approval(
     approved: bool,
     result: Option<String>,
 ) -> Result<bool, String> {
-    Ok(crate::harness_ai_service::resolve_tool_approval(&tool_call_id, approved, result))
+    Ok(crate::harness_ai_service::resolve_tool_approval(
+        &tool_call_id,
+        approved,
+        result,
+    ))
 }
 
 #[tauri::command]
@@ -1265,11 +1461,17 @@ async fn ai_completion(
 }
 
 #[tauri::command]
-async fn create_window(app: tauri::AppHandle, label: String, title: String, url: String) -> Result<(), String> {
-    let mut window_builder = tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
-        .title(title)
-        .inner_size(1000.0, 800.0)
-        .accept_first_mouse(true);
+async fn create_window(
+    app: tauri::AppHandle,
+    label: String,
+    title: String,
+    url: String,
+) -> Result<(), String> {
+    let mut window_builder =
+        tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
+            .title(title)
+            .inner_size(1000.0, 800.0)
+            .accept_first_mouse(true);
 
     #[cfg(target_os = "macos")]
     {
@@ -1278,7 +1480,7 @@ async fn create_window(app: tauri::AppHandle, label: String, title: String, url:
             .hidden_title(true)
             .traffic_light_position(tauri::LogicalPosition::new(14.0, 16.0));
     }
-    
+
     match window_builder.build() {
         Ok(_) => Ok(()),
         Err(e) => Err(e.to_string()),
@@ -1306,44 +1508,52 @@ pub fn run() {
     println!("[Lib] 🔥 run() function called");
 
     let mut builder = tauri::Builder::default();
-    
-    // 初始化日志插件
-    builder = builder.plugin(tauri_plugin_log::Builder::default()
-        .targets([
-            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
-                file_name: Some("app".into()),
-            }),
-            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-        ])
-        .level(log::LevelFilter::Info) // 设置日志级别
-        .build());
 
-        builder = builder.setup(|app| {
-            let app_handle = app.handle().clone();
-            
-            #[cfg(feature = "commercial")]
-            let (ai, rag, agent) = {
-             // 🆕 P0+P1+P2: 商业版本也使用新的 Harness AI Service（支持 tools）
-             let ai = Arc::new(crate::harness_ai_service::HarnessAIService::new(app_handle.clone()));
-             let rag = Arc::new(commercial::impls::CommercialRagService::new(app_handle.clone()));
-             let agent = Arc::new(commercial::impls::CommercialAgentService::new());
-             (ai, rag, agent)
+    // 初始化日志插件
+    builder = builder.plugin(
+        tauri_plugin_log::Builder::default()
+            .targets([
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                    file_name: Some("app".into()),
+                }),
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+            ])
+            .level(log::LevelFilter::Info) // 设置日志级别
+            .build(),
+    );
+
+    builder = builder.setup(|app| {
+        let app_handle = app.handle().clone();
+
+        #[cfg(feature = "commercial")]
+        let (ai, rag, agent) = {
+            // 🆕 P0+P1+P2: 商业版本也使用新的 Harness AI Service（支持 tools）
+            let ai = Arc::new(crate::harness_ai_service::HarnessAIService::new(
+                app_handle.clone(),
+            ));
+            let rag = Arc::new(commercial::impls::CommercialRagService::new(
+                app_handle.clone(),
+            ));
+            let agent = Arc::new(commercial::impls::CommercialAgentService::new());
+            (ai, rag, agent)
         };
-        
+
         #[cfg(not(feature = "commercial"))]
         let (ai, rag, agent) = {
-             // 🆕 P0+P1+P2: 使用新的 Harness AI Service
-             let ai = Arc::new(crate::harness_ai_service::HarnessAIService::new(app_handle.clone()));
-             let rag = Arc::new(community::CommunityRagService);
-             let agent = Arc::new(community::CommunityAgentService);
-             (
-                 ai as Arc<dyn core_traits::ai::AIService>,
-                 rag as Arc<dyn core_traits::rag::RagService>,
-                 agent as Arc<dyn core_traits::agent::AgentService>
-             )
+            // 🆕 P0+P1+P2: 使用新的 Harness AI Service
+            let ai = Arc::new(crate::harness_ai_service::HarnessAIService::new(
+                app_handle.clone(),
+            ));
+            let rag = Arc::new(community::CommunityRagService);
+            let agent = Arc::new(community::CommunityAgentService);
+            (
+                ai as Arc<dyn core_traits::ai::AIService>,
+                rag as Arc<dyn core_traits::rag::RagService>,
+                agent as Arc<dyn core_traits::agent::AgentService>,
+            )
         };
-        
+
         app.manage(AppState {
             ai_service: ai.clone(),
             rag_service: rag,
@@ -1544,7 +1754,7 @@ pub fn run() {
             commands::task_commands::load_task_breakdown,
             commands::task_commands::list_task_breakdowns,
             commands::task_commands::delete_task_breakdown,
-            commands::task_commands::append_task_breakdown_to_proposal,  // 🔥 Phase 1: 任务输出到提案
+            commands::task_commands::append_task_breakdown_to_proposal, // 🔥 Phase 1: 任务输出到提案
             // v0.2.6 新增：OpenSpec 集成
             openspec::detector::detect_openspec_cli,
             commands::proposal_commands::save_proposal,

@@ -253,8 +253,8 @@ mod tests {
 
     #[test]
     fn test_workflow_creation() {
-        let workflow = Workflow::new("test-workflow", "Test Workflow")
-            .with_description("A test workflow");
+        let workflow =
+            Workflow::new("test-workflow", "Test Workflow").with_description("A test workflow");
 
         assert_eq!(workflow.id, "test-workflow");
         assert_eq!(workflow.name, "Test Workflow");

@@ -43,7 +43,10 @@ impl Default for LlmInferenceConfig {
         #[cfg(target_os = "windows")]
         let base = dirs::home_dir().unwrap_or_else(|| PathBuf::from("C:\\"));
 
-        let model_path = base.join(".ifai").join("models").join("qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
+        let model_path = base
+            .join(".ifai")
+            .join("models")
+            .join("qwen2.5-coder-0.5b-ifai-v3-Q4_K_M.gguf");
 
         Self {
             model_path,
@@ -60,27 +63,28 @@ impl Default for LlmInferenceConfig {
 impl LlmInferenceConfig {
     /// 从文件加载配置
     pub fn load_from_file(path: &PathBuf) -> Result<Self, String> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("无法读取配置文件: {}", e))?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| format!("无法读取配置文件: {}", e))?;
 
-        serde_json::from_str(&content)
-            .map_err(|e| format!("解析配置文件失败: {}", e))
+        serde_json::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))
     }
 
     /// 保存配置到文件
     pub fn save_to_file(&self, path: &PathBuf) -> Result<(), String> {
-        let content = serde_json::to_string_pretty(self)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+        let content =
+            serde_json::to_string_pretty(self).map_err(|e| format!("序列化配置失败: {}", e))?;
 
-        std::fs::write(path, content)
-            .map_err(|e| format!("写入配置文件失败: {}", e))
+        std::fs::write(path, content).map_err(|e| format!("写入配置文件失败: {}", e))
     }
 
     /// 验证配置
     pub fn validate(&self) -> Result<(), String> {
         // 检查温度参数范围
         if self.temperature < 0.0 || self.temperature > 2.0 {
-            return Err(format!("温度参数超出范围 (0.0 - 2.0): {}", self.temperature));
+            return Err(format!(
+                "温度参数超出范围 (0.0 - 2.0): {}",
+                self.temperature
+            ));
         }
 
         // 检查 top_p 参数范围
@@ -90,7 +94,10 @@ impl LlmInferenceConfig {
 
         // 检查 max_tokens
         if self.max_tokens == 0 || self.max_tokens > 1000 {
-            return Err(format!("最大 token 数超出范围 (1 - 1000): {}", self.max_tokens));
+            return Err(format!(
+                "最大 token 数超出范围 (1 - 1000): {}",
+                self.max_tokens
+            ));
         }
 
         // 检查超时

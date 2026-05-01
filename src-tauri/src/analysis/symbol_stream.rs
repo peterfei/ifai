@@ -1,8 +1,8 @@
+use crate::analysis::SymbolProbe;
+use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use regex::Regex;
-use crate::analysis::SymbolProbe;
 
 /**
  * 🏆 PIVO 3.0: Fast Stream Scanner
@@ -12,7 +12,7 @@ use crate::analysis::SymbolProbe;
 pub fn probe_file_symbols(path: &Path) -> Result<Vec<SymbolProbe>, String> {
     let file = File::open(path).map_err(|e| e.to_string())?;
     let reader = BufReader::new(file);
-    
+
     // 🏆 PIVO 3.0: 预定义核心符号正则组
     let re_class = Regex::new(r"(?:export\s+)?class\s+([a-zA-Z0-9_]+)").unwrap();
     let re_func = Regex::new(r"(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_]+)").unwrap();
@@ -81,9 +81,15 @@ mod tests {
         writeln!(file, "export const API_KEY = '123';").unwrap();
 
         let probes = probe_file_symbols(file.path()).unwrap();
-        
-        assert!(probes.iter().any(|p| p.name == "TestController" && p.kind == "class"));
-        assert!(probes.iter().any(|p| p.name == "handleRequest" && p.kind == "function"));
-        assert!(probes.iter().any(|p| p.name == "API_KEY" && p.kind == "variable"));
+
+        assert!(probes
+            .iter()
+            .any(|p| p.name == "TestController" && p.kind == "class"));
+        assert!(probes
+            .iter()
+            .any(|p| p.name == "handleRequest" && p.kind == "function"));
+        assert!(probes
+            .iter()
+            .any(|p| p.name == "API_KEY" && p.kind == "variable"));
     }
 }

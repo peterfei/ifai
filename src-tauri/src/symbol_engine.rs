@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
-use tree_sitter::{Parser, Language};
+use serde::{Deserialize, Serialize};
+use tree_sitter::{Language, Parser};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Symbol {
@@ -46,15 +46,22 @@ impl SymbolEngine {
 
     fn traverse(&self, node: tree_sitter::Node, source: &str, symbols: &mut Vec<Symbol>) {
         let kind = node.kind();
-        
+
         // 识别核心符号类型
         match kind {
-            "struct_item" | "enum_item" | "trait_item" | "function_item" | "impl_item" |
-            "class_declaration" | "method_definition" | "function_declaration" | "interface_declaration" => {
+            "struct_item"
+            | "enum_item"
+            | "trait_item"
+            | "function_item"
+            | "impl_item"
+            | "class_declaration"
+            | "method_definition"
+            | "function_declaration"
+            | "interface_declaration" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let name = &source[name_node.start_byte()..name_node.end_byte()];
                     let range = node.range();
-                    
+
                     symbols.push(Symbol {
                         name: name.to_string(),
                         kind: kind.to_string(),

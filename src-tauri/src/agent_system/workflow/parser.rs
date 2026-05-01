@@ -2,7 +2,7 @@
 //!
 //! 将 YAML 格式的工作流定义解析为 Workflow 结构体
 
-use super::types::{Workflow, WorkflowEdge, WorkflowNode, AgentType, AgentConfig};
+use super::types::{AgentConfig, AgentType, Workflow, WorkflowEdge, WorkflowNode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -68,8 +68,7 @@ pub struct WorkflowParser;
 impl WorkflowParser {
     /// 从文件解析工作流
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Workflow, ParseError> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| ParseError::IoError(e.to_string()))?;
+        let content = fs::read_to_string(path).map_err(|e| ParseError::IoError(e.to_string()))?;
 
         Self::from_str(&content)
     }
@@ -77,8 +76,8 @@ impl WorkflowParser {
     ///从字符串解析工作流
     pub fn from_str(content: &str) -> Result<Workflow, ParseError> {
         // 解析 YAML
-        let yaml: WorkflowYaml = serde_yaml::from_str(content)
-            .map_err(|e| ParseError::YamlError(e.to_string()))?;
+        let yaml: WorkflowYaml =
+            serde_yaml::from_str(content).map_err(|e| ParseError::YamlError(e.to_string()))?;
 
         // 转换为 Workflow
         Self::yaml_to_workflow(yaml)
@@ -86,8 +85,7 @@ impl WorkflowParser {
 
     /// 将 YAML 格式转换为 Workflow
     fn yaml_to_workflow(yaml: WorkflowYaml) -> Result<Workflow, ParseError> {
-        let mut workflow = Workflow::new(&yaml.id, &yaml.name)
-            .with_description(&yaml.description);
+        let mut workflow = Workflow::new(&yaml.id, &yaml.name).with_description(&yaml.description);
 
         // 设置变量
         workflow.variables = yaml.variables;
@@ -108,8 +106,7 @@ impl WorkflowParser {
                 AgentConfig::default()
             };
 
-            let mut node = WorkflowNode::new(&node_yaml.id, agent_type)
-                .with_config(config);
+            let mut node = WorkflowNode::new(&node_yaml.id, agent_type).with_config(config);
 
             if let Some(label) = node_yaml.label {
                 node = node.with_label(label);
@@ -159,7 +156,8 @@ impl WorkflowParser {
             }
 
             if let Some(task) = &node.config.task_description {
-                node.config.task_description = Some(Self::substitute_str(task, &workflow.variables));
+                node.config.task_description =
+                    Some(Self::substitute_str(task, &workflow.variables));
             }
         }
 
@@ -256,7 +254,10 @@ edges:
 
         assert_eq!(workflow.nodes.len(), 3);
         assert_eq!(workflow.edges.len(), 2);
-        assert_eq!(workflow.edges[1].condition, Some("${review.issues} > 0".to_string()));
+        assert_eq!(
+            workflow.edges[1].condition,
+            Some("${review.issues} > 0".to_string())
+        );
     }
 
     #[test]
@@ -272,7 +273,10 @@ edges: []
 
         let result = WorkflowParser::from_str(yaml);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ParseError::InvalidAgentType(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ParseError::InvalidAgentType(_)
+        ));
     }
 
     #[test]
@@ -297,7 +301,10 @@ edges:
 
         let workflow = WorkflowParser::from_str(yaml).unwrap();
 
-        assert_eq!(workflow.nodes[0].config.target, Some("src/components".to_string()));
+        assert_eq!(
+            workflow.nodes[0].config.target,
+            Some("src/components".to_string())
+        );
         assert_eq!(workflow.edges[0].condition, Some("7 > 5".to_string()));
     }
 

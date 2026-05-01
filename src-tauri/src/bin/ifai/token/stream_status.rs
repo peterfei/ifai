@@ -16,8 +16,8 @@
 //! - 零拷贝（引用传递，不克隆数据）
 //! - 单行刷新（ANSI 覆盖，不滚动终端）
 
+use crate::render::{color_256, default_theme, Theme, RESET};
 use std::time::{Duration, Instant};
-use crate::render::{Theme, RESET, color_256, default_theme};
 
 /// 🔥 流式状态追踪器（轻量级，零拷贝）
 pub struct StreamStatus {
@@ -84,18 +84,20 @@ impl StreamStatus {
 
         format!(
             "\r[{}{}{}] {}{}  {}  {}     ",
-            theme.brand, model, RESET,
-            time_part,
-            in_part,
-            out_part,
-            ctrl_part,
+            theme.brand, model, RESET, time_part, in_part, out_part, ctrl_part,
         )
     }
 
     /// 🔥 渲染完成摘要（响应结束后显示）
     ///
     /// **格式**：`[✓] Completed | 3.2s | in: 1,247 | out: 156 | cost: $0.0014`
-    pub fn render_summary(&self, model: &str, input_tokens: u32, output_tokens: u32, theme: &Theme) -> String {
+    pub fn render_summary(
+        &self,
+        model: &str,
+        input_tokens: u32,
+        output_tokens: u32,
+        theme: &Theme,
+    ) -> String {
         let elapsed = self.start_time.elapsed();
         let seconds = elapsed.as_secs_f32();
 
@@ -114,7 +116,8 @@ impl StreamStatus {
         format!(
             "\n{}[✓] Completed | {}{}s | in: {} | out: {} | {}",
             theme.success,
-            theme.muted, format!("{:.1}", seconds),
+            theme.muted,
+            format!("{:.1}", seconds),
             in_formatted,
             out_formatted,
             cost_str,
@@ -215,7 +218,12 @@ impl BottomStatusBar {
 
     /// 🔥 更新流式输出（用于 Streaming 状态）
     pub fn update_streaming_output(&mut self, text: &str) -> usize {
-        if let StatusBarState::Streaming { estimated_input, ref mut current_output, .. } = self.state {
+        if let StatusBarState::Streaming {
+            estimated_input,
+            ref mut current_output,
+            ..
+        } = self.state
+        {
             // 估算 token 数量（中文 2 字符/token，英文 4 字符/token）
             let chinese_chars = text.chars().filter(|c| is_chinese(*c)).count();
             let other_chars = text.chars().count().saturating_sub(chinese_chars);
@@ -233,12 +241,13 @@ impl BottomStatusBar {
         // 🔥 声明式状态渲染（模式匹配，零手写逻辑）
         let status_text = match &self.state {
             StatusBarState::Idle => {
-                format!(
-                    "[就绪] {}",
-                    self.model
-                )
+                format!("[就绪] {}", self.model)
             }
-            StatusBarState::Streaming { estimated_input, current_output, current_tool } => {
+            StatusBarState::Streaming {
+                estimated_input,
+                current_output,
+                current_tool,
+            } => {
                 let in_formatted = format_number(*estimated_input);
                 let out_formatted = format_number(*current_output);
 
@@ -250,19 +259,18 @@ impl BottomStatusBar {
 
                 format!(
                     "[响应中] {} | in: {} | out: {}{}",
-                    self.model,
-                    in_formatted,
-                    out_formatted,
-                    tool_info
+                    self.model, in_formatted, out_formatted, tool_info
                 )
             }
-            StatusBarState::ExecutingTool { tool_name, tool_count, tool_success, tool_errors } => {
+            StatusBarState::ExecutingTool {
+                tool_name,
+                tool_count,
+                tool_success,
+                tool_errors,
+            } => {
                 format!(
                     "[工具执行] {} | 已执行 {} 个工具 | 成功 {} | 失败 {}",
-                    tool_name,
-                    tool_count,
-                    tool_success,
-                    tool_errors
+                    tool_name, tool_count, tool_success, tool_errors
                 )
             }
         };
@@ -275,12 +283,13 @@ impl BottomStatusBar {
     pub fn render_silent(&self) -> String {
         let status_text = match &self.state {
             StatusBarState::Idle => {
-                format!(
-                    "[就绪] {}",
-                    self.model
-                )
+                format!("[就绪] {}", self.model)
             }
-            StatusBarState::Streaming { estimated_input, current_output, current_tool } => {
+            StatusBarState::Streaming {
+                estimated_input,
+                current_output,
+                current_tool,
+            } => {
                 let in_formatted = format_number(*estimated_input);
                 let out_formatted = format_number(*current_output);
 
@@ -292,19 +301,18 @@ impl BottomStatusBar {
 
                 format!(
                     "[响应中] {} | in: {} | out: {}{}",
-                    self.model,
-                    in_formatted,
-                    out_formatted,
-                    tool_info
+                    self.model, in_formatted, out_formatted, tool_info
                 )
             }
-            StatusBarState::ExecutingTool { tool_name, tool_count, tool_success, tool_errors } => {
+            StatusBarState::ExecutingTool {
+                tool_name,
+                tool_count,
+                tool_success,
+                tool_errors,
+            } => {
                 format!(
                     "[工具执行] {} | 已执行 {} 个工具 | 成功 {} | 失败 {}",
-                    tool_name,
-                    tool_count,
-                    tool_success,
-                    tool_errors
+                    tool_name, tool_count, tool_success, tool_errors
                 )
             }
         };
@@ -325,12 +333,13 @@ impl BottomStatusBar {
         // 🔥 复用状态文本生成逻辑（与 render_silent 相同）
         let status_text = match &self.state {
             StatusBarState::Idle => {
-                format!(
-                    "[就绪] {}",
-                    self.model
-                )
+                format!("[就绪] {}", self.model)
             }
-            StatusBarState::Streaming { estimated_input, current_output, current_tool } => {
+            StatusBarState::Streaming {
+                estimated_input,
+                current_output,
+                current_tool,
+            } => {
                 let in_formatted = format_number(*estimated_input);
                 let out_formatted = format_number(*current_output);
 
@@ -342,19 +351,18 @@ impl BottomStatusBar {
 
                 format!(
                     "[响应中] {} | in: {} | out: {}{}",
-                    self.model,
-                    in_formatted,
-                    out_formatted,
-                    tool_info
+                    self.model, in_formatted, out_formatted, tool_info
                 )
             }
-            StatusBarState::ExecutingTool { tool_name, tool_count, tool_success, tool_errors } => {
+            StatusBarState::ExecutingTool {
+                tool_name,
+                tool_count,
+                tool_success,
+                tool_errors,
+            } => {
                 format!(
                     "[工具执行] {} | 已执行 {} 个工具 | 成功 {} | 失败 {}",
-                    tool_name,
-                    tool_count,
-                    tool_success,
-                    tool_errors
+                    tool_name, tool_count, tool_success, tool_errors
                 )
             }
         };
@@ -441,7 +449,12 @@ mod tests {
         });
 
         assert!(matches!(bar.state, StatusBarState::Streaming { .. }));
-        if let StatusBarState::Streaming { estimated_input, current_output, current_tool } = &bar.state {
+        if let StatusBarState::Streaming {
+            estimated_input,
+            current_output,
+            current_tool,
+        } = &bar.state
+        {
             assert_eq!(*estimated_input, 1000);
             assert_eq!(*current_output, 0);
             assert!(current_tool.is_none());
@@ -472,7 +485,12 @@ mod tests {
             tool_errors: 0,
         });
 
-        if let StatusBarState::ExecutingTool { tool_name, tool_count, .. } = &bar.state {
+        if let StatusBarState::ExecutingTool {
+            tool_name,
+            tool_count,
+            ..
+        } = &bar.state
+        {
             assert_eq!(tool_name, "bash");
             assert_eq!(*tool_count, 1);
         }
@@ -553,13 +571,13 @@ mod tests {
         });
 
         // 更新输出
-        bar.update_streaming_output("Hello");  // 约 1 token
+        bar.update_streaming_output("Hello"); // 约 1 token
         if let StatusBarState::Streaming { current_output, .. } = &bar.state {
             assert_eq!(*current_output, 1);
         }
 
         // 更新更多输出
-        bar.update_streaming_output("Hello world!");  // 约 3 tokens
+        bar.update_streaming_output("Hello world!"); // 约 3 tokens
         if let StatusBarState::Streaming { current_output, .. } = &bar.state {
             assert!(*current_output > 1);
         }
@@ -575,7 +593,7 @@ mod tests {
         });
 
         // 中文文本（约 2 字符/token）
-        bar.update_streaming_output("你好世界");  // 4 个中文字符 = 2 tokens
+        bar.update_streaming_output("你好世界"); // 4 个中文字符 = 2 tokens
         if let StatusBarState::Streaming { current_output, .. } = &bar.state {
             assert_eq!(*current_output, 2);
         }
@@ -677,11 +695,11 @@ mod tests {
         let output = bar.render_fixed();
 
         // 验证包含 ANSI 序列
-        assert!(output.contains("\x1b[s"));  // 保存光标
-        assert!(output.contains("\x1b["));   // 移动光标
-        assert!(output.contains("\x1b[u"));  // 恢复光标
-        assert!(output.contains("[就绪]"));  // 状态文本
-        assert!(output.contains("deepseek-chat"));  // 模型名
+        assert!(output.contains("\x1b[s")); // 保存光标
+        assert!(output.contains("\x1b[")); // 移动光标
+        assert!(output.contains("\x1b[u")); // 恢复光标
+        assert!(output.contains("[就绪]")); // 状态文本
+        assert!(output.contains("deepseek-chat")); // 模型名
     }
 
     #[test]
@@ -694,7 +712,7 @@ mod tests {
         });
 
         let output = bar.render_fixed();
-        assert!(output.contains("\x1b[s"));  // 保存光标
+        assert!(output.contains("\x1b[s")); // 保存光标
         assert!(output.contains("[响应中]"));
         assert!(output.contains("in: 1,000"));
         assert!(output.contains("out: 50"));

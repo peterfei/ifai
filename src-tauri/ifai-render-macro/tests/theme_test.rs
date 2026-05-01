@@ -15,11 +15,11 @@ pub struct MockTheme {
 impl MockTheme {
     pub const fn new() -> Self {
         MockTheme {
-            success: "\x1b[32m",  // green
-            error: "\x1b[31m",    // red
-            warning: "\x1b[33m",  // yellow
-            brand: "\x1b[36m",    // cyan
-            muted: "\x1b[90m",    // bright black
+            success: "\x1b[32m", // green
+            error: "\x1b[31m",   // red
+            warning: "\x1b[33m", // yellow
+            brand: "\x1b[36m",   // cyan
+            muted: "\x1b[90m",   // bright black
         }
     }
 }

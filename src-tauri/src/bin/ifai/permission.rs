@@ -3,10 +3,12 @@
 //! 从 tool_approval_config.json 自动生成权限判断逻辑
 //! 零重复代码，配置驱动。
 
+use crate::loop_detector::{
+    EmptyArgsResult, LoopDetectionConfig, LoopDetectionStatus, LoopDetector,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{RwLock, OnceLock};
-use crate::loop_detector::{LoopDetector, LoopDetectionConfig, LoopDetectionStatus, EmptyArgsResult};
+use std::sync::{OnceLock, RwLock};
 
 // ═══════════════════════════════════════════════════════════
 // 类型定义（与 UI 对齐）
@@ -29,7 +31,7 @@ pub enum RiskLevel {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]  // 🔥 FIX: 匹配 TypeScript 的驼峰命名
+#[serde(rename_all = "camelCase")] // 🔥 FIX: 匹配 TypeScript 的驼峰命名
 pub struct ToolConfig {
     pub name: String,
     pub aliases: Vec<String>,
@@ -49,7 +51,7 @@ pub struct PathRiskRule {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]  // 🔥 FIX: 匹配 TypeScript 的驼峰命名
+#[serde(rename_all = "camelCase")] // 🔥 FIX: 匹配 TypeScript 的驼峰命名
 pub struct AutoApprovalRule {
     pub priority: i32,
     pub name: String,
@@ -59,7 +61,7 @@ pub struct AutoApprovalRule {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]  // 🔥 FIX: 匹配 TypeScript 的驼峰命名
+#[serde(rename_all = "camelCase")] // 🔥 FIX: 匹配 TypeScript 的驼峰命名
 pub struct RuleCondition {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default, deserialize_with = "deserialize_optional_vec")]
@@ -114,8 +116,7 @@ where
         {
             use serde::Deserialize;
             // 解析数组
-            Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
-                .map(Some)
+            Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq)).map(Some)
         }
     }
 
@@ -129,7 +130,7 @@ pub struct RuleAction {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]  // 🔥 FIX: 匹配 TypeScript 的驼峰命名
+#[serde(rename_all = "camelCase")] // 🔥 FIX: 匹配 TypeScript 的驼峰命名
 pub struct ApprovalConfig {
     pub tools: Vec<ToolConfig>,
     pub auto_approval_rules: Vec<AutoApprovalRule>,
@@ -194,7 +195,7 @@ impl ToolApprovalEngine {
 
     /// 获取循环检测配置
     pub fn loop_detection_config(&self) -> Option<LoopDetectionConfig> {
-        None  // 暂时返回 None，由全局函数提供
+        None // 暂时返回 None，由全局函数提供
     }
 
     /// 🔥 元编程 API：工具分类（O(1) 查询）
@@ -202,7 +203,7 @@ impl ToolApprovalEngine {
         self.tool_by_name
             .get(name)
             .map(|t| t.category)
-            .unwrap_or(ToolCategory::Dangerous)  // 默认：未知工具为危险
+            .unwrap_or(ToolCategory::Dangerous) // 默认：未知工具为危险
     }
 
     /// 🔥 元编程 API：风险计算（O(1) 查询）
@@ -210,7 +211,7 @@ impl ToolApprovalEngine {
         self.tool_by_name
             .get(name)
             .map(|t| t.risk_level)
-            .unwrap_or(RiskLevel::Medium)  // 默认：中等风险
+            .unwrap_or(RiskLevel::Medium) // 默认：中等风险
     }
 
     /// 🔥 元编程 API：自动审批判断（规则链求值）
@@ -238,7 +239,7 @@ impl ToolApprovalEngine {
             return rule.then.approve;
         }
 
-        false  // 默认：需要手动审批
+        false // 默认：需要手动审批
     }
 
     /// 🔥 元编程 API：最大迭代次数（统一策略）
@@ -248,7 +249,7 @@ impl ToolApprovalEngine {
     /// - 依赖循环检测机制提供额外保护（参考 GUI）
     /// - 100 次足够支持复杂任务（如创建多文件、完整功能开发）
     pub fn max_iterations(&self, _category: ToolCategory) -> usize {
-        100  // 统一限制：100 次（参考 GUI 的 1000 次，CLI 保守设为 100）
+        100 // 统一限制：100 次（参考 GUI 的 1000 次，CLI 保守设为 100）
     }
 
     /// 获取工具完整配置
@@ -265,8 +266,8 @@ use once_cell::sync::Lazy;
 
 static APPROVAL_ENGINE: Lazy<ToolApprovalEngine> = Lazy::new(|| {
     let config_json = include_str!("tool_approval_config.json");
-    let config: ApprovalConfig = serde_json::from_str(config_json)
-        .expect("Failed to parse tool_approval_config.json");
+    let config: ApprovalConfig =
+        serde_json::from_str(config_json).expect("Failed to parse tool_approval_config.json");
 
     ToolApprovalEngine::from_config(config)
 });
@@ -277,8 +278,8 @@ static LOOP_DETECTOR: OnceLock<RwLock<LoopDetector>> = OnceLock::new();
 /// 初始化全局循环检测器
 fn init_loop_detector() {
     let config_json = include_str!("tool_approval_config.json");
-    let config: ApprovalConfig = serde_json::from_str(config_json)
-        .expect("Failed to parse tool_approval_config.json");
+    let config: ApprovalConfig =
+        serde_json::from_str(config_json).expect("Failed to parse tool_approval_config.json");
 
     let loop_config = config.loop_detection.unwrap_or_default();
     LOOP_DETECTOR.get_or_init(|| RwLock::new(LoopDetector::from_config(loop_config)));

@@ -53,9 +53,7 @@ impl MessageBuilder for StreamRequest {
 pub trait MultimodalDetector {
     /// 检查消息列表是否包含多模态内容
     fn has_multimodal(&self) -> bool {
-        self.messages()
-            .iter()
-            .any(|m| m.content.is_multimodal())
+        self.messages().iter().any(|m| m.content.is_multimodal())
     }
 
     fn messages(&self) -> &[Message];
@@ -77,14 +75,12 @@ mod tests {
     fn test_build_messages_with_system() {
         let request = StreamRequest {
             model: "test-model".to_string(),
-            messages: vec![
-                Message {
-                    role: MessageRole::User,
-                    content: "Hello".to_string().into(),
-                    tool_calls: None,
-                    tool_call_id: None,
-                }
-            ],
+            messages: vec![Message {
+                role: MessageRole::User,
+                content: "Hello".to_string().into(),
+                tool_calls: None,
+                tool_call_id: None,
+            }],
             max_tokens: 1000,
             system: Some("You are helpful".to_string()),
             temperature: Some(0.7),
@@ -103,14 +99,12 @@ mod tests {
     fn test_build_messages_without_system() {
         let request = StreamRequest {
             model: "test-model".to_string(),
-            messages: vec![
-                Message {
-                    role: MessageRole::User,
-                    content: "Hello".to_string().into(),
-                    tool_calls: None,
-                    tool_call_id: None,
-                }
-            ],
+            messages: vec![Message {
+                role: MessageRole::User,
+                content: "Hello".to_string().into(),
+                tool_calls: None,
+                tool_call_id: None,
+            }],
             max_tokens: 1000,
             system: None,
             temperature: Some(0.7),
@@ -128,14 +122,12 @@ mod tests {
     fn test_has_multimodal() {
         let request = StreamRequest {
             model: "test-model".to_string(),
-            messages: vec![
-                Message {
-                    role: MessageRole::User,
-                    content: MessageContent::Text("Hello".to_string()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                }
-            ],
+            messages: vec![Message {
+                role: MessageRole::User,
+                content: MessageContent::Text("Hello".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            }],
             max_tokens: 1000,
             system: None,
             temperature: Some(0.7),
@@ -152,27 +144,25 @@ mod tests {
 
         let request = StreamRequest {
             model: "test-model".to_string(),
-            messages: vec![
-                Message {
-                    role: MessageRole::User,
-                    content: MessageContent::MultiModal(vec![
-                        ContentPart {
-                            part_type: "text".to_string(),
-                            text: Some("Hello".to_string()),
-                            image_url: None,
-                        },
-                        ContentPart {
-                            part_type: "image_url".to_string(),
-                            text: None,
-                            image_url: Some(ImageUrl {
-                                url: "data:image/png;base64,abc".to_string(),
-                            }),
-                        },
-                    ]),
-                    tool_calls: None,
-                    tool_call_id: None,
-                }
-            ],
+            messages: vec![Message {
+                role: MessageRole::User,
+                content: MessageContent::MultiModal(vec![
+                    ContentPart {
+                        part_type: "text".to_string(),
+                        text: Some("Hello".to_string()),
+                        image_url: None,
+                    },
+                    ContentPart {
+                        part_type: "image_url".to_string(),
+                        text: None,
+                        image_url: Some(ImageUrl {
+                            url: "data:image/png;base64,abc".to_string(),
+                        }),
+                    },
+                ]),
+                tool_calls: None,
+                tool_call_id: None,
+            }],
             max_tokens: 1000,
             system: None,
             temperature: Some(0.7),

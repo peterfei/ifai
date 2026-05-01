@@ -18,11 +18,26 @@ fn init_provider_registry() -> &'static HashMap<String, ProviderSpec> {
         // 🔥 从嵌入的 YAML 文件加载提供商配置
         // 注意：这些文件在编译时被嵌入到二进制中
         let yaml_files = vec![
-            ("openai-official", include_str!("../../../providers/registry/openai-official.yaml")),
-            ("zhipu-official", include_str!("../../../providers/registry/zhipu-official.yaml")),
-            ("deepseek-official", include_str!("../../../providers/registry/deepseek-official.yaml")),
-            ("kimi-official", include_str!("../../../providers/registry/kimi-official.yaml")),
-            ("gemini-official", include_str!("../../../providers/registry/gemini-official.yaml")),
+            (
+                "openai-official",
+                include_str!("../../../providers/registry/openai-official.yaml"),
+            ),
+            (
+                "zhipu-official",
+                include_str!("../../../providers/registry/zhipu-official.yaml"),
+            ),
+            (
+                "deepseek-official",
+                include_str!("../../../providers/registry/deepseek-official.yaml"),
+            ),
+            (
+                "kimi-official",
+                include_str!("../../../providers/registry/kimi-official.yaml"),
+            ),
+            (
+                "gemini-official",
+                include_str!("../../../providers/registry/gemini-official.yaml"),
+            ),
         ];
 
         for (filename, yaml_content) in yaml_files {
@@ -56,27 +71,33 @@ pub fn get_all_models_from_specs() -> Vec<crate::harness::api::types::ModelInfo>
     get_all_provider_specs()
         .values()
         .flat_map(|spec| {
-            spec.models.iter().map(|m| crate::harness::api::types::ModelInfo {
-                id: m.id.clone(),
-                name: m.name.clone(),
-                context_tokens: m.context_tokens,
-            })
+            spec.models
+                .iter()
+                .map(|m| crate::harness::api::types::ModelInfo {
+                    id: m.id.clone(),
+                    name: m.name.clone(),
+                    context_tokens: m.context_tokens,
+                })
         })
         .collect()
 }
 
 /// 🏛️ 元编程：根据提供商 ID 获取模型列表
 /// 🔥 用途：替换各个 provider 中硬编码的 list_models() 实现
-pub fn get_models_for_provider(provider_id: &str) -> Option<Vec<crate::harness::api::types::ModelInfo>> {
+pub fn get_models_for_provider(
+    provider_id: &str,
+) -> Option<Vec<crate::harness::api::types::ModelInfo>> {
     get_provider_spec(provider_id).map(|spec| {
-        spec.models.iter().map(|m| crate::harness::api::types::ModelInfo {
-            id: m.id.clone(),
-            name: m.name.clone(),
-            context_tokens: m.context_tokens,
-        }).collect()
+        spec.models
+            .iter()
+            .map(|m| crate::harness::api::types::ModelInfo {
+                id: m.id.clone(),
+                name: m.name.clone(),
+                context_tokens: m.context_tokens,
+            })
+            .collect()
     })
 }
-
 
 /// 提供商元数据规范（核心数据结构）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,15 +148,10 @@ pub struct ApiSpec {
 pub enum AuthSpec {
     /// Bearer Token in Header
     #[serde(rename = "bearer_header")]
-    BearerHeader {
-        header_name: String,
-        format: String,
-    },
+    BearerHeader { header_name: String, format: String },
     /// Query Parameter
     #[serde(rename = "query_param")]
-    QueryParam {
-        param_name: String,
-    },
+    QueryParam { param_name: String },
 }
 
 /// 请求格式规范
@@ -330,7 +346,9 @@ pub fn build_behavior_prompt(
         .iter()
         .filter(|r| {
             r.tags.is_empty()
-                || r.tags.iter().any(|tag| provider_tags.iter().any(|pt| pt == tag))
+                || r.tags
+                    .iter()
+                    .any(|tag| provider_tags.iter().any(|pt| pt == tag))
         })
         .collect();
     matched.sort_by_key(|r| std::cmp::Reverse(r.priority));
@@ -377,7 +395,10 @@ mod tests_behavior_prompt {
     #[test]
     fn test_behavior_prompt_zhipu_gets_enhanced_rules() {
         // zhipu tags → needs_todowrite_guidance + needs_identity_hint
-        let tags = vec!["needs_todowrite_guidance".to_string(), "needs_identity_hint".to_string()];
+        let tags = vec![
+            "needs_todowrite_guidance".to_string(),
+            "needs_identity_hint".to_string(),
+        ];
         let prompt = build_behavior_prompt("zhipu-official", "Zhipu AI (智谱)", &tags, "/tmp/test");
         // 增强规则
         assert!(prompt.contains("MANDATORY: Always Use TodoWrite First"));
@@ -403,7 +424,10 @@ mod tests_behavior_prompt {
         // identity_hint priority=30 应在 tool_call_rules priority=10 之前
         let identity_pos = prompt.find("Your Identity:").unwrap();
         let tool_rules_pos = prompt.find("Tool Call Rules (CRITICAL)").unwrap();
-        assert!(identity_pos < tool_rules_pos, "identity_hint should appear before tool_call_rules");
+        assert!(
+            identity_pos < tool_rules_pos,
+            "identity_hint should appear before tool_call_rules"
+        );
     }
 
     #[test]
@@ -470,7 +494,10 @@ error_mapping:
 
         // 验证认证方式
         match &spec.api_spec.auth {
-            AuthSpec::BearerHeader { header_name, format } => {
+            AuthSpec::BearerHeader {
+                header_name,
+                format,
+            } => {
                 assert_eq!(header_name, "Authorization");
                 assert_eq!(format, "Bearer {key}");
             }
@@ -486,12 +513,21 @@ error_mapping:
         assert_eq!(spec.models.len(), 1);
         assert_eq!(spec.models[0].id, "gpt-4o");
         assert_eq!(spec.models[0].context_tokens, 128000);
-        assert_eq!(spec.models[0].capabilities, vec!["vision", "tools", "streaming"]);
+        assert_eq!(
+            spec.models[0].capabilities,
+            vec!["vision", "tools", "streaming"]
+        );
         assert_eq!(spec.models[0].cost_per_1k_tokens, Some(0.005));
 
         // 验证错误映射
-        assert_eq!(spec.error_mapping.get(&401), Some(&"authentication_error".to_string()));
-        assert_eq!(spec.error_mapping.get(&429), Some(&"rate_limit_error".to_string()));
+        assert_eq!(
+            spec.error_mapping.get(&401),
+            Some(&"authentication_error".to_string())
+        );
+        assert_eq!(
+            spec.error_mapping.get(&429),
+            Some(&"rate_limit_error".to_string())
+        );
     }
 
     #[test]
@@ -546,13 +582,20 @@ error_mapping:
         assert_eq!(spec.metadata.protocol, "openai");
 
         // 验证 GLM-5.1 模型
-        let glm51 = spec.models.iter().find(|m| m.id == "glm-5.1").expect("GLM-5.1 not found");
+        let glm51 = spec
+            .models
+            .iter()
+            .find(|m| m.id == "glm-5.1")
+            .expect("GLM-5.1 not found");
         assert_eq!(glm51.name, "GLM-5.1");
         assert_eq!(glm51.tags, vec!["latest", "premium"]);
         assert!(glm51.capabilities.contains(&"vision".to_string()));
 
         // 验证错误映射包含 402
-        assert_eq!(spec.error_mapping.get(&402), Some(&"quota_exceeded".to_string()));
+        assert_eq!(
+            spec.error_mapping.get(&402),
+            Some(&"quota_exceeded".to_string())
+        );
     }
 
     #[test]
@@ -612,14 +655,18 @@ models:
         assert_eq!(spec.models.len(), 4);
 
         // 验证 K2.6 模型
-        let k26 = spec.models.iter().find(|m| m.id == "moonshot-v1-k2.6").expect("K2.6 not found");
+        let k26 = spec
+            .models
+            .iter()
+            .find(|m| m.id == "moonshot-v1-k2.6")
+            .expect("K2.6 not found");
         assert_eq!(k26.tags, vec!["latest", "premium"]);
 
         // 验证不同上下文长度
         assert_eq!(spec.models[0].context_tokens, 128000); // K2.6
         assert_eq!(spec.models[1].context_tokens, 128000); // 128K
-        assert_eq!(spec.models[2].context_tokens, 32000);  // 32K
-        assert_eq!(spec.models[3].context_tokens, 8000);   // 8K
+        assert_eq!(spec.models[2].context_tokens, 32000); // 32K
+        assert_eq!(spec.models[3].context_tokens, 8000); // 8K
     }
 
     #[test]
@@ -715,8 +762,8 @@ models:
     capabilities: [streaming]
 "#;
 
-        let spec: ProviderSpec = serde_yaml::from_str(yaml_content)
-            .expect("Failed to parse provider spec from YAML");
+        let spec: ProviderSpec =
+            serde_yaml::from_str(yaml_content).expect("Failed to parse provider spec from YAML");
 
         assert_eq!(spec.metadata.id, "test-provider");
         assert_eq!(spec.models.len(), 1);
@@ -761,11 +808,12 @@ models:
         let spec: ProviderSpec = serde_yaml::from_str(yaml).unwrap();
 
         // 验证可以提取 ModelInfo
-        let model_info: crate::harness::api::types::ModelInfo = crate::harness::api::types::ModelInfo {
-            id: spec.models[0].id.clone(),
-            name: spec.models[0].name.clone(),
-            context_tokens: spec.models[0].context_tokens,
-        };
+        let model_info: crate::harness::api::types::ModelInfo =
+            crate::harness::api::types::ModelInfo {
+                id: spec.models[0].id.clone(),
+                name: spec.models[0].name.clone(),
+                context_tokens: spec.models[0].context_tokens,
+            };
 
         assert_eq!(model_info.id, "gpt-4o");
         assert_eq!(model_info.name, "GPT-4o");
@@ -858,13 +906,16 @@ models:
         assert!(registry.contains_key("zhipu-official"));
 
         // 验证可以获取所有模型
-        let all_models: Vec<_> = registry.values()
+        let all_models: Vec<_> = registry
+            .values()
             .flat_map(|spec| {
-                spec.models.iter().map(|m| crate::harness::api::types::ModelInfo {
-                    id: m.id.clone(),
-                    name: m.name.clone(),
-                    context_tokens: m.context_tokens,
-                })
+                spec.models
+                    .iter()
+                    .map(|m| crate::harness::api::types::ModelInfo {
+                        id: m.id.clone(),
+                        name: m.name.clone(),
+                        context_tokens: m.context_tokens,
+                    })
             })
             .collect();
 
@@ -900,12 +951,18 @@ models:
         // 验证 Zhipu GLM-5.1
         let zhipu = specs.get("zhipu-official").unwrap();
         assert!(zhipu.models.iter().any(|m| m.id == "glm-5.1"));
-        assert!(zhipu.models.iter().any(|m| m.tags.contains(&"latest".to_string())));
+        assert!(zhipu
+            .models
+            .iter()
+            .any(|m| m.tags.contains(&"latest".to_string())));
 
         // 验证 DeepSeek（注意：现在只有 deepseek-chat，不再有 deepseek-vl）
         let deepseek = specs.get("deepseek-official").unwrap();
         assert!(deepseek.models.iter().any(|m| m.id == "deepseek-chat"));
-        assert!(deepseek.models.iter().any(|m| m.tags.contains(&"latest".to_string())));
+        assert!(deepseek
+            .models
+            .iter()
+            .any(|m| m.tags.contains(&"latest".to_string())));
 
         // 验证 Kimi K2.6（注意：模型 ID 从 moonshot-v1-k2.6 改为 kimi-k2.6）
         let kimi = specs.get("kimi-official").unwrap();
@@ -914,7 +971,10 @@ models:
         // 验证 Gemini
         let gemini = specs.get("gemini-official").unwrap();
         assert!(gemini.models.iter().any(|m| m.id == "gemini-2.0-flash-exp"));
-        assert_eq!(gemini.api_spec.base_url, "https://generativelanguage.googleapis.com/v1beta");
+        assert_eq!(
+            gemini.api_spec.base_url,
+            "https://generativelanguage.googleapis.com/v1beta"
+        );
     }
 
     #[test]

@@ -2,9 +2,9 @@
 //!
 //! 🏛️ 元编程：自动从运行环境收集变量
 
+use ifainew_lib::harness::api::provider_metadata::ProviderSpec;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use ifainew_lib::harness::api::provider_metadata::ProviderSpec;
 
 /// 🏛️ 元编程：自动收集 CLI 特定变量
 ///
@@ -24,8 +24,7 @@ pub fn collect_cli_variables(spec: &ProviderSpec) -> HashMap<String, String> {
 
     // 工作目录
     if let Ok(cwd) = std::env::current_dir() {
-        vars.insert("cwd".to_string(),
-            cwd.to_string_lossy().to_string());
+        vars.insert("cwd".to_string(), cwd.to_string_lossy().to_string());
     }
 
     // Shell 类型
@@ -87,8 +86,7 @@ fn get_target_triple() -> String {
 mod tests {
     use super::*;
     use ifainew_lib::harness::api::provider_metadata::{
-        ProviderSpec, ProviderMetadata, ApiSpec, AuthSpec,
-        RequestFormat, ResponseFormat, ModelSpec
+        ApiSpec, AuthSpec, ModelSpec, ProviderMetadata, ProviderSpec, RequestFormat, ResponseFormat,
     };
 
     fn mock_provider_spec() -> ProviderSpec {
@@ -157,7 +155,13 @@ mod tests {
 
         // Shell 应该是一个已知的名称或 "unknown"
         let known_shells = vec![
-            "bash", "zsh", "fish", "pwsh", "cmd", "powershell", "unknown"
+            "bash",
+            "zsh",
+            "fish",
+            "pwsh",
+            "cmd",
+            "powershell",
+            "unknown",
         ];
 
         // 如果 SHELL 环境变量存在，应该被检测到

@@ -1,3 +1,6 @@
+use async_trait::async_trait;
+use futures_core::Stream;
+use futures_util::StreamExt;
 /**
  * 🔥 务实的 next_event 接口（折中方案）
  *
@@ -12,12 +15,8 @@
  * }
  * ```
  */
-
 use std::collections::VecDeque;
 use std::pin::Pin;
-use futures_core::Stream;
-use futures_util::StreamExt;
-use async_trait::async_trait;
 
 use super::types::{ApiError, StreamEvent};
 
@@ -34,9 +33,7 @@ pub struct StreamToEventStream {
 }
 
 impl StreamToEventStream {
-    pub fn new(
-        stream: Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>,
-    ) -> Self {
+    pub fn new(stream: Pin<Box<dyn Stream<Item = Result<StreamEvent, ApiError>> + Send>>) -> Self {
         Self {
             stream,
             buffer: VecDeque::new(),
@@ -79,10 +76,7 @@ pub struct BatchEventStream {
 
 impl BatchEventStream {
     pub fn new(inner: Box<dyn EventStream>, batch_size: usize) -> Self {
-        Self {
-            inner,
-            batch_size,
-        }
+        Self { inner, batch_size }
     }
 
     /// 批量获取事件

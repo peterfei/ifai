@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::io::Write;
-use chrono::{DateTime, Utc};
+use std::path::{Path, PathBuf};
 
 /**
  * 提示词导出和导入模块
@@ -118,8 +118,7 @@ impl PromptExporter {
         };
 
         // 3. 序列化为 JSON
-        let json = serde_json::to_string_pretty(&package)
-            .with_context(|| "序列化提示词包失败")?;
+        let json = serde_json::to_string_pretty(&package).with_context(|| "序列化提示词包失败")?;
 
         // 4. 写入文件（暂时使用 JSON，后续可改为 ZIP）
         let output_file = PathBuf::from(output_path);
@@ -133,17 +132,15 @@ impl PromptExporter {
         fs::write(&output_file, json)
             .with_context(|| format!("写入导出文件失败: {:?}", output_file))?;
 
-        Ok(format!("成功导出 {} 个提示词到 {}",
+        Ok(format!(
+            "成功导出 {} 个提示词到 {}",
             prompt_paths.len(),
-            output_file.display()))
+            output_file.display()
+        ))
     }
 
     /// 从文件导入提示词
-    pub fn import_prompts(
-        &self,
-        package_path: String,
-        overwrite: bool,
-    ) -> Result<ImportResult> {
+    pub fn import_prompts(&self, package_path: String, overwrite: bool) -> Result<ImportResult> {
         let package_file = PathBuf::from(&package_path);
 
         if !package_file.exists() {
@@ -154,8 +151,8 @@ impl PromptExporter {
         let json = fs::read_to_string(&package_file)
             .with_context(|| format!("读取包文件失败: {}", package_path))?;
 
-        let package: PromptPackage = serde_json::from_str(&json)
-            .with_context(|| "解析提示词包失败")?;
+        let package: PromptPackage =
+            serde_json::from_str(&json).with_context(|| "解析提示词包失败")?;
 
         // 2. 版本兼容性检查
         self.check_version_compatibility(&package)?;
@@ -174,8 +171,10 @@ impl PromptExporter {
             // 检查文件是否已存在
             if prompt_path.exists() && !overwrite {
                 skipped.push(item.name.clone());
-                warnings.push(format!("提示词 '{}' 已存在，跳过（使用 overwrite=true 覆盖）",
-                    item.name));
+                warnings.push(format!(
+                    "提示词 '{}' 已存在，跳过（使用 overwrite=true 覆盖）",
+                    item.name
+                ));
                 continue;
             }
 
@@ -272,7 +271,8 @@ impl PromptExporter {
                 let content = fs::read_to_string(&path)?;
 
                 // 获取相对路径
-                let rel_path = path.strip_prefix(&self.project_root)
+                let rel_path = path
+                    .strip_prefix(&self.project_root)
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_else(|_| path.display().to_string());
 
@@ -341,7 +341,7 @@ This is a test prompt."#;
         // 测试导入（使用 overwrite=true 覆盖已存在的文件）
         let import_result = exporter.import_prompts(
             output_path.to_string_lossy().to_string(),
-            true,  // overwrite=true
+            true, // overwrite=true
         );
 
         assert!(import_result.is_ok());

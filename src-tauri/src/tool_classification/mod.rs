@@ -23,14 +23,10 @@ mod mock;
 pub mod types;
 
 // 重新导出主要类型
-pub use types::{
-    ToolCategory,
-    ClassificationResult,
-    ClassificationLayer,
-};
+pub use types::{ClassificationLayer, ClassificationResult, ToolCategory};
 
 // 重新导出版本信息
-pub use mock::{is_community_edition, is_commercial_edition, get_edition_info};
+pub use mock::{get_edition_info, is_commercial_edition, is_community_edition};
 
 /// Tauri 命令：获取版本信息
 #[tauri::command]
@@ -91,8 +87,8 @@ pub fn classify_tools(inputs: &[&str]) -> Vec<ClassificationResult> {
 // Tauri Commands
 // ============================================================================
 
+use crate::tool_classification::types::{BatchClassifyResponse, ClassifyToolResponse};
 use std::time::Instant;
-use crate::tool_classification::types::{ClassifyToolResponse, BatchClassifyResponse};
 
 /// Tauri 命令：工具分类
 #[tauri::command]
@@ -101,10 +97,7 @@ pub fn tool_classify(input: String) -> ClassifyToolResponse {
     let result = classify_tool(&input);
     let latency_ms = start.elapsed().as_millis() as u64;
 
-    ClassifyToolResponse {
-        result,
-        latency_ms,
-    }
+    ClassifyToolResponse { result, latency_ms }
 }
 
 /// Tauri 命令：批量工具分类
@@ -168,13 +161,7 @@ mod tests {
 
     #[test]
     fn test_exact_match_pure_commands() {
-        let inputs = [
-            "ls",
-            "pwd",
-            "git status",
-            "npm run dev",
-            "cargo build",
-        ];
+        let inputs = ["ls", "pwd", "git status", "npm run dev", "cargo build"];
 
         for input in inputs {
             let result = classify_tool(input);
@@ -206,11 +193,7 @@ mod tests {
 
     #[test]
     fn test_rule_based_terminal_commands() {
-        let inputs = [
-            "执行 git",
-            "运行 npm",
-            "执行 cargo",
-        ];
+        let inputs = ["执行 git", "运行 npm", "执行 cargo"];
 
         for input in inputs {
             let result = classify_tool(input);
@@ -222,10 +205,7 @@ mod tests {
     // Layer 3 Tests
     #[test]
     fn test_llm_classification() {
-        let inputs = [
-            "帮我分析一下这个项目的架构",
-            "解释这段代码的工作原理",
-        ];
+        let inputs = ["帮我分析一下这个项目的架构", "解释这段代码的工作原理"];
 
         for input in inputs {
             let result = classify_tool(input);
@@ -251,7 +231,9 @@ mod tests {
     #[test]
     fn test_whitespace_input() {
         let result = classify_tool("   ");
-        assert!(matches!(result.category,
-            ToolCategory::AiChat | ToolCategory::NoToolNeeded));
+        assert!(matches!(
+            result.category,
+            ToolCategory::AiChat | ToolCategory::NoToolNeeded
+        ));
     }
 }

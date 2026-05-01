@@ -4,11 +4,11 @@
 
 use super::message::{Message, MessagePriority};
 use super::{AgentId, MessageId};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock, broadcast};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::{broadcast, mpsc, RwLock};
 
 /// 消息总线配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,7 +110,11 @@ impl MessageBus {
     /// 订阅消息
     ///
     /// 返回一个消息接收器
-    pub async fn subscribe(&self, agent_id: AgentId, routes: HashSet<RouteKey>) -> Result<mpsc::UnboundedReceiver<Message>> {
+    pub async fn subscribe(
+        &self,
+        agent_id: AgentId,
+        routes: HashSet<RouteKey>,
+    ) -> Result<mpsc::UnboundedReceiver<Message>> {
         let (tx, rx) = mpsc::unbounded_channel();
 
         let subscriber = Subscriber {
@@ -229,7 +233,10 @@ impl MessageBus {
     }
 
     /// 订阅广播消息
-    pub async fn subscribe_broadcast(&self, agent_id: AgentId) -> Result<broadcast::Receiver<Message>> {
+    pub async fn subscribe_broadcast(
+        &self,
+        agent_id: AgentId,
+    ) -> Result<broadcast::Receiver<Message>> {
         Ok(self.broadcast_tx.subscribe())
     }
 
@@ -315,11 +322,12 @@ impl EventBus {
     }
 
     /// 订阅事件
-    pub async fn subscribe(&self, agent_id: AgentId, topics: Vec<String>) -> Result<mpsc::UnboundedReceiver<Message>> {
-        let routes: HashSet<RouteKey> = topics
-            .into_iter()
-            .map(RouteKey::Topic)
-            .collect();
+    pub async fn subscribe(
+        &self,
+        agent_id: AgentId,
+        topics: Vec<String>,
+    ) -> Result<mpsc::UnboundedReceiver<Message>> {
+        let routes: HashSet<RouteKey> = topics.into_iter().map(RouteKey::Topic).collect();
 
         // 确保主题存在
         {
@@ -388,12 +396,8 @@ mod tests {
         let mut rx2 = bus.subscribe("agent2".to_string(), routes2).await.unwrap();
 
         // 发送消息给 agent1
-        let msg = Message::data(
-            "sender".to_string(),
-            "test",
-            serde_json::json!("data"),
-        )
-        .with_to("agent1".to_string());
+        let msg = Message::data("sender".to_string(), "test", serde_json::json!("data"))
+            .with_to("agent1".to_string());
 
         bus.send(msg).await.unwrap();
 
@@ -420,11 +424,7 @@ mod tests {
         let mut rx2 = bus.subscribe("agent2".to_string(), routes2).await.unwrap();
 
         // 广播消息
-        let msg = Message::data(
-            "sender".to_string(),
-            "test",
-            serde_json::json!("data"),
-        );
+        let msg = Message::data("sender".to_string(), "test", serde_json::json!("data"));
 
         bus.send(msg).await.unwrap();
 
@@ -440,19 +440,11 @@ mod tests {
     async fn test_message_history() {
         let bus = MessageBus::with_default_config();
 
-        let msg1 = Message::data(
-            "sender".to_string(),
-            "test",
-            serde_json::json!("data1"),
-        )
-        .with_session("session1".to_string());
+        let msg1 = Message::data("sender".to_string(), "test", serde_json::json!("data1"))
+            .with_session("session1".to_string());
 
-        let msg2 = Message::data(
-            "sender".to_string(),
-            "test",
-            serde_json::json!("data2"),
-        )
-        .with_session("session2".to_string());
+        let msg2 = Message::data("sender".to_string(), "test", serde_json::json!("data2"))
+            .with_session("session2".to_string());
 
         bus.send(msg1).await.unwrap();
         bus.send(msg2).await.unwrap();
@@ -469,13 +461,12 @@ mod tests {
         let event_bus = EventBus::new();
 
         let agent_id = "agent1".to_string();
-        let mut rx = event_bus.subscribe(agent_id.clone(), vec!["topic1".to_string()]).await.unwrap();
+        let mut rx = event_bus
+            .subscribe(agent_id.clone(), vec!["topic1".to_string()])
+            .await
+            .unwrap();
 
-        let msg = Message::data(
-            "sender".to_string(),
-            "event",
-            serde_json::json!("data"),
-        );
+        let msg = Message::data("sender".to_string(), "event", serde_json::json!("data"));
 
         event_bus.publish("topic1".to_string(), msg).await.unwrap();
 

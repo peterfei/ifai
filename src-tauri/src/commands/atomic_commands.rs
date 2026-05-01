@@ -6,11 +6,11 @@
 //! - 提交或回滚
 //! - 冲突检测
 
-use tauri::State;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use tauri::State;
 
 // ============================================================================
 // 类型定义
@@ -71,12 +71,10 @@ pub fn atomic_write_start_internal(
     sessions: &std::sync::Mutex<SessionStore>,
 ) -> Result<String, String> {
     let session_id = uuid::Uuid::new_v4().to_string();
-    let temp_dir = std::env::temp_dir()
-        .join(format!("ifainew-atomic-{}", session_id));
+    let temp_dir = std::env::temp_dir().join(format!("ifainew-atomic-{}", session_id));
 
     // 创建临时目录
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to create temp dir: {}", e))?;
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
 
     let session = AtomicWriteSession {
         id: session_id.clone(),
@@ -85,7 +83,8 @@ pub fn atomic_write_start_internal(
         created_at: chrono::Utc::now().timestamp(),
     };
 
-    let mut store = sessions.lock()
+    let mut store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     store.insert(session_id.clone(), session);
 
@@ -98,9 +97,11 @@ pub fn atomic_write_add_operation_internal(
     session_id: String,
     operation: FileOperationRequest,
 ) -> Result<(), String> {
-    let mut store = sessions.lock()
+    let mut store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    let session = store.get_mut(&session_id)
+    let session = store
+        .get_mut(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
     // 验证文件路径
@@ -118,9 +119,11 @@ pub fn atomic_write_detect_conflicts_internal(
     sessions: &std::sync::Mutex<SessionStore>,
     session_id: String,
 ) -> Result<Vec<String>, String> {
-    let store = sessions.lock()
+    let store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    let session = store.get(&session_id)
+    let session = store
+        .get(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
     let conflicts = Vec::new();
@@ -136,13 +139,13 @@ pub fn atomic_write_detect_conflicts_internal(
                 }
 
                 // 读取当前文件内容
-                let current_content = fs::read_to_string(&path)
-                    .map_err(|e| format!("Failed to read file: {}", e))?;
+                let current_content =
+                    fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))?;
 
                 // 计算哈希比较
                 let compute_hash = |content: &str| -> String {
-                    use std::hash::{Hash, Hasher};
                     use std::collections::hash_map::DefaultHasher;
+                    use std::hash::{Hash, Hasher};
 
                     let mut hasher = DefaultHasher::new();
                     content.hash(&mut hasher);
@@ -172,9 +175,11 @@ pub fn atomic_write_commit_internal(
     sessions: &std::sync::Mutex<SessionStore>,
     session_id: String,
 ) -> Result<AtomicWriteResult, String> {
-    let mut store = sessions.lock()
+    let mut store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    let session = store.remove(&session_id)
+    let session = store
+        .remove(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
     let mut applied_files = Vec::new();
@@ -267,21 +272,23 @@ pub fn atomic_write_rollback_internal(
     sessions: &std::sync::Mutex<SessionStore>,
     session_id: String,
 ) -> Result<(), String> {
-    let store = sessions.lock()
+    let store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    let session = store.get(&session_id)
+    let session = store
+        .get(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
     // 清理临时目录
     let temp_path = PathBuf::from(&session.temp_dir);
     if temp_path.exists() {
-        fs::remove_dir_all(temp_path)
-            .map_err(|e| format!("Failed to cleanup: {}", e))?;
+        fs::remove_dir_all(temp_path).map_err(|e| format!("Failed to cleanup: {}", e))?;
     }
 
     // 从存储中移除会话
     drop(store);
-    let mut store = sessions.lock()
+    let mut store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
     store.remove(&session_id);
 
@@ -343,9 +350,11 @@ pub fn atomic_write_get_session(
     sessions: State<std::sync::Mutex<SessionStore>>,
     session_id: String,
 ) -> Result<AtomicWriteSession, String> {
-    let store = sessions.lock()
+    let store = sessions
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    let session = store.get(&session_id)
+    let session = store
+        .get(&session_id)
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
     Ok(session.clone())
@@ -354,11 +363,10 @@ pub fn atomic_write_get_session(
 /// 计算文件哈希
 #[tauri::command]
 pub fn atomic_file_hash(path: String) -> Result<String, String> {
-    use std::hash::{Hash, Hasher};
     use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content = fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let mut hasher = DefaultHasher::new();
     content.hash(&mut hasher);
@@ -367,10 +375,7 @@ pub fn atomic_file_hash(path: String) -> Result<String, String> {
 
 /// 检查文件冲突
 #[tauri::command]
-pub fn atomic_check_conflict(
-    path: String,
-    expected_hash: String,
-) -> Result<bool, String> {
+pub fn atomic_check_conflict(path: String, expected_hash: String) -> Result<bool, String> {
     let current_hash = atomic_file_hash(path)?;
     Ok(current_hash != expected_hash)
 }
@@ -434,8 +439,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Content 1".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         atomic_write_add_operation_internal(
             &store,
@@ -445,8 +451,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Content 2".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         atomic_write_add_operation_internal(
             &store,
@@ -456,8 +463,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Content 3".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 提交
         let result = atomic_write_commit_internal(&store, session_id.clone()).unwrap();
@@ -501,8 +509,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Content 1".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 回滚
         atomic_write_rollback_internal(&store, session_id.clone()).unwrap();
@@ -544,8 +553,9 @@ mod tests {
                 op_type: FileOperationType::Update,
                 content: Some("New content".to_string()),
                 original_content: Some("Original content".to_string()),
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 检测冲突（此时没有冲突）
         let conflicts = atomic_write_detect_conflicts_internal(&store, session_id.clone()).unwrap();
@@ -586,8 +596,9 @@ mod tests {
                 op_type: FileOperationType::Update,
                 content: Some("Updated content".to_string()),
                 original_content: Some("Original content".to_string()),
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 提交
         let result = atomic_write_commit_internal(&store, session_id.clone()).unwrap();
@@ -625,8 +636,9 @@ mod tests {
                 op_type: FileOperationType::Delete,
                 content: None,
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 提交
         let result = atomic_write_commit_internal(&store, session_id.clone()).unwrap();
@@ -667,8 +679,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("New file".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 操作2: 更新现有文件
         atomic_write_add_operation_internal(
@@ -679,8 +692,9 @@ mod tests {
                 op_type: FileOperationType::Update,
                 content: Some("Updated".to_string()),
                 original_content: Some("Original".to_string()),
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 操作3: 删除文件
         atomic_write_add_operation_internal(
@@ -691,8 +705,9 @@ mod tests {
                 op_type: FileOperationType::Delete,
                 content: None,
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 提交
         let result = atomic_write_commit_internal(&store, session_id.clone()).unwrap();
@@ -724,7 +739,11 @@ mod tests {
         let session_id = atomic_write_start_internal(&store).unwrap();
 
         // 创建深层嵌套文件
-        let nested_file = test_dir.join("level1").join("level2").join("level3").join("file.txt");
+        let nested_file = test_dir
+            .join("level1")
+            .join("level2")
+            .join("level3")
+            .join("file.txt");
 
         atomic_write_add_operation_internal(
             &store,
@@ -734,8 +753,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Nested content".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 提交
         let result = atomic_write_commit_internal(&store, session_id.clone()).unwrap();
@@ -771,8 +791,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Session 1".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 会话2添加文件
         let file2 = test_dir.join("session2.txt");
@@ -784,8 +805,9 @@ mod tests {
                 op_type: FileOperationType::Create,
                 content: Some("Session 2".to_string()),
                 original_content: None,
-            }
-        ).unwrap();
+            },
+        )
+        .unwrap();
 
         // 只提交会话1
         let result1 = atomic_write_commit_internal(&store, session1.clone()).unwrap();

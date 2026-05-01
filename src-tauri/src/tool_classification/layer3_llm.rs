@@ -11,7 +11,7 @@ Layer 3: LLM Classification
 目标准确率：85%+
 */
 
-use super::types::{ClassificationResult, ClassificationLayer, ToolCategory};
+use super::types::{ClassificationLayer, ClassificationResult, ToolCategory};
 
 // 条件导入：仅当启用 llm-inference feature 时可用
 #[cfg(feature = "llm-inference")]
@@ -20,8 +20,7 @@ use crate::llm_inference::generate_completion;
 // 商业版：导入私有库 ifainew-core
 #[cfg(feature = "commercial")]
 use ifainew_core::tool_classification::{
-    classify_with_llm as core_classify_with_llm,
-    ToolCategory as CoreToolCategory,
+    classify_with_llm as core_classify_with_llm, ToolCategory as CoreToolCategory,
 };
 
 // ============================================================================
@@ -60,10 +59,12 @@ fn convert_core_category(category: CoreToolCategory) -> ToolCategory {
 #[cfg(all(feature = "llm-inference", feature = "commercial"))]
 pub fn classify(input: &str) -> ClassificationResult {
     // 商业版：使用 ifainew-core 的 LLM 分类
-    let llm_generate = |prompt: &str, max_tokens: usize| -> Result<String, Box<dyn std::error::Error>> {
-        // 调用本地的 llama.cpp 推理
-        generate_completion(prompt, max_tokens).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-    };
+    let llm_generate =
+        |prompt: &str, max_tokens: usize| -> Result<String, Box<dyn std::error::Error>> {
+            // 调用本地的 llama.cpp 推理
+            generate_completion(prompt, max_tokens)
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+        };
 
     match core_classify_with_llm(input, llm_generate) {
         Ok(core_result) => {

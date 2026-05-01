@@ -11,11 +11,7 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     use ifainew_lib::llm_inference::{
-        generate_completion,
-        default_model_path,
-        load_model,
-        is_model_loaded,
-        VERSION,
+        default_model_path, generate_completion, is_model_loaded, load_model, VERSION,
     };
 
     println!("========================================");

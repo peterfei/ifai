@@ -9,8 +9,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 
-use crate::permission::{self as approval, RiskLevel, ToolCategory};
 use super::session::PendingToolCall;
+use crate::permission::{self as approval, RiskLevel, ToolCategory};
 
 // ═══════════════════════════════════════════════════════════
 // Phase 1.1 — 审批核心类型
@@ -35,7 +35,9 @@ pub enum ApprovalDecision {
 impl From<ApprovalDecision> for Option<bool> {
     fn from(decision: ApprovalDecision) -> Self {
         match decision {
-            ApprovalDecision::ApproveOnce | ApprovalDecision::ApproveAlways | ApprovalDecision::ApproveSession => Some(true),
+            ApprovalDecision::ApproveOnce
+            | ApprovalDecision::ApproveAlways
+            | ApprovalDecision::ApproveSession => Some(true),
             ApprovalDecision::Deny => Some(false),
             ApprovalDecision::Abort => None,
         }
@@ -54,9 +56,12 @@ pub struct ApprovalRequest {
 
 impl ApprovalRequest {
     /// 从 PendingToolCall 构造审批请求
-    pub fn from_tool(tool: &PendingToolCall, response_tx: tokio::sync::oneshot::Sender<ApprovalDecision>) -> Self {
-        let args_json: serde_json::Value = serde_json::from_str(&tool.args)
-            .unwrap_or(serde_json::json!({}));
+    pub fn from_tool(
+        tool: &PendingToolCall,
+        response_tx: tokio::sync::oneshot::Sender<ApprovalDecision>,
+    ) -> Self {
+        let args_json: serde_json::Value =
+            serde_json::from_str(&tool.args).unwrap_or(serde_json::json!({}));
         let risk_level = approval::calculate_risk(&tool.name, &args_json);
         let category = approval::categorize_tool(&tool.name);
 
@@ -84,11 +89,36 @@ pub struct KeyAction {
 }
 
 pub const APPROVAL_KEYMAP: &[KeyAction] = &[
-    KeyAction { key: KeyCode::Char('y'), modifiers: KeyModifiers::NONE, label: "批准", decision: ApprovalDecision::ApproveOnce },
-    KeyAction { key: KeyCode::Char('a'), modifiers: KeyModifiers::NONE, label: "永久允许", decision: ApprovalDecision::ApproveAlways },
-    KeyAction { key: KeyCode::Char('s'), modifiers: KeyModifiers::NONE, label: "会话允许", decision: ApprovalDecision::ApproveSession },
-    KeyAction { key: KeyCode::Char('n'), modifiers: KeyModifiers::NONE, label: "拒绝", decision: ApprovalDecision::Deny },
-    KeyAction { key: KeyCode::Esc, modifiers: KeyModifiers::NONE, label: "中止", decision: ApprovalDecision::Abort },
+    KeyAction {
+        key: KeyCode::Char('y'),
+        modifiers: KeyModifiers::NONE,
+        label: "批准",
+        decision: ApprovalDecision::ApproveOnce,
+    },
+    KeyAction {
+        key: KeyCode::Char('a'),
+        modifiers: KeyModifiers::NONE,
+        label: "永久允许",
+        decision: ApprovalDecision::ApproveAlways,
+    },
+    KeyAction {
+        key: KeyCode::Char('s'),
+        modifiers: KeyModifiers::NONE,
+        label: "会话允许",
+        decision: ApprovalDecision::ApproveSession,
+    },
+    KeyAction {
+        key: KeyCode::Char('n'),
+        modifiers: KeyModifiers::NONE,
+        label: "拒绝",
+        decision: ApprovalDecision::Deny,
+    },
+    KeyAction {
+        key: KeyCode::Esc,
+        modifiers: KeyModifiers::NONE,
+        label: "中止",
+        decision: ApprovalDecision::Abort,
+    },
 ];
 
 /// O(n) 查表，零 match
@@ -127,9 +157,27 @@ pub struct RiskDisplay {
 }
 
 pub const RISK_DISPLAYS: &[(RiskLevel, RiskDisplay)] = &[
-    (RiskLevel::Low,    RiskDisplay { icon: "🟢", color: Color::Green }),
-    (RiskLevel::Medium, RiskDisplay { icon: "🟡", color: Color::Yellow }),
-    (RiskLevel::High,   RiskDisplay { icon: "🔴", color: Color::Red }),
+    (
+        RiskLevel::Low,
+        RiskDisplay {
+            icon: "🟢",
+            color: Color::Green,
+        },
+    ),
+    (
+        RiskLevel::Medium,
+        RiskDisplay {
+            icon: "🟡",
+            color: Color::Yellow,
+        },
+    ),
+    (
+        RiskLevel::High,
+        RiskDisplay {
+            icon: "🔴",
+            color: Color::Red,
+        },
+    ),
 ];
 
 /// 查表获取风险显示配置，默认 Gray
@@ -138,7 +186,10 @@ pub fn risk_display(level: RiskLevel) -> &'static RiskDisplay {
         .iter()
         .find(|(l, _)| *l == level)
         .map(|(_, d)| d)
-        .unwrap_or(&RiskDisplay { icon: "⚪", color: Color::Gray })
+        .unwrap_or(&RiskDisplay {
+            icon: "⚪",
+            color: Color::Gray,
+        })
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -148,10 +199,10 @@ pub fn risk_display(level: RiskLevel) -> &'static RiskDisplay {
 /// 审批选项类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApprovalOptionType {
-    Once,       // 仅本次允许
-    Always,     // 持久化白名单
-    Session,    // 会话级白名单
-    Deny,       // 拒绝
+    Once,    // 仅本次允许
+    Always,  // 持久化白名单
+    Session, // 会话级白名单
+    Deny,    // 拒绝
 }
 
 /// 审批选项定义（代码即数据）
@@ -214,7 +265,8 @@ pub fn build_approval_options_declarative(req: &ApprovalRequest) -> Vec<Approval
         .iter()
         .filter(|def| def.categories.contains(&req.category))
         .map(|def| {
-            let label = def.label_template
+            let label = def
+                .label_template
                 .replace("{tool}", &req.tool_name)
                 .replace("{path}", &extract_path_hint(req));
             let decision = match def.option_type {
@@ -371,7 +423,11 @@ fn approval_sections() -> &'static [PanelSection] {
         PanelSection {
             label: "工具",
             value_fn: |req| req.tool_name.clone(),
-            style_fn: |_| Style::default().fg(Color::White).add_modifier(ratatui::style::Modifier::BOLD),
+            style_fn: |_| {
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(ratatui::style::Modifier::BOLD)
+            },
         },
         PanelSection {
             label: "风险",
@@ -393,7 +449,9 @@ fn approval_sections() -> &'static [PanelSection] {
 fn approval_panel_def() -> PanelDef<'static> {
     PanelDef {
         title: "⚠️  工具执行审批",
-        title_style: Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD),
+        title_style: Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(ratatui::style::Modifier::BOLD),
         sections: approval_sections(),
     }
 }
@@ -453,7 +511,10 @@ fn extract_path_hint(req: &ApprovalRequest) -> String {
 /// 返回 (lines, height)：
 /// - lines: 面板的所有行（包括边框）
 /// - height: 面板的总高度
-pub fn render_bottom_panel(req: &ApprovalRequest, selected_index: usize) -> (Vec<Line<'static>>, u16) {
+pub fn render_bottom_panel(
+    req: &ApprovalRequest,
+    selected_index: usize,
+) -> (Vec<Line<'static>>, u16) {
     let options = build_approval_options(req);
     let tool_display = get_tool_display_name(&req.tool_name);
 
@@ -497,10 +558,7 @@ pub fn render_bottom_panel(req: &ApprovalRequest, selected_index: usize) -> (Vec
 
         lines.push(Line::from(vec![
             Span::raw("  "),
-            Span::styled(
-                format!("{}. {}", i + 1, option.label),
-                style,
-            ),
+            Span::styled(format!("{}. {}", i + 1, option.label), style),
         ]));
     }
 
@@ -556,17 +614,26 @@ mod tests {
 
     #[test]
     fn test_resolve_approval_key_y() {
-        assert_eq!(resolve_approval_key(char_key('y')), Some(ApprovalDecision::ApproveOnce));
+        assert_eq!(
+            resolve_approval_key(char_key('y')),
+            Some(ApprovalDecision::ApproveOnce)
+        );
     }
 
     #[test]
     fn test_resolve_approval_key_n() {
-        assert_eq!(resolve_approval_key(char_key('n')), Some(ApprovalDecision::Deny));
+        assert_eq!(
+            resolve_approval_key(char_key('n')),
+            Some(ApprovalDecision::Deny)
+        );
     }
 
     #[test]
     fn test_resolve_approval_key_esc() {
-        assert_eq!(resolve_approval_key(esc_key()), Some(ApprovalDecision::Abort));
+        assert_eq!(
+            resolve_approval_key(esc_key()),
+            Some(ApprovalDecision::Abort)
+        );
     }
 
     #[test]
@@ -631,12 +698,20 @@ mod tests {
 
     #[test]
     fn test_args_preview_multiline_truncate() {
-        let long_cmd = (0..20).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+        let long_cmd = (0..20)
+            .map(|i| format!("line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let args_json = serde_json::json!({"cmd": long_cmd}).to_string();
         let req = make_request("bash", &args_json);
         let preview = args_preview(&req);
         let line_count = preview.lines().count();
-        assert!(line_count <= 7, "expected <=7 lines, got {} lines: {:?}", line_count, preview);
+        assert!(
+            line_count <= 7,
+            "expected <=7 lines, got {} lines: {:?}",
+            line_count,
+            preview
+        );
         assert!(preview.contains("..."), "preview: {}", preview);
     }
 
@@ -786,7 +861,11 @@ mod tests {
         assert!(height > 0);
         let text = lines_to_text(&lines);
         // render_bottom_panel 使用 get_tool_display_name → "Read file"
-        assert!(text.contains("Read file"), "panel should contain display name, got: {}", &text);
+        assert!(
+            text.contains("Read file"),
+            "panel should contain display name, got: {}",
+            &text
+        );
     }
 
     #[test]
@@ -796,7 +875,11 @@ mod tests {
         let (lines, height) = render_bottom_panel(&request, 0);
         assert!(height > 0);
         let text = lines_to_text(&lines);
-        assert!(text.contains("ls -la /tmp"), "panel should contain args preview, got: {}", &text);
+        assert!(
+            text.contains("ls -la /tmp"),
+            "panel should contain args preview, got: {}",
+            &text
+        );
     }
 
     #[test]

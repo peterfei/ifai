@@ -5,11 +5,11 @@
 //! - 生成修复上下文
 //! - 错误分类和提取
 
-use tauri::State;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::State;
 
 // ============================================================================
 // 类型定义
@@ -75,9 +75,7 @@ impl ErrorParserState {
 
         #[cfg(not(feature = "commercial"))]
         {
-            Ok(Self {
-                parser: None,
-            })
+            Ok(Self { parser: None })
         }
     }
 }
@@ -92,7 +90,8 @@ pub fn parse_terminal_errors(
     state: State<Mutex<ErrorParserState>>,
     output: String,
 ) -> Result<Vec<ParsedErrorFrontend>, String> {
-    let _state = state.lock()
+    let _state = state
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
 
     #[cfg(feature = "commercial")]
@@ -128,9 +127,18 @@ pub fn parse_terminal_errors(
             if let Some(caps) = re.captures(line) {
                 errors.push(ParsedErrorFrontend {
                     code: "ERROR".to_string(),
-                    message: caps.get(3).map(|m| m.as_str().to_string()).unwrap_or_default(),
-                    file: caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default(),
-                    line: caps.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0),
+                    message: caps
+                        .get(3)
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_default(),
+                    file: caps
+                        .get(1)
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_default(),
+                    line: caps
+                        .get(2)
+                        .and_then(|m| m.as_str().parse().ok())
+                        .unwrap_or(0),
                     column: None,
                     level: "Error".to_string(),
                     language: "Generic".to_string(),
@@ -155,18 +163,19 @@ pub fn generate_error_fix_context(
     language: String,
     raw_line: String,
 ) -> Result<FixContextFrontend, String> {
-    let _state = state.lock()
+    let _state = state
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
 
     // 读取文件内容
     let path = PathBuf::from(&file_path);
-    let file_content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let file_content =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     #[cfg(feature = "commercial")]
     {
         // 构造 ParsedError
-        use ifainew_core::error_parser::{ParsedError, ErrorLevel, Language};
+        use ifainew_core::error_parser::{ErrorLevel, Language, ParsedError};
 
         let parsed_language = match language.as_str() {
             "Rust" => Language::Rust,
@@ -238,7 +247,8 @@ pub fn quick_parse_error_line(
     state: State<Mutex<ErrorParserState>>,
     line: String,
 ) -> Result<Option<ParsedErrorFrontend>, String> {
-    let _state = state.lock()
+    let _state = state
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
 
     #[cfg(feature = "commercial")]
@@ -271,9 +281,18 @@ pub fn quick_parse_error_line(
         if let Some(caps) = re.captures(&line) {
             Ok(Some(ParsedErrorFrontend {
                 code: "ERROR".to_string(),
-                message: caps.get(3).map(|m| m.as_str().to_string()).unwrap_or_default(),
-                file: caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default(),
-                line: caps.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0),
+                message: caps
+                    .get(3)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default(),
+                file: caps
+                    .get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default(),
+                line: caps
+                    .get(2)
+                    .and_then(|m| m.as_str().parse().ok())
+                    .unwrap_or(0),
                 column: None,
                 level: "Error".to_string(),
                 language: "Generic".to_string(),
@@ -291,11 +310,15 @@ pub fn detect_terminal_language(
     state: State<Mutex<ErrorParserState>>,
     output: String,
 ) -> Result<String, String> {
-    let state = state.lock()
+    let state = state
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
 
     // 使用内部方法检测语言
-    let language = if output.contains("error[E") || output.contains("Compiling") || output.contains("cargo ") {
+    let language = if output.contains("error[E")
+        || output.contains("Compiling")
+        || output.contains("cargo ")
+    {
         "Rust".to_string()
     } else if output.contains("npm ERR") || output.contains("node:") || output.contains(".ts:") {
         "TypeScript".to_string()
@@ -318,7 +341,8 @@ pub fn batch_parse_errors(
     state: State<Mutex<ErrorParserState>>,
     outputs: Vec<String>,
 ) -> Result<Vec<Vec<ParsedErrorFrontend>>, String> {
-    let _state = state.lock()
+    let _state = state
+        .lock()
         .map_err(|e| format!("Failed to acquire lock: {}", e))?;
 
     let mut all_errors = Vec::new();
@@ -358,9 +382,18 @@ pub fn batch_parse_errors(
                 if let Some(caps) = re.captures(line) {
                     errors.push(ParsedErrorFrontend {
                         code: "ERROR".to_string(),
-                        message: caps.get(3).map(|m| m.as_str().to_string()).unwrap_or_default(),
-                        file: caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default(),
-                        line: caps.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0),
+                        message: caps
+                            .get(3)
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_default(),
+                        file: caps
+                            .get(1)
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_default(),
+                        line: caps
+                            .get(2)
+                            .and_then(|m| m.as_str().parse().ok())
+                            .unwrap_or(0),
                         column: None,
                         level: "Error".to_string(),
                         language: "Generic".to_string(),
@@ -384,8 +417,7 @@ pub fn get_error_file_content(
     context_lines: Option<u32>,
 ) -> Result<String, String> {
     let path = PathBuf::from(&file_path);
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content = fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let lines: Vec<&str> = content.lines().collect();
     let ctx = context_lines.unwrap_or(3);

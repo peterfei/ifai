@@ -39,13 +39,41 @@ pub enum PopupAction {
 
 /// 查表路由：按键 → 弹出框操作（零 match）
 const POPUP_KEYMAP: &[PopupKeyAction] = &[
-    PopupKeyAction { key: KeyCode::Up, modifiers: KeyModifiers::NONE, action: PopupAction::Prev },
-    PopupKeyAction { key: KeyCode::Char('p'), modifiers: KeyModifiers::CONTROL, action: PopupAction::Prev },
-    PopupKeyAction { key: KeyCode::Down, modifiers: KeyModifiers::NONE, action: PopupAction::Next },
-    PopupKeyAction { key: KeyCode::Char('n'), modifiers: KeyModifiers::CONTROL, action: PopupAction::Next },
-    PopupKeyAction { key: KeyCode::Tab, modifiers: KeyModifiers::NONE, action: PopupAction::Select },
-    PopupKeyAction { key: KeyCode::Enter, modifiers: KeyModifiers::NONE, action: PopupAction::Select },
-    PopupKeyAction { key: KeyCode::Esc, modifiers: KeyModifiers::NONE, action: PopupAction::Close },
+    PopupKeyAction {
+        key: KeyCode::Up,
+        modifiers: KeyModifiers::NONE,
+        action: PopupAction::Prev,
+    },
+    PopupKeyAction {
+        key: KeyCode::Char('p'),
+        modifiers: KeyModifiers::CONTROL,
+        action: PopupAction::Prev,
+    },
+    PopupKeyAction {
+        key: KeyCode::Down,
+        modifiers: KeyModifiers::NONE,
+        action: PopupAction::Next,
+    },
+    PopupKeyAction {
+        key: KeyCode::Char('n'),
+        modifiers: KeyModifiers::CONTROL,
+        action: PopupAction::Next,
+    },
+    PopupKeyAction {
+        key: KeyCode::Tab,
+        modifiers: KeyModifiers::NONE,
+        action: PopupAction::Select,
+    },
+    PopupKeyAction {
+        key: KeyCode::Enter,
+        modifiers: KeyModifiers::NONE,
+        action: PopupAction::Select,
+    },
+    PopupKeyAction {
+        key: KeyCode::Esc,
+        modifiers: KeyModifiers::NONE,
+        action: PopupAction::Close,
+    },
 ];
 
 /// O(n) 查表，零 match
@@ -183,9 +211,7 @@ impl CommandPopup {
                 }
                 None
             }
-            PopupAction::Close => {
-                None
-            }
+            PopupAction::Close => None,
             PopupAction::Pass => None,
         }
     }
@@ -273,10 +299,16 @@ impl CommandPopup {
 
         // 匹配字符高亮
         let name_span = if !self.filter.is_empty() {
-            let highlighted = Self::highlight_match(&name_text, &self.filter, POPUP_STYLE.match_color);
+            let highlighted =
+                Self::highlight_match(&name_text, &self.filter, POPUP_STYLE.match_color);
             highlighted
         } else {
-            Span::styled(name_text, Style::default().fg(Color::White).add_modifier(Modifier::BOLD))
+            Span::styled(
+                name_text,
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
         };
 
         let desc_span = Span::styled(
@@ -296,15 +328,16 @@ impl CommandPopup {
     fn highlight_match(text: &str, query: &str, color: Color) -> Span<'static> {
         if text.starts_with(query) {
             let (matched, rest) = text.split_at(query.len());
-            Span::raw(format!(
-                "{}{}",
-                matched,
-                rest
-            ))
+            Span::raw(format!("{}{}", matched, rest))
             // TODO: ratatui Line 不支持 span 内嵌不同样式，
             // 简化为全白（后续可用 Line::from(vec![...]) 增强）
         } else {
-            Span::styled(text.to_string(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD))
+            Span::styled(
+                text.to_string(),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            )
         }
     }
 }
@@ -345,19 +378,31 @@ mod tests {
 
     #[test]
     fn test_keymap_next() {
-        assert_eq!(resolve_popup_key(code_key(KeyCode::Down)), PopupAction::Next);
+        assert_eq!(
+            resolve_popup_key(code_key(KeyCode::Down)),
+            PopupAction::Next
+        );
         assert_eq!(resolve_popup_key(ctrl_key('n')), PopupAction::Next);
     }
 
     #[test]
     fn test_keymap_select() {
-        assert_eq!(resolve_popup_key(code_key(KeyCode::Tab)), PopupAction::Select);
-        assert_eq!(resolve_popup_key(code_key(KeyCode::Enter)), PopupAction::Select);
+        assert_eq!(
+            resolve_popup_key(code_key(KeyCode::Tab)),
+            PopupAction::Select
+        );
+        assert_eq!(
+            resolve_popup_key(code_key(KeyCode::Enter)),
+            PopupAction::Select
+        );
     }
 
     #[test]
     fn test_keymap_close() {
-        assert_eq!(resolve_popup_key(code_key(KeyCode::Esc)), PopupAction::Close);
+        assert_eq!(
+            resolve_popup_key(code_key(KeyCode::Esc)),
+            PopupAction::Close
+        );
     }
 
     #[test]

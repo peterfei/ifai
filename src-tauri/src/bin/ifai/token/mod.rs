@@ -20,19 +20,19 @@ pub mod display;
 pub mod stream_status;
 
 pub use display::{
-    format_token_warning,
+    calculate_cost,
+    estimate_tokens, // 🔥 公开供 StreamStatus 使用
+    format_compaction_warning,
     format_cost,
     format_session_stats,
-    format_compaction_warning,
+    format_token_warning,
     get_model_max_tokens,
-    calculate_cost,
-    estimate_tokens,  // 🔥 公开供 StreamStatus 使用
 };
 
 pub use stream_status::{
-    StreamStatus,
-    StatusBarState,
+    format_number, // 🔥 公开供会话摘要使用
     BottomStatusBar,
+    StatusBarState,
+    StreamStatus,
     STATUS_REFRESH_INTERVAL,
-    format_number,  // 🔥 公开供会话摘要使用
 };

@@ -8,8 +8,8 @@
 //! - Dispatch 路由
 //! - 权限检查
 
-use super::session::Session;
 use super::render::RESET;
+use super::session::Session;
 
 // ============================================================================
 // Types
@@ -187,8 +187,7 @@ pub fn find_command(name: &str) -> Option<&'static CommandSpec> {
 
 /// 🔥 Dispatch 命令到 handler（支持 Session 参数）
 pub fn dispatch_command(session: &mut Session, name: &str, arg: Option<&str>) -> CommandResult {
-    let spec = find_command(name)
-        .ok_or_else(|| unknown_command_error(name))?;
+    let spec = find_command(name).ok_or_else(|| unknown_command_error(name))?;
 
     // 权限检查（预留接口，当前总是通过）
     // TODO: 集成 permission 系统
@@ -199,11 +198,13 @@ pub fn dispatch_command(session: &mut Session, name: &str, arg: Option<&str>) ->
 
 /// 生成未知命令错误消息（包含建议）
 fn unknown_command_error(name: &str) -> String {
-    let suggestions: Vec<_> = COMMAND_SPECS.iter()
-        .map(|s| s.name)
-        .collect();
+    let suggestions: Vec<_> = COMMAND_SPECS.iter().map(|s| s.name).collect();
 
-    format!("unknown command: /{}. Available: {}", name, suggestions.join(", "))
+    format!(
+        "unknown command: /{}. Available: {}",
+        name,
+        suggestions.join(", ")
+    )
 }
 
 /// 生成帮助文本（从 COMMAND_SPECS 自动生成）
@@ -248,17 +249,19 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     if session.messages.len() <= keep_last_n + 2 {
         return Ok(Some(format!(
             "{}对话无需压缩（{} 条消息 < {} 条阈值）。使用 /clear 清空所有对话。{}",
-            theme.muted, session.messages.len(), keep_last_n + 2, RESET
+            theme.muted,
+            session.messages.len(),
+            keep_last_n + 2,
+            RESET
         )));
     }
 
     let before_count = session.messages.len();
     let before_tokens = super::token::estimate_tokens(&session.messages);
 
-    println!("{}🔄 压缩对话...{}",
-        theme.heading, RESET
-    );
-    println!("{}压缩前：{} 条消息，约 {} tokens{}",
+    println!("{}🔄 压缩对话...{}", theme.heading, RESET);
+    println!(
+        "{}压缩前：{} 条消息，约 {} tokens{}",
         theme.muted, before_count, before_tokens, RESET
     );
 
@@ -284,10 +287,12 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     let after_count = session.messages.len();
     let after_tokens = super::token::estimate_tokens(&session.messages);
 
-    println!("{}压缩后：{} 条消息，约 {} tokens{}",
+    println!(
+        "{}压缩后：{} 条消息，约 {} tokens{}",
         theme.success, after_count, after_tokens, RESET
     );
-    println!("{}减少了：{} 条消息，约 {} tokens{}",
+    println!(
+        "{}减少了：{} 条消息，约 {} tokens{}",
         theme.brand,
         before_count - after_count,
         before_tokens - after_tokens,
@@ -302,13 +307,15 @@ fn cmd_compact(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
 /// 🔥 显示 token 使用和成本统计（复用 GUI 端定价数据）
 fn cmd_cost(session: &mut Session, _arg: Option<&str>) -> CommandResult {
-    use super::token;
     use super::render::{default_theme, RESET};
+    use super::token;
 
     let theme = default_theme();
 
     // 🔥 使用 token display 模块格式化输出（包含进度条）
-    let cost_display = if session.cumulative_input_tokens == 0 && session.cumulative_output_tokens == 0 {
+    let cost_display = if session.cumulative_input_tokens == 0
+        && session.cumulative_output_tokens == 0
+    {
         format!("{}No token usage recorded yet.{}", theme.muted, RESET)
     } else {
         // 🔥 显示成本 + Token 进度条
@@ -317,14 +324,10 @@ fn cmd_cost(session: &mut Session, _arg: Option<&str>) -> CommandResult {
             &session.model,
             session.cumulative_input_tokens,
             session.cumulative_output_tokens,
-            &theme
+            &theme,
         );
 
-        let token_warning = token::format_token_warning(
-            &session.messages,
-            &session.model,
-            &theme
-        );
+        let token_warning = token::format_token_warning(&session.messages, &session.model, &theme);
 
         format!("{}\n{}", cost_line, token_warning)
     };
@@ -356,8 +359,8 @@ fn cmd_permissions(_session: &mut Session, _arg: Option<&str>) -> CommandResult 
 
 /// 🔥 保存当前会话
 fn cmd_save(session: &mut Session, arg: Option<&str>) -> CommandResult {
-    use super::render::{default_theme, RESET};
     use super::persistence::{SessionPersistence, SessionSnapshot};
+    use super::render::{default_theme, RESET};
 
     let name = arg.ok_or("用法: /save <name>".to_string())?;
 
@@ -379,7 +382,8 @@ fn cmd_save(session: &mut Session, arg: Option<&str>) -> CommandResult {
     let persistence = SessionPersistence::new()
         .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
 
-    let filepath = persistence.save_session(name, snapshot)
+    let filepath = persistence
+        .save_session(name, snapshot)
         .map_err(|e| format!("Failed to save session: {}", e))?;
 
     Ok(Some(format!(
@@ -392,8 +396,8 @@ fn cmd_save(session: &mut Session, arg: Option<&str>) -> CommandResult {
 }
 
 fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
-    use super::render::{default_theme, RESET};
     use super::persistence::{SessionPersistence, SessionSnapshot};
+    use super::render::{default_theme, RESET};
 
     let theme = default_theme();
 
@@ -403,20 +407,31 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
             let persistence = SessionPersistence::new()
                 .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
 
-            let sessions = persistence.list_sessions()
+            let sessions = persistence
+                .list_sessions()
                 .map_err(|e| format!("Failed to list sessions: {}", e))?;
 
             if sessions.is_empty() {
-                return Ok(Some(format!("{}未找到已保存的会话。使用 /save <name> 保存当前会话。{}", theme.muted, RESET)));
+                return Ok(Some(format!(
+                    "{}未找到已保存的会话。使用 /save <name> 保存当前会话。{}",
+                    theme.muted, RESET
+                )));
             }
 
-            let mut output = format!("{}已保存的会话（{}）：{}\n", theme.heading, sessions.len(), RESET);
+            let mut output = format!(
+                "{}已保存的会话（{}）：{}\n",
+                theme.heading,
+                sessions.len(),
+                RESET
+            );
 
             for (i, meta) in sessions.iter().enumerate() {
                 output.push_str(&format!(
                     "  {}. {}{}{} - {} 条消息 - {} - {}{}{}\n",
                     i + 1,
-                    theme.brand, meta.name, RESET,
+                    theme.brand,
+                    meta.name,
+                    RESET,
                     meta.message_count,
                     meta.model,
                     RESET,
@@ -432,7 +447,8 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
             let persistence = SessionPersistence::new()
                 .map_err(|e| format!("Failed to initialize persistence: {}", e))?;
 
-            let snapshot = persistence.load_session(name)
+            let snapshot = persistence
+                .load_session(name)
                 .map_err(|e| format!("Failed to load session '{}': {}", name, e))?;
 
             // 🔥 恢复会话状态
@@ -444,7 +460,9 @@ fn cmd_resume(session: &mut Session, arg: Option<&str>) -> CommandResult {
 
             Ok(Some(format!(
                 "{}✓ 会话已恢复：{}{}（{} 条消息）",
-                theme.success, name, RESET,
+                theme.success,
+                name,
+                RESET,
                 session.messages.len()
             )))
         }
@@ -486,7 +504,12 @@ fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
     // 检查文件名参数
     let filename = match arg {
         Some(path) if !path.is_empty() => path,
-        _ => return Ok(Some(format!("{}Usage: /export <file>{}{}", theme.muted, theme.brand, RESET))),
+        _ => {
+            return Ok(Some(format!(
+                "{}Usage: /export <file>{}{}",
+                theme.muted, theme.brand, RESET
+            )))
+        }
     };
 
     // 🔥 序列化消息为 Markdown 格式
@@ -535,7 +558,10 @@ fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
         if let Some(tool_calls) = &message.tool_calls {
             markdown.push_str("\n**Tool Calls:**\n");
             for tool in tool_calls {
-                markdown.push_str(&format!("- `{}`({})\n", tool.function.name, tool.function.arguments));
+                markdown.push_str(&format!(
+                    "- `{}`({})\n",
+                    tool.function.name, tool.function.arguments
+                ));
             }
         }
 
@@ -558,19 +584,24 @@ fn cmd_export(session: &mut Session, arg: Option<&str>) -> CommandResult {
 }
 
 fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
-    use ifainew_lib::harness::api::types::MessageRole;
     use super::render::{default_theme, RESET};
+    use ifainew_lib::harness::api::types::MessageRole;
 
     let theme = default_theme();
 
     // 🔥 查找最后一个用户消息的索引
-    let last_user_index = session.messages.iter().rposition(|m| matches!(m.role, MessageRole::User));
+    let last_user_index = session
+        .messages
+        .iter()
+        .rposition(|m| matches!(m.role, MessageRole::User));
 
     match last_user_index {
         None => {
             // 没有用户消息，无法撤销
-            Ok(Some(format!("{}No conversation to undo. Start chatting first.{}",
-                theme.muted, RESET)))
+            Ok(Some(format!(
+                "{}No conversation to undo. Start chatting first.{}",
+                theme.muted, RESET
+            )))
         }
         Some(index) => {
             // 记录删除前的消息数
@@ -584,7 +615,10 @@ fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
             Ok(Some(format!(
                 "{}✓ Removed last turn ({} message{}){}",
-                theme.success, removed_count, if removed_count > 1 { "s" } else { "" }, RESET
+                theme.success,
+                removed_count,
+                if removed_count > 1 { "s" } else { "" },
+                RESET
             )))
         }
     }
@@ -593,7 +627,9 @@ fn cmd_undo(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 fn cmd_config(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     match arg {
         Some("init") => Ok(Some("✅ 配置模板已生成: ~/.ifai/config.toml".to_string())),
-        Some("show") | None => Ok(Some("配置: provider=deepseek, model=deepseek-chat".to_string())),
+        Some("show") | None => Ok(Some(
+            "配置: provider=deepseek, model=deepseek-chat".to_string(),
+        )),
         Some(_) => Ok(Some("用法: /config <init|show>".to_string())),
     }
 }
@@ -604,13 +640,15 @@ fn cmd_exit(_session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
 /// 🔥 显示会话状态统计
 fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
-    use super::token;
     use super::render::{default_theme, RESET};
+    use super::token;
 
     let theme = default_theme();
 
     // 🔥 统计轮次（用户消息数）
-    let user_message_count = session.messages.iter()
+    let user_message_count = session
+        .messages
+        .iter()
         .filter(|m| matches!(m.role, ifainew_lib::harness::api::types::MessageRole::User))
         .count();
 
@@ -620,14 +658,39 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
     // 🔥 格式化输出
     let mut output = String::new();
 
-    output.push_str(&format!("{}╭─────────────────────────────────────{}\n", theme.table_border, RESET));
-    output.push_str(&format!("{}│{} Session Status{}\n", theme.table_border, theme.brand, RESET));
-    output.push_str(&format!("{}├─────────────────────────────────────{}\n", theme.table_border, RESET));
+    output.push_str(&format!(
+        "{}╭─────────────────────────────────────{}\n",
+        theme.table_border, RESET
+    ));
+    output.push_str(&format!(
+        "{}│{} Session Status{}\n",
+        theme.table_border, theme.brand, RESET
+    ));
+    output.push_str(&format!(
+        "{}├─────────────────────────────────────{}\n",
+        theme.table_border, RESET
+    ));
 
-    output.push_str(&format!("{}│{} Provider: {}{}{}\n", theme.table_border, RESET, theme.brand, session.provider, RESET));
-    output.push_str(&format!("{}│{} Model: {}{}{}\n", theme.table_border, RESET, theme.brand, session.model, RESET));
-    output.push_str(&format!("{}│{} Messages: {}{}{}\n", theme.table_border, RESET, theme.brand, session.messages.len(), RESET));
-    output.push_str(&format!("{}│{} User Turns: {}{}{}\n", theme.table_border, RESET, theme.brand, user_message_count, RESET));
+    output.push_str(&format!(
+        "{}│{} Provider: {}{}{}\n",
+        theme.table_border, RESET, theme.brand, session.provider, RESET
+    ));
+    output.push_str(&format!(
+        "{}│{} Model: {}{}{}\n",
+        theme.table_border, RESET, theme.brand, session.model, RESET
+    ));
+    output.push_str(&format!(
+        "{}│{} Messages: {}{}{}\n",
+        theme.table_border,
+        RESET,
+        theme.brand,
+        session.messages.len(),
+        RESET
+    ));
+    output.push_str(&format!(
+        "{}│{} User Turns: {}{}{}\n",
+        theme.table_border, RESET, theme.brand, user_message_count, RESET
+    ));
 
     // Token 统计
     if total_tokens > 0 {
@@ -635,16 +698,31 @@ fn cmd_status(session: &mut Session, _arg: Option<&str>) -> CommandResult {
         let max_tokens = token::get_model_max_tokens(&session.model);
         let percentage = (token_count * 100 / max_tokens.max(1)) as u32;
 
-        output.push_str(&format!("{}│{} Est. Tokens: {}{} ({}% of {}){}\n",
-            theme.table_border, RESET, theme.brand, token_count, percentage, max_tokens, RESET));
-        output.push_str(&format!("{}│{} Input: {}{} | Output: {}{}{}\n",
-            theme.table_border, RESET, theme.muted, session.cumulative_input_tokens, theme.muted, session.cumulative_output_tokens, RESET));
+        output.push_str(&format!(
+            "{}│{} Est. Tokens: {}{} ({}% of {}){}\n",
+            theme.table_border, RESET, theme.brand, token_count, percentage, max_tokens, RESET
+        ));
+        output.push_str(&format!(
+            "{}│{} Input: {}{} | Output: {}{}{}\n",
+            theme.table_border,
+            RESET,
+            theme.muted,
+            session.cumulative_input_tokens,
+            theme.muted,
+            session.cumulative_output_tokens,
+            RESET
+        ));
     } else {
-        output.push_str(&format!("{}│{} Tokens: {}No usage recorded{}\n",
-            theme.table_border, RESET, theme.muted, RESET));
+        output.push_str(&format!(
+            "{}│{} Tokens: {}No usage recorded{}\n",
+            theme.table_border, RESET, theme.muted, RESET
+        ));
     }
 
-    output.push_str(&format!("{}╰─────────────────────────────────────{}\n", theme.table_border, RESET));
+    output.push_str(&format!(
+        "{}╰─────────────────────────────────────{}\n",
+        theme.table_border, RESET
+    ));
 
     Ok(Some(output))
 }
@@ -657,8 +735,8 @@ fn cmd_view(session: &mut Session, _arg: Option<&str>) -> CommandResult {
 
 /// 🔥 智能 Glob 搜索（元编程架构：防止上下文爆炸）
 fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
-    use crate::smart_glob_summary::SmartGlob;
     use crate::render::default_theme;
+    use crate::smart_glob_summary::SmartGlob;
     use std::env;
 
     // 默认搜索当前目录
@@ -673,26 +751,20 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
         .unwrap_or_else(|_| "<unknown>".to_string());
 
     // 🔥 自动检测宽泛搜索，自动启用智能模式
-    let is_broad_search = pattern.contains("**/*")
-        || pattern == "*"
-        || pattern == "."
-        || pattern.ends_with("/**");
+    let is_broad_search =
+        pattern.contains("**/*") || pattern == "*" || pattern == "." || pattern.ends_with("/**");
 
     let (results, mode) = if is_broad_search {
         // 宽泛搜索：使用智能 Glob，限制结果
         (
-            SmartGlob::search(pattern)
-                .with_limit(100)
-                .execute(),
-            "smart"
+            SmartGlob::search(pattern).with_limit(100).execute(),
+            "smart",
         )
     } else {
         // 精确搜索：使用较宽松的限制
         (
-            SmartGlob::search(pattern)
-                .with_limit(1000)
-                .execute(),
-            "normal"
+            SmartGlob::search(pattern).with_limit(1000).execute(),
+            "normal",
         )
     };
 
@@ -729,10 +801,7 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
             "\n{}❌ 未找到文件{}{}\n",
             theme.error, RESET, RESET
         ));
-        output.push_str(&format!(
-            "{}   可能原因：\n",
-            theme.dim
-        ));
+        output.push_str(&format!("{}   可能原因：\n", theme.dim));
         output.push_str(&format!(
             "{}   1. 路径不存在：请检查路径是否正确\n",
             theme.dim
@@ -755,7 +824,10 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
     if results.summary.truncated {
         output.push_str(&format!(
             "\n\n{}💡 提示：仅显示前 {} 个文件（共 {} 个）{}\n",
-            theme.muted, results.results.len(), results.summary.total_files, RESET
+            theme.muted,
+            results.results.len(),
+            results.summary.total_files,
+            RESET
         ));
         output.push_str(&format!(
             "{}   使用更具体的搜索模式查看更多结果{}",
@@ -768,8 +840,8 @@ fn cmd_glob(_session: &mut Session, arg: Option<&str>) -> CommandResult {
 
 /// 🏛️ 显示/清空任务列表（元编程：直接读取全局 TaskStore）
 fn cmd_task(_session: &mut Session, arg: Option<&str>) -> CommandResult {
-    use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};
     use super::render::{default_theme, RESET};
+    use ifainew_lib::harness::task::{get_global_task_store, TaskStatus};
 
     let theme = default_theme();
     let store = get_global_task_store();
@@ -782,7 +854,10 @@ fn cmd_task(_session: &mut Session, arg: Option<&str>) -> CommandResult {
         _ => {
             let tasks = store.get_tasks();
             if tasks.is_empty() {
-                return Ok(Some(format!("{}当前没有任务{}（AI 会在处理复杂任务时自动创建）", theme.muted, RESET)));
+                return Ok(Some(format!(
+                    "{}当前没有任务{}（AI 会在处理复杂任务时自动创建）",
+                    theme.muted, RESET
+                )));
             }
 
             let total = tasks.len();
@@ -790,23 +865,36 @@ fn cmd_task(_session: &mut Session, arg: Option<&str>) -> CommandResult {
             let in_progress = store.count_by_status(TaskStatus::InProgress);
 
             let mut output = String::new();
-            output.push_str(&format!("{}╭─────────────────────────────────────{}\n", theme.table_border, RESET));
-            output.push_str(&format!("{}│{} Tasks [{}/{}] ({} in progress){}\n",
-                theme.table_border, theme.brand, completed, total, in_progress, RESET));
-            output.push_str(&format!("{}├─────────────────────────────────────{}\n", theme.table_border, RESET));
+            output.push_str(&format!(
+                "{}╭─────────────────────────────────────{}\n",
+                theme.table_border, RESET
+            ));
+            output.push_str(&format!(
+                "{}│{} Tasks [{}/{}] ({} in progress){}\n",
+                theme.table_border, theme.brand, completed, total, in_progress, RESET
+            ));
+            output.push_str(&format!(
+                "{}├─────────────────────────────────────{}\n",
+                theme.table_border, RESET
+            ));
 
             // 🔥 查表渲染（与 TUI TASK_STATUS_DISPLAYS 一致）
             for (i, task) in tasks.iter().enumerate() {
                 let (icon, color) = match task.status {
-                    TaskStatus::Completed  => ("[x]", theme.success),
-                    TaskStatus::InProgress => ("▸",  theme.warning),
-                    TaskStatus::Pending    => ("[ ]", theme.muted),
+                    TaskStatus::Completed => ("[x]", theme.success),
+                    TaskStatus::InProgress => ("▸", theme.warning),
+                    TaskStatus::Pending => ("[ ]", theme.muted),
                 };
-                output.push_str(&format!("{}│  {} {}{}{}\n",
-                    theme.table_border, icon, color, &task.content, RESET));
+                output.push_str(&format!(
+                    "{}│  {} {}{}{}\n",
+                    theme.table_border, icon, color, &task.content, RESET
+                ));
             }
 
-            output.push_str(&format!("{}╰─────────────────────────────────────{}\n", theme.table_border, RESET));
+            output.push_str(&format!(
+                "{}╰─────────────────────────────────────{}\n",
+                theme.table_border, RESET
+            ));
             Ok(Some(output))
         }
     }
@@ -848,7 +936,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_help() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "help", None);
         assert!(result.is_ok());
 
@@ -861,7 +950,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_clear() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "clear", None);
         assert!(result.is_ok());
 
@@ -872,7 +962,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_unknown_command() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "nonexistent", None);
         assert!(result.is_err());
 
@@ -883,7 +974,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_provider_valid() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "provider", Some("deepseek"));
         assert!(result.is_ok());
 
@@ -894,14 +986,16 @@ mod tests {
 
     #[test]
     fn test_dispatch_provider_invalid() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "provider", Some("nonexistent"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_dispatch_model_with_arg() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "model", Some("gpt-4o"));
         assert!(result.is_ok());
 
@@ -912,7 +1006,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_model_without_arg() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "model", None);
         assert!(result.is_ok());
 
@@ -923,7 +1018,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_config_init() {
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
         let result = dispatch_command(&mut session, "config", Some("init"));
         assert!(result.is_ok());
 
@@ -977,7 +1073,8 @@ mod tests {
     #[test]
     fn test_dispatch_status() {
         // 🆕 TDD 测试：验证 /status 命令正常工作
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 测试空会话状态
         let result = dispatch_command(&mut session, "status", None);
@@ -1001,9 +1098,10 @@ mod tests {
     #[test]
     fn test_dispatch_status_with_messages() {
         // 🆕 TDD 测试：验证有消息的会话状态
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+        use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 添加模拟消息
         session.messages.push(Message {
@@ -1026,7 +1124,7 @@ mod tests {
 
         // 🔥 验证输出包含关键字段（忽略 ANSI 颜色代码）
         assert!(output.contains("Messages:"));
-        assert!(output.contains("2"));  // 验证包含消息数
+        assert!(output.contains("2")); // 验证包含消息数
         assert!(output.contains("User Turns:"));
     }
 
@@ -1055,7 +1153,8 @@ mod tests {
     #[test]
     fn test_dispatch_undo_empty_session() {
         // 🆕 TDD 测试：空会话无法撤销
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         let result = dispatch_command(&mut session, "undo", None);
         assert!(result.is_ok());
@@ -1069,9 +1168,10 @@ mod tests {
     #[test]
     fn test_dispatch_undo_single_turn() {
         // 🆕 TDD 测试：撤销一轮对话（User + Assistant）
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+        use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 添加一轮对话
         session.messages.push(Message {
@@ -1103,9 +1203,10 @@ mod tests {
     #[test]
     fn test_dispatch_undo_multiple_turns() {
         // 🆕 TDD 测试：撤销最后一轮（保留前面轮次）
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+        use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 第一轮
         session.messages.push(Message {
@@ -1153,9 +1254,12 @@ mod tests {
     #[test]
     fn test_dispatch_undo_with_tool_calls() {
         // 🆕 TDD 测试：撤销包含工具调用的轮次
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+        use ifainew_lib::harness::api::types::{
+            Message, MessageContent, MessageRole, ToolCall, ToolCallFunction,
+        };
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         // 用户消息
         session.messages.push(Message {
@@ -1169,16 +1273,14 @@ mod tests {
         session.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("I'll calculate that.".to_string()),
-            tool_calls: Some(vec![
-                ToolCall {
-                    id: "call_1".to_string(),
-                    call_type: "function".to_string(),
-                    function: ToolCallFunction {
-                        name: "calculator".to_string(),
-                        arguments: "{}".to_string(),
-                    },
-                }
-            ]),
+            tool_calls: Some(vec![ToolCall {
+                id: "call_1".to_string(),
+                call_type: "function".to_string(),
+                function: ToolCallFunction {
+                    name: "calculator".to_string(),
+                    arguments: "{}".to_string(),
+                },
+            }]),
             tool_call_id: None,
         });
 
@@ -1207,7 +1309,8 @@ mod tests {
     #[test]
     fn test_dispatch_export_empty_session() {
         // 🆕 TDD 测试：导出空会话
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         let result = dispatch_command(&mut session, "export", Some("/tmp/test_empty.md"));
         assert!(result.is_ok());
@@ -1230,9 +1333,10 @@ mod tests {
     #[test]
     fn test_dispatch_export_single_turn() {
         // 🆕 TDD 测试：导出单轮对话
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+        use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         session.messages.push(Message {
             role: MessageRole::User,
@@ -1274,9 +1378,10 @@ mod tests {
     #[test]
     fn test_dispatch_export_with_markdown_formatting() {
         // 🆕 TDD 测试：导出包含代码块的消息
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent};
+        use ifainew_lib::harness::api::types::{Message, MessageContent, MessageRole};
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         session.messages.push(Message {
             role: MessageRole::User,
@@ -1287,7 +1392,10 @@ mod tests {
 
         session.messages.push(Message {
             role: MessageRole::Assistant,
-            content: MessageContent::Text("Here's a example:\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```".to_string()),
+            content: MessageContent::Text(
+                "Here's a example:\n```rust\nfn main() {\n    println!(\"Hello\");\n}\n```"
+                    .to_string(),
+            ),
             tool_calls: None,
             tool_call_id: None,
         });
@@ -1306,7 +1414,8 @@ mod tests {
     #[test]
     fn test_dispatch_export_missing_filename() {
         // 🆕 TDD 测试：缺少文件名参数
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         let result = dispatch_command(&mut session, "export", None);
         assert!(result.is_ok());
@@ -1323,9 +1432,12 @@ mod tests {
     #[test]
     fn test_dispatch_export_with_tool_calls() {
         // 🆕 TDD 测试：导出包含工具调用的会话
-        use ifainew_lib::harness::api::types::{Message, MessageRole, MessageContent, ToolCall, ToolCallFunction};
+        use ifainew_lib::harness::api::types::{
+            Message, MessageContent, MessageRole, ToolCall, ToolCallFunction,
+        };
 
-        let mut session = Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
+        let mut session =
+            Session::new("deepseek-official".to_string(), "deepseek-chat".to_string());
 
         session.messages.push(Message {
             role: MessageRole::User,
@@ -1337,16 +1449,14 @@ mod tests {
         session.messages.push(Message {
             role: MessageRole::Assistant,
             content: MessageContent::Text("I'll calculate that.".to_string()),
-            tool_calls: Some(vec![
-                ToolCall {
-                    id: "call_1".to_string(),
-                    call_type: "function".to_string(),
-                    function: ToolCallFunction {
-                        name: "calculator".to_string(),
-                        arguments: "{\"expression\": \"2+2\"}".to_string(),
-                    },
-                }
-            ]),
+            tool_calls: Some(vec![ToolCall {
+                id: "call_1".to_string(),
+                call_type: "function".to_string(),
+                function: ToolCallFunction {
+                    name: "calculator".to_string(),
+                    arguments: "{\"expression\": \"2+2\"}".to_string(),
+                },
+            }]),
             tool_call_id: None,
         });
 

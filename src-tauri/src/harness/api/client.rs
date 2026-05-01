@@ -36,25 +36,29 @@ impl ApiClientFactory {
         config: &crate::harness::api::types::ProviderConfig,
     ) -> Result<Box<dyn ApiClient>, String> {
         match provider {
-            crate::harness::api::types::AiProvider::Anthropic => {
-                Ok(Box::new(super::providers::anthropic::AnthropicClient::new(config)))
-            }
-            crate::harness::api::types::AiProvider::DeepSeek => {
-                Ok(Box::new(super::providers::deepseek::DeepSeekClient::new(config)))
-            }
-            crate::harness::api::types::AiProvider::OpenAI => {
-                Ok(Box::new(super::providers::openai::OpenAIClient::new(config)))
-            }
+            crate::harness::api::types::AiProvider::Anthropic => Ok(Box::new(
+                super::providers::anthropic::AnthropicClient::new(config),
+            )),
+            crate::harness::api::types::AiProvider::DeepSeek => Ok(Box::new(
+                super::providers::deepseek::DeepSeekClient::new(config),
+            )),
+            crate::harness::api::types::AiProvider::OpenAI => Ok(Box::new(
+                super::providers::openai::OpenAIClient::new(config),
+            )),
             crate::harness::api::types::AiProvider::Zhipu => {
                 Ok(Box::new(super::providers::zhipu::ZhipuClient::new(config)))
             }
             crate::harness::api::types::AiProvider::Kimi => {
                 // 使用元数据驱动的 Kimi 客户端
-                Ok(Box::new(super::metadata_client::create_kimi_client(&config.api_key)))
+                Ok(Box::new(super::metadata_client::create_kimi_client(
+                    &config.api_key,
+                )))
             }
             crate::harness::api::types::AiProvider::Gemini => {
                 // 使用元数据驱动的 Gemini 客户端
-                Ok(Box::new(super::metadata_client::create_gemini_client(&config.api_key)))
+                Ok(Box::new(super::metadata_client::create_gemini_client(
+                    &config.api_key,
+                )))
             }
             crate::harness::api::types::AiProvider::Custom { .. } => {
                 // 创建自定义供应商客户端

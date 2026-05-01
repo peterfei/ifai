@@ -2,10 +2,10 @@
 //!
 //! 使用声明式配置替代重复的加载函数
 
+use crate::agent_system::base::AgentContext;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use crate::agent_system::base::AgentContext;
 
 /// 🔥 Agent Prompt 配置（声明式）
 #[derive(Debug, Clone)]
@@ -32,8 +32,16 @@ impl PromptContext {
         match name {
             "PROJECT_ROOT" => self.project_root.clone(),
             "TASK_DESCRIPTION" => self.task_description.clone(),
-            "TARGET_PATH" => self.variables.get("target_path").cloned().unwrap_or_default(),
-            "PROPOSAL_ID" => self.variables.get("proposal_id").cloned().unwrap_or_default(),
+            "TARGET_PATH" => self
+                .variables
+                .get("target_path")
+                .cloned()
+                .unwrap_or_default(),
+            "PROPOSAL_ID" => self
+                .variables
+                .get("proposal_id")
+                .cloned()
+                .unwrap_or_default(),
             "PROPOSAL_CONTEXT" => self.task_description.clone(),
             _ => self.variables.get(name).cloned().unwrap_or_default(),
         }
@@ -48,8 +56,7 @@ pub struct AgentPromptLoader {
 impl AgentPromptLoader {
     /// 创建新的加载器
     pub fn new(project_root: &str) -> Self {
-        let prompts_dir = PathBuf::from(project_root)
-            .join(".ifai/prompts/agents");
+        let prompts_dir = PathBuf::from(project_root).join(".ifai/prompts/agents");
         Self { prompts_dir }
     }
 
@@ -62,7 +69,8 @@ impl AgentPromptLoader {
         let config = self.get_config_for_agent(agent_type);
         let prompt_path = self.prompts_dir.join(config.prompt_file);
 
-        println!("[AgentPromptLoader] 🔍 Loading {} prompt from: {:?}",
+        println!(
+            "[AgentPromptLoader] 🔍 Loading {} prompt from: {:?}",
             format!("{:?}", agent_type).to_lowercase(),
             prompt_path
         );
@@ -71,11 +79,7 @@ impl AgentPromptLoader {
         match std::fs::read_to_string(&prompt_path) {
             Ok(content) => {
                 let prompt_body = self.extract_markdown_body(&content);
-                let replaced = self.replace_variables(
-                    &prompt_body,
-                    config.variable_names,
-                    context,
-                );
+                let replaced = self.replace_variables(&prompt_body, config.variable_names, context);
 
                 println!(
                     "[AgentPromptLoader] ✅ Loaded {} from file ({} bytes)",
@@ -89,7 +93,8 @@ impl AgentPromptLoader {
                 println!(
                     "[AgentPromptLoader] ⚠️ Failed to load {} from {:?}: {}",
                     format!("{:?}", agent_type).to_lowercase(),
-                    prompt_path, e
+                    prompt_path,
+                    e
                 );
                 println!(
                     "[AgentPromptLoader] 🔄 Using fallback built-in {} prompt",
@@ -246,8 +251,7 @@ Phase 2: 使用 `agent_batch_read` 批量读取关键文件（配置文件、入
 
 快速完成，输出简洁明了，避免冗长。
 "#,
-        ctx.project_root,
-        ctx.task_description
+        ctx.project_root, ctx.task_description
     )
 }
 
@@ -331,8 +335,7 @@ fn fallback_review_prompt(ctx: &AgentContext) -> String {
 
 注意：提供针对该项目的实用审查指南，而不是"模拟"审查过程。
 "#,
-        ctx.project_root,
-        ctx.task_description
+        ctx.project_root, ctx.task_description
     )
 }
 
@@ -360,8 +363,7 @@ fn fallback_refactor_prompt(ctx: &AgentContext) -> String {
 
 注意：提供实用的重构指南和最佳实践，而不是"模拟"重构过程。
 "#,
-        ctx.project_root,
-        ctx.task_description
+        ctx.project_root, ctx.task_description
     )
 }
 
@@ -380,7 +382,8 @@ fn fallback_doc_prompt(_ctx: &AgentContext) -> String {
 - 遵循文档最佳实践
 
 请输出结构化的文档内容。
-"#.to_string()
+"#
+    .to_string()
 }
 
 fn fallback_test_prompt(_ctx: &AgentContext) -> String {
@@ -398,7 +401,8 @@ fn fallback_test_prompt(_ctx: &AgentContext) -> String {
 - 错误处理测试
 
 请输出测试建议和示例测试代码。
-"#.to_string()
+"#
+    .to_string()
 }
 
 fn fallback_proposal_generator_prompt(_ctx: &AgentContext) -> String {
@@ -416,7 +420,8 @@ fn fallback_proposal_generator_prompt(_ctx: &AgentContext) -> String {
 - 有清晰的交付物
 
 请输出结构化的技术提案。
-"#.to_string()
+"#
+    .to_string()
 }
 
 fn fallback_general_purpose_prompt(_ctx: &AgentContext) -> String {
@@ -428,7 +433,8 @@ fn fallback_general_purpose_prompt(_ctx: &AgentContext) -> String {
 4. 给出切实可行的建议
 
 请使用清晰、友好的语言，提供高质量的回应。
-"#.to_string()
+"#
+    .to_string()
 }
 
 #[cfg(test)]
@@ -439,7 +445,10 @@ mod tests {
     #[test]
     fn test_prompt_loader_creation() {
         let loader = AgentPromptLoader::new("/tmp/test_project");
-        assert_eq!(loader.prompts_dir, PathBuf::from("/tmp/test_project/.ifai/prompts/agents"));
+        assert_eq!(
+            loader.prompts_dir,
+            PathBuf::from("/tmp/test_project/.ifai/prompts/agents")
+        );
     }
 
     #[test]

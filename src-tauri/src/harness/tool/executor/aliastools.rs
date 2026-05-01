@@ -68,7 +68,9 @@ impl AliasExecutor {
     /// 获取项目根目录（优先使用本地，否则使用全局）
     fn get_project_root(&self) -> Result<String, ToolError> {
         // 先尝试本地 project_root
-        let guard = self.project_root.read()
+        let guard = self
+            .project_root
+            .read()
             .map_err(|e| ToolError::Execution(format!("Lock error: {}", e)))?;
 
         if let Some(root) = guard.as_ref() {
@@ -83,7 +85,7 @@ impl AliasExecutor {
         }
 
         Err(ToolError::Execution(
-            "project_root not set. Use set_project_root() first.".to_string()
+            "project_root not set. Use set_project_root() first.".to_string(),
         ))
     }
 
@@ -124,7 +126,7 @@ impl AliasExecutor {
         {
             // 商业版：使用 ifainew_core
             return Err(ToolError::Execution(
-                "agent_read_file in commercial mode should use ifainew_core".to_string()
+                "agent_read_file in commercial mode should use ifainew_core".to_string(),
             ));
         }
 
@@ -144,7 +146,8 @@ impl AliasExecutor {
                 "content": content,
                 "path": rel_path,
                 "line_count": content.lines().count()
-            }).to_string())
+            })
+            .to_string())
         }
     }
 
@@ -160,9 +163,7 @@ impl AliasExecutor {
         let content = input
             .get("content")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'content' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'content' parameter".to_string()))?;
 
         let full_path = self.resolve_path(rel_path)?;
 
@@ -175,14 +176,17 @@ impl AliasExecutor {
 
         // 创建父目录
         if let Some(parent) = full_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| {
-                ToolError::Execution(format!("Failed to create directory: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .map_err(|e| ToolError::Execution(format!("Failed to create directory: {}", e)))?;
         }
 
         // 写入新内容
         fs::write(&full_path, content).map_err(|e| {
-            ToolError::Execution(format!("Failed to write file '{}': {}", full_path.display(), e))
+            ToolError::Execution(format!(
+                "Failed to write file '{}': {}",
+                full_path.display(),
+                e
+            ))
         })?;
 
         // 🔧 FIX: 不使用 invalidate_cache，避免 async 调用
@@ -202,7 +206,8 @@ impl AliasExecutor {
             "newContent": content,
             "filePath": rel_path,
             "timestamp": timestamp
-        }).to_string())
+        })
+        .to_string())
     }
 
     /// 处理 agent_list_dir 工具调用
@@ -219,7 +224,11 @@ impl AliasExecutor {
         // 读取目录
         let mut entries = Vec::new();
         let read_dir = fs::read_dir(&full_path).map_err(|e| {
-            ToolError::Execution(format!("Failed to read directory '{}': {}", full_path.display(), e))
+            ToolError::Execution(format!(
+                "Failed to read directory '{}': {}",
+                full_path.display(),
+                e
+            ))
         })?;
 
         for entry in read_dir {
@@ -244,10 +253,7 @@ impl AliasExecutor {
             .and_then(|v| v.as_str())
             .unwrap_or(".");
 
-        let max_depth = input
-            .get("max_depth")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(3) as usize;
+        let max_depth = input.get("max_depth").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
 
         let full_path = self.resolve_path(rel_path)?;
 
@@ -259,11 +265,13 @@ impl AliasExecutor {
             .unwrap_or_else(|_| ExploreScanner::new());
 
         // 执行扫描
-        let result = scanner.scan_with_cache(&full_path)
+        let result = scanner
+            .scan_with_cache(&full_path)
             .map_err(|e| ToolError::Execution(format!("Scan failed: {}", e)))?;
 
         // 返回格式化结果
-        Ok(result.to_json()
+        Ok(result
+            .to_json()
             .map_err(|e| ToolError::Execution(format!("JSON serialization failed: {}", e)))?)
     }
 }
@@ -276,7 +284,9 @@ impl ToolExecutor for AliasExecutor {
             "agent_write_file" => self.handle_agent_write_file(input),
             "agent_list_dir" => self.handle_agent_list_dir(input),
             "agent_scan_project" => self.handle_agent_scan_project(input),
-            _ => Err(ToolError::NotFound { name: name.to_string() }),
+            _ => Err(ToolError::NotFound {
+                name: name.to_string(),
+            }),
         }
     }
 

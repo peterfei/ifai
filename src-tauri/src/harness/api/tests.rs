@@ -17,8 +17,8 @@
 #[cfg(test)]
 mod integration_tests {
     use crate::harness::api::{
-        AnthropicClient, ApiClient, ApiClientFactory, Message, MessageContent, MessageRole,
-        ProviderConfig, StreamEvent, StreamRequest, AiProvider,
+        AiProvider, AnthropicClient, ApiClient, ApiClientFactory, Message, MessageContent,
+        MessageRole, ProviderConfig, StreamEvent, StreamRequest,
     };
     use futures_util::StreamExt;
 
@@ -56,7 +56,9 @@ mod integration_tests {
             model: "claude-sonnet-4-20250514".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: MessageContent::Text("Say 'Hello, Anthropic!' in exactly this way.".to_string()),
+                content: MessageContent::Text(
+                    "Say 'Hello, Anthropic!' in exactly this way.".to_string(),
+                ),
                 tool_calls: None,
                 tool_call_id: None,
             }],
@@ -118,7 +120,9 @@ mod integration_tests {
             model: "gpt-4o-mini".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: MessageContent::Text("Say 'Hello, OpenAI!' in exactly this way.".to_string()),
+                content: MessageContent::Text(
+                    "Say 'Hello, OpenAI!' in exactly this way.".to_string(),
+                ),
                 tool_calls: None,
                 tool_call_id: None,
             }],
@@ -180,7 +184,9 @@ mod integration_tests {
             model: "deepseek-chat".to_string(),
             messages: vec![Message {
                 role: MessageRole::User,
-                content: MessageContent::Text("Say 'Hello, DeepSeek!' in exactly this way.".to_string()),
+                content: MessageContent::Text(
+                    "Say 'Hello, DeepSeek!' in exactly this way.".to_string(),
+                ),
                 tool_calls: None,
                 tool_call_id: None,
             }],
@@ -284,18 +290,27 @@ mod integration_tests {
         let english_text = "Hello, world! This is a test.";
         let estimated = client.estimate_tokens(english_text);
         println!("English text: '{}' -> {} tokens", english_text, estimated);
-        assert!(estimated > 0 && estimated < 20, "Estimate should be reasonable");
+        assert!(
+            estimated > 0 && estimated < 20,
+            "Estimate should be reasonable"
+        );
 
         // 测试中文文本
         let chinese_text = "你好，世界！这是一个测试。";
         let estimated = client.estimate_tokens(chinese_text);
         println!("Chinese text: '{}' -> {} tokens", chinese_text, estimated);
-        assert!(estimated > 0 && estimated < 20, "Estimate should be reasonable");
+        assert!(
+            estimated > 0 && estimated < 20,
+            "Estimate should be reasonable"
+        );
 
         // 测试混合文本
         let mixed_text = "Hello 你好 World 世界";
         let estimated = client.estimate_tokens(mixed_text);
         println!("Mixed text: '{}' -> {} tokens", mixed_text, estimated);
-        assert!(estimated > 0 && estimated < 20, "Estimate should be reasonable");
+        assert!(
+            estimated > 0 && estimated < 20,
+            "Estimate should be reasonable"
+        );
     }
 }

@@ -1,11 +1,11 @@
-use crate::core_traits::ai::{Message, Content, ToolCall, AIProviderConfig, FunctionCall};
-use serde_json::{json, Value};
-use reqwest::Client;
-use std::time::{Duration, Instant};
-use std::collections::HashMap;
-use tauri::{AppHandle, Emitter};
-use futures::stream::StreamExt;
+use crate::core_traits::ai::{AIProviderConfig, Content, FunctionCall, Message, ToolCall};
 use eventsource_stream::Eventsource;
+use futures::stream::StreamExt;
+use reqwest::Client;
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter};
 
 pub fn safe_truncate(s: &str, max_chars: usize) -> String {
     s.chars().take(max_chars).collect()
@@ -40,7 +40,8 @@ pub fn sanitize_messages(messages: &mut Vec<Message>) {
         if messages[i].role == "assistant" {
             if let Some(tool_calls) = messages[i].tool_calls.clone() {
                 // Filter to keep only tool_calls that have corresponding responses anywhere in history
-                let filtered_calls: Vec<_> = tool_calls.into_iter()
+                let filtered_calls: Vec<_> = tool_calls
+                    .into_iter()
                     .filter(|tc| all_completed_ids.contains(&tc.id))
                     .collect();
 
@@ -72,9 +73,11 @@ pub fn calibrate_provider_url(url: &str, provider_name: &str) -> String {
     let name_lower = provider_name.to_lowercase();
 
     // 如果是 NVIDIA 或 Ollama 等标准 OpenAI 协议，确保路径以 /chat/completions 结尾
-    if (name_lower.contains("nvidia") || name_lower.contains("nim") || name_lower.contains("ollama")) 
-       && !calibrated.ends_with("/chat/completions") {
-        
+    if (name_lower.contains("nvidia")
+        || name_lower.contains("nim")
+        || name_lower.contains("ollama"))
+        && !calibrated.ends_with("/chat/completions")
+    {
         if calibrated.ends_with("/v1") {
             calibrated.push_str("/chat/completions");
         } else if calibrated.ends_with("/v1/") {
@@ -91,12 +94,12 @@ pub fn calibrate_provider_url(url: &str, provider_name: &str) -> String {
             }
         }
     }
-    
+
     // 移除末尾多余的斜杠
     if calibrated.ends_with('/') {
         calibrated.pop();
     }
-    
+
     calibrated
 }
 
@@ -131,8 +134,10 @@ pub async fn fetch_ai_completion_simple(
         "stream": false
     });
 
-    eprintln!("[AIUtils-Simple] 📦 Request size: {:.2} KB",
-        request_body.to_string().len() as f64 / 1024.0);
+    eprintln!(
+        "[AIUtils-Simple] 📦 Request size: {:.2} KB",
+        request_body.to_string().len() as f64 / 1024.0
+    );
 
     let start = std::time::Instant::now();
     eprintln!("[AIUtils-Simple] ⏱️  Sending request at {:?}", start);
@@ -147,12 +152,18 @@ pub async fn fetch_ai_completion_simple(
         .await
         .map_err(|e| {
             let elapsed = start.elapsed();
-            eprintln!("[AIUtils-Simple] ❌ Request failed after {:?}: {}", elapsed, e);
+            eprintln!(
+                "[AIUtils-Simple] ❌ Request failed after {:?}: {}",
+                elapsed, e
+            );
             format!("Request error: {}", e)
         })?;
 
     let elapsed_to_response = start.elapsed();
-    eprintln!("[AIUtils-Simple] ✅ Response received after {:?}", elapsed_to_response);
+    eprintln!(
+        "[AIUtils-Simple] ✅ Response received after {:?}",
+        elapsed_to_response
+    );
 
     let status = response.status();
     eprintln!("[AIUtils-Simple] 📊 HTTP Status: {}", status);
@@ -169,7 +180,10 @@ pub async fn fetch_ai_completion_simple(
         e.to_string()
     })?;
 
-    eprintln!("[AIUtils-Simple] 📦 Response length: {} bytes", response_text.len());
+    eprintln!(
+        "[AIUtils-Simple] 📦 Response length: {} bytes",
+        response_text.len()
+    );
 
     let res_json: Value = serde_json::from_str(&response_text).map_err(|e| {
         eprintln!("[AIUtils-Simple] ❌ JSON parse error: {}", e);
@@ -182,7 +196,10 @@ pub async fn fetch_ai_completion_simple(
         .ok_or("No content in response")?
         .to_string();
 
-    eprintln!("[AIUtils-Simple] ✅ Successfully extracted content: {} chars", content.len());
+    eprintln!(
+        "[AIUtils-Simple] ✅ Successfully extracted content: {} chars",
+        content.len()
+    );
     eprintln!("[AIUtils-Simple] ⏱️  Total time: {:?}", start.elapsed());
 
     Ok(Message {
@@ -222,7 +239,7 @@ pub async fn fetch_ai_completion(
         })?;
 
     eprintln!("[AIUtils] ✅ HTTP client created successfully");
-    
+
     let mut request_body = json!({
         "model": config.models[0],
         "messages": messages,
@@ -247,7 +264,10 @@ pub async fn fetch_ai_completion(
     let request_size_bytes = request_body_str.len();
     let request_size_kb = request_size_bytes as f64 / 1024.0;
 
-    println!("[AIUtils] 📊 Request body size: {} bytes ({:.2} KB)", request_size_bytes, request_size_kb);
+    println!(
+        "[AIUtils] 📊 Request body size: {} bytes ({:.2} KB)",
+        request_size_bytes, request_size_kb
+    );
     if request_size_kb > 50.0 {
         println!("[AIUtils] ⚠️  Large request detected (>50KB), this might take longer to process");
     }
@@ -263,9 +283,16 @@ pub async fn fetch_ai_completion(
 
     // 🔥 打印即将发送的请求详情
     eprintln!("[AIUtils] 📤 Sending POST to: {}", calibrated_url);
-    eprintln!("[AIUtils] 🔑 Authorization: Bearer {}...", &config.api_key[..config.api_key.len().min(20)]);
-    eprintln!("[AIUtils] 📋 Model: {}", config.models.get(0).unwrap_or(&"<unknown>".to_string()));
-    eprintln!("[AIUtils] 📦 Request body preview: {}...",
+    eprintln!(
+        "[AIUtils] 🔑 Authorization: Bearer {}...",
+        &config.api_key[..config.api_key.len().min(20)]
+    );
+    eprintln!(
+        "[AIUtils] 📋 Model: {}",
+        config.models.get(0).unwrap_or(&"<unknown>".to_string())
+    );
+    eprintln!(
+        "[AIUtils] 📦 Request body preview: {}...",
         serde_json::to_string_pretty(&request_body)
             .unwrap_or_default()
             .chars()
@@ -275,7 +302,8 @@ pub async fn fetch_ai_completion(
 
     eprintln!("[AIUtils] 🚀 Calling .send().await... (this may take several seconds)");
 
-    let response = client.post(&calibrated_url)
+    let response = client
+        .post(&calibrated_url)
         .header("Authorization", format!("Bearer {}", config.api_key))
         .json(&request_body)
         .send()
@@ -297,7 +325,10 @@ pub async fn fetch_ai_completion(
         })?;
 
     let elapsed_to_response = request_start.elapsed();
-    eprintln!("[AIUtils] ✅ Response received after {:?}", elapsed_to_response);
+    eprintln!(
+        "[AIUtils] ✅ Response received after {:?}",
+        elapsed_to_response
+    );
 
     let status = response.status();
     let headers = response.headers().clone();
@@ -347,22 +378,29 @@ pub async fn fetch_ai_completion(
             eprintln!("[AIUtils] Error kind: {:?}", e);
             eprintln!("[AIUtils] Is timeout: {}", e.is_timeout());
             eprintln!("[AIUtils] Is connect: {}", e.is_connect());
-            return Err(format!("Failed to read response bytes: {} (timeout: {}, connect: {})",
-                e, e.is_timeout(), e.is_connect()));
+            return Err(format!(
+                "Failed to read response bytes: {} (timeout: {}, connect: {})",
+                e,
+                e.is_timeout(),
+                e.is_connect()
+            ));
         }
     };
 
     let response_text = String::from_utf8(response_bytes.to_vec()).map_err(|e| {
         eprintln!("[AIUtils] Failed to decode response as UTF-8: {}", e);
-        eprintln!("[AIUtils] First 100 bytes (as hex): {:02x?}",
-            &response_bytes[..response_bytes.len().min(100)]);
+        eprintln!(
+            "[AIUtils] First 100 bytes (as hex): {:02x?}",
+            &response_bytes[..response_bytes.len().min(100)]
+        );
         format!("Response is not valid UTF-8: {}", e)
     })?;
 
     // Try to parse as JSON
     let res_json: Value = serde_json::from_str(&response_text).map_err(|e| {
         eprintln!("[AIUtils] JSON Parse Error: {}", e);
-        eprintln!("[AIUtils] Response body (first 500 chars): {}",
+        eprintln!(
+            "[AIUtils] Response body (first 500 chars): {}",
             if response_text.len() > 500 {
                 format!("{}...", safe_truncate(&response_text, 500))
             } else {
@@ -371,16 +409,19 @@ pub async fn fetch_ai_completion(
         );
         format!("Failed to parse AI response as JSON: {}", e)
     })?;
-    
+
     let choice = &res_json["choices"][0]["message"];
     if choice.is_null() {
-        eprintln!("[AIUtils] Error: 'choices[0].message' is missing in response: {}", res_json);
+        eprintln!(
+            "[AIUtils] Error: 'choices[0].message' is missing in response: {}",
+            res_json
+        );
         return Err("Malformed AI response: message field missing".to_string());
     }
 
     let role = choice["role"].as_str().unwrap_or("assistant").to_string();
     let content_text = choice["content"].as_str().unwrap_or("").to_string();
-    
+
     let mut tool_calls: Option<Vec<ToolCall>> = None;
     if let Some(tc_array) = choice["tool_calls"].as_array() {
         let mut calls = Vec::new();
@@ -389,9 +430,15 @@ pub async fn fetch_ai_completion(
                 id: tc_val["id"].as_str().unwrap_or("").to_string(),
                 r#type: "function".to_string(),
                 function: FunctionCall {
-                    name: tc_val["function"]["name"].as_str().unwrap_or("").to_string(),
-                    arguments: tc_val["function"]["arguments"].as_str().unwrap_or("{}").to_string(),
-                }
+                    name: tc_val["function"]["name"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string(),
+                    arguments: tc_val["function"]["arguments"]
+                        .as_str()
+                        .unwrap_or("{}")
+                        .to_string(),
+                },
             });
         }
         tool_calls = Some(calls);
@@ -450,11 +497,12 @@ fn extract_partial_value(json_str: &str, key: &str) -> Option<String> {
         if let Some(caps) = re.captures(json_str) {
             let mut val = caps[1].to_string();
             // Enhanced unescaping for display purposes
-            val = val.replace("\\n", "\n")
-                     .replace("\\r", "\r")
-                     .replace("\\t", "\t")
-                     .replace("\\\"", "\"")
-                     .replace("\\\\", "\\");
+            val = val
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\t", "\t")
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\");
             return Some(val);
         }
     }
@@ -484,24 +532,38 @@ pub fn extract_task_path(msg: &str) -> String {
         // 如果没有找到显式指令，检查消息是否看起来像是一个纯路径
         let trimmed = msg.trim();
         let char_count = trimmed.chars().count();
-        
+
         // 路径通常比较短，不包含空格或中文标点
         let has_spaces = trimmed.contains(' ') || trimmed.contains('\t');
-        let has_punctuation = trimmed.contains('，') || trimmed.contains('。') || trimmed.contains('！') || trimmed.contains('？');
-        
+        let has_punctuation = trimmed.contains('，')
+            || trimmed.contains('。')
+            || trimmed.contains('！')
+            || trimmed.contains('？');
+
         // 检查是否看起来像文件：有扩展名且没有太多中文字符
-        let has_extension = trimmed.contains('.') && trimmed.split('.').last().map_or(false, |ext| ext.len() >= 2 && ext.len() <= 5);
+        let has_extension = trimmed.contains('.')
+            && trimmed
+                .split('.')
+                .last()
+                .map_or(false, |ext| ext.len() >= 2 && ext.len() <= 5);
         let has_slash = trimmed.contains('/') || trimmed.contains('\\');
-        
+
         // 统计中文字符比例
-        let chinese_chars = trimmed.chars().filter(|c| (*c >= '\u{4e00}' && *c <= '\u{9fff}')).count();
+        let chinese_chars = trimmed
+            .chars()
+            .filter(|c| (*c >= '\u{4e00}' && *c <= '\u{9fff}'))
+            .count();
         let is_mostly_chinese = char_count > 0 && (chinese_chars as f64 / char_count as f64) > 0.5;
 
         // 识别标准：
         // 1. 字符数少于 512 (放宽限制以支持长 Java 路径)
         // 2. 没有空格和中文标点
         // 3. 包含路径分隔符 OR (包含扩展名 且 中文字符比例不高)
-        if char_count < 512 && !has_spaces && !has_punctuation && (has_slash || (has_extension && !is_mostly_chinese)) {
+        if char_count < 512
+            && !has_spaces
+            && !has_punctuation
+            && (has_slash || (has_extension && !is_mostly_chinese))
+        {
             trimmed.to_string()
         } else {
             ".".to_string()
@@ -520,16 +582,19 @@ mod tests {
         assert_eq!(extract_task_path("读取 src/lib.rs"), "src/lib.rs");
         assert_eq!(extract_task_path("查看 ./docs"), "./docs");
         assert_eq!(extract_task_path("打开 测试文件.js"), "测试文件.js");
-        
+
         // 纯路径
         assert_eq!(extract_task_path("src/utils.ts"), "src/utils.ts");
         assert_eq!(extract_task_path("package.json"), "package.json");
         assert_eq!(extract_task_path("./README.md"), "./README.md");
-        
+
         // 自然语言（不应被识别为路径）
         assert_eq!(extract_task_path("生成示例代码 100行左右 如demo.js"), ".");
         assert_eq!(extract_task_path("帮我写个脚本"), ".");
-        assert_eq!(extract_task_path("这是个包含.的点号但很长的句子，不应该被识别为路径。"), ".");
+        assert_eq!(
+            extract_task_path("这是个包含.的点号但很长的句子，不应该被识别为路径。"),
+            "."
+        );
         assert_eq!(extract_task_path("这是一个带有.js扩展名的中文字句"), ".");
     }
 }
@@ -555,15 +620,20 @@ pub async fn agent_stream_chat_with_root(
     project_root: Option<String>,
     agent_type: Option<String>,
 ) -> Result<Message, String> {
-    eprintln!("[AgentStream] agent_stream_chat called with agent_id: {}, agent_type: {:?}", agent_id, agent_type);
+    eprintln!(
+        "[AgentStream] agent_stream_chat called with agent_id: {}, agent_type: {:?}",
+        agent_id, agent_type
+    );
 
     // 检查 agent 类型
     let (is_explore_agent, is_hybrid_agent) = if let Some(ref at) = agent_type {
         let at_lower = at.to_lowercase();
         let explore = at_lower.contains("explore") || at_lower.contains("scan");
         // Hybrid agents: review, test, doc, refactor - 这些需要读取文件，但内容生成由云端完成
-        let hybrid = at_lower.contains("review") || at_lower.contains("test") ||
-                     at_lower.contains("doc") || at_lower.contains("refactor");
+        let hybrid = at_lower.contains("review")
+            || at_lower.contains("test")
+            || at_lower.contains("doc")
+            || at_lower.contains("refactor");
         (explore, hybrid)
     } else {
         (false, false)
@@ -571,14 +641,18 @@ pub async fn agent_stream_chat_with_root(
 
     // 本地模型预处理 - 智能路由决策
     if let Some(ref root) = project_root {
-        println!("[AgentStream] Checking local model routing... (explore: {}, hybrid: {})", is_explore_agent, is_hybrid_agent);
+        println!(
+            "[AgentStream] Checking local model routing... (explore: {}, hybrid: {})",
+            is_explore_agent, is_hybrid_agent
+        );
 
         // 对于 explore agent，如果本地模型可用，直接使用本地工具调用
         if is_explore_agent {
             println!("[AgentStream] Explore agent detected, using local tool calls");
 
             // 从用户消息中提取文件路径（如果存在），否则使用当前目录
-            let last_user_msg = messages.iter()
+            let last_user_msg = messages
+                .iter()
                 .filter(|m| m.role == "user")
                 .last()
                 .and_then(|m| {
@@ -607,10 +681,11 @@ pub async fn agent_stream_chat_with_root(
             let scan_result = core_wrappers::agent_scan_directory(
                 root.to_string(),
                 task_path.to_string(),
-                None,  // pattern
-                Some(3),  // max_depth - 扫描3层深
-                Some(200)  // max_files - 最多200个文件
-            ).await;
+                None,      // pattern
+                Some(3),   // max_depth - 扫描3层深
+                Some(200), // max_files - 最多200个文件
+            )
+            .await;
 
             let tool_result = match scan_result {
                 Ok(json_str) => {
@@ -618,12 +693,25 @@ pub async fn agent_stream_chat_with_root(
 
                     // 解析 JSON 结果
                     if let Ok(data) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                        let files = data["files"].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()).unwrap_or_default();
-                        let directories = data["directories"].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()).unwrap_or_default();
+                        let files = data["files"]
+                            .as_array()
+                            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                            .unwrap_or_default();
+                        let directories = data["directories"]
+                            .as_array()
+                            .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                            .unwrap_or_default();
 
-                        println!("[AgentStream] Scan result: {} files, {} directories", files.len(), directories.len());
+                        println!(
+                            "[AgentStream] Scan result: {} files, {} directories",
+                            files.len(),
+                            directories.len()
+                        );
                         if !files.is_empty() {
-                            println!("[AgentStream] First 20 files: {:?}", &files.iter().take(20).collect::<Vec<_>>());
+                            println!(
+                                "[AgentStream] First 20 files: {:?}",
+                                &files.iter().take(20).collect::<Vec<_>>()
+                            );
                         }
                         if !directories.is_empty() {
                             println!("[AgentStream] All directories: {:?}", directories);
@@ -631,13 +719,19 @@ pub async fn agent_stream_chat_with_root(
 
                         // 常见的忽略模式（目录和文件）
                         let ignore_dirs = [
-                            "node_modules", ".git", "target", "dist", "build",
-                            ".vscode", ".idea", "coverage", ".next", ".nuxt"
+                            "node_modules",
+                            ".git",
+                            "target",
+                            "dist",
+                            "build",
+                            ".vscode",
+                            ".idea",
+                            "coverage",
+                            ".next",
+                            ".nuxt",
                         ];
 
-                        let ignore_files = [
-                            ".DS_Store", "*.log", ".tsbuildinfo"
-                        ];
+                        let ignore_files = [".DS_Store", "*.log", ".tsbuildinfo"];
 
                         // 检查是否应该忽略目录
                         let should_ignore_dir = |dir: &str| -> bool {
@@ -653,8 +747,9 @@ pub async fn agent_stream_chat_with_root(
                         let should_ignore_file = |file: &str| -> bool {
                             // 首先检查文件路径中是否包含忽略的目录
                             for ignore_dir in &ignore_dirs {
-                                if file.starts_with(&format!("{}/", ignore_dir)) ||
-                                   file.contains(&format!("/{}/", ignore_dir)) {
+                                if file.starts_with(&format!("{}/", ignore_dir))
+                                    || file.contains(&format!("/{}/", ignore_dir))
+                                {
                                     return true;
                                 }
                             }
@@ -666,7 +761,8 @@ pub async fn agent_stream_chat_with_root(
                                         return true;
                                     }
                                 } else {
-                                    if file == *pattern || file.ends_with(&format!("/{}", pattern)) {
+                                    if file == *pattern || file.ends_with(&format!("/{}", pattern))
+                                    {
                                         return true;
                                     }
                                 }
@@ -675,26 +771,34 @@ pub async fn agent_stream_chat_with_root(
                         };
 
                         // 过滤目录
-                        let filtered_dirs: Vec<&str> = directories.iter().filter(|d| !should_ignore_dir(d)).cloned().collect();
+                        let filtered_dirs: Vec<&str> = directories
+                            .iter()
+                            .filter(|d| !should_ignore_dir(d))
+                            .cloned()
+                            .collect();
 
                         // 过滤文件 - 添加详细日志
                         let mut ignored_count = 0;
                         let mut kept_count = 0;
-                        let filtered_files: Vec<&str> = files.iter().filter(|f| {
-                            let ignored = should_ignore_file(f);
-                            if ignored {
-                                ignored_count += 1;
-                                if ignored_count <= 5 {
-                                    println!("[AgentStream] Filtered file: {}", f);
+                        let filtered_files: Vec<&str> = files
+                            .iter()
+                            .filter(|f| {
+                                let ignored = should_ignore_file(f);
+                                if ignored {
+                                    ignored_count += 1;
+                                    if ignored_count <= 5 {
+                                        println!("[AgentStream] Filtered file: {}", f);
+                                    }
+                                } else {
+                                    kept_count += 1;
+                                    if kept_count <= 5 {
+                                        println!("[AgentStream] Kept file: {}", f);
+                                    }
                                 }
-                            } else {
-                                kept_count += 1;
-                                if kept_count <= 5 {
-                                    println!("[AgentStream] Kept file: {}", f);
-                                }
-                            }
-                            !ignored
-                        }).cloned().collect();
+                                !ignored
+                            })
+                            .cloned()
+                            .collect();
 
                         println!("[AgentStream] After filtering: {} files kept, {} ignored (out of {} total), {} directories",
                             kept_count, ignored_count, files.len(), filtered_dirs.len());
@@ -753,7 +857,8 @@ pub async fn agent_stream_chat_with_root(
                         }
 
                         // 统计实际显示的文件数
-                        let visible_count = root_files.len() + dir_map.values().map(|v| v.len()).sum::<usize>();
+                        let visible_count =
+                            root_files.len() + dir_map.values().map(|v| v.len()).sum::<usize>();
 
                         // 闭合树结构
                         if visible_count > 0 {
@@ -763,7 +868,10 @@ pub async fn agent_stream_chat_with_root(
                         }
 
                         // 使用代码块格式以保持渲染，添加元数据供前端 i18n
-                        format!("```\n{}\n```\n\n__SCAN_RESULT__{}|{}", tree_output, visible_count, elapsed)
+                        format!(
+                            "```\n{}\n```\n\n__SCAN_RESULT__{}|{}",
+                            tree_output, visible_count, elapsed
+                        )
                     } else {
                         format!("Error: Failed to parse scan result ({}ms)", elapsed)
                     }
@@ -775,18 +883,24 @@ pub async fn agent_stream_chat_with_root(
             };
 
             // 发送工具结果事件
-            let _ = app.emit(&format!("agent_{}", agent_id), json!({
-                "type": "content",
-                "content": tool_result.clone(),
-                "metadata": {
-                    "source": "local_model",
-                    "agent_type": "explore",
-                    "execution_time_ms": start.elapsed().as_millis()
-                }
-            }));
+            let _ = app.emit(
+                &format!("agent_{}", agent_id),
+                json!({
+                    "type": "content",
+                    "content": tool_result.clone(),
+                    "metadata": {
+                        "source": "local_model",
+                        "agent_type": "explore",
+                        "execution_time_ms": start.elapsed().as_millis()
+                    }
+                }),
+            );
 
             // 返回纯文本的 Message，不带 tool_calls
-            println!("[AgentStream] Local explore completed in {}ms", start.elapsed().as_millis());
+            println!(
+                "[AgentStream] Local explore completed in {}ms",
+                start.elapsed().as_millis()
+            );
             return Ok(Message {
                 role: "assistant".to_string(),
                 content: Content::Text(tool_result),
@@ -800,16 +914,26 @@ pub async fn agent_stream_chat_with_root(
                 println!("[AgentStream] Local Model Preprocess:");
                 println!("  - should_use_local: {}", result.should_use_local);
                 println!("  - has_tool_calls: {}", result.has_tool_calls);
-                println!("  - tool_calls: {:?}", result.tool_calls.iter().map(|t| &t.name).collect::<Vec<_>>());
+                println!(
+                    "  - tool_calls: {:?}",
+                    result
+                        .tool_calls
+                        .iter()
+                        .map(|t| &t.name)
+                        .collect::<Vec<_>>()
+                );
                 println!("  - route_reason: {}", result.route_reason);
 
                 // 情况 1：如果本地可以处理工具调用（显式解析到的）
                 if result.should_use_local && result.has_tool_calls {
-                    println!("[AgentStream] Executing {} tool calls locally", result.tool_calls.len());
+                    println!(
+                        "[AgentStream] Executing {} tool calls locally",
+                        result.tool_calls.len()
+                    );
 
                     // 执行工具调用并构造返回的 Message
                     let mut tool_calls_vec = Vec::new();
-                    let mut tool_results_text = String::new();  // 收集工具结果用于显示
+                    let mut tool_results_text = String::new(); // 收集工具结果用于显示
 
                     for tool_call in result.tool_calls {
                         println!("[AgentStream] Executing tool: {}", tool_call.name);
@@ -823,24 +947,28 @@ pub async fn agent_stream_chat_with_root(
                         // 执行工具调用 - 使用 ToolRouter (P4 迁移)
                         use crate::harness::tool::ToolRouter;
                         let tool_result = match tool_call.name.as_str() {
-                            "agent_read_file" | "agent_write_file" | "agent_list_dir" | "agent_scan_project" => {
+                            "agent_read_file" | "agent_write_file" | "agent_list_dir"
+                            | "agent_scan_project" => {
                                 let router = ToolRouter::new();
                                 router.set_project_root(root.to_string());
                                 match router.execute(&tool_call.name, &args_value) {
                                     Ok(result) => result,
-                                    Err(e) => format!("错误: {:?}", e)
+                                    Err(e) => format!("错误: {:?}", e),
                                 }
                             }
                             "bash" => {
                                 let command = args_value["command"].as_str().unwrap_or("");
-                                let working_dir = args_value["working_dir"].as_str().map(|s| s.to_string());
+                                let working_dir =
+                                    args_value["working_dir"].as_str().map(|s| s.to_string());
                                 let timeout = args_value["timeout"].as_u64();
                                 match crate::commands::bash_commands::execute_bash_command(
                                     command.to_string(),
                                     working_dir,
                                     timeout,
                                     None,
-                                ).await {
+                                )
+                                .await
+                                {
                                     Ok(result) => {
                                         // 格式化 bash 结果用于显示
                                         if !result.stdout.is_empty() {
@@ -851,10 +979,10 @@ pub async fn agent_stream_chat_with_root(
                                             format!("命令执行成功 (退出码: {})", result.exit_code)
                                         }
                                     }
-                                    Err(e) => format!("错误: {}", e)
+                                    Err(e) => format!("错误: {}", e),
                                 }
                             }
-                            _ => format!("未知的工具: {}", tool_call.name)
+                            _ => format!("未知的工具: {}", tool_call.name),
                         };
 
                         // 将结果添加到显示文本中
@@ -862,18 +990,20 @@ pub async fn agent_stream_chat_with_root(
                             tool_results_text.push_str("\n\n");
                         }
                         let command_display = args_value["command"].as_str().unwrap_or("");
-                        tool_results_text.push_str(&format!("**{}**: `{}`\n```\n{}\n```",
-                            tool_call.name,
-                            command_display,
-                            tool_result
+                        tool_results_text.push_str(&format!(
+                            "**{}**: `{}`\n```\n{}\n```",
+                            tool_call.name, command_display, tool_result
                         ));
 
                         // 发送工具结果事件
-                        let _ = app.emit(&format!("agent_{}", agent_id), json!({
-                            "type": "tool-result",
-                            "tool_name": tool_call.name,
-                            "result": tool_result
-                        }));
+                        let _ = app.emit(
+                            &format!("agent_{}", agent_id),
+                            json!({
+                                "type": "tool-result",
+                                "tool_name": tool_call.name,
+                                "result": tool_result
+                            }),
+                        );
 
                         // 构造 ToolCall
                         tool_calls_vec.push(crate::core_traits::ai::ToolCall {
@@ -897,7 +1027,7 @@ pub async fn agent_stream_chat_with_root(
                     return Ok(Message {
                         role: "assistant".to_string(),
                         content: Content::Text(content),
-                        tool_calls: None,  // 关键修复：设为 None，避免循环
+                        tool_calls: None, // 关键修复：设为 None，避免循环
                         tool_call_id: None,
                     });
                 }
@@ -905,11 +1035,14 @@ pub async fn agent_stream_chat_with_root(
                 // 情况 2：should_use_local: true 但 has_tool_calls: false
                 // 说明这是自然语言命令（如"执行git status"），需要本地模型推理
                 if result.should_use_local && !result.has_tool_calls {
-                    println!("[AgentStream] Local model inference needed for natural language command");
+                    println!(
+                        "[AgentStream] Local model inference needed for natural language command"
+                    );
                     println!("[AgentStream] Route reason: {}", result.route_reason);
 
                     // 提取用户消息作为提示词
-                    let user_message = messages.iter()
+                    let user_message = messages
+                        .iter()
                         .filter(|m| m.role == "user")
                         .last()
                         .and_then(|m| {
@@ -921,8 +1054,10 @@ pub async fn agent_stream_chat_with_root(
                         });
 
                     if let Some(prompt) = user_message {
-                        println!("[AgentStream] Calling local model inference with prompt: '{}'",
-                                 prompt.chars().take(50).collect::<String>());
+                        println!(
+                            "[AgentStream] Calling local model inference with prompt: '{}'",
+                            prompt.chars().take(50).collect::<String>()
+                        );
 
                         // 调用本地模型推理
                         #[cfg(feature = "llm-inference")]
@@ -930,7 +1065,9 @@ pub async fn agent_stream_chat_with_root(
                             // 使用 spawn_blocking 运行同步推理任务
                             let inference_result = tokio::task::spawn_blocking(move || {
                                 crate::llm_inference::generate_completion(&prompt, 256)
-                            }).await.map_err(|e| format!("任务调度失败: {}", e))?;
+                            })
+                            .await
+                            .map_err(|e| format!("任务调度失败: {}", e))?;
 
                             match inference_result {
                                 Ok(response) => {
@@ -947,13 +1084,17 @@ pub async fn agent_stream_chat_with_root(
 
                                         // 执行工具调用并收集结果
                                         let mut tool_calls_vec = Vec::new();
-                                        let mut tool_results_text = String::new();  // 收集工具结果用于显示
+                                        let mut tool_results_text = String::new(); // 收集工具结果用于显示
 
                                         for tool_call in tool_calls {
-                                            println!("[AgentStream] Executing tool: {}", tool_call.name);
+                                            println!(
+                                                "[AgentStream] Executing tool: {}",
+                                                tool_call.name
+                                            );
 
-                                            let args_json = serde_json::to_string(&tool_call.arguments)
-                                                .unwrap_or_else(|_| "{}".to_string());
+                                            let args_json =
+                                                serde_json::to_string(&tool_call.arguments)
+                                                    .unwrap_or_else(|_| "{}".to_string());
                                             let args_value: serde_json::Value =
                                                 serde_json::from_str(&args_json)
                                                     .unwrap_or_else(|_| serde_json::json!({}));
@@ -962,8 +1103,11 @@ pub async fn agent_stream_chat_with_root(
                                             use crate::harness::tool::ToolRouter;
                                             let tool_result = match tool_call.name.as_str() {
                                                 "bash" => {
-                                                    let command = args_value["command"].as_str().unwrap_or("");
-                                                    let working_dir = args_value["working_dir"].as_str()
+                                                    let command = args_value["command"]
+                                                        .as_str()
+                                                        .unwrap_or("");
+                                                    let working_dir = args_value["working_dir"]
+                                                        .as_str()
                                                         .map(|s| s.to_string());
                                                     let timeout = args_value["timeout"].as_u64();
                                                     match crate::commands::bash_commands::execute_bash_command(
@@ -985,34 +1129,40 @@ pub async fn agent_stream_chat_with_root(
                                                         Err(e) => format!("错误: {}", e)
                                                     }
                                                 }
-                                                "agent_read_file" | "agent_write_file" | "agent_list_dir" | "agent_scan_project" => {
+                                                "agent_read_file" | "agent_write_file"
+                                                | "agent_list_dir" | "agent_scan_project" => {
                                                     let router = ToolRouter::new();
                                                     router.set_project_root(root.to_string());
-                                                    match router.execute(&tool_call.name, &args_value) {
+                                                    match router
+                                                        .execute(&tool_call.name, &args_value)
+                                                    {
                                                         Ok(result) => result,
-                                                        Err(e) => format!("错误: {:?}", e)
+                                                        Err(e) => format!("错误: {:?}", e),
                                                     }
                                                 }
-                                                _ => format!("未知的工具: {}", tool_call.name)
+                                                _ => format!("未知的工具: {}", tool_call.name),
                                             };
 
                                             // 将结果添加到显示文本中
                                             if !tool_results_text.is_empty() {
                                                 tool_results_text.push_str("\n\n");
                                             }
-                                            let command_display = args_value["command"].as_str().unwrap_or("");
-                                            tool_results_text.push_str(&format!("**{}**: `{}`\n```\n{}\n```",
-                                                tool_call.name,
-                                                command_display,
-                                                tool_result
+                                            let command_display =
+                                                args_value["command"].as_str().unwrap_or("");
+                                            tool_results_text.push_str(&format!(
+                                                "**{}**: `{}`\n```\n{}\n```",
+                                                tool_call.name, command_display, tool_result
                                             ));
 
                                             // 发送工具结果事件
-                                            let _ = app.emit(&format!("agent_{}", agent_id), json!({
-                                                "type": "tool-result",
-                                                "tool_name": tool_call.name,
-                                                "result": tool_result
-                                            }));
+                                            let _ = app.emit(
+                                                &format!("agent_{}", agent_id),
+                                                json!({
+                                                    "type": "tool-result",
+                                                    "tool_name": tool_call.name,
+                                                    "result": tool_result
+                                                }),
+                                            );
 
                                             tool_calls_vec.push(crate::core_traits::ai::ToolCall {
                                                 id: format!("call_{}", uuid::Uuid::new_v4()),
@@ -1033,7 +1183,7 @@ pub async fn agent_stream_chat_with_root(
                                         return Ok(Message {
                                             role: "assistant".to_string(),
                                             content: Content::Text(content),
-                                            tool_calls: None,  // 关键修复：设为 None，避免循环
+                                            tool_calls: None, // 关键修复：设为 None，避免循环
                                             tool_call_id: None,
                                         });
                                     } else {
@@ -1059,7 +1209,10 @@ pub async fn agent_stream_chat_with_root(
                 }
             }
             Err(e) => {
-                eprintln!("[AgentStream] Local model preprocess failed: {}, falling back to cloud", e);
+                eprintln!(
+                    "[AgentStream] Local model preprocess failed: {}, falling back to cloud",
+                    e
+                );
             }
         }
     }
@@ -1070,25 +1223,27 @@ pub async fn agent_stream_chat_with_root(
     if is_hybrid_agent {
         if let Some(ref root) = project_root {
             use crate::file_cache;
-            use std::path::PathBuf;
             use regex::Regex;
+            use std::path::PathBuf;
 
             println!("[AgentStream] Hybrid mode: checking for file paths in user message");
 
             // 获取最后一条用户消息
-            let user_message = messages.iter()
-                .filter(|m| m.role == "user")
-                .last();
+            let user_message = messages.iter().filter(|m| m.role == "user").last();
 
             if let Some(msg) = user_message {
-                let text = if let Content::Text(ref t) = msg.content { t } else { "" };
+                let text = if let Content::Text(ref t) = msg.content {
+                    t
+                } else {
+                    ""
+                };
 
                 // 智能提取文件路径的正则表达式
                 // 匹配: "review src/lib.rs", "/test components/Header.tsx", "检查 src/main.rs"
                 let file_patterns = [
                     r"\b(?:review|test|doc|refactor|check|read|审查|测试|文档|重构|检查|读取)\s+([^\s,]+\.[a-z]+)",
-                    r"\b([\w./-]+\.[a-z]{2,4})\b",  // 匹配文件扩展名
-                    r"\b([\w./-]+/[\w./-]*)\b",  // 匹配类路径
+                    r"\b([\w./-]+\.[a-z]{2,4})\b", // 匹配文件扩展名
+                    r"\b([\w./-]+/[\w./-]*)\b",    // 匹配类路径
                 ];
 
                 let mut extracted_paths = std::collections::HashSet::new();
@@ -1101,7 +1256,8 @@ pub async fn agent_stream_chat_with_root(
                                 // 过滤掉明显不是文件路径的匹配
                                 if path_str.contains('.') || path_str.contains('/') {
                                     // 移除引号
-                                    let clean_path = path_str.trim_matches('"').trim_matches('\'').trim();
+                                    let clean_path =
+                                        path_str.trim_matches('"').trim_matches('\'').trim();
                                     if !clean_path.is_empty() && clean_path.len() < 200 {
                                         extracted_paths.insert(clean_path.to_string());
                                     }
@@ -1117,7 +1273,10 @@ pub async fn agent_stream_chat_with_root(
 
                 if !paths.is_empty() {
                     let path_count = paths.len();
-                    println!("[AgentStream] Hybrid mode: extracted {} file paths: {:?}", path_count, paths);
+                    println!(
+                        "[AgentStream] Hybrid mode: extracted {} file paths: {:?}",
+                        path_count, paths
+                    );
 
                     // 读取所有文件（使用缓存）
                     // 构建文件内容摘要
@@ -1126,24 +1285,41 @@ pub async fn agent_stream_chat_with_root(
                         let full_path = PathBuf::from(root).join(&path);
 
                         // 添加详细路径日志
-                        println!("[AgentStream] Hybrid: project_root={}, rel_path={}, full_path={}",
-                            root, path, full_path.display());
+                        println!(
+                            "[AgentStream] Hybrid: project_root={}, rel_path={}, full_path={}",
+                            root,
+                            path,
+                            full_path.display()
+                        );
 
                         match file_cache::cached_read_file(root, &path).await {
                             Ok(content) => {
-                                println!("[AgentStream] Hybrid: read file from cache: {} ({} bytes)", path, content.len());
+                                println!(
+                                    "[AgentStream] Hybrid: read file from cache: {} ({} bytes)",
+                                    path,
+                                    content.len()
+                                );
                                 file_contents.push((path, content));
                             }
                             Err(e) => {
-                                println!("[AgentStream] Hybrid: file not found or error: {} - {}", path, e);
-                                println!("[AgentStream] Hybrid: tried path: {}", full_path.display());
+                                println!(
+                                    "[AgentStream] Hybrid: file not found or error: {} - {}",
+                                    path, e
+                                );
+                                println!(
+                                    "[AgentStream] Hybrid: tried path: {}",
+                                    full_path.display()
+                                );
                                 // 检查文件是否真的存在
                                 if full_path.exists() {
                                     println!("[AgentStream] Hybrid: file exists but read failed");
                                 } else {
                                     println!("[AgentStream] Hybrid: file does not exist at path");
                                 }
-                                file_contents.push((path.clone(), format!("Error: File not found at {}", full_path.display())));
+                                file_contents.push((
+                                    path.clone(),
+                                    format!("Error: File not found at {}", full_path.display()),
+                                ));
                             }
                         }
                     }
@@ -1151,11 +1327,16 @@ pub async fn agent_stream_chat_with_root(
                     // 将文件内容作为 system 消息添加（在用户消息之前）
                     let context_message = format!(
                         "The following files have been read for context:\n{}",
-                        file_contents.iter()
+                        file_contents
+                            .iter()
                             .map(|(path, content)| {
                                 // 限制每个文件最多 10000 字符
                                 let truncated = if content.len() > 10000 {
-                                    format!("{}...\n[truncated, total {} chars]", content.chars().take(10000).collect::<String>(), content.len())
+                                    format!(
+                                        "{}...\n[truncated, total {} chars]",
+                                        content.chars().take(10000).collect::<String>(),
+                                        content.len()
+                                    )
                                 } else {
                                     content.clone()
                                 };
@@ -1166,12 +1347,15 @@ pub async fn agent_stream_chat_with_root(
                     );
 
                     // 在消息历史开头插入 system 消息
-                    messages_with_tools.insert(0, Message {
-                        role: "system".to_string(),
-                        content: Content::Text(context_message),
-                        tool_calls: None,
-                        tool_call_id: None,
-                    });
+                    messages_with_tools.insert(
+                        0,
+                        Message {
+                            role: "system".to_string(),
+                            content: Content::Text(context_message),
+                            tool_calls: None,
+                            tool_call_id: None,
+                        },
+                    );
 
                     println!("[AgentStream] Hybrid mode: completed local file reading, added {} files as system context", path_count);
                 } else {
@@ -1185,18 +1369,22 @@ pub async fn agent_stream_chat_with_root(
     eprintln!("[AgentStream] Using cloud API");
     // ... (rest of implementation)
     // 1. Sanitize messages - use messages_with_tools for hybrid mode
-    let mut clean_messages = if is_hybrid_agent { messages_with_tools } else { messages.clone() };
+    let mut clean_messages = if is_hybrid_agent {
+        messages_with_tools
+    } else {
+        messages.clone()
+    };
     sanitize_messages(&mut clean_messages);
 
     // 2. Build request with proper timeout and keep-alive configuration
     let client = Client::builder()
-        .timeout(Duration::from_secs(600))  // 10 minute total timeout (was 300s)
-        .connect_timeout(Duration::from_secs(60))  // 60 second connection timeout (was 30s)
-        .pool_idle_timeout(Duration::from_secs(120))  // Keep connections alive for 120s in pool (was 90s)
-        .pool_max_idle_per_host(10)  // Maintain up to 10 idle connections per host
-        .tcp_keepalive(Duration::from_secs(30))  // TCP layer keepalive every 30s (was 15s)
-        .http2_keep_alive_interval(Duration::from_secs(20))  // HTTP/2 keepalive every 20s (was 10s)
-        .http2_keep_alive_timeout(Duration::from_secs(30))   // HTTP/2 must respond within 30s (was 5s)
+        .timeout(Duration::from_secs(600)) // 10 minute total timeout (was 300s)
+        .connect_timeout(Duration::from_secs(60)) // 60 second connection timeout (was 30s)
+        .pool_idle_timeout(Duration::from_secs(120)) // Keep connections alive for 120s in pool (was 90s)
+        .pool_max_idle_per_host(10) // Maintain up to 10 idle connections per host
+        .tcp_keepalive(Duration::from_secs(30)) // TCP layer keepalive every 30s (was 15s)
+        .http2_keep_alive_interval(Duration::from_secs(20)) // HTTP/2 keepalive every 20s (was 10s)
+        .http2_keep_alive_timeout(Duration::from_secs(30)) // HTTP/2 must respond within 30s (was 5s)
         .http2_keep_alive_while_idle(true)
         .build()
         .map_err(|e| {
@@ -1215,7 +1403,10 @@ pub async fn agent_stream_chat_with_root(
     }
 
     let calibrated_url = calibrate_provider_url(&config.base_url, &config.name);
-    eprintln!("[AgentStream] Sending streaming request to calibrated URL: {}", calibrated_url);
+    eprintln!(
+        "[AgentStream] Sending streaming request to calibrated URL: {}",
+        calibrated_url
+    );
 
     // 3. Send HTTP request
     let response = client
@@ -1242,7 +1433,8 @@ pub async fn agent_stream_chat_with_root(
     let mut event_count = 0;
 
     // 🔥 FIX v0.3.6: Track emitted tool_calls to prevent duplicates (Zhipu API may send same tool_call twice)
-    let mut emitted_tool_call_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut emitted_tool_call_ids: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     // Stream statistics tracking
     let start_time = Instant::now();
@@ -1259,7 +1451,9 @@ pub async fn agent_stream_chat_with_root(
         match event {
             Ok(event) => {
                 // ... (解析逻辑)
-                if let Ok(stream_response) = serde_json::from_str::<OpenAIStreamResponse>(&event.data) {
+                if let Ok(stream_response) =
+                    serde_json::from_str::<OpenAIStreamResponse>(&event.data)
+                {
                     if let Some(choice) = stream_response.choices.first() {
                         // 处理推理内容 (reasoning_content)
                         if let Some(reasoning) = &choice.delta.reasoning_content {
@@ -1272,22 +1466,39 @@ pub async fn agent_stream_chat_with_root(
                                     let full_match = caps.get(0).unwrap().as_str();
                                     let re_tool = Regex::new(r"<tool_call>([^<]+)").unwrap();
                                     let re_key = Regex::new(r"<arg_key>([^<]+)</arg_key>").unwrap();
-                                    let re_val = Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
+                                    let re_val =
+                                        Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
 
-                                    if let Some(tool_name) = re_tool.captures(full_match).and_then(|c| c.get(1)).map(|m| m.as_str().trim()) {
+                                    if let Some(tool_name) = re_tool
+                                        .captures(full_match)
+                                        .and_then(|c| c.get(1))
+                                        .map(|m| m.as_str().trim())
+                                    {
                                         let mut args_map = serde_json::Map::new();
-                                        let keys: Vec<_> = re_key.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
-                                        let vals: Vec<_> = re_val.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                                        let keys: Vec<_> = re_key
+                                            .captures_iter(full_match)
+                                            .filter_map(|c| c.get(1))
+                                            .map(|m| m.as_str())
+                                            .collect();
+                                        let vals: Vec<_> = re_val
+                                            .captures_iter(full_match)
+                                            .filter_map(|c| c.get(1))
+                                            .map(|m| m.as_str())
+                                            .collect();
                                         for (k, v) in keys.iter().zip(vals.iter()) {
                                             args_map.insert(k.to_string(), json!(v));
                                         }
 
                                         let tool_id = format!("glm_{}", uuid::Uuid::new_v4());
-                                        accumulated_tool_calls.insert(999, StreamingToolCall {
-                                            id: tool_id,
-                                            name: tool_name.to_string(),
-                                            arguments: serde_json::to_string(&args_map).unwrap_or_default(),
-                                        });
+                                        accumulated_tool_calls.insert(
+                                            999,
+                                            StreamingToolCall {
+                                                id: tool_id,
+                                                name: tool_name.to_string(),
+                                                arguments: serde_json::to_string(&args_map)
+                                                    .unwrap_or_default(),
+                                            },
+                                        );
                                     }
                                 }
                             }
@@ -1300,29 +1511,44 @@ pub async fn agent_stream_chat_with_root(
 
                             // Detect if we are inside a GLM XML tool call
                             // If the content looks like part of <tool_call>...
-                            if accumulated_content.contains("<tool_call>") && !accumulated_content.contains("</tool_call>") {
+                            if accumulated_content.contains("<tool_call>")
+                                && !accumulated_content.contains("</tool_call>")
+                            {
                                 // Silent mode: don't emit thinking event for the XML tags
                                 eprintln!("[AgentStream] GLM XML detected in content, suppressing display until closed");
                             } else if accumulated_content.contains("</tool_call>") {
                                 // Once closed, handle it as a tool call (already handled in reasoning or check here)
                                 // We also need to "clean" the accumulated content to remove the XML tags
                                 // so they don't show up in the final text message
-                                
+
                                 // (XML handling logic already added in reasoning_content, let's make it more robust here)
                                 use regex::Regex;
                                 let re_full = Regex::new(r"<tool_call>(.*?)</tool_call>").unwrap();
                                 if let Some(caps) = re_full.captures(&accumulated_content) {
                                     let full_match = caps.get(0).unwrap().as_str();
-                                    
+
                                     // Extract tool and args similar to the reasoning logic
                                     let re_tool = Regex::new(r"<tool_call>([^<]+)").unwrap();
                                     let re_key = Regex::new(r"<arg_key>([^<]+)</arg_key>").unwrap();
-                                    let re_val = Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
+                                    let re_val =
+                                        Regex::new(r"<arg_value>([^<]+)</arg_value>").unwrap();
 
-                                    if let Some(tool_name) = re_tool.captures(full_match).and_then(|c| c.get(1)).map(|m| m.as_str().trim()) {
+                                    if let Some(tool_name) = re_tool
+                                        .captures(full_match)
+                                        .and_then(|c| c.get(1))
+                                        .map(|m| m.as_str().trim())
+                                    {
                                         let mut args = serde_json::Map::new();
-                                        let keys: Vec<_> = re_key.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
-                                        let vals: Vec<_> = re_val.captures_iter(full_match).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+                                        let keys: Vec<_> = re_key
+                                            .captures_iter(full_match)
+                                            .filter_map(|c| c.get(1))
+                                            .map(|m| m.as_str())
+                                            .collect();
+                                        let vals: Vec<_> = re_val
+                                            .captures_iter(full_match)
+                                            .filter_map(|c| c.get(1))
+                                            .map(|m| m.as_str())
+                                            .collect();
 
                                         for (k, v) in keys.iter().zip(vals.iter()) {
                                             args.insert(k.to_string(), json!(v));
@@ -1348,12 +1574,13 @@ pub async fn agent_stream_chat_with_root(
 
                                 // 🔥 FIX: Clean the XML tags from accumulated_content so they don't affect subsequent checks
                                 // Without this, all subsequent content chunks would be suppressed
-                                accumulated_content = re_full.replace_all(&accumulated_content, "").to_string();
+                                accumulated_content =
+                                    re_full.replace_all(&accumulated_content, "").to_string();
                             } else {
                                 // Normal text content
                                 let _ = app.emit(
                                     &format!("agent_{}", agent_id),
-                                    json!({ "type": "thinking", "content": content })
+                                    json!({ "type": "thinking", "content": content }),
                                 );
                             }
                         }
@@ -1364,11 +1591,14 @@ pub async fn agent_stream_chat_with_root(
                                 let idx = chunk.index;
 
                                 if !accumulated_tool_calls.contains_key(&idx) {
-                                    accumulated_tool_calls.insert(idx, StreamingToolCall {
-                                        id: String::new(),
-                                        name: String::new(),
-                                        arguments: String::new(),
-                                    });
+                                    accumulated_tool_calls.insert(
+                                        idx,
+                                        StreamingToolCall {
+                                            id: String::new(),
+                                            name: String::new(),
+                                            arguments: String::new(),
+                                        },
+                                    );
                                 }
 
                                 let st = accumulated_tool_calls.get_mut(&idx).unwrap();
@@ -1398,22 +1628,28 @@ pub async fn agent_stream_chat_with_root(
                                     };
 
                                     // Try full parse first
-                                    let args_val: Value = serde_json::from_str(&st.arguments).unwrap_or_else(|_| {
-                                        // If not valid JSON, try to extract fields manually for better progressive UI
-                                        let mut map = serde_json::Map::new();
-                                        if let Some(path) = extract_partial_value(&st.arguments, "rel_path") {
-                                            map.insert("rel_path".to_string(), json!(path));
-                                        }
-                                        if let Some(content) = extract_partial_value(&st.arguments, "content") {
-                                            map.insert("content".to_string(), json!(content));
-                                        }
-                                        Value::Object(map)
-                                    });
+                                    let args_val: Value = serde_json::from_str(&st.arguments)
+                                        .unwrap_or_else(|_| {
+                                            // If not valid JSON, try to extract fields manually for better progressive UI
+                                            let mut map = serde_json::Map::new();
+                                            if let Some(path) =
+                                                extract_partial_value(&st.arguments, "rel_path")
+                                            {
+                                                map.insert("rel_path".to_string(), json!(path));
+                                            }
+                                            if let Some(content) =
+                                                extract_partial_value(&st.arguments, "content")
+                                            {
+                                                map.insert("content".to_string(), json!(content));
+                                            }
+                                            Value::Object(map)
+                                        });
 
                                     // 🔥 FIX v0.3.5: 检测 tool_call 是否完整
                                     // Zhipu GLM 在单个 chunk 中发送完整的 tool_call (id + 完整的 JSON arguments)
                                     // 当 arguments 是有效 JSON 且有 ID 时，认为是完整的 (isPartial: false)
-                                    let is_complete = !st.id.is_empty() && serde_json::from_str::<Value>(&st.arguments).is_ok();
+                                    let is_complete = !st.id.is_empty()
+                                        && serde_json::from_str::<Value>(&st.arguments).is_ok();
 
                                     // 🔥 FIX v0.3.9.2: 去重 key 包含参数内容哈希
                                     // DeepSeek API 会发送相同 tool_call_id 但参数逐渐增长的事件
@@ -1425,11 +1661,12 @@ pub async fn agent_stream_chat_with_root(
 
                                     // 🔥 FIX: 对于空参数或非常短的参数，使用固定的哈希值
                                     // 避免因空字符串 "" 和 "{}" 的哈希不同导致重复事件
-                                    let args_for_hash = if st.arguments.trim().is_empty() || st.arguments == "{}" {
-                                        "__EMPTY_ARGS__"  // 固定值用于空参数
-                                    } else {
-                                        &st.arguments
-                                    };
+                                    let args_for_hash =
+                                        if st.arguments.trim().is_empty() || st.arguments == "{}" {
+                                            "__EMPTY_ARGS__" // 固定值用于空参数
+                                        } else {
+                                            &st.arguments
+                                        };
 
                                     args_for_hash.hash(&mut hasher);
                                     let args_hash = hasher.finish();
@@ -1466,7 +1703,7 @@ pub async fn agent_stream_chat_with_root(
                                                 "args": args_val,
                                                 "isPartial": !is_complete  // 🔥 Complete when ID present and JSON valid
                                             }
-                                        })
+                                        }),
                                     );
                                     if let Err(e) = emit_result {
                                         eprintln!("[AgentStream] ERROR emitting event: {}", e);
@@ -1475,14 +1712,19 @@ pub async fn agent_stream_chat_with_root(
                                         // 🔥 FIX v0.3.9.1: 标记为已发送
                                         // 使用参数哈希作为 key 的一部分，所以每个不同参数的 tool_call 都会被发送
                                         emitted_tool_call_ids.insert(dedup_key.clone());
-                                        eprintln!("[AgentStream] Marked as sent: {} (args_len={})", dedup_key, st.arguments.len());
+                                        eprintln!(
+                                            "[AgentStream] Marked as sent: {} (args_len={})",
+                                            dedup_key,
+                                            st.arguments.len()
+                                        );
                                     }
-                                }  // End of if !st.name.is_empty()
+                                } // End of if !st.name.is_empty()
                             }
                         }
                     }
                 } else {
-                    eprintln!("[AgentStream] Failed to parse JSON at event #{}. First 200 chars: {}",
+                    eprintln!(
+                        "[AgentStream] Failed to parse JSON at event #{}. First 200 chars: {}",
                         event_count,
                         if event.data.len() > 200 {
                             format!("{}...", safe_truncate(&event.data, 200))
@@ -1490,7 +1732,8 @@ pub async fn agent_stream_chat_with_root(
                             event.data.clone()
                         }
                     );
-                }            }
+                }
+            }
             Err(e) => {
                 let elapsed = start_time.elapsed().as_secs_f64();
                 let error_source = std::error::Error::source(&e)
@@ -1511,7 +1754,9 @@ pub async fn agent_stream_chat_with_root(
                    error_str.contains("charset") ||
                    error_str.contains("response body") ||  // Catch connection timeout read errors
                    error_str.contains("unexpected eof") ||  // Connection closed unexpectedly
-                   error_str.contains("connection") {      // Generic connection issues
+                   error_str.contains("connection")
+                {
+                    // Generic connection issues
                     // Log warning and attempt to continue
                     eprintln!("[AgentStream] Recoverable error at event #{}: {}. Attempting to continue...",
                         event_count, e);
@@ -1531,7 +1776,7 @@ pub async fn agent_stream_chat_with_root(
                     json!({
                         "type": "error",
                         "error": error_details
-                    })
+                    }),
                 );
                 return Err(format!("Stream error: {}", e));
             }
@@ -1539,8 +1784,13 @@ pub async fn agent_stream_chat_with_root(
     }
 
     let total_time = start_time.elapsed().as_secs_f64();
-    eprintln!("[AgentStream] Stream completed. Events: {}, Time: {:.1}s, Content: {} chars, Tools: {}",
-        event_count, total_time, accumulated_content.len(), accumulated_tool_calls.len());
+    eprintln!(
+        "[AgentStream] Stream completed. Events: {}, Time: {:.1}s, Content: {} chars, Tools: {}",
+        event_count,
+        total_time,
+        accumulated_content.len(),
+        accumulated_tool_calls.len()
+    );
 
     // 5. Build final Message
     let tool_calls = if accumulated_tool_calls.is_empty() {
@@ -1557,7 +1807,7 @@ pub async fn agent_stream_chat_with_root(
                         arguments: st.arguments.clone(),
                     },
                 })
-                .collect()
+                .collect(),
         )
     };
 

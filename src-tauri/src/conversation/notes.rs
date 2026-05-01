@@ -1,12 +1,11 @@
+use crate::core_traits::ai::{Content, ContentPart, Message};
 /**
  * Section 5.2: 会话笔记功能
  *
  * 自动从对话中提取和结构化关键信息
  */
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::core_traits::ai::{Message, Content, ContentPart};
 
 /**
  * 技术概念条目
@@ -16,7 +15,7 @@ pub struct TechConcept {
     pub name: String,
     pub description: String,
     pub category: String, // "concept", "pattern", "algorithm", etc.
-    pub mentions: usize, // 提及次数
+    pub mentions: usize,  // 提及次数
 }
 
 /**
@@ -49,7 +48,7 @@ pub struct ErrorFix {
 pub struct TodoTask {
     pub id: String,
     pub description: String,
-    pub status: String, // "pending", "in_progress", "completed"
+    pub status: String,   // "pending", "in_progress", "completed"
     pub priority: String, // "low", "medium", "high"
     pub created_at: i64,
 }
@@ -124,7 +123,13 @@ impl SessionNotes {
     /**
      * 添加错误修复记录
      */
-    pub fn add_error_fix(&mut self, error_message: String, error_type: String, solution: String, file_path: Option<String>) {
+    pub fn add_error_fix(
+        &mut self,
+        error_message: String,
+        error_type: String,
+        solution: String,
+        file_path: Option<String>,
+    ) {
         let now = chrono::Utc::now().timestamp();
         self.error_fixes.push(ErrorFix {
             error_message,
@@ -191,7 +196,11 @@ impl SessionNotes {
         // 🔥 改进：更智能的提取逻辑
 
         // 1. 提取错误信息
-        if lower_text.contains("error") || lower_text.contains("failed") || lower_text.contains("错误") || lower_text.contains("失败") {
+        if lower_text.contains("error")
+            || lower_text.contains("failed")
+            || lower_text.contains("错误")
+            || lower_text.contains("失败")
+        {
             if let Some(error_msg) = self.extract_error_message(text) {
                 let error_type = self.detect_error_type(text);
                 self.add_error_fix(
@@ -204,8 +213,13 @@ impl SessionNotes {
         }
 
         // 2. 提取待办任务
-        if lower_text.contains("todo:") || lower_text.contains("待办") || lower_text.contains("需要")
-            || lower_text.contains("TODO:") || lower_text.contains("fixme") || lower_text.contains("hack") {
+        if lower_text.contains("todo:")
+            || lower_text.contains("待办")
+            || lower_text.contains("需要")
+            || lower_text.contains("TODO:")
+            || lower_text.contains("fixme")
+            || lower_text.contains("hack")
+        {
             if let Some(task) = self.extract_todo_task(text) {
                 self.add_todo_task(task, "medium".to_string());
             }
@@ -215,41 +229,118 @@ impl SessionNotes {
         // 扩展关键词列表，包括更多技术栈
         let tech_keywords = vec![
             // 前端框架
-            "React", "Vue", "Angular", "Svelte", "Solid",
+            "React",
+            "Vue",
+            "Angular",
+            "Svelte",
+            "Solid",
             // 语言
-            "TypeScript", "JavaScript", "Rust", "Go", "Python", "Java", "C++", "C#",
+            "TypeScript",
+            "JavaScript",
+            "Rust",
+            "Go",
+            "Python",
+            "Java",
+            "C++",
+            "C#",
             // 框架和库
-            "Tauri", "Vite", "Webpack", "Rollup", "Next.js", "Nuxt",
-            "useState", "useEffect", "useRef", "useCallback", "useMemo",
+            "Tauri",
+            "Vite",
+            "Webpack",
+            "Rollup",
+            "Next.js",
+            "Nuxt",
+            "useState",
+            "useEffect",
+            "useRef",
+            "useCallback",
+            "useMemo",
             // 概念
-            "组件", "函数", "模块", "接口", "类型", "类", "对象", "数组",
-            "Hook", "Effect", "Context", "Reducer", "State",
+            "组件",
+            "函数",
+            "模块",
+            "接口",
+            "类型",
+            "类",
+            "对象",
+            "数组",
+            "Hook",
+            "Effect",
+            "Context",
+            "Reducer",
+            "State",
             // 工具
-            "Git", "Docker", "Kubernetes", "Linux", "Shell", "Bash",
-            "API", "REST", "GraphQL", "gRPC", "WebSocket",
+            "Git",
+            "Docker",
+            "Kubernetes",
+            "Linux",
+            "Shell",
+            "Bash",
+            "API",
+            "REST",
+            "GraphQL",
+            "gRPC",
+            "WebSocket",
             // 数据库
-            "SQL", "NoSQL", "MongoDB", "PostgreSQL", "MySQL", "Redis",
+            "SQL",
+            "NoSQL",
+            "MongoDB",
+            "PostgreSQL",
+            "MySQL",
+            "Redis",
             // AI/ML
-            "AI", "ML", "LLM", "GPT", "Claude", "Transformer", "Neural",
+            "AI",
+            "ML",
+            "LLM",
+            "GPT",
+            "Claude",
+            "Transformer",
+            "Neural",
             // 测试
-            "Jest", "Vitest", "Cypress", "Playwright", "Selenium",
+            "Jest",
+            "Vitest",
+            "Cypress",
+            "Playwright",
+            "Selenium",
             // 样式
-            "CSS", "SCSS", "Tailwind", "Styled-components",
+            "CSS",
+            "SCSS",
+            "Tailwind",
+            "Styled-components",
             // 构建工具
-            "npm", "yarn", "pnpm", "bun", "Node.js",
+            "npm",
+            "yarn",
+            "pnpm",
+            "bun",
+            "Node.js",
         ];
 
         // 🔥 改进：更宽松的触发条件
-        let has_tech_keyword = text.contains("实现") || text.contains("使用")
-            || text.contains("调用") || text.contains("创建") || text.contains("添加")
-            || text.contains("修改") || text.contains("删除") || text.contains("更新")
-            || text.contains("配置") || text.contains("设置") || text.contains("安装")
-            || text.contains("导入") || text.contains("导出") || text.contains("编写")
-            || text.contains("实现") || text.contains("开发") || text.contains("调试")
-            || lower_text.contains("use") || lower_text.contains("using")
-            || lower_text.contains("implement") || lower_text.contains("create")
-            || lower_text.contains("add") || lower_text.contains("modify")
-            || lower_text.contains("config") || lower_text.contains("setup");
+        let has_tech_keyword = text.contains("实现")
+            || text.contains("使用")
+            || text.contains("调用")
+            || text.contains("创建")
+            || text.contains("添加")
+            || text.contains("修改")
+            || text.contains("删除")
+            || text.contains("更新")
+            || text.contains("配置")
+            || text.contains("设置")
+            || text.contains("安装")
+            || text.contains("导入")
+            || text.contains("导出")
+            || text.contains("编写")
+            || text.contains("实现")
+            || text.contains("开发")
+            || text.contains("调试")
+            || lower_text.contains("use")
+            || lower_text.contains("using")
+            || lower_text.contains("implement")
+            || lower_text.contains("create")
+            || lower_text.contains("add")
+            || lower_text.contains("modify")
+            || lower_text.contains("config")
+            || lower_text.contains("setup");
 
         // 如果消息包含技术相关动作，检查是否有技术关键词
         if has_tech_keyword {
@@ -270,18 +361,23 @@ impl SessionNotes {
         // 🔥 新增：即使没有技术关键词，也记录有意义的对话内容
         // 如果消息长度超过50个字符且包含中文或英文，记录为一般概念
         if text.len() > 50 && self.tech_concepts.is_empty() {
-            if text.contains("是") || text.contains("的") || text.contains("了")
-                || lower_text.contains("is") || lower_text.contains("the") {
+            if text.contains("是")
+                || text.contains("的")
+                || text.contains("了")
+                || lower_text.contains("is")
+                || lower_text.contains("the")
+            {
                 // 提取第一个有意义的短语（简单的启发式方法）
-                let meaningful_phrase = if let Some(pos) = text.find(|c| c == '是' || c == '的' || c == '。') {
-                    if pos > 5 && pos < 50 {
-                        Some(text[..pos].to_string())
+                let meaningful_phrase =
+                    if let Some(pos) = text.find(|c| c == '是' || c == '的' || c == '。') {
+                        if pos > 5 && pos < 50 {
+                            Some(text[..pos].to_string())
+                        } else {
+                            None
+                        }
                     } else {
                         None
-                    }
-                } else {
-                    None
-                };
+                    };
 
                 if let Some(phrase) = meaningful_phrase {
                     if !self.tech_concepts.iter().any(|c| c.name == phrase) {
@@ -353,40 +449,28 @@ impl SessionNotes {
         let mut summary_parts = Vec::new();
 
         if !self.tech_concepts.is_empty() {
-            summary_parts.push(format!(
-                "## 技术概念 ({}个)",
-                self.tech_concepts.len()
-            ));
+            summary_parts.push(format!("## 技术概念 ({}个)", self.tech_concepts.len()));
             for concept in &self.tech_concepts {
                 summary_parts.push(format!("- {}: {}", concept.name, concept.description));
             }
         }
 
         if !self.file_changes.is_empty() {
-            summary_parts.push(format!(
-                "\n## 文件变更 ({}次)",
-                self.file_changes.len()
-            ));
+            summary_parts.push(format!("\n## 文件变更 ({}次)", self.file_changes.len()));
             for change in &self.file_changes {
                 summary_parts.push(format!("- {} ({})", change.path, change.action));
             }
         }
 
         if !self.error_fixes.is_empty() {
-            summary_parts.push(format!(
-                "\n## 错误修复 ({}个)",
-                self.error_fixes.len()
-            ));
+            summary_parts.push(format!("\n## 错误修复 ({}个)", self.error_fixes.len()));
             for fix in &self.error_fixes {
                 summary_parts.push(format!("- {}: {}", fix.error_type, fix.solution));
             }
         }
 
         if !self.todo_tasks.is_empty() {
-            summary_parts.push(format!(
-                "\n## 待办任务 ({}个)",
-                self.todo_tasks.len()
-            ));
+            summary_parts.push(format!("\n## 待办任务 ({}个)", self.todo_tasks.len()));
             for task in &self.todo_tasks {
                 summary_parts.push(format!("- [{}] {}", task.status, task.description));
             }
@@ -412,7 +496,10 @@ impl SessionNotes {
             .unwrap_or_else(|| chrono::Utc::now());
 
         md.push_str(&format!("**开始时间**: {}\n", start_datetime.to_rfc3339()));
-        md.push_str(&format!("**更新时间**: {}\n\n", updated_datetime.to_rfc3339()));
+        md.push_str(&format!(
+            "**更新时间**: {}\n\n",
+            updated_datetime.to_rfc3339()
+        ));
 
         md.push_str(&self.summary);
 
@@ -440,10 +527,7 @@ mod tests {
 
     #[test]
     fn test_create_session_notes() {
-        let notes = SessionNotes::new(
-            "test_session".to_string(),
-            "/tmp/test".to_string()
-        );
+        let notes = SessionNotes::new("test_session".to_string(), "/tmp/test".to_string());
 
         assert_eq!(notes.session_id, "test_session");
         assert_eq!(notes.project_root, "/tmp/test");
@@ -455,15 +539,12 @@ mod tests {
 
     #[test]
     fn test_add_concept() {
-        let mut notes = SessionNotes::new(
-            "test_session".to_string(),
-            "/tmp/test".to_string()
-        );
+        let mut notes = SessionNotes::new("test_session".to_string(), "/tmp/test".to_string());
 
         notes.add_concept(
             "React".to_string(),
             "前端框架".to_string(),
-            "framework".to_string()
+            "framework".to_string(),
         );
 
         assert_eq!(notes.tech_concepts.len(), 1);
@@ -474,7 +555,7 @@ mod tests {
         notes.add_concept(
             "React".to_string(),
             "前端框架".to_string(),
-            "framework".to_string()
+            "framework".to_string(),
         );
 
         assert_eq!(notes.tech_concepts.len(), 1);
@@ -483,15 +564,12 @@ mod tests {
 
     #[test]
     fn test_add_file_change() {
-        let mut notes = SessionNotes::new(
-            "test_session".to_string(),
-            "/tmp/test".to_string()
-        );
+        let mut notes = SessionNotes::new("test_session".to_string(), "/tmp/test".to_string());
 
         notes.add_file_change(
             "/src/main.rs".to_string(),
             "created".to_string(),
-            "新功能实现".to_string()
+            "新功能实现".to_string(),
         );
 
         assert_eq!(notes.file_changes.len(), 1);
@@ -501,10 +579,7 @@ mod tests {
 
     #[test]
     fn test_extract_error_message() {
-        let notes = SessionNotes::new(
-            "test_session".to_string(),
-            "/tmp/test".to_string()
-        );
+        let notes = SessionNotes::new("test_session".to_string(), "/tmp/test".to_string());
 
         let text = "Error: Failed to compile\n  --> src/main.rs:10:5";
         let result = notes.extract_error_message(text);
@@ -515,13 +590,19 @@ mod tests {
 
     #[test]
     fn test_detect_error_type() {
-        let notes = SessionNotes::new(
-            "test_session".to_string(),
-            "/tmp/test".to_string()
-        );
+        let notes = SessionNotes::new("test_session".to_string(), "/tmp/test".to_string());
 
-        assert_eq!(notes.detect_error_type("TypeError: Cannot read property 'x'"), "TypeError");
-        assert_eq!(notes.detect_error_type("SyntaxError: Unexpected token"), "SyntaxError");
-        assert_eq!(notes.detect_error_type("Some unknown error"), "UnknownError");
+        assert_eq!(
+            notes.detect_error_type("TypeError: Cannot read property 'x'"),
+            "TypeError"
+        );
+        assert_eq!(
+            notes.detect_error_type("SyntaxError: Unexpected token"),
+            "SyntaxError"
+        );
+        assert_eq!(
+            notes.detect_error_type("Some unknown error"),
+            "UnknownError"
+        );
     }
 }

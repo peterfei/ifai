@@ -28,14 +28,10 @@ impl ShellToolsExecutor {
         let command = input
             .get("command")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'command' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'command' parameter".to_string()))?;
 
         // 🔥 FIX: 获取工作目录参数
-        let working_dir = input
-            .get("working_dir")
-            .and_then(|v| v.as_str());
+        let working_dir = input.get("working_dir").and_then(|v| v.as_str());
 
         // 🔥 DIAGNOSTIC: 打印工作目录信息
         if let Some(dir) = working_dir {
@@ -64,9 +60,9 @@ impl ShellToolsExecutor {
             cmd.current_dir(dir);
         }
 
-        let output = cmd.output().map_err(|e| {
-            ToolError::Execution(format!("Failed to execute command: {}", e))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| ToolError::Execution(format!("Failed to execute command: {}", e)))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -100,9 +96,7 @@ impl ShellToolsExecutor {
         let command = input
             .get("command")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ToolError::InvalidInput("Missing 'command' parameter".to_string())
-            })?;
+            .ok_or_else(|| ToolError::InvalidInput("Missing 'command' parameter".to_string()))?;
 
         // 执行 PowerShell 命令
         let output = Command::new("powershell")
@@ -150,7 +144,7 @@ impl ToolExecutor for ShellToolsExecutor {
 
                 #[cfg(not(target_os = "windows"))]
                 return Err(ToolError::Execution(
-                    "PowerShell is only available on Windows".to_string()
+                    "PowerShell is only available on Windows".to_string(),
                 ));
             }
             _ => Err(ToolError::NotFound {

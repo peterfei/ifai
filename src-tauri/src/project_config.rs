@@ -1,7 +1,7 @@
-use tauri::command;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
+use tauri::command;
 
 /// Project-level configuration from `.ifai/IFAI.md`
 ///
@@ -96,7 +96,8 @@ custom_instructions: |
   Always respond in English.
   Use technical terminology appropriate for software engineers.
 ```
-"#.to_string()
+"#
+    .to_string()
 }
 
 /// Parse YAML frontmatter from markdown content
@@ -165,36 +166,28 @@ pub async fn load_project_config(project_root: String) -> Result<String, String>
 ///
 /// Saves the full content (YAML frontmatter + markdown)
 #[command]
-pub async fn save_project_config(
-    project_root: String,
-    content: String,
-) -> Result<(), String> {
+pub async fn save_project_config(project_root: String, content: String) -> Result<(), String> {
     let config_path = get_config_path(&project_root)?;
     save_project_config_internal(&config_path, &content)
 }
 
 /// Internal helper to save config
-fn save_project_config_internal(
-    config_path: &PathBuf,
-    content: &str,
-) -> Result<(), String> {
+fn save_project_config_internal(config_path: &PathBuf, content: &str) -> Result<(), String> {
     // Ensure .ifai directory exists
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| {
-                let error = format!("Failed to create .ifai directory: {}", e);
-                eprintln!("[ProjectConfig] {}", error);
-                error
-            })?;
-    }
-
-    // Write to file
-    fs::write(config_path, content)
-        .map_err(|e| {
-            let error = format!("Failed to write config file: {}", e);
+        fs::create_dir_all(parent).map_err(|e| {
+            let error = format!("Failed to create .ifai directory: {}", e);
             eprintln!("[ProjectConfig] {}", error);
             error
         })?;
+    }
+
+    // Write to file
+    fs::write(config_path, content).map_err(|e| {
+        let error = format!("Failed to write config file: {}", e);
+        eprintln!("[ProjectConfig] {}", error);
+        error
+    })?;
 
     // 🔥 v0.5.0: 初始化技能目录及 README 指南
     if let Some(ifai_dir) = config_path.parent() {
@@ -202,7 +195,7 @@ fn save_project_config_internal(
         if !skills_dir.exists() {
             let _ = fs::create_dir_all(&skills_dir);
         }
-        
+
         let readme_path = skills_dir.join("README.md");
         if !readme_path.exists() {
             let readme_content = r#"# IfAI 技能插件集成指南
@@ -235,7 +228,15 @@ fn save_project_config_internal(
     }
 
     // 🏆 v0.3.6: 自动初始化 Prompt 模板
-    let _ = ensure_prompts_initialized(config_path.parent().unwrap().parent().unwrap().to_str().unwrap());
+    let _ = ensure_prompts_initialized(
+        config_path
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap(),
+    );
 
     Ok(())
 }
@@ -264,7 +265,15 @@ pub async fn delete_project_config(project_root: String) -> Result<(), String> {
     }
 
     // 🏆 v0.3.6: 自动初始化 Prompt 模板
-    let _ = ensure_prompts_initialized(config_path.parent().unwrap().parent().unwrap().to_str().unwrap());
+    let _ = ensure_prompts_initialized(
+        config_path
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap(),
+    );
 
     Ok(())
 }
@@ -290,7 +299,10 @@ Some notes here
         assert_eq!(config.default_language, Some("zh-CN".to_string()));
         assert_eq!(config.ai_provider_id, Some("zhipu".to_string()));
         // YAML scalar 自动去掉了末尾换行符
-        assert_eq!(config.custom_instructions, Some("请使用中文回答".to_string()));
+        assert_eq!(
+            config.custom_instructions,
+            Some("请使用中文回答".to_string())
+        );
     }
 
     #[test]
@@ -307,7 +319,10 @@ custom_instructions: |
         let config = parse_frontmatter(content).unwrap();
         assert_eq!(config.default_language, Some("en-US".to_string()));
         // YAML scalar 自动去掉了末尾换行符和句点
-        assert_eq!(config.custom_instructions, Some("Please respond in English.".to_string()));
+        assert_eq!(
+            config.custom_instructions,
+            Some("Please respond in English.".to_string())
+        );
     }
 
     #[test]
@@ -329,7 +344,7 @@ pub fn ensure_prompts_initialized(project_root: &str) -> Result<(), String> {
     use std::path::Path;
 
     let prompt_dir = Path::new(project_root).join(".ifai/prompts");
-    
+
     // 🏆 PIVO 3.0: 增量分发策略 (Incremental Supplement)
     if !prompt_dir.exists() {
         fs::create_dir_all(&prompt_dir).map_err(|e| e.to_string())?;
@@ -340,31 +355,34 @@ pub fn ensure_prompts_initialized(project_root: &str) -> Result<(), String> {
 
     for file_path in BuiltinPrompts::iter() {
         let path_str = file_path.as_ref();
-        
+
         if path_str.contains(".DS_Store") {
             continue;
         }
 
         let target_path = prompt_dir.join(path_str);
-        
+
         if !target_path.exists() {
             if let Some(content_file) = BuiltinPrompts::get(path_str) {
                 if let Some(parent) = target_path.parent() {
                     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
                 }
-                
+
                 fs::write(&target_path, content_file.data).map_err(|e| e.to_string())?;
                 supplement_count += 1;
                 println!("[ProjectConfig] ✓ Supplemented: {}", path_str);
             }
         }
     }
-    
+
     if supplement_count > 0 {
-        println!("[ProjectConfig] 🏁 Supplemented {} missing templates.", supplement_count);
+        println!(
+            "[ProjectConfig] 🏁 Supplemented {} missing templates.",
+            supplement_count
+        );
     } else {
         println!("[ProjectConfig] ✅ All prompt templates are already up to date.");
     }
-    
+
     Ok(())
 }

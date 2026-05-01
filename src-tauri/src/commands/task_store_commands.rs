@@ -2,13 +2,11 @@
 //!
 //! 提供前端访问任务存储的接口。
 
-use crate::harness::task::{TaskItem, TaskStore, TaskStatus};
+use crate::harness::task::{TaskItem, TaskStatus, TaskStore};
 
 /// 获取当前任务列表
 #[tauri::command]
-pub async fn get_tasks(
-    state: tauri::State<'_, TaskStore>,
-) -> Result<Vec<TaskItem>, String> {
+pub async fn get_tasks(state: tauri::State<'_, TaskStore>) -> Result<Vec<TaskItem>, String> {
     Ok(state.get_tasks())
 }
 
@@ -39,9 +37,7 @@ pub async fn update_task(
 
 /// 清空任务列表
 #[tauri::command]
-pub async fn clear_tasks(
-    state: tauri::State<'_, TaskStore>,
-) -> Result<(), String> {
+pub async fn clear_tasks(state: tauri::State<'_, TaskStore>) -> Result<(), String> {
     state.clear();
     Ok(())
 }
@@ -57,9 +53,7 @@ pub async fn remove_task(
 
 /// 获取任务统计信息
 #[tauri::command]
-pub async fn get_task_stats(
-    state: tauri::State<'_, TaskStore>,
-) -> Result<TaskStats, String> {
+pub async fn get_task_stats(state: tauri::State<'_, TaskStore>) -> Result<TaskStats, String> {
     Ok(TaskStats {
         total: state.task_count(),
         pending: state.count_by_status(TaskStatus::Pending),

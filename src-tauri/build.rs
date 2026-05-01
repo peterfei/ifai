@@ -57,8 +57,9 @@ fn generate_tests(parallel_tests: bool) -> Result<(), Box<dyn std::error::Error>
         let entry = entry?;
         let path = entry.path();
 
-        if path.extension().and_then(|s| s.to_str()) == Some("yaml") ||
-           path.extension().and_then(|s| s.to_str()) == Some("yml") {
+        if path.extension().and_then(|s| s.to_str()) == Some("yaml")
+            || path.extension().and_then(|s| s.to_str()) == Some("yml")
+        {
             println!("cargo:warning=📄 正在处理: {:?}", path.file_name().unwrap());
 
             // 读取 YAML 内容
@@ -72,12 +73,16 @@ fn generate_tests(parallel_tests: bool) -> Result<(), Box<dyn std::error::Error>
             let test_code = generate_test_from_schema(&schema, &path, parallel_tests)?;
 
             // 写入生成的测试文件（跳过已存在的手动维护文件）
-            let file_name = path.file_stem()
+            let file_name = path
+                .file_stem()
                 .and_then(|s| s.to_str())
                 .ok_or("Invalid file name")?;
             let output_path = generated_dir.join(format!("{}.rs", file_name));
             if output_path.exists() {
-                println!("cargo:warning=⏭️  跳过已存在: {:?}", output_path.file_name().unwrap());
+                println!(
+                    "cargo:warning=⏭️  跳过已存在: {:?}",
+                    output_path.file_name().unwrap()
+                );
             } else {
                 fs::write(&output_path, test_code)?;
                 generated_count += 1;
@@ -99,14 +104,15 @@ fn generate_test_from_schema(
     yaml_path: &Path,
     parallel_tests: bool,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let suite = schema.get("test_suite")
-        .ok_or("Missing test_suite")?;
+    let suite = schema.get("test_suite").ok_or("Missing test_suite")?;
 
-    let name = suite.get("name")
+    let name = suite
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("Unknown");
 
-    let tests = suite.get("tests")
+    let tests = suite
+        .get("tests")
         .and_then(|v| v.as_sequence())
         .ok_or("Missing tests")?;
 
@@ -194,7 +200,8 @@ fn generate_single_test(
     }
 
     // 检查是否需要 Mock（覆盖所有 when 中的 mock 相关键）
-    let needs_mock = test.get("when")
+    let needs_mock = test
+        .get("when")
         .map(|w| when_needs_mock(w))
         .unwrap_or(false);
 
@@ -203,7 +210,8 @@ fn generate_single_test(
     }
 
     // 从 given 中获取 args
-    let args = test.get("given")
+    let args = test
+        .get("given")
         .and_then(|g| g.get("args"))
         .and_then(|a| a.as_sequence());
 
@@ -211,12 +219,16 @@ fn generate_single_test(
         code.push_str(&generate_when(when, args, needs_mock, &[]));
     } else if args.is_some() {
         // 没有 when 段但有 given.args，仍需生成 run_cli
-        let args_vec: Vec<String> = args.unwrap().iter()
+        let args_vec: Vec<String> = args
+            .unwrap()
+            .iter()
             .filter_map(|a| a.as_str())
             .map(|a| format!("\"{}\"", a.escape_default()))
             .collect();
-        code.push_str(&format!("    let output = env.run_cli(&[{}]).await.unwrap();\n",
-            args_vec.join(", ")));
+        code.push_str(&format!(
+            "    let output = env.run_cli(&[{}]).await.unwrap();\n",
+            args_vec.join(", ")
+        ));
     }
 
     if let Some(then) = test.get("then") {
@@ -228,7 +240,11 @@ fn generate_single_test(
 }
 
 /// 生成 Given 阶段
-fn generate_given(given: &serde_yaml::Value, needs_mock: bool, params: &[(String, String)]) -> String {
+fn generate_given(
+    given: &serde_yaml::Value,
+    needs_mock: bool,
+    params: &[(String, String)],
+) -> String {
     let mut code = String::new();
 
     if needs_mock {
@@ -242,7 +258,10 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool, params: &[(String
             for (key, value) in mapping {
                 if let (Some(k), Some(v)) = (key.as_str(), value.as_str()) {
                     let substituted_value = substitute_variables(v, params);
-                    code.push_str(&format!("    env.set_env(\"{}\", \"{}\");\n", k, substituted_value));
+                    code.push_str(&format!(
+                        "    env.set_env(\"{}\", \"{}\");\n",
+                        k, substituted_value
+                    ));
                 }
             }
         }
@@ -251,8 +270,10 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool, params: &[(String
     if let Some(config) = given.get("config") {
         if let Some(config_str) = config.as_str() {
             let substituted_config = substitute_variables(config_str, params);
-            code.push_str(&format!("    env.write_config(\"{}\").await.unwrap();\n",
-                substituted_config.escape_default()));
+            code.push_str(&format!(
+                "    env.write_config(\"{}\").await.unwrap();\n",
+                substituted_config.escape_default()
+            ));
         }
     }
 
@@ -260,21 +281,26 @@ fn generate_given(given: &serde_yaml::Value, needs_mock: bool, params: &[(String
     if let Some(stdin) = given.get("stdin") {
         if let Some(stdin_str) = stdin.as_str() {
             let substituted_stdin = substitute_variables(stdin_str, params);
-            code.push_str(&format!("    env.set_stdin(\"{}\");\n",
-                substituted_stdin.escape_default()));
+            code.push_str(&format!(
+                "    env.set_stdin(\"{}\");\n",
+                substituted_stdin.escape_default()
+            ));
         }
     }
 
     // 支持 stdin_lines（多行 stdin 输入，用换行符拼接）
     if let Some(lines) = given.get("stdin_lines") {
         if let Some(lines_seq) = lines.as_sequence() {
-            let combined: Vec<String> = lines_seq.iter()
+            let combined: Vec<String> = lines_seq
+                .iter()
                 .filter_map(|l| l.as_str())
                 .map(|l| substitute_variables(l, params))
                 .collect();
             if !combined.is_empty() {
-                code.push_str(&format!("    env.set_stdin(\"{}\");\n",
-                    combined.join("\\n").escape_default()));
+                code.push_str(&format!(
+                    "    env.set_stdin(\"{}\");\n",
+                    combined.join("\\n").escape_default()
+                ));
             }
         }
     }
@@ -306,7 +332,12 @@ fn when_needs_mock(when: &serde_yaml::Value) -> bool {
 }
 
 /// 生成 When 阶段
-fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Sequence>, needs_mock: bool, params: &[(String, String)]) -> String {
+fn generate_when(
+    when: &serde_yaml::Value,
+    given_args: Option<&serde_yaml::Sequence>,
+    needs_mock: bool,
+    params: &[(String, String)],
+) -> String {
     let mut code = String::new();
 
     // Mock 设置——声明式：从 when 中提取流式 chunk 并统一设置
@@ -316,7 +347,10 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
         // mock_error_response: 模拟 API 返回错误（HTTP 4xx/5xx）
         if let Some(err) = when.get("mock_error_response") {
             let err_type = err.get("type").and_then(|v| v.as_str()).unwrap_or("error");
-            let err_msg = err.get("message").and_then(|v| v.as_str()).unwrap_or("Error");
+            let err_msg = err
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Error");
             let status = match err_type {
                 "authentication_error" => 401,
                 "rate_limit_error" => 429,
@@ -324,28 +358,37 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
                 _ => 500,
             };
             let msg = substitute_variables(err_msg, params);
-            code.push_str(&format!("        mock.setup_error_response({}, \"{}\").await.unwrap();\n",
-                status, msg.escape_default()));
+            code.push_str(&format!(
+                "        mock.setup_error_response({}, \"{}\").await.unwrap();\n",
+                status,
+                msg.escape_default()
+            ));
         }
         // mock_network_error: 模拟连接失败
         else if when.get("mock_network_error").is_some() {
             code.push_str("        mock.setup_network_error().await.unwrap();\n");
         }
         // mock_timeout: 模拟超时
-        else if when.get("mock_timeout").is_some() || when.get("mock_sse_streaming_slow").is_some() {
+        else if when.get("mock_timeout").is_some()
+            || when.get("mock_sse_streaming_slow").is_some()
+        {
             code.push_str("        mock.setup_timeout_response().await.unwrap();\n");
         }
         // mock_malformed_response: 模拟畸形 JSON
         else if let Some(raw) = when.get("mock_malformed_response").and_then(|v| v.as_str()) {
             let raw = substitute_variables(raw, params);
-            code.push_str(&format!("        mock.setup_raw_response(\"{}\").await.unwrap();\n",
-                raw.escape_default()));
+            code.push_str(&format!(
+                "        mock.setup_raw_response(\"{}\").await.unwrap();\n",
+                raw.escape_default()
+            ));
         }
         // mock_response: 简单 JSON 响应
         else if let Some(resp) = when.get("mock_response").and_then(|v| v.as_str()) {
             let resp = substitute_variables(resp, params);
-            code.push_str(&format!("        mock.setup_simple_response(\"{}\").await.unwrap();\n",
-                resp.escape_default()));
+            code.push_str(&format!(
+                "        mock.setup_simple_response(\"{}\").await.unwrap();\n",
+                resp.escape_default()
+            ));
         }
         // mock_stdin_error: stdin 读取错误（不需要 mock server 设置）
         else if when.get("mock_stdin_error").is_some() {
@@ -357,10 +400,14 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
         else {
             let chunks = extract_streaming_chunks(when, params);
             if chunks.is_empty() {
-                code.push_str("        mock.setup_streaming_response(vec![\"Response\"]).await.unwrap();\n");
+                code.push_str(
+                    "        mock.setup_streaming_response(vec![\"Response\"]).await.unwrap();\n",
+                );
             } else {
-                code.push_str(&format!("        mock.setup_streaming_response(vec![{}]).await.unwrap();\n",
-                    chunks.join(", ")));
+                code.push_str(&format!(
+                    "        mock.setup_streaming_response(vec![{}]).await.unwrap();\n",
+                    chunks.join(", ")
+                ));
             }
         }
 
@@ -370,29 +417,35 @@ fn generate_when(when: &serde_yaml::Value, given_args: Option<&serde_yaml::Seque
     // 优先使用 given 中的 args，其次使用 when 中的 args，最后使用默认值
     let args = given_args
         .or(when.get("args").and_then(|v| v.as_sequence()))
-        .map(|v| v.iter()
-             .filter_map(|a| a.as_str())
-             .map(|a| {
-                 let substituted = substitute_variables(a, params);
-                 format!("\"{}\"", substituted.escape_default())
-             })
-             .collect::<Vec<_>>())
+        .map(|v| {
+            v.iter()
+                .filter_map(|a| a.as_str())
+                .map(|a| {
+                    let substituted = substitute_variables(a, params);
+                    format!("\"{}\"", substituted.escape_default())
+                })
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_else(|| vec!["\"hello\"".to_string()]);
 
-    code.push_str(&format!("    let output = env.run_cli(&[{}]).await.unwrap();\n",
-        args.join(", ")));
+    code.push_str(&format!(
+        "    let output = env.run_cli(&[{}]).await.unwrap();\n",
+        args.join(", ")
+    ));
 
     code
 }
 
 /// 从 when 中提取流式 chunk 文本（统一处理 mock_streaming 和 mock_sse_streaming）
 fn extract_streaming_chunks(when: &serde_yaml::Value, params: &[(String, String)]) -> Vec<String> {
-    let chunks_seq = when.get("mock_streaming")
+    let chunks_seq = when
+        .get("mock_streaming")
         .or(when.get("mock_sse_streaming"))
         .and_then(|v| v.as_sequence());
 
     if let Some(chunks) = chunks_seq {
-        chunks.iter()
+        chunks
+            .iter()
             .filter_map(|c| c.as_str())
             .map(|c| format!("\"{}\"", substitute_variables(c, params).escape_default()))
             .collect()
@@ -416,26 +469,36 @@ fn generate_then(then: &serde_yaml::Value, params: &[(String, String)]) -> Strin
 
     if let Some(text) = then.get("assert_contains").and_then(|v| v.as_str()) {
         let substituted_text = substitute_variables(text, params);
-        code.push_str(&format!("    output.assert_contains(\"{}\");\n",
-            substituted_text.escape_default()));
+        code.push_str(&format!(
+            "    output.assert_contains(\"{}\");\n",
+            substituted_text.escape_default()
+        ));
     }
 
     if let Some(pattern) = then.get("assert_match").and_then(|v| v.as_str()) {
         let substituted_pattern = substitute_variables(pattern, params);
-        code.push_str(&format!("    output.assert_match(r\"{}\");\n",
-            substituted_pattern.escape_default()));
+        code.push_str(&format!(
+            "    output.assert_match(r\"{}\");\n",
+            substituted_pattern.escape_default()
+        ));
     }
 
     if let Some(tool) = then.get("assert_tool_called").and_then(|v| v.as_str()) {
-        code.push_str(&format!("    output.assert_tool_called(\"{}\");\n",
-            tool.escape_default()));
+        code.push_str(&format!(
+            "    output.assert_tool_called(\"{}\");\n",
+            tool.escape_default()
+        ));
     }
 
     if let Some(count) = then.get("assert_token_count").and_then(|v| v.as_u64()) {
         code.push_str(&format!("    output.assert_token_count({});\n", count));
     }
 
-    if then.get("assert_compression_triggered").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if then
+        .get("assert_compression_triggered")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         code.push_str("    output.assert_compression_triggered();\n");
     }
 
@@ -534,7 +597,10 @@ fn to_test_name(name: &str) -> String {
         ("段落", "duan_luo"),
         ("代码", "dai_ma"),
         ("块", "kuai"),
-    ].iter().cloned().collect();
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
     let mut result = name.to_string();
 
@@ -544,7 +610,8 @@ fn to_test_name(name: &str) -> String {
     }
 
     // 移除剩余的非 ASCII 字符
-    let result: String = result.chars()
+    let result: String = result
+        .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() {
                 c.to_ascii_lowercase()
@@ -557,7 +624,8 @@ fn to_test_name(name: &str) -> String {
         .collect();
 
     // 清理连续的下划线
-    let result = result.split('_')
+    let result = result
+        .split('_')
         .filter(|s| !s.is_empty())
         .collect::<Vec<&str>>()
         .join("_");
@@ -585,7 +653,7 @@ struct ParameterValue {
 /// 从测试中提取参数
 fn extract_parameters(test: &serde_yaml::Value) -> Vec<ParameterValue> {
     let mut params = Vec::new();
-    
+
     if let Some(parameters) = test.get("parameters") {
         if let Some(mapping) = parameters.as_mapping() {
             for (key, values) in mapping {
@@ -595,7 +663,7 @@ fn extract_parameters(test: &serde_yaml::Value) -> Vec<ParameterValue> {
                         .filter_map(|v| v.as_str())
                         .map(|s| s.to_string())
                         .collect();
-                    
+
                     if !string_values.is_empty() {
                         params.push(ParameterValue {
                             name: name.to_string(),
@@ -606,7 +674,7 @@ fn extract_parameters(test: &serde_yaml::Value) -> Vec<ParameterValue> {
             }
         }
     }
-    
+
     params
 }
 
@@ -615,7 +683,7 @@ fn generate_parameter_combinations(parameters: &[ParameterValue]) -> Vec<Vec<(St
     if parameters.is_empty() {
         return Vec::new();
     }
-    
+
     let mut combinations = Vec::new();
     let mut current = Vec::new();
     generate_combinations_recursive(&parameters, 0, &mut current, &mut combinations);
@@ -633,7 +701,7 @@ fn generate_combinations_recursive(
         combinations.push(current.clone());
         return;
     }
-    
+
     let param = &parameters[index];
     for value in &param.values {
         current.push((param.name.clone(), value.clone()));
@@ -654,18 +722,17 @@ fn substitute_variables(text: &str, params: &[(String, String)]) -> String {
 }
 
 /// 在 YAML 值中替换变量
-fn substitute_yaml_value(value: &serde_yaml::Value, params: &[(String, String)]) -> serde_yaml::Value {
+fn substitute_yaml_value(
+    value: &serde_yaml::Value,
+    params: &[(String, String)],
+) -> serde_yaml::Value {
     match value {
-        serde_yaml::Value::String(s) => {
-            serde_yaml::Value::String(substitute_variables(s, params))
-        }
-        serde_yaml::Value::Sequence(seq) => {
-            serde_yaml::Value::Sequence(
-                seq.iter()
-                    .map(|v| substitute_yaml_value(v, params))
-                    .collect()
-            )
-        }
+        serde_yaml::Value::String(s) => serde_yaml::Value::String(substitute_variables(s, params)),
+        serde_yaml::Value::Sequence(seq) => serde_yaml::Value::Sequence(
+            seq.iter()
+                .map(|v| substitute_yaml_value(v, params))
+                .collect(),
+        ),
         serde_yaml::Value::Mapping(map) => {
             let mut new_map = serde_yaml::Mapping::new();
             for (k, v) in map {
@@ -691,12 +758,12 @@ fn generate_parametrized_tests(
     let combinations = generate_parameter_combinations(&parameters);
     let mut tests = Vec::new();
 
-    let base_name = test.get("name")
+    let base_name = test
+        .get("name")
         .and_then(|v| v.as_str())
         .unwrap_or("parametrized_test");
 
-    let base_description = test.get("description")
-        .and_then(|v| v.as_str());
+    let base_description = test.get("description").and_then(|v| v.as_str());
 
     for params in &combinations {
         // 创建参数化的测试副本
@@ -711,10 +778,7 @@ fn generate_parametrized_tests(
             })
             .collect();
 
-        let full_test_name = format!("{}_{}",
-            to_test_name(base_name),
-            param_suffix.join("_")
-        );
+        let full_test_name = format!("{}_{}", to_test_name(base_name), param_suffix.join("_"));
 
         // 确保函数名唯一
         let mut test_name = full_test_name.clone();
@@ -726,7 +790,13 @@ fn generate_parametrized_tests(
         used_names.insert(test_name.clone());
 
         // 生成测试代码（传递并行模式）
-        let test_code = generate_single_test_from_yaml(&param_test, &test_name, base_description, params, parallel_tests);
+        let test_code = generate_single_test_from_yaml(
+            &param_test,
+            &test_name,
+            base_description,
+            params,
+            parallel_tests,
+        );
         tests.push(test_code);
     }
 
@@ -774,9 +844,10 @@ fn generate_single_test_from_yaml(
         let desc_with_params = substitute_variables(desc, params);
         code.push_str(&format!("    // {}\n", desc_with_params));
     }
-    
+
     // 检查是否需要 Mock（覆盖所有 when 中的 mock 相关键）
-    let needs_mock = test.get("when")
+    let needs_mock = test
+        .get("when")
         .map(|w| when_needs_mock(w))
         .unwrap_or(false);
 
@@ -784,7 +855,8 @@ fn generate_single_test_from_yaml(
         code.push_str(&generate_given(&given, needs_mock, params));
     }
 
-    let args = test.get("given")
+    let args = test
+        .get("given")
         .and_then(|g| g.get("args"))
         .and_then(|a| a.as_sequence());
 
@@ -792,21 +864,25 @@ fn generate_single_test_from_yaml(
         code.push_str(&generate_when(&when, args, needs_mock, params));
     } else if args.is_some() {
         // 没有 when 段但有 given.args，仍需生成 run_cli
-        let args_vec: Vec<String> = args.unwrap().iter()
+        let args_vec: Vec<String> = args
+            .unwrap()
+            .iter()
             .filter_map(|a| a.as_str())
             .map(|a| {
                 let substituted = substitute_variables(a, params);
                 format!("\"{}\"", substituted.escape_default())
             })
             .collect();
-        code.push_str(&format!("    let output = env.run_cli(&[{}]).await.unwrap();\n",
-            args_vec.join(", ")));
+        code.push_str(&format!(
+            "    let output = env.run_cli(&[{}]).await.unwrap();\n",
+            args_vec.join(", ")
+        ));
     }
 
     if let Some(then) = test.get("then") {
         code.push_str(&generate_then(&then, params));
     }
-    
+
     code.push_str("}\n");
     code
 }

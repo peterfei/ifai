@@ -7,10 +7,10 @@ use reqwest::Client as HttpClient;
 use std::pin::Pin;
 
 use super::super::client::ApiClient;
-use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 use super::super::client_factory::{create_standard_client, normalize_base_url};
 use super::super::message_builder::{MessageBuilder, MultimodalDetector};
 use super::super::provider_metadata; // 🔥 元编程：从元数据获取模型列表
+use super::super::types::{ApiError, Message, MessageRole, ModelInfo, StreamEvent, StreamRequest};
 use super::openai_format::parse_openai_frame;
 
 pub struct OpenAIClient {
@@ -24,7 +24,7 @@ impl OpenAIClient {
         // 🔥 使用工厂函数替代手动实现
         let base_url = normalize_base_url(
             &config.base_url,
-            "https://api.openai.com/v1/chat/completions"
+            "https://api.openai.com/v1/chat/completions",
         );
         let http = create_standard_client(None::<super::super::client_factory::HttpClientConfig>)
             .expect("Failed to create HTTP client");

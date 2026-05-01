@@ -2,9 +2,9 @@
 //!
 //! 🏛️ 元编程：复用 GUI 端 provider_metadata.rs，添加 CLI 特定功能
 
+use ifainew_lib::harness::api::provider_metadata::{get_provider_spec, ProviderSpec};
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use ifainew_lib::harness::api::provider_metadata::{ProviderSpec, get_provider_spec};
 
 // ============================================================================
 // Provider Dispatch Table (OnceLock<HashMap>)
@@ -38,15 +38,22 @@ pub fn resolve_provider(name: &str) -> Result<&'static ProviderSpec, String> {
         Err(_) => {
             // 未知短名称，返回包含可用列表的错误
             let available: Vec<&str> = registry.keys().map(|s| s.as_str()).collect();
-            return Err(format!("unknown provider \"{}\". Available: {}", name, available.join(", ")));
+            return Err(format!(
+                "unknown provider \"{}\". Available: {}",
+                name,
+                available.join(", ")
+            ));
         }
     };
 
-    registry.get(&full_id)
-        .ok_or_else(|| {
-            let available: Vec<&str> = registry.keys().map(|s| s.as_str()).collect();
-            format!("unknown provider \"{}\". Available: {}", name, available.join(", "))
-        })
+    registry.get(&full_id).ok_or_else(|| {
+        let available: Vec<&str> = registry.keys().map(|s| s.as_str()).collect();
+        format!(
+            "unknown provider \"{}\". Available: {}",
+            name,
+            available.join(", ")
+        )
+    })
 }
 
 /// 标准化短名称到完整 ID
@@ -73,7 +80,8 @@ pub fn resolve_env_key(spec: &ProviderSpec) -> String {
         "gemini-official" => "GEMINI",
         _ => {
             // 回退：从 id 中提取短名称（去除 -official 后缀）
-            spec.metadata.id
+            spec.metadata
+                .id
                 .strip_suffix("-official")
                 .unwrap_or(&spec.metadata.id)
         }
@@ -135,7 +143,10 @@ mod tests {
     #[test]
     fn test_normalize_provider_id() {
         assert_eq!(normalize_provider_id("openai").unwrap(), "openai-official");
-        assert_eq!(normalize_provider_id("deepseek").unwrap(), "deepseek-official");
+        assert_eq!(
+            normalize_provider_id("deepseek").unwrap(),
+            "deepseek-official"
+        );
         assert_eq!(normalize_provider_id("zhipu").unwrap(), "zhipu-official");
         assert_eq!(normalize_provider_id("kimi").unwrap(), "kimi-official");
         assert_eq!(normalize_provider_id("gemini").unwrap(), "gemini-official");

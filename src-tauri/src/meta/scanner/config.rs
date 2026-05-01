@@ -83,18 +83,25 @@ pub struct FiltersSection {
     pub include: Vec<String>,
 }
 
-fn default_true() -> bool { true }
-fn default_interval() -> String { "100ms".to_string() }
-fn default_throttle() -> String { "throttle".to_string() }
-fn default_lru() -> String { "lru".to_string() }
+fn default_true() -> bool {
+    true
+}
+fn default_interval() -> String {
+    "100ms".to_string()
+}
+fn default_throttle() -> String {
+    "throttle".to_string()
+}
+fn default_lru() -> String {
+    "lru".to_string()
+}
 
 /// 从 YAML 文件加载配置
 pub fn load_scanner_config(path: &str) -> Result<ScannerConfig, ConfigError> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| ConfigError::ReadError(e.to_string()))?;
+    let content = fs::read_to_string(path).map_err(|e| ConfigError::ReadError(e.to_string()))?;
 
-    let yaml_config: ScannerYamlConfig = serde_yaml::from_str(&content)
-        .map_err(|e| ConfigError::ParseError(e.to_string()))?;
+    let yaml_config: ScannerYamlConfig =
+        serde_yaml::from_str(&content).map_err(|e| ConfigError::ParseError(e.to_string()))?;
 
     Ok(yaml_config.into())
 }
@@ -181,9 +188,18 @@ mod tests {
 
     #[test]
     fn test_parse_throttle_strategy() {
-        assert!(matches!(parse_throttle_strategy("throttle"), ThrottleStrategy::Throttle));
-        assert!(matches!(parse_throttle_strategy("debounce"), ThrottleStrategy::Debounce));
-        assert!(matches!(parse_throttle_strategy("none"), ThrottleStrategy::None));
+        assert!(matches!(
+            parse_throttle_strategy("throttle"),
+            ThrottleStrategy::Throttle
+        ));
+        assert!(matches!(
+            parse_throttle_strategy("debounce"),
+            ThrottleStrategy::Debounce
+        ));
+        assert!(matches!(
+            parse_throttle_strategy("none"),
+            ThrottleStrategy::None
+        ));
     }
 
     #[test]
