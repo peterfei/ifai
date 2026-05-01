@@ -2077,4 +2077,372 @@ mod tests {
         assert_buffer_contains!(&buf, "Streaming (zhipu)");
         assert_tui_snapshot!("streaming_with_queue", &buf);
     }
+
+    // ============================================================================
+    // Diff 功能测试
+    // ============================================================================
+
+    /// 快照测试：单文件 diff 模式
+    ///
+    /// 验证 diff 模式下的完整布局，包括：
+    /// - Diff 内容显示（+/- 行）
+    /// - 状态栏显示文件路径和按键提示
+    /// - 输入框显示 "Diff 模式 - 按 q/Esc/Ctrl+D 退出"
+    #[test]
+    fn test_snapshot_diff_mode_single_file() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 添加一个文件 diff
+        let diff = DiffFileChange {
+            path: PathBuf::from("src/main.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some(
+                "fn main() {\n    println!(\"Hello\");\n}\n"
+                    .to_string()
+            ),
+            new_content: Some(
+                "fn main() {\n    println!(\"Hello, World!\");\n}\n"
+                    .to_string()
+            ),
+            added: 1,
+            removed: 1,
+        };
+        app.push_diff(diff);
+
+        // 进入 diff 模式
+        app.enter_diff_mode();
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "src/main.rs");
+        assert_buffer_contains!(&buf, "+");
+        assert_buffer_contains!(&buf, "-");
+        // 快照测试会捕获完整布局
+        assert_tui_snapshot!("diff_mode_single_file", &buf);
+    }
+
+    /// 快照测试：多文件 diff 切换
+    ///
+    /// 验证多个文件的 diff 显示和文件索引（X/Y）。
+    #[test]
+    fn test_snapshot_diff_mode_multiple_files() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 添加三个文件 diff
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/main.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old content 1\n".to_string()),
+            new_content: Some("new content 1\n".to_string()),
+            added: 5,
+            removed: 2,
+        });
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/utils.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old content 2\n".to_string()),
+            new_content: Some("new content 2\n".to_string()),
+            added: 3,
+            removed: 1,
+        });
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("README.md"),
+            kind: DiffChangeKind::Added,
+            old_content: None,
+            new_content: Some("# New README\n".to_string()),
+            added: 10,
+            removed: 0,
+        });
+
+        // 进入 diff 模式（默认显示最后一个，即 README.md [3/3]）
+        app.enter_diff_mode();
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "[3/3]");
+        assert_buffer_contains!(&buf, "README.md");
+        assert_tui_snapshot!("diff_mode_multiple_files_last", &buf);
+
+        // 切换到第一个文件
+        app.diff_index = 0;
+        app.render_current_diff();
+        let buf_first = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf_first, "[1/3]");
+        assert_buffer_contains!(&buf_first, "main.rs");
+        assert_tui_snapshot!("diff_mode_multiple_files_first", &buf_first);
+
+        // 切换到第二个文件
+        app.diff_index = 1;
+        app.render_current_diff();
+        let buf_second = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf_second, "[2/3]");
+        assert_buffer_contains!(&buf_second, "utils.rs");
+        assert_tui_snapshot!("diff_mode_multiple_files_second", &buf_second);
+    }
+
+    /// 测试：diff 摘要渲染
+    ///
+    /// 验证 diff 摘要在内容区的显示，包括文件列表和统计信息。
+    #[test]
+    fn test_diff_summary_rendering() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 添加多个文件 diff
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/main.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old\n".to_string()),
+            new_content: Some("new\n".to_string()),
+            added: 10,
+            removed: 5,
+        });
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/helpers.rs"),
+            kind: DiffChangeKind::Added,
+            old_content: None,
+            new_content: Some("new file\n".to_string()),
+            added: 20,
+            removed: 0,
+        });
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        let output = buffer_to_string(&buf);
+
+        // 验证摘要包含关键信息（英文部分）
+        assert!(output.contains("Edited 2 files"));
+        assert!(output.contains("+"));
+        assert!(output.contains("-"));
+        assert!(output.contains("main.rs"));
+        assert!(output.contains("helpers.rs"));
+        // CJK 提示由快照捕获
+    }
+
+    /// 快照测试：diff 摘要显示
+    #[test]
+    fn test_snapshot_diff_summary() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("src/lib.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old lib\n".to_string()),
+            new_content: Some("new lib\n".to_string()),
+            added: 8,
+            removed: 3,
+        });
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("tests/test.rs"),
+            kind: DiffChangeKind::Added,
+            old_content: None,
+            new_content: Some("test content\n".to_string()),
+            added: 15,
+            removed: 0,
+        });
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("diff_summary", &buf);
+    }
+
+    /// 测试：diff 模式按键导航（通过状态栏验证）
+    ///
+    /// 验证 diff 模式状态栏显示所有可用的按键导航提示。
+    #[test]
+    fn test_diff_mode_navigation_hints() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("test.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old\n".to_string()),
+            new_content: Some("new\n".to_string()),
+            added: 1,
+            removed: 1,
+        });
+
+        app.enter_diff_mode();
+
+        let buf = render_to_buffer(&mut app, 80, 24);
+        // 验证状态栏包含关键导航按键（英文部分）
+        assert_buffer_contains!(&buf, "j/k");
+        assert_buffer_contains!(&buf, "q/Esc");
+        // 快照会捕获完整的 CJK 提示
+        assert_tui_snapshot!("diff_mode_navigation", &buf);
+    }
+
+    /// 测试：空 diffs 列表时进入 diff 模式
+    ///
+    /// 验证没有 diff 时不能进入 diff 模式。
+    #[test]
+    fn test_diff_mode_no_diffs() {
+        let mut app = App::new_for_test();
+
+        // 没有 diff 时尝试进入 diff 模式
+        app.enter_diff_mode();
+
+        // diff_mode 应该保持 false
+        assert!(!app.is_diff_mode());
+        assert!(app.diff_view.is_none());
+    }
+
+    /// 测试：diff 文件索引边界
+    ///
+    /// 验证 diff_index 超出边界时的行为。
+    #[test]
+    fn test_diff_index_bounds() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("file1.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("old\n".to_string()),
+            new_content: Some("new\n".to_string()),
+            added: 1,
+            removed: 1,
+        });
+
+        app.enter_diff_mode();
+
+        // 初始索引应为 0（唯一文件）
+        assert_eq!(app.diff_index, 0);
+
+        // next_diff 不应超出边界
+        app.next_diff();
+        assert_eq!(app.diff_index, 0);
+
+        // prev_diff 不应低于 0
+        app.prev_diff();
+        assert_eq!(app.diff_index, 0);
+    }
+
+    /// 测试：多文件 diff 切换
+    ///
+    /// 验证在多个 diff 文件之间正确切换。
+    #[test]
+    fn test_multi_file_switching() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 添加 3 个文件
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("a.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("a\n".to_string()),
+            new_content: Some("a new\n".to_string()),
+            added: 1,
+            removed: 0,
+        });
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("b.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("b\n".to_string()),
+            new_content: Some("b new\n".to_string()),
+            added: 1,
+            removed: 0,
+        });
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("c.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some("c\n".to_string()),
+            new_content: Some("c new\n".to_string()),
+            added: 1,
+            removed: 0,
+        });
+
+        app.enter_diff_mode();
+
+        // 初始应为最后一个（索引 2）
+        assert_eq!(app.diff_index, 2);
+
+        // prev_diff 应到索引 1
+        app.prev_diff();
+        assert_eq!(app.diff_index, 1);
+
+        // prev_diff 应到索引 0
+        app.prev_diff();
+        assert_eq!(app.diff_index, 0);
+
+        // 再 prev_diff 不应低于 0
+        app.prev_diff();
+        assert_eq!(app.diff_index, 0);
+
+        // next_diff 应到索引 1
+        app.next_diff();
+        assert_eq!(app.diff_index, 1);
+
+        // next_diff 应到索引 2
+        app.next_diff();
+        assert_eq!(app.diff_index, 2);
+
+        // 再 next_diff 不应超出边界
+        app.next_diff();
+        assert_eq!(app.diff_index, 2);
+    }
+
+    /// 快照测试：diff 模式下滚动
+    ///
+    /// 验证长 diff 内容的滚动功能。
+    #[test]
+    fn test_snapshot_diff_mode_scrolling() {
+        use crate::diff_render::{DiffChangeKind, DiffFileChange};
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 创建一个包含多行的 diff
+        let old_content: String = (1..=50).map(|i| format!("line {}\n", i)).collect();
+        let new_content: String = (1..=50).map(|i| format!("line {} modified\n", i)).collect();
+
+        app.push_diff(DiffFileChange {
+            path: PathBuf::from("large_file.rs"),
+            kind: DiffChangeKind::Modified,
+            old_content: Some(old_content),
+            new_content: Some(new_content),
+            added: 50,
+            removed: 50,
+        });
+
+        app.enter_diff_mode();
+
+        // 初始状态（顶部）
+        let buf_top = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("diff_mode_scroll_top", &buf_top);
+
+        // 滚动到中间
+        if let Some(ref mut diff_view) = app.diff_view {
+            diff_view.scroll_by(20);
+        }
+        let buf_middle = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("diff_mode_scroll_middle", &buf_middle);
+
+        // 滚动到底部
+        if let Some(ref mut diff_view) = app.diff_view {
+            diff_view.scroll_to_bottom();
+        }
+        let buf_bottom = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("diff_mode_scroll_bottom", &buf_bottom);
+    }
 }
