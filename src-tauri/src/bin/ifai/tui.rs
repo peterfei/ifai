@@ -1123,6 +1123,15 @@ impl App {
                         ));
                     }
 
+                    // Ctrl+O 提示（当有 AI 响应可查看时）
+                    if self.last_ai_response.is_some() || !self.streaming_response_buffer.is_empty() {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            "Ctrl+O 查看详情",
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                        ));
+                    }
+
                     Line::from(spans)
                 } else {
                     // 无任务：显示原有状态文本或 Ready
@@ -1142,6 +1151,14 @@ impl App {
                         spans.push(Span::styled(
                             format!("Queue: {}", self.queue.len()),
                             ratatui::style::Style::default().fg(ratatui::style::Color::Cyan),
+                        ));
+                    }
+                    // Ctrl+O 提示（当有 AI 响应可查看时）
+                    if self.last_ai_response.is_some() || !self.streaming_response_buffer.is_empty() {
+                        spans.push(Span::raw(" · "));
+                        spans.push(Span::styled(
+                            "Ctrl+O 查看详情",
+                            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                         ));
                     }
                     Line::from(spans)

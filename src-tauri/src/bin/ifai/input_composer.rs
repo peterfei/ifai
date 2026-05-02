@@ -60,10 +60,15 @@ impl InputComposer {
             KeyCode::Char(c) if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 match c {
                     'c' => {
-                        self.buffer.clear();
-                        self.cursor_pos = 0;
-                        self.history_index = None;
-                        return InputAction::Interrupt;
+                        // 如果 buffer 为空，退出应用；否则清空 buffer
+                        if self.buffer.is_empty() {
+                            return InputAction::Exit;
+                        } else {
+                            self.buffer.clear();
+                            self.cursor_pos = 0;
+                            self.history_index = None;
+                            return InputAction::Interrupt;
+                        }
                     }
                     'd' => {
                         if self.buffer.is_empty() {
