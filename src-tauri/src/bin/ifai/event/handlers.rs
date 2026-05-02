@@ -179,10 +179,10 @@ pub struct CombinedKeyHandler;
 
 impl EventHandler<Event> for CombinedKeyHandler {
     fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
-        // 如果处于搜索模式、帮助模式、diff 模式或 busy（AI 响应中），跳过处理
+        // 如果处于搜索模式、帮助模式、diff 模式、overlay 模式或 busy（AI 响应中），跳过处理
         // 注意：streaming 期间的输入由 main.rs 的 tokio::select! 分支直接处理，
         // run_loop() 不会被调用，此守卫作为防御层防止意外穿透
-        if app.is_searching() || app.help_mode || app.is_diff_mode() || app.is_busy() {
+        if app.is_searching() || app.help_mode || app.is_diff_mode() || app.is_overlay_mode() || app.is_busy() {
             return ControlFlow::Continue;
         }
 
@@ -437,49 +437,61 @@ impl EventHandler<Event> for DiffModeHandler {
             return ControlFlow::Continue;
         }
 
-        use crate::diff_render::{resolve_diff_key, DiffAction};
+        use crate::diff_render::{resolve_diff_key, DiffAction, ScrollAction};
 
         if let Event::Key(key) = event {
             if let Some(action) = resolve_diff_key(*key) {
                 match action {
-                    DiffAction::ScrollUp(n) => {
-                        if let Some(diff_view) = &mut app.diff_view {
-                            diff_view.scroll_by(-(n as i16));
+                    DiffAction::Scroll(scroll) => match scroll {
+                        ScrollAction::Up(n) => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.scroll_by(-(n as i16));
+                            }
                         }
-                    }
-                    DiffAction::ScrollDown(n) => {
-                        if let Some(diff_view) = &mut app.diff_view {
-                            diff_view.scroll_by(n as i16);
+                        ScrollAction::Down(n) => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.scroll_by(n as i16);
+                            }
                         }
-                    }
-                    DiffAction::PageUp => {
-                        if let Some(diff_view) = &mut app.diff_view {
-                            diff_view.page_by(-10);
+                        ScrollAction::HalfUp => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.page_by(-5);
+                            }
                         }
-                    }
-                    DiffAction::PageDown => {
-                        if let Some(diff_view) = &mut app.diff_view {
-                            diff_view.page_by(10);
+                        ScrollAction::HalfDown => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.page_by(5);
+                            }
                         }
-                    }
-                    DiffAction::ScrollToTop => {
-                        if let Some(diff_view) = &mut app.diff_view {
-                            diff_view.scroll_to_top();
+                        ScrollAction::PageUp => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.page_by(-10);
+                            }
                         }
-                    }
-                    DiffAction::ScrollToBottom => {
-                        if let Some(diff_view) = &mut app.diff_view {
-                            diff_view.scroll_to_bottom();
+                        ScrollAction::PageDown => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.page_by(10);
+                            }
                         }
-                    }
+                        ScrollAction::Top => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.scroll_to_top();
+                            }
+                        }
+                        ScrollAction::Bottom => {
+                            if let Some(diff_view) = &mut app.diff_view {
+                                diff_view.scroll_to_bottom();
+                            }
+                        }
+                        ScrollAction::Exit => {
+                            app.exit_diff_mode();
+                        }
+                    },
                     DiffAction::NextFile => {
                         app.next_diff();
                     }
                     DiffAction::PrevFile => {
                         app.prev_diff();
-                    }
-                    DiffAction::Exit => {
-                        app.exit_diff_mode();
                     }
                 }
             }
@@ -492,6 +504,128 @@ impl EventHandler<Event> for DiffModeHandler {
                     }
                     crossterm::event::MouseEventKind::ScrollDown => {
                         diff_view.scroll_by(3);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        ControlFlow::Continue
+    }
+}
+
+// ============================================================================
+// Detail Overlay 处理器（Phase 3）
+// ============================================================================
+
+/// Detail 进入处理器 - 按 Ctrl+O 进入详情查看模式
+pub struct DetailEnterHandler;
+
+impl EventHandler<Event> for DetailEnterHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if let Event::Key(key) = event {
+            // 检测 Ctrl+O
+            if key.code == KeyCode::Char('o')
+                && key.modifiers.contains(KeyModifiers::CONTROL)
+                && !app.is_overlay_mode()
+            {
+                // 根据当前模式决定显示什么内容
+                use crate::detail_overlay::{DetailOverlay, OverlayContent};
+
+                // 优先级：DiffContext > Transcript > File
+                // TODO: 实际实现需要根据上下文判断
+                // 这里先只支持 Transcript
+                if let Some(ref response) = app.last_ai_response {
+                    let overlay = DetailOverlay::new_transcript(response.clone());
+                    app.enter_overlay_mode(overlay);
+                    return ControlFlow::Break(AppResult::Handled);
+                }
+            }
+        }
+        ControlFlow::Continue
+    }
+}
+
+/// Detail 模式处理器 - 处理 overlay 模式下的所有输入
+pub struct DetailModeHandler;
+
+impl EventHandler<Event> for DetailModeHandler {
+    fn handle(&mut self, event: &Event, app: &mut App) -> ControlFlow {
+        if !app.is_overlay_mode() {
+            return ControlFlow::Continue;
+        }
+
+        use crate::detail_overlay::{resolve_overlay_key, OverlayAction};
+        use crate::diff_render::ScrollAction;
+
+        if let Event::Key(key) = event {
+            // Ctrl+O / Ctrl+C / Esc / q - 退出 overlay
+            if (key.code == KeyCode::Char('o') && key.modifiers.contains(KeyModifiers::CONTROL))
+                || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL))
+                || key.code == KeyCode::Esc
+                || key.code == KeyCode::Char('q')
+            {
+                app.exit_overlay_mode();
+                return ControlFlow::Continue;
+            }
+
+            // 其他按键通过 resolve_overlay_key 解析
+            if let Some(action) = resolve_overlay_key(*key) {
+                if let Some(ref mut overlay) = app.overlay {
+                    match action {
+                        OverlayAction::Scroll(scroll) => match scroll {
+                            ScrollAction::Up(n) => {
+                                overlay.scroll_by(-(n as i16));
+                            }
+                            ScrollAction::Down(n) => {
+                                overlay.scroll_by(n as i16);
+                            }
+                            ScrollAction::HalfUp => {
+                                overlay.page_by(-5);
+                            }
+                            ScrollAction::HalfDown => {
+                                overlay.page_by(5);
+                            }
+                            ScrollAction::PageUp => {
+                                overlay.page_by(-10);
+                            }
+                            ScrollAction::PageDown => {
+                                overlay.page_by(10);
+                            }
+                            ScrollAction::Top => {
+                                overlay.scroll_to_top();
+                            }
+                            ScrollAction::Bottom => {
+                                overlay.scroll_to_bottom();
+                            }
+                            ScrollAction::Exit => {
+                                app.exit_overlay_mode();
+                            }
+                        },
+                        OverlayAction::Search => {
+                            // TODO: 实现搜索功能
+                        }
+                        OverlayAction::SearchNext => {
+                            // TODO: 实现搜索下一个
+                        }
+                        OverlayAction::SearchPrev => {
+                            // TODO: 实现搜索上一个
+                        }
+                        OverlayAction::ToggleOldNew => {
+                            overlay.toggle_diff_content();
+                        }
+                    }
+                }
+            }
+        } else if let Event::Mouse(mouse_event) = event {
+            // 支持鼠标滚轮
+            if let Some(ref mut overlay) = app.overlay {
+                match mouse_event.kind {
+                    crossterm::event::MouseEventKind::ScrollUp => {
+                        overlay.scroll_by(-3);
+                    }
+                    crossterm::event::MouseEventKind::ScrollDown => {
+                        overlay.scroll_by(3);
                     }
                     _ => {}
                 }

@@ -11,6 +11,7 @@ mod session;
 mod approval_overlay; // 🔥 TUI 工具审批 Overlay
 mod code_folding; // 🎨 代码折叠 - 元编程架构
 mod command_popup; // 🔥 声明式命令弹出框
+mod detail_overlay; // 🔥 Ctrl+O Detail View Overlay
 mod diff_render; // 🔥 TUI Diff 渲染系统
 mod event; // 🔥 TUI 事件系统 - 元编程级声明式事件处理框架
 mod input_composer; // 🔥 输入框组件（替代 rustyline）
@@ -987,6 +988,9 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
 
                         let session_clone = session.clone();
 
+                        // 🔥 开始缓存 AI 响应（Phase 2.5）
+                        app.begin_streaming();
+
                         // 在后台任务中运行 stream_prompt
                         let mut stream_handle = tokio::spawn(async move {
                             let mut s = session_clone.lock().await;
@@ -1000,7 +1004,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                 Some(msg) = output_rx.recv() => {
                                     match msg {
                                         OutputMessage::Text(line) => {
-                                            app.push_line(line);
+                                            app.append_streaming_output(line);  // 🔥 缓存 AI 响应
                                         }
                                         OutputMessage::Diff(diff) => {
                                             app.push_diff(diff);
@@ -1030,6 +1034,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                 {
                                                     app.clear_queue();
                                                     stream_handle.abort();
+                                                    app.end_streaming();  // 🔥 保存已缓存的响应
                                                     app.push_line(String::new());
                                                     app.push_line("^C 已中断 AI 响应".to_string());
                                                     break;
@@ -1052,8 +1057,34 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                                                     consumed = true;
                                                 }
 
+                                                // === Ctrl+O：toggle detail overlay ===
+                                                if key.code == KeyCode::Char('o')
+                                                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                                                    && !app.is_overlay_mode()
+                                                {
+                                                    // 优先显示已完成的响应，否则显示当前 streaming buffer
+                                                    use crate::detail_overlay::DetailOverlay;
+
+                                                    if let Some(ref response) = app.last_ai_response {
+                                                        let overlay = DetailOverlay::new_transcript(response.clone());
+                                                        app.enter_overlay_mode(overlay);
+                                                        consumed = true;
+                                                    } else if let Some(buffer) = app.get_streaming_buffer() {
+                                                        let overlay = DetailOverlay::new_transcript(buffer.to_string());
+                                                        app.enter_overlay_mode(overlay);
+                                                        consumed = true;
+                                                    }
+                                                } else if app.is_overlay_mode() {
+                                                    // Overlay 模式下的按键（仅未 consumed 时）
+                                                    use crate::event::{EventHandler, ControlFlow};
+                                                    use crate::event::handlers::DetailModeHandler;
+                                                    let mut handler = DetailModeHandler;
+                                                    let _ = handler.handle(&event, &mut app);
+                                                    consumed = true;
+                                                }
+
                                                 // 滚动键（PageUp/PageDown/Shift+方向键）
-                                                if !consumed && !app.is_diff_mode() {
+                                                if !consumed && !app.is_diff_mode() && !app.is_overlay_mode() {
                                                     match key.code {
                                                         KeyCode::PageUp => {
                                                             app.scroll_up(5);
@@ -1214,6 +1245,7 @@ async fn run_tui_repl_async(resume_name: Option<String>) -> Result<(), String> {
                             }
                         }
 
+                        app.end_streaming();  // 🔥 保存完整的 AI 响应
                         app.set_busy(false);
                         app.set_status(String::new());
                         app.push_line(String::new());

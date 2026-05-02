@@ -607,7 +607,7 @@ mod tests {
 
     #[test]
     fn test_brand_palette_completeness() {
-        // 验证 BRAND_PALETTE 包含所有 10 个必需字段
+        // 验证 BRAND_PALETTE 包含所有必需字段
         let field_names: Vec<_> = BRAND_PALETTE.iter().map(|(name, _, _, _)| *name).collect();
 
         assert!(field_names.contains(&"brand"));
@@ -620,8 +620,11 @@ mod tests {
         assert!(field_names.contains(&"code"));
         assert!(field_names.contains(&"table_border"));
         assert!(field_names.contains(&"box_bg"));
+        // Diff 颜色（Ctrl+D 功能）
+        assert!(field_names.contains(&"diff_add_bg"));
+        assert!(field_names.contains(&"diff_del_bg"));
 
-        assert_eq!(field_names.len(), 10);
+        assert_eq!(field_names.len(), 12);
     }
 
     #[test]

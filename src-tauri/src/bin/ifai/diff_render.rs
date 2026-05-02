@@ -463,112 +463,172 @@ impl ScrollableDiff {
 }
 
 // ============================================================================
-// Diff 模式按键映射（查表驱动）
+// 共享滚动动作（Diff + Overlay 复用）
 // ============================================================================
 
-/// Diff 模式动作
+/// 共享滚动动作（diff 模式和 overlay 模式共用）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiffAction {
-    ScrollUp(u16),
-    ScrollDown(u16),
+pub enum ScrollAction {
+    Up(u16),
+    Down(u16),
+    HalfUp,
+    HalfDown,
     PageUp,
     PageDown,
-    ScrollToTop,
-    ScrollToBottom,
-    NextFile,
-    PrevFile,
+    Top,
+    Bottom,
     Exit,
 }
 
-/// 按键映射条目
-struct DiffKeyAction {
+/// 共享滚动按键映射条目
+pub struct ScrollKeyAction {
+    pub key: KeyCode,
+    pub modifiers: KeyModifiers,
+    pub action: ScrollAction,
+}
+
+/// 🎹 共享滚动按键映射表（SCROLL_KEYMAP）
+pub const SCROLL_KEYMAP: &[ScrollKeyAction] = &[
+    ScrollKeyAction {
+        key: KeyCode::Char('j'),
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Down(1),
+    },
+    ScrollKeyAction {
+        key: KeyCode::Down,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Down(1),
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char('k'),
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Up(1),
+    },
+    ScrollKeyAction {
+        key: KeyCode::Up,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Up(1),
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char('g'),
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Top,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char('G'),
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Bottom,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Home,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Top,
+    },
+    ScrollKeyAction {
+        key: KeyCode::End,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Bottom,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char(' '),
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::PageDown,
+    },
+    ScrollKeyAction {
+        key: KeyCode::PageDown,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::PageDown,
+    },
+    ScrollKeyAction {
+        key: KeyCode::PageUp,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::PageUp,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char('d'),
+        modifiers: KeyModifiers::CONTROL,
+        action: ScrollAction::HalfDown,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char('u'),
+        modifiers: KeyModifiers::CONTROL,
+        action: ScrollAction::HalfUp,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Char('q'),
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Exit,
+    },
+    ScrollKeyAction {
+        key: KeyCode::Esc,
+        modifiers: KeyModifiers::empty(),
+        action: ScrollAction::Exit,
+    },
+];
+
+/// 解析共享滚动按键（O(n) 查表）
+pub fn resolve_scroll_key(key: KeyEvent) -> Option<ScrollAction> {
+    SCROLL_KEYMAP
+        .iter()
+        .find(|ka| ka.key == key.code && ka.modifiers == key.modifiers)
+        .map(|ka| ka.action)
+}
+
+// ============================================================================
+// Diff 模式按键映射（查表驱动）
+// ============================================================================
+
+/// Diff 模式动作（组合模式：嵌入共享滚动 + Diff 特有动作）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffAction {
+    Scroll(ScrollAction),  // 嵌入共享滚动
+    NextFile,              // Diff 特有
+    PrevFile,              // Diff 特有
+}
+
+/// Diff 特有按键映射条目（仅 NextFile/PrevFile）
+struct DiffExtraKeyAction {
     key: KeyCode,
     modifiers: KeyModifiers,
     action: DiffAction,
 }
 
-/// 🎹 Diff 模式按键映射表（与 APPROVAL_KEYMAP 同构）
-const DIFF_KEYMAP: &[DiffKeyAction] = &[
-    DiffKeyAction {
-        key: KeyCode::Char('j'),
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::ScrollDown(1),
-    },
-    DiffKeyAction {
-        key: KeyCode::Char('k'),
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::ScrollUp(1),
-    },
-    DiffKeyAction {
-        key: KeyCode::Char('g'),
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::ScrollToTop,
-    },
-    DiffKeyAction {
-        key: KeyCode::Char('G'),
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::ScrollToBottom,
-    },
-    DiffKeyAction {
-        key: KeyCode::Char('q'),
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::Exit,
-    },
-    DiffKeyAction {
-        key: KeyCode::Esc,
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::Exit,
-    },
-    DiffKeyAction {
-        key: KeyCode::Char('d'),
-        modifiers: KeyModifiers::CONTROL,
-        action: DiffAction::Exit,
-    },
-    DiffKeyAction {
-        key: KeyCode::PageDown,
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::PageDown,
-    },
-    DiffKeyAction {
-        key: KeyCode::PageUp,
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::PageUp,
-    },
-    DiffKeyAction {
-        key: KeyCode::Down,
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::ScrollDown(1),
-    },
-    DiffKeyAction {
-        key: KeyCode::Up,
-        modifiers: KeyModifiers::empty(),
-        action: DiffAction::ScrollUp(1),
-    },
-    DiffKeyAction {
+/// Diff 特有按键映射表（DIFF_EXTRA_KEYMAP）
+const DIFF_EXTRA_KEYMAP: &[DiffExtraKeyAction] = &[
+    DiffExtraKeyAction {
         key: KeyCode::Char(']'),
         modifiers: KeyModifiers::empty(),
         action: DiffAction::NextFile,
     },
-    DiffKeyAction {
+    DiffExtraKeyAction {
         key: KeyCode::Right,
         modifiers: KeyModifiers::empty(),
         action: DiffAction::NextFile,
     },
-    DiffKeyAction {
+    DiffExtraKeyAction {
         key: KeyCode::Char('['),
         modifiers: KeyModifiers::empty(),
         action: DiffAction::PrevFile,
     },
-    DiffKeyAction {
+    DiffExtraKeyAction {
         key: KeyCode::Left,
         modifiers: KeyModifiers::empty(),
         action: DiffAction::PrevFile,
     },
 ];
 
-/// 解析 diff 模式按键（查表驱动）
+/// 解析 diff 模式按键（先查共享表，再查特有表）
 pub fn resolve_diff_key(key: KeyEvent) -> Option<DiffAction> {
-    DIFF_KEYMAP
+    // 先尝试共享滚动
+    if let Some(scroll) = resolve_scroll_key(key) {
+        // Ctrl+D 在 diff 模式是 NextFile，不是 Exit
+        if scroll == ScrollAction::HalfDown {
+            return None;  // 让特有表处理
+        }
+        return Some(DiffAction::Scroll(scroll));
+    }
+    // 再尝试 diff 特有
+    DIFF_EXTRA_KEYMAP
         .iter()
         .find(|ka| ka.key == key.code && ka.modifiers == key.modifiers)
         .map(|ka| ka.action)
@@ -625,17 +685,20 @@ mod tests {
 
     #[test]
     fn test_resolve_diff_key() {
+        use crate::diff_render::ScrollAction;
+
         let key_j = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_j), Some(DiffAction::ScrollDown(1)));
+        assert_eq!(resolve_diff_key(key_j), Some(DiffAction::Scroll(ScrollAction::Down(1))));
 
         let key_q = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_q), Some(DiffAction::Exit));
+        assert_eq!(resolve_diff_key(key_q), Some(DiffAction::Scroll(ScrollAction::Exit)));
 
         let key_esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
-        assert_eq!(resolve_diff_key(key_esc), Some(DiffAction::Exit));
+        assert_eq!(resolve_diff_key(key_esc), Some(DiffAction::Scroll(ScrollAction::Exit)));
 
+        // Ctrl+D 在 diff 模式不映射到任何操作（被排除）
         let key_ctrl_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
-        assert_eq!(resolve_diff_key(key_ctrl_d), Some(DiffAction::Exit));
+        assert_eq!(resolve_diff_key(key_ctrl_d), None);
 
         let key_bracket_right = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::empty());
         assert_eq!(resolve_diff_key(key_bracket_right), Some(DiffAction::NextFile));
@@ -651,6 +714,44 @@ mod tests {
 
         let key_unknown = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::empty());
         assert_eq!(resolve_diff_key(key_unknown), None);
+    }
+
+    #[test]
+    fn test_resolve_scroll_key() {
+        let key_j = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::empty());
+        assert_eq!(resolve_scroll_key(key_j), Some(ScrollAction::Down(1)));
+
+        let key_k = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::empty());
+        assert_eq!(resolve_scroll_key(key_k), Some(ScrollAction::Up(1)));
+
+        let key_g = KeyEvent::new(KeyCode::Char('g'), KeyModifiers::empty());
+        assert_eq!(resolve_scroll_key(key_g), Some(ScrollAction::Top));
+
+        let key_G = KeyEvent::new(KeyCode::Char('G'), KeyModifiers::empty());
+        assert_eq!(resolve_scroll_key(key_G), Some(ScrollAction::Bottom));
+
+        let key_q = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty());
+        assert_eq!(resolve_scroll_key(key_q), Some(ScrollAction::Exit));
+
+        let key_ctrl_d = KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL);
+        assert_eq!(resolve_scroll_key(key_ctrl_d), Some(ScrollAction::HalfDown));
+
+        let key_ctrl_u = KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL);
+        assert_eq!(resolve_scroll_key(key_ctrl_u), Some(ScrollAction::HalfUp));
+    }
+
+    #[test]
+    fn test_diff_action_scroll_composition() {
+        use crate::diff_render::ScrollAction;
+
+        let key_j = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::empty());
+        assert_eq!(
+            resolve_diff_key(key_j),
+            Some(DiffAction::Scroll(ScrollAction::Down(1)))
+        );
+
+        let key_bracket_right = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::empty());
+        assert_eq!(resolve_diff_key(key_bracket_right), Some(DiffAction::NextFile));
     }
 
     #[test]

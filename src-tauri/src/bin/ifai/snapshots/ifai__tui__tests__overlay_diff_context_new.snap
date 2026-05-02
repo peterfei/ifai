@@ -1,0 +1,28 @@
+---
+source: src/bin/ifai/tui.rs
+expression: text
+---
+/ D I F F : src/lib.rs (NEW)                                                    
+                                                                                
+fn hello() {                                                                    
+    println!("Hello, World!");                                                  
+}                                                                               
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+↑/k ↑  ↓/j ↓  Space 翻 页   g/G 跳 转   Tab 切 换  old/new           Top

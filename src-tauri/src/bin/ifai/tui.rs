@@ -19,8 +19,9 @@ use ratatui::{
 };
 
 use crate::event::{
-    CombinedKeyHandler, DiffEnterHandler, DiffModeHandler, HelpEnterHandler, HelpExitHandler,
-    IgnoreHandler, MouseScrollHandler, ResizeHandler, SearchEnterHandler, SearchInputHandler,
+    CombinedKeyHandler, DetailEnterHandler, DetailModeHandler, DiffEnterHandler, DiffModeHandler,
+    HelpEnterHandler, HelpExitHandler, IgnoreHandler, MouseScrollHandler, ResizeHandler,
+    SearchEnterHandler, SearchInputHandler,
 };
 use crate::event::{ControlFlow, EventHandler, EventRouter};
 use crate::render;
@@ -214,6 +215,12 @@ pub struct App {
     pub diffs: Vec<crate::diff_render::DiffFileChange>,
     /// 当前查看的 diff 索引
     pub diff_index: usize,
+    /// Streaming 期间累积 AI 响应文本（用于 Transcript 缓存）
+    streaming_response_buffer: String,
+    /// 最近一次完整 AI 响应（用于 Transcript overlay）
+    pub last_ai_response: Option<String>,
+    /// 详情 overlay
+    pub overlay: Option<crate::detail_overlay::DetailOverlay>,
 }
 
 impl App {
@@ -253,6 +260,9 @@ impl App {
             diff_view: None,
             diffs: Vec::new(),
             diff_index: 0,
+            streaming_response_buffer: String::new(),
+            last_ai_response: None,
+            overlay: None,
         };
 
         // 初始化时不添加任何内容，让欢迎页组件接管
@@ -286,6 +296,9 @@ impl App {
             diff_view: None,
             diffs: Vec::new(),
             diff_index: 0,
+            streaming_response_buffer: String::new(),
+            last_ai_response: None,
+            overlay: None,
         }
     }
 
@@ -304,6 +317,37 @@ impl App {
     /// 检测内容区是否为空（用于显示欢迎页）
     pub fn is_empty(&self) -> bool {
         self.content_lines.is_empty()
+    }
+
+    // ============================================================================
+    // AI 响应缓存机制（Transcript 核心支持）
+    // ============================================================================
+
+    /// 开始 streaming 时清空 buffer
+    pub fn begin_streaming(&mut self) {
+        self.streaming_response_buffer.clear();
+    }
+
+    /// 接收 streaming 输出时累积（替代直接 push_line）
+    pub fn append_streaming_output(&mut self, text: String) {
+        // 累积原始文本
+        self.streaming_response_buffer.push_str(&text);
+        // 原有逻辑：显示到终端
+        self.push_line(text);
+    }
+
+    /// Streaming 完成时保存到 last_ai_response
+    pub fn end_streaming(&mut self) {
+        self.last_ai_response = Some(self.streaming_response_buffer.clone());
+    }
+
+    /// 获取当前 streaming buffer（用于 overlay 在 streaming 期间显示）
+    pub fn get_streaming_buffer(&self) -> Option<&str> {
+        if self.streaming_response_buffer.is_empty() {
+            None
+        } else {
+            Some(&self.streaming_response_buffer)
+        }
     }
 
     // ============================================================================
@@ -412,6 +456,35 @@ impl App {
     pub fn is_diff_mode(&self) -> bool {
         self.diff_mode
     }
+
+    // ========================================================================
+    // 🔥 Ctrl+O Detail Overlay 方法（Phase 3）
+    // ========================================================================
+
+    /// 是否处于 overlay 模式
+    pub fn is_overlay_mode(&self) -> bool {
+        self.overlay.is_some()
+    }
+
+    /// 进入 overlay 模式
+    pub fn enter_overlay_mode(&mut self, overlay: crate::detail_overlay::DetailOverlay) {
+        self.overlay = Some(overlay);
+        // 清除终端 buffer，确保 overlay 清晰显示
+        if let Some(terminal) = &mut self.terminal {
+            let _ = terminal.clear();
+        }
+    }
+
+    /// 退出 overlay 模式
+    pub fn exit_overlay_mode(&mut self) {
+        self.overlay = None;
+        // 清除终端 buffer，确保 overlay 残留被清除
+        if let Some(terminal) = &mut self.terminal {
+            let _ = terminal.clear();
+        }
+    }
+
+    // ========================================================================
 
     /// 切换到下一个 diff 文件
     pub fn next_diff(&mut self) {
@@ -757,8 +830,13 @@ impl App {
         // === 内容区 ===
         // 只有在非审批模式下才渲染内容区域
         if !has_approval_state {
+            // === Detail Overlay 显示（优先级最高，占据整个屏幕）===
+            if let Some(ref mut overlay) = self.overlay {
+                // Overlay 占据整个终端屏幕（包括状态栏和输入框区域）
+                overlay.render(f, f.area());
+            }
             // === Diff 模式显示 ===
-            if self.diff_mode {
+            else if self.diff_mode {
                 if let Some(diff_view) = &mut self.diff_view {
                     // 更新视口大小
                     diff_view.set_viewport(content_area.height);
@@ -911,7 +989,10 @@ impl App {
         // === 状态栏和输入框 ===
         // 只有在非审批模式下才渲染状态栏和输入框
         if !has_approval_state {
-            if self.diff_mode {
+            if self.is_overlay_mode() {
+                // === Overlay 模式 ===
+                // 不渲染状态栏、分隔线和输入框，overlay 占据整个屏幕
+            } else if self.diff_mode {
                 // === Diff 模式 ===
                 let (diff_path, file_index) = if self.diff_index < self.diffs.len() {
                     (
@@ -1174,6 +1255,19 @@ impl App {
                         || matches!(e, crossterm::event::Event::Mouse(_))
                 },
                 DiffModeHandler,
+            )
+            // Detail Overlay 进入 - Ctrl+O（优先级高，需要在正常输入之前）
+            .on(
+                |e| matches!(e, crossterm::event::Event::Key(_)),
+                DetailEnterHandler,
+            )
+            // Detail Overlay 模式处理（优先级高，需要在正常输入之前）
+            .on(
+                |e| {
+                    matches!(e, crossterm::event::Event::Key(_))
+                        || matches!(e, crossterm::event::Event::Mouse(_))
+                },
+                DetailModeHandler,
             )
             // 组合键盘处理器（输入 + 滚动）
             .on(
@@ -2567,5 +2661,208 @@ mod tests {
         }
         let buf_bottom = render_to_buffer(&mut app, 80, 24);
         assert_tui_snapshot!("diff_mode_scroll_bottom", &buf_bottom);
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // Ctrl+O Detail Overlay 快照测试
+    // ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_snapshot_overlay_transcript() {
+        use crate::detail_overlay::DetailOverlay;
+
+        let mut app = App::new_for_test();
+
+        // 模拟 AI 响应
+        let ai_response = "Here is the code you requested:\n\n\
+```rust\nfn main() {\n    println!(\"Hello, World!\");\n}\n```\n\nThis program prints a greeting.";
+        app.last_ai_response = Some(ai_response.to_string());
+
+        // 创建并进入 overlay
+        let overlay = DetailOverlay::new_transcript(ai_response.to_string());
+        app.enter_overlay_mode(overlay);
+
+        // 渲染快照
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "T R A N S C R I P T");
+        assert_tui_snapshot!("overlay_transcript", &buf);
+    }
+
+    #[test]
+    fn test_snapshot_overlay_transcript_scrolling() {
+        use crate::detail_overlay::DetailOverlay;
+
+        let mut app = App::new_for_test();
+
+        // 创建一个长的 AI 响应（需要滚动）
+        let long_response: String = (1..=30)
+            .map(|i| format!("Line {}: Some content here\n", i))
+            .collect();
+        app.last_ai_response = Some(long_response.clone());
+
+        // 创建并进入 overlay
+        let overlay = DetailOverlay::new_transcript(long_response);
+        app.enter_overlay_mode(overlay);
+
+        // 渲染初始状态（顶部）
+        let buf_top = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("overlay_transcript_top", &buf_top);
+
+        // 滚动到中间
+        if let Some(ref mut overlay) = app.overlay {
+            overlay.scroll_by(10);
+        }
+        let buf_mid = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("overlay_transcript_middle", &buf_mid);
+
+        // 滚动到底部
+        if let Some(ref mut overlay) = app.overlay {
+            overlay.scroll_to_bottom();
+        }
+        let buf_bottom = render_to_buffer(&mut app, 80, 24);
+        assert_tui_snapshot!("overlay_transcript_bottom", &buf_bottom);
+    }
+
+    #[test]
+    fn test_snapshot_overlay_file_viewer() {
+        use crate::detail_overlay::DetailOverlay;
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 模拟文件内容
+        let file_content = "use std::collections::HashMap;\n\n\
+fn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", \"value\");\n    println!(\"{:?}\", map);\n}\n";
+
+        // 创建 File overlay
+        let overlay = DetailOverlay::new_file(PathBuf::from("src/main.rs"), file_content.to_string());
+        app.enter_overlay_mode(overlay);
+
+        // 渲染快照
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "F I L E");
+        assert_buffer_contains!(&buf, "src/main.rs");
+        assert_tui_snapshot!("overlay_file_viewer", &buf);
+    }
+
+    #[test]
+    fn test_snapshot_overlay_diff_context() {
+        use crate::detail_overlay::DetailOverlay;
+        use std::path::PathBuf;
+
+        let mut app = App::new_for_test();
+
+        // 模拟 diff 上下文
+        let old_content = "fn hello() {\n    println!(\"Hello\");\n}\n";
+        let new_content = "fn hello() {\n    println!(\"Hello, World!\");\n}\n";
+
+        // 创建 DiffContext overlay（显示新内容）
+        let overlay = DetailOverlay::new_diff_context(
+            PathBuf::from("src/lib.rs"),
+            old_content.to_string(),
+            new_content.to_string(),
+            true, // showing_new
+        );
+        app.enter_overlay_mode(overlay);
+
+        // 渲染快照
+        let buf = render_to_buffer(&mut app, 80, 24);
+        assert_buffer_contains!(&buf, "D I F F");
+        assert_buffer_contains!(&buf, "NEW");
+        assert_tui_snapshot!("overlay_diff_context_new", &buf);
+    }
+
+    #[test]
+    fn test_ctrl_o_enters_overlay_via_router() {
+        use crate::detail_overlay::DetailOverlay;
+        use crate::event::{ControlFlow, EventHandler};
+        use crate::event::handlers::DetailEnterHandler;
+
+        let mut app = App::new_for_test();
+
+        // 设置 AI 响应
+        app.last_ai_response = Some("Test response\nLine 2\nLine 3".to_string());
+
+        // 模拟 Ctrl+O 按键
+        let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('o'),
+            crossterm::event::KeyModifiers::CONTROL,
+        ));
+
+        let mut handler = DetailEnterHandler;
+        let result = handler.handle(&event, &mut app);
+
+        // 验证进入了 overlay 模式
+        assert!(app.is_overlay_mode());
+        assert!(matches!(result, ControlFlow::Break(_)));
+
+        // 验证 overlay 内容
+        assert!(app.overlay.is_some());
+    }
+
+    #[test]
+    fn test_overlay_mode_exits_on_esc() {
+        use crate::detail_overlay::DetailOverlay;
+        use crate::event::{ControlFlow, EventHandler};
+        use crate::event::handlers::DetailModeHandler;
+
+        let mut app = App::new_for_test();
+
+        // 进入 overlay 模式
+        let overlay = DetailOverlay::new_transcript("Test content".to_string());
+        app.enter_overlay_mode(overlay);
+        assert!(app.is_overlay_mode());
+
+        // 模拟 Esc 按键
+        let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Esc,
+            crossterm::event::KeyModifiers::empty(),
+        ));
+
+        let mut handler = DetailModeHandler;
+        handler.handle(&event, &mut app);
+
+        // 验证退出了 overlay 模式
+        assert!(!app.is_overlay_mode());
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn test_ctrl_o_toggles_overlay() {
+        use crate::detail_overlay::DetailOverlay;
+        use crate::event::{ControlFlow, EventHandler};
+        use crate::event::handlers::DetailModeHandler;
+
+        let mut app = App::new_for_test();
+
+        // 设置 AI 响应
+        app.last_ai_response = Some("Test response".to_string());
+
+        // 第一次 Ctrl+O - 进入 overlay
+        let event = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('o'),
+            crossterm::event::KeyModifiers::CONTROL,
+        ));
+
+        use crate::event::handlers::DetailEnterHandler;
+        let mut handler = DetailEnterHandler;
+        let result = handler.handle(&event, &mut app);
+
+        // 验证进入了 overlay 模式
+        assert!(app.is_overlay_mode());
+        assert!(matches!(result, ControlFlow::Break(_)));
+
+        // 第二次 Ctrl+O - 应该退出 overlay（通过 DetailModeHandler）
+        let event2 = crossterm::event::Event::Key(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('o'),
+            crossterm::event::KeyModifiers::CONTROL,
+        ));
+
+        let mut mode_handler = DetailModeHandler;
+        mode_handler.handle(&event2, &mut app);
+
+        // 验证退出了 overlay 模式
+        assert!(!app.is_overlay_mode());
+        assert!(app.overlay.is_none());
     }
 }
