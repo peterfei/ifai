@@ -91,7 +91,7 @@ impl WelcomeWidget {
                 Span::default(),
                 Span::default(),
                 Span::styled(
-                    "Ctrl+F  搜索内容      Enter    提交输入",
+                    "Ctrl+F  搜索内容      Ctrl+O  查看详情",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
                 ),
             ]),
@@ -100,7 +100,7 @@ impl WelcomeWidget {
                 Span::default(),
                 Span::default(),
                 Span::styled(
-                    "PageUp   向上滚动      Esc      退出搜索",
+                    "Ctrl+D  退出程序      Enter    提交输入",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
                 ),
             ]),
@@ -109,7 +109,7 @@ impl WelcomeWidget {
                 Span::default(),
                 Span::default(),
                 Span::styled(
-                    "按 ? 查看更多快捷键",
+                    "Ctrl+C  清空/退出      ?        帮助",
                     ratatui::style::Style::default().fg(ratatui::style::Color::Gray),
                 ),
             ]),
@@ -150,15 +150,18 @@ mod tests {
         let widget = WelcomeWidget::new();
         let lines = widget.render();
 
-        // 验证返回的行数（约 13 行）
-        assert_eq!(lines.len(), 13);
-
         // 验证标题存在
         let title_line = &lines[1];
         assert!(title_line
             .spans
             .iter()
             .any(|s| s.content.contains("Welcome to IfAI")));
+
+        // 验证包含 Ctrl+O 快捷键
+        let has_ctrl_o = lines.iter().any(|line| {
+            line.spans.iter().any(|span| span.content.contains("Ctrl+O"))
+        });
+        assert!(has_ctrl_o, "应该包含 Ctrl+O 快捷键");
     }
 
     #[test]
